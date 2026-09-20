@@ -161,7 +161,7 @@ test("the door: a token for another door, a forgery and no credential are 403 --
   await keyed(async () => {
     assert.deepEqual(await answer(await knock(T(1), turn(), { "x-diag-key": "not-the-key" })), [403, { ok: false }]);
     assert.deepEqual(await answer(await knock(T(1), turn(), { "x-edge-token": minted })), [403, { ok: false }], "a token ahead of the secret opens nothing on its own");
-    assert.deepEqual(await answer(await knock(T(1), turn(), { "x-diag-key": KEY })), [400, { ok: false, error: "tenant_id, user_id and purpose 'ask' required" }], "a key holder is about no workspace: the body must name one");
+    assert.deepEqual(await answer(await knock(T(1), turn(), { "x-diag-key": KEY })), [400, { ok: false, error: "tenant_id, user_id and a purpose required" }], "a key holder is about no workspace: the body must name one");
   });
   assert.equal(db.seen.length, 0, "nothing was read for any of it");
   assert.equal(net.calls.length, 0, "the model heard none of it");
@@ -178,15 +178,16 @@ test("without a model key on this edge the door says so before the body is even 
   assert.equal(net.calls.length, 0);
 });
 
-test("what a request must be before the key is spent: a body under the cap, a person and the purpose 'ask', a request the gateway allows -- a known model, one to sixty turns, at most forty tools, a system prompt as a string or blocks -- and a database; none of it reaches the model", async () => {
+test("what a request must be before the key is spent: a body under the cap, a person and a purpose the gateway knows, a request the gateway allows -- a known model, one to sixty turns, at most forty tools, a system prompt as a string or blocks -- and a database; none of it reaches the model", async () => {
   const db = use();
   const net = silent();
   const bad = (error) => [400, { ok: false, error }];
   assert.deepEqual(await answer(await knock(T(1), "x".repeat(GATEWAY_MAX_BODY + 1))), [413, { ok: false, error: "too_large" }], "over the cap: refused by size before it is parsed");
-  assert.deepEqual(await answer(await knock(T(1), "not json")), bad("tenant_id, user_id and purpose 'ask' required"));
-  assert.deepEqual(await answer(await knock(T(1), turn({ user_id: undefined }))), bad("tenant_id, user_id and purpose 'ask' required"));
-  assert.deepEqual(await answer(await knock(T(1), turn({ user_id: "ada" }))), bad("tenant_id, user_id and purpose 'ask' required"));
-  assert.deepEqual(await answer(await knock(T(1), turn({ purpose: "receptionist" }))), bad("tenant_id, user_id and purpose 'ask' required"), "the receptionist has its own brain and its own budget; this door is Ask's");
+  assert.deepEqual(await answer(await knock(T(1), "not json")), bad("tenant_id, user_id and a purpose required"));
+  assert.deepEqual(await answer(await knock(T(1), turn({ user_id: undefined }))), bad("tenant_id, user_id and a purpose required"));
+  assert.deepEqual(await answer(await knock(T(1), turn({ user_id: "ada" }))), bad("tenant_id, user_id and a purpose required"));
+  assert.deepEqual(await answer(await knock(T(1), turn({ purpose: "receptionist" }))), bad("tenant_id, user_id and a purpose required"), "the receptionist has its own brain and its own budget; this door is Ask's");
+  assert.deepEqual(await answer(await knock(T(1), turn({ purpose: "lead_draft", request: { ...REQUEST, model: "gpt-5" } }))), bad("unknown model"), "a lead purpose is past the gate -- it spends Ask's budget on this door -- and the request itself is what is judged next");
   assert.deepEqual(await answer(await knock(T(1), turn({ request: undefined }))), bad("request required"));
   assert.deepEqual(await answer(await knock(T(1), turn({ request: "who needs me?" }))), bad("request required"));
   assert.deepEqual(await answer(await knock(T(1), turn({ request: { ...REQUEST, model: "gpt-5" } }))), bad("unknown model"), "only the models the loop may name");
@@ -244,7 +245,7 @@ test("under the budget: the day's usage is read once for this workspace and Ask'
   assert.deepEqual([row.kind, row.category, row.subject_type, row.subject_id], [ASK_USAGE_KIND, "usage", "user", U], "Ask's own kind, about the person who asked");
   assert.deepEqual({ ...row.data, latency_ms: typeof row.data.latency_ms }, {
     input_tokens: 1200, output_tokens: 42, cache_read_input_tokens: 900, cache_creation_input_tokens: 0,
-    model: "claude-opus-5", latency_ms: "number", stop_reason: "end_turn", stream: true,
+    model: "claude-opus-5", latency_ms: "number", stop_reason: "end_turn", stream: true, purpose: "ask",
   }, "the input side and the cache counts from message_start, the output side and the stop reason from message_delta -- read out of a stream chopped mid-payload");
 
   // Within the minute: the count is the one kept, however many rows landed since.

@@ -17,11 +17,13 @@ import { pg } from "../../lib/pg.js";
 import { ASK_TOKENS_DAY } from "../../lib/workspace/contracts.js";
 import {
   GATEWAY_MAX_BODY,
+  GATEWAY_PURPOSES,
   askTokensLast24h,
   recordAskUsage,
   teeUsage,
   validateGatewayRequest,
 } from "../../lib/ask-gateway.js";
+import type { GatewayPurpose } from "../../lib/ask-gateway.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const API = "https://api.anthropic.com/v1/messages";
@@ -50,10 +52,11 @@ export async function POST(request: Request): Promise<Response> {
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const userId = String(body.user_id || "");
-  if (!UUID.test(tenantId) || !UUID.test(userId) || body.purpose !== "ask") {
-    return json(400, { ok: false, error: "tenant_id, user_id and purpose 'ask' required" });
+  if (!UUID.test(tenantId) || !UUID.test(userId) || !(GATEWAY_PURPOSES as readonly string[]).includes(String(body.purpose))) {
+    return json(400, { ok: false, error: "tenant_id, user_id and a purpose required" });
   }
-  const v = validateGatewayRequest(body.request);
+  const purpose = body.purpose as GatewayPurpose;
+  const v = validateGatewayRequest(body.request, purpose);
   if (!v.ok) return json(400, { ok: false, error: v.error });
 
   const db = pg();
@@ -94,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
   const stream = teeUsage(upstream.body, async (usage, stopReason) => {
     const latency = Date.now() - t0;
     console.log("ask_gateway_turn", JSON.stringify({ tenant: tenantId, ...usage, stop_reason: stopReason, ms: latency }));
-    await recordAskUsage(db, tenantId, userId, { ...usage, model: v.request.model, latency_ms: latency, stop_reason: stopReason, stream: true });
+    await recordAskUsage(db, tenantId, userId, { ...usage, model: v.request.model, latency_ms: latency, stop_reason: stopReason, stream: true, purpose });
   });
   return new Response(stream, {
     status: 200,
