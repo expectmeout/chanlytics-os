@@ -15,7 +15,7 @@
 import { z } from "zod";
 import {
   LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_ENDING_WORDS, LEAD_FITS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
-  LEAD_KIND_KEY, leadKindWord, LeadSearchPlanSchema, planMinutes, planWho, siteHost, stateCode,
+  LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord, LeadSearchPlanSchema, planMinutes, planWho, siteHost, stateCode,
   type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
@@ -74,6 +74,8 @@ export const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
 export const LEAD_REVIEW_WORD = "Needs review";
 export const LEAD_LEFT_OUT_WORD = "Left out";
+/** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
+export const LEAD_UNREACHABLE_WORD = "No way to reach them";
 /** The peek's two groups of checks (P2, §0.1). Nothing read wears a plain check mark. */
 export const LEAD_CHECK_GROUP_WORDS: Record<"seen" | "read", string> = { seen: "Seen", read: "Claude's read" };
 export const LEAD_CHECK_UNSURE = "Couldn't tell";
@@ -656,6 +658,7 @@ export function leadExclusionWord(search: LeadSearchDto | null, key: string | nu
   if (!key) return LEAD_LEFT_OUT_WORD;
   const plan = search?.plan;
   if (key === LEAD_KIND_KEY) return plan ? leadKindWord(plan.name) : LEAD_LEFT_OUT_WORD;
+  if (key === LEAD_UNREACHABLE_KEY) return LEAD_UNREACHABLE_WORD;
   const ex = plan?.exclusions.find((e) => e.key === key);
   if (ex) return ex.text;
   const cr = plan?.criteria.find((c) => c.key === key);

@@ -88,6 +88,14 @@ export const LEAD_REASON_MAX_WORDS = 12;
 export const LEAD_KIND_KEY = "kind";
 /** What the Excluded chip says for a place that was the wrong kind: "Not a wedding planner". */
 export const leadKindWord = (name: string): string => `Not one of the ${name}`;
+
+/**
+ * A place with no phone and no email is not a lead. It used to reach Needs
+ * review as "phone:none" or "email:none" -- work dressed as a lead, and the
+ * largest share of the review pile on the first five real searches. It is
+ * left out under this key, and the chip says why (leads.ts leadExclusionWord).
+ */
+export const LEAD_UNREACHABLE_KEY = "unreachable";
 /** The yield assumed before a probe has measured one: half the places asked for qualify. The card's minutes and the route's estimate both read it. */
 export const LEAD_ASSUMED_YIELD = 0.5;
 /** A round's estimate is reserved with this much room (§13.3: the cap is the estimate with room). */
@@ -497,6 +505,9 @@ export const LEAD_EMAIL_REASON = /^email:/;
  * review. Everything else qualifies. A fit band is derived for ordering.
  */
 export function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: PlaceFacts, emailState: LeadEmailState, inArea: boolean): LeadClassification {
+  // Nothing to call and nothing to write to: not a lead, whatever the judge said. A null phone match is the
+  // place having no phone at all (the phone:none reason below reads it the same way).
+  if (facts.phone_matches_site === null && facts.emails.length === 0) return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons: string[] = [];
   const rubric = [
     { key: LEAD_KIND_KEY, standard: "likely" as const, required: true },

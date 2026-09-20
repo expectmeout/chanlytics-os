@@ -129,6 +129,14 @@ test("classify: everything passing under the standard qualifies; a required fail
   assert.deepEqual([kindUnsure.class, kindUnsure.fit, kindUnsure.reasons], ["review", "look", ["unknown:kind"]], "a kind the facts do not settle is a look, never a guess either way");
   const kindByCategory = classify(p, answer([{ key: "kind", answer: "pass", facts: ["category"] }, { key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts(), "ok", true);
   assert.equal(kindByCategory.class, "qualified", "the kind rests on the category by design: a likely standard, never held to seen's bar");
+  // A place nobody can reach is not a lead: it used to land in Needs review as "phone:none" or "email:none",
+  // which is work dressed as a lead and was the largest share of the review pile on the first five real
+  // searches. It is left out, by a key with words, and the row says why.
+  const unreachable = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts({ emails: [], phone_matches_site: null }), "none", true);
+  assert.deepEqual(unreachable, { class: "excluded", excluded_by: "unreachable", fit: null, reasons: ["unreachable"] }, "no phone and no email: left out, never review");
+  const phoneOnly = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts({ emails: [], phone_matches_site: true }), "none", true);
+  assert.deepEqual([phoneOnly.class, phoneOnly.reasons], ["review", ["email:none"]], "a phone with no email under an email standard is still review: reachable, not yet to the standard");
+  assert.equal(searchWords.LEAD_UNREACHABLE_KEY, "unreachable");
   assert.equal(searchWords.LEAD_KIND_KEY, "kind");
   assert.equal(searchWords.leadKindWord("wedding and event planners"), "Not one of the wedding and event planners", "what the Excluded chip says");
   const unsure = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "unknown", facts: [] }]), facts(), "ok", true);
