@@ -15,6 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { tenantFacts } from "../tenant";
+import { fillerFeedFor } from "../filler-calendar";
 
 /**
  * Openings for the assistant and the palette's fast path, computed the way
@@ -69,6 +70,15 @@ const asRead = (e: FeedEntry): FeedRead => ({ text: e.text, at: e.at, reason: e.
  * before the rule reached the write path is refused here, never fetched.
  */
 export async function loadFeed(tenantId: string, url: string, opts: { fresh?: boolean } = {}): Promise<FeedRead> {
+  // The filler's calendar is made here, never fetched: it is this deployment's own address, and a
+  // serverless function asking its own domain for a file it can write from memory is a round trip that
+  // can time out or be refused. When it failed the day card went silent, because a feed that cannot be
+  // read is not the same as a surface that is missing, and only the second draws a failed-read notice.
+  const made = fillerFeedFor(url);
+  if (made !== null) {
+    const now = Date.now();
+    return { text: made, at: now, reason: null, status: null, checkedAt: now };
+  }
   const hit = feeds.get(tenantId);
   // A fresh read (the board's Refresh) waits out only the floor; everything else, the cache.
   const ttl = opts.fresh ? FEED_FRESH_FLOOR_MS : hit?.reason ? FEED_FAIL_TTL_MS : FEED_TTL_MS;
