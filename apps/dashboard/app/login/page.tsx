@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
+import AuthShell from "@/auth/AuthShell";
 import { authErrorInHash, OAUTH_CANCELLED } from "@/auth/hash-error";
 
 // The words for each failure and the resend wait live in contracts
@@ -153,87 +154,90 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-card">
-      <h1>Chanlytics OS</h1>
-      <p>
-        {stage !== "code"
-          ? "Sign in to your workspace."
-          : unconfirmed
-            ? SIGNUP_WORDS.confirmFromSignIn(email.trim())
-            : "We sent a one-time code to your work email."}
-      </p>
+    <AuthShell>
+      <div className="auth-card">
+        {/* Not "Sign in": the button says that, and the sentence under it said
+            it a third time. This door is for somebody who has been here. */}
+        <h1>{stage === "code" ? "Check your email" : "Welcome back"}</h1>
+        <p>
+          {stage !== "code"
+            ? "Sign in to your workspace."
+            : unconfirmed
+              ? SIGNUP_WORDS.confirmFromSignIn(email.trim())
+              : "We sent a one-time code to your work email."}
+        </p>
 
-      {stage === "password" && <GoogleSignIn next={() => "/" + window.location.hash} />}
+        {stage === "password" && <GoogleSignIn next={() => "/" + window.location.hash} />}
 
-      {stage === "password" ? (
-        <form onSubmit={signInWithPassword}>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="username"
-            required
-            ref={fieldRef}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@business.com"
+        {stage === "password" ? (
+          <form onSubmit={signInWithPassword}>
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              required
+              ref={fieldRef}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@business.com"
+            />
+            <label htmlFor="password">{PASSWORD_WORDS.label}</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••••••"
+            />
+            <button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+            <div className="auth-row">
+              <button type="button" className="auth-linkbtn" onClick={() => void sendCode()} disabled={busy || !email.trim()}>
+                {PASSWORD_WORDS.codeInstead}
+              </button>
+              <a href={`/reset-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`}>
+                {PASSWORD_WORDS.forgot}
+              </a>
+            </div>
+          </form>
+        ) : (
+          <CodeStep
+            email={email.trim()}
+            label={`Enter the 6-digit code sent to ${email.trim()}`}
+            submitLabel="Sign in"
+            onSubmit={async (typed) => {
+              const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "email" });
+              if (error) return verifyCodeWords(error.message);
+              landed();
+              return null;
+            }}
+            onResend={async () => {
+              // An unconfirmed account is resent a CONFIRMATION; asking for a
+              // sign-in code instead would be a different credential for a door
+              // this account has not opened yet.
+              const { error } = unconfirmed
+                ? await supabase.auth.resend({ type: "signup", email: email.trim() })
+                : await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
+              return error ? requestCodeWords(error) : null;
+            }}
+            onBack={() => { setStage("password"); setError(null); setUnconfirmed(false); }}
+            backLabel={PASSWORD_WORDS.passwordInstead}
           />
-          <label htmlFor="password">{PASSWORD_WORDS.label}</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••••••"
-          />
-          <button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-          <div className="auth-row">
-            <button type="button" className="auth-linkbtn" onClick={() => void sendCode()} disabled={busy || !email.trim()}>
-              {PASSWORD_WORDS.codeInstead}
-            </button>
-            <a href={`/reset-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`}>
-              {PASSWORD_WORDS.forgot}
-            </a>
-          </div>
-        </form>
-      ) : (
-        <CodeStep
-          email={email.trim()}
-          label={`Enter the 6-digit code sent to ${email.trim()}`}
-          submitLabel="Sign in"
-          onSubmit={async (typed) => {
-            const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "email" });
-            if (error) return verifyCodeWords(error.message);
-            landed();
-            return null;
-          }}
-          onResend={async () => {
-            // An unconfirmed account is resent a CONFIRMATION; asking for a
-            // sign-in code instead would be a different credential for a door
-            // this account has not opened yet.
-            const { error } = unconfirmed
-              ? await supabase.auth.resend({ type: "signup", email: email.trim() })
-              : await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
-            return error ? requestCodeWords(error) : null;
-          }}
-          onBack={() => { setStage("password"); setError(null); setUnconfirmed(false); }}
-          backLabel={PASSWORD_WORDS.passwordInstead}
-        />
-      )}
+        )}
 
-      {/* role=alert: a refused sign-in must be ANNOUNCED, not just painted — a
-          screen-reader user otherwise hears nothing and resubmits into
-          silence. The region stays mounted so repeat errors re-fire. */}
-      <div role="alert" aria-live="assertive">
-        {error && <div className="error">{error}</div>}
-        {nudge && <div className="hint">{PASSWORD_WORDS.wrongNudge}</div>}
+        {/* role=alert: a refused sign-in must be ANNOUNCED, not just painted — a
+            screen-reader user otherwise hears nothing and resubmits into
+            silence. The region stays mounted so repeat errors re-fire. */}
+        <div role="alert" aria-live="assertive">
+          {error && <div className="error">{error}</div>}
+          {nudge && <div className="hint">{PASSWORD_WORDS.wrongNudge}</div>}
+        </div>
+        <div className="hint">{SIGNUP_WORDS.newHere} <a href="/signup">Create your workspace</a></div>
       </div>
-      <div className="hint">{SIGNUP_WORDS.newHere} <a href="/signup">Create your workspace</a></div>
-      <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
-    </main>
+    </AuthShell>
   );
 }

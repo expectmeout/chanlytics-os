@@ -1,90 +1,183 @@
-/* Shell styles for the auth/diagnostic pages. Variables are auth-prefixed so
-   they can never collide with the legacy design system (tokens.css). */
+/* The pages outside the OS: sign-in, sign-up, the reset, the legal pages, a
+   workspace's public "say yes" page and the desk sign.
+
+   THEY TAKE THE OS'S OWN TOKENS. This file used to open with seven --auth-*
+   colours of its own -- a dark green page, a teal button, the system font --
+   while the product behind the door is ink and coral set in Geist. A person
+   signing in met one product and landed in another. tokens.css is the one
+   spelling of the palette now; the --auth-* names below are kept as aliases
+   because the legal, "say yes" and sign pages further down are written in
+   them, and they resolve to whatever the theme says rather than to a second
+   set of values that can drift. */
+@import "../src/legacy/styles/tokens.css";
+
 :root {
-  --auth-bg: #0e1512;
-  --auth-surface: #16201c;
-  --auth-ink: #e5ece9;
-  --auth-muted: #93a5a0;
-  --auth-line: #24322e;
-  --auth-teal: #3cb79e;
-  --auth-danger: #d9776f;
+  --auth-bg: var(--bg);
+  --auth-surface: var(--bg-raised);
+  --auth-ink: var(--ink);
+  --auth-muted: var(--ink-muted);
+  --auth-line: var(--line);
+  /* The accent these pages call for by its old name. It is the OS's, which is
+     coral; nothing on a signed-out page is teal any more. */
+  --auth-teal: var(--accent-ink);
+  --auth-danger: var(--danger-ink);
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  background: var(--auth-bg);
-  color: var(--auth-ink);
-  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
+
+/* ---------------------------------------------------------------- the doors */
+
+/* The form and the half that says what this is. One column on a phone, where
+   the panel is not rendered at all: the form is the work, and nothing
+   decorative goes above the thing somebody came to do. */
+.auth-split { min-height: 100dvh; display: grid; grid-template-columns: 1fr; }
+.auth-col { display: grid; align-content: center; justify-items: center; padding: 40px 20px; }
+.auth-colinner { width: 100%; max-width: 380px; }
+.auth-mark { display: flex; align-items: center; gap: 9px; margin: 0 0 30px; font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); }
+.auth-mark-dot { width: 9px; height: 9px; border-radius: var(--radius-full); background: var(--accent); flex: none; }
+.auth-mark-name { color: var(--ink); }
+.auth-foot { margin: 26px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.auth-foot a { color: var(--ink-dim); text-decoration: none; }
+.auth-foot a:hover { color: var(--ink-muted); text-decoration: underline; text-underline-offset: 2px; }
+
+/* The card. Standalone it is a bordered card, which is what the OS's own
+   error boundary renders; inside the split it is just the form column, so it
+   drops the border, the background and the centring. */
 .auth-card {
   max-width: 380px;
   margin: 18vh auto 0;
-  background: var(--auth-surface);
-  border: 1px solid var(--auth-line);
-  border-radius: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   padding: 28px;
 }
-.auth-card h1 { font-size: 1.3rem; margin: 0 0 4px; }
-.auth-card p { color: var(--auth-muted); font-size: 0.9rem; margin: 0 0 18px; }
-.auth-card label { display: block; font-size: 0.8rem; color: var(--auth-muted); margin-bottom: 6px; }
+.auth-split .auth-card { max-width: none; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; }
+.auth-card h1 { font-size: var(--text-3xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 8px; text-wrap: balance; }
+.auth-card p { color: var(--ink-muted); font-size: var(--text-md); line-height: var(--leading-snug); margin: 0 0 22px; text-wrap: pretty; }
+.auth-card label { display: block; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-muted); margin-bottom: 6px; }
 .auth-card input {
   width: 100%;
-  background: var(--auth-bg);
-  color: var(--auth-ink);
-  border: 1px solid var(--auth-line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 0.95rem;
-  margin-bottom: 14px;
+  background: var(--bg-raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  padding: 11px 12px;
+  font-size: var(--text-md);
+  margin-bottom: 15px;
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
-.auth-card input:focus { outline: 2px solid var(--auth-teal); outline-offset: 1px; }
+.auth-card input::placeholder { color: var(--ink-faint); }
+.auth-card input:hover { border-color: var(--ink-faint); }
+.auth-card input:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .auth-card button {
   width: 100%;
-  background: var(--auth-teal);
-  color: #06120e;
-  font-weight: 600;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: var(--weight-semibold);
   border: none;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 0.95rem;
+  border-radius: var(--radius-md);
+  padding: 11px 12px;
+  font-size: var(--text-md);
   cursor: pointer;
+  transition: filter var(--duration-fast) var(--ease-out);
 }
-.auth-card button:disabled { opacity: 0.6; cursor: default; }
-/* The one link on the auth cards (sign-up ↔ sign-in) takes the card's accent, not the browser's blue. */
-.auth-card a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
+.auth-card button:hover:not(:disabled) { filter: brightness(1.08); }
+.auth-card button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.auth-card button:disabled { opacity: 0.55; cursor: default; }
+.auth-card a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
 .auth-card a:hover { opacity: 0.85; }
-.auth-legal { margin-top: 14px; font-size: 0.78rem; }
-.auth-legal a { color: var(--auth-muted); }
-/* Sign in with Google: Google's button is white with the G, whatever the card's own accent. */
-.auth-card .auth-google { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; color: #1f1f1f; border: 1px solid #dadce0; margin-bottom: 6px; }
-.auth-card .auth-google:hover:not(:disabled) { background: #f7f8f8; }
+.auth-legal { margin-top: 14px; font-size: var(--text-sm); }
+.auth-legal a { color: var(--ink-dim); }
+
+/* Sign in with Google, in Google's dark-theme shape because the page is dark:
+   their own guidelines draw it this way, with the four-colour G left of the
+   words. */
+.auth-card .auth-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--bg-raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  font-weight: var(--weight-medium);
+  margin-bottom: 6px;
+}
+.auth-card .auth-google:hover:not(:disabled) { filter: none; background: var(--bg-hover); }
 .auth-card .auth-google svg { width: 18px; height: 18px; flex: none; }
 .auth-card .auth-google-hint { margin-top: 0; margin-bottom: 10px; }
-.auth-or { display: flex; align-items: center; gap: 10px; color: var(--auth-muted); font-size: 0.78rem; margin: 14px 0; }
-.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--auth-line); }
-/* A button that is a link: the second door on a credential screen ("email me a
-   code instead", "resend"). These were inline style objects repeated on every
-   such control; one class instead, so they cannot drift apart. */
+.auth-or { display: flex; align-items: center; gap: 12px; color: var(--ink-dim); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; margin: 18px 0; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* A button that reads as a link: the way to the code door, the way back from
+   it, and "resend". */
 .auth-card .auth-linkbtn {
   width: auto;
   background: none;
   border: none;
   padding: 0;
-  font: inherit;
-  color: var(--auth-teal);
+  color: var(--ink-muted);
+  font-size: inherit;
+  font-weight: var(--weight-regular);
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
 }
-.auth-card .auth-linkbtn:disabled { opacity: 0.6; cursor: default; text-decoration: none; }
+.auth-card .auth-linkbtn:hover:not(:disabled) { filter: none; color: var(--ink); }
+.auth-card .auth-linkbtn:disabled { opacity: 0.55; cursor: default; text-decoration: none; }
 .auth-card .auth-linkbtn-spaced { margin-left: 8px; }
-/* The two ways off the password form, side by side under it. Wraps rather than
-   squeezing: "Forgot your password?" is not a place to clip a word. */
-.auth-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 0.8rem; }
-/* A note belonging to the field above it, so it sits inside the field's own
-   bottom margin rather than opening a gap of its own. */
-.auth-card .auth-field-hint { color: var(--auth-muted); font-size: 0.75rem; margin: -8px 0 14px; }
+.auth-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 14px; font-size: var(--text-sm); }
+.auth-card .auth-field-hint { color: var(--ink-dim); font-size: var(--text-sm); margin: -9px 0 15px; }
+
+/* ------------------------------------------------- the half beside the form */
+
+/* Not rendered on a phone: see .auth-split. */
+.auth-aside { display: none; }
+@media (min-width: 900px) {
+  .auth-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .auth-aside {
+    display: grid;
+    align-content: center;
+    margin: 10px 10px 10px 0;
+    padding: 52px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-2xl);
+    background:
+      radial-gradient(120% 90% at 100% 0%, var(--accent-soft), transparent 62%),
+      var(--bg-sunken);
+    overflow: hidden;
+  }
+}
+.auth-aside-inner { max-width: 460px; }
+.auth-aside-title { margin: 0 0 12px; font-size: var(--text-4xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); text-wrap: balance; }
+.auth-aside-lead { margin: 0; color: var(--ink-muted); font-size: var(--text-md); line-height: var(--leading-relaxed); text-wrap: pretty; }
+.auth-show {
+  margin: 34px 0 0;
+  padding: 18px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+.auth-show-head { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.auth-show-live { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--accent); flex: none; }
+.auth-show-msg {
+  width: fit-content;
+  max-width: 88%;
+  margin: 0 0 8px;
+  padding: 10px 13px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+.auth-show-out { margin-left: auto; background: var(--accent-soft); color: var(--ink); }
+.auth-show-foot { margin: 14px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
 
 /* The two public pages every platform review links to. Same tokens as the
    auth card, a reading width instead of a form's. */
