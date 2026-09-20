@@ -55,6 +55,25 @@ function sideOf(sizes: string | undefined): number {
   return best;
 }
 
+/**
+ * The marks a WEBSITE BUILDER serves, the same address for every shop on it. Reading 315 real lead sites found seven
+ * Squarespace shops all answering with Squarespace's own favicon and seven Wix shops with Wix's -- storing that
+ * draws one stranger's logo across seven unrelated leads, which is worse than the initials it would replace.
+ *
+ * These are exact addresses, never hosts: the same CDNs serve what each shop uploaded itself, and that IS its mark.
+ * The list grows only from a default seen in the wild, because refusing a guess costs a company its real logo.
+ */
+const PLATFORM_DEFAULTS = new Set([
+  "assets.squarespace.com/universal/default-favicon.ico",
+  "static.parastorage.com/client/pfavico.ico",
+]);
+
+/** True when the address is the platform's stock mark rather than this company's. */
+function isPlatformDefault(url: string): boolean {
+  const bare = url.slice(url.indexOf("//") + 2).split(/[?#]/)[0].toLowerCase();
+  return PLATFORM_DEFAULTS.has(bare) || /(^|\/)default-favicon\.[a-z0-9]+$/.test(bare);
+}
+
 /** An address as the browser would read it from this page: absolute, http(s), and short enough to keep. */
 function absolute(href: string, origin: string): string | null {
   const raw = href.trim();
@@ -68,7 +87,9 @@ function absolute(href: string, origin: string): string | null {
   // A mark served over plain http cannot draw on a page served over https -- the browser blocks it -- so an address
   // we could never show is no better than none. Every site that answers on http answers on https today; ask for the
   // one that can be seen, and the photo takes over if it turns out it cannot.
-  return url.replace(/^http:\/\//i, "https://");
+  const secure = url.replace(/^http:\/\//i, "https://");
+  // A builder's own default is refused here, so BOTH readings below fall through to whatever else the page declares.
+  return isPlatformDefault(secure) ? null : secure;
 }
 
 /** Higher is better; 0 is "not a mark". The tier decides first, the size only breaks a tie inside it. */
