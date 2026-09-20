@@ -127,6 +127,26 @@ export function leadNoteLeft(left: number, max: number): string {
 
 /** An unclaimed listing rarely watches its email; the peek says so, quietly (D2). */
 export const LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
+
+/** Below this, the unhappy reviews are the ordinary few every business has, and saying so would be noise. */
+export const LEAD_LOW_SHARE_FLOOR = 0.15;
+
+/**
+ * The one thing five bars said that the average cannot: how much of the score is carried by people who were unhappy.
+ * A 4.5 out of forty reviews and a 4.5 out of forty where a quarter gave one star are different businesses to call,
+ * and the mean hides it. So the peek says it in words, and only when it changes the picture -- under a sixth at one
+ * or two stars is the ordinary tail of any listing, and a line about it would be noise on every lead.
+ *
+ * Null when the listing published no breakdown, when it has no reviews, or when nothing is worth saying.
+ */
+export function leadLowShare(dist: { one: number; two: number; three: number; four: number; five: number } | null): string | null {
+  if (!dist) return null;
+  const total = dist.one + dist.two + dist.three + dist.four + dist.five;
+  if (total <= 0) return null;
+  const share = (dist.one + dist.two) / total;
+  if (share < LEAD_LOW_SHARE_FLOOR) return null;
+  return `${Math.round(share * 100)}% at 1–2 stars`;
+}
 /** The first day of Leads, before a workspace has kept one search (§8.9). */
 export const LEAD_FIRST_DAY_TITLE = "Your people gather here";
 export const LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
@@ -676,13 +696,15 @@ export interface LeadPeekVM {
   where: { line: string; href: string | null } | null;
   today: string | null;
   image: string | null;
-  reviewsDist: [number, number, number, number, number] | null;
   claimedNote: string | null;
   /* ---- D5: the peek re-cut ---- */
   /** The tile behind the photo band: the mark, else initials on the kind's tint, drawn when there is no photo. */
   tile: { initials: string; tint: number; logo: string | null };
-  /** "4.7" and "1,284", apart; null where the source does not rate. */
-  rated: { score: string; count: string } | null;
+  /**
+   * "4.7" and "1,284", apart; null where the source does not rate. `low` is the one thing five bars said that an
+   * average cannot, and it is null unless it is worth saying: see `leadLowShare`.
+   */
+  rated: { score: string; count: string; low: string | null } | null;
   /** The two reach slots, as the row wears them. */
   slots: { phone: LeadSlot; mailbox: LeadSlot };
   /** The week's hours as bars, in the listing's own order, today marked; [] when the listing showed no hours. */
@@ -844,7 +866,10 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     ...(unsure ? [`${unsure} couldn't tell`] : []),
     ...(failed ? [`${failed} failed`] : []),
   ].join(" · ");
-  const rated = r.rating === null || r.rating === undefined ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const rated =
+    r.rating === null || r.rating === undefined
+      ? null
+      : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US"), low: leadLowShare(r.reviews_dist ?? null) };
   // The trace is always three lines: the listing, their site, the mailbox. The head says how many so the panel can
   // fold it away and still say what happened.
   const foundWays: number = 3;
@@ -873,7 +898,6 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     where: leadWhere(r),
     today: leadTodayLine(r.hours ?? [], tz, now),
     image: r.image_url ?? null,
-    reviewsDist: r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null,
     claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,

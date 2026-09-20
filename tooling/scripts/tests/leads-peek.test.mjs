@@ -653,8 +653,10 @@ test("D5: the peek opens on a photo band with Expand, decides with a verdict car
   assert.ok(byTestId(tree, "peek-verdict"), "the fit is a card");
   assert.equal(textOf(byTestId(tree, "peek-fit")), "Strong fit. Independent coaching · 5.0 from 16 reviews · email checked");
   const rated = byTestId(tree, "peek-rated");
+  // D7: one line, not five bars. This lead's unhappy share is 2 of 16, under the floor, so nothing is said about it.
   assert.match(textOf(rated), /^What people say5\.016 reviews/);
-  assert.equal(all(byTestId(rated, "peek-rated-bars"), (n) => n.props?.className === "ld-bar-row").length, 5, "one bar a star");
+  assert.equal(byTestId(rated, "peek-rated-bars"), null, "the five bars are gone: they drew on every lead and repeated the average");
+  assert.equal(byTestId(rated, "peek-rated-low"), null, "an ordinary tail of unhappy reviews is not worth a line");
   assert.equal(textOf(byTestId(rated, "peek-claimed")), "Listing not claimed by the owner", "whether anyone watches the listing sits with what people say");
   assert.equal(textOf(byTestId(tree, "peek-checks-summary")), "7 checks passed", "the strip and the words, with the label gone: the head is the summary");
   assert.equal(byTestId(tree, "peek-checks").props.open, undefined, "folded away, so the act at the foot is reachable without scrolling past seven rows");

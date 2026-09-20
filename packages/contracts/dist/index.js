@@ -11172,6 +11172,15 @@ function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
+var LEAD_LOW_SHARE_FLOOR = 0.15;
+function leadLowShare(dist) {
+  if (!dist) return null;
+  const total = dist.one + dist.two + dist.three + dist.four + dist.five;
+  if (total <= 0) return null;
+  const share = (dist.one + dist.two) / total;
+  if (share < LEAD_LOW_SHARE_FLOOR) return null;
+  return `${Math.round(share * 100)}% at 1\u20132 stars`;
+}
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
@@ -11613,7 +11622,7 @@ function toLeadPeekVM(r, search, tz, now) {
     ...unsure ? [`${unsure} couldn't tell`] : [],
     ...failed ? [`${failed} failed`] : []
   ].join(" \xB7 ");
-  const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US"), low: leadLowShare(r.reviews_dist ?? null) };
   const foundWays = 3;
   const facts = [
     ...r.category ? [{ k: "Kind", v: r.category }] : [],
@@ -11640,7 +11649,6 @@ function toLeadPeekVM(r, search, tz, now) {
     where: leadWhere(r),
     today: leadTodayLine(r.hours ?? [], tz, now),
     image: r.image_url ?? null,
-    reviewsDist: r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null,
     claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,
@@ -12396,6 +12404,7 @@ export {
   LEAD_LISTS,
   LEAD_LIST_WORDS,
   LEAD_LOCKED_LINE,
+  LEAD_LOW_SHARE_FLOOR,
   LEAD_MAILBOX_WORDS,
   LEAD_MAX_PLACES,
   LEAD_MEMBER_CLASSES,
@@ -12841,6 +12850,7 @@ export {
   leadEndingLine,
   leadExclusionWord,
   leadKindWord,
+  leadLowShare,
   leadLowerFirst,
   leadMapAcross,
   leadMapPlot,

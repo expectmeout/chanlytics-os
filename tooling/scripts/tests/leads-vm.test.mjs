@@ -373,7 +373,7 @@ test("D5: the week's hours as bars, and the peek's own additions -- the tile, th
     { key: "mailbox", how: "seen", answer: "unknown", source: "Mailbox check", reason: null },
     { key: "independent", how: "read", answer: "no", source: "Claude", reason: "a franchise" },
   ] } }), SEARCH_DONE, TZ, NOW);
-  assert.deepEqual([vm.tile, vm.rated, vm.distance, vm.checksSummary], [{ initials: "ZS", tint: leadTintOf("Personal trainer"), logo: null }, { score: "5.0", count: "16" }, "1.2 mi", "1 check passed · 1 couldn't tell · 1 failed"]);
+  assert.deepEqual([vm.tile, vm.rated, vm.distance, vm.checksSummary], [{ initials: "ZS", tint: leadTintOf("Personal trainer"), logo: null }, { score: "5.0", count: "16", low: null }, "1.2 mi", "1 check passed · 1 couldn't tell · 1 failed"]);
   assert.deepEqual(vm.week.map((d) => [d.day, d.today, d.bar]), [["Friday", true, { x: 25, w: 58.3 }]]);
   assert.deepEqual(vm.facts, [{ k: "Kind", v: "Personal trainer" }, { k: "Price", v: "$$" }, { k: "Rated", v: "5.0 from 16 reviews" }, { k: "Listing", v: "Not claimed by the owner" }, { k: "Found at", v: "#3 for “personal trainer”" }, { k: "Other listings", v: "2 listings for this business" }]);
   assert.deepEqual([vm.slots.phone.state, vm.slots.mailbox.state], ["ok", "ok"]);
@@ -407,14 +407,19 @@ test("the peek knows who they are: their own words, where, whether they are open
   assert.equal(toLeadPeekVM(row({ ...shown, hours: [] }), SEARCH_DONE, TZ, NOW).today, null, "no hours, no line");
   assert.equal(v.image, "https://lh3.example/p.jpg");
   assert.equal(v.sub, "Personal trainer · $$ · Miami, FL", "the price rides the sub-line between the kind and the place");
-  assert.deepEqual(v.reviewsDist, [1, 0, 2, 8, 30]);
+  // D7: the peek keeps no distribution, because it drew five bars that repeated the average. What the average cannot
+  // say is how much of it unhappy people carry, and that is a line only when it changes the picture. 1 of 41 is not.
+  assert.equal(v.rated.low, null, "an ordinary tail of unhappy reviews is not worth a line on every lead");
+  assert.equal(toLeadPeekVM(row({ ...shown, reviews_dist: { one: 9, two: 3, three: 2, four: 8, five: 30 } }), SEARCH_DONE, TZ, NOW).rated.low, "23% at 1–2 stars", "a quarter of them unhappy is a different business to call");
+  assert.equal(toLeadPeekVM(row({ ...shown, reviews_dist: null }), SEARCH_DONE, TZ, NOW).rated.low, null, "a listing that published no breakdown says nothing");
+  assert.deepEqual([v.rated.score, v.rated.count], ["5.0", "16"], "the score and the count stay, apart");
   assert.deepEqual([v.links.facebook?.label, v.links.linkedin, v.links.tiktok?.label, v.links.maps?.label], ["Facebook", null, "TikTok", "Google Maps"], "each social the listing gave, and the Maps page");
   assert.equal(v.claimedNote, "Listing not claimed by the owner", "an unclaimed listing rarely watches its email");
   assert.equal(toLeadPeekVM(row({ ...shown, claimed: true }), SEARCH_DONE, TZ, NOW).claimedNote, null);
   assert.equal(toLeadPeekVM(row({ ...shown, claimed: null }), SEARCH_DONE, TZ, NOW).claimedNote, null, "a listing that did not say is not called unclaimed");
   assert.match(v.found[0].what, /^On Google Maps, #3 for “/, "the rank rides the first line of Found");
   const before = toLeadPeekVM(row(), SEARCH_DONE, TZ, NOW);
-  assert.deepEqual([before.about, before.today, before.image, before.reviewsDist, before.claimedNote, before.links.facebook, before.links.maps], [null, null, null, null, null, null, null], "a lead from before D2 claims none of it");
+  assert.deepEqual([before.about, before.today, before.image, before.claimedNote, before.links.facebook, before.links.maps], [null, null, null, null, null, null], "a lead from before D2 claims none of it");
   assert.match(before.found[0].what, /^On Google Maps, searching “/, "and is found the way it was");
 });
 

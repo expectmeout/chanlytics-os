@@ -693,10 +693,11 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-verdict.review { border-color: oklch(from var(--warn) l c h / 0.4); background: var(--warn-soft); }
 .pk-verdict .pk-fit { margin: 0; }
 .pk-rated { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.pk-rated-head { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 6px; }
-.pk-rated .ld-bar-row { margin-top: 2px; }
+.pk-rated-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 2px 0 0; }
 .pk-rated-score { font-family: var(--font-mono); font-size: 26px; line-height: 1; color: var(--ink); }
 .pk-rated-count { font-size: var(--text-xs); color: var(--ink-dim); }
+/* The one thing the bars said that the average cannot. It speaks rarely, so it is allowed to be the warn colour. */
+.pk-rated-low { font-size: var(--text-xs); color: var(--warn-ink); }
 .pk-rated-note { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
 .pk-rated-note .pk-quiet { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .pk-box { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 0 13px 11px; }

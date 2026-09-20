@@ -102,26 +102,16 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
 /** What people say (D5): the score large, the count, one bar a star, and whether anyone watches the listing. */
 const LeadPeekRated = ({ vm }) => {
   const W = window.__LEAD_WORDS;
-  const dist = vm.reviewsDist;
-  const total = dist ? dist.reduce((a, b) => a + b, 0) || 1 : 1;
   return (
     <div className="pk-rated" data-testid="peek-rated">
       <div className="pk-label">{W.ratedHeading}</div>
+      {/* One line, not five bars (D7). The bars drew on every lead and said the same thing the average already said,
+          except in the one case the average hides -- so that case is the only thing left, and it is said in words. */}
       <div className="pk-rated-head">
         <span className="pk-rated-score">{vm.rated.score}</span>
         <span className="pk-rated-count">{vm.rated.count} reviews</span>
+        {vm.rated.low ? <span className="pk-rated-low" data-testid="peek-rated-low">{vm.rated.low}</span> : null}
       </div>
-      {dist ? (
-        <div className="pk-rated-bars" data-testid="peek-rated-bars">
-          {[5, 4, 3, 2, 1].map((star) => (
-            <div key={star} className="ld-bar-row">
-              <span className="k">{star}</span>
-              <span className="ld-bar"><span style={{ width: `${Math.round((dist[star - 1] / total) * 100)}%` }} /></span>
-              <span className="n">{dist[star - 1].toLocaleString("en-US")}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
       {vm.claimedNote ? <div className="pk-rated-note"><span className="pk-quiet" data-testid="peek-claimed"><Icon name="info" size={12} />{vm.claimedNote}</span></div> : null}
     </div>
   );
