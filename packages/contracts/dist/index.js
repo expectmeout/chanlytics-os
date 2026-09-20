@@ -11375,7 +11375,20 @@ var ProposeLeadSearchSchema = z7.object({
   leave_out: z7.array(z7.object({ words: planChip(40) })).max(6).default([]),
   asked: z7.string().trim().min(1).max(400)
 });
-var US_NAMES2 = /* @__PURE__ */ new Set(["us", "usa", "u.s.", "u.s.a.", "united states", "united states of america"]);
+var US_NAMES2 = /* @__PURE__ */ new Set(["us", "usa", "u.s.", "u.s.a.", "united states", "united states of america", "the united states", "america", "the us", "the usa"]);
+var countryKey = (c) => c.trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim();
+function placeOf(input) {
+  const region = (input.region ?? "").trim();
+  const city = (input.city ?? "").trim();
+  const direct = stateCode(region);
+  if (direct) return { city: city || null, state: direct };
+  for (const packed of [region, city]) {
+    const m = packed.match(/^(.*?),\s*([A-Za-z .]+)$/);
+    if (m && stateCode(m[2])) return { city: m[1].trim() || city || null, state: stateCode(m[2]) };
+  }
+  if (stateCode(city) && !stateCode(region)) return { city: region || null, state: stateCode(city) };
+  return { city: city || null, state: null };
+}
 function planKey(text, fallback, taken) {
   const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
   let key = /^[a-z]/.test(base) ? base : fallback;
@@ -11386,16 +11399,17 @@ function planKey(text, fallback, taken) {
 }
 var titleWords = (s) => s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 function planArea2(input) {
-  const state = stateCode(input.region);
+  const place = placeOf(input);
+  const state = place.state;
   if (!state) return null;
   if (input.zip) return { kind: "zip", label: `near ${input.zip}`, state, center: null, radius_m: 8e3, zip: input.zip, query: `${input.zip}, ${state}, USA` };
-  const city = (input.city ?? "").trim();
+  const city = place.city ?? "";
   if (city) return { kind: "city", label: `${city}, ${state}`, state, center: null, radius_m: 25e3, query: `${city}, ${state}, USA` };
-  const label = /^[A-Za-z]{2}$/.test(input.region) ? state : titleWords(input.region);
+  const label = /^[A-Za-z]{2}$/.test(input.region.trim()) ? state : titleWords(input.region.trim());
   return { kind: "city", label, state, center: null, radius_m: 2e5, query: `${label}, USA` };
 }
 function planLeadSearch(input) {
-  if (!US_NAMES2.has(input.country.trim().toLowerCase())) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
+  if (!US_NAMES2.has(countryKey(input.country))) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
   if (input.looking_for === "people") return { ok: false, refusal: { kind: "not_businesses", text: leadNotBusinessesLine(null), what: input.who } };
   if (input.looking_for !== "local_businesses") return { ok: false, refusal: { kind: "no_card", text: leadNoCardLine(input.who), what: input.who } };
   const area = planArea2(input);

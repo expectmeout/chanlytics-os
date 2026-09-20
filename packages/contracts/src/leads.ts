@@ -492,7 +492,29 @@ export type LeadPlanned =
   | { ok: true; plan: LeadSearchPlan; view: LeadPlanView }
   | { ok: false; refusal: { kind: LeadPlanRefusalKind; text: string; what: string | null } };
 
-const US_NAMES = new Set(["us", "usa", "u.s.", "u.s.a.", "united states", "united states of america"]);
+const US_NAMES = new Set(["us", "usa", "u.s.", "u.s.a.", "united states", "united states of america", "the united states", "america", "the us", "the usa"]);
+/** "United States (US)" and "the U.S." are the same country as "US"; brackets and a leading "the" say nothing more. */
+const countryKey = (c: string) => c.trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim();
+/**
+ * Where the state is, when the model put "Miami, FL" in one field and a city
+ * in the other. The tool asks for a city and its two-letter state apart, and
+ * a model reliably packs them together instead; that is a plan that is
+ * complete in every way that matters, so it is read rather than refused.
+ */
+function placeOf(input: Pick<ProposeLeadSearch, "city" | "region">): { city: string | null; state: string | null } {
+  const region = (input.region ?? "").trim();
+  const city = (input.city ?? "").trim();
+  const direct = stateCode(region);
+  if (direct) return { city: city || null, state: direct };
+  // "Miami, FL" or "Miami, Florida" in either field: the last part is the state.
+  for (const packed of [region, city]) {
+    const m = packed.match(/^(.*?),\s*([A-Za-z .]+)$/);
+    if (m && stateCode(m[2])) return { city: m[1].trim() || city || null, state: stateCode(m[2]) };
+  }
+  // The state alone in the city field, with a city in the region field.
+  if (stateCode(city) && !stateCode(region)) return { city: region || null, state: stateCode(city) };
+  return { city: city || null, state: null };
+}
 /** A criterion's or an exclusion's own key, from its words, so the judge's rubric and the chips name the same thing. */
 function planKey(text: string, fallback: string, taken: Set<string>): string {
   const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
@@ -507,12 +529,13 @@ const titleWords = (s: string) => s.replace(/\S+/g, (w) => w.charAt(0).toUpperCa
 
 /** Where to look, as the plan spells it: a ZIP, a city and its state, or the state on its own. */
 function planArea(input: ProposeLeadSearch): LeadArea | null {
-  const state = stateCode(input.region);
+  const place = placeOf(input);
+  const state = place.state;
   if (!state) return null;
   if (input.zip) return { kind: "zip", label: `near ${input.zip}`, state, center: null, radius_m: 8_000, zip: input.zip, query: `${input.zip}, ${state}, USA` };
-  const city = (input.city ?? "").trim();
+  const city = place.city ?? "";
   if (city) return { kind: "city", label: `${city}, ${state}`, state, center: null, radius_m: 25_000, query: `${city}, ${state}, USA` };
-  const label = /^[A-Za-z]{2}$/.test(input.region) ? state : titleWords(input.region);
+  const label = /^[A-Za-z]{2}$/.test(input.region.trim()) ? state : titleWords(input.region.trim());
   return { kind: "city", label, state, center: null, radius_m: 200_000, query: `${label}, USA` };
 }
 
@@ -524,7 +547,7 @@ function planArea(input: ProposeLeadSearch): LeadArea | null {
  * are the same plan.
  */
 export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
-  if (!US_NAMES.has(input.country.trim().toLowerCase())) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
+  if (!US_NAMES.has(countryKey(input.country))) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
   if (input.looking_for === "people") return { ok: false, refusal: { kind: "not_businesses", text: leadNotBusinessesLine(null), what: input.who } };
   if (input.looking_for !== "local_businesses") return { ok: false, refusal: { kind: "no_card", text: leadNoCardLine(input.who), what: input.who } };
   const area = planArea(input);

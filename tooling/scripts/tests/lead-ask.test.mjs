@@ -155,6 +155,24 @@ test("propose_lead_search makes a plan card for an owner; the model's plan is co
   assert.equal(out.proposal.undo, "Stop the search");
 });
 
+// A model writes "Wedding-Venue", "Miami, FL" in one field and "United States (US)" more often than not. Each is a
+// plan complete in every way that matters; each used to be a refusal the model then explained to the owner as a
+// snag of its own, and no card. The composer's own path (planLeadSearch) reads the same place, so both agree.
+test("what a model writes and the plan means the same thing: a Title-Case key, a packed city, a bracketed country", async () => {
+  const t = toolContext({ role: "owner", tables: world() });
+  const out = await buildProposal(t, "propose_lead_search", {
+    ...MODEL_INPUT, category_key: "Wedding-Venue", city: "Miami, FL", region: "Miami", country: "United States (US)",
+    who: "wedding venues", who_one: "wedding venue", terms: ["wedding venue", "event space"],
+  });
+  assert.equal(out.isError, false, out.result);
+  assert.deepEqual([out.proposal.payload.plan.area.label, out.proposal.payload.plan.area.state, out.proposal.payload.plan.area.query], ["Miami, FL", "FL", "Miami, FL, USA"]);
+  assert.equal(out.proposal.payload.facts.priorOf, "wedding_venue", "the key it asked the prior for is the plan's own shape, not the model's Title-Case");
+  const stateInCity = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, city: "Florida", region: "Miami" });
+  assert.equal(stateInCity.proposal.payload.plan.area.label, "Miami, FL", "the two fields swapped still name one place");
+  const abroad = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, country: "Canada", region: "ON", city: "Toronto" });
+  assert.equal(abroad.isError, true, "and a country that is not the US is still a refusal in words");
+});
+
 test("the card carries the facts under the sentence: what a search would skip, what is left this month, and what past searches for this kind measured", async () => {
   const t = toolContext({ role: "owner", tables: world() });
   const out = await buildProposal(t, "propose_lead_search", MODEL_INPUT);
