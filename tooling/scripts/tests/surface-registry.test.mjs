@@ -86,7 +86,7 @@ test("the real set is exactly the converted surfaces", () => {
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["admin/activity", "admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/platform", "admin/profile", "admin/setup", "admin/team", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "live", "messages", "outbound", "reports", "segments", "today"]);
+  assert.deepEqual(real, ["admin/activity", "admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/platform", "admin/profile", "admin/setup", "admin/team", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "leads", "live", "messages", "outbound", "reports", "segments", "today"]);
   // The back office tab, asked the way the shell asks: by page and pane. It
   // was never listed, fell through to the page's "demo", and a platform admin
   // who clicked Back office got the Not-in-this-release card.
@@ -258,7 +258,20 @@ test("REGRESSION: the route gate resolves the PANE, not just the page", () => {
 
 test("a seeded pane is not made to wait for a surface that does not feed it", () => {
   assert.equal(registry.routeSurfaceFor("admin", "nonsense"), undefined);
-  assert.equal(registry.routeSurfaceFor("leads"), undefined);
+});
+
+test("the Leads SCOPE of People waits for its own surface, not for People's", () => {
+  // People has two scopes fed by two surfaces. Asked about the page, the gate
+  // waits for People's rows and opens — so the Leads scope would paint with no
+  // searches, no rows and no counts for as long as its own read took, which is
+  // the frame of invented-looking emptiness this gate exists to prevent.
+  assert.equal(registry.routeSurfaceFor("clients", "leads"), "leads");
+  assert.equal(registry.routeSurfaceFor("clients", "leads:s-3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c:l-ready"), "leads");
+  assert.equal(registry.routeSurfaceFor("clients"), "people", "the list of clients is still People's");
+  // The bare route redirects (SURFACE_RETIRED), and is classified because the
+  // registry's two halves must agree: real means an override feeds it.
+  assert.equal(registry.routeSurfaceFor("leads"), "leads");
+  assert.equal(registry.surfaceRetiredTo("leads"), "clients/leads");
 });
 
 test("People resolves to its override for the list AND for a profile deep link", () => {
@@ -327,6 +340,17 @@ test("the tab bar offers what the registry says is real, and only that", () => {
       assert.ok(t.demoOnly, `${t.id} → ${t.to} is a demo surface but the tab is offered in production`);
     } else {
       assert.ok(!t.demoOnly, `${t.id} → ${t.to} is real but the tab is hidden outside a demo`);
+      // And a real surface reached by another address is not a tab either:
+      // leads is the Leads SCOPE of People at clients/leads, and its switch is
+      // the rail's own People | Leads. A tab pointing at the retired route
+      // would bounce through the redirect to reach a scope the page already
+      // draws. Asked of the tabs production offers, which is where that costs
+      // something: the Deal board is demo-only AND retired, and the redirect is
+      // off in a demo, so that tab still reaches the seeded page it names. A
+      // real surface that moved has no page left at the old address at all --
+      // and a demo-only tab pointing at one is caught a line above, because a
+      // real surface may not be hidden outside a demo.
+      assert.ok(!registry.SURFACE_RETIRED[t.to], `${t.id} → ${t.to} is retired; the bar offers where it went, not where it was`);
     }
   }
 

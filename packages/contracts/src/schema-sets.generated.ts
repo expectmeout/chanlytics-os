@@ -53,7 +53,7 @@ export const SCHEMA_SETS = {
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
-  "lead_operations.kind": ["undo_search", "keep", "exclude", "put_back", "include", "stop"],
+  "lead_operations.kind": ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"],
   "lead_preferences.kind": ["chain", "wrong_kind", "too_far"],
   "lead_rounds.answered": ["keep", "include", "stop"],
   "lead_rounds.ending": [
@@ -103,7 +103,7 @@ export const SCHEMA_SETS = {
   "notifications.kind": [
     "handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people",
     "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent",
-    "broadcast_stopped",
+    "broadcast_stopped", "leads_ready", "leads_question",
   ],
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],

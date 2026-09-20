@@ -150,6 +150,7 @@ before(async () => {
   await seed("lead_operations", { tenant_id: A, kind: "keep", search_id: ctx.leadSearch, lead_ids: [ctx.lead], version: 1 }, null);
   await seed("lead_preferences", { tenant_id: A, kind: "chain" }, null);
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
+  await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
 
   // The service role's own tables, seeded so "a member reads nothing" is not
   // proved on an empty table. A platform admin is a user who is nobody's
@@ -237,6 +238,7 @@ const TENANT_TABLES = {
   lead_operations: ["member", () => ({ tenant_id: A, kind: "exclude", search_id: ctx.leadSearch, lead_ids: [ctx.lead], version: 1 })],
   lead_preferences: ["member", () => ({ tenant_id: A, kind: "too_far" })],
   lead_suppressions: ["member", () => ({ tenant_id: A, kind: "email", hash: "stranger", what: "email_opt_out" })],
+  lead_suggestions: ["member", () => ({ tenant_id: A, business_line: "a stranger line" })],
   lead_searches_view: ["member", () => ({ tenant_id: A, via: "people", card: "local_businesses", name: "stranger", asked: "stranger", plan: {} })],
 };
 

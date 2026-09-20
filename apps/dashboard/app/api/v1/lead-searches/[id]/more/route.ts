@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LeadSearchPlanSchema, type LeadSearchPlan } from "@chanlytics/contracts";
+import { LeadSearchPlanSchema, SPEND_LEADS, type LeadSearchPlan } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
@@ -20,6 +20,8 @@ export const POST = write({
   role: "owner",
   rate: "lead_search",
   spend: true,
+  // A refusal here is about finding leads, not about buying a number.
+  spendWords: SPEND_LEADS,
   input: Body,
   handle: async ({ ctx, member, input }) => {
     const search = await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search"));

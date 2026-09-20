@@ -6,6 +6,7 @@ import { z as z4 } from "zod";
 import { z as z5 } from "zod";
 import { z as z6 } from "zod";
 import { z as z7 } from "zod";
+import { z as z8 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -95,7 +96,13 @@ var EVENT_KINDS = [
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card"
+  "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -846,6 +853,7 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_FACT_MAX = 120;
 var LEAD_REASON_MAX_WORDS = 12;
@@ -935,6 +943,7 @@ var LeadSearchPlanSchema = z6.object({
   if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
   if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
+var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name, code2]) => [code2, name]));
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
@@ -1012,6 +1021,126 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
+var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
+var LEAD_NOT_A_FIT_WORDS = {
+  chain: "A chain or franchise",
+  wrong_kind: "The wrong kind of business",
+  too_far: "Too far away",
+  customer: "Already a customer",
+  other: "Something else"
+};
+var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+var LEAD_SENT_QUESTION = "Did you send it?";
+var LEAD_CALL_QUESTION = "How did the call go?";
+var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
+var LEAD_NOTE_MAX = 280;
+var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
+function leadNoteLeft(left, max) {
+  return left >= max ? `Up to ${max} characters` : `${left} left`;
+}
+var LEAD_WORDS = {
+  close: "Close",
+  open: "Open",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE,
+  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE,
+  sentQuestion: LEAD_SENT_QUESTION,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id] })),
+  noteLabel: "A note about the call",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
+  noteMax: LEAD_NOTE_MAX,
+  noteLeft: leadNoteLeft,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  draftWriting: "Writing it\u2026",
+  draftNote: LEAD_DRAFT_NOTE,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email."
+};
+var LeadsQuerySchema = z7.object({
+  list: z7.enum(LEAD_LISTS).default("all"),
+  search: z7.string().uuid().optional(),
+  class: z7.enum(LEAD_CLASSES).optional(),
+  sort: z7.enum(LEAD_SORTS).default("fit"),
+  dir: z7.enum(["asc", "desc"]).default("asc"),
+  after_key: z7.string().max(80).optional(),
+  after_id: z7.string().uuid().optional(),
+  limit: z7.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema = z7.discriminatedUnion("kind", [
+  z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
+  z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z7.object({ kind: z7.literal("said_no") }),
+  z7.object({ kind: z7.literal("outcome"), outcome: z7.enum(LEAD_CALL_OUTCOMES), note: z7.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z7.object({ kind: z7.literal("emailed") })
+]);
+var LeadsBulkSchema = z7.discriminatedUnion("by", [
+  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit"]), ids: z7.array(z7.string().uuid()).min(1).max(500) }),
+  z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+]);
+var LeadDraftInputSchema = z7.object({
+  tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema = z7.object({ name: z7.string().trim().min(1).max(80) });
+var BusinessLineSchema = z7.object({ business_line: z7.string().trim().min(3).max(160) });
+var planChip = (max) => z7.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z7.object({
+  looking_for: z7.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z7.string().trim().min(2).max(40),
+  count: z7.number().int().min(1).max(LEAD_MAX_PLACES),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip(60),
+  category_key: z7.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z7.array(planChip(60)).min(1).max(5),
+  city: z7.string().trim().max(60).nullable().default(null),
+  region: z7.string().trim().min(2).max(40),
+  zip: z7.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z7.enum(["phone", "email"]),
+  criteria: z7.array(z7.object({ text: planChip(120), standard: z7.enum(["likely", "seen"]), required: z7.boolean() })).max(6).default([]),
+  leave_out: z7.array(z7.object({ words: planChip(40) })).max(6).default([]),
+  asked: z7.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
+var LeadSuggestAnswerSchema = z7.object({
+  line: z7.string().trim().min(3).max(160),
+  items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
@@ -1084,12 +1213,12 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z7.object({
-  places: z7.array(z7.object({
-    ref: z7.number().int(),
-    criteria: z7.array(z7.object({ key: z7.string(), answer: z7.enum(["pass", "fail", "unknown"]), facts: z7.array(z7.string()) })),
-    email_index: z7.number().int().nullable(),
-    reason: z7.string()
+var AnswerSchema = z8.object({
+  places: z8.array(z8.object({
+    ref: z8.number().int(),
+    criteria: z8.array(z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })),
+    email_index: z8.number().int().nullable(),
+    reason: z8.string()
   }))
 });
 function factKeysOf(p) {

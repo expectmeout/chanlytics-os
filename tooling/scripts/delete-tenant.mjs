@@ -73,7 +73,7 @@ const TABLES = [
   "decisions", "escalations", "events", "google_connections", "google_listing_days",
   "google_listings", "google_reviews", "idempotency_keys", "invitations", "jobs",
   "lead_counters", "lead_judgments", "lead_operations", "lead_places", "lead_preferences", "lead_rounds", "lead_runs",
-  "lead_search_members", "lead_searches", "lead_suppressions", "leads", "lines",
+  "lead_search_members", "lead_searches", "lead_suggestions", "lead_suppressions", "leads", "lines",
   "mailboxes", "memberships", "messages", "notification_reads", "notifications", "playbooks", "policies",
   "segment_members", "segments", "templates", "tenant_channels", "tenant_config",
 ];

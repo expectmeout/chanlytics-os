@@ -339,7 +339,13 @@ var EVENT_KINDS = [
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card"
+  "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -696,8 +702,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z8] = m;
-  if (z8) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z9] = m;
+  if (z9) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -2761,10 +2767,10 @@ If someone asks about one of these dates, say the business is closed that day an
   }
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
-      const bits = [sv.name];
-      if (sv.duration_min) bits.push(`about ${sv.duration_min} minutes`);
-      if (sv.price_note) bits.push(sv.price_note);
-      return `- ${bits.join(" \u2014 ")}`;
+      const bits2 = [sv.name];
+      if (sv.duration_min) bits2.push(`about ${sv.duration_min} minutes`);
+      if (sv.price_note) bits2.push(sv.price_note);
+      return `- ${bits2.join(" \u2014 ")}`;
     });
     s.push(`
 Services:
@@ -4507,7 +4513,7 @@ function agoLabel(atMs, now) {
   return agoShort(atMs, now);
 }
 var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
-var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped"];
+var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question"];
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -4536,6 +4542,10 @@ var SERVER_LOOK = {
   broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Broadcasts", to: "broadcasts" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  /** A search that finished: good news, on the page the leads are on. */
+  leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
+  /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
+  leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads" },
   /** A review on Google: good news with somewhere to read it. */
   review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
   /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
@@ -5054,15 +5064,15 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     if (who && oldest) detail = `${who} has been waiting since ${oldest}.`;
     tone = "needs";
   } else {
-    const bits = [];
+    const bits2 = [];
     if (p.messages_in) {
-      bits.push(
+      bits2.push(
         `${p.messages_in} message${p.messages_in === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}`
       );
     }
-    if (p.calls) bits.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
+    if (p.calls) bits2.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
     const allByReceptionist = p.unanswered_in_window === 0 && p.messages_out_you === 0;
-    headline = bits.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits.join(" and ")} today. Nothing needs you.` : `${bits.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
+    headline = bits2.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits2.join(" and ")} today. Nothing needs you.` : `${bits2.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
     if (p.median_reply_seconds_ai !== null && p.messages_in > 0) {
       detail = `It answered ${p.answered_by_ai} of the ${p.messages_in} on its own, typically in about ${secondsPhrase(
         p.median_reply_seconds_ai
@@ -5668,6 +5678,7 @@ var ASK_PAGE_ROUTES = [
   "today",
   "inbox",
   "clients",
+  "clients/leads",
   "segments",
   "conversations",
   "live",
@@ -5800,7 +5811,8 @@ var PROPOSAL_GATE = {
   settings: "settings",
   invite: "team",
   broadcast: "approve",
-  playbook: "approve"
+  playbook: "approve",
+  lead_search: "find"
 };
 var ASK_UNDO_MS = 10 * 6e4;
 function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
@@ -5839,6 +5851,9 @@ var ASK_PAGES = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
+  // Leads is the other scope of People, and it is its own place to an owner: the businesses
+  // a search found, worked. `leads` was the mockup's page and is not offered.
+  { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
   { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
   { label: "Conversations", to: "conversations", kind: "page" },
@@ -8130,15 +8145,17 @@ function maySpend(mode, status) {
   if (mode !== "stripe") return true;
   return status === "trialing" || status === "active";
 }
-function whyCannotSpend(mode, status) {
+var SPEND_NUMBER = { before: "buying a number", can: "buy a number" };
+var SPEND_LEADS = { before: "finding leads", can: "find leads" };
+function whyCannotSpend(mode, status, doing = SPEND_NUMBER) {
   if (maySpend(mode, status)) return null;
-  if (status === "none") return "Add a card before buying a number \u2014 nothing is charged until your trial ends.";
+  if (status === "none") return `Add a card before ${doing.before} \u2014 nothing is charged until your trial ends.`;
   if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
   if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
   if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
-    return "This workspace is not subscribed. Start it again from Billing before buying a number.";
+    return `This workspace is not subscribed. Start it again from Billing before ${doing.before}.`;
   }
-  return "Billing needs attention before this workspace can buy a number. Open Billing to sort it out.";
+  return `Billing needs attention before this workspace can ${doing.can}. Open Billing to sort it out.`;
 }
 function tenantStatusFor(mode, status) {
   if (mode !== "stripe") return null;
@@ -9029,6 +9046,8 @@ var SHORTCUTS = [
   { group: "People", keys: ["X", "Space"], does: "Select the person" },
   { group: "People", keys: ["\u21B5"], does: "Open their profile" },
   { group: "People", keys: ["Esc"], does: "Clear the selection" },
+  { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
+  { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
   { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
@@ -9606,7 +9625,7 @@ var LEAD_CLOSED_REASONS = ["said_no", "not_a_fit", "customer", "stale", "search_
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_FITS = ["strong", "look", "long"];
 var LEAD_COUNTER_KINDS = ["allowance", "budget", "day"];
-var LEAD_OPERATION_KINDS = ["undo_search", "keep", "exclude", "put_back", "include", "stop"];
+var LEAD_OPERATION_KINDS = ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"];
 var LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"];
 var LEAD_SUPPRESSION_KINDS = ["email", "place", "phone"];
 var LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased"];
@@ -9621,6 +9640,7 @@ var LEAD_JUDGE_BATCH = 25;
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_FACT_MAX = 120;
 var LEAD_REASON_MAX_WORDS = 12;
+var LEAD_ASSUMED_YIELD = 0.5;
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
@@ -9713,12 +9733,58 @@ var LeadSearchPlanSchema = z6.object({
 var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 var lowerFirst2 = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 var list = (xs) => xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
-function planSentence(plan) {
-  const have = plan.criteria.map((c) => c.standard === "seen" ? `${lowerFirst2(c.text)} (confirmed)` : lowerFirst2(c.text));
-  const contact = plan.contact === "email" ? "then find their email and check it" : "a phone is enough";
-  const head = `Find ${plan.count} ${plan.name} in ${plan.area.label}${have.length ? ` ${list(have)}` : ""}, ${contact}.`;
+var PLACE_CLAUSE = /\s+(?:in|near|around|within|across|throughout|at|inside|serving)\s+\S.*$/i;
+var SAYS_WHERE = /^(?:in|near|around|within|across|throughout|at|inside)\s+/i;
+var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name, code2]) => [code2, name]));
+var bits = (s) => s.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
+function planWho(plan) {
+  const m = PLACE_CLAUSE.exec(plan.name);
+  const a = plan.area;
+  const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
+  const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
+  const cut = whole ? "" : m && bits(m[0]).some((w) => known.has(w)) ? plan.name.slice(0, m.index).trim() : plan.name.trim();
+  return lowerFirst2(cut) || list(plan.terms.map(lowerFirst2));
+}
+function planWhere(area) {
+  const label = area.label.trim();
+  return SAYS_WHERE.test(label) ? label : `in ${label}`;
+}
+function planArea(area) {
+  const bare = area.label.trim().replace(/^within\s+[\d.]+\s*\w+\s+of\s+/i, "").replace(/^(?:in|at|inside|near|around|throughout|across)\s+/i, "").trim();
+  return bare || area.label.trim();
+}
+function planWords(plan) {
+  const out = [
+    { text: "Find ", pick: null },
+    { text: String(plan.count), pick: "count" },
+    { text: " ", pick: null },
+    { text: planWho(plan), pick: "who" },
+    { text: " ", pick: null },
+    { text: planWhere(plan.area), pick: "where" }
+  ];
+  for (const c of plan.criteria) {
+    out.push({ text: " ", pick: null });
+    out.push({ text: c.standard === "seen" ? `${lowerFirst2(c.text)} (confirmed)` : lowerFirst2(c.text), pick: "criterion", key: c.key });
+  }
+  out.push({ text: ", ", pick: null });
+  out.push({ text: plan.contact === "email" ? "then find their email and check it" : "a phone is enough", pick: "contact" });
+  out.push({ text: ".", pick: null });
+  return out;
+}
+function planSaid(plan) {
+  return planWords(plan).map((w) => w.text).join("");
+}
+function planLeavingOut(plan) {
   const out = plan.exclusions.map((e) => lowerFirst2(e.text));
-  return out.length ? `${head} Leaving out: ${list(out)}.` : head;
+  return out.length ? ` Leaving out: ${list(out)}.` : "";
+}
+function planSentence(plan) {
+  return `${planSaid(plan)}${planLeavingOut(plan)}`;
+}
+var LEAD_COUNT_CHOICES = [50, 100, 200, 500];
+function planMinutes(plan) {
+  const places = LEAD_PROBE_PLACES + placesToAsk(plan, plan.count, LEAD_ASSUMED_YIELD).total;
+  return Math.max(2, Math.round(places / cardOf(plan).placesPerMinute));
 }
 function stableStringify(v) {
   if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
@@ -9778,6 +9844,7 @@ var LEAD_CARDS = [
     checkPerEmailUsd: 89e-5,
     startUsd: 5e-5,
     maxPerTerm: 120,
+    placesPerMinute: 50,
     examples: [
       "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
@@ -10139,110 +10206,110 @@ var num = (o, k) => typeof o[k] === "number" ? o[k] : null;
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const base = kind === "take_over" && str(p, "how") === "transfer" ? "Took over a call" : WORDS[kind] ?? humanize(kind);
-  const bits = [];
+  const bits2 = [];
   switch (kind) {
     case "take_over": {
-      if (str(p, "how") === "transfer") bits.push("passed to the business's line");
+      if (str(p, "how") === "transfer") bits2.push("passed to the business's line");
       break;
     }
     case "consent_change":
     case "contact.consent_changed": {
       const purpose = str(p, "purpose") === "marketing" ? "offers" : "messages about their visit";
       const consent = str(p, "consent");
-      bits.push(consent === "opted_in" ? `yes to ${purpose}` : consent === "opted_out" ? `no to ${purpose}` : `${purpose}: not asked`);
+      bits2.push(consent === "opted_in" ? `yes to ${purpose}` : consent === "opted_out" ? `no to ${purpose}` : `${purpose}: not asked`);
       const source = str(p, "source");
-      if (source && source !== "operator") bits.push(source.replace(/_/g, " "));
+      if (source && source !== "operator") bits2.push(source.replace(/_/g, " "));
       break;
     }
     case "change_role": {
       const role = str(p, "role") ?? str(p, "to");
-      if (role) bits.push(`to ${role}`);
+      if (role) bits2.push(`to ${role}`);
       break;
     }
     case "export": {
       const what = str(p, "what");
-      if (what) bits.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
+      if (what) bits2.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
       const rows = num(p, "rows");
-      if (rows !== null) bits.push(`${rows} rows`);
+      if (rows !== null) bits2.push(`${rows} rows`);
       break;
     }
     case "pause_agent":
     case "resume_agent": {
       const mode = str(p, "receptionist_mode");
-      if (mode) bits.push(mode === "inherit" ? "follows the workspace" : mode);
+      if (mode) bits2.push(mode === "inherit" ? "follows the workspace" : mode);
       const batch = num(p, "batch");
-      if (batch) bits.push(`one of ${batch}`);
+      if (batch) bits2.push(`one of ${batch}`);
       break;
     }
     case "send_broadcast": {
       const name = str(p, "name");
-      if (name) bits.push(name);
+      if (name) bits2.push(name);
       const n = num(p, "recipients");
-      if (n !== null) bits.push(`${n} people`);
-      if (p.approved === true) bits.push("approved by hand");
+      if (n !== null) bits2.push(`${n} people`);
+      if (p.approved === true) bits2.push("approved by hand");
       break;
     }
     case "broadcast.sent": {
       const sent = num(p, "sent");
       const held = num(p, "held");
-      if (sent !== null) bits.push(`${sent} got it`);
-      if (held) bits.push(`${held} held`);
+      if (sent !== null) bits2.push(`${sent} got it`);
+      if (held) bits2.push(`${held} held`);
       break;
     }
     case "settings.changed": {
       const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
-      if (fields.length) bits.push(fields.slice(0, 4).join(", "));
+      if (fields.length) bits2.push(fields.slice(0, 4).join(", "));
       break;
     }
     case "policy.changed": {
       const cls = str(p, "class");
       const mode = str(p, "mode");
-      if (cls) bits.push(cls);
-      if (mode) bits.push(mode);
+      if (cls) bits2.push(cls);
+      if (mode) bits2.push(mode);
       break;
     }
     case "line.texting_rejected":
     case "line.failed": {
       const why = str(p, "error") ?? str(p, "reason");
-      if (why) bits.push(why.slice(0, 80));
+      if (why) bits2.push(why.slice(0, 80));
       break;
     }
     case "platform.acted": {
       const action = str(p, "action");
-      if (action) bits.push(action);
+      if (action) bits2.push(action);
       break;
     }
     case "playbook.run": {
       const outcome = str(p, "outcome");
-      if (outcome) bits.push(outcome);
+      if (outcome) bits2.push(outcome);
       const n = num(p, "recipients") ?? num(p, "count");
-      if (n !== null) bits.push(`${n} people`);
+      if (n !== null) bits2.push(`${n} people`);
       break;
     }
     case "lead.round": {
       const state = str(p, "state");
       if (state === "ended") {
-        bits.push("finished");
+        bits2.push("finished");
         const ending = str(p, "ending");
-        if (ending && ending in LEAD_ENDING_WORDS) bits.push(LEAD_ENDING_WORDS[ending]);
+        if (ending && ending in LEAD_ENDING_WORDS) bits2.push(LEAD_ENDING_WORDS[ending]);
         const counted2 = num(p, "counted");
-        if (counted2 !== null) bits.push(`${counted2} found`);
+        if (counted2 !== null) bits2.push(`${counted2} found`);
       } else if (state) {
-        bits.push(state === "queued" ? "started" : state === "waiting_on_owner" ? "waiting on your answer" : state.replace(/_/g, " "));
+        bits2.push(state === "queued" ? "started" : state === "waiting_on_owner" ? "waiting on your answer" : state.replace(/_/g, " "));
       }
       break;
     }
     case "lead.no_card": {
       const card = str(p, "card");
-      if (card) bits.push(card.replace(/_/g, " "));
+      if (card) bits2.push(card.replace(/_/g, " "));
       const asked = str(p, "asked");
-      if (asked) bits.push(asked.slice(0, 80));
+      if (asked) bits2.push(asked.slice(0, 80));
       break;
     }
     default:
       break;
   }
-  return bits.length ? `${base} \xB7 ${bits.join(" \xB7 ")}` : base;
+  return bits2.length ? `${base} \xB7 ${bits2.join(" \xB7 ")}` : base;
 }
 var TONES = {
   // danger -- it failed, it was refused, or something is gone
@@ -10793,7 +10860,7 @@ var SCHEMA_SETS = {
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
-  "lead_operations.kind": ["undo_search", "keep", "exclude", "put_back", "include", "stop"],
+  "lead_operations.kind": ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"],
   "lead_preferences.kind": ["chain", "wrong_kind", "too_far"],
   "lead_rounds.answered": ["keep", "include", "stop"],
   "lead_rounds.ending": [
@@ -10891,7 +10958,9 @@ var SCHEMA_SETS = {
     "template_ready",
     "template_blocked",
     "broadcast_sent",
-    "broadcast_stopped"
+    "broadcast_stopped",
+    "leads_ready",
+    "leads_question"
   ],
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],
@@ -10978,8 +11047,556 @@ function leadSuppressionHash(tenantId, value) {
   return keyedDigest(tenantId, value);
 }
 
-// src/lead-judge.ts
+// src/leads.ts
 import { z as z7 } from "zod";
+var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
+var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_STAGE_WORDS = { ready: "Ready", nurture: "Contacted", converted: "Talking", archived: "Closed" };
+var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_FIT_WORDS = { strong: "Strong fit", look: "Worth a look", long: "Long shot" };
+var LEAD_EMAIL_WORDS = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
+var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_LIST_WORDS = { all: "All leads", ready: "Ready", nurture: "Contacted", converted: "Talking", said_no: "Said no", not_a_fit: "Not a fit" };
+var LEAD_SOURCE_WORD = "Google Maps listing";
+var LEAD_LOCKED_LINE = "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
+var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
+var LEAD_NO_ADDRESS = "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
+var LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
+var LEAD_NOT_A_FIT_WORDS = {
+  chain: "A chain or franchise",
+  wrong_kind: "The wrong kind of business",
+  too_far: "Too far away",
+  customer: "Already a customer",
+  other: "Something else"
+};
+var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+var LEAD_SUPPRESSING_WHY = "customer";
+var LEAD_REVIEW_WORD = "Needs review";
+var LEAD_LEFT_OUT_WORD = "Left out";
+var LEAD_CHECK_GROUP_WORDS = { seen: "Seen", read: "Claude's read" };
+var LEAD_CHECK_UNSURE = "Couldn't tell";
+var LEAD_CHECK_WORDS = {
+  on_maps: { yes: "Open for business", no: "Not open for business", unknown: LEAD_CHECK_UNSURE },
+  in_area: { yes: "In the area you asked for", no: "Outside the area you asked for", unknown: LEAD_CHECK_UNSURE },
+  phone_two_sources: { yes: "Phone matches on two sources", no: "Phone from one source only", unknown: LEAD_CHECK_UNSURE },
+  mailbox: { yes: "Mailbox exists", no: "Mailbox doesn't exist", unknown: LEAD_CHECK_UNSURE },
+  independent: { yes: "Not a chain", no: "Part of a chain", unknown: LEAD_CHECK_UNSURE },
+  right_kind: { yes: "The kind you asked for", no: "Not the kind you asked for", unknown: LEAD_CHECK_UNSURE },
+  own_address: { yes: "The business's own address", no: "Not the business's own address", unknown: LEAD_CHECK_UNSURE }
+};
+var LEAD_MAILBOX_WORDS = {
+  none: "No email found on their site",
+  checking: "Checking the mailbox",
+  ok: "Mailbox exists",
+  catch_all: "Their server accepts every address, so the check can't tell",
+  unknown: "Their mail server wouldn't answer",
+  invalid: "That mailbox doesn't exist"
+};
+var LEAD_CONTACT_STANDARD_WORDS = {
+  phone: "This search counts a phone as enough.",
+  email: "This search asked for a checked email."
+};
+var LEAD_NO_EMAIL_LINE = "Checked their home, contact and about pages. Call instead.";
+var LEAD_SENT_QUESTION = "Did you send it?";
+var LEAD_CALL_QUESTION = "How did the call go?";
+var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
+var LEAD_NOTE_MAX = 280;
+var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
+function leadNoteLeft(left, max) {
+  return left >= max ? `Up to ${max} characters` : `${left} left`;
+}
+var LEAD_WORDS = {
+  close: "Close",
+  open: "Open",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE,
+  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE,
+  sentQuestion: LEAD_SENT_QUESTION,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id] })),
+  noteLabel: "A note about the call",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
+  noteMax: LEAD_NOTE_MAX,
+  noteLeft: leadNoteLeft,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  draftWriting: "Writing it\u2026",
+  draftNote: LEAD_DRAFT_NOTE,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email."
+};
+var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
+var LEAD_SUGGEST_DAYS = 7;
+var LEAD_PRIOR_MIN = 25;
+function leadReachLine(prior) {
+  if (!prior || prior.matched < LEAD_PRIOR_MIN) return "New kind of search \xB7 checked after 25";
+  const tenths = Math.round(prior.with_email / prior.matched * 10);
+  if (tenths <= 1) return "Most list a phone \xB7 few have an email";
+  if (tenths >= 9) return "Nearly all have an email";
+  if (tenths === 5) return "About half have an email";
+  if (tenths === 7) return "About 2 in 3 have an email";
+  return `About ${tenths} in 10 have an email`;
+}
+var LEAD_NO_CARD_LINE = "I can find local businesses for now.";
+var LEAD_OUTSIDE_US_LINE = "I can only find businesses in the US for now. The rules for emailing businesses in Canada, the UK and the EU are different, and Chanlytics follows the US ones.";
+function leadNotBusinessesLine(want) {
+  return `I find businesses, not people at home. People who want ${want && want.trim() ? want.trim() : "what you do"} find you, and your receptionist answers them. Businesses whose clients need you next are a good start:`;
+}
+function leadNoCardLine(what) {
+  return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
+}
+var LEAD_PAUSED_TITLE = "Lead searches are paused for now";
+var plural6 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+function leadAnd(items) {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+function leadEndingLine(ending, f) {
+  const mark = LEAD_ENDING_WORDS[ending];
+  const yours = `the ${f.counted} found are yours`;
+  const one = f.name.replace(/s$/, "");
+  switch (ending) {
+    case "target_reached":
+      return {
+        mark,
+        title: `Found ${f.counted} ${f.name}`,
+        parts: [`${f.emails} you can email`, `${f.phones} by phone`, `${f.excluded} left out`],
+        step: f.excluded > 0 ? { id: "excluded", label: `${f.excluded} left out` } : { id: "sort_fit", label: "Sort by fit" }
+      };
+    case "searched_everything":
+      if (f.counted === 0) {
+        return {
+          mark,
+          title: `There are ${plural6(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
+          parts: ["Nothing was counted."],
+          step: f.nearby.length ? { id: "nearby", label: `Look in ${leadAnd(f.nearby)}` } : null
+        };
+      }
+      return {
+        mark,
+        title: `Found ${f.counted} ${f.name}`,
+        parts: [`everything these searches returned in ${f.area}`],
+        step: { id: "nearby", label: `Find ${Math.max(0, f.target - f.counted)} more nearby` }
+      };
+    case "month_leads_used":
+      return { mark, title: `Stopped at ${f.counted}`, parts: ["this month's leads are used", yours], step: null };
+    case "budget_used":
+      return { mark, title: `Stopped at ${f.counted}`, parts: ["this month's searching is used up", yours], step: null };
+    case "few_new_matches":
+      return {
+        mark,
+        title: `All ${plural6(f.seen, one, f.name)} in ${f.area} are already yours.`,
+        parts: f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : [],
+        step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
+      };
+    case "stopped":
+      return f.checking ? { mark, title: "Stopping", parts: [`checking the emails of the ${f.counted} found`, "nothing else was counted"], step: null } : { mark, title: `Stopped at ${f.counted}`, parts: [yours, "nothing else was counted"], step: { id: "carry_on", label: "Carry on" } };
+    case "source_failed":
+      return { mark, title: `Stopped at ${f.seen}: the source stopped answering`, parts: [yours, "nothing more was counted"], step: { id: "try_again", label: "Try again" } };
+    case "question_unanswered":
+      return { mark, title: "Stopped after a day without your answer", parts: [`the ${f.foundBefore} found before it asked are yours`], step: { id: "answer_now", label: "Answer now" } };
+    case "paused":
+      return { mark, title: LEAD_PAUSED_TITLE, parts: ["your leads are all here", "nothing is being counted"], step: null };
+  }
+}
+function leadAllowanceFact(left) {
+  return `${left} left this month`;
+}
+function outcomeMove(o) {
+  switch (o) {
+    case "interested":
+      return { stage: "converted", closedReason: null, converts: true };
+    case "not_interested":
+      return { stage: "archived", closedReason: "said_no", converts: false };
+    case "wrong_number":
+      return { stage: null, closedReason: null, converts: false };
+    default:
+      return { stage: "nurture", closedReason: null, converts: false };
+  }
+}
+var LeadsQuerySchema = z7.object({
+  list: z7.enum(LEAD_LISTS).default("all"),
+  search: z7.string().uuid().optional(),
+  class: z7.enum(LEAD_CLASSES).optional(),
+  sort: z7.enum(LEAD_SORTS).default("fit"),
+  dir: z7.enum(["asc", "desc"]).default("asc"),
+  after_key: z7.string().max(80).optional(),
+  after_id: z7.string().uuid().optional(),
+  limit: z7.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema = z7.discriminatedUnion("kind", [
+  z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
+  z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z7.object({ kind: z7.literal("said_no") }),
+  z7.object({ kind: z7.literal("outcome"), outcome: z7.enum(LEAD_CALL_OUTCOMES), note: z7.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z7.object({ kind: z7.literal("emailed") })
+]);
+function stageArgs(i) {
+  const none = { p_stage: null, p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null };
+  switch (i.kind) {
+    case "stage":
+      return { ...none, p_stage: i.stage };
+    case "not_a_fit":
+      return { ...none, p_stage: "archived", p_reason: i.why === "customer" ? "customer" : "not_a_fit", p_fit_reason: i.why };
+    case "said_no":
+      return { ...none, p_stage: "archived", p_reason: "said_no" };
+    case "emailed":
+      return { ...none, p_stage: "nurture", p_outcome: "emailed" };
+    case "outcome": {
+      const m = outcomeMove(i.outcome);
+      return { ...none, p_stage: m.stage, p_reason: m.closedReason, p_outcome: i.outcome, p_note: i.note ?? null };
+    }
+  }
+}
+var LeadsBulkSchema = z7.discriminatedUnion("by", [
+  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit"]), ids: z7.array(z7.string().uuid()).min(1).max(500) }),
+  z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+]);
+var LeadDraftInputSchema = z7.object({
+  tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
+});
+var LeadExportQuerySchema = LeadsViewSchema;
+var RenameLeadSearchSchema = z7.object({ name: z7.string().trim().min(1).max(80) });
+var BusinessLineSchema = z7.object({ business_line: z7.string().trim().min(3).max(160) });
+var planChip = (max) => z7.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z7.object({
+  looking_for: z7.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z7.string().trim().min(2).max(40),
+  count: z7.number().int().min(1).max(LEAD_MAX_PLACES),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip(60),
+  category_key: z7.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z7.array(planChip(60)).min(1).max(5),
+  city: z7.string().trim().max(60).nullable().default(null),
+  region: z7.string().trim().min(2).max(40),
+  zip: z7.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z7.enum(["phone", "email"]),
+  criteria: z7.array(z7.object({ text: planChip(120), standard: z7.enum(["likely", "seen"]), required: z7.boolean() })).max(6).default([]),
+  leave_out: z7.array(z7.object({ words: planChip(40) })).max(6).default([]),
+  asked: z7.string().trim().min(1).max(400)
+});
+var US_NAMES2 = /* @__PURE__ */ new Set(["us", "usa", "u.s.", "u.s.a.", "united states", "united states of america"]);
+function planKey(text, fallback, taken) {
+  const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
+  let key = /^[a-z]/.test(base) ? base : fallback;
+  let n = 2;
+  while (taken.has(key)) key = `${fallback}_${n++}`;
+  taken.add(key);
+  return key;
+}
+var titleWords = (s) => s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+function planArea2(input) {
+  const state = stateCode(input.region);
+  if (!state) return null;
+  if (input.zip) return { kind: "zip", label: `near ${input.zip}`, state, center: null, radius_m: 8e3, zip: input.zip, query: `${input.zip}, ${state}, USA` };
+  const city = (input.city ?? "").trim();
+  if (city) return { kind: "city", label: `${city}, ${state}`, state, center: null, radius_m: 25e3, query: `${city}, ${state}, USA` };
+  const label = /^[A-Za-z]{2}$/.test(input.region) ? state : titleWords(input.region);
+  return { kind: "city", label, state, center: null, radius_m: 2e5, query: `${label}, USA` };
+}
+function planLeadSearch(input) {
+  if (!US_NAMES2.has(input.country.trim().toLowerCase())) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
+  if (input.looking_for === "people") return { ok: false, refusal: { kind: "not_businesses", text: leadNotBusinessesLine(null), what: input.who } };
+  if (input.looking_for !== "local_businesses") return { ok: false, refusal: { kind: "no_card", text: leadNoCardLine(input.who), what: input.who } };
+  const area = planArea2(input);
+  if (!area) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.region } };
+  const taken = /* @__PURE__ */ new Set();
+  const plan = {
+    version: 1,
+    card: "local_businesses",
+    name: input.who,
+    asked: input.asked,
+    // Widest first, and at most the three the tool asks the model for.
+    terms: [...new Set(input.terms.map((t) => t.trim()).filter(Boolean))].slice(0, 3),
+    area,
+    count: input.count,
+    contact: input.contact,
+    criteria: input.criteria.map((c, i) => ({ key: planKey(c.text, `c${i + 1}`, taken), text: c.text, standard: c.standard, required: c.required })),
+    exclusions: input.leave_out.map((l, i) => ({ key: planKey(l.words, `x${i + 1}`, taken), text: l.words, origin: "claude" }))
+  };
+  const checked = LeadSearchPlanSchema.safeParse(plan);
+  if (!checked.success) {
+    const issue = checked.error.issues[0];
+    return { ok: false, refusal: { kind: "not_a_plan", text: `the plan is not complete: ${issue?.path.join(".")} ${issue?.message}`, what: null } };
+  }
+  return { ok: true, plan: checked.data, view: { title: `Find ${checked.data.count} ${checked.data.name}` } };
+}
+function leadsRoute(v) {
+  const parts2 = ["clients/leads"];
+  if (v.searchId) parts2.push(`s-${v.searchId}`);
+  if (v.list && v.list !== "all") parts2.push(`l-${v.list}`);
+  if (v.cls) parts2.push(`c-${v.cls}`);
+  return parts2.join(":");
+}
+function parseLeadsRoute(route) {
+  const [head, ...segs] = route.split(":");
+  if (head !== "clients/leads" && head !== "leads") return null;
+  const out = { searchId: null, list: "all", cls: null, chips: {} };
+  for (const s of segs) {
+    const dash = s.indexOf("-");
+    if (dash < 1) continue;
+    const [seg, val] = [s.slice(0, dash), s.slice(dash + 1)];
+    if (seg === "s" && /^[0-9a-f-]{36}$/.test(val)) out.searchId = val;
+    else if (seg === "l" && LEAD_LISTS.includes(val)) out.list = val;
+    else if (seg === "c" && LEAD_CLASSES.includes(val)) out.cls = val;
+  }
+  return out;
+}
+var LEAD_DRAFT_JSON_SCHEMA = { type: "object", additionalProperties: false, required: ["subject", "body"], properties: { subject: { type: "string" }, body: { type: "string" } } };
+var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
+var LEAD_SUGGEST_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["line", "items"],
+  properties: { line: { type: "string" }, items: { type: "array", items: { type: "object", additionalProperties: false, required: ["words", "who_for", "category_key"], properties: { words: { type: "string" }, who_for: { type: "string" }, category_key: { type: "string" } } } } }
+};
+var LeadSuggestAnswerSchema = z7.object({
+  line: z7.string().trim().min(3).max(160),
+  items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
+function leadDraftFooter(business, address) {
+  return `
+
+\u2014
+${business} \xB7 ${address}
+Not interested? Reply "no thanks" and I won't write again.`;
+}
+function leadExclusionWord(search, key) {
+  if (!key) return LEAD_LEFT_OUT_WORD;
+  const plan = search?.plan;
+  const ex = plan?.exclusions.find((e) => e.key === key);
+  if (ex) return ex.text;
+  const cr = plan?.criteria.find((c) => c.key === key);
+  return cr ? cr.text : LEAD_LEFT_OUT_WORD;
+}
+function clockIn(tz, iso, now) {
+  if (!iso) return "\u2014";
+  const at2 = new Date(iso);
+  if (Number.isNaN(at2.getTime())) return "\u2014";
+  const day = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const clock2 = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at2);
+  if (day(at2) === day(now)) return clock2;
+  return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at2)}, ${clock2}`;
+}
+function toLeadPeekVM(r, search, tz, now) {
+  const m = r.member;
+  const area = [r.city, r.state].filter(Boolean).join(", ");
+  const sub = [r.category, area].filter(Boolean).join(" \xB7 ") + (r.places > 1 ? ` \xB7 ${r.places} locations` : "");
+  const fitWord = m.class === "qualified" ? m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look : m.class === "review" ? LEAD_REVIEW_WORD : leadExclusionWord(search, m.excluded_by);
+  const fitCls = m.class === "qualified" ? m.fit ?? "look" : m.class === "review" ? "review" : "out";
+  const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
+  const emailNote = r.email ? r.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} \xB7 checked ${clockIn(tz, r.email_checked_at, now)}` : r.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking : r.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.` : LEAD_MAILBOX_WORDS[r.email_state] : LEAD_NO_EMAIL_LINE;
+  const mailboxLabel = LEAD_MAILBOX_WORDS[r.email_state];
+  const seen = [];
+  const read = [];
+  for (const c of m.checks) {
+    const label = c.key === "mailbox" ? mailboxLabel : LEAD_CHECK_WORDS[c.key][c.answer];
+    (c.how === "seen" ? seen : read).push({ key: c.key, label, answer: c.answer, source: c.source, reason: c.reason });
+  }
+  const others = m.other_emails.length ? {
+    summary: `${m.other_emails.length} other address${m.other_emails.length === 1 ? "" : "es"} on their site`,
+    picked: m.checks.find((c) => c.key === "own_address")?.reason ?? null,
+    items: m.other_emails
+  } : null;
+  const host = r.website;
+  const siteLine = host ? r.email_state === "none" ? `Their website, ${host}: no email on the home, contact or about pages` : `Their website, ${host}: an email on the contact page` : "No website to check";
+  const term = search?.plan.terms[0] ?? null;
+  return {
+    id: r.id,
+    searchId: r.search_id ?? null,
+    mark: initialsOf(r.business_name),
+    name: r.business_name,
+    short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
+    sub,
+    cls: m.class,
+    stage: r.stage,
+    stages: ["ready", "nurture", "converted"].map((id) => ({ id, label: LEAD_STAGE_WORDS[id], on: r.stage === id })),
+    canStage: m.class !== "excluded",
+    notFitWord: LEAD_CLOSED_WORDS.not_a_fit,
+    fit: { word: fitWord, cls: fitCls, sentence: m.reason },
+    reach: {
+      phone: r.phone ? {
+        value: r.phone,
+        note: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website" : "From their Google Maps listing",
+        tel: r.phone_wrong ? null : `tel:${r.phone}`,
+        wrong: r.phone_wrong
+      } : null,
+      email: {
+        value: r.email ?? "No email on their site",
+        note: emailNote,
+        standard,
+        state: r.email_state,
+        word: LEAD_EMAIL_WORDS[r.email_state],
+        address: r.email,
+        canDraft: !!r.email && r.email_state !== "invalid" && r.email_state !== "none"
+      },
+      locked: { title: "Texts and WhatsApp", line: LEAD_LOCKED_LINE }
+    },
+    groups: [
+      { how: "seen", label: LEAD_CHECK_GROUP_WORDS.seen, checks: seen },
+      { how: "read", label: LEAD_CHECK_GROUP_WORDS.read, checks: read }
+    ].filter((g) => g.checks.length > 0),
+    others,
+    found: [
+      { at: clockIn(tz, r.found_at, now), what: term ? `On Google Maps, searching \u201C${term}\u201D` : "On a Google Maps listing" },
+      { at: clockIn(tz, r.found_at, now), what: siteLine },
+      { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox check: ${mailboxLabel}` }
+    ],
+    links: {
+      website: host ? { label: host, href: `https://${host}` } : null,
+      instagram: r.instagram ? { label: "Instagram", href: r.instagram } : null
+    },
+    version: r.version
+  };
+}
+var LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
+function leadSearchWords(s, tz) {
+  if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
+  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter(Boolean);
+  const leaving = left.length ? ` Leaving out ${left.join(" and ")}.` : "";
+  return { askedLine: `You asked on ${day}: \u201C${s.asked}\u201D.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
+}
+var LEAD_CHECK_KEYS = ["on_maps", "in_area", "phone_two_sources", "mailbox", "independent", "right_kind", "own_address"];
+var METRES_PER_MILE = 1609.344;
+var keyInWords = (key) => {
+  const words2 = key.replace(/_/g, " ").trim();
+  return words2 ? words2.charAt(0).toUpperCase() + words2.slice(1) : "";
+};
+var milesLabel = (m) => {
+  if (m === null || m === void 0) return "";
+  const mi = m / METRES_PER_MILE;
+  return `${mi < 10 ? mi.toFixed(1) : String(Math.round(mi))} mi`;
+};
+var ratingLabel = (rating, reviews) => rating === null || rating === void 0 ? "" : `${rating.toFixed(1)} \xB7 ${reviews ?? 0}`;
+var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_WORDS[closedReason] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage];
+function toLeadRowVM(r, tz, now) {
+  const nowMs = now.getTime();
+  const foundMs = Date.parse(r.found_at);
+  const m = r.member;
+  const excludedBy = m.excluded_by ? keyInWords(m.excluded_by) : null;
+  const rating = ratingLabel(r.rating, r.reviews);
+  const fitLabel = m.class === "excluded" ? excludedBy ?? m.reason : m.class === "review" ? m.reason : m.fit ? LEAD_FIT_WORDS[m.fit] : m.reason;
+  const fitTitle = m.class === "excluded" ? `Left out: ${excludedBy ?? m.reason}` : m.class === "qualified" && rating ? `${m.reason} \xB7 ${rating.replace(" \xB7 ", " from ")} reviews` : m.reason;
+  const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" \xB7 ");
+  return {
+    id: r.id,
+    searchId: r.search_id,
+    searchName: r.search_name ?? "",
+    mark: initialsOf(r.business_name),
+    name: r.business_name,
+    places: r.places,
+    category: r.category ?? "",
+    area,
+    cls: m.class,
+    fitLabel,
+    fitTitle,
+    email: r.email,
+    emailState: r.email_state,
+    // The cell draws the address itself; an address nobody has is blank, not "none".
+    emailLabel: r.email ?? "",
+    emailWord: LEAD_EMAIL_WORDS[r.email_state],
+    // E.164, because the row dials it (plDial's tel:); the double tick says Maps and their own site agree.
+    phone: r.phone,
+    phoneAgrees: r.phone_agrees,
+    phoneWrong: r.phone_wrong,
+    why: m.reason,
+    rating,
+    stage: r.stage,
+    stageLabel: stageLabelOf(r.stage, r.closed_reason),
+    foundLabel: agoShort(foundMs, nowMs),
+    foundAt: `${clockDateYear(foundMs, tz)} \xB7 ${clockTime(foundMs, tz)}`,
+    distance: milesLabel(m.distance_m),
+    source: LEAD_SOURCE_WORD,
+    host: siteHost(r.website) ?? "",
+    excludedBy,
+    version: r.version
+  };
+}
+var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
+function leadRail(counts, searches) {
+  const ids = ["all", "ready", "nurture", "converted", ...counts.said_no > 0 ? ["said_no"] : [], "not_a_fit"];
+  return {
+    lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
+    searches: searches.map((s) => ({
+      id: s.id,
+      name: s.name,
+      count: s.round?.counted ?? 0,
+      mark: !s.round ? null : s.round.state === "waiting_on_owner" ? "question" : roundIsLive(s.round.state) ? "live" : null
+    }))
+  };
+}
+function leadsStanding(counts, searches) {
+  const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
+  return {
+    total: `${counts.all} leads`,
+    parts: [`${counts.ready} ready`, `${searches.length} ${searches.length === 1 ? "search" : "searches"}`],
+    needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null
+  };
+}
+var LEAD_PRIOR_MIN_PLACES = 50;
+function leadPlanLikely(plan, facts) {
+  const p = facts.prior;
+  if (!p || p.places < LEAD_PRIOR_MIN_PLACES || p.matched <= 0) {
+    return { emailPct: null, phonePct: null, line: "How many have an email is checked after the first 25." };
+  }
+  const share = Math.min(1, p.with_email / p.matched);
+  const emailPct = Math.round(share * 100);
+  const withEmail = Math.round(plan.count * share);
+  const of = facts.priorOf ? ` \xB7 from past searches for ${facts.priorOf}` : "";
+  return { emailPct, phonePct: 100 - emailPct, line: `About ${withEmail} will have an email; the rest you call${of}` };
+}
+function leadPlanFacts(plan, facts) {
+  return [
+    `About ${planMinutes(plan)} minutes \u2014 leave the page if you like`,
+    `Skips the ${facts.dupes} already yours`,
+    `Counts only matches you can reach \xB7 ${leadAllowanceFact(facts.leadsLeft)}`
+  ];
+}
+function leadPlanAsk(plan, facts) {
+  const binds = facts.bound !== null && facts.leadsLeft < plan.count;
+  const count = binds ? Math.max(0, facts.leadsLeft) : plan.count;
+  const label = `Find ${count} lead${count === 1 ? "" : "s"}`;
+  if (!binds) return { count, label, covers: null };
+  const who = planWho(plan);
+  const covers = facts.bound === "budget" ? `Emails for ${who} are hard to find, so this month covers about ${count} more. Find ${count} now?` : `You have ${count} lead${count === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
+  return { count, label, covers };
+}
+
+// src/lead-judge.ts
+import { z as z8 } from "zod";
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
@@ -11052,12 +11669,12 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z7.object({
-  places: z7.array(z7.object({
-    ref: z7.number().int(),
-    criteria: z7.array(z7.object({ key: z7.string(), answer: z7.enum(["pass", "fail", "unknown"]), facts: z7.array(z7.string()) })),
-    email_index: z7.number().int().nullable(),
-    reason: z7.string()
+var AnswerSchema = z8.object({
+  places: z8.array(z8.object({
+    ref: z8.number().int(),
+    criteria: z8.array(z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })),
+    email_index: z8.number().int().nullable(),
+    reason: z8.string()
   }))
 });
 function factKeysOf(p) {
@@ -11272,6 +11889,7 @@ export {
   BookingRulesSchema,
   BrainConfigSchema,
   BrainOutputSchema,
+  BusinessLineSchema,
   BusinessProfileSchema,
   CALENDAR_FEED_WORDS,
   CALL_HEARTBEAT_MS,
@@ -11341,33 +11959,69 @@ export {
   JUDGE_OUTPUT_SCHEMA,
   LEAD_ASK_MAX_FACTOR,
   LEAD_ASK_MIN_FACTOR,
+  LEAD_ASSUMED_YIELD,
+  LEAD_CALL_OUTCOMES,
+  LEAD_CALL_OUTCOME_WORDS,
+  LEAD_CALL_QUESTION,
   LEAD_CARDS,
+  LEAD_CHECK_GROUP_WORDS,
+  LEAD_CHECK_KEYS,
+  LEAD_CHECK_UNSURE,
+  LEAD_CHECK_WORDS,
+  LEAD_CLASSES,
   LEAD_CLOSED_REASONS,
+  LEAD_CLOSED_WORDS,
+  LEAD_CONSENT_REFUSAL,
+  LEAD_CONTACT_STANDARD_WORDS,
   LEAD_COUNTER_KINDS,
+  LEAD_COUNT_CHOICES,
   LEAD_DAY_CAP_USD,
+  LEAD_DRAFT_JSON_SCHEMA,
+  LEAD_DRAFT_NOTE,
   LEAD_EMAIL_REASON,
   LEAD_EMAIL_STATES,
+  LEAD_EMAIL_WORDS,
   LEAD_ENDING_WORDS,
   LEAD_ESTIMATE_MARGIN,
   LEAD_FACT_MAX,
   LEAD_FITS,
+  LEAD_FIT_WORDS,
   LEAD_FREE_MAIL,
   LEAD_JUDGE_BATCH,
   LEAD_JUNK_EMAIL_DOMAINS,
+  LEAD_LEFT_OUT_WORD,
+  LEAD_LISTS,
+  LEAD_LIST_WORDS,
+  LEAD_LOCKED_LINE,
+  LEAD_MAILBOX_WORDS,
   LEAD_MAX_PLACES,
   LEAD_MEMBER_CLASSES,
   LEAD_MONTHLY_ALLOWANCE,
   LEAD_MONTHLY_BUDGET_USD,
+  LEAD_NOTE_MAX,
+  LEAD_NOTE_PLACEHOLDER,
+  LEAD_NOT_A_FIT_TITLE,
+  LEAD_NOT_A_FIT_WHYS,
+  LEAD_NOT_A_FIT_WORDS,
+  LEAD_NO_ADDRESS,
+  LEAD_NO_CARD_LINE,
+  LEAD_NO_EMAIL_LINE,
   LEAD_OPERATION_KINDS,
+  LEAD_OUTSIDE_US_LINE,
+  LEAD_PAUSED_TITLE,
   LEAD_PLACEHOLDER_LOCALS,
   LEAD_PLATFORM_DAY_CAP_USD,
   LEAD_PLATFORM_HOSTS,
   LEAD_PREFERENCE_KINDS,
+  LEAD_PRIOR_MIN,
+  LEAD_PRIOR_MIN_PLACES,
   LEAD_PROBE_PLACES,
   LEAD_QUESTION_MIN_EVIDENCE,
   LEAD_QUESTION_THRESHOLD,
   LEAD_QUESTION_WAIT_MS,
   LEAD_REASON_MAX_WORDS,
+  LEAD_REMOVE_KEEPS,
+  LEAD_REVIEW_WORD,
   LEAD_ROLE_LOCALS,
   LEAD_ROUND_ANSWERS,
   LEAD_ROUND_ENDINGS,
@@ -11376,15 +12030,33 @@ export {
   LEAD_RUN_PURPOSES,
   LEAD_RUN_STATES,
   LEAD_SEARCH_VIAS,
+  LEAD_SENT_QUESTION,
+  LEAD_SORTS,
+  LEAD_SOURCE_WORD,
   LEAD_STAGES,
+  LEAD_STAGE_WORDS,
+  LEAD_SUGGEST_DAYS,
+  LEAD_SUGGEST_JSON_SCHEMA,
+  LEAD_SUGGEST_UNAVAILABLE,
+  LEAD_SUPPRESSING_WHY,
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
+  LEAD_TALKING_NOTE,
+  LEAD_WORDS,
   LIMIT_TIERS,
   LINE_CREDENTIALS_SENTENCE,
   LINE_STEP_WORDS,
   LIVE_OVERLONG_MS,
   LIVE_STALE_MS,
+  LeadDraftAnswerSchema,
+  LeadDraftInputSchema,
+  LeadExportQuerySchema,
   LeadSearchPlanSchema,
+  LeadStageInputSchema,
+  LeadSuggestAnswerSchema,
+  LeadsBulkSchema,
+  LeadsQuerySchema,
+  LeadsViewSchema,
   MAILBOX_FROM_NAME_MAX,
   MAILBOX_LOCAL_PART_MAX,
   MAILBOX_RESERVED,
@@ -11453,6 +12125,7 @@ export {
   PURPOSE_REFUSALS,
   PendingWorkspaceSchema,
   PolicyLimitsSchema,
+  ProposeLeadSearchSchema,
   QUEUE_SENDS_NOTHING,
   QUEUE_SHOWN,
   QUIET_AFTER_MS,
@@ -11489,6 +12162,7 @@ export {
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
+  RenameLeadSearchSchema,
   SCHEMA_SETS,
   SENDING_HOURS_WORDS,
   SERVER_KEY_PREFIX,
@@ -11507,6 +12181,8 @@ export {
   SOLE_PROP_LIMITS,
   SOLE_PROP_TEXTING_SENTENCE,
   SOURCE_WORDS,
+  SPEND_LEADS,
+  SPEND_NUMBER,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   ServiceSchema,
@@ -11744,8 +12420,24 @@ export {
   languageLabels,
   languageWords,
   lastChangedWords,
+  leadAllowanceFact,
+  leadAnd,
+  leadDraftFooter,
+  leadEndingLine,
+  leadExclusionWord,
   leadMonth,
+  leadNoCardLine,
+  leadNotBusinessesLine,
+  leadNoteLeft,
+  leadPlanAsk,
+  leadPlanFacts,
+  leadPlanLikely,
+  leadRail,
+  leadReachLine,
+  leadSearchWords,
   leadSuppressionHash,
+  leadsRoute,
+  leadsStanding,
   lineCredentialFailure,
   lineRetryRefusal,
   lineStuckProvisioning,
@@ -11791,6 +12483,7 @@ export {
   optInConfirmation,
   optInLink,
   optInPurposeOf,
+  outcomeMove,
   overLimitRefusal,
   ownAddressesOf,
   ownMessageRefusal,
@@ -11800,6 +12493,7 @@ export {
   parseBrainOutput,
   parseIcs,
   parseJudgeAnswer,
+  parseLeadsRoute,
   parseParamSpec,
   parseParamSpecs,
   parseTenantConfig,
@@ -11820,10 +12514,18 @@ export {
   placeholdersOf,
   placeholdersSequential,
   placesToAsk,
+  planArea,
   planBilling,
+  planLeadSearch,
+  planLeavingOut,
+  planMinutes,
   planRun,
+  planSaid,
   planSentence,
   planVersionOf,
+  planWhere,
+  planWho,
+  planWords,
   platformActionWarning,
   platformHealthOf,
   platformHealthWords,
@@ -11918,6 +12620,7 @@ export {
   spokenBreach,
   spokenBreachDetails,
   spokenDuration,
+  stageArgs,
   standingOf,
   starsOf,
   starterByKey,
@@ -11964,6 +12667,8 @@ export {
   toGoogleReviewVM,
   toGoogleVM,
   toInboxThreadVM,
+  toLeadPeekVM,
+  toLeadRowVM,
   toLiveCallVM,
   toLiveVM,
   toPersonRowVM,

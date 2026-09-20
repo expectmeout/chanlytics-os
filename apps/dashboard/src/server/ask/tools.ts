@@ -9,6 +9,7 @@ import {
   numberHealth,
   toPersonRowVM,
   ESCALATION_REASON_LABELS,
+  LEAD_ENDING_WORDS,
   PERSON_STATE_LABELS,
   REPORT_RANGES,
   ago,
@@ -36,6 +37,7 @@ import {
   triggerOf,
   type AskReadSet,
   type CallDto,
+  type LeadRoundEnding,
   type ConversationDto,
   type EscalationDto,
   type MessageDto,
@@ -50,6 +52,7 @@ import { listPolicies } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "../dto";
 import { listPeople } from "../people";
+import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
 import { withVisits } from "@/server/calendar";
 import { listPlaybooks } from "../playbooks";
@@ -143,6 +146,11 @@ export const READ_TOOLS: ToolDef[] = [
     name: "get_calendar",
     description: "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (the calendar's own words, with the person in People when the title names one), whether the business is closed, and the windows the receptionist would offer. day: today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for today. days: how many from there, at most 14. Nothing is booked from here.",
     input_schema: obj({ day: { type: "string" }, days: { type: "number" } }, ["day"]),
+  },
+  {
+    name: "list_lead_searches",
+    description: "The workspace's lead searches, newest first: what was asked in the owner's words and when, its state or ending in words, and how many qualified, need review and were counted. Read this before proposing a search, so a plan is not repeated.",
+    input_schema: obj({}),
   },
 ];
 
@@ -628,6 +636,7 @@ const LABELS: Record<string, string> = {
   list_audiences: "Reading the lists and templates",
   list_playbooks: "Reading the playbooks",
   get_calendar: "Reading the calendar",
+  list_lead_searches: "Reading your searches",
 };
 
 export function toolLabel(name: string): string {
@@ -782,6 +791,42 @@ async function getCalendar(t: ToolContext, input: Record<string, unknown>): Prom
   };
 }
 
+/** A round's state in a word, for the model to say. The owner's own screen words are the strip's. */
+const ROUND_WORDS: Record<string, string> = {
+  queued: "queued",
+  probing: "looking at a first few",
+  waiting_on_owner: "waiting for an answer from you",
+  running: "running",
+  checking: "checking the emails it found",
+  ended: "ended",
+};
+
+/**
+ * Every search this workspace has asked for, newest first, in the owner's own
+ * words: what they asked, the day they asked it, where it is or how it ended,
+ * and the three counts. Nothing is started by reading it, and every string is
+ * cut to 120 characters so a long ask cannot fill a turn.
+ */
+async function listLeadSearches(t: ToolContext): Promise<unknown> {
+  const rows = await listSearches(t.ctx, t.tenantId);
+  const cut = (v: string | null | undefined) => (typeof v === "string" ? v.slice(0, 120) : "");
+  return {
+    route: "clients/leads",
+    searches: rows.map((r) => ({
+      id: r.id,
+      name: cut(r.name),
+      asked: cut(r.asked),
+      asked_on: r.created_at.slice(0, 10),
+      state: r.state ? ROUND_WORDS[r.state] ?? r.state : "not started",
+      ending: r.ending ? LEAD_ENDING_WORDS[r.ending as LeadRoundEnding] ?? null : null,
+      qualified: r.qualified,
+      review: r.review,
+      counted: r.counted,
+    })),
+    note: "Counted is what came off this month's leads. Nothing here has started or changed because you read it; a new search is propose_lead_search, which becomes a card the owner approves.",
+  };
+}
+
 export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome> {
   const label = toolLabel(run.name);
   try {
@@ -800,6 +845,7 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
       case "list_audiences": out = await listAudiences(t); break;
       case "list_playbooks": out = await listPlaybooksTool(t); break;
       case "get_calendar": out = await getCalendar(t, run.input); break;
+      case "list_lead_searches": out = await listLeadSearches(t); break;
       default: return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
     }
     const isError = !!(out && typeof out === "object" && "error" in (out as Record<string, unknown>) && Object.keys(out as object).length <= 2);

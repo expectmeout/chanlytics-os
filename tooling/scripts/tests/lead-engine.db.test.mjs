@@ -598,7 +598,10 @@ test("rename is the operator's; remove is the owner's and blanks what is not bei
   assert.ok(blanked.includes(exported), "the lead that leaves is one the removal blanked");
   ok(await db.from("leads").update({ exported_at: new Date().toISOString() }).eq("id", exported));
   const undone = ok(await owner.client.rpc("lead_undo", { p_op_id: r.op_id, p_version: 1 }));
-  assert.deepEqual(undone, { ok: true, restored: 26, kept: 1 }, "the exported lead stays as it is and stays charged");
+  // recharged is release B's (00142): the undo_search branch now also takes
+  // back what the Done strip's Undo credited to a month. A removal credits
+  // nothing, so a removal undone recharges nothing.
+  assert.deepEqual(undone, { ok: true, restored: 26, kept: 1, recharged: 0 }, "the exported lead stays as it is and stays charged");
   assert.deepEqual(ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1).not("blanked_at", "is", null)).map((x) => x.lead_id), [exported], "and it is the only membership still blanked");
   assert.equal(ok(await db.from("lead_searches").select("removed_at").eq("id", ids.search1).single()).removed_at, null);
 });

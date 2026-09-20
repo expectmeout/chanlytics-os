@@ -46,6 +46,9 @@ const manifest = readCode(`${LEGACY}-bridge/manifest.ts`)
   .filter(Boolean)
   .map((m) => (m[1] === "./seed-globals" ? STUBS : m[1]));
 
+/** The shell, which is where a deleted page keeps its last reference. */
+const shell = readCode(`${LEGACY}/pages/app-shell.jsx`);
+
 /** Every file of the mockup on disk, in the shape both lists name it. */
 const onDisk = ["components", "data", "pages"].flatMap((dir) =>
   fs.readdirSync(path.join(ROOT, LEGACY, dir)).filter((f) => f.endsWith(".jsx")).map((f) => `${dir}/${f}`),
@@ -148,6 +151,19 @@ test("the harness is a demo, and the app is not", () => {
   // a UI review of a mockup with most of the mockup missing.
   assert.equal(seed({}).__DEMO_MODE, true);
   assert.match(readCode(`${LEGACY}-bridge/seed-globals.ts`), /window\.__DEMO_MODE = false/);
+});
+
+test("the seeded leads page is retired: no file, no script tag, no import, and nothing renders it", () => {
+  // The mockup's Leads was a page of its own, fed by invented leads with
+  // invented first-touch times. Leads is a SCOPE of People now (clients/leads),
+  // drawn from the leads surface, so the seeded page is not hidden or gated --
+  // it is gone, and the two lists and the shell have to say so together. A file
+  // deleted from disk and left in either list is the blank page this file exists
+  // to catch; a shell still naming LeadsPage is a ReferenceError on that route.
+  assert.equal(fs.existsSync(path.join(ROOT, LEGACY, "pages/leads.jsx")), false);
+  assert.equal(manifest.includes("pages/leads.jsx"), false);
+  assert.equal(html.includes("pages/leads.jsx"), false);
+  assert.equal(new RegExp(String.raw`\bLeadsPage\b`).test(shell), false, "app-shell draws no LeadsPage");
 });
 
 test("the mockup draws Reports and Today from their samples, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {

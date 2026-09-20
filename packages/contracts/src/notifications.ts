@@ -195,7 +195,7 @@ export const ALERT_KINDS: readonly NotificationKind[] = ["needs_you", "held_draf
 /* ------------------------------------------------- rows the workspace keeps */
 
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped"] as const;
+export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question"] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
 /**
@@ -277,6 +277,10 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
   broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Broadcasts", to: "broadcasts" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  /** A search that finished: good news, on the page the leads are on. */
+  leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
+  /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
+  leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads" },
   /** A review on Google: good news with somewhere to read it. */
   review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
   /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */

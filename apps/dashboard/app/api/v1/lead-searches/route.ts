@@ -1,16 +1,17 @@
-import { LeadSearchPlanSchema, type LeadSearchPlan } from "@chanlytics/contracts";
+import { LeadSearchPlanSchema, SPEND_LEADS, type LeadSearchPlan } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
-import { answerOf, estimateForRound, listSearches, refusalOf } from "@/server/leads";
+import { answerOf, estimateForRound, refusalOf, searchesOf } from "@/server/leads";
 
 /**
- * GET /api/v1/lead-searches: every search of this workspace with its latest
- * round (lead_searches_view), newest first. Release A has no screen; the
- * internal runner reads this.
+ * GET /api/v1/lead-searches: every kept search of this workspace with its
+ * latest round (lead_searches_view), newest first, and the rail's six counts
+ * beside them — the two facts the Leads rail is drawn from, read together so
+ * a page that shows both cannot show one of them stale.
  */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => ({ searches: await listSearches(ctx, member.tenantId) }),
+  handle: ({ ctx, member }) => searchesOf(ctx, member.tenantId),
 });
 
 /**
@@ -29,6 +30,8 @@ export const POST = write({
   role: "owner",
   rate: "lead_search",
   spend: true,
+  // A refusal here is about finding leads, not about buying a number.
+  spendWords: SPEND_LEADS,
   input: LeadSearchPlanSchema,
   handle: async ({ ctx, member, input }) => {
     const plan = input as LeadSearchPlan;

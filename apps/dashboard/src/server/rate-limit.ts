@@ -145,8 +145,18 @@ export const RATE = {
   lead_search: { limit: 10, windowMs: 3_600_000, noun: "lead searches" },
   /** An answer to the question after 25, or a Stop. */
   lead_answer: { limit: 30, windowMs: 3_600_000, noun: "search answers" },
-  /** Keep, exclude, put back, undo: one click each, many in a session. */
+  /** Keep, exclude, put back, undo, and every B act on ONE lead or ONE search: one click each, many in a session. */
   lead_member: { limit: 120, windowMs: 60_000, noun: "lead changes" },
+  /**
+   * The lead finder's three from release B. There is deliberately no fourth for
+   * a single lead's edit: it would be this file's `lead_member` to the
+   * character, and two buckets with one noun make a refusal nobody can tell
+   * apart. The two model buckets are per PERSON and small because both spend
+   * Ask's one daily budget.
+   */
+  lead_bulk: { limit: 30, windowMs: 60_000, noun: "changes to many leads" },
+  lead_draft: { limit: 60, windowMs: 3_600_000, noun: "email drafts" },
+  lead_suggest: { limit: 10, windowMs: 3_600_000, noun: "suggestion requests" },
   /** A question to the workspace assistant: a model turn, tools and all. */
   ask: { limit: 20, windowMs: 60_000, noun: "questions" },
 } as const satisfies Record<string, RateRule>;

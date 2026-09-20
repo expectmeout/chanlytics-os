@@ -59,13 +59,16 @@ import "@/legacy/pages/inbox-thread.jsx";
 import "@/legacy/pages/inbox-rail.jsx";
 import "@/legacy/pages/inbox.jsx";
 import "@/legacy/pages/clients-bits.jsx";
+import "@/legacy/pages/people-table.jsx";
 import "@/legacy/pages/clients-a.jsx";
 import "@/legacy/pages/client-profile.jsx";
-// leads, agent-store, agent-fleet, agent-studio, content-cal, pipeline and tasks
+import "@/legacy/pages/leads-scope.jsx";
+import "@/legacy/pages/leads-finder.jsx";
+import "@/legacy/pages/leads-peek.jsx";
+// agent-store, agent-fleet, agent-studio, content-cal, pipeline and tasks
 // are the mockup's surfaces: kept, hidden from every real workspace (the
 // registry marks them demo), revisited when the product is at 100% — Ruben,
 // 11 September 2026. None of their features is built before then.
-import "@/legacy/pages/leads.jsx";
 import "@/legacy/pages/segments.jsx";
 import "@/legacy/pages/agent-store.jsx";
 import "@/legacy/pages/agent-fleet.jsx";

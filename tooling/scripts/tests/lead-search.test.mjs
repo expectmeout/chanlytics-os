@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   LeadSearchPlanSchema, planSentence, planVersionOf, estimateRoundUsd, placesToAsk, classify, questionAfterProbe,
   endingOfRound, cleanEmailCandidates, usPhone, siteHost, stateCode, leadMonth,
+  planWords, planWho, planWhere, planArea, planMinutes, planSaid, planLeavingOut, LEAD_COUNT_CHOICES, LEAD_ASSUMED_YIELD,
   LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LEAD_CARDS, LEAD_PROBE_PLACES, LEAD_MAX_PLACES, LEAD_MONTHLY_ALLOWANCE,
   LEAD_MONTHLY_BUDGET_USD, LEAD_DAY_CAP_USD, LEAD_PLATFORM_DAY_CAP_USD, LEAD_QUESTION_THRESHOLD, LEAD_JUDGE_BATCH,
   LEAD_ESTIMATE_MARGIN,
@@ -287,4 +288,49 @@ test("no word the product says names the vendor that runs the searches, in eithe
   walk(Object.values(searchWords.LEAD_ENDING_WORDS));
   assert.ok(strings.length > 50, "the walk saw the words");
   assert.deepEqual(strings.filter((s) => /apify|compass|bounceverify|crawler/i.test(s)), []);
+});
+
+/* ------------------------------------------------ the sentence, derived once (release B, Task 9) */
+
+/** The plan a model wrote with the area inside its plural, and a label that says "in" for itself. */
+const brooklyn = (over = {}) => LeadSearchPlanSchema.parse({
+  version: 1, card: "local_businesses", name: "Hair salons in Brooklyn", asked: "60 hair salons in Brooklyn",
+  terms: ["hair salon", "beauty salon"],
+  area: { kind: "city", label: "in Brooklyn, NY", state: "NY", center: { lat: 40.6782, lng: -73.9442 }, radius_m: 15_000, query: "Brooklyn, NY, USA" },
+  count: 60, contact: "email", criteria: [], exclusions: [],
+  ...over,
+});
+
+test("REGRESSION: the sentence says the area once -- a plural that carried the area read \"Find 60 Hair salons in Brooklyn in in Brooklyn, NY\"", () => {
+  assert.equal(planSentence(brooklyn()), "Find 60 hair salons in Brooklyn, NY, then find their email and check it.");
+  assert.equal(planWho(brooklyn()), "hair salons", "the place clause whose words are the area's is dropped");
+  assert.equal(planWhere(brooklyn().area), "in Brooklyn, NY", "the label already says where: no second preposition");
+  assert.equal(planArea(brooklyn().area), "Brooklyn, NY", "and the bare noun, for a sentence that says its own \"in\"");
+  assert.equal(planWho(brooklyn({ name: "Pharmacies inside supermarkets", terms: ["pharmacy"] })), "pharmacies inside supermarkets", "a clause about something else is kept");
+  assert.equal(planWho(brooklyn({ name: "in Brooklyn" })), "hair salon and beauty salon", "a plural that is only the area falls back to the terms");
+  const radius = { kind: "radius", label: "within 25 miles of Austin", state: "TX", center: { lat: 30.2672, lng: -97.7431 }, radius_m: 40_000, query: "Austin, TX, USA" };
+  assert.deepEqual([planWhere(radius), planArea(radius)], ["within 25 miles of Austin", "Austin"]);
+  assert.equal(planWhere({ kind: "zip", label: "78704", state: "TX", center: null, radius_m: 5_000, zip: "78704", query: "78704" }), "in 78704");
+});
+
+test("the sentence is the plan card's words joined: every picker is one word of it, and nothing else reads the plan", () => {
+  const p = plan();
+  assert.deepEqual(planWords(p).filter((w) => w.pick).map((w) => [w.pick, w.text]), [
+    ["count", "200"], ["who", "personal trainers"], ["where", "in Austin, TX"], ["criterion", "with a website"], ["contact", "then find their email and check it"],
+  ]);
+  assert.equal(planWords(p).find((w) => w.pick === "criterion").key, "website", "a criterion word names the criterion it opens");
+  assert.equal(planSaid(p), "Find 200 personal trainers in Austin, TX with a website, then find their email and check it.");
+  assert.equal(planLeavingOut(p), " Leaving out: chain gyms.");
+  assert.equal(planSentence(p), `${planSaid(p)}${planLeavingOut(p)}`, "one derivation: the receipt and the card cannot say the plan differently");
+  assert.equal(planLeavingOut(plan({ exclusions: [] })), "");
+  const phone = plan({ contact: "phone" });
+  assert.equal(planWords(phone).find((w) => w.pick === "contact").text, "a phone is enough");
+});
+
+test("the count picker's options each say about how long they take, and a plan never claims under two minutes", () => {
+  const three = (n) => plan({ count: n, terms: ["personal trainer", "strength coach", "fitness coach"] });
+  assert.deepEqual([...LEAD_COUNT_CHOICES], [50, 100, 200, 500]);
+  assert.deepEqual(LEAD_COUNT_CHOICES.map((n) => planMinutes(three(n))), [3, 5, 8, 8], "the canvas's 3, 5 and 8; 500 is the same round, capped at what one round may ask for");
+  assert.equal(planMinutes(plan({ count: 1 })), 2, "never under two minutes");
+  assert.equal(LEAD_ASSUMED_YIELD, 0.5);
 });

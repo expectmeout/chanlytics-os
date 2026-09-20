@@ -53,7 +53,7 @@ export async function recordAskUsage(
   db: SupabaseClient<Database>,
   tenantId: string,
   userId: string,
-  data: AskUsage & { model: string; latency_ms: number; stop_reason: string | null; stream: boolean },
+  data: AskUsage & { model: string; latency_ms: number; stop_reason: string | null; stream: boolean; purpose: GatewayPurpose },
 ): Promise<void> {
   try {
     await emitEvent(db, tenantId, ASK_USAGE_KIND, "usage", "user", userId, data as unknown as Json);
@@ -129,10 +129,22 @@ export interface GatewayRequest {
   tools?: unknown[];
   tool_choice?: unknown;
   temperature?: number;
-  output_config?: { effort: "low" | "medium" | "high" };
+  output_config?: { effort?: "low" | "medium" | "high"; format?: { type: "json_schema"; schema: Record<string, unknown> } };
 }
 
 const EFFORTS = new Set(["low", "medium", "high"]);
+
+/** What the gateway spends the key on. Every purpose counts in Ask's own daily budget (ASK_USAGE_KIND). */
+export const GATEWAY_PURPOSES = ["ask", "lead_draft", "lead_suggest"] as const;
+export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
+const FORMAT_MAX = 8_000;
+
+function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {
+  if (raw === undefined) return null;
+  const f = raw as { type?: unknown; schema?: unknown } | null;
+  if (!f || f.type !== "json_schema" || !f.schema || typeof f.schema !== "object" || Array.isArray(f.schema)) return "bad";
+  return JSON.stringify(f.schema).length > FORMAT_MAX ? "bad" : { type: "json_schema", schema: f.schema as Record<string, unknown> };
+}
 
 /** The models a request may name; ASK_MODEL (contracts) is the one the loop sends and the default here. */
 export const GATEWAY_MODELS = ["claude-opus-5", "claude-sonnet-5"] as const;
@@ -141,7 +153,10 @@ export const GATEWAY_MAX_MESSAGES = 60;
 export const GATEWAY_MAX_TOOLS = 40;
 export const GATEWAY_MAX_BODY = 700_000;
 
-export function validateGatewayRequest(raw: unknown): { ok: true; request: GatewayRequest } | { ok: false; error: string } {
+export function validateGatewayRequest(
+  raw: unknown,
+  purpose: GatewayPurpose = "ask",
+): { ok: true; request: GatewayRequest } | { ok: false; error: string } {
   const r = raw as Partial<GatewayRequest> | null;
   if (!r || typeof r !== "object") return { ok: false, error: "request required" };
   const model = typeof r.model === "string" ? r.model : ASK_MODEL;
@@ -156,6 +171,12 @@ export function validateGatewayRequest(raw: unknown): { ok: true; request: Gatew
   if (r.system !== undefined && typeof r.system !== "string" && !Array.isArray(r.system)) {
     return { ok: false, error: "system: a string or blocks" };
   }
+  const oc = r.output_config && typeof r.output_config === "object" ? (r.output_config as { effort?: unknown; format?: unknown }) : null;
+  const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as "low" | "medium" | "high") : null;
+  // Ask's own turn answers in prose and names no format; the two lead purposes
+  // answer as records, so theirs is passed through to the model.
+  const format = purpose === "ask" ? null : formatOf(oc ? oc.format : undefined);
+  if (format === "bad") return { ok: false, error: "output_config.format: a JSON schema under 8,000 characters" };
   return {
     ok: true,
     request: {
@@ -166,9 +187,7 @@ export function validateGatewayRequest(raw: unknown): { ok: true; request: Gatew
       ...(r.tools ? { tools: r.tools } : {}),
       ...(r.tool_choice ? { tool_choice: r.tool_choice } : {}),
       ...(typeof r.temperature === "number" ? { temperature: Math.min(1, Math.max(0, r.temperature)) } : {}),
-      ...(r.output_config && typeof r.output_config === "object" && EFFORTS.has(String((r.output_config as { effort?: unknown }).effort))
-        ? { output_config: { effort: (r.output_config as { effort: "low" | "medium" | "high" }).effort } }
-        : {}),
+      ...(effort || format ? { output_config: { ...(effort ? { effort } : {}), ...(format ? { format } : {}) } } : {}),
     },
   };
 }

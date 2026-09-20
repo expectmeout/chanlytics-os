@@ -57,6 +57,10 @@ for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
+// The page People and Leads share names these two; People never opens a lead's peek, and each returns its own
+// cleanup, so a no-op keeps the hook order the stub React counts on.
+globalThis.leadArmOnReturn = () => () => undefined;
+globalThis.leadPeekFocus = () => () => undefined;
 
 /** The words of a tree in reading order. */
 const say = (n) => {
@@ -238,6 +242,8 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
 
 /* ------------------------------ People and Lists ------------------------------ */
 
+await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 

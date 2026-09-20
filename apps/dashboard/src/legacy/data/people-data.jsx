@@ -1,7 +1,13 @@
 /* global window */
-// Chanlytics — People seed data: Leads (qualification queue) + Segment detail meta
-// Leads: agents qualify, you approve. Stages: new → qualifying → ready → nurture
-// (converted/archived are terminal states reached in-session).
+// Chanlytics — People seed data: the mockup's leads + Segment detail meta
+// These are the MOCKUP's leads and the mockup's stages: new → qualifying →
+// ready → nurture (converted/archived are terminal states reached in-session).
+// The page that drew them as a queue is retired — Leads is a scope of People
+// now (clients/leads), fed by the leads surface — and these seeds stay because
+// Segments, the Deal board, the demo Inbox and the demo bell still draw them.
+// Nothing real reads any of it: a stored lead's stage is contracts' LEAD_STAGES
+// (ready | nurture | converted | archived, with a reason) said in the words of
+// LEAD_STAGE_WORDS, and `qualifying` and `new` are never stored.
 
 const LEAD_STAGES = [
   { id: "ready",      label: "Ready for you", sub: "Qualified — your call",        glyph: "alert",   accent: true },
@@ -483,12 +489,15 @@ const SEG_GUARDRAILS = [
 
 window.LEADS = LEADS;
 
-// =============== SESSION LEAD ARRIVAL ===============
+// =============== SESSION LEAD ARRIVAL (DEMO ONLY) ===============
 // One scripted inbound moment so the top of the funnel is demoable live:
-// ~18s into a session Riley texts back after a missed call (bell push,
-// source-strip tick, row appears); Qualifier scores them 8s later.
-// Both beats mutate LEADS + LEAD_SOURCES (+ aggregates, guarded) together
-// so the sums contract holds mid-session.
+// ~18s into a session Riley texts back after a missed call; Qualifier scores
+// them 8s later. What is left to see is the bell (topbar.jsx starts the timer
+// only in a demo and listens for leads:arrived) — the page that drew the row
+// and the source strip is retired. Both beats still mutate LEADS +
+// LEAD_SOURCES (+ aggregates, guarded) together so the sums contract holds
+// mid-session. A real workspace never fires this: its lead news is the bell's
+// own leads_ready / leads_question rows.
 const LD_ARRIVAL = {
   id: "ld-riley", name: "Riley Nguyen", initials: "RN",
   stage: "new", channel: "sms", source: "Missed call · texted back the main line",

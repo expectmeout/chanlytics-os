@@ -29,6 +29,9 @@ import {
   type AskProposal,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_TRIGGERS,
+  ProposeLeadSearchSchema,
+  planLeadSearch,
+  planSentence,
   SCHEMA_SETS,
   defaultParamSpecs,
   eligibleForPlaybook,
@@ -40,6 +43,7 @@ import {
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
+import { planFacts } from "../leads";
 import { listPeople } from "../people";
 import { checkPlaybookInput } from "../playbooks";
 import { replyChannelOf } from "../verbs";
@@ -135,6 +139,20 @@ export const ACT_TOOLS: ToolDef[] = [
     name: "propose_invite",
     description: "Propose inviting someone to the workspace by email, as operator or viewer. Owner-only.",
     input_schema: obj({ email: { type: "string" }, role: { type: "string", enum: [...SCHEMA_SETS["invitations.role"]] } }, ["email", "role"]),
+  },
+  {
+    name: "propose_lead_search",
+    description: "Propose a search for businesses in the US the owner could reach: what kind (plural, and one of them), how many (50, 100, 200 or 500 unless they said a number), where (a city and its two-letter state, a ZIP, or a state), the contact standard (phone, or email checked), the criteria each with whether it must be seen or is likely from what Claude reads, who to leave out (chains, other kinds; short chips in plain words), up to three search terms (widest first). looking_for is local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched. asked: the owner's words. It becomes a plan card the owner approves; nothing is searched or spent before that. Owner-only.",
+    input_schema: obj({
+      looking_for: { type: "string", enum: ["local_businesses", "people", "online_sellers", "other"] },
+      country: { type: "string" }, count: { type: "integer" }, who: { type: "string" }, who_one: { type: "string" }, category_key: { type: "string" },
+      terms: { type: "array", items: { type: "string" } },
+      city: { type: "string" }, region: { type: "string" }, zip: { type: "string" },
+      contact: { type: "string", enum: ["phone", "email"] },
+      criteria: { type: "array", items: obj({ text: { type: "string" }, standard: { type: "string", enum: ["likely", "seen"] }, required: { type: "boolean" } }, ["text", "standard", "required"]) },
+      leave_out: { type: "array", items: obj({ words: { type: "string" } }, ["words"]) },
+      asked: { type: "string" },
+    }, ["looking_for", "country", "count", "who", "who_one", "category_key", "terms", "region", "contact", "criteria", "asked"]),
   },
 ];
 
@@ -527,6 +545,43 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
   });
 }
 
+/**
+ * A lead search as a card the owner approves. The model says who, how many,
+ * where and the standard; the planner in contracts builds the plan, keys every
+ * criterion and exclusion and checks the result against release A's own
+ * schema, so what the card carries is a plan the door would accept. Nothing is
+ * searched, reserved or spent here: the approval posts the plan, and the route
+ * is the one that spends.
+ */
+async function proposeLeadSearch(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
+  if (t.role !== "owner") return refuse("only an owner can start a lead search; say so, and that an owner can ask");
+  const shaped = ProposeLeadSearchSchema.safeParse({
+    ...input,
+    city: str(input.city, 60) || null,
+    zip: /^\d{5}$/.test(String(input.zip ?? "")) ? String(input.zip) : null,
+    criteria: (Array.isArray(input.criteria) ? input.criteria : []).slice(0, 6),
+    leave_out: (Array.isArray(input.leave_out) ? input.leave_out : []).slice(0, 6).map((l) => ({ words: str((l as Record<string, unknown>).words, 40) })),
+  });
+  if (!shaped.success) return refuse(`the plan is not complete: ${shaped.error.issues[0]?.path.join(".")} ${shaped.error.issues[0]?.message}`);
+  const r = planLeadSearch(shaped.data);
+  // Outside the US, people rather than businesses, an ask no card fits: words
+  // for the model to say, never a card with a problem in it.
+  if (!r.ok) return refuse(r.refusal.text);
+  // The facts under the sentence -- the month's leads left, the duplicates
+  // already theirs, what past searches for this kind of business found -- are
+  // one read, `planFacts` in server/leads.ts. It lives there and not here
+  // because this module reads and never writes a door of its own (a test holds
+  // it to that), and the plan card is drawn from exactly what it answers.
+  return propose({
+    kind: "lead_search",
+    needs: "owner",
+    title: r.view.title,
+    summary: planSentence(r.plan),
+    payload: { plan: r.plan, view: r.view, facts: await planFacts(t.ctx, t.tenantId, { categoryKey: shaped.data.category_key, now: t.now }) },
+    undo: "Stop the search",
+  });
+}
+
 export async function buildProposal(t: ToolContext, name: string, input: Record<string, unknown>): Promise<ProposalOutcome> {
   try {
     switch (name) {
@@ -540,6 +595,7 @@ export async function buildProposal(t: ToolContext, name: string, input: Record<
       case "propose_invite": return await proposeInvite(t, input);
       case "propose_broadcast": return await proposeBroadcast(t, input);
       case "propose_playbook": return await proposePlaybook(t, input);
+      case "propose_lead_search": return await proposeLeadSearch(t, input);
       default: return refuse(`unknown tool ${name}`);
     }
   } catch (e) {
@@ -559,6 +615,7 @@ const PROPOSAL_LABELS: Record<string, string> = {
   propose_invite: "Preparing an invitation",
   propose_broadcast: "Preparing a broadcast",
   propose_playbook: "Preparing a playbook",
+  propose_lead_search: "Planning a search",
 };
 
 export function proposalLabel(name: string): string {

@@ -82,8 +82,8 @@ const NAV_ROUTE = {
 };
 
 // ---- The mockup's landings ---------------------------------------------
-// The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline
-// and Leads; the shared report viewer) stay in the tree and stay hidden from
+// The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline;
+// the shared report viewer) stay in the tree and stay hidden from
 // every real workspace: no nav entry, no tab, the Not-in-this-release card for
 // a hand-typed address. Ruben's decision, 11 September 2026: most of it is
 // revisited when the product is at 100%, and none of those features is built
@@ -103,7 +103,6 @@ const SOON_META = {
   reports:    { icon: "trending-up", title: "Reports",    blurb: "Revenue, conversion, and agent performance over time." },
   admin:      { icon: "settings",    title: "Settings",   blurb: "Team, billing, integrations, AI memory, and autonomy defaults." },
   clients:    { icon: "users",       title: "People",    blurb: "Every customer's history, spend, and preferences in one profile." },
-  leads:      { icon: "bolt",        title: "Leads",      blurb: "New prospects captured, scored, and queued for your call." },
   segments:   { icon: "filter",      title: "Lists",      blurb: "Smart lists that keep themselves current — lapsed, VIP, new." },
   tasks:      { icon: "check",       title: "Tasks",      blurb: "The work ledger — a receipt for everything your agents did." },
   live:       { icon: "phone",       title: "Live",       blurb: "Calls on your line, as they happen." },
@@ -398,6 +397,19 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         onOpenClient={(clientId) => navigate(clientId ? `clients/${clientId}` : "clients")}
       />
     );
+  } else if (page === "clients" && param && /^leads(:|$)/.test(param)) {
+    // People › Leads: the same page, its other scope. The address carries the view (clients/leads:s-<search>:l-<list>:c-<class>),
+    // and `key` remounts the page when the scope changes, so its state starts from the view it is showing rather
+    // than the other one's sort and columns.
+    const search = window.__LEADS && window.__leadsRouteParse
+      ? (window.__LEADS.searches || []).find((s) => s.id === (window.__leadsRouteParse(param) || {}).searchId)
+      : null;
+    activeNav = "clients";
+    crumbs = search
+      ? [{ label: "People", to: "clients" }, { label: "Leads", to: "clients/leads" }, search.name]
+      : [{ label: "People", to: "clients" }, "Leads"];
+    pane = true;
+    content = <ClientsA key="leads" scope="leads" leadsRoute={param} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param && /^(seg|list|state):/.test(param)) {
     // One view of People, linkable: a smart list (seg:), a list kept by hand
     // (list:) or a state (state:) — what the assistant and Today point at.
@@ -412,7 +424,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "clients";
     crumbs = [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : window.__PEOPLE ? "List" : "Segment"];
     pane = true;
-    content = <ClientsA initialSegment={segId} initialSaved={savedId} initialState={stateId} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
+    content = <ClientsA key="people" scope="people" initialSegment={segId} initialSaved={savedId} initialState={stateId} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param) {
     // A real workspace resolves the person from the People surface; the
     // profile fetches in full and says so itself when the id is not here.
@@ -435,23 +447,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <Icon name="plus" size={12} /> Add client
       </button>
     ) : null;
-    content = <ClientsA onOpenProfile={(id) => navigate(`clients/${id}`)} />;
-  } else if (page === "leads") {
-    const srcParam = param && param.startsWith("src:") ? param.slice(4) : null;
-    const srcMeta = srcParam && (window.LEAD_SOURCES || []).find(s => s.id === srcParam);
-    const leadParam = param && param.startsWith("ld-") && (window.LEADS || []).some(l => l.id === param) ? param : null;
-    const leadWho = leadParam && ((window.LEADS || []).find(l => l.id === leadParam) || {}).name;
-    activeNav = "leads";
-    crumbs = leadWho ? ["People", { label: "Leads", to: "leads" }, leadWho]
-      : srcMeta ? ["People", { label: "Leads", to: "leads" }, srcMeta.label]
-      : ["People", "Leads"];
-    pane = true;
-    primaryAction = (
-      <button className="btn btn-sm" onClick={openAsk}>
-        <Icon name="plus" size={12} /> Add lead
-      </button>
-    );
-    content = <LeadsPage initialSrc={srcMeta ? srcParam : null} initialLead={leadParam} onOpenClient={(id) => navigate(`clients/${id}`)} />;
+    content = <ClientsA key="people" scope="people" onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "segments" && (window.__PEOPLE || realWorkspace())) {
     // Lists is a view of People on a real workspace: the list's own route lands on People with that list picked
     // (the People page's rule, window.__listRoute), so Playbooks' list, an answer's jump and a kept address still
@@ -682,8 +678,16 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   }
 
   // Retired surfaces: People took over Leads and the Deal board. A real
-  // workspace lands on People; the standalone mockup keeps its pages.
-  const retiredTo = !window.__DEMO_MODE && window.__surfaceRetired ? window.__surfaceRetired(page) : null;
+  // workspace lands on People; the mockup keeps a retired page only while it
+  // still HAS one to keep. The Deal board's is in the tree, so a demo session
+  // stays on it. The seeded Leads page was deleted when Leads became a scope of
+  // People, so `#/leads` is an address that moved for everyone: this route has
+  // no branch of its own any more, and without this the demo would fall through
+  // to Not found for a page that is only somewhere else.
+  const seededPageGone = page === "leads";
+  const retiredTo = window.__surfaceRetired && (!window.__DEMO_MODE || seededPageGone)
+    ? window.__surfaceRetired(page)
+    : null;
   useShellEffect(() => {
     if (retiredTo) window.location.hash = "/" + retiredTo;
   }, [retiredTo]);

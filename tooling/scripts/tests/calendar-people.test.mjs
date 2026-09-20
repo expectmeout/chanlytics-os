@@ -16,6 +16,14 @@ import {
 import { readCode } from "./_source.mjs";
 
 /**
+ * The People page and the table it draws with, each read once for the whole file. The table, its Columns menu and
+ * their helpers were lifted out of the page into people-table.jsx (release B of the lead finder), so the strings
+ * below live in one file or the other; four reads of the page became one, and the fifth is the table's.
+ */
+const PEOPLE_PAGE = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+const PEOPLE_TABLE = readCode("apps/dashboard/src/legacy/pages/people-table.jsx");
+
+/**
  * The business's own addresses, for the cases below that are not about them:
  * matching by number, address and name is the same with an empty set. The
  * cases that ARE about them are at the end of this file.
@@ -505,13 +513,13 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === \"ok\")") && sd.includes("booking: toBookingReportVM(data.booking),"));
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  assert.ok(reg.includes('leads: "clients",') && reg.includes('pipeline: "clients",') && reg.includes("w.__surfaceRetired = surfaceRetiredTo;"), "retired, and where to");
+  // Leads came back on 18 Sep 2026 as a SCOPE of People, so the old address lands on that scope, not on the list of clients.
+  assert.ok(reg.includes('leads: "clients/leads",') && reg.includes('pipeline: "clients",') && reg.includes("w.__surfaceRetired = surfaceRetiredTo;"), "retired, and where to");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('if (retiredTo) window.location.hash = "/" + retiredTo;'), "a real workspace lands on People");
-  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.
-  assert.ok(page.includes('data-testid="row-next-visit"') && page.includes("asked_never_booked:"), "the column and the tips");
-  assert.ok(!page.includes('<StatCell label="Booked"'), "REGRESSION: the rail said it and a card said it again");
+  assert.ok(PEOPLE_PAGE.includes('data-testid="row-next-visit"') && PEOPLE_PAGE.includes("asked_never_booked:"), "the column and the tips");
+  assert.ok(!PEOPLE_PAGE.includes('<StatCell label="Booked"'), "REGRESSION: the rail said it and a card said it again");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/reports-sections.jsx").includes('testid="chart-booking"'));
 });
 
@@ -599,13 +607,12 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
 });
 
 test("the list page: the rail is grouped, a state is a chip, a list has its step, the view is linkable and remembered", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(page.includes('data-testid="row-next-visit"') && !page.includes("row-booked"), "the column carries the outcome; the chip is gone");
-  assert.ok(page.includes('data-testid={`rail-group-${g.id}`}') && page.includes("cl-rail-group-label"));
-  assert.ok(page.includes('data-testid="state-filter"') && !page.includes('{["all", ...PL_TABS].map((t) => ('), "one state switcher: the strip, echoed as a chip");
-  assert.ok(page.includes('data-testid="list-action"') && page.includes("window.CHANLY.nav(listStep.to)"));
-  assert.ok(page.includes('window.history.replaceState(null, "", next)') && page.includes("`seg:${listId}` : savedId ? `list:${savedId}` : tab !== \"all\" ? `state:${tab}`"), "linkable");
-  assert.ok(page.includes('const PL_VIEW_KEY = "chanlytics-people-view";') && page.includes("plSaveView(view);") && page.includes('window.__saveView("people", view)'), "remembered: on this device, and on the member's row in the workspace");
+  assert.ok(PEOPLE_PAGE.includes('data-testid="row-next-visit"') && !PEOPLE_PAGE.includes("row-booked"), "the column carries the outcome; the chip is gone");
+  assert.ok(PEOPLE_PAGE.includes('data-testid={`rail-group-${g.id}`}') && PEOPLE_PAGE.includes("cl-rail-group-label"));
+  assert.ok(PEOPLE_PAGE.includes('data-testid="state-filter"') && !PEOPLE_PAGE.includes('{["all", ...PL_TABS].map((t) => ('), "one state switcher: the strip, echoed as a chip");
+  assert.ok(PEOPLE_PAGE.includes('data-testid="list-action"') && PEOPLE_PAGE.includes("window.CHANLY.nav(listStep.to)"));
+  assert.ok(PEOPLE_PAGE.includes('window.history.replaceState(null, "", next)') && PEOPLE_PAGE.includes("`seg:${listId}` : savedId ? `list:${savedId}` : tab !== \"all\" ? `state:${tab}`"), "linkable");
+  assert.ok(PEOPLE_PAGE.includes('const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view" };') && PEOPLE_PAGE.includes("plSaveView(scope, view);") && PEOPLE_PAGE.includes("window.__saveView(page, view)"), "remembered: on this device, and on the member's row in the workspace, per scope");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('/^(seg|list|state):/.test(param)') && shell.includes("initialSaved={savedId} initialState={stateId}"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
@@ -641,19 +648,19 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   // which the refresh map treats like any other write (slice B of the data
   // program); consent-history.test.mjs runs that door.
   assert.ok(bridge.includes("return api()(CONSENT_ROUTE[purpose], { params: { id }, body });") && bridge.includes("api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } })") && !bridge.slice(bridge.indexOf("async function recordMany"), bridge.indexOf("export type ReceptionistMany")).includes("refresh: false"), "the single and the many both refresh through the map; the many are one request (a view save, which changes no surface, is the one write that holds the map back)");
-  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  for (const id of ["select-all", "row-select", "bulk-bar", "bulk-list-name", "bulk-export", "bulk-clear", "save-shown", "save-shown-name"]) assert.ok(page.includes(`data-testid="${id}"`), id);
+  for (const id of ["bulk-bar", "bulk-list-name", "bulk-export", "bulk-clear", "save-shown", "save-shown-name"]) assert.ok(PEOPLE_PAGE.includes(`data-testid="${id}"`), id);
+  for (const id of ["select-all", "row-select"]) assert.ok(PEOPLE_TABLE.includes(`data-testid="${id}"`), id);
   // WHICH yes, and how it was given. The bulk action was titled for offers and
   // wrote the conversational column, so a salon recording thirty signed marketing
   // consents changed the one field that does not authorise a promotion.
   assert.ok(bridge.includes("export async function setPersonMarketingConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>"));
   assert.ok(bridge.includes("window.__setPersonMarketingConsentMany = setPersonMarketingConsentMany;"));
-  assert.ok(page.includes('{ header: "Yes to messages about their visit\u2026" }') && page.includes('{ header: "Yes to offers and news\u2026" }'), "both asks are offered, and named");
-  assert.ok(page.includes('{ consent: "opted_in", source: source.id },'), "a yes says how it was given");
-  assert.ok(page.includes('.filter((s) => s.id !== "customer_message")'), "their own message is not something a desk records for them");
-  assert.ok(page.includes("React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);"), "a selection never outlives its view");
-  assert.ok(page.includes('const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
-  assert.ok(page.includes("selectable={canEditLists || canExport}"));
+  assert.ok(PEOPLE_PAGE.includes('{ header: "Yes to messages about their visit\u2026" }') && PEOPLE_PAGE.includes('{ header: "Yes to offers and news\u2026" }'), "both asks are offered, and named");
+  assert.ok(PEOPLE_PAGE.includes('{ consent: "opted_in", source: source.id },'), "a yes says how it was given");
+  assert.ok(PEOPLE_PAGE.includes('.filter((s) => s.id !== "customer_message")'), "their own message is not something a desk records for them");
+  assert.ok(PEOPLE_PAGE.includes("React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, q, leadsRoute, chip]);"), "a selection never outlives its view");
+  assert.ok(PEOPLE_PAGE.includes('const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
+  assert.ok(PEOPLE_PAGE.includes("selectable={canEditLists || canExport}"));
 });
 
 test("every visit, oldest first, for the timeline; the profile reads them as Visited and Booked, and the booking link is one step away", async () => {
@@ -701,15 +708,14 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.equal(row.lastVisitDay, "Thu, Aug 20");
   assert.deepEqual(row.replyWindow, { open: true, hoursLeft: 23 });
   assert.equal(toPersonRowVM({ ...ROW, has_chat: false }, TZ, now).replyWindow, null);
-  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(!page.includes('label: "First contact"'), "First contact lives in the identity cell, never a column of its own");
-  assert.ok(page.includes('cl-row-avatar-glyph') && page.includes('data-testid="row-name-them"'), "a number is not initials; it can be named");
-  assert.ok(page.includes('<span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>'), "a visit behind them when nothing is ahead");
-  assert.ok(page.includes('const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };'));
-  assert.ok(page.includes('data-testid="row-open-thread"') && page.includes('data-testid="row-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"'), "the row's own next steps");
-  assert.ok(page.includes('title={plWhen(p.lastContact.at)}'), "the exact time on hover");
-  assert.ok(page.includes('"no messages yet"') && page.includes('`${total} ${total === 1 ? "person" : "people"}`'), "honest words");
-  assert.ok(page.includes('(p.quote || "").toLowerCase().includes(needle)') && page.includes('(p.nextVisit || "").toLowerCase().includes(needle)'), "search finds words on the row");
+  assert.ok(!PEOPLE_PAGE.includes('label: "First contact"'), "First contact lives in the identity cell, never a column of its own");
+  assert.ok(PEOPLE_PAGE.includes('cl-row-avatar-glyph') && PEOPLE_PAGE.includes('data-testid="row-name-them"'), "a number is not initials; it can be named");
+  assert.ok(PEOPLE_PAGE.includes('<span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>'), "a visit behind them when nothing is ahead");
+  assert.ok(PEOPLE_PAGE.includes('const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };'));
+  assert.ok(PEOPLE_PAGE.includes('data-testid="row-open-thread"') && PEOPLE_PAGE.includes('data-testid="row-booking-link"') && PEOPLE_PAGE.includes('sessionStorage.setItem("chanlytics-compose"'), "the row's own next steps");
+  assert.ok(PEOPLE_PAGE.includes('title={plWhen(p.lastContact.at)}'), "the exact time on hover");
+  assert.ok(PEOPLE_PAGE.includes('"no messages yet"') && PEOPLE_TABLE.includes('`${total} ${total === 1 ? words.one : words.many}`'), "honest words");
+  assert.ok(PEOPLE_PAGE.includes('(p.quote || "").toLowerCase().includes(needle)') && PEOPLE_PAGE.includes('(p.nextVisit || "").toLowerCase().includes(needle)'), "search finds words on the row");
   const css = readCode("apps/dashboard/src/legacy/styles/clients.css");
   assert.ok(css.includes("overflow: clip;") && css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'), "a header that sticks; cards under 900px");
   const svc = readCode("apps/dashboard/src/server/calendar.ts");

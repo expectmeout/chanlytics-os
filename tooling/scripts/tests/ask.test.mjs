@@ -117,7 +117,8 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
   assert.deepEqual(askJump("what needs me?", index), [], "a question mark is a question");
   assert.deepEqual(askJump("tell rosa we are late today", index), [], "four words are a sentence");
   assert.deepEqual(askJump("set", index).map((j) => j.label), ["Settings", "Setup"]);
-  assert.ok(ASK_PAGES.every((p) => !/lead|fleet|store|studio|pipeline|content|tasks\b/.test(p.to)), "only real pages");
+  assert.deepEqual(askJump("lea", index).map((j) => j.to), ["clients/leads"], "Leads is a real page now: the scope of People");
+  assert.ok(ASK_PAGES.every((p) => !/fleet|store|studio|pipeline|content|tasks\b/.test(p.to)), "only real pages");
 });
 
 test("suggestions come from the data, in the person's language, and never offer what the workspace cannot answer", () => {
@@ -372,7 +373,7 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
 });
 
 test("cards: an act tool never acts, a proposal names its door and its undo, the outcome is the one update a turn takes", () => {
-  assert.deepEqual(PROPOSAL_GATE, { reply: "approve", steer: "approve", thread_verb: "approve", whisper: "approve", policy: "autonomy", person_mode: "settings", settings: "settings", invite: "team", broadcast: "approve", playbook: "approve" });
+  assert.deepEqual(PROPOSAL_GATE, { reply: "approve", steer: "approve", thread_verb: "approve", whisper: "approve", policy: "autonomy", person_mode: "settings", settings: "settings", invite: "team", broadcast: "approve", playbook: "approve", lead_search: "find" });
   const ok = AskProposalOutcomeSchema.safeParse({ state: "done", receipt: "Sent to Rosa", atMs: 1, undo: { message_id: ID } });
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");

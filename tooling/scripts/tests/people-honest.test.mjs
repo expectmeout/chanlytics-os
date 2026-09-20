@@ -205,6 +205,11 @@ globalThis.MoreMenu = () => null;
 globalThis.Confirm = () => null;
 globalThis.ChannelGlyph = () => null;
 globalThis.useHotkey = () => {};
+// People never opens a lead's peek, but the page it shares with Leads names these two: an effect that arms
+// "Did you send it?" when the tab comes back, and the one that moves focus into the peek. Each returns its
+// own cleanup, so a no-op here keeps the hook order the stub React counts on.
+globalThis.leadArmOnReturn = () => () => undefined;
+globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => flashes.push(t)],
   AttnRow: () => null,
@@ -216,6 +221,8 @@ Object.assign(globalThis.window, {
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
+await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 // The shell's ? sheet, whose Esc is heard before People's.

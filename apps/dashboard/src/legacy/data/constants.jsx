@@ -24,7 +24,8 @@ const CHANLY = {
     appt: (id) => `calendar/${id}`,
     clientSeg: (id) => `clients/seg:${id}`,
     thread: (id) => `inbox/${id}`,
-    lead: (id) => `leads/${id}`,
+    // A lead has no page of its own: Leads is a scope of People, and a lead opens in its peek there.
+    lead: () => "clients/leads",
     agent: (id) => `fleet/${id}`,
     broadcast: (segId) => `broadcasts/${segId}`,
     admin: (pane) => `admin/${pane}`,

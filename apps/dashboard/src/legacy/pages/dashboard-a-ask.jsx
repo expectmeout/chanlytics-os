@@ -202,7 +202,7 @@ const askAnswerFor = (q, topic = null) => {
           : cp.dnc
           ? `No — ${hit.name} is on the DNC list${cp.date ? ` (checked ${cp.date})` : ""}. Agents hold them out of every send automatically; replying to their inbound is still allowed.`
           : `Not yet — ${hit.name}'s consent is ${cp.consent}. Agents hold them out of broadcasts until it's granted.`,
-        links: [{ label: "Open profile", to: hit.stage ? "leads/" + hit.id : window.CHANLY.R.client(hit.id) }],
+        links: [{ label: "Open profile", to: hit.stage ? window.CHANLY.R.lead(hit.id) : window.CHANLY.R.client(hit.id) }],
       };
     }
     return { role: "ai", text: "Consent & DNC are checked on every send automatically — broadcasts and batches hold back anyone without consent or on the DNC list. Ask about a specific person by name.", links: [{ label: "Clients", to: "clients" }] };
@@ -365,7 +365,7 @@ window.askAbout = (detail) => {
 // ⌘K is a palette too: typing matches pages and entities for instant jumps
 const ASK_JUMP_PAGES = [
   { label: "Today", to: "today" }, { label: "Inbox", to: "inbox" }, { label: "Clients", to: "clients" },
-  { label: "Leads", to: "leads" }, { label: "Segments", to: "segments" }, { label: "Pipeline", to: "pipeline" },
+  { label: "Leads", to: "clients/leads" }, { label: "Segments", to: "segments" }, { label: "Pipeline", to: "pipeline" },
   { label: "Calendar", to: "calendar" }, { label: "Conversations", to: "conversations" }, { label: "Live Monitor", to: "live" },
   { label: "Fleet", to: "fleet" }, { label: "Agent Store", to: "store" }, { label: "Tasks", to: "tasks" },
   { label: "Reports", to: "reports" }, { label: "Broadcasts", to: "broadcasts" }, { label: "Outbound", to: "outbound" },
@@ -377,7 +377,7 @@ const askJumpMatches = (q) => {
   const out = [];
   for (const p of ASK_JUMP_PAGES) if (p.label.toLowerCase().includes(s)) out.push({ ...p, kind: "page", icon: "arrow-right" });
   for (const c of (window.CLIENTS || [])) if (c.name.toLowerCase().includes(s)) out.push({ label: c.name, to: `clients/${c.id}`, kind: "client", icon: "users" });
-  for (const l of (window.LEADS || [])) if (l.name.toLowerCase().includes(s)) out.push({ label: l.name, to: `leads/${l.id}`, kind: "lead", icon: "bolt" });
+  for (const l of (window.LEADS || [])) if (l.name.toLowerCase().includes(s)) out.push({ label: l.name, to: window.CHANLY.R.lead(l.id), kind: "lead", icon: "bolt" });
   for (const t of (((window.INBOX_DATA || {}).THREADS) || [])) if (t.who.toLowerCase().includes(s)) out.push({ label: `${t.who} — thread`, to: `inbox/${t.id}`, kind: "thread", icon: "inbox" });
   for (const a of (window.CHANLY ? window.CHANLY.agents() : [])) if (a.name.toLowerCase().includes(s)) out.push({ label: a.name, to: `fleet/${a.id}`, kind: "agent", icon: "agents" });
   for (const g of (window.CLIENT_SEGMENTS || [])) if (g.label.toLowerCase().includes(s)) out.push({ label: g.label, to: `segments/${g.id}`, kind: "list", icon: "filter" });

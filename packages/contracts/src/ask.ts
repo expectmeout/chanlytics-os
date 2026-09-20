@@ -216,7 +216,7 @@ export function emptyReadSet(): AskReadSet {
 
 /** The pages a citation or a navigate target may point at without a read. */
 export const ASK_PAGE_ROUTES = [
-  "today", "inbox", "clients", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports",
+  "today", "inbox", "clients", "clients/leads", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports",
   "admin/setup", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile",
 ] as const;
 
@@ -376,7 +376,7 @@ export type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 export interface AskProposal {
   id: string;
-  kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook";
+  kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search";
   /** The lowest role that may commit it; the route re-checks on Approve. */
   needs: "operator" | "owner";
   title: string;
@@ -390,7 +390,7 @@ export interface AskProposal {
 }
 
 /** The client gate (data-bits `gate`) a card of this kind checks before Approve; the route re-checks the role. */
-export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" | "settings" | "team"> = {
+export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" | "settings" | "team" | "find"> = {
   reply: "approve",
   steer: "approve",
   thread_verb: "approve",
@@ -401,6 +401,7 @@ export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" |
   invite: "team",
   broadcast: "approve",
   playbook: "approve",
+  lead_search: "find",
 };
 
 /** What became of a card, kept with the turn that proposed it. */
@@ -527,6 +528,9 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
+  // Leads is the other scope of People, and it is its own place to an owner: the businesses
+  // a search found, worked. `leads` was the mockup's page and is not offered.
+  { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
   { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
   { label: "Conversations", to: "conversations", kind: "page" },

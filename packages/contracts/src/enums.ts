@@ -196,6 +196,12 @@ export const EVENT_KINDS = [
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

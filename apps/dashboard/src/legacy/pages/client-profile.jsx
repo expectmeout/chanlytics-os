@@ -22,7 +22,10 @@ const cpApptFor = (c) => {
   return appts.find(a => a.clientId === c.id && a.status !== "done" && a.status !== "noshow")
     || appts.filter(a => a.clientId === c.id).pop() || null;
 };
-// Open lead referencing this client — the dupe loop's client-side door
+// Open lead referencing this client — the dupe loop's client-side door, and the
+// mockup's alone: a real workspace's converted lead says where it came from on
+// the profile itself ("A lead you found", people.ts came_from), and its leads
+// live in the scope of People, never at an address of their own.
 const cpLeadFor = (c) =>
   (window.LEADS || []).find(l => (l.clientId === c.id || (l.dupe && l.dupe.clientId === c.id)) && l.stage !== "converted" && l.stage !== "archived") || null;
 
@@ -188,7 +191,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
   const cadence = cadenceFor(c);
   const agentsOff = autonomy === "off";
   const appt = cpApptFor(c);
-  const openLead = cpLeadFor(c);
+  const openLead = window.__DEMO_MODE ? cpLeadFor(c) : null;
   const smsMuted = !!window.CP_STORE.muted["c-aisha:sms-counter"];
   const recMuted = !!window.CP_STORE.muted["c-aisha:recovery-nudge"];
 
@@ -215,7 +218,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
                 <span className="cl-tag-stack" style={{ marginLeft: 4 }}>
                   {c.tags.map(t => <ClientTag key={t}>{t}</ClientTag>)}
                   {openLead && (
-                    <button className="seg-chip seg-chip--warn" data-tip={openLead.dupe ? `${openLead.dupe.reason} — open the lead` : "This person also has an open lead — click to open it"} onClick={() => window.CHANLY.nav(`leads/${openLead.id}`)}>
+                    <button className="seg-chip seg-chip--warn" data-tip={openLead.dupe ? `${openLead.dupe.reason} — open the lead` : "This person also has an open lead — click to open it"} onClick={() => window.CHANLY.nav(window.CHANLY.R.lead(openLead.id))}>
                       <Icon name="bolt" size={9} /> Also in Leads
                     </button>
                   )}

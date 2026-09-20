@@ -602,16 +602,20 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
   }
 });
 
-test("People has no tab strip on a real workspace -- its one real tab is People, and Lists is a view of it; the demo keeps its seeded three, over every view (N24)", async () => {
+test("People has no tab strip on a real workspace -- its one real tab is People, and Lists and Leads are views of it; the demo keeps its seeded Deal board, over every view (N24)", async () => {
   await import("../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
   const tabsAt = (param) => { deep = true; cells = []; seq = 0; return win.SurfaceTabs({ page: "clients", param, onNavigate() {} }); };
   const labels = (tree) => (tree ? tree.props.children.map((b) => textOf(b).trim()) : null);
   for (const param of [null, "seg:opted_in", "list:regulars", "state:needs", "p-9"]) assert.equal(tabsAt(param), null, `nothing to switch to at ${param}: one real tab is no strip`);
   win.__DEMO_MODE = true;
   try {
-    assert.deepEqual(labels(tabsAt(null)), ["People", "Leads", "Deal board"], "the demo's seeded tabs, and no Lists among them");
-    assert.deepEqual(labels(tabsAt("list:regulars")), ["People", "Leads", "Deal board"], "REGRESSION (N24): a list you keep lost the tabs");
-    assert.deepEqual(labels(tabsAt("state:needs")), ["People", "Leads", "Deal board"], "REGRESSION (N24): a state lost the tabs");
+    // No Leads tab, in a demo either: the seeded Leads page is retired and Leads
+    // is a SCOPE of People (clients/leads), switched by the rail's own
+    // People | Leads. The Deal board is the one seeded page left to switch to,
+    // which is exactly two tabs -- the bar's own floor.
+    assert.deepEqual(labels(tabsAt(null)), ["People", "Deal board"], "the demo's seeded tabs, and no Lists or Leads among them");
+    assert.deepEqual(labels(tabsAt("list:regulars")), ["People", "Deal board"], "REGRESSION (N24): a list you keep lost the tabs");
+    assert.deepEqual(labels(tabsAt("state:needs")), ["People", "Deal board"], "REGRESSION (N24): a state lost the tabs");
     assert.equal(tabsAt("p-9"), null, "a person's profile keeps its focus");
   } finally {
     delete win.__DEMO_MODE;

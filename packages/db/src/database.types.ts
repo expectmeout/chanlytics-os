@@ -2518,6 +2518,38 @@ export type Database = {
           },
         ]
       }
+      lead_suggestions: {
+        Row: {
+          business_line: string
+          by_owner: boolean
+          items: Json
+          made_at: string
+          tenant_id: string
+        }
+        Insert: {
+          business_line: string
+          by_owner?: boolean
+          items?: Json
+          made_at?: string
+          tenant_id: string
+        }
+        Update: {
+          business_line?: string
+          by_owner?: boolean
+          items?: Json
+          made_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_suggestions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_suppressions: {
         Row: {
           created_at: string
@@ -2588,6 +2620,7 @@ export type Database = {
           stage: string
           street: string | null
           tenant_id: string
+          version: number
           website_host: string | null
         }
         Insert: {
@@ -2624,6 +2657,7 @@ export type Database = {
           stage?: string
           street?: string | null
           tenant_id: string
+          version?: number
           website_host?: string | null
         }
         Update: {
@@ -2660,6 +2694,7 @@ export type Database = {
           stage?: string
           street?: string | null
           tenant_id?: string
+          version?: number
           website_host?: string | null
         }
         Relationships: [
@@ -3623,7 +3658,10 @@ export type Database = {
           counted: number | null
           created_at: string | null
           created_by: string | null
+          emails_checked: number | null
+          ended_at: string | null
           ending: string | null
+          ending_pending: string | null
           excluded: number | null
           id: string | null
           judge_tokens: number | null
@@ -3640,7 +3678,11 @@ export type Database = {
           state: string | null
           target: number | null
           tenant_id: string | null
+          undo_op_id: string | null
+          undo_version: number | null
           via: string | null
+          waiting_since: string | null
+          with_phone: number | null
         }
         Relationships: [
           {
@@ -3828,6 +3870,15 @@ export type Database = {
       is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }
       jobs_backlog: { Args: { p_wait?: string }; Returns: number }
       lead_blank: { Args: { p_lead_id: string }; Returns: number }
+      lead_bulk: {
+        Args: {
+          p_action: string
+          p_ids?: string[]
+          p_tenant_id: string
+          p_view?: Json
+        }
+        Returns: Json
+      }
       lead_check_commit: {
         Args: {
           p_last: boolean
@@ -3871,6 +3922,16 @@ export type Database = {
         Args: { p_at?: string; p_tenant_id: string }
         Returns: string
       }
+      lead_erase: { Args: { p_lead_id: string }; Returns: Json }
+      lead_export_mark: {
+        Args: { p_ids: string[]; p_tenant_id: string }
+        Returns: number
+      }
+      lead_in_list: {
+        Args: { p_closed_reason: string; p_list: string; p_stage: string }
+        Returns: boolean
+      }
+      lead_list_counts: { Args: { p_tenant_id: string }; Returns: Json }
       lead_member_exclude: {
         Args: { p_lead_id: string; p_search_id: string }
         Returns: Json
@@ -3983,7 +4044,19 @@ export type Database = {
         Args: { p_name: string; p_search_id: string }
         Returns: Json
       }
+      lead_search_undo: { Args: { p_search_id: string }; Returns: Json }
       lead_searches_on: { Args: { p_tenant_id: string }; Returns: boolean }
+      lead_set_stage: {
+        Args: {
+          p_fit_reason?: string
+          p_lead_id: string
+          p_note?: string
+          p_outcome?: string
+          p_reason?: string
+          p_stage?: string
+        }
+        Returns: Json
+      }
       lead_settle_usage: {
         Args: {
           p_day: string
@@ -4002,9 +4075,12 @@ export type Database = {
       lead_undo: { Args: { p_op_id: string; p_version: number }; Returns: Json }
       leads_page: {
         Args: {
+          p_after_id?: string
           p_after_key?: string
           p_class?: string
+          p_dir?: string
           p_limit?: number
+          p_list?: string
           p_search_id?: string
           p_sort?: string
           p_tenant_id: string
@@ -4016,24 +4092,33 @@ export type Database = {
           class: string
           closed_reason: string
           contact_id: string
+          contacted_at: string
+          converted_at: string
           counted: boolean
           counted_month: string
           distance_m: number
           email: string
+          email_alternates: Json
           email_checked_at: string
           email_state: string
           excluded_by: string
+          exported_at: string
           fit: string
           found_at: string
           instagram_url: string
+          judgment: Json
+          last_note: string
+          last_outcome: string
           lat: number
           lead_id: string
           lng: number
           member_id: string
+          page_key: string
           phone_e164: string
           phone_sources: number
           phone_wrong: boolean
           place_id: string
+          places: number
           postal_code: string
           rating: number
           reason: string
@@ -4045,6 +4130,7 @@ export type Database = {
           sort_key: string
           stage: string
           street: string
+          version: number
           website_host: string
         }[]
       }

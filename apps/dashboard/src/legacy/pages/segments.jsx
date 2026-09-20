@@ -350,7 +350,7 @@ const SegmentDetail = ({ seg, meta, extraUsage = [], onAssign, onDuplicate, onAr
             </thead>
             <tbody>
               {members.map(m => m.leadRec ? (
-                <tr key={m.id} onClick={() => window.CHANLY.nav("leads")}>
+                <tr key={m.id} onClick={() => window.CHANLY.nav("clients/leads")}>
                   <td>
                     <div className="cl-row-name">
                       <div className="ix-thread-avatar" data-priority={m.leadRec.priority}>{m.leadRec.initials}</div>
@@ -409,7 +409,7 @@ const SegmentDetail = ({ seg, meta, extraUsage = [], onAssign, onDuplicate, onAr
           </table>
           <div className="cl-table-foot">
             <span>{isLead ? "Full list lives in Leads" : "Full list opens in Clients, filtered"}</span>
-            <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(isLead ? "leads" : window.CHANLY.R.clientSeg(seg.id))}>
+            <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(isLead ? "clients/leads" : window.CHANLY.R.clientSeg(seg.id))}>
               {isLead ? "Open Leads" : "Open in Clients"} <Icon name="arrow-right" size={10} />
             </button>
           </div>

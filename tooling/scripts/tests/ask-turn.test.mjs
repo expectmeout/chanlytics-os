@@ -298,14 +298,14 @@ test("the round gathers the stream: blocks in order, the finish's answer streame
   assert.deepEqual([b.blocks.length, b.blocks[0].name, b.streamError, b.stopReason], [1, "list_threads", "connection reset", null]);
 });
 
-test("the thirteen reads run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing", async () => {
+test("the fourteen reads run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing", async () => {
   const t = tables({ escalations: [{ id: E1, tenant_id: A, conversation_id: C1, reason: "human_token", details: "asked for a person", state: "open", created_at: iso(NOW.getTime() - 1800_000) }] });
   const ctx = ctxFor(t);
   const tc = newToolContext(ctx, A, "operator", TZ, NOW);
   const run = (name, input = {}) => runTool(tc, { name, input });
   const out = {};
   for (const name of READ_TOOLS.map((d) => d.name)) out[name] = await run(name, { conversation_id: C1, contact_id: P1, call_id: K1, filter: "recent", query: "rosa", days: 7, day: "today", service: "" });
-  assert.deepEqual(Object.keys(out).sort(), ["get_calendar", "get_call", "get_openings", "get_person", "get_report", "get_settings", "get_thread", "get_today", "list_audiences", "list_calls", "list_playbooks", "list_threads", "search_people"], "the read tools the loop offers");
+  assert.deepEqual(Object.keys(out).sort(), ["get_calendar", "get_call", "get_openings", "get_person", "get_report", "get_settings", "get_thread", "get_today", "list_audiences", "list_calls", "list_lead_searches", "list_playbooks", "list_threads", "search_people"], "the read tools the loop offers");
   const threads = JSON.parse(out.list_threads.result);
   assert.equal(out.list_threads.isError, false, out.list_threads.result);
   assert.deepEqual(threads.threads.map((x) => [x.conversation_id, x.who, x.state]), [[C1, "Rosa", "needs you"]]);
@@ -323,6 +323,8 @@ test("the thirteen reads run against the database in memory: each answers in its
   assert.equal(out.get_calendar.isError, false, out.get_calendar.result);
   assert.equal(out.list_audiences.isError, false, out.list_audiences.result);
   assert.equal(out.list_playbooks.isError, false, out.list_playbooks.result);
+  assert.equal(out.list_lead_searches.isError, false, out.list_lead_searches.result);
+  assert.deepEqual(JSON.parse(out.list_lead_searches.result).searches, [], "no search asked for yet, said as an empty list");
   assert.deepEqual(JSON.parse(out.search_people.result).people, [], "nobody matched in an empty people list");
   assert.equal(out.get_person.isError, true);
   assert.match(out.get_person.result, /no such person/);

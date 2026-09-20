@@ -21,6 +21,12 @@ import { deployment } from "../deployment";
 export interface GatewayCall {
   tenantId: string;
   userId: string;
+  /**
+   * What the key is spent on (GATEWAY_PURPOSES, ask-gateway.ts). Ask's own turn
+   * omits it and gets "ask"; the two lead purposes name themselves, and only
+   * they may carry a format -- the edge strips one from an Ask turn.
+   */
+  purpose?: "ask" | "lead_draft" | "lead_suggest";
   request: {
     model?: string;
     max_tokens: number;
@@ -28,7 +34,7 @@ export interface GatewayCall {
     messages: unknown[];
     tools?: unknown[];
     tool_choice?: unknown;
-    output_config?: { effort: "low" | "medium" | "high" };
+    output_config?: { effort?: "low" | "medium" | "high"; format?: { type: "json_schema"; schema: Record<string, unknown> } };
   };
   signal?: AbortSignal;
 }
@@ -61,7 +67,7 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
     res = await fetch(`${edgeUrl()}/api/admin/llm`, {
       method: "POST",
       headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId }),
-      body: JSON.stringify({ tenant_id: call.tenantId, user_id: call.userId, purpose: "ask", request: call.request }),
+      body: JSON.stringify({ tenant_id: call.tenantId, user_id: call.userId, purpose: call.purpose ?? "ask", request: call.request }),
       signal: call.signal,
     });
   } catch (e) {

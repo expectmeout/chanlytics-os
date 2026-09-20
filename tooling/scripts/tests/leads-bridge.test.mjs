@@ -1,0 +1,298 @@
+/**
+ * The Leads surface, read by view, and the courier that carries the acts.
+ *
+ * The surface mirrors People's split -- what is loaded is kept in a module
+ * variable and the surface is derived from it every time -- and adds what the
+ * review's E8 asks of a list that grows while somebody reads it: every read is
+ * made under a key (the workspace and the whole view), an answer that lands
+ * under a newer key is dropped, a refresh patches rows by id and keeps the
+ * pages already loaded, and rows a refresh finds that are not drawn are
+ * OFFERED ("12 new") rather than sorted in under the owner. The selection and
+ * the cursor are the page's (Task 2), so nothing here touches them.
+ *
+ * Run, never read: the bridge module against a faked `window.fetch` that
+ * answers rows of the real shape with fictional values, and can hold an answer
+ * until the test lets it go -- which is the only way to prove the ordering
+ * rules, because they are about two reads in flight at once.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+/* ------------------------------- the window ------------------------------ */
+
+const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+globalThis.localStorage = storage();
+globalThis.sessionStorage = storage();
+globalThis.window = {
+  // On a workspace page, so the client names the workspace on every request the way it does in the browser.
+  location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
+  // The zone the surface says its times in, published the way the workspace surface publishes it: no extra read.
+  __WORKSPACES: [{ id: "ws-harbor", timezone: "America/Chicago" }],
+  __ACTIVE_WORKSPACE: "ws-harbor",
+  localStorage: globalThis.localStorage,
+  sessionStorage: globalThis.sessionStorage,
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent() {},
+  fetch: async () => { throw new Error("no wire"); },
+};
+globalThis.document = { addEventListener() {}, removeEventListener() {} };
+
+const { installLeadsCourier, leadsOverride } = await import("../../../apps/dashboard/src/legacy-bridge/leads.ts");
+installLeadsCourier();
+
+/* -------------------------------- fixtures ------------------------------- */
+
+const SEARCH_ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
+const OP = "7c1d9e20-5a3b-4c8d-9e1f-2a3b4c5d6e7f";
+const PLAN = {
+  version: 1,
+  card: "local_businesses",
+  name: "personal trainers",
+  asked: "personal trainers in Austin who train people one to one",
+  terms: ["personal trainer"],
+  area: { kind: "city", label: "Austin, TX", state: "TX", center: { lat: 30.2672, lng: -97.7431 }, radius_m: 20000, query: "Austin, TX" },
+  count: 300,
+  contact: "email",
+  criteria: [{ key: "one_to_one", text: "trains people one to one", standard: "likely", required: true }],
+  exclusions: [{ key: "big_gyms", text: "big gym chains", origin: "claude" }],
+};
+const round = (over = {}) => ({
+  id: "b2c3d4e5-6f70-4812-9a3b-4c5d6e7f8091", seq: 2, purpose: "main", state: "ended", ending: "target_reached",
+  question: null, target: 300, counted: 322, qualified: 272, review: 31, excluded: 19,
+  emails_checked: 188, with_phone: 241, ending_pending: false, waiting_since: null,
+  cost_usd: 4.12, ended_at: "2026-09-18T15:04:00.000Z", undo_op_id: OP, undo_version: 4, ...over,
+});
+const SEARCH_DONE = { id: SEARCH_ID, name: "Personal trainers · Austin", asked: PLAN.asked, asked_on: "2026-09-18T14:10:00.000Z", plan: PLAN, plan_version: 1, round: round() };
+const SEARCH_RUNNING = { ...SEARCH_DONE, round: round({ state: "running", ending: null, ended_at: null, undo_op_id: null, undo_version: null }) };
+
+let seq = 0;
+/** One row in `leads_page`'s shape (4.6's `LeadRowDto`), with fictional values: .example domains, 555-01xx, ChIJfixture place ids. */
+const leadRow = (over = {}) => {
+  const n = ++seq;
+  return {
+    id: `1a2b3c4d-0000-4000-8000-${String(n).padStart(12, "0")}`,
+    search_id: SEARCH_ID,
+    place_id: `ChIJfixture${String(n).padStart(4, "0")}`,
+    business_name: `Travis Heights Coaching ${n}`,
+    category: "Personal trainer",
+    city: "Austin", state: "TX", street: `${100 + n} Live Oak St`, postal_code: "78704",
+    search_name: "Personal trainers · Austin",
+    phone: `+1512555${String(100 + (n % 100)).padStart(4, "0")}`, phone_agrees: true, phone_wrong: false,
+    email: `hello@travisheights${n}.example`, email_state: "ok", email_checked_at: "2026-09-18T14:40:00.000Z",
+    website: `https://travisheights${n}.example`, instagram: null, rating: 4.9, reviews: 16,
+    stage: "ready", closed_reason: null, contact_id: null,
+    last_outcome: null, last_note: null, contacted_at: null, converted_at: null,
+    places: 1, found_at: "2026-09-18T14:32:00.000Z", exported_at: null, version: 1,
+    member: { class: "qualified", fit: "strong", reason: "Trains one to one, own studio", excluded_by: null, distance_m: 2400, counted: true, checks: [], other_emails: [] },
+    ...over,
+  };
+};
+
+const ROWS = [leadRow(), leadRow(), leadRow()];
+const PAGE1 = [leadRow(), leadRow(), leadRow(), leadRow()];
+const PAGE2 = [leadRow(), leadRow()];
+const NEW_A = leadRow();
+const NEW_B = leadRow();
+const NEW_C = leadRow();
+const READY = [leadRow({ stage: "ready" }), leadRow({ stage: "ready" })];
+const NURTURE = [leadRow({ stage: "nurture" }), leadRow({ stage: "nurture" }), leadRow({ stage: "nurture" })];
+
+const COUNTS = { all: 322, ready: 272, nurture: 31, converted: 8, said_no: 4, not_a_fit: 7 };
+const ZERO = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
+const SUGGESTIONS = {
+  business_line: "A hair and nail salon in Austin",
+  by_owner: false,
+  made_at: "2026-09-19T09:00:00.000Z",
+  items: [
+    { words: "wedding planners in Austin", who_for: "brides booking hair and make-up", category_key: "wedding_planner", reach: "about 6 in 10 have an email" },
+    { words: "photography studios in Austin", who_for: "shoots that need hair and make-up", category_key: "photographer", reach: null },
+    { words: "boutique hotels in Austin", who_for: "guests asking the desk for a salon", category_key: "hotel", reach: null },
+  ],
+};
+
+/* --------------------------------- the wire ------------------------------ */
+
+const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+/**
+ * A fake `window.fetch` answering the four reads and every write.
+ *
+ * `hold: true` parks every answer until `release(m)` lets it go; `m` is a
+ * substring of the URL or a predicate over it, rather than an index, because
+ * the typed client shares one request between two callers that ask for the
+ * same URL inside two seconds -- so the nth answer is not the nth call.
+ */
+function wire(opts = {}) {
+  const state = {
+    searches: opts.searches ?? [],
+    counts: opts.counts ?? ZERO,
+    rows: opts.rows ?? [],
+    /** Page two, when the view has one. */
+    next: opts.next ?? null,
+    suggestions: opts.suggestions ?? null,
+    fail: opts.fail ?? null,
+  };
+  const reads = [];
+  const writes = [];
+  const freed = [];
+  const parked = [];
+  const allowed = (url) => freed.some((m) => (typeof m === "function" ? m(url) : url.includes(m)));
+  const gate = (url) => (opts.hold ? new Promise((res) => { if (allowed(url)) res(); else parked.push({ url, res }); }) : Promise.resolve());
+  const rowsOf = (query) => (typeof state.rows === "function" ? state.rows(query) : state.rows);
+
+  globalThis.window.fetch = async (url, init = {}) => {
+    const method = init.method ?? "GET";
+    const [path, q] = String(url).split("?");
+    const query = Object.fromEntries(new URLSearchParams(q ?? ""));
+    if (method === "GET") reads.push(String(url));
+    else writes.push({ key: `${method} ${path}`, body: init.body ? JSON.parse(init.body) : undefined });
+    await gate(String(url));
+    if (state.fail === `${method} ${path}`) return json(500, { ok: false, error: { code: "internal", message: "boom" } });
+    if (path === "/api/v1/lead-searches" && method === "GET") return json(200, { ok: true, data: { searches: state.searches, counts: state.counts } });
+    if (path === "/api/v1/lead-suggestions" && method === "GET") return json(200, { ok: true, data: state.suggestions });
+    if (path === "/api/v1/leads" && method === "GET") {
+      if (query.after_key) return json(200, { ok: true, data: { rows: state.next ?? [], next: null, counts: state.counts } });
+      const rows = rowsOf(query);
+      const more = state.next && state.next.length ? { key: "k-page-one", id: rows.length ? rows[rows.length - 1].id : "" } : null;
+      return json(200, { ok: true, data: { rows, next: more, counts: state.counts } });
+    }
+    if (method !== "GET") return json(200, { ok: true, data: { done: true } });
+    return json(404, { ok: false, error: { code: "not_found", message: "no" } });
+  };
+
+  return {
+    reads,
+    writes,
+    /** What the server would answer from now on: a run that committed a page, a lead somebody changed. */
+    now: (patch) => Object.assign(state, patch),
+    release: (m) => { freed.push(m); for (const p of parked) if (!p.done && (typeof m === "function" ? m(p.url) : p.url.includes(m))) { p.done = true; p.res(); } },
+  };
+}
+
+const L = () => globalThis.window.__LEADS;
+const WS = "workspace=harbor";
+
+/* --------------------------------- the tests ----------------------------- */
+
+test("the Leads surface reads the searches and one view's rows, and publishes them for the page", async () => {
+  const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
+  await leadsOverride.apply();
+  assert.deepEqual(w.reads, [`/api/v1/lead-searches?${WS}`, `/api/v1/leads?list=all&sort=fit&dir=asc&limit=500&${WS}`]);
+  assert.deepEqual(
+    [L().rows.length, L().view.list, L().counts.all, L().searches[0].name, L().next, L().offered, L().route, L().readFailed],
+    [ROWS.length, "all", 322, "Personal trainers · Austin", null, 0, "clients/leads", false],
+  );
+  assert.equal(L().rows[0].name, ROWS[0].business_name, "a row is the view model, never the stored row");
+  assert.equal(L().tz, "America/Chicago", "every time on a row is said by the workspace's clock");
+});
+
+test("a read is keyed by the view: a slow answer for an old view is dropped, and the rows are the new view's", async () => {
+  const w = wire({
+    searches: [SEARCH_DONE], counts: COUNTS, hold: true,
+    rows: (q) => (q.list === "ready" ? READY : NURTURE),
+  });
+  const first = globalThis.window.__leadsView("clients/leads:l-ready");          // held
+  const second = globalThis.window.__leadsView("clients/leads:l-nurture");       // held
+  w.release("lead-searches");
+  w.release("list=nurture");
+  await second;
+  w.release("list=ready");
+  await first;
+  assert.equal(L().view.list, "nurture");
+  assert.equal(L().rows.length, NURTURE.length);
+  assert.ok(L().rows.every((r) => r.stage === "nurture"), "the ready rows never landed");
+});
+
+test("a refresh patches changed rows, keeps the loaded pages, and offers what is new under a fit sort", async () => {
+  const w = wire({ searches: [SEARCH_DONE], rows: PAGE1, next: PAGE2, counts: COUNTS });
+  await globalThis.window.__leadsView("clients/leads");
+  await globalThis.window.__leadsMore();
+  assert.equal(L().rows.length, PAGE1.length + PAGE2.length);
+  w.now({ rows: [{ ...PAGE1[0], stage: "nurture" }, ...PAGE1.slice(1), NEW_A, NEW_B, NEW_C] });
+  await leadsOverride.apply();                                          // what refresh-map and Realtime call
+  assert.equal(L().rows.length, PAGE1.length + PAGE2.length, "no page was dropped");
+  assert.equal(L().rows[0].stage, "nurture", "the changed row was patched in place");
+  assert.equal(L().offered, 3, "12 new, said as a count; nothing re-sorted under the owner");
+  await globalThis.window.__leadsTakeOffered();
+  assert.equal(L().offered, 0);
+  assert.ok(L().rows.some((r) => r.id === NEW_A.id));
+});
+
+test("under the found sort new rows append in the order found", async () => {
+  const w = wire({ searches: [SEARCH_RUNNING], rows: PAGE1, counts: COUNTS });
+  await globalThis.window.__leadsView({ sort: "found", dir: "desc" });
+  w.now({ rows: [NEW_A, ...PAGE1] });
+  await leadsOverride.apply();
+  assert.deepEqual([L().offered, L().rows.at(-1).id], [0, NEW_A.id], "appended after what the owner is reading, not on top of it");
+});
+
+test("leadsMore appends only under the same view; its late answer after a view change is dropped", async () => {
+  const pageOne = (u) => u.includes("/api/v1/leads?") && !u.includes("after_key");
+  const w = wire({ searches: [SEARCH_DONE], rows: PAGE1, next: PAGE2, counts: COUNTS, hold: true });
+  w.release("lead-searches");
+  w.release(pageOne);
+  await globalThis.window.__leadsView("clients/leads");
+  const more = globalThis.window.__leadsMore();                         // held on the second page
+  await globalThis.window.__leadsView("clients/leads:l-ready");
+  w.release("after_key");
+  await more;
+  assert.equal(L().view.list, "ready");
+  assert.ok(!L().rows.some((r) => PAGE2.some((p) => p.id === r.id)), "page two of the old view never joined the new one");
+});
+
+test("a failed read is its own state, never an empty list", async () => {
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, fail: "GET /api/v1/leads" });
+  await leadsOverride.apply().catch(() => {});
+  assert.equal(L().readFailed, true);
+});
+
+test("the first day's suggestions are read only when the workspace has no search", async () => {
+  const w = wire({ searches: [], rows: [], counts: ZERO, suggestions: SUGGESTIONS });
+  await globalThis.window.__leadsView("clients/leads");
+  assert.equal(w.reads.at(-1), `/api/v1/lead-suggestions?${WS}`);
+  assert.equal(L().suggestions.items.length, 3);
+  const w2 = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, suggestions: SUGGESTIONS });
+  await globalThis.window.__leadsView("clients/leads");
+  assert.ok(!w2.reads.some((u) => u.includes("lead-suggestions")), "a workspace with a search has work to read instead");
+});
+
+test("every act goes through its route with the id and the version it saw, never with rows", async () => {
+  const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
+  await globalThis.window.__leadUndo(OP, 4);
+  await globalThis.window.__leadKeep(SEARCH_DONE.id, ROWS[0].id);
+  await globalThis.window.__leadsBulk({ by: "view", action: "contacted", view: { list: "all", sort: "fit", dir: "asc" } });
+  await globalThis.window.__leadStage(ROWS[0].id, { kind: "outcome", outcome: "interested", note: "Tuesday" });
+  await globalThis.window.__leadSearchUndo(SEARCH_DONE.id);
+  assert.deepEqual(w.writes.map((x) => [x.key, x.body]), [
+    [`POST /api/v1/lead-operations/${OP}/undo`, { version: 4 }],
+    [`POST /api/v1/leads/${ROWS[0].id}/keep`, { search_id: SEARCH_DONE.id }],
+    ["POST /api/v1/leads/bulk", { by: "view", action: "contacted", view: { list: "all", sort: "fit", dir: "asc" } }],
+    [`POST /api/v1/leads/${ROWS[0].id}/stage`, { kind: "outcome", outcome: "interested", note: "Tuesday" }],
+    [`POST /api/v1/lead-searches/${SEARCH_DONE.id}/undo`, undefined],
+  ]);
+});
+
+test("the courier installs exactly the names the page and the screens call, and no words of its own", () => {
+  const installed = Object.keys(globalThis.window).filter((k) => k.startsWith("__lead")).sort();
+  assert.deepEqual(installed, [
+    "__leadBusinessLine", "__leadDraft", "__leadErase", "__leadExclude", "__leadKeep", "__leadPeekVM", "__leadPutBack",
+    "__leadRail", "__leadSearchAnswer", "__leadSearchMore", "__leadSearchRemove", "__leadSearchRename",
+    "__leadSearchStop", "__leadSearchUndo", "__leadSearchWords", "__leadStage", "__leadUndo",
+    "__leadsBulk", "__leadsMore", "__leadsRouteOf", "__leadsRouteParse", "__leadsStanding", "__leadsTakeOffered", "__leadsView",
+  ]);
+  assert.equal(globalThis.window.__leadsRouteOf({ searchId: SEARCH_ID, list: "ready", cls: null }), `clients/leads:s-${SEARCH_ID}:l-ready`);
+  assert.deepEqual(globalThis.window.__leadsRouteParse(`clients/leads:s-${SEARCH_ID}:l-ready`), { searchId: SEARCH_ID, list: "ready", cls: null, chips: {} });
+  assert.equal(globalThis.window.__leadRail(COUNTS, [SEARCH_DONE]).searches[0].count, 322);
+  assert.equal(globalThis.window.__leadsStanding(COUNTS, [SEARCH_DONE]).total, "322 leads");
+  // The words a lead wears are seeded whole in seed-globals.ts (__LEAD_WORDS, __LEAD_VM); the courier carries acts.
+  assert.equal(globalThis.window.__LEAD_WORDS, undefined);
+  assert.equal(globalThis.window.__LEAD_VM, undefined);
+});
+
+test("the surface declares the globals it owns, the tables a run writes, and its own event", () => {
+  assert.deepEqual(
+    [leadsOverride.key, leadsOverride.globals, leadsOverride.events, leadsOverride.refreshOnTables, leadsOverride.debounceMs],
+    ["leads", ["__LEADS"], ["surface:leads"], ["leads", "lead_searches", "lead_rounds", "lead_search_members"], 800],
+  );
+});

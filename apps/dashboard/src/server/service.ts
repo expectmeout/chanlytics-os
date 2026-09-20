@@ -741,3 +741,22 @@ export async function runPlaybookNow(tenantId: string, playbookId: string, userI
   }
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
+
+/**
+ * The first day's suggestions, kept for the workspace (§8.9).
+ *
+ * On the service client, and one of the few writes here that is tenant data:
+ * `lead_suggestions` grants no insert or update to a member (00142), because
+ * what Claude wrote is not something an owner types. The owner's own control
+ * is the business line, which comes through the same door with `items: []` so
+ * the next read asks again.
+ */
+export async function saveLeadSuggestions(
+  tenantId: string,
+  row: { business_line: string; by_owner: boolean; items: Json },
+): Promise<void> {
+  const { error } = await serviceDb()
+    .from("lead_suggestions")
+    .upsert({ tenant_id: tenantId, business_line: row.business_line, by_owner: row.by_owner, items: row.items, made_at: new Date().toISOString() }, { onConflict: "tenant_id" });
+  if (error) throw new Error(`lead_suggestions: ${error.message}`);
+}
