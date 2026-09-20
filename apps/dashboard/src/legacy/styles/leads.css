@@ -540,8 +540,10 @@
 button.ld-tile { cursor: pointer; }
 button.ld-tile:focus-visible { box-shadow: var(--focus-ring); }
 .ld-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-/* The mark sits over the photo on its own ground, held clear of the edges: a logo cropped to a square is a smudge. */
-.ld-tile img.lg { object-fit: contain; padding: 16%; background: var(--tint); }
+/* The mark sits over the photo on its own ground, held clear of the edges: a logo cropped to a square is a smudge.
+   Every tint is translucent, so the plate needs an opaque base under it or the photograph reads straight through
+   the logo. The gradient is the tint painted on itself -- the one way to composite a colour over another in CSS. */
+.ld-tile img.lg { object-fit: contain; padding: 16%; background: linear-gradient(var(--tint), var(--tint)), var(--bg-raised); }
 .ld-tile-initials { position: relative; z-index: 0; }
 .ld-tile-expand { position: absolute; right: 3px; bottom: 3px; width: 14px; height: 14px; border-radius: 4px; background: oklch(0 0 0 / 0.55); color: oklch(1 0 0); display: grid; place-items: center; opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
 .ld-tile:hover .ld-tile-expand, .ld-tile:focus-visible .ld-tile-expand { opacity: 1; }
@@ -667,10 +669,12 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-band.tint-5 { --tint: oklch(from var(--danger) l c h / 0.14); --tint-ink: var(--danger-ink); }
 .pk-band.tint-6 { --tint: var(--bg-active); --tint-ink: var(--ink-muted); }
 .pk-band img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-.pk-band.no-img img { display: none; }
+/* A photograph that fails to load takes its own layer down, never the mark painted over it. */
+.pk-band.no-img img:not(.pk-band-mark) { display: none; }
 .pk-band-initials { font-family: var(--font-mono); font-size: 40px; font-weight: 500; letter-spacing: .04em; opacity: .9; }
-.pk-band-mark { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 96px; height: 96px; object-fit: contain; display: block; }
-.pk-band.has-img img:not(.pk-band-mark) ~ .pk-band-mark { display: none; }
+/* The mark covers the photograph on its own plate, as .ld-tile img.lg does in the row: a logo cropped to fill would
+   be a smudge, so it is contained and held clear of the edges. Its own onError uncovers whatever is beneath it. */
+.pk-band-mark { object-fit: contain; padding: 20%; box-sizing: border-box; background: linear-gradient(var(--tint), var(--tint)), var(--bg-raised); }
 .pk-band-expand { position: absolute; right: 12px; bottom: 12px; height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: oklch(0 0 0 / 0.6); color: oklch(1 0 0); font: inherit; font-size: var(--text-xs); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .pk-band-expand:hover { background: oklch(0 0 0 / 0.75); }
 .pk-band-x { position: absolute; right: 10px; top: 10px; background: oklch(from var(--bg-raised) l c h / 0.9); color: var(--ink); }

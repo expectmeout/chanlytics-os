@@ -581,7 +581,7 @@ test("no word the peek says names the vendor, or a dollar", () => {
 });
 
 // D2: who they are, from what the listing shows. Every line only when the listing said; a lead from before says nothing.
-test("the peek shows who they are: the photo as the mark, their own words, where, open today, the unclaimed note, the socials and the Maps page", async () => {
+test("the peek shows who they are: the photo, their own words, where, open today, the unclaimed note, the socials and the Maps page", async () => {
   reset();
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => ({ day, hours: "9 AM to 6 PM" }));
   const shown = page({ vm: vmOf({ about: "Waterfront venue for weddings.", street: "101 Biscayne Blvd", city: "Miami", state: "FL", postal_code: "33132", hours: days,
@@ -599,6 +599,36 @@ test("the peek shows who they are: the photo as the mark, their own words, where
   reset();
   tree = page({ vm: vmOf({}) }).draw().tree;
   for (const id of ["peek-photo", "peek-about", "peek-today", "peek-claimed", "peek-facebook", "peek-maps"]) assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
+});
+
+// D6: who the company IS comes before which shop this is, so the mark covers the photograph here exactly as it does
+// on the row's tile -- the photograph is what Expand is for. The two are stacked rather than chosen: the layers are
+// both in the band, in paint order, and a mark that fails to load hides its own layer and uncovers the photo. No
+// state decides which one is showing, which is why there is an order to assert at all.
+test("the peek's band: the mark covers the photo, the photo stands alone without one, and the initials wait under both", () => {
+  const MARK = "https://zilkerstrength.example/mark.svg";
+  const PHOTO = "https://lh3.example/p.jpg";
+  const band = (over) => { reset(); return byTestId(page({ vm: vmOf(over) }).draw().tree, "peek-photo-band"); };
+  const layers = (over) => all(band(over), (n) => n.props?.["data-testid"] === "peek-photo" || n.props?.["data-testid"] === "peek-mark").map((n) => n.props["data-testid"]);
+
+  assert.deepEqual(layers({ image_url: PHOTO, logo_url: MARK }), ["peek-photo", "peek-mark"], "the mark is painted last, so it covers the photograph");
+  assert.deepEqual(layers({ logo_url: MARK }), ["peek-mark"], "a business with a mark and no photograph still shows who it is");
+  assert.deepEqual(layers({ image_url: PHOTO }), ["peek-photo"], "and one with only a photograph shows which shop it is");
+  assert.deepEqual(layers({}), [], "with neither, nothing is drawn over the tint");
+
+  const withMark = band({ image_url: PHOTO, logo_url: MARK });
+  assert.equal(byTestId(withMark, "peek-mark").props.src, MARK);
+  assert.equal(byTestId(withMark, "peek-mark").props.alt, "", "a mark says nothing a screen reader must repeat");
+  assert.equal(byTestId(withMark, "peek-photo").props.src, PHOTO, "the photograph is still there under it, for Expand");
+  // The tint is only the ground: it is covered whenever either layer draws, and bare when neither does.
+  for (const over of [{ image_url: PHOTO, logo_url: MARK }, { logo_url: MARK }, { image_url: PHOTO }]) {
+    assert.match(band(over).props.className, /\bhas-img\b/, JSON.stringify(over));
+  }
+  assert.doesNotMatch(band({}).props.className, /\bhas-img\b/, "nothing to cover the tint, so the initials carry it");
+  // The initials are always drawn, under everything: they are what a layer that fails to load falls back onto.
+  const initials = (over) => find(band(over), (n) => n.props?.className === "pk-band-initials");
+  assert.ok(initials({ image_url: PHOTO, logo_url: MARK }), "the initials wait under both layers");
+  assert.ok(initials({}), "and carry the band alone when there is neither");
 });
 
 

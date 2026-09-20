@@ -61,10 +61,11 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
     <>
       <div className={`pk-band tint-${vm.tile.tint}${vm.image || vm.tile.logo ? " has-img" : ""}`} data-testid="peek-photo-band">
         <span className="pk-band-initials" aria-hidden="true">{vm.tile.initials}</span>
-        {/* A photograph of the place is worth looking at large; a mark is not, so it sits at its own size over the
-            tint when there is no photo, and the photo covers it when there is (D6). */}
-        {vm.tile.logo ? <img className="pk-band-mark" src={vm.tile.logo} alt="" loading="lazy" data-testid="peek-mark" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
+        {/* Who the company is comes first, so the mark paints LAST and covers the photograph, exactly as it does on
+            the row's tile. The photograph is what Expand is for. The two are stacked rather than chosen, so a mark
+            that fails to load hides its own layer and uncovers the photo, and no state decides anything (D6). */}
         {vm.image ? <img src={vm.image} alt="" loading="lazy" data-testid="peek-photo" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : null}
+        {vm.tile.logo ? <img className="pk-band-mark" src={vm.tile.logo} alt="" loading="lazy" data-testid="peek-mark" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
         <button type="button" className="pk-band-expand" data-testid="peek-expand" onClick={onExpand}><Icon name="external" size={11} />{W.expand}</button>
         <button type="button" className="pk-x pk-band-x" id="lead-peek-close" aria-label={W.close} data-testid="peek-close" onClick={onClose}><Icon name="x" size={16} /></button>
       </div>
