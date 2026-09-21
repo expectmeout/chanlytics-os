@@ -1,6 +1,8 @@
 /**
- * The record kit and the Business tab, EXECUTED on the stub React.
- * No source-text assertions: every claim here is something the page drew.
+ * The record kit, EXECUTED on the stub React: the row, the fields, the fold and the registry that keeps one open, and
+ * the sheet. No source-text assertions: every claim here is something the kit drew. The kit serves every Settings
+ * tab, so it is tested here on its own, and a page's tests live in the page's own file, where a change to the page
+ * cannot break these.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

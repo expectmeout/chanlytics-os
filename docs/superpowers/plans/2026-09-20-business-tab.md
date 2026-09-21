@@ -65,7 +65,8 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 | `apps/dashboard/src/legacy/pages/business-can.jsx` | The *What it can do* card and the prompt sheet. |
 | `tooling/scripts/tests/business-tab-vm.test.mjs` | The sentence tables, as pure functions. |
 | `tooling/scripts/tests/prompt-blocks.test.mjs` | The prompt view, whose words are in it, and the resolver's equivalence. |
-| `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed. |
+| `tooling/scripts/tests/record-kit.test.mjs` | The record kit, executed (Phase 2). Named apart from the page's file, since the kit serves every Settings tab. |
+| `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed (Phase 3 creates it). |
 | `tooling/scripts/tests/business-tab-folds.test.mjs` | Each fold patches only its own keys. |
 
 **Modified**
@@ -991,11 +992,11 @@ git commit -m "The record kit's styles"
 
 **Files:**
 - Create: `apps/dashboard/src/legacy/components/record-row.jsx`
-- Test: `tooling/scripts/tests/business-tab-page.test.mjs`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tooling/scripts/tests/business-tab-page.test.mjs`:
+Create `tooling/scripts/tests/record-kit.test.mjs`:
 
 ```js
 /**
@@ -1063,7 +1064,7 @@ test("a disputed fact wears warn and offers the other answer", () => {
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: FAIL — `Cannot find module …/components/record-row.jsx`.
@@ -1084,7 +1085,7 @@ Follow `data-bits.jsx`'s file shape: `/* global React */` at the top, one `const
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: PASS, 4 tests.
@@ -1092,7 +1093,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/dashboard/src/legacy/components/record-row.jsx tooling/scripts/tests/business-tab-page.test.mjs
+git add apps/dashboard/src/legacy/components/record-row.jsx tooling/scripts/tests/record-kit.test.mjs
 git commit -m "One row, and a fact that carries where it came from"
 ```
 
@@ -1102,11 +1103,11 @@ git commit -m "One row, and a fact that carries where it came from"
 
 **Files:**
 - Create: `apps/dashboard/src/legacy/components/record-field.jsx`
-- Test: `tooling/scripts/tests/business-tab-page.test.mjs`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `business-tab-page.test.mjs` (add the import beside the others at the top of the file):
+Append to `record-kit.test.mjs` (add the import beside the others at the top of the file):
 
 ```js
 await import(`${L}/components/record-field.jsx`);
@@ -1162,7 +1163,7 @@ test("a toggle group is a radiogroup, not a row of buttons", () => {
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: FAIL — `Cannot find module …/components/record-field.jsx`.
@@ -1197,7 +1198,7 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: PASS, 8 tests.
@@ -1205,7 +1206,7 @@ Expected: PASS, 8 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/dashboard/src/legacy/components/record-field.jsx tooling/scripts/tests/business-tab-page.test.mjs
+git add apps/dashboard/src/legacy/components/record-field.jsx tooling/scripts/tests/record-kit.test.mjs
 git commit -m "A field, a switch and a choice, each announced as what it is"
 ```
 
@@ -1217,7 +1218,7 @@ The fold is the piece the whole page turns on, and the one-open-at-a-time rule i
 
 **Files:**
 - Create: `apps/dashboard/src/legacy/components/record-fold.jsx`
-- Test: `tooling/scripts/tests/business-tab-page.test.mjs`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1277,7 +1278,7 @@ test("the page knows when a fold holds unsaved changes", () => {
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: FAIL — `Cannot find module …/components/record-fold.jsx`.
@@ -1294,7 +1295,7 @@ Create `apps/dashboard/src/legacy/components/record-fold.jsx`:
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: PASS, 11 tests.
@@ -1302,7 +1303,7 @@ Expected: PASS, 11 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/dashboard/src/legacy/components/record-fold.jsx tooling/scripts/tests/business-tab-page.test.mjs
+git add apps/dashboard/src/legacy/components/record-fold.jsx tooling/scripts/tests/record-kit.test.mjs
 git commit -m "A fold opens under its row, and only one at a time"
 ```
 
@@ -1312,7 +1313,7 @@ git commit -m "A fold opens under its row, and only one at a time"
 
 **Files:**
 - Create: `apps/dashboard/src/legacy/components/record-sheet.jsx`
-- Test: `tooling/scripts/tests/business-tab-page.test.mjs`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1345,7 +1346,7 @@ test("a sheet is a dialog with a name, a close and a foot that holds still", () 
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: FAIL — `Cannot find module …/components/record-sheet.jsx`.
@@ -1362,7 +1363,7 @@ Create `apps/dashboard/src/legacy/components/record-sheet.jsx`:
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: PASS, 12 tests.
@@ -1370,7 +1371,7 @@ Expected: PASS, 12 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/dashboard/src/legacy/components/record-sheet.jsx tooling/scripts/tests/business-tab-page.test.mjs
+git add apps/dashboard/src/legacy/components/record-sheet.jsx tooling/scripts/tests/record-kit.test.mjs
 git commit -m "A sheet for a list you scroll"
 ```
 
@@ -1554,7 +1555,9 @@ git commit -m "The bridge hands the page its sentences"
 
 - [ ] **Step 1: Write the shared harness and the failing test**
 
-First add the fixture and the three helpers every later task reuses. Put them near the top of `business-tab-page.test.mjs`, after the imports:
+Create `business-tab-page.test.mjs`. It is the page's own file: the kit's tests moved to `record-kit.test.mjs` in the Phase 2 review, so a page change cannot break them. Open it as `record-kit.test.mjs` opens: `installLegacyReact` with the chrome bridge's `stateOf`, the page's globals, `data-bits.jsx` and the four `record-*.jsx` files imported, and its `draw`, which unmounts the last tree as React replaces one.
+
+Then add the fixture and the three helpers every later task reuses, after the imports:
 
 ```js
 import { standingLine } from "@chanlytics/contracts";
