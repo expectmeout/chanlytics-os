@@ -122,7 +122,11 @@ globalThis.React = {
   useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
   useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
   useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
-  useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
+  // A cell, so the tape stays aligned with every other hook -- but recomputed
+  // every draw, as React may at any time. Cached, it handed a memo mounted on
+  // a later draw (a message opened) the value another component had left in
+  // that cell, which no real React would do.
+  useMemo: (fn) => { seq++; return fn(); },
   useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
   useCallback: (fn) => fn,
 };
@@ -457,6 +461,21 @@ const mountMessages = (over) => {
   return globalThis.window.MessagesPage();
 };
 const byId = (tree, id) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
+/**
+ * Messages with ONE named message open: a row carries a line of the words, and
+ * the whole message -- its slots filled with this business's own -- is inside it.
+ * Named, because eight starters are rows on the same page and opening whichever
+ * is first passes a preview assertion with another message's words.
+ */
+const mountMessagesOpen = (over, name) => {
+  const tree = mountMessages(over);
+  let row = null;
+  walk(tree, (n) => { if (!row && /^(starter|custom)-row$/.test(String(n.props?.["data-testid"] || "")) && textOf(n).includes(name)) row = n; });
+  assert.ok(row, `no row for ${name}`);
+  byId(row, "template-open").props.onClick();
+  seq = 0;
+  return globalThis.window.MessagesPage();
+};
 
 test("REGRESSION: when the number could not be read, Messages says that -- it said 'Connect a WhatsApp number first' on a workspace that has one", () => {
   const failed = mountMessages({ __CHANNELS: null });
@@ -485,17 +504,17 @@ test("REGRESSION: a message's preview names this business and its booking link -
     body_preview: "Hi {{1}}, thanks for calling {{2}}. Book any time: {{3}} or just write to us here.", variables: filed, ...over,
   });
   for (const language of ["en_US", "es"]) {
-    const said = textOf(mountMessages({ __CHANNELS: [{ kind: "whatsapp" }], __starters: starters, __TEMPLATES_ALL: [row({ language })] }));
+    const said = textOf(byId(mountMessagesOpen({ __CHANNELS: [{ kind: "whatsapp" }], __starters: starters, __TEMPLATES_ALL: [row({ language })] }, "save_our_number"), "template-open-body"));
     assert.ok(said.includes("Melany's Beauty Salon"), `${language}: ${said}`);
     assert.ok(said.includes("https://booksy.com/melany"), `${language}: ${said}`);
     assert.ok(!said.includes("Luna Studio") && !said.includes("booksy.com/luna-studio"), `REGRESSION (${language}): another business's name and link in this business's message`);
     assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
   }
   // A template written in WhatsApp Manager is that business's own words: a slot nothing names keeps the example it filed.
-  const theirs = textOf(mountMessages({
+  const theirs = textOf(byId(mountMessagesOpen({
     __CHANNELS: [{ kind: "whatsapp" }], __starters: starters,
     __TEMPLATES_ALL: [row({ id: "t2", name: "front_desk_note", source: "meta", body_preview: "A note from {{1}}.", variables: [{ label: "Value 1", example: "the front desk", position: 1 }] })],
-  }));
+  }, "front_desk_note"), "template-open-body"));
   assert.ok(theirs.includes("A note from the front desk."), theirs);
 });
 
