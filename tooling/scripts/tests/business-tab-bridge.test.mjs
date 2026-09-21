@@ -16,7 +16,7 @@ import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
-  isBaselinePrompt, newReceptionistDefaults,
+  isBaselinePrompt, newReceptionistDefaults, hasProfile, PROFILE_CROSSING_WORDS,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -79,7 +79,7 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
-    "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "consequenceOf", "isBaselinePrompt", "promptBlocks", "ruleStrength", "standingLine",
+    "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "consequenceOf", "isBaselinePrompt", "profileCrossing", "promptBlocks", "ruleStrength", "standingLine",
   ]);
   // Whether a stored prompt is the product's own opening lines, whatever name they were written with (the Name row
   // writes them again under a new name), and never the owner's own words.
@@ -240,6 +240,39 @@ test("no block where nothing true can be shown", () => {
   const { inputs: _inputs, ...older } = preview(STORED);
   W.__SETTINGS = { config: { brain: STORED }, prompt: older };
   assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null, "nothing, and never a throw");
+});
+
+test("a save that crosses the resolver's line between composing and not says which way, in contracts' words", () => {
+  // A sparse record: the address is the one field the resolver composes from; the rest it composes only beside it.
+  const SPARSE = {
+    ...STORED,
+    system_prompt: newReceptionistDefaults("Bella Nails").system_prompt,
+    profile: { address: "12 Main St, Brooklyn, NY", handoff_number: "+16465550100", booking_rules: { lead_hours: 2 }, guardrails: { never_quote_prices: true } },
+  };
+  const BARE = { ...SPARSE, profile: { handoff_number: "+16465550100", booking_rules: { lead_hours: 2 }, guardrails: { never_quote_prices: true } } };
+  assert.deepEqual([hasProfile(SPARSE.profile), hasProfile(BARE.profile)], [true, false], "the fixtures stand either side of the line");
+
+  // Emptying the last field it composes from: the prompt the edge would send falls back to the stored one.
+  settle(SPARSE);
+  const stops = tab.profileCrossing(BARE);
+  assert.deepEqual(stops, { crossing: "stops", sentence: PROFILE_CROSSING_WORDS.stops });
+  const before = preview(SPARSE).whatsapp;
+  const after = preview(BARE).whatsapp;
+  assert.ok(before.includes("[[HUMAN]]") && !after.includes("[[HUMAN]]"), "which is what the words warn of: the hand-off token goes with it");
+  assert.ok(after.length < before.length / 2, `${before.length} characters to ${after.length}`);
+
+  // Typing the first: the prompt starts composing, with the stored one carried in beneath.
+  settle(BARE);
+  assert.deepEqual(tab.profileCrossing(SPARSE), { crossing: "starts", sentence: PROFILE_CROSSING_WORDS.starts });
+  assert.ok(preview(SPARSE).whatsapp.includes(SPARSE.system_prompt), "the instructions it follows today, carried in");
+
+  // Nothing crossed, nothing said; and nothing said of a save that will not go, or with no stored brain to compare.
+  assert.equal(tab.profileCrossing(profile(BARE, { handoff_number: "+16465550199" })), null);
+  settle(STORED);
+  assert.equal(tab.profileCrossing(profile(STORED, { address: "10 Pier St" })), null, "still composing");
+  assert.equal(tab.profileCrossing({ ...STORED, system_prompt: undefined }), null, "a brain the save refuses");
+  W.__SETTINGS = { config: {}, prompt: null };
+  assert.equal(tab.profileCrossing(STORED), null, "no stored brain");
 });
 
 test("a fold it does not know, or a channel that is not one, is refused by name", () => {

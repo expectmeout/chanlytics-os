@@ -213,24 +213,33 @@ const RecordInline = ({
   // the whole brain and resolves a full prompt. Nothing is drawn when nothing changes, and nothing when a block is null
   // (the save's schema refuses the draft, or a record whose profile composes nothing is answered with its stored
   // prompt): never an empty "It will say".
+  //
+  // And when the save crosses the resolver's own line between composing a prompt and answering with the stored one
+  // (hasProfile, decided in the bridge), the sentence that says so goes first: emptying the last field it composes
+  // from drops the hand-off and every rule line, far beyond the field's own line. Not a refusal; the save still goes.
   let says = null;
   const tab = window.__businessTab;
-  if (channel && dirty && !check(now) && tab && tab.consequenceOf) {
+  if (dirty && !check(now) && tab) {
     const next = commit(now).change({ ...brain }, { ...(brain.profile || {}) });
-    if (before.current.brain !== brain) before.current = { brain, blocks: {} };
-    const stored = before.current.blocks;
+    const crossing = tab.profileCrossing ? tab.profileCrossing(next) : null;
     const added = [];
     const removed = [];
-    for (const block of [].concat(section || id)) {
-      const after = tab.consequenceOf(block, next, channel);
-      if (!after) continue;
-      if (!(block in stored)) stored[block] = tab.consequenceOf(block, brain, channel);
-      const changed = btChangedLines(stored[block], after);
-      added.push(...changed.added);
-      removed.push(...changed.removed);
+    if (channel && tab.consequenceOf) {
+      if (before.current.brain !== brain) before.current = { brain, blocks: {} };
+      const stored = before.current.blocks;
+      for (const block of [].concat(section || id)) {
+        const after = tab.consequenceOf(block, next, channel);
+        if (!after) continue;
+        if (!(block in stored)) stored[block] = tab.consequenceOf(block, brain, channel);
+        const changed = btChangedLines(stored[block], after);
+        added.push(...changed.added);
+        removed.push(...changed.removed);
+      }
     }
-    if (added.length) says = { words: "It will say", lines: added };
-    else if (removed.length) says = { words: "It will no longer say", lines: removed };
+    const note = crossing ? crossing.sentence : null;
+    if (added.length) says = { note, words: "It will say", lines: added };
+    else if (removed.length) says = { note, words: "It will no longer say", lines: removed };
+    else if (note) says = { note, words: null, lines: [] };
   }
 
   // A disagreement, as the kit draws one: the other answer, in the resolver's own sentence when there is one, and one
@@ -289,8 +298,13 @@ const RecordInline = ({
           {inner}
           {says ? (
             <div className="bt-inline-says" id={saysId} data-testid={`rec-inline-says-${id}`}>
-              <span className="bt-inline-says-eyebrow">{says.words}</span>
-              <pre>{says.lines.join("\n")}</pre>
+              {says.note ? <p className="bt-inline-says-note" data-testid={`rec-inline-crossing-${id}`}>{says.note}</p> : null}
+              {says.lines.length ? (
+                <div className="bt-inline-says-part">
+                  <span className="bt-inline-says-eyebrow">{says.words}</span>
+                  <pre>{says.lines.join("\n")}</pre>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {fold.asking ? (

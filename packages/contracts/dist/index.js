@@ -10946,6 +10946,10 @@ function standingLine(i) {
   const wont = has2(p.services) ? "It offers a consult or the booking link instead of a price." : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
+var PROFILE_CROSSING_WORDS = {
+  stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
+  starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
+};
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
@@ -13312,6 +13316,7 @@ export {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
+  PROFILE_CROSSING_WORDS,
   PROMPT_OPENINGS,
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,

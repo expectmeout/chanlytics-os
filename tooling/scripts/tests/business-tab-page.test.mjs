@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   stateOf, standingLine, roleGate, formatPhoneDisplay, whyNotAPhone, whyNotAHandoff, samePhone, handoffE164,
-  resolveFacts, factConflicts, newReceptionistDefaults,
+  resolveFacts, factConflicts, newReceptionistDefaults, PROFILE_CROSSING_WORDS,
 } from "@chanlytics/contracts";
 import { installLegacyReact, again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
@@ -532,6 +532,44 @@ test("a rename writes the product's opening lines again under the new name, and 
   assert.equal(textOf(find(byTestId(tree, "rec-inline-says-name"), (n) => n.type === "pre")), `You are the assistant for ${now}, answering customers over WhatsApp.`);
   saveRow(tree, "name");
   assert.deepEqual(sent[2].config, { ...stored, brain: { ...stored.brain, business_name: now } }, "the name alone");
+});
+
+test("a save that crosses the resolver's line says so beside the lines it changes, and still goes", () => {
+  const sent = saving();
+  // A sparse record, as the reviewer's probe had it: the address is the one field the resolver composes from.
+  const bare = { handoff_number: "+16465550100", booking_rules: { lead_hours: 2 }, guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true } };
+  const sparse = { ...bare, address: "12 Main St, Brooklyn, NY" };
+
+  // Emptying it hands the receptionist its stored prompt: no identity block is left to show a line of, only the words.
+  let tree = drawTab({ profile: sparse, resolved: KNOWN });
+  openFold(tree, "address");
+  tree = redrawTab();
+  typeInto(tree, "address", "");
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-inline-crossing-address")), PROFILE_CROSSING_WORDS.stops);
+  saveRow(tree, "address");
+  assert.equal(sent.length, 1, "not a refusal: the save still goes");
+  assert.equal("address" in sent[0].config.brain.profile, false);
+
+  // Typing the first starts composing, and the identity lines it starts with are shown beside the words.
+  tree = drawTab({ profile: bare, resolved: KNOWN });
+  openFold(tree, "address");
+  tree = redrawTab();
+  typeInto(tree, "address", "12 Main St, Brooklyn, NY");
+  tree = redrawTab();
+  const says = byTestId(tree, "rec-inline-says-address");
+  assert.equal(textOf(byTestId(says, "rec-inline-crossing-address")), PROFILE_CROSSING_WORDS.starts);
+  const next = { ...W.__SETTINGS.config.brain, profile: sparse };
+  const identity = W.__businessTab.consequenceOf("address", next, "whatsapp").text.split("\n").filter((l) => l.trim());
+  assert.equal(textOf(find(says, (n) => n.type === "pre")), identity.join("\n"), "every line of the block it starts with");
+
+  // A save that stays on its side of the line says nothing of it.
+  tree = drawTab();
+  openFold(tree, "address");
+  tree = redrawTab();
+  typeInto(tree, "address", "10 Pier St, Brooklyn, NY 11201");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-inline-crossing-address"), null);
 });
 
 test("only one editor is open at a time: a clean one gives way, one holding changes asks first", () => {

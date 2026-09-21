@@ -1587,7 +1587,10 @@ html.legacy-on .bt-link, html.legacy-on .bt-standing-door { position: relative; 
 .bt-inline-note { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 .bt-inline-note b { font-weight: var(--weight-medium); color: var(--ink); }
 /* What the receptionist will be told: the composer's own lines, set as it writes them. */
-.bt-inline-says { display: flex; align-items: flex-start; gap: 9px; padding: 9px 11px; background: var(--bg-sunken); border-radius: var(--radius-md); }
+.bt-inline-says { display: flex; flex-direction: column; gap: 8px; padding: 9px 11px; background: var(--bg-sunken); border-radius: var(--radius-md); }
+.bt-inline-says-part { display: flex; align-items: flex-start; gap: 9px; }
+/* A save that crosses the resolver's line says so first, in the product's words: a sentence, not the prompt's own text. */
+.bt-inline-says-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
 .bt-inline-says-eyebrow { flex: none; margin-top: 2px; font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
 .bt-inline-says pre { flex: 1; min-width: 0; margin: 0; font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .bt-inline-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

@@ -159,6 +159,24 @@ export function standingLine(i: StandingInputs): StandingVM {
 }
 
 /**
+ * What a save says when it crosses the line the resolver draws between a record it composes from and one it answers
+ * with the stored prompt (config.ts `hasProfile`).
+ *
+ * Emptying the last field the resolver composes from hands the receptionist its stored prompt instead: on a sparse
+ * record the prompt fell from 2,128 characters to 240, with the hand-off token and every rule line gone. The first such
+ * field does the reverse, and the prompt grows from 240 to 1,939. Either way far more changes than the field's own
+ * line, so the row says so beside that line. It is not a refusal: the save still goes. Which way a save crosses is the
+ * bridge's to decide (legacy-bridge/business-tab.ts, `profileCrossing`), from `hasProfile` over the stored brain's
+ * profile and the next one's; these are the words.
+ */
+export const PROFILE_CROSSING_WORDS = {
+  stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
+  starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them.",
+} as const;
+
+export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
+
+/**
  * What the receptionist can do, and what it cannot.
  *
  * The tab sets the inputs to three of the phone agent's four tools
