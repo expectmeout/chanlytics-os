@@ -413,8 +413,14 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
           ))}
         </details>
         {vm.others ? (
-          <details className="pk-alt" data-testid="peek-others">
-            <summary data-testid="peek-others-summary">{vm.others.summary}</summary>
+          <details className="pk-box pk-alt" data-testid="peek-others">
+            <summary className="pk-box-head" data-testid="peek-others-summary">
+              <span className="pk-box-line">
+                <Icon name="mail" size={12} />
+                <span className="pk-box-sum">{vm.others.summary}</span>
+                <Icon name="chevron-down" size={12} />
+              </span>
+            </summary>
             <ul>{vm.others.items.map((o) => <li key={o.email}>{`${o.email} — ${o.why}`}</li>)}</ul>
             {vm.others.picked ? <p className="pk-alt-why" data-testid="peek-others-why">{vm.others.picked}</p> : null}
           </details>
@@ -434,6 +440,42 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
             ))}
           </div>
         </details>
+        {/* The week and what the listing said fold like everything else (D7). Both were computed for the peek and
+            read only by the expanded photo, so the panel asked the owner to open a lightbox to learn the hours. */}
+        {vm.weekSummary ? (
+          <details className="pk-box" data-testid="peek-week">
+            <summary className="pk-box-head" data-testid="peek-week-summary">
+              <span className="pk-box-line">
+                <Icon name="calendar" size={12} />
+                <span className="pk-box-sum">{vm.weekSummary}</span>
+                <Icon name="chevron-down" size={12} />
+              </span>
+            </summary>
+            <div className="pk-week">
+              {vm.week.map((d) => (
+                <div key={d.day} className={`pk-day${d.today ? " today" : ""}`} data-testid="peek-day">
+                  <span className="d">{d.day.slice(0, 3)}</span>
+                  <span className="pk-day-track">{d.bar ? <span className="pk-day-bar" style={{ left: `${d.bar.x}%`, width: `${d.bar.w}%` }} /> : null}</span>
+                  <span className="h">{d.hours}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
+        {vm.factsSummary ? (
+          <details className="pk-box" data-testid="peek-facts">
+            <summary className="pk-box-head" data-testid="peek-facts-summary">
+              <span className="pk-box-line">
+                <Icon name="list" size={12} />
+                <span className="pk-box-sum">{vm.factsSummary}</span>
+                <Icon name="chevron-down" size={12} />
+              </span>
+            </summary>
+            <div className="pk-facts">
+              {vm.facts.map((f) => <div key={f.k} className="pk-fact" data-testid="peek-fact"><span className="k">{f.k}</span><span className="v">{f.v}</span></div>)}
+            </div>
+          </details>
+        ) : null}
         <div className="pk-links" data-testid="peek-links">
           {vm.links.website
             ? <a className="btn btn-ghost btn-sm" href={vm.links.website.href} target="_blank" rel="noopener noreferrer" data-testid="peek-website"><Icon name="external" size={12} />{vm.links.website.label}</a>
