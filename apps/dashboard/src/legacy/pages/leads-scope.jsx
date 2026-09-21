@@ -611,13 +611,16 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
   const picked = rows.filter((l) => sel.has(l.id));
   const ids = picked.map((l) => l.id);
   const count = allMatching ? total : ids.length;
+  // Selected, and not among the rows shown: the words in the box hide them, and they are selected still (the page
+  // keeps a selection through a search). The bar acts on what it shows, so it says what it is leaving out.
+  const hidden = allMatching ? 0 : sel.size - ids.length;
   // A selection that is all Needs review offers what resolves it (D3): the union of its groups' acts. Check again
   // and Find an email draw only where their couriers exist, so nothing here is ever a dead control.
   const acts = review && !allMatching && picked.length > 0 && picked.every((l) => l.cls === "review") ? review.actsFor(ids) : [];
   const gate = canFind ? {} : window.gate("find", "work these leads");
   return (
     <div className="cl-bulk ld-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
-      <span className="cl-bulk-count"><b>{count}</b> selected</span>
+      <span className="cl-bulk-count"><b>{count}</b> selected{hidden > 0 ? <span data-testid="leads-bulk-hidden"> · {hidden} more not shown</span> : null}</span>
       {!allMatching && total > rows.length && (
         <button type="button" className="cl-bucket-link" onClick={onSelectAllMatching} data-testid="leads-select-matching">Select all {total.toLocaleString()} that match</button>
       )}

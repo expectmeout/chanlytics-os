@@ -1952,7 +1952,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // What this scope shows, for the table, the keyboard's cursor and the bulk bar: one list, whichever scope.
   const rowsShown = onLeads ? leadShown : shown;
   const filtered = onLeads ? !!q.trim() || !!chip || !!fitChip || !!leadView.cls || leadView.list !== "all" : tab !== "all" || !!listId || !!savedId || !!q.trim();
-  React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, q, viewRoute, chip]);
+  // The selection goes with the VIEW, not with the words in the box: someone who selects forty, types a name to find
+  // two more and clears it again still has their forty. Both bars count and act on only the rows they show
+  // (shown AND selected), so a row the words hide is never acted on unseen; "all N that match" is a claim about what
+  // is shown, so the words do take that back.
+  React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, viewRoute, chip]);
+  React.useEffect(() => { setAllMatching(false); }, [q]);
   const shownIds = rowsShown.map((r) => r.id);
   // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
   // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never

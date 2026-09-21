@@ -866,6 +866,26 @@ test("the list is scrolled back to where it was once the view's rows are the one
   assert.equal(table.scrollTop, 0, "the new view's rows start at their top");
 });
 
+test("typing in the box keeps the selection: leads the words hide are still selected when the box is cleared, and the bar says how many it is not showing", () => {
+  fresh();
+  let tree = draw();
+  byTestId(tree, "select-all").props.onChange();
+  tree = draw();
+  assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /5 selected/);
+  searchBox(tree).props.onChange({ target: { value: "lamar" } });
+  draw();
+  tree = draw();
+  const bar = byTestId(tree, "leads-bulk-bar");
+  assert.ok(bar, "REGRESSION: one letter in the box dropped everything selected");
+  assert.match(textOf(bar), /1 selected/, "the bar still counts, and acts on, only what it shows");
+  assert.match(textOf(byTestId(bar, "leads-bulk-hidden")), /4 more not shown/, "and says the rest are there");
+  searchBox(tree).props.onChange({ target: { value: "" } });
+  draw();
+  tree = draw();
+  assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /5 selected/, "the box cleared, they are all back");
+  assert.equal(byTestId(tree, "leads-bulk-hidden"), null, "with nothing hidden, nothing is said about it");
+});
+
 /** The finder as drawn by `fn`, or null when `fn` drew none: the recorder's last entry may be an older draw's. */
 const finderAfter = (fn) => { const n = finders.length; fn(); return finders.length > n ? finders.at(-1) : null; };
 
