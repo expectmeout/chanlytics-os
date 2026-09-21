@@ -470,7 +470,7 @@ declare const HANDOFF_VAR = "{{handoff_number}}";
  * (apps/edge/lib/call-start.ts) sends this same constant as its fallback, so
  * the shell's default and the webhook's answer cannot drift apart.
  */
-declare const FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to text the booking link.";
+declare const FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
 /** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 declare const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
 /**
