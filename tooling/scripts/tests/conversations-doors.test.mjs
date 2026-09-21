@@ -120,6 +120,10 @@ for (const k of ["StatePill", "MoreMenu", "EmptyState", "PolicyChip", "TlMedia",
 await import("../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
 globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+// The one thread, which Conversations mounts for a conversation row (thread-pane.jsx).
+await import("../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
+globalThis.InboxThread = globalThis.window.InboxThread;
+globalThis.ThreadPane = globalThis.window.ThreadPane;
 await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 const { InboxThread, ConversationsPage, OutcomePill } = globalThis.window;
 
@@ -152,20 +156,27 @@ test("REGRESSION (A23): the Inbox says the same author as Conversations -- a per
   assert.doesNotMatch(textOf(tree), /by you(?!r)/, "REGRESSION: every teammate's reply read 'by you'");
 });
 
-test("REGRESSION (A7, A9, A23): the Conversations viewer says who answered, signs our messages, and opens the thread in the Inbox", () => {
+test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messages, and IS the Inbox's thread -- not a door to it", () => {
   const team = toConversationVM(conv([msg({ id: "m1" }), ours({ sender: "human", body: "See you Friday!" })]), ZONE, NOW);
   cells = []; seq = 0;
   assert.equal(textOf(OutcomePill({ outcome: team.outcome, channel: team.channel, answeredBy: team.answeredBy })), "Your team replied", "REGRESSION: 'Receptionist replied' over a person's reply");
   assert.equal(textOf(OutcomePill({ outcome: "handled", channel: "whatsapp", answeredBy: "receptionist" })), "Receptionist replied");
   assert.equal(textOf(OutcomePill({ outcome: "handled", channel: "phone" })), "Receptionist handled it", "a call keeps its own words");
-  withRows([team]);
-  cells = [];
-  const tree = page();
-  assert.match(textOf(tree), /by your team/, "REGRESSION: a bubble did not say who wrote it");
-  const door = find(tree, (n) => n.type === "button" && textOf(n).includes("View thread in Inbox"));
-  assert.ok(door, "REGRESSION: a chat had no way into its Inbox thread");
-  door.props.onClick();
-  assert.equal(went.at(-1), "inbox/th-c1");
+  // A chat's way into its Inbox thread (A7) is now that it is that thread: the pane beside the list is the one thread
+  // (thread-pane.jsx), which answers, takes over and hands back here. The door to a second screen is gone with it.
+  globalThis.window.INBOX_DATA = { THREADS: [toInboxThreadVM(conv([msg({ id: "m1" }), ours({ sender: "human", body: "See you Friday!" })]), null, ZONE, NOW)], CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+  try {
+    withRows([team]);
+    cells = [];
+    const tree = page();
+    assert.match(textOf(tree), /by your team/, "REGRESSION: a bubble did not say who wrote it");
+    const thread = find(tree, (n) => n.type === InboxThread);
+    assert.ok(thread, "REGRESSION: a chat had no way into its Inbox thread");
+    assert.equal(thread.props.thread.id, "th-c1", "the row's own thread");
+    assert.equal(find(tree, (n) => n.type === "button" && textOf(n).includes("View thread in Inbox")), undefined, "one thread, not a door to a second screen");
+  } finally {
+    delete globalThis.window.INBOX_DATA;
+  }
 });
 
 test("REGRESSION (A22): a new workspace's Conversations says there are none yet -- not that nothing matches a channel, nor to pick one on the left of an empty list", () => {
@@ -189,15 +200,17 @@ test("REGRESSION (A22): a new workspace's Conversations says there are none yet 
   assert.match(textOf(searched), /Nothing matches your search/);
 });
 
-test("REGRESSION (A26): a link to a conversation not in view says so inside the reading pane, not in a grid cell of its own", () => {
+test("REGRESSION (A26): a link to a conversation not in view says so inside the reading pane, not in a grid cell of its own -- and opens nobody else's", () => {
   withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), ZONE, NOW)]);
   cells = [];
   const tree = page({ initialId: "c-gone" });
   const kids = tree.props.children.filter((k) => k && typeof k === "object");
-  assert.ok(!kids.some((k) => k.props?.className === "cv-missing"), "REGRESSION: the notice was a third child of a two-column grid");
-  const viewer = kids.find((k) => k.rendered && k.rendered.props?.className === "cv-viewer");
-  assert.ok(viewer, "the reading pane is the grid's second cell");
-  assert.match(textOf(find(viewer, (n) => n.props?.className === "cv-missing")), /isn't among the newest 1 shown here — open the person in People to find it\./);
+  assert.equal(kids.length, 2, "REGRESSION: the notice was a third child of a two-column grid");
+  const pane = kids[1];
+  assert.equal(pane.props.testid, "cv-missing-thread", "the reading pane, the grid's second cell, is the notice");
+  assert.match(textOf(pane), /Conversations shows the newest 1\. Open the person in People to find this one/);
+  // The first row used to open beside the notice, read-only; with the one thread it would be another customer's reply box.
+  assert.equal(find(tree, (n) => n.type === InboxThread), undefined, "REGRESSION: someone else's conversation opened in its place");
 });
 
 test("REGRESSION (A14): a recording that will not load says why, and Play tries again -- through the client, which names the workspace", async () => {

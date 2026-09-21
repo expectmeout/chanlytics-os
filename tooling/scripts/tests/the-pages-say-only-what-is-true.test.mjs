@@ -221,6 +221,9 @@ test("with every line up and nothing waiting, the reassurance stands", () => {
 /* ---------------- the Inbox: Hold all, and a missing link ---------------- */
 
 globalThis.window.CHANLY = { ...globalThis.window.CHANLY, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } };
+// The one thread, which the Inbox mounts (thread-pane.jsx): loaded first, published as the page reads it.
+await import("../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
+globalThis.ThreadPane = globalThis.window.ThreadPane;
 await import("../../../apps/dashboard/src/legacy/pages/inbox.jsx");
 
 test("REGRESSION: Hold all withdraws every real draft through the door the single Hold uses, stops every countdown at once, and names a draft the server would not hold", async () => {

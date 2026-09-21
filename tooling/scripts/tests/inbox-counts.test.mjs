@@ -94,6 +94,9 @@ await import("../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
 globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
 const RealInboxList = globalThis.window.InboxList;
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+// The one thread, which the Inbox mounts (thread-pane.jsx): loaded first, published as the page reads it.
+await import("../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
+globalThis.ThreadPane = globalThis.window.ThreadPane;
 await import("../../../apps/dashboard/src/legacy/pages/inbox.jsx");
 
 const walk = (n, fn) => {
