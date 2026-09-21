@@ -164,6 +164,21 @@ const saving = () => {
 };
 const without = (o, key) => { const c = { ...o }; delete c[key]; return c; };
 
+/**
+ * The composer's own lines for one block of a brain, from the bridge the app installs: what "It will say" quotes. A
+ * test finds the line it means by what the line holds (the new website, the new name), never by its wording, so a
+ * change to contracts' words changes none of these tests.
+ */
+const composed = (block, brain, channel = "whatsapp") => {
+  const b = W.__businessTab.consequenceOf(block, brain, channel);
+  return b ? b.text.split("\n").filter((l) => l.trim() !== "") : [];
+};
+/** What an editor says saving writes, part by part: each part's eyebrow, and the lines under it. */
+const partsOf = (says) => all(says, (n) => n.props?.["data-part"]).map((p) => [
+  textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow"))),
+  textOf(find(p, (n) => n.type === "pre")),
+]);
+
 /* ------------------------------------ the plan's seven ------------------------------------ */
 
 test("the standing line says what contracts said, and never writes its own", () => {
@@ -434,20 +449,21 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
   assert.equal(textOf(flashes.at(-1).msg), "Customers are told to call your line.");
 });
 
-test("It will say: the line of the prompt the draft changes, resolved as the edge resolves it", () => {
+test("It will say: the lines of the prompt the draft changes, resolved as the edge resolves them, and what goes beside what comes", () => {
   let tree = drawTab();
+  const stored = W.__SETTINGS.config.brain;
   openFold(tree, "website");
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-inline-says-website"), null, "nothing changed, nothing said");
   typeInto(tree, "website", "https://melanys.example");
   tree = redrawTab();
-  const eyebrow = (says) => textOf(find(says, (n) => classes(n).includes("rec-says-eyebrow")));
-  const lines = (says) => textOf(find(says, (n) => n.type === "pre"));
-  let says = byTestId(tree, "rec-inline-says-website");
-  assert.equal(eyebrow(says), "It will say");
-  assert.equal(lines(says), "Website: https://melanys.example", "the one line it changes, and none of the block around it");
-  const next = { ...W.__SETTINGS.config.brain, profile: { ...melany, website: "https://melanys.example" } };
-  assert.match(W.__businessTab.consequenceOf("website", next, "whatsapp").text, /^Website: https:\/\/melanys\.example$/m, "which is the bridge's own block for that draft");
+  const says = byTestId(tree, "rec-inline-says-website");
+  // The one line it changes, from the bridge's own block for the draft, and none of the block around it; and beside
+  // it the line as it stands, which goes. A line rewritten is one of each.
+  const comes = composed("website", { ...stored, profile: { ...melany, website: "https://melanys.example" } }).filter((l) => l.includes("https://melanys.example"));
+  const goes = composed("website", stored).filter((l) => l.includes("https://melanysbeautysalon.com"));
+  assert.deepEqual([comes.length, goes.length], [1, 1]);
+  assert.deepEqual(partsOf(says), [["It will say", comes[0]], ["It will no longer say", goes[0]]]);
   assert.ok(boxOf(tree, "website").props["aria-describedby"].split(" ").includes(says.props.id), "and the box is described by it");
 
   typeInto(tree, "website", "melanys");
@@ -456,8 +472,7 @@ test("It will say: the line of the prompt the draft changes, resolved as the edg
 
   typeInto(tree, "website", "");
   tree = redrawTab();
-  says = byTestId(tree, "rec-inline-says-website");
-  assert.deepEqual([eyebrow(says), lines(says)], ["It will no longer say", "Website: https://melanysbeautysalon.com"], "emptied, it says what goes");
+  assert.deepEqual(partsOf(byTestId(tree, "rec-inline-says-website")), [["It will no longer say", goes[0]]], "emptied, it says only what goes");
 
   // The name rewrites the line the prompt opens with.
   tree = drawTab();
@@ -465,15 +480,24 @@ test("It will say: the line of the prompt the draft changes, resolved as the edg
   tree = redrawTab();
   typeInto(tree, "name", "Melany's Salon & Spa");
   tree = redrawTab();
-  assert.equal(lines(byTestId(tree, "rec-inline-says-name")), "You are the assistant for Melany's Salon & Spa, answering customers over WhatsApp.");
+  const opens = (name) => composed("business_name", { ...stored, business_name: name }).filter((l) => l.includes(name));
+  assert.equal(opens("Melany's Salon & Spa").length, 1);
+  assert.deepEqual(partsOf(byTestId(tree, "rec-inline-says-name")), [["It will say", opens("Melany's Salon & Spa")[0]], ["It will no longer say", opens("Melany's Beauty Salon")[0]]]);
 
-  // The transfer number's words are a call's: on WhatsApp it changes nothing.
+  // The transfer number's words are a call's, read on the phone: what a call is told once it is emptied, and what a
+  // call is told today, which goes.
   tree = drawTab();
   openFold(tree, "handoff_number");
   tree = redrawTab();
   typeInto(tree, "handoff_number", "");
   tree = redrawTab();
-  assert.match(lines(byTestId(tree, "rec-inline-says-handoff_number")), /^There is no line to transfer to\./);
+  const call = composed("handoff_number", stored, "voice");
+  const emptied = composed("handoff_number", { ...stored, profile: without(melany, "handoff_number") }, "voice");
+  assert.deepEqual(partsOf(byTestId(tree, "rec-inline-says-handoff_number")), [
+    ["It will say", emptied.filter((l) => !call.includes(l)).join("\n")],
+    ["It will no longer say", call.filter((l) => !emptied.includes(l)).join("\n")],
+  ]);
+  assert.deepEqual([emptied.filter((l) => !call.includes(l)).length, call.filter((l) => !emptied.includes(l)).length], [1, 1], "one sentence for another: taking a message, for the transfer");
   // And only where there is a line to call: a workspace that answers on WhatsApp alone is told no phone-call sentence.
   tree = drawTab({ facts: { voice_line: { value: null, source: "absent" } } });
   openFold(tree, "handoff_number");
@@ -494,13 +518,15 @@ test("It will say nothing for a draft the page refuses, even where the save's ow
   tree = redrawTab();
   typeInto(tree, "phone_display", "12345");
   tree = redrawTab();
-  const draft = { ...W.__SETTINGS.config.brain, phone_display: "12345" };
-  assert.match(W.__businessTab.consequenceOf("phone_display", draft, "whatsapp").text, /^Phone: 12345$/m, "the bridge would tell it");
+  const stored = W.__SETTINGS.config.brain;
+  assert.ok(composed("phone_display", { ...stored, phone_display: "12345" }).some((l) => l.includes("12345")), "the bridge would tell it");
   assert.equal(byTestId(tree, "rec-inline-says-phone_display"), null, "the page does not");
   // A number the check takes is shown the moment it is typed.
   typeInto(tree, "phone_display", "+1 (646) 555-0100");
   tree = redrawTab();
-  assert.equal(textOf(find(byTestId(tree, "rec-inline-says-phone_display"), (n) => n.type === "pre")), "Phone: +1 (646) 555-0100");
+  const gives = composed("phone_display", { ...stored, phone_display: "+1 (646) 555-0100" }).filter((l) => l.includes("+1 (646) 555-0100"));
+  assert.equal(gives.length, 1);
+  assert.deepEqual(partsOf(byTestId(tree, "rec-inline-says-phone_display"))[0], ["It will say", gives[0]]);
 });
 
 test("a rename writes the product's opening lines again under the new name, and leaves an owner's own words alone", () => {
@@ -508,6 +534,13 @@ test("a rename writes the product's opening lines again under the new name, and 
   const was = "Melany's Beauty Salon";
   const now = "Melany's Salon & Spa";
   const baselineOf = (name) => newReceptionistDefaults(name).system_prompt;
+  // The lines of a brain that name the business: the one the prompt opens with, and with `carried` the product's own
+  // lines carried after it, each found by the name it holds.
+  const naming = (brain, name, carried = false) => [
+    ...composed("business_name", brain).filter((l) => l.includes(name)),
+    ...(carried ? composed("system_prompt", brain).filter((l) => l.includes(name)) : []),
+  ].join("\n");
+  const renamedIn = (tree) => partsOf(byTestId(tree, "rec-inline-says-name"));
   // What the product stores for every workspace it sets up, carried in the owner's place while their box is empty.
   let tree = drawTab({ brain: { system_prompt: baselineOf(was) } });
   let stored = structuredClone(W.__SETTINGS.config);
@@ -515,10 +548,10 @@ test("a rename writes the product's opening lines again under the new name, and 
   tree = redrawTab();
   typeInto(tree, "name", now);
   tree = redrawTab();
-  assert.deepEqual(textOf(find(byTestId(tree, "rec-inline-says-name"), (n) => n.type === "pre")).split("\n"), [
-    `You are the assistant for ${now}, answering customers over WhatsApp.`,
-    baselineOf(now),
-  ], "It will say both lines that change: the one the prompt opens with, and the product's own lines carried after it");
+  const next = { ...stored.brain, business_name: now, system_prompt: baselineOf(now) };
+  assert.equal(naming(next, now, true).split("\n").length, 2);
+  assert.deepEqual(renamedIn(tree), [["It will say", naming(next, now, true)], ["It will no longer say", naming(stored.brain, was, true)]],
+    "both lines that change, the one the prompt opens with and the product's own lines carried after it, and the two they replace");
   saveRow(tree, "name");
   assert.deepEqual(sent[0].config, { ...stored, brain: { ...stored.brain, business_name: now, system_prompt: baselineOf(now) } }, "one patch: the name, and the lines that name it");
   // What the receptionist is then told, resolved as the settings read resolves it, on either channel.
@@ -541,7 +574,7 @@ test("a rename writes the product's opening lines again under the new name, and 
   tree = redrawTab();
   typeInto(tree, "name", now);
   tree = redrawTab();
-  assert.equal(textOf(find(byTestId(tree, "rec-inline-says-name"), (n) => n.type === "pre")), `You are the assistant for ${now}, answering customers over WhatsApp.`);
+  assert.deepEqual(renamedIn(tree), [["It will say", naming({ ...stored.brain, business_name: now }, now)], ["It will no longer say", naming(stored.brain, was)]]);
   saveRow(tree, "name");
   assert.deepEqual(sent[2].config, { ...stored, brain: { ...stored.brain, business_name: now } }, "the name alone");
 
@@ -555,7 +588,7 @@ test("a rename writes the product's opening lines again under the new name, and 
     tree = redrawTab();
     typeInto(tree, "name", now);
     tree = redrawTab();
-    assert.equal(textOf(find(byTestId(tree, "rec-inline-says-name"), (n) => n.type === "pre")), `You are the assistant for ${now}, answering customers over WhatsApp.`, prompt);
+    assert.deepEqual(renamedIn(tree), [["It will say", naming({ ...stored.brain, business_name: now }, now)], ["It will no longer say", naming(stored.brain, was)]], prompt);
     saveRow(tree, "name");
     assert.deepEqual(sent.at(-1).config, { ...stored, brain: { ...stored.brain, business_name: now } }, prompt);
   }

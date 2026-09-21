@@ -127,7 +127,9 @@ const BtRow = ({
   // resolves them. Only for a draft the save would send, and only while the editor is open, because each call parses
   // the whole brain and resolves a full prompt. Nothing is drawn when nothing changes, and nothing when a block is null
   // (the save's schema refuses the draft, or a record whose profile composes nothing is answered with its stored
-  // prompt): never an empty "It will say".
+  // prompt): never an empty "It will say". The lines it adds are what it will say and the lines it takes away what it
+  // will no longer say, both at once: a line rewritten is one of each, and a save that drops one thing and adds another
+  // says both, where showing only what it adds hid what goes.
   //
   // And when the save crosses the resolver's own line between composing a prompt and answering with the stored one
   // (hasProfile, decided in the bridge), the sentence that says so goes first: emptying the last field it composes
@@ -153,7 +155,7 @@ const BtRow = ({
     }
     const note = crossing ? crossing.sentence : null;
     if (added.length || removed.length || note) {
-      says = { note, says: added.length ? added.join("\n") : null, gone: added.length ? null : removed.join("\n") || null };
+      says = { note, says: added.length ? added.join("\n") : null, gone: removed.length ? removed.join("\n") : null };
     }
   }
 
