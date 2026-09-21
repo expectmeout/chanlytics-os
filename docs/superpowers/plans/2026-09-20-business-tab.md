@@ -1736,6 +1736,14 @@ git commit -m "Who you are, as rows"
 
 ### Task 3.3: *When you're open*
 
+> **Carried from the reviews of Tasks 3.1 and 3.2 (21 Sep). Do these first: they are the kit's and the bridge's, and every fold after this one copies them.**
+> - **The fold is level with the inline editor.** `RecordFold` passes `RecordSays` only `says` and `saysLabel`: no lines that will no longer be said, and no sentence for a save that crosses `hasProfile`. Hours, services, the voice, languages, notes and the hand-off reasons all count for `hasProfile`, so their folds need both. And `note` means the foot's line on `RecordFold` but the crossing sentence on `RecordInline`: rename one.
+> - **A save in progress is not an open, unsaved editor.** The box stays editable while Save says "Saving…", and what is typed then is dropped without a word when the save lands. The rail's "Leave without saving?" and another row's "Discard your changes?" still ask, and a yes does not stop the save. Make the fields read-only while a save is out, and block the question or change its words.
+> - **Focus returns only when it was lost, and to where the person was.** The "Keep editing" refocus fires whenever an ask goes away, typing included, so the caret jumps after the first keystroke; and it returns to the first field, which is wrong for a fold of many fields.
+> - The fold's head Close still cancels while a save is out, unlike the foot's Cancel and Esc. `useRecordFold`'s usage comment still draws the Confirm outside the fold; it should show `confirm=`, or a fold built from it gets no focus return. The hidden inline editor draws its own dispute line with an id, so `rec-row-<id>-other` is in the page twice while a disputed row is at rest.
+> - **The timezone.** Saving a zone (`window.__workspace.setTimezone`, `PATCH workspaces`) never re-reads settings, so the preview's zone, every fold's consequence and the prompt card keep the old one until something else is saved. Add `"PATCH workspaces": () => [settingsOverride]` to `legacy-bridge/refresh-map.ts`'s `AFTER` table, with a test that the preview's zone follows a zone change. The timezone row's consequence is the local time beside it (spec 4.3), not a prompt block (`FOLD_BLOCK.timezone` is null on purpose: the zone is the workspace's, not the brain's); amend the spec's section 5 to say so.
+> - **Every fold saves through Task 3.6's helpers and the page's one saver** (`window.__businessTabSave`: `draftOf` as it opens, `problemsOf` on Save with each sentence under its field, `saveFold` for the patch), and calls `consequenceOf` only while it is open, on the saver's base.
+
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
 - Test: `tooling/scripts/tests/business-tab-page.test.mjs`
@@ -1889,6 +1897,8 @@ git commit -am "What you offer, and the list that needed room"
 ### Task 3.5: *How it answers*, and the voice that had no box
 
 > **Decided 21 Sep, in Task 3.2's review.** The transfer number is edited in one place, Task 3.2's *Transfers a caller to* row. The *Hands you a customer* row below reads it and opens that row; it never edits it.
+>
+> **Carried from Task 3.1's review.** The rules fold's consequence includes the Autonomy tab's rule lines, since a draft is resolved with the settings read's own policy. The vision switch never changes the prompt's words (`FOLD_BLOCK.vision` is null: a photo's words go in the customer's own turn), so it shows no "It will say". A record whose profile composes nothing has no rules block at all: the fold says why once, in contracts' words, and never draws an empty block.
 
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
