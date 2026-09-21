@@ -91,6 +91,9 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+// The record kit's folds answer the rail's question too, and the kit loads before any page, as it does in the app.
+await import("../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+const kitUnsaved = globalThis.window.__settingsUnsaved;
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => toasts.push(t)],
@@ -166,8 +169,10 @@ const type = (node, value) => node.props.onChange({ target: { value } });
 const fresh = () => {
   cells = new Map(); toasts.length = 0; saved.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
-  // A pane the stub never unmounts leaves its registration behind; React's cleanup would clear it.
-  delete globalThis.window.__settingsUnsaved;
+  // A pane the stub never unmounts leaves its answer chained onto the rail's question; React's cleanup would put back
+  // what it found there, which is the record kit's. And no fold is open.
+  globalThis.window.__settingsUnsaved = kitUnsaved;
+  globalThis.window.__recordFolds.reset();
 };
 const draw = (tab, went = []) => { frames = [{ key: "root", hook: 0, kids: {} }]; return globalThis.window.SettingsPage({ tab, onTab: (id) => went.push(id) }); };
 const again = draw;
@@ -284,6 +289,38 @@ test("REGRESSION (S22): another Settings tab with unsaved changes asks first -- 
   tree = openEditor(went2);
   press(railRow(tree, "Team"));
   assert.deepEqual(went2, ["team"], "with nothing changed, a tab is just a tab");
+});
+
+test("the rail asks about the editor's changes and about an open fold's, whichever holds them, and about nothing else", () => {
+  // Until the record replaces it, BusinessEditor and the record kit's fold registry can each hold unsaved changes. The
+  // kit answers window.__settingsUnsaved as it loads; the editor adds its own answer while it is open and puts back
+  // what it found when it goes. Neither replaces the other's.
+  const folds = globalThis.window.__recordFolds;
+  // Press Team on the rail of a tree drawn with `went`; say whether the rail asked first, and where it went.
+  const pressTeam = (tree, went) => { press(railRow(tree, "Team")); return { asked: !!byTestId(again("workspace", went), "set-leave-confirm"), went: [...went] }; };
+
+  let went = [];
+  let tree = openEditor(went);
+  type(labelled(tree, "input", "Website"), "https://northside.example/new");
+  assert.equal(folds.open(), null);
+  assert.deepEqual(pressTeam(again("workspace", went), went), { asked: true, went: [] }, "the editor's changes, and no fold open: the rail still asks");
+
+  fresh();
+  went = [];
+  folds.request("hours", { dirty: () => true });
+  tree = draw("workspace", went);
+  assert.equal(labelled(tree, "input", "Website"), null, "no editor is open");
+  assert.deepEqual(pressTeam(tree, went), { asked: true, went: [] }, "a fold holding changes, and no editor: the rail asks");
+
+  fresh();
+  went = [];
+  folds.request("hours", { dirty: () => false });
+  assert.deepEqual(pressTeam(draw("workspace", went), went), { asked: false, went: ["team"] }, "neither holding changes: a tab is just a tab");
+
+  went = [];
+  tree = openEditor(went);
+  folds.request("hours", { dirty: () => true });
+  assert.deepEqual(pressTeam(tree, went), { asked: true, went: [] }, "the editor open and unchanged, a fold holding changes: the editor's answer carries the fold's");
 });
 
 test("REGRESSION (S22): leaving the page with unsaved changes asks the browser to ask -- a reload lost them silently", () => {

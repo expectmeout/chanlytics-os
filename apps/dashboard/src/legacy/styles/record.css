@@ -1,0 +1,230 @@
+/* ============================================================
+   THE RECORD KIT — a row, a field, a fold, a sheet.
+   Shaped like the charts kit: its own file, its own classes, and
+   no page knows anything but these names. Nothing here knows which
+   page it is on: the page brings its words, and the few the kit
+   has (Save, Cancel, Close, Keep mine) are defaults it replaces.
+   Values are the canvas's (Record, Edit-Fold, Edit-Sheet, Kit,
+   Record-Phone), on the house tokens. Words someone reads are
+   --ink-dim at the faintest, which reads on every surface it sits
+   on; --ink-faint is for icons, borders and placeholders.
+   ============================================================ */
+
+/* ---------- The card a page's rows sit in ---------- */
+/* Named once, on the two things rows sit in, the card and a sheet's body: --rec-gutter is its side padding, which an
+   open fold reaches through to its edge; --rec-key is the label column every row and fold head keeps, and the indent
+   a fold's fields start at. */
+.rec-card { --rec-gutter: 18px; --rec-key: 168px; isolation: isolate; padding: 18px var(--rec-gutter) 6px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.rec-card-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; }
+/* Two classes deep, so a page's own heading reset (settings.css flattens every .settings h2) cannot undo it. */
+.rec-card-head .rec-card-title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: -0.01em; color: var(--ink); }
+.rec-card-sub { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+
+/* ---------- A row: label, value, where it came from, one act ---------- */
+.rec-row { position: relative; display: flex; align-items: baseline; gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); }
+.rec-row-top { align-items: flex-start; }
+.rec-row-key { flex: 0 0 var(--rec-key); font-size: var(--text-sm); color: var(--ink-dim); }
+.rec-row-val { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--ink); }
+.rec-row-value { min-width: 0; overflow-wrap: anywhere; }
+.rec-row-empty { color: var(--ink-dim); }
+/* A sentence under the value takes a line of its own. */
+.rec-row-hint { flex: 1 1 100%; font-size: var(--text-sm); color: var(--ink-dim); }
+/* Latent at rest, drawn on approach: the spec's four controls at rest, and every other act drawn on hover or focus.
+   Hidden by opacity alone, never visibility or display, so each act stays in the tab order and :focus-within draws it. */
+.rec-row-act { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink); opacity: 0; border-radius: var(--radius-xs); transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
+/* Never hidden: the act on an empty row, since there is no value to point at. */
+.rec-row[data-empty="true"] .rec-row-act { opacity: 1; color: var(--ink-muted); }
+.rec-row:hover .rec-row-act, .rec-row:focus-within .rec-row-act { opacity: 1; color: var(--ink); font-weight: var(--weight-medium); }
+/* The chevron is the phone's; a desktop reads the act's words. */
+.rec-row-chev { display: none; }
+/* The hover wash reaches 12px past the row on each side and stops at the hairlines. A box-shadow spread reached as far
+   up and down, over the next row's rule. It sits under the row's words in the card's stacking context (the card and
+   a sheet's body isolate; the row does not): a row that isolated itself painted every row below it over a menu
+   opened from it, and let a press on the menu through to them. */
+.rec-row::before { content: ""; position: absolute; inset: 0 -12px; z-index: -1; border-radius: var(--radius-md); transition: background var(--duration-fast) var(--ease-out); }
+.rec-row:hover::before { background: var(--bg-hover); }
+/* Something wrong or missing is on the row at full strength, hover or not: the warn wash, the key in the warn ink,
+   and the act drawn. The :hover twin outranks every hover rule below (a touch screen's, a phone's), so none of them
+   takes the wash away. */
+.rec-row[data-state="warn"]::before, .rec-row[data-state="warn"]:hover::before { background: var(--warn-soft); }
+.rec-row[data-state="warn"] .rec-row-key { color: var(--warn-ink); }
+.rec-row[data-state="warn"] .rec-row-act { opacity: 1; }
+/* The wash is a surface of its own: --ink-dim reads 4.3:1 on it in dark, so a wrong row's dim words take the muted ink. */
+.rec-row[data-state="warn"] :is(.rec-row-empty, .rec-row-hint) { color: var(--ink-muted); }
+.rec-row-wrong { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
+/* A second answer that disagrees, under the value, offered as a fill: the other value with its own source's pill, and
+   the press that takes it. */
+.rec-row-dispute { flex: 1 1 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 11px; background: var(--bg-sunken); border-radius: var(--radius-md); }
+.rec-row-dispute-other { flex: 1 1 14em; min-width: 0; display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
+.rec-row-dispute-value { font-weight: var(--weight-medium); color: var(--ink); overflow-wrap: anywhere; }
+.rec-row-dispute-acts { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- A fold: a set of fields, opened under its row ---------- */
+/* The accent left edge is the page's one accent, and it marks the fold that is open. The fold reaches both edges of
+   the card, so its head and its fields line up with the rows above and below it. */
+.rec-fold { margin-inline: calc(-1 * var(--rec-gutter)); padding-inline: calc(var(--rec-gutter) - 2px) var(--rec-gutter); border-top: 1px solid var(--line); border-left: 2px solid var(--accent); background: linear-gradient(to right, var(--bg-sunken), var(--bg-raised) 380px); }
+.rec-fold-head { display: flex; align-items: baseline; gap: 16px; padding: 11px 0 4px; }
+.rec-fold-label { flex: 0 0 var(--rec-key); font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
+.rec-fold-hint { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.rec-fold-close { flex: none; font-size: var(--text-sm); color: var(--ink-dim); border-radius: var(--radius-xs); transition: color var(--duration-fast) var(--ease-out); }
+.rec-fold-close:hover { color: var(--ink); }
+/* Closed, a fold is hidden whole (the `hidden` attribute): no head, no Close, nothing in the tab order or read out,
+   and the row it opens from is what shows. It opens on the grid's rows, never max-height: whether it was drawn open
+   or kept and then opened, it appears folded and unfolds. */
+.rec-fold[hidden] { display: none; }
+.rec-fold-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-out); }
+.rec-fold-body > * { overflow: hidden; }
+@starting-style { .rec-fold-body { grid-template-rows: 0fr; opacity: 0; } }
+/* The fields, what saving writes and the foot start under the value, past the label column (Edit-Fold's body is
+   `padding: 8px 18px 0 168px`); 4px more either side, so the clip that folds the body never cuts a focused field's
+   ring. A fold whose own grid carries a label column (a week, its days named) is wide: its fields take the whole
+   width, and what saving writes and the foot keep the indent. */
+.rec-fold-inner { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px 0 calc(var(--rec-key) + 4px); margin-inline: -4px; }
+.rec-fold[data-wide="true"] .rec-fold-inner { padding-left: 4px; }
+.rec-fold[data-wide="true"] .rec-fold-says { margin-inline-start: var(--rec-key); }
+.rec-fold[data-wide="true"] .rec-fold-foot { padding-inline-start: var(--rec-key); }
+.rec-fold-says { display: flex; flex-direction: column; gap: 6px; padding: 11px 12px; background: var(--bg-sunken); border-radius: var(--radius-md); }
+.rec-fold-says-eyebrow { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.rec-fold-says pre { margin: 0; font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.rec-fold-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; padding: 2px 0 16px; }
+/* Save while it saves: busy, still a button focus rests on (record-fold.jsx), and the pointer says so. */
+.rec-fold-foot [aria-busy="true"] { cursor: progress; }
+.rec-fold-note { flex: 1; min-width: 0; text-align: right; font-size: var(--text-sm); color: var(--ink-dim); }
+
+/* ---------- A sheet: a list you scroll, beside the page ---------- */
+/* Over the shell as well as the page: the phone's tab bar (120) and drawer (220) sit above anything at a page's level,
+   and a sheet's Save is at its foot, where the tab bar is. The shortcuts sheet's layer (components.css), under the
+   toasts (450), so a toast, the house's undo, is seen over a sheet. What a sheet needs is reachable inside it, where
+   Tab stays, and a toast may echo it (record-sheet.jsx). */
+.rec-sheet-backdrop { position: fixed; inset: 0; z-index: 400; max-width: none; background: oklch(from var(--bg) l c h / 0.6); }
+.rec-sheet { position: fixed; top: 0; right: 0; bottom: 0; z-index: 401; width: min(540px, 92vw); max-width: none; display: flex; flex-direction: column; background: var(--bg-raised); border-left: 1px solid var(--line-strong); box-shadow: var(--shadow-lg); }
+/* Focus lands on the sheet itself as it opens, so a screen reader names it; the ring belongs to the controls in it. */
+.rec-sheet:focus { outline: none; }
+.rec-sheet-head { flex: none; display: flex; align-items: flex-start; gap: 14px; padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
+.rec-sheet-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* Two classes deep, for the reason the card's title is. */
+.rec-sheet-head .rec-sheet-title { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: -0.015em; color: var(--ink); }
+.rec-sheet-sub { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.rec-sheet-close { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+.rec-sheet-close:hover { color: var(--ink); background: var(--bg-hover); }
+.rec-sheet-tools { flex: none; display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
+.rec-sheet-body { --rec-gutter: 22px; --rec-key: 168px; isolation: isolate; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 var(--rec-gutter); }
+.rec-sheet-foot { flex: none; display: flex; flex-direction: column; gap: 11px; padding: 14px 22px 18px; border-top: 1px solid var(--line); background: var(--bg-raised); }
+
+/* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
+.rec-field { display: flex; flex-direction: column; gap: 5px; }
+.rec-field > label { display: flex; flex-direction: column; gap: 5px; }
+.rec-field-label { font-size: var(--text-sm); color: var(--ink-muted); }
+.rec-input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-raised); font-size: var(--text-base); color: var(--ink); }
+.rec-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+.rec-input[aria-invalid="true"] { border-color: var(--danger); }
+textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-height: var(--leading-normal); resize: vertical; }
+/* A box with its unit: the ring and the red edge are the group's, since the group is what the eye reads as the box. */
+.rec-input-group { display: flex; align-items: stretch; min-height: 32px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-raised); }
+.rec-input-group:focus-within { box-shadow: var(--focus-ring); border-color: var(--accent); }
+.rec-input-group[data-invalid="true"] { border-color: var(--danger); }
+.rec-input-group .rec-input { flex: 1; min-width: 0; height: auto; border: none; border-radius: 0; background: transparent; font-variant-numeric: tabular-nums; }
+.rec-input-group .rec-input:focus-visible { box-shadow: none; }
+.rec-input-unit { flex: none; display: flex; align-items: center; padding: 0 10px; border-left: 1px solid var(--line); background: var(--bg-sunken); font-size: var(--text-sm); color: var(--ink-dim); }
+.rec-hint { font-size: var(--text-sm); color: var(--ink-dim); }
+
+/* ---------- A switch ---------- */
+.rec-switch { flex: none; position: relative; width: 30px; height: 18px; padding: 0; border-radius: var(--radius-full); background: var(--line-strong); transition: background var(--duration-fast) var(--ease-out); }
+.rec-switch[aria-checked="true"] { background: var(--ok); }
+.rec-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: var(--radius-full); background: var(--knob); box-shadow: var(--knob-shadow); transition: transform var(--duration-fast) var(--ease-out); }
+.rec-switch[aria-checked="true"] .rec-knob { transform: translateX(12px); }
+
+/* ---------- A choice of a few: a radiogroup drawn as a segmented control ---------- */
+/* Its own width in any container: a column of fields would otherwise stretch it across the fold. */
+.rec-seg { display: inline-flex; width: fit-content; max-width: 100%; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); }
+.rec-seg-btn { height: 26px; padding: 0 12px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+.rec-seg-btn:hover { color: var(--ink); }
+.rec-seg-btn[aria-checked="true"] { background: var(--bg-raised); box-shadow: var(--shadow-sm); font-weight: var(--weight-medium); color: var(--ink); }
+
+/* ---------- A combobox: a box over a list that narrows as you type ---------- */
+/* The list is part of the box and pushes what is under it, as a fold pushes the rows under it: nothing is covered,
+   and no fold's own clip cuts it off. */
+.rec-combo { display: flex; flex-direction: column; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); overflow: hidden; }
+.rec-combo:focus-within { box-shadow: var(--focus-ring); border-color: var(--accent); }
+.rec-combo-field { display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+.rec-combo-glass { display: inline-flex; color: var(--ink-faint); }
+.rec-combo-input { flex: 1; min-width: 0; height: 30px; padding: 0; border: none; background: transparent; font-size: var(--text-base); color: var(--ink); }
+.rec-combo-input:focus-visible { outline: none; }
+.rec-combo-input::placeholder { color: var(--ink-dim); }
+.rec-combo-list { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow-y: auto; border-top: 1px solid var(--line); }
+.rec-combo-opt { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 10px; font-size: var(--text-sm); color: var(--ink-muted); cursor: pointer; }
+.rec-combo-opt:hover, .rec-combo-opt[aria-selected="true"] { background: var(--bg-hover); color: var(--ink); }
+.rec-combo-opt[data-chosen="true"] { font-weight: var(--weight-medium); color: var(--ink); }
+.rec-combo-meta { flex: none; font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+
+/* ---------- Two tiers of tip ---------- */
+/* Nothing to press in it: a mark whose words the app's one tooltip (.ui-tip) draws on hover, on focus and on a tap.
+   Something to press in it: the white card with a shadow. */
+.rec-tip { flex: none; position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border-radius: var(--radius-full); color: var(--ink-dim); cursor: help; transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+.rec-tip:hover, .rec-tip:focus-visible { color: var(--ink); background: var(--bg-hover); }
+.rec-tip svg { display: block; }
+.rec-card-tip { display: flex; flex-direction: column; gap: 5px; width: 236px; max-width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); box-shadow: var(--shadow-lg); }
+.rec-card-tip-title { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
+.rec-card-tip-body { font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-muted); }
+.rec-card-tip-act { align-self: flex-start; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; border-radius: var(--radius-xs); }
+.rec-card-tip-act:hover { text-decoration-color: currentColor; }
+
+/* ---------- On a touch screen ---------- */
+/* legacy.css gives every button on a touch screen 44px of height. A switch keeps its shape and takes its 44px from the
+   space around it, as .set-switch does; a box with a unit grows with the box inside it (min-height, not height). */
+@media (pointer: coarse) {
+  html.legacy-on .rec-switch { min-height: 0; }
+  html.legacy-on .rec-switch::after { content: ""; position: absolute; inset: -13px -7px; }
+  html.legacy-on .rec-tip { width: 28px; height: 28px; min-height: 0; }
+  html.legacy-on .rec-tip::after { content: ""; position: absolute; inset: -8px; }
+  html.legacy-on .rec-sheet-close { min-width: 44px; }
+}
+/* A word that is a button keeps the word's box under that 44px floor, and takes a thumb's reach from an ::after
+   instead (#748's pattern, components.css .tl-msg-why): a fold's Close, a tip card's act. Grown to 44px they swelled
+   the fold's head from 56px to 81px. A row's act is such a word wherever a row is not a phone's: there, its ::after is
+   the whole row, and its box stays where the row can hold it. */
+html.legacy-on .rec-fold-close, html.legacy-on .rec-card-tip-act { position: relative; min-height: 0; }
+.rec-fold-close::after, .rec-card-tip-act::after { content: ""; position: absolute; inset: -14px -8px; }
+html.legacy-on .rec-row-act { min-height: 0; }
+@media (min-width: 761px) {
+  .rec-row-act { position: relative; }
+  .rec-row-act::after { content: ""; position: absolute; inset: -14px -8px; }
+}
+/* Nothing hovers under a finger, so every act is drawn: told by the input, not the width, because a touch screen
+   wider than a phone has no hover either. And no wash lingers on the row a finger last touched. */
+@media (hover: none), (pointer: coarse) {
+  .rec-row-act { opacity: 1; color: var(--ink-muted); }
+  .rec-row:hover::before { background: none; }
+}
+
+/* ---------- On a phone ---------- */
+@media (max-width: 760px) {
+  .rec-card { --rec-gutter: 15px; padding: 15px var(--rec-gutter) 8px; }
+  /* At a phone's width the whole row is the act, and its chevron is drawn, under a mouse too. The act's own box
+     stretches over the row (its ::after), so it stays one button with one name; anything else in the row that can be
+     pressed sits above that. */
+  .rec-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 3px; min-height: 44px; }
+  .rec-row-key, .rec-row-val { grid-column: 1; }
+  .rec-row-act { grid-column: 2; grid-row: 1 / span 2; opacity: 1; color: var(--ink-muted); }
+  .rec-row-act::after { content: ""; position: absolute; inset: 0; }
+  .rec-row-val :is(button, a, input, select, textarea, [tabindex]) { position: relative; z-index: 1; }
+  .rec-row-act-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .rec-row-chev { display: inline-flex; color: var(--ink-faint); }
+  .rec-row:hover::before { background: none; }
+  .rec-fold-head { flex-wrap: wrap; row-gap: 3px; }
+  .rec-fold-label { flex: 1 1 auto; }
+  .rec-fold-hint { flex: 1 1 100%; order: 3; }
+  .rec-fold-note { flex-basis: 100%; text-align: left; }
+  /* No label column beside a phone's fields: they, what saving writes and the foot start at the fold's edge. */
+  .rec-fold-inner, .rec-fold[data-wide="true"] .rec-fold-inner { padding-left: 4px; }
+  .rec-fold[data-wide="true"] .rec-fold-says { margin-inline-start: 0; }
+  .rec-fold[data-wide="true"] .rec-fold-foot { padding-inline-start: 0; }
+  /* The sheet rises from the bottom, and its foot clears the home indicator. */
+  .rec-sheet { top: auto; left: 0; width: auto; height: 88vh; height: 88dvh; border-left: none; border-top: 1px solid var(--line-strong); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+  .rec-sheet-foot { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-row::before, .rec-row-act, .rec-fold-close, .rec-fold-body,
+  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close { transition: none; }
+}

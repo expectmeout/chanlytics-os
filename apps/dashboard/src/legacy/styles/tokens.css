@@ -123,6 +123,13 @@
   --danger-fg: oklch(0.99 0 0);
   --info: oklch(0.6 0.12 235);
   --info-soft: oklch(0.6 0.12 235 / 0.12);
+
+  /* ---------- A switch's knob ----------
+     Light on either theme's track, as a physical switch's is, with the drop and the hairline that keep it apart from
+     a light track (settings.css .set-knob). Set here, where no theme overrides it: a knob in --bg-raised read 1.5:1
+     on a dark card's off track, and the switch all but vanished. */
+  --knob: oklch(0.99 0.002 80);
+  --knob-shadow: 0 1px 2px oklch(0 0 0 / 0.2), 0 0 0 1px oklch(0 0 0 / 0.05);
 }
 
 /* ============================================================

@@ -65,7 +65,8 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 | `apps/dashboard/src/legacy/pages/business-can.jsx` | The *What it can do* card and the prompt sheet. |
 | `tooling/scripts/tests/business-tab-vm.test.mjs` | The sentence tables, as pure functions. |
 | `tooling/scripts/tests/prompt-blocks.test.mjs` | The prompt view, whose words are in it, and the resolver's equivalence. |
-| `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed. |
+| `tooling/scripts/tests/record-kit.test.mjs` | The record kit, executed (Phase 2). Named apart from the page's file, since the kit serves every Settings tab. |
+| `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed (Phase 3 creates it). |
 | `tooling/scripts/tests/business-tab-folds.test.mjs` | Each fold patches only its own keys. |
 
 **Modified**
@@ -884,6 +885,7 @@ EOF
 ---
 
 ## Phase 2 — The record kit (PR 2: "One row, one field, one fold, one sheet")
+> **Two corrections to this phase's test code, found 21 Sep before it ran.** (1) `fresh()` in `_legacy-react.mjs` takes no argument: it only resets hook state. Draw as `today-page.test.mjs` does, with `const draw = (Comp, props = {}) => { fresh(); return W.React.createElement(Comp, props); };`, and redraw with `again(() => W.React.createElement(Comp, props))`. Every `fresh(() => W.X(...))` below draws nothing. (2) `installLegacyReact` does not install `window.__chrome.state`, so `StatePill` renders every tone as plain and any `pill-ok` or `pill-warn` assertion fails. Install it from contracts: `installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } })`, with `stateOf` imported from `@chanlytics/contracts`.
 
 The kit is shaped like the charts kit: its own files, its own stylesheet, both load lists, and it knows nothing about the Business tab.
 
@@ -938,9 +940,12 @@ Create `apps/dashboard/src/legacy/styles/record.css`. Take the exact values from
 .rec-field { display: flex; flex-direction: column; gap: 5px; }
 .rec-field-label { font-size: var(--text-sm); color: var(--ink-muted); }
 .rec-input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-raised); font-size: var(--text-base); color: var(--ink); }
-.rec-input:focus-visible { outline: none; border-color: var(--ink-faint); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* The house ring, as .set-input and .biz-input draw it: the 3px accent-soft glow read 1.2:1 and the faint border 2.5:1,
+   under WCAG 1.4.11's 3:1 (amended 21 Sep, by the Phase 2 quality review). */
+.rec-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
 .rec-input[aria-invalid="true"] { border-color: var(--danger); }
 .rec-input-group { display: flex; align-items: stretch; height: 32px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-raised); }
+.rec-input-group:focus-within { box-shadow: var(--focus-ring); border-color: var(--accent); }
 .rec-input-group .rec-input { border: none; height: 30px; }
 .rec-input-unit { display: flex; align-items: center; padding: 0 10px; border-left: 1px solid var(--line); background: var(--bg-sunken); font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-hint { font-size: var(--text-sm); color: var(--ink-faint); }
@@ -987,11 +992,11 @@ git commit -m "The record kit's styles"
 
 **Files:**
 - Create: `apps/dashboard/src/legacy/components/record-row.jsx`
-- Test: `tooling/scripts/tests/business-tab-page.test.mjs`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tooling/scripts/tests/business-tab-page.test.mjs`:
+Create `tooling/scripts/tests/record-kit.test.mjs`:
 
 ```js
 /**
@@ -1024,14 +1029,14 @@ test("a row draws its label, its value and one act", () => {
 });
 
 test("an empty row says so and keeps its act reachable", () => {
-  const tree = fresh(() => W.RecordRow({ label: "Website", value: null, empty: "Not set", act: { label: "Add one", onClick: () => {} } }));
+  const tree = draw(W.RecordRow, { label: "Website", value: null, empty: "Not set", act: { label: "Add one", onClick: () => {} } });
   assert.match(textOf(tree), /Not set/);
   const row = find(tree, (n) => classes(n).includes("rec-row"));
   assert.equal(row.props["data-empty"], "true");
 });
 
 test("a source chip is the one pill, in the fact kind's tone", () => {
-  const tree = fresh(() => W.RecordRow({ label: "Address", value: "2581 Pitkin Ave", source: "verified" }));
+  const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Ave", source: "verified" });
   const pill = find(tree, (n) => classes(n).some((c) => c.startsWith("pill-")));
   assert.ok(pill, "the chip is a StatePill");
   assert.ok(classes(pill).includes("pill-ok"), "verified is ok");
@@ -1059,7 +1064,7 @@ test("a disputed fact wears warn and offers the other answer", () => {
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: FAIL — `Cannot find module …/components/record-row.jsx`.
@@ -1080,7 +1085,7 @@ Follow `data-bits.jsx`'s file shape: `/* global React */` at the top, one `const
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: PASS, 4 tests.
@@ -1088,7 +1093,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/dashboard/src/legacy/components/record-row.jsx tooling/scripts/tests/business-tab-page.test.mjs
+git add apps/dashboard/src/legacy/components/record-row.jsx tooling/scripts/tests/record-kit.test.mjs
 git commit -m "One row, and a fact that carries where it came from"
 ```
 
@@ -1098,11 +1103,11 @@ git commit -m "One row, and a fact that carries where it came from"
 
 **Files:**
 - Create: `apps/dashboard/src/legacy/components/record-field.jsx`
-- Test: `tooling/scripts/tests/business-tab-page.test.mjs`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `business-tab-page.test.mjs` (add the import beside the others at the top of the file):
+Append to `record-kit.test.mjs` (add the import beside the others at the top of the file):
 
 ```js
 await import(`${L}/components/record-field.jsx`);
@@ -1126,7 +1131,7 @@ test("a field carries its label, its unit and its refusal, wired for a screen re
 
 test("a switch is a switch, and says which state it is in", () => {
   const flips = [];
-  const tree = fresh(() => W.RecordSwitch({ on: true, label: "Never quote a price", onChange: () => flips.push(1) }));
+  const tree = draw(W.RecordSwitch, { on: true, label: "Never quote a price", onChange: () => flips.push(1) });
   const sw = find(tree, (n) => classes(n).includes("rec-switch"));
   assert.equal(sw.props.role, "switch");
   assert.equal(sw.props["aria-checked"], true);
@@ -1158,7 +1163,7 @@ test("a toggle group is a radiogroup, not a row of buttons", () => {
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: FAIL — `Cannot find module …/components/record-field.jsx`.
@@ -1171,20 +1176,20 @@ Create `apps/dashboard/src/legacy/components/record-field.jsx` with `RecordField
 - `RecordSwitch` is a `<button role="switch">` with `aria-checked` and `aria-label`, containing `.rec-knob`. Never a `<div onClick>`.
 - `RecordToggleGroup` is a `<div role="radiogroup" aria-label>` of `<button role="radio" aria-checked>`.
 - `RecordCombobox` is a text input over a filtered list, keyboard-navigable with ↑/↓/Enter/Esc, `role="combobox"` with `aria-expanded` and `aria-activedescendant`. It takes `options: [{ value, label, meta }]`.
-- `RecordTip({ text, label })` is the dark chip for a tip you can never click: a `<button>` carrying `data-tip`, `aria-label` and a press that calls `window.__tip.show` — the mechanism `set-mark` already uses, given a name. `RecordCard({ title, body, act })` is the white card with a shadow, for a tip that *does* have something to press. Two tiers, and the rule that decides between them: if there is nothing to click, it is a chip.
-- `Object.assign(window, { RecordField, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordCard })`.
+- `RecordTip({ text, label })` is the dark chip for a tip you can never click: a `<button>` carrying `data-tip`, `aria-label` and a press that calls `window.__tip.show` — the mechanism `set-mark` already uses, given a name. `RecordTipCard({ title, body, act })` (renamed from RecordCard by the Phase 2 review, so nobody takes it for the section card) is the white card with a shadow, for a tip that *does* have something to press. Two tiers, and the rule that decides between them: if there is nothing to click, it is a chip.
+- `Object.assign(window, { RecordField, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordTipCard })`.
 
 Add one more test for the two tiers before implementing them:
 
 ```js
 test("a tip you cannot click is a chip; one you can is a card", () => {
-  const chip = fresh(() => W.RecordTip({ text: "Call audio is not included.", label: "What the file holds" }));
+  const chip = draw(W.RecordTip, { text: "Call audio is not included.", label: "What the file holds" });
   const btn = find(chip, (n) => n.props?.["data-tip"]);
   assert.equal(btn.props["aria-label"], "What the file holds");
   assert.ok(!find(chip, (n) => classes(n).includes("rec-card-tip")), "a chip is not a card");
 
   const used = [];
-  const card = fresh(() => W.RecordCard({ title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } }));
+  const card = draw(W.RecordTipCard, { title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
   press(find(card, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Use it"));
   assert.equal(used.length, 1);
 });
@@ -1193,7 +1198,7 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: PASS, 8 tests.
@@ -1201,7 +1206,7 @@ Expected: PASS, 8 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/dashboard/src/legacy/components/record-field.jsx tooling/scripts/tests/business-tab-page.test.mjs
+git add apps/dashboard/src/legacy/components/record-field.jsx tooling/scripts/tests/record-kit.test.mjs
 git commit -m "A field, a switch and a choice, each announced as what it is"
 ```
 
@@ -1213,7 +1218,7 @@ The fold is the piece the whole page turns on, and the one-open-at-a-time rule i
 
 **Files:**
 - Create: `apps/dashboard/src/legacy/components/record-fold.jsx`
-- Test: `tooling/scripts/tests/business-tab-page.test.mjs`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1273,7 +1278,7 @@ test("the page knows when a fold holds unsaved changes", () => {
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: FAIL — `Cannot find module …/components/record-fold.jsx`.
@@ -1290,7 +1295,7 @@ Create `apps/dashboard/src/legacy/components/record-fold.jsx`:
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: PASS, 11 tests.
@@ -1298,7 +1303,7 @@ Expected: PASS, 11 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/dashboard/src/legacy/components/record-fold.jsx tooling/scripts/tests/business-tab-page.test.mjs
+git add apps/dashboard/src/legacy/components/record-fold.jsx tooling/scripts/tests/record-kit.test.mjs
 git commit -m "A fold opens under its row, and only one at a time"
 ```
 
@@ -1308,7 +1313,7 @@ git commit -m "A fold opens under its row, and only one at a time"
 
 **Files:**
 - Create: `apps/dashboard/src/legacy/components/record-sheet.jsx`
-- Test: `tooling/scripts/tests/business-tab-page.test.mjs`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1341,7 +1346,7 @@ test("a sheet is a dialog with a name, a close and a foot that holds still", () 
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: FAIL — `Cannot find module …/components/record-sheet.jsx`.
@@ -1358,7 +1363,7 @@ Create `apps/dashboard/src/legacy/components/record-sheet.jsx`:
 - [ ] **Step 4: Run it and watch it pass**
 
 ```bash
-node --conditions=react-server --import tsx --test tooling/scripts/tests/business-tab-page.test.mjs
+node --conditions=react-server --import tsx --test tooling/scripts/tests/record-kit.test.mjs
 ```
 
 Expected: PASS, 12 tests.
@@ -1366,7 +1371,7 @@ Expected: PASS, 12 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/dashboard/src/legacy/components/record-sheet.jsx tooling/scripts/tests/business-tab-page.test.mjs
+git add apps/dashboard/src/legacy/components/record-sheet.jsx tooling/scripts/tests/record-kit.test.mjs
 git commit -m "A sheet for a list you scroll"
 ```
 
@@ -1550,7 +1555,9 @@ git commit -m "The bridge hands the page its sentences"
 
 - [ ] **Step 1: Write the shared harness and the failing test**
 
-First add the fixture and the three helpers every later task reuses. Put them near the top of `business-tab-page.test.mjs`, after the imports:
+Create `business-tab-page.test.mjs`. It is the page's own file: the kit's tests moved to `record-kit.test.mjs` in the Phase 2 review, so a page change cannot break them. Open it as `record-kit.test.mjs` opens: `installLegacyReact` with the chrome bridge's `stateOf`, the page's globals, `data-bits.jsx` and the four `record-*.jsx` files imported, and its `draw`, which unmounts the last tree as React replaces one.
+
+Then add the fixture and the three helpers every later task reuses, after the imports:
 
 ```js
 import { standingLine } from "@chanlytics/contracts";
@@ -2425,6 +2432,29 @@ Expected: no matches. Nothing on Settings breathes.
 Assert the retired phrases are absent and the kept ones present, by executing the pages — never by reading source.
 
 - [ ] **Step 2–5:** rename, run, commit, open the PR.
+
+### Task 6.2b: On a phone, a row opens a sheet from the bottom
+
+> **Added by the Phase 2 review (21 Sep).** The canvas's phone artboard (`Record-Phone.dc.html`) opens a row as a sheet rising from the bottom, not a fold: the same fields, the same foot, the same one-section save, and every row at least 44px. No phase built it. Phase 2's `RecordFold` folds inline at every width, and only `RecordSheet` knows the phone (`record.css`, under 760px: 88dvh from the bottom, rounded top corners, a foot clear of the home indicator). The rows' 44px is already in.
+
+**Files:**
+- Modify: `apps/dashboard/src/legacy/components/record-fold.jsx`
+- Modify: `apps/dashboard/src/legacy/styles/record.css`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
+
+- [ ] **Step 1: Write the failing test**
+
+Draw a `RecordFold` with `window.matchMedia` answering `(max-width: 760px)` and assert it is drawn as a sheet: `role="dialog"`, `aria-modal`, named by the fold's label, holding the same fields, the same `says` and the same Save and Cancel. Escape still cancels, and the registry still holds it (`__settingsUnsaved` asks its dirty test). The existing fold tests, drawn at desktop width, pass unchanged.
+
+- [ ] **Step 2: Draw it**
+
+One component, two frames. Under the phone query (read as `reports-sections.jsx`'s `useRptPhone` reads it, kept current as the window changes size), `RecordFold` draws its head, fields and foot in the sheet's frame, with the sheet's `trapTab` and its focus handed back to the row's act. The page calls `RecordFold` the same way at every width: the registry, the dirty guard and the one-section save never learn which frame drew it.
+
+- [ ] **Step 3: See it at 375px**
+
+In the harness: open a row, type, press another row (the ask), then Save. The page behind the sheet does not scroll, and focus comes back to the row's act.
+
+- [ ] **Step 4: Commit**
 
 ### Task 6.3: The final sweep
 
