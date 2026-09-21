@@ -8800,7 +8800,9 @@ declare function toastShape(p: {
 type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 declare const TONES: readonly Tone[];
 /** The families of state a pill can name. */
-type StateKind = "thread" | "standing" | "call" | "person" | "consent" | "mode" | "broadcast" | "playbook" | "template" | "template_quality" | "setup" | "role" | "tone" | "calendar" | "escalation";
+type StateKind = "thread" | "standing" | "call" | "person" | "consent" | "mode" | "broadcast" | "playbook" | "template" | "template_quality" | "setup" | "role" | "tone" | "calendar"
+/** Where a fact came from: the chip beside a value on the Business tab. */
+ | "fact" | "escalation";
 /** The tone for a state, or plain for one this map has never heard of. */
 declare function stateTone(kind: StateKind, value: unknown): Tone;
 /** The words for a state, or the value itself when nobody has written any. */

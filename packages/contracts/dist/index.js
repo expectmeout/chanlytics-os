@@ -11055,6 +11055,9 @@ var TONE_OF = {
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it.
+  fact: { verified: "ok", provisioned: "ok", workspace: "plain", typed: "plain", absent: "plain", disputed: "warn" },
   escalation: { open: "warn", resolved: "ok" }
 };
 var LABEL_OF = {
@@ -11071,6 +11074,8 @@ var LABEL_OF = {
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
   calendar: CALENDAR_FEED_WORDS,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
   escalation: { open: "Open", resolved: "Resolved" }
 };
 function stateTone(kind, value) {

@@ -26,6 +26,7 @@ import { PERSON_MODE_WORDS, PERSON_STATE_LABELS } from "./people";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "./setup";
 import { CALENDAR_FEED_WORDS } from "./calendar";
+import { SOURCE_WORDS } from "./facts";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -46,6 +47,8 @@ export type StateKind =
   | "role"        // a teammate's role
   | "tone"        // a tone the caller already holds (a Connections row, the back office), said as itself
   | "calendar"    // the calendar feed the receptionist reads: the Calendar's pill, Connections and Setup (C3)
+  /** Where a fact came from: the chip beside a value on the Business tab. */
+  | "fact"
   | "escalation";
 
 const TONE_OF: Record<StateKind, Record<string, Tone>> = {
@@ -63,6 +66,9 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it.
+  fact: { verified: "ok", provisioned: "ok", workspace: "plain", typed: "plain", absent: "plain", disputed: "warn" },
   escalation: { open: "warn", resolved: "ok" },
 };
 
@@ -81,6 +87,8 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
   calendar: CALENDAR_FEED_WORDS,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
   escalation: { open: "Open", resolved: "Resolved" },
 };
 
