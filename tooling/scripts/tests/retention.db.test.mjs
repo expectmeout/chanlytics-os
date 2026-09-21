@@ -90,15 +90,22 @@ const NO_EDGE = "missing cron_sweep_key or edge_base_url in Vault";
  * owed, NO_EDGE when something is -- and then put back as it was.
  */
 async function turnTheCallsClock() {
-  const was = ok(await db.from("sweep_status").select("note").eq("sweep", "calls").single());
+  const was = ok(await db.from("sweep_status").select("note, request_id, requested_at").eq("sweep", "calls").single());
   const mark = `retention ${Math.random().toString(36).slice(2)}`;
   ok(await db.from("sweep_status").update({ note: mark }).eq("sweep", "calls"));
   const returned = ok(await db.rpc("trigger_call_reconcile"));
-  const now = ok(await db.from("sweep_status").select("note").eq("sweep", "calls").single());
+  const now = ok(await db.from("sweep_status").select("note, request_id, requested_at").eq("sweep", "calls").single());
   ok(await db.from("sweep_status").update({ note: was.note }).eq("sweep", "calls"));
   assert.equal(returned, null, "a database with no edge to ask answers null either way");
   if (now.note === NO_EDGE) return "asked";
-  if (now.note === null) return "quiet";
+  if (now.note === null) {
+    // 00149: nothing owed records nothing but the cleared note. 'calls' has no
+    // silence to keep, and a look stamped here would hold the last ask inside
+    // sweep_health()'s hour for ever; once pg_net dropped that answer, after
+    // six hours, the row would read "pg_net never recorded a response".
+    assert.deepEqual([now.request_id, now.requested_at], [was.request_id, was.requested_at], "a quiet turn stamps no look");
+    return "quiet";
+  }
   return assert.fail(`the calls clock left its note as it found it (${JSON.stringify(now.note)}): nothing says whether it had work`);
 }
 

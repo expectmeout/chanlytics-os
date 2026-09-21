@@ -107,6 +107,17 @@ test("the alert says what broke and what it costs, and carries no customer data"
   assert.doesNotMatch(body, /conversation_id|phone_e164|escalation/);
 });
 
+test("a calls alert says what else waits while that sweep is failing, the ninety days the privacy page states among it", () => {
+  // Since 00149 the calls sweep's answers are judged, and a purge that fails
+  // is a 500, so this mail is where a broken retention promise is first read.
+  const body = describeSweepTrouble([
+    row({ sweep: "calls", status_code: 500, detail: 'the edge answered 500: {"ok":false,"error":"purge_failed","purge":{"candidates":3,"purged":0,"error":"the storage service is unavailable"}}' }),
+  ]);
+  assert.match(body, /purge_failed/);
+  assert.match(body, /stays 'ongoing' forever/);
+  assert.match(body, /call audio is kept past the ninety days the privacy page states/);
+});
+
 test("the health check is never scheduled onto the grid it is judging", () => {
   // '*/30' fires at :00 and :30, both deadman ticks under '*/10'. Every health
   // run would then judge a request seconds old, exempt it under the two-minute
