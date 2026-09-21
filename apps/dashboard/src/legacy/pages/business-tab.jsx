@@ -9,7 +9,8 @@
 //
 // The page composes and never derives. Every sentence with a number or a judgement in it is contracts', through
 // window.__businessTab (legacy-bridge/business-tab.ts); every fact is the settings read's (window.__SETTINGS,
-// window.__FACTS), read as the page draws.
+// window.__FACTS), read as the page draws. What a save writes is pages/business-tab-save.jsx's, through
+// window.__businessTabSave: each row's check and patch, and the page's one saver. That file loads before this one.
 //
 // Hooks are cells in one order, in React and in the tests' stub React alike: every component here that holds one is
 // drawn on every render (an inline editor that is closed is `hidden`, as a closed RecordFold is), and what comes and
@@ -19,133 +20,12 @@
 
 const { useState: useBizState, useEffect: useBizEffect, useRef: useBizRef } = React;
 
-/**
- * A number as people write it, "+1 (305) 555-0100", the way Setup and Connections show one (contracts
- * formatPhoneDisplay, published by the bridge). Business showed the line it answers and the transfer number in the
- * E.164 they are stored as (the wiring audit's L7). Only E.164 is rewritten: anything else is shown as it was written,
- * which for the number it gives out is what the receptionist says.
- *
- * Here, and on window, since this page and the old card in settings.jsx both show numbers: one rule for writing them.
- */
-const phoneShown = (v) => (v && window.__phoneDisplay && /^\+[1-9][0-9]{6,14}$/.test(v) ? window.__phoneDisplay(v) : v);
-
-/**
- * One brain field, saved from the row it is shown in.
- *
- * The two numbers below used to be sections nine and thirteen of a fourteen-
- * section form -- "Tell customers to call" near the top of one step, "How
- * callers reach a person" most of a page later in another, both of them read
- * from the Business card five rows apart. Editing one meant opening a form,
- * finding it among twelve fields that had nothing to do with it, and pressing
- * a Save that wrote the entire configuration.
- *
- * It still writes the entire configuration -- PUT /settings is a versioned
- * compare-and-swap, and sending a fragment would delete the rest -- but it
- * starts from what is stored and changes ONE key, which is the same discipline
- * the big form's `save` learned after a rebuild lost a workspace its prompt.
- *
- * Moved here from settings.jsx unchanged when the Business tab became a record (Task 3.2). The old card's two number
- * rows take it from window until Task 3.7 retires them; this page's rows save through the page's one saver (btSaver).
- */
-function useFieldSave(flash) {
-  const [busy, setBusy] = React.useState(false);
-  const settings = window.__SETTINGS || null;
-  const save = (change, said, done) => {
-    if (busy || !window.__saveSettings || !settings || !settings.config) return;
-    const cfg = settings.config;
-    const brain = cfg.brain || {};
-    setBusy(true);
-    const next = { ...cfg, brain: change({ ...brain }, { ...(brain.profile || {}) }) };
-    window.__saveSettings(next, settings.version, () => {
-      setBusy(false);
-      done();
-      flash({ msg: said });
-    }).then((r) => {
-      if (r.ok) return;
-      setBusy(false);
-      flash({ tone: "danger", msg: <>{r.message}</> });
-    });
-  };
-  return [busy, save];
-}
-
-/**
- * One saver for the page, so saves made close together go one at a time, and each builds on the one before.
- *
- * PUT /settings is a versioned compare-and-swap of the whole config (useFieldSave says why), and the settings re-read
- * that brings the new version lands about half a second after the server accepts. Each row saving on its own sent the
- * config and version as the page last drew them, so "Use Google's" on the address and then on the name sent version 7
- * twice, and the server refused the second as a colleague's save that never happened. So every row asks this saver:
- * a patch waits while another is out, and goes on the config the server answered the last one with (the bridge hands
- * it to onAccepted), or on the settings read when that is newer. A patch is a pure function of (brain, profile), so it
- * applies to whatever is current when it goes, and one that would change nothing is not sent. One saver for the page's
- * life, the next waiting while one is out: plViewSaver's shape (clients-a.jsx).
- *
- * A job is { row, change, said, done, flash }: `said` is the toast once the server takes it, `done` runs then too (the
- * row closes), and a refusal, or a promise that fails before the server took it, is said in the danger tone.
- */
-const btSaver = (onChange) => {
-  let last = null;
-  let out = null;
-  const queue = [];
-  const base = () => {
-    const read = window.__SETTINGS || null;
-    const held = read && read.config ? { config: read.config, version: read.version } : null;
-    return last && (!held || last.version > held.version) ? last : held;
-  };
-  const next = () => {
-    if (out || !queue.length) return;
-    const job = queue.shift();
-    const from = base();
-    // No door to save through, or nothing read to save onto: nothing goes, and nothing waits on a save that never lands.
-    if (!from || typeof window.__saveSettings !== "function") { onChange(); next(); return; }
-    const cfg = from.config;
-    const brain = cfg.brain || {};
-    const patched = { ...cfg, brain: job.change({ ...brain }, { ...(brain.profile || {}) }) };
-    if (btSame(patched, cfg)) { if (job.done) job.done(); onChange(); next(); return; }
-    out = job;
-    onChange();
-    let accepted = false;
-    const free = () => { if (out !== job) return; out = null; onChange(); next(); };
-    const refused = (words) => { if (!accepted) job.flash({ tone: "danger", msg: <>{words || "That didn't go through."}</> }); };
-    let sent;
-    try {
-      sent = window.__saveSettings(patched, from.version, (saved) => {
-        accepted = true;
-        if (saved && saved.config && typeof saved.version === "number") last = { config: saved.config, version: saved.version };
-        if (job.done) job.done();
-        job.flash({ msg: job.said });
-        // With the server's answer in hand the next patch goes on it now; without one, it waits for the re-read,
-        // which is when the promise settles.
-        if (saved && saved.config) free();
-      });
-    } catch (e) {
-      sent = Promise.reject(e);
-    }
-    Promise.resolve(sent).then((r) => {
-      if (!(r && r.ok)) refused(r && r.message);
-      free();
-    }, (e) => {
-      refused(e && e.message);
-      free();
-    });
-  };
-  return {
-    save(job) { queue.push(job); onChange(); next(); },
-    // A row's save is in hand while it waits its turn or is out: its Save says so, and takes no second press.
-    pending(row) { return !!((out && out.row === row) || queue.some((j) => j.row === row)); },
-  };
-};
-
 /* ------------------------------------ one value, edited where it is stated ------------------------------------ */
 
 // What the four rows that are only words say once the server has taken a change: the canvas's Edit-Inline words. The
 // two number rows keep the sentences they have always said (PublishedNumberRow, HandoffRow).
 const BT_SAVED = "Saved — the receptionist picks it up within a minute";
 
-// Two drafts are the same when saving either would write the same thing.
-const btSame = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
-const btTrimmed = (d) => String(d == null ? "" : d).trim();
 const btNoCheck = () => null;
 
 /**
@@ -175,12 +55,13 @@ const btChangedLines = (before, after) => {
  * browser's unload prompt ask before its changes are thrown away. Its dirty test is bound to its id as it mounts, so
  * it is asked however the row was opened: by its own act, or by its id from the standing line's door.
  *
- * What a row writes is the row's own, in four answers: `initial` (the draft it opens with, from what is stored),
- * `storedAs` (what a draft would store, which is what "holds changes" is judged by; not `valueOf`, which every props
- * object already has from Object.prototype, so a default for it never applies), `check` (the sentence that stops
- * a save, or null), and `commit` (the one-key change a save makes, with its toast's words). `body` draws the box; it
- * is handed the draft, its setter, what stops it and the field's own ids. A disagreement on the row names the other
- * answer and the draft that takes it (`disputed.use`), which saves through the same `commit`.
+ * What a row writes is handed to it in four answers, the last three built from business-tab-save.jsx's check, stored
+ * value and patch for the row: `initial` (the draft it opens with, from what is stored), `storedAs` (what a draft would
+ * store, which is what "holds changes" is judged by; not `valueOf`, which every props object already has from
+ * Object.prototype, so a default for it never applies), `check` (the sentence that stops a save, or null), and
+ * `commit` (the one-key change a save makes, with its toast's words). `body` draws the box; it is handed the draft, its
+ * setter, what stops it and the field's own ids. A disagreement on the row names the other answer and the draft that
+ * takes it (`disputed.use`), which saves through the same `commit`.
  *
  * `section` is the row's name to consequenceOf (FOLD_BLOCK) where it is not the row's id, or the names of each block
  * its save can change: a rename changes the line the prompt opens with and, where the stored prompt is the product's
@@ -189,18 +70,22 @@ const btChangedLines = (before, after) => {
  */
 const BtRow = ({
   id, section = null, label, brain, value = null, empty = null, hint = null, source = null, disputed = null, wrong = null,
-  initial, storedAs = btTrimmed, check = btNoCheck, commit, body, channel = "whatsapp",
+  initial, storedAs: stores = null, check = btNoCheck, commit, body, channel = "whatsapp",
   canEdit = true, gate = null, flash = () => {}, saver = null,
 }) => {
+  // What saving writes is business-tab-save.jsx's, read as the row draws (that file loads before this one).
+  const S = window.__businessTabSave;
+  // A row of words stores its draft trimmed.
+  const storedAs = stores || S.trimmed;
   const [draft, setDraft] = useBizState(null);
   const [problem, setProblem] = useBizState(null);
   const [arm, setArm] = useBizState(false);
   // What the registry reads when it asks whether this row holds changes. A keystroke lands here as it is typed, so a
   // press on another row straight after typing is asked about even before the page has drawn again.
-  const live = useBizRef({ draft: null, initial: null, storedAs: btTrimmed, open: false });
+  const live = useBizRef({ draft: null, initial: null, storedAs, open: false });
   const holds = () => {
     const l = live.current;
-    return l.open && l.draft != null && !btSame(l.storedAs(l.draft), l.storedAs(l.initial));
+    return l.open && l.draft != null && !S.same(l.storedAs(l.draft), l.storedAs(l.initial));
   };
   const fold = window.useRecordFold(id, { dirty: holds });
   // A role that may not change the business never has an editor, whatever asked for one.
@@ -209,8 +94,9 @@ const BtRow = ({
   live.current.storedAs = storedAs;
   live.current.open = open;
   const now = open && draft != null ? draft : initial;
-  const dirty = open && !btSame(storedAs(now), storedAs(initial));
-  // The page's one saver (btSaver): this row's save waits its turn behind any other, and goes on the config current then.
+  const dirty = open && !S.same(storedAs(now), storedAs(initial));
+  // The page's one saver (business-tab-save.jsx): this row's save waits its turn behind any other, and goes on the
+  // config current then.
   const busy = saver ? saver.pending(id) : false;
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
   // Each block as the stored brain writes it, resolved once per stored brain rather than on every keystroke.
@@ -376,35 +262,6 @@ const BT_TAKE_THEIRS = { draft: (v) => v };
 // (business-page.ts) -- and a press that renamed the business to it would put that name in front of customers.
 const BT_TAKE_GOOGLES = { draft: (v) => v, from: ["verified"] };
 
-// The pattern every web address on this tab is checked by: the old form's, which the save's own URL rule backs up.
-const BT_WEB = /^https?:\/\/.+\..+/;
-
-// Whether a stored prompt is the product's own opening lines (contracts isBaselinePrompt, through the bridge), which
-// name the business, whatever name they were written with.
-const btIsBaseline = (text) => {
-  const tab = window.__businessTab;
-  return !!(tab && tab.isBaselinePrompt && typeof text === "string" && tab.isBaselinePrompt(text.trim()));
-};
-
-/**
- * A new name for the business, as one patch: `business_name`, and the product's opening lines written again under the
- * new name where the stored prompt is them. Every workspace the product sets up stores them as its prompt, and the
- * resolver carries that prompt in the owner's place until they write their own (config.ts ownWordsOf), so a rename
- * that left it behind had the receptionist told it was the assistant for both businesses, one line after the other.
- * The old form wrote them on every save; a rename here writes them when it renames. A stored prompt that is not them
- * is the owner's own words, carried, and a rename leaves it as they wrote it.
- */
-const btRename = (name) => ({
-  change: (b) => {
-    if (name !== b.business_name && btIsBaseline(b.system_prompt) && window.__receptionistDefaults) {
-      b.system_prompt = window.__receptionistDefaults(name).system_prompt;
-    }
-    b.business_name = name;
-    return b;
-  },
-  said: BT_SAVED,
-});
-
 /* ------------------------------------ the page ------------------------------------ */
 
 /** The page's name, what it is, and who last changed it (the row's own author and stamp, 00085). */
@@ -478,6 +335,9 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
   const chip = (f) => (f.value ? f.source : null);
   const shared = { brain, canEdit, flash, saver };
   const gate = (thing) => window.gate("settings", `change the ${thing}`);
+  // Each row's check and patch, and what its draft stores (business-tab-save.jsx).
+  const S = window.__businessTabSave;
+  const phoneShown = window.phoneShown;
 
   const name = factOf("business_name", brain.business_name);
   const address = factOf("address", profile.address);
@@ -490,18 +350,11 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
   const transfer = factOf("handoff_number", profile.handoff_number);
   const handoff = transfer.value || null;
 
-  // A key of the profile, written from a draft: an emptied box deletes its key rather than storing "", or the
-  // composed prompt would state an address of nothing (the rule the old form's `put` held).
-  const profileKey = (key) => (d) => {
-    const v = btTrimmed(d);
-    return { change: (b, p) => { if (v) p[key] = v; else delete p[key]; b.profile = p; return b; }, said: BT_SAVED };
-  };
-
-  // The number it gives out, as PublishedNumberRow held it: absent is "the line it answers", so choosing the line
-  // stores nothing. `own` means the line only where there is one to follow.
-  const published = (d) => (d.own && voiceLine ? "" : btTrimmed(d.typed));
-  // The transfer number is stored as E.164, or not at all (contracts handoffE164).
-  const transferOf = (d) => (window.__handoffE164 ? window.__handoffE164(d) : (btTrimmed(d) || null));
+  // A row of words: its draft, trimmed, through the row's patch, and the words every such row says once it is saved.
+  const words = (id) => (d) => ({ change: S.PATCH_OF[id](S.trimmed(d)), said: BT_SAVED });
+  // The two numbers store what their own rules make of a draft, the one it gives out beside the line it answers.
+  const published = (d) => S.STORED_AS.phone_display(d, voiceLine);
+  const transferOf = S.STORED_AS.handoff_number;
 
   return (
     <section className="rec-card" data-testid="rec-card-who" aria-labelledby="bt-who-title">
@@ -513,8 +366,8 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
       <BtRow
         {...shared}
         id="name"
-        // The line the prompt opens with, and the product's own lines where a rename writes them again (btRename).
-        section={btIsBaseline(brain.system_prompt) ? ["business_name", "system_prompt"] : "business_name"}
+        // The line the prompt opens with, and the product's own lines where a rename writes them again (the name's patch).
+        section={S.isBaseline(brain.system_prompt) ? ["business_name", "system_prompt"] : "business_name"}
         label="Name"
         value={name.value}
         empty="Not set"
@@ -522,9 +375,8 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         disputed={btDispute(name, conflictOn("business_name"), BT_TAKE_GOOGLES)}
         gate={gate("name")}
         initial={brain.business_name || ""}
-        // Checked here so the owner is told before a round trip: the API refuses an empty name too, but names no field.
-        check={(d) => (btTrimmed(d) ? null : "The receptionist needs a business name before it can answer anyone.")}
-        commit={(d) => btRename(btTrimmed(d))}
+        check={S.CHECK_OF.name}
+        commit={words("name")}
         body={btTextBox({ placeholder: "The name customers know you by", autoComplete: "organization" })}
       />
 
@@ -538,7 +390,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         disputed={btDispute(address, conflictOn("address"), BT_TAKE_THEIRS)}
         gate={gate("address")}
         initial={profile.address || ""}
-        commit={profileKey("address")}
+        commit={words("address")}
         body={btTextBox({ placeholder: "123 Example St, Brooklyn, NY 11208", autoComplete: "street-address", hint: "Given when someone asks how to find you." })}
       />
 
@@ -557,8 +409,8 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         disputed={btDispute(website, conflictOn("website"), BT_TAKE_THEIRS)}
         gate={gate("website")}
         initial={profile.website || ""}
-        check={(d) => (btTrimmed(d) && !BT_WEB.test(btTrimmed(d)) ? "The website needs to be a full web address, starting with https://" : null)}
-        commit={profileKey("website")}
+        check={S.CHECK_OF.website}
+        commit={words("website")}
         body={btTextBox({ placeholder: "https://example.com", inputMode: "url", autoComplete: "url", hint: "Optional. Given when someone asks." })}
       />
 
@@ -574,12 +426,8 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         disputed={btDispute(link, conflictOn("booking_link"), BT_TAKE_THEIRS)}
         gate={gate("booking link")}
         initial={brain.booking_link || ""}
-        check={(d) => {
-          const v = btTrimmed(d);
-          if (!v) return "The receptionist needs a booking link before it can answer anyone.";
-          return BT_WEB.test(v) ? null : "That booking link needs to be a full web address, starting with https://";
-        }}
-        commit={(d) => ({ change: (b) => { b.booking_link = btTrimmed(d); return b; }, said: BT_SAVED })}
+        check={S.CHECK_OF.booking_link}
+        commit={words("booking_link")}
         body={btTextBox({ placeholder: "https://your-booking-page.com", inputMode: "url", autoComplete: "url", hint: "Sent instead of confirming an appointment itself." })}
       />
 
@@ -615,16 +463,11 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         gate={gate("number customers are told to call")}
         initial={{ own: !brain.phone_display, typed: brain.phone_display || "" }}
         storedAs={published}
-        check={(d) => {
-          const v = published(d);
-          const bad = v && window.__whyNotAPhone ? window.__whyNotAPhone(v) : null;
-          if (bad) return bad;
-          return !v && !voiceLine ? "There is no line yet, so the receptionist needs a number to give out." : null;
-        }}
+        check={(d) => S.CHECK_OF.phone_display(d, voiceLine)}
         commit={(d) => {
           const v = published(d);
           return {
-            change: (b) => { if (v) b.phone_display = v; else delete b.phone_display; return b; },
+            change: S.PATCH_OF.phone_display(v),
             said: v ? <>Customers are told to call <b className="tabular">{v}</b> now.</> : <>Customers are told to call your line.</>,
           };
         }}
@@ -682,15 +525,11 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         gate={gate("transfer number")}
         initial={phoneShown(profile.handoff_number) || ""}
         storedAs={transferOf}
-        check={(d) => (window.__whyNotAHandoff ? window.__whyNotAHandoff(d, voiceLine) : null)}
+        check={(d) => S.CHECK_OF.handoff_number(d, voiceLine)}
         commit={(d) => {
           const v = transferOf(d);
           return {
-            change: (b, p) => {
-              if (v) p.handoff_number = v; else delete p.handoff_number;
-              b.profile = p;
-              return b;
-            },
+            change: S.PATCH_OF.handoff_number(v),
             said: v ? <>Callers who insist on a person reach <b className="tabular">{phoneShown(v)}</b>.</> : <>The receptionist takes a message instead of transferring.</>,
           };
         }}
@@ -715,10 +554,11 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
  * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
  */
 const BusinessTab = ({ flash = () => {} }) => {
-  // The page's one saver, for its life (btSaver); a save moving through it draws the page again, busy or done.
+  // The page's one saver, for its life (business-tab-save.jsx); a save moving through it draws the page again, busy or
+  // done.
   const [, setTick] = useBizState(0);
   const saver = useBizRef(null);
-  if (!saver.current) saver.current = btSaver(() => setTick((n) => n + 1));
+  if (!saver.current) saver.current = window.__businessTabSave.saver(() => setTick((n) => n + 1));
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) return null;
@@ -739,4 +579,4 @@ const BusinessTab = ({ flash = () => {} }) => {
   );
 };
 
-Object.assign(window, { BusinessTab, useFieldSave, phoneShown });
+Object.assign(window, { BusinessTab });

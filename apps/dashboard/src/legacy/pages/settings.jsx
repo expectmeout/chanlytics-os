@@ -337,9 +337,9 @@ const YourName = ({ flash, ...rest }) => {
  * whether it is theirs.
  */
 // How a number is written for people (window.phoneShown) and the one-key save (window.useFieldSave) live in
-// pages/business-tab.jsx, which loads before this file: the Business tab's rows use both, and the card below keeps
-// using them until Task 3.7 swaps the tab in. Read from window as each card draws, since in the app every file is its
-// own module and a top-level const of one is nothing to another.
+// pages/business-tab-save.jsx, which loads before this file: the Business tab writes numbers the same way, and the card
+// below keeps both until Task 3.7 swaps the tab in. Read from window as each card draws, since in the app every file is
+// its own module and a top-level const of one is nothing to another.
 
 /**
  * A fact, with where it came from.

@@ -132,7 +132,7 @@ Object.assign(globalThis.window, {
   __fallbackDefaults: FALLBACK_DEFAULTS,
   __unknownDetails: unknownDetails,
 });
-await import("../../../apps/dashboard/src/legacy/pages/business-tab.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {
