@@ -1066,9 +1066,9 @@ export interface CallDto {
   outcome?: string | null;
   follow_up?: string | null;
   caller_name?: string | null;
-  /** Turns. `start` (seconds) is the turn's first word; `words` is the raw
-   *  provider shape and is stripped by the list route (F15). */
-  transcript_object: Array<{ role?: string; content?: string; start?: number; words?: Array<{ start?: number }> }> | null;
+  /** Turns. `start`/`end` (seconds) are the turn's first and last word; `words` is
+   *  the raw provider shape and is stripped by the list route (F15). */
+  transcript_object: Array<{ role?: string; content?: string; start?: number; end?: number; words?: Array<{ start?: number; end?: number }> }> | null;
   /** storage_path and provider_url are stripped server-side — audio is only
    *  reachable through the signed-URL route. */
   recording: { fetch_state?: string; mime?: string | null; bytes?: number } | null;
