@@ -2433,6 +2433,29 @@ Assert the retired phrases are absent and the kept ones present, by executing th
 
 - [ ] **Step 2–5:** rename, run, commit, open the PR.
 
+### Task 6.2b: On a phone, a row opens a sheet from the bottom
+
+> **Added by the Phase 2 review (21 Sep).** The canvas's phone artboard (`Record-Phone.dc.html`) opens a row as a sheet rising from the bottom, not a fold: the same fields, the same foot, the same one-section save, and every row at least 44px. No phase built it. Phase 2's `RecordFold` folds inline at every width, and only `RecordSheet` knows the phone (`record.css`, under 760px: 88dvh from the bottom, rounded top corners, a foot clear of the home indicator). The rows' 44px is already in.
+
+**Files:**
+- Modify: `apps/dashboard/src/legacy/components/record-fold.jsx`
+- Modify: `apps/dashboard/src/legacy/styles/record.css`
+- Test: `tooling/scripts/tests/record-kit.test.mjs`
+
+- [ ] **Step 1: Write the failing test**
+
+Draw a `RecordFold` with `window.matchMedia` answering `(max-width: 760px)` and assert it is drawn as a sheet: `role="dialog"`, `aria-modal`, named by the fold's label, holding the same fields, the same `says` and the same Save and Cancel. Escape still cancels, and the registry still holds it (`__settingsUnsaved` asks its dirty test). The existing fold tests, drawn at desktop width, pass unchanged.
+
+- [ ] **Step 2: Draw it**
+
+One component, two frames. Under the phone query (read as `reports-sections.jsx`'s `useRptPhone` reads it, kept current as the window changes size), `RecordFold` draws its head, fields and foot in the sheet's frame, with the sheet's `trapTab` and its focus handed back to the row's act. The page calls `RecordFold` the same way at every width: the registry, the dirty guard and the one-section save never learn which frame drew it.
+
+- [ ] **Step 3: See it at 375px**
+
+In the harness: open a row, type, press another row (the ask), then Save. The page behind the sheet does not scroll, and focus comes back to the row's act.
+
+- [ ] **Step 4: Commit**
+
 ### Task 6.3: The final sweep
 
 - [ ] **Step 1: Count what is on screen at rest**
