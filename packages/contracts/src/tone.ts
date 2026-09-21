@@ -83,7 +83,14 @@ const FACT_SOURCE_TONE: Record<FactSource, Tone> = {
   absent: "plain",
 };
 
-const TONE_OF: Record<StateKind, Record<string, Tone>> = {
+/**
+ * Built inside a call marked pure, and the difference is what the four packages
+ * that bundle contracts carry. The spread in `fact` below is a side effect to the
+ * bundler (a spread can run a getter), so a plain literal here kept this table,
+ * `LABEL_OF` and every word map they name in the channels, core, db and jobs
+ * dists, none of which reads a pill. Marked pure, an unused table is dropped.
+ */
+const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => ({
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
   call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
@@ -112,10 +119,10 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
   reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
   lead_call_outcome: LEAD_CALL_OUTCOME_TONES,
-};
+}))();
 
-/** The words a pill says when the page has none better. */
-const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
+/** The words a pill says when the page has none better. Marked pure for the reason `TONE_OF` is. */
+const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE__ */ (() => ({
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
   call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
@@ -137,7 +144,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS,
-};
+}))();
 
 /** The tone for a state, or plain for one this map has never heard of. */
 export function stateTone(kind: StateKind, value: unknown): Tone {

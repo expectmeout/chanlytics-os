@@ -16,8 +16,11 @@ import { GuardrailsSchema, isBaselinePrompt, ownWordsOf } from "./config";
  * The guardrail keys the profile stores, read off the schema rather than copied
  * from it. A copy would let a new rule reach the schema without a strength here;
  * derived, `STRENGTHS` below fails to compile until somebody says how far it goes.
+ *
+ * Read inside a call marked pure: a top-level call is a side effect to the bundler,
+ * so a bare one kept this list in the four dists that bundle contracts and never use it.
  */
-export const GUARDRAIL_KEYS = GuardrailsSchema.keyof().options;
+export const GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
 export type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
 
 /**

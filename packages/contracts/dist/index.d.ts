@@ -9655,6 +9655,9 @@ declare function registrationPreflight(f: PreflightFacts): PreflightProblem[];
  * The guardrail keys the profile stores, read off the schema rather than copied
  * from it. A copy would let a new rule reach the schema without a strength here;
  * derived, `STRENGTHS` below fails to compile until somebody says how far it goes.
+ *
+ * Read inside a call marked pure: a top-level call is a side effect to the bundler,
+ * so a bare one kept this list in the four dists that bundle contracts and never use it.
  */
 declare const GUARDRAIL_KEYS: ("never_quote_prices" | "never_confirm_booking" | "disclose_ai" | "no_health_advice")[];
 type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];

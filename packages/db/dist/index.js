@@ -314,13 +314,6 @@ function feedProblemWords(reason, status) {
       return null;
   }
 }
-var SOURCE_WORDS = {
-  provisioned: "your line",
-  verified: "from Google",
-  workspace: "this workspace",
-  typed: "you set this",
-  absent: "not set"
-};
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -612,20 +605,11 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CALENDAR_FEED_WORDS = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
-var PERSON_STATE_LABELS = {
-  needs_you: "Needs you",
-  waiting_on_you: "Waiting on you",
-  opted_out: "Opted out",
-  new: "New",
-  quiet: "Quiet",
-  active: "Active"
-};
 var DAY_MS3 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
@@ -756,14 +740,6 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
-var BROADCAST_STATE_LABELS = {
-  pending_approval: "Needs you",
-  scheduled: "Scheduled",
-  sending: "Sending",
-  sent: "Sent",
-  canceled: "Canceled",
-  failed: "Failed"
-};
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
@@ -816,19 +792,8 @@ var REGISTRATION_COST_WORDS = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
-var SETUP_STATE_WORDS = {
-  not_started: "Not started",
-  waiting_you: "Waiting on you",
-  waiting_them: "Waiting on us",
-  ready: "Ready"
-};
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
-var ROLE_WORDS = {
-  owner: "Owner",
-  operator: "Operator",
-  viewer: "Viewer"
-};
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = z5.object({
@@ -960,7 +925,6 @@ var LeadSearchPlanSchema = z6.object({
 });
 var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name, code2]) => [code2, name]));
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
-var GUARDRAIL_KEYS = GuardrailsSchema.keyof().options;
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
   label: "Password",
@@ -990,10 +954,7 @@ var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_STAGE_WORDS = { ready: "Ready", nurture: "Contacted", converted: "Talking", archived: "Closed" };
 var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
-var LEAD_FIT_WORDS = { strong: "Strong fit", look: "Worth a look", long: "Long shot" };
-var LEAD_EMAIL_WORDS = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
 var LEAD_CALL_OUTCOME_TONES = {
   interested: "ok",
   call_back: "warn",
@@ -1012,9 +973,6 @@ var LEAD_NOT_A_FIT_WORDS = {
   other: "Something else"
 };
 var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
-var LEAD_REVIEW_WORD = "Needs review";
-var LEAD_LEFT_OUT_WORD = "Left out";
-var LEAD_CLASS_WORDS = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
 var LEAD_SENT_QUESTION = "Did you send it?";
 var LEAD_CALL_QUESTION = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
@@ -1148,66 +1106,6 @@ var LeadSuggestAnswerSchema = z7.object({
   items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var FACT_SOURCE_TONE = {
-  verified: "ok",
-  provisioned: "ok",
-  workspace: "plain",
-  typed: "plain",
-  absent: "plain"
-};
-var TONE_OF = {
-  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
-  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
-  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
-  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
-  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
-  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
-  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
-  playbook: { running: "accent", paused: "warn", approval: "warn" },
-  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
-  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
-  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
-  role: { owner: "info", operator: "plain", viewer: "plain" },
-  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
-  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
-  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
-  // disagreement is warn because a person has to settle it. `disputed` is not a
-  // FactSource -- it is what the caller passes when a typed value and a verified one
-  // disagree, and only the page knows that.
-  fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
-  escalation: { open: "warn", resolved: "ok" },
-  // Ready is the silent default every lead starts in, so it is plain: the eye should be drawn to what has moved.
-  lead_class: { qualified: "plain", review: "warn", excluded: "plain" },
-  lead_stage: { ready: "plain", nurture: "info", converted: "ok", archived: "plain" },
-  // A strong fit is a good outcome, not an urgent one. Only the accent means "right now".
-  lead_fit: { strong: "ok", look: "plain", long: "plain" },
-  // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
-  reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
-  lead_call_outcome: LEAD_CALL_OUTCOME_TONES
-};
-var LABEL_OF = {
-  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
-  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
-  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
-  person: PERSON_STATE_LABELS,
-  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
-  mode: PERSON_MODE_WORDS,
-  broadcast: BROADCAST_STATE_LABELS,
-  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
-  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
-  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
-  setup: SETUP_STATE_WORDS,
-  role: ROLE_WORDS,
-  calendar: CALENDAR_FEED_WORDS,
-  // facts.ts already wrote these words for the row; a second copy is one that would drift.
-  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
-  escalation: { open: "Open", resolved: "Resolved" },
-  lead_class: LEAD_CLASS_WORDS,
-  lead_stage: LEAD_STAGE_WORDS,
-  lead_fit: LEAD_FIT_WORDS,
-  reach: LEAD_EMAIL_WORDS,
-  lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
-};
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",

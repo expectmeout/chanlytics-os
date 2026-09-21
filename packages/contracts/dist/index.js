@@ -10599,7 +10599,7 @@ function registrationPreflight(f) {
 }
 
 // src/business-tab.ts
-var GUARDRAIL_KEYS = GuardrailsSchema.keyof().options;
+var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
 var STRENGTHS = {
   never_confirm_booking: {
     strength: "structural",
@@ -12298,7 +12298,7 @@ var FACT_SOURCE_TONE = {
   typed: "plain",
   absent: "plain"
 };
-var TONE_OF = {
+var TONE_OF = /* @__PURE__ */ (() => ({
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
   call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
@@ -12327,8 +12327,8 @@ var TONE_OF = {
   // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
   reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
   lead_call_outcome: LEAD_CALL_OUTCOME_TONES
-};
-var LABEL_OF = {
+}))();
+var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
   call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
@@ -12350,7 +12350,7 @@ var LABEL_OF = {
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
-};
+}))();
 function stateTone(kind, value) {
   return typeof value === "string" && TONE_OF[kind][value] || "plain";
 }
