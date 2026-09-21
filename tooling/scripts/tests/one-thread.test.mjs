@@ -146,3 +146,38 @@ test("a re-read that moves the thread says so on the pane; your own act does not
     assert.equal(drawn.at(-1).notice, null, "REGRESSION: the pane announced your own act to you");
   } finally { delete globalThis.window.__inboxVerb; releasePane(); }
 });
+
+/* ---------------------------- a draft counting down ---------------------------- */
+
+// Moved here from veto-ui.test.mjs, where it read inbox.jsx as a string: the hold is a function now, so it is run.
+test("a draft's Hold and your first keystroke both withdraw it on the server; a withdrawal that failed claims no hold", async () => {
+  const { threadVerbs, ixHeld } = globalThis.window;
+  const said = [];
+  const { hold } = threadVerbs((m) => said.push(m));
+  globalThis.window.VW_STORE = { state: {} };
+  const asked = [];
+  globalThis.window.__cancelSend = async (id) => { asked.push(id); return { ok: true }; };
+  const draft = (messageId) => ({ ...rosa, veto: { messageId, endsAtMs: Date.now() + 20_000, draft: "See you at 3" } });
+  const a = draft("m-hold");
+  const b = draft("m-type");
+  try {
+    hold(a, "hold");
+    hold(b, "type");
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(asked, ["m-hold", "m-type"], "both went to the server, each for its own draft");
+    assert.ok(ixHeld(globalThis.window.VW_STORE.state, a) && ixHeld(globalThis.window.VW_STORE.state, b));
+    hold(a, "hold");
+    assert.equal(asked.length, 2, "a draft already withdrawn is not asked about again");
+
+    // It may already have gone out: the refusal is said, and no hold is claimed.
+    globalThis.window.__cancelSend = async () => ({ ok: false, message: "It had already been sent." });
+    const late = draft("m-late");
+    hold(late, "hold");
+    assert.ok(ixHeld(globalThis.window.VW_STORE.state, late), "the countdown stops at once");
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(ixHeld(globalThis.window.VW_STORE.state, late), false, "REGRESSION: the UI claimed a hold that never happened");
+    assert.equal(said.at(-1).tone, "danger", "and says the server's refusal");
+  } finally {
+    delete globalThis.window.__cancelSend;
+  }
+});
