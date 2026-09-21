@@ -676,6 +676,57 @@ const plLoadView = (scope) => {
   try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people) || "{}") }; } catch { return {}; }
 };
 const plSaveView = (scope, v) => { try { localStorage.setItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people, JSON.stringify(v)); } catch { /* private mode */ } };
+// Where the owner was in each view of Leads: the words in the box, the row the cursor was on, whether the map was
+// open and how far the list was scrolled ({ q, cursor, map, top }). Keyed by the workspace and the view's own route,
+// the last twelve of them. It is the TAB's storage, as the surface cache is: a refresh and a trip to the Inbox keep
+// it, it goes with the tab, and signing out clears it (legacy-bridge/surface-cache.ts). A selection is not part of
+// it: one that came back unseen after a refresh is the kind of thing a bulk act should never find.
+const LD_PLACE_SLOT = "chanlytics.leads.place.v1";
+const LD_PLACE_MAX = 12;
+const ldPlaceId = (view) => { const m = /^\/w\/([^/]+)/.exec((window.location && window.location.pathname) || ""); return `${m ? m[1] : "-"}|${view}`; };
+const ldPlaces = () => { try { return JSON.parse(window.sessionStorage.getItem(LD_PLACE_SLOT) || "{}") || {}; } catch { return {}; } };
+const ldPlaceLoad = (view) => ldPlaces()[ldPlaceId(view)] || null;
+const ldPlaceSave = (view, place) => {
+  try {
+    const all = ldPlaces();
+    const id = ldPlaceId(view);
+    delete all[id];
+    // A view left the way it opens is not remembered at all, and the newest is last, so the oldest is what goes.
+    if (place.q || place.cursor || place.map || place.top) all[id] = place;
+    const ids = Object.keys(all);
+    for (const old of ids.slice(0, Math.max(0, ids.length - LD_PLACE_MAX))) delete all[old];
+    window.sessionStorage.setItem(LD_PLACE_SLOT, JSON.stringify(all));
+  } catch { /* a private window: the place lives for the page */ }
+};
+// A Find that is half-written, for this tab and this workspace: the words, and the plan Claude wrote for them with
+// the card it came on. A plan cost a wait to get, and approving one only posts it (legacy-bridge ask/commit.ts), so
+// it is as good after a refresh as before. A turn still being read, or one being started, is not: it comes back as
+// its words. A day old, it is forgotten.
+const LD_FINDER_SLOT = "chanlytics.leads.finder.v1";
+const LD_FINDER_TTL_MS = 24 * 60 * 60 * 1000;
+const ldFinderLoad = () => {
+  try {
+    const d = JSON.parse(window.sessionStorage.getItem(LD_FINDER_SLOT) || "null");
+    if (!d || d.ws !== ldPlaceId("") || !(Date.now() - d.at < LD_FINDER_TTL_MS)) return null;
+    return d;
+  } catch { return null; }
+};
+const ldFinderSave = (f) => {
+  try {
+    const planned = f.stage === "plan" && !!f.plan;
+    if (!f.words && !planned) { window.sessionStorage.removeItem(LD_FINDER_SLOT); return; }
+    window.sessionStorage.setItem(LD_FINDER_SLOT, JSON.stringify({
+      ws: ldPlaceId(""), at: Date.now(), open: !!f.open, words: f.words || "",
+      stage: planned ? "plan" : "compose", plan: planned ? f.plan : null, proposal: planned ? f.proposal || null : null, more: planned ? f.more || null : null,
+    }));
+  } catch { /* a private window: the draft lives for the page */ }
+};
+// The box that scrolls: on a desktop the table's own (people-table.jsx pl-table-scroll), on a phone the pane itself.
+const ldScroller = (pane) => {
+  if (!pane) return null;
+  const inner = pane.querySelector ? pane.querySelector(".pl-table-scroll") : null;
+  return inner && inner.scrollHeight > inner.clientHeight ? inner : pane;
+};
 // The workspace's copy of the view, one save at a time. Each save replaces the member's whole view (member_view_set),
 // and two in flight could land out of order and leave the older one on the row: while one is out, only the latest view
 // waits, and it goes when that one lands. A save that fails is tried once more, unless a newer view is waiting, which
@@ -1975,6 +2026,79 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     else if (!peekId && a.pushed && window.history && window.history.back) { a.pushed = false; window.history.back(); }
     else nav(want, { replace: true });
   }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The page keeps the owner's place in each view (ldPlaceLoad, above). The page stays mounted from one view to the
+  // next, so a view that is opened -- by the first draw, the rail, Back -- is given ITS place: its own words in the
+  // box, its cursor and its map, or none of them, and never the last view's filters.
+  const placeOf = React.useRef(undefined);  // the view whose place the state below holds
+  const placeNow = React.useRef(null);      // that view and its place as last drawn: what a scroll is saved with
+  const placeTop = React.useRef(0);
+  const placeDue = React.useRef(null);      // a scroll position waiting for its view's rows
+  React.useEffect(() => {
+    if (!onLeads) return;
+    const p = ldPlaceLoad(viewRoute) || {};
+    setQ(p.q || "");
+    setCursor(p.cursor || null);
+    setMapOpen(!!p.map);
+    if (placeOf.current !== undefined) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
+    placeTop.current = p.top || 0;
+    placeDue.current = { view: viewRoute, top: p.top || 0 };
+  }, [viewRoute]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
+  React.useEffect(() => {
+    if (!onLeads) return;
+    if (placeOf.current !== viewRoute) { placeOf.current = viewRoute; return; }
+    ldPlaceSave(viewRoute, { q, cursor, map: mapOpen, top: placeTop.current });
+  }, [viewRoute, q, cursor, mapOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (onLeads && placeOf.current === viewRoute) placeNow.current = { view: viewRoute, place: { q, cursor, map: mapOpen } };
+  // The list goes back to where it was once the rows on screen are this view's (the surface says which view it
+  // holds): scrolled any sooner, it would be the last view's rows that moved.
+  const viewLanded = onLeads && leads.route === viewRoute;
+  React.useEffect(() => {
+    const due = placeDue.current;
+    if (!onLeads || !due || due.view !== viewRoute || !viewLanded) return;
+    placeDue.current = null;
+    const sc = ldScroller(scrollRef.current);
+    if (sc) sc.scrollTop = due.top;
+  }, [viewRoute, viewLanded]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A Find half-written comes back with the page (ldFinderLoad, above), and is kept as it changes. The first pass
+  // still holds the page's empty state, so it keeps nothing: it would clear the draft it is about to be given.
+  const finderKept = React.useRef(false);
+  React.useEffect(() => {
+    const d = onLeads ? ldFinderLoad() : null;
+    if (!d) return;
+    setFinderWords(d.words || "");
+    setFinderPlan(d.plan || null);
+    setFinderProposal(d.proposal || null);
+    setFinderMore(d.more || null);
+    setFinderStage(d.stage === "plan" && d.plan ? "plan" : "compose");
+    setFinderOpen(!!d.open);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    if (!onLeads) return;
+    if (!finderKept.current) { finderKept.current = true; return; }
+    ldFinderSave({ open: finderOpen, stage: finderStage, words: finderWords, plan: finderPlan, proposal: finderProposal, more: finderMore });
+  }, [finderOpen, finderStage, finderWords, finderPlan, finderProposal, finderMore]); // eslint-disable-line react-hooks/exhaustive-deps
+  // How far the list is scrolled, heard on the pane in the capture phase: a scroll does not bubble, and on a desktop
+  // the box that scrolls is the table's own, inside the pane. Saved once it settles, with the place as last drawn.
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!onLeads || !el || !el.addEventListener) return undefined;
+    let t = null;
+    const on = (e) => {
+      const sc = e && e.target;
+      if (!sc || sc !== ldScroller(el)) return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => {
+        const now = placeNow.current;
+        // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
+        if (!now || placeDue.current) return;
+        placeTop.current = sc.scrollTop;
+        ldPlaceSave(now.view, { ...now.place, top: sc.scrollTop });
+      }, 200);
+    };
+    el.addEventListener("scroll", on, { passive: true, capture: true });
+    return () => { el.removeEventListener("scroll", on, { capture: true }); if (t) clearTimeout(t); };
+  }, [onLeads]);
   // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was
   // taken down and added again on every render, and / had a second listener of its own.
   const keys = React.useRef(null);
