@@ -15,6 +15,10 @@ import {
   cannotRows,
   bookingHeld,
   policyAskClass,
+  openWeekWords,
+  closuresAheadWords,
+  closureDatesLabel,
+  closuresFrom,
 } from "@chanlytics/contracts";
 
 /* ---- A fact says where it came from ---- */
@@ -372,4 +376,42 @@ test("a text message is not listed as something it cannot do once texting is liv
   // Left out by an untyped caller, it would quietly read as not live.
   assert.throws(() => cannotRows({}), (e) => e instanceof TypeError && /smsLive/.test(e.message));
   assert.throws(() => cannotRows(), TypeError);
+});
+
+/* ---- When you're open ---- */
+
+const WEEK = { mon: { open: "09:30", close: "18:00" }, tue: { open: "09:30", close: "18:00" }, wed: { open: "09:30", close: "18:00" }, thu: { open: "09:30", close: "18:00" }, fri: { open: "09:30", close: "19:00" }, sat: { intervals: [{ open: "09:30", close: "13:00" }, { open: "14:00", close: "19:00" }] }, sun: {} };
+
+test("the open card's line counts the days the composer would state times for, and names whose clock they are on", () => {
+  assert.equal(openWeekWords(WEEK, "America/New_York"), "Six days a week, in New York time");
+  assert.equal(openWeekWords({ ...WEEK, sun: { open: "10:00", close: "14:00" } }, "America/Los_Angeles"), "Seven days a week, in Los Angeles time");
+  assert.equal(openWeekWords({ mon: WEEK.mon }, "Europe/Madrid"), "One day a week, in Madrid time");
+  // A day stated half-way is one the receptionist calls closed (dayIntervals), so it is not counted as open.
+  assert.equal(openWeekWords({ mon: WEEK.mon, tue: { open: "09:00" } }, "America/New_York"), "One day a week, in New York time");
+  // No week to count: only whose clock it is, and the Hours row under it says they are not set.
+  for (const none of [null, undefined, {}, { sun: {} }]) assert.equal(openWeekWords(none, "America/New_York"), "Times are in New York time");
+});
+
+test("the closures ahead are counted on the business's own day, soonest first, and the next is named as the board names it", () => {
+  const closures = [
+    { date: "2026-12-24", until: "2026-12-26", note: "Christmas" },
+    { date: "2026-09-21" },
+    { date: "2026-09-01", note: "Long gone" },
+    { date: "2026-12-30", until: "2027-01-02" },
+  ];
+  // 03:30 UTC on the 22nd is still the 21st in New York: today's closure is still ahead there, and gone in Madrid.
+  const now = new Date("2026-09-22T03:30:00Z");
+  assert.deepEqual(closuresAheadWords(closures, "America/New_York", now), { count: 3, line: "3 ahead · next Sep 21" });
+  assert.deepEqual(closuresAheadWords(closures, "Europe/Madrid", now), { count: 2, line: "2 ahead · next Dec 24 – 26 · Christmas" });
+  // The dates as the Calendar's own list spells them, from the one function.
+  assert.equal(closureDatesLabel(closures[3]), "Dec 30 – Jan 2");
+  assert.equal(closuresFrom(closures, "2026-12-27").length, 1);
+  assert.deepEqual(closuresAheadWords([closures[3]], "America/New_York", now), { count: 1, line: "1 ahead · Dec 30 – Jan 2" });
+  // A closure that ends today is still ahead; one whose `until` is before its `date` is that one day.
+  assert.equal(closuresAheadWords([{ date: "2026-09-19", until: "2026-09-21" }], "America/New_York", now).count, 1);
+  assert.equal(closuresAheadWords([{ date: "2026-09-25", until: "2026-09-01" }], "America/New_York", now).line, "1 ahead · Sep 25");
+  // None ahead is no line at all: the row says "None ahead". A row nobody finished has no date and is not counted.
+  for (const none of [null, undefined, [], [closures[2]], [{ date: "", note: "half typed" }]]) assert.deepEqual(closuresAheadWords(none, "America/New_York", now), { count: 0, line: null });
+  // A zone the clock cannot use is read as UTC (clock.ts), where it is already the 22nd: the row is never lost to one.
+  assert.equal(closuresAheadWords(closures, "Not/AZone", now).count, 2);
 });

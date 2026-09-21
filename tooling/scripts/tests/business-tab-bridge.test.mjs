@@ -16,7 +16,7 @@ import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
-  newReceptionistDefaults, hasProfile, PROFILE_CROSSING_WORDS,
+  newReceptionistDefaults, hasProfile, PROFILE_CROSSING_WORDS, openWeekWords, closuresAheadWords,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -79,9 +79,14 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
-    "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "consequenceOf", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "standingLine",
+    "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "openWeekWords", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "standingLine",
   ]);
   assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
+  // The When you're open card's two sentences with a number in them.
+  assert.equal(tab.openWeekWords(STORED.profile.hours, TZ), openWeekWords(STORED.profile.hours, TZ));
+  const at = new Date("2026-09-21T12:00:00Z");
+  assert.deepEqual(tab.closuresAheadWords(STORED.profile.closures, TZ, at), closuresAheadWords(STORED.profile.closures, TZ, at));
+  assert.equal(tab.closuresAheadWords(STORED.profile.closures, TZ, at).count, 1, "the one long gone is not ahead");
   const inputs = {
     voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true, hasBookingTemplate: true,
     hasHandoffNumber: true, hasEscalateWhen: true, pauseHours: null, visionOn: false, bookingHeld: false,

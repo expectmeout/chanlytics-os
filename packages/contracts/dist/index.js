@@ -3047,6 +3047,13 @@ function longDate(key) {
   const { y, m, d } = keyParts(key);
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
 }
+function closureDatesLabel(c) {
+  if (!(c.until && c.until > c.date)) return shortDate(c.date);
+  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
+}
+function closuresFrom(closures, todayKey) {
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
+}
 function readAgoLabel(iso, now) {
   if (!iso) return null;
   return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
@@ -3271,12 +3278,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
-  const ahead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
-  const closuresAhead = ahead.slice(0, 6).map((c) => ({
-    key: c.date,
-    label: c.until && c.until > c.date ? `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
-    note: c.note ?? null
-  }));
+  const ahead = closuresFrom(dto.closures, todayKey);
+  const closuresAhead = ahead.slice(0, 6).map((c) => ({ key: c.date, label: closureDatesLabel(c), note: c.note ?? null }));
   const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? void 0 }));
   const services = (dto.services ?? []).map((s) => ({
     name: s.name,
@@ -11240,6 +11243,21 @@ function standingLine(i) {
   const wont = has2(p.services) ? "It offers a consult or the booking link instead of a price." : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
+var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+function openWeekWords(hours, tz) {
+  const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0).length;
+  const zone = `in ${timezoneCity(tz)} time`;
+  if (!open) return `Times are ${zone}`;
+  return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
+}
+function closuresAheadWords(closures, tz, now) {
+  const dated = (closures ?? []).filter((c) => !!c?.date);
+  const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
+  const next = ahead[0];
+  if (!next) return { count: 0, line: null };
+  const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
+  return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
+}
 var PROFILE_CROSSING_WORDS = {
   stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
   starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
@@ -13790,6 +13808,9 @@ export {
   clockTime,
   clockWhen,
   closedOn,
+  closureDatesLabel,
+  closuresAheadWords,
+  closuresFrom,
   companyTypeOf,
   compareTemplates,
   compareWords,
@@ -14014,6 +14035,7 @@ export {
   offeringHorizon,
   offersYesRefusal,
   ok,
+  openWeekWords,
   optInConfirmation,
   optInLink,
   optInPurposeOf,
