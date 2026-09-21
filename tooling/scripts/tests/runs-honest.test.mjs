@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toBroadcastVM, toTodayVM, stateOf, fmtDay, PLAYBOOK_TRIGGERS, POLICY_CLASS_WORDS, POLICY_MODE_WORDS } from "@chanlytics/contracts";
+import { toBroadcastVM, toRunReportVM, REPLY_WINDOW_MS, toTodayVM, stateOf, fmtDay, PLAYBOOK_TRIGGERS, POLICY_CLASS_WORDS, POLICY_MODE_WORDS } from "@chanlytics/contracts";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -34,8 +34,9 @@ const dto = (over = {}) => ({
 });
 /** One person on a broadcast, as GET broadcasts/[id] returns them (contracts BroadcastRecipientDto). */
 const person = (over = {}) => ({
-  contact_id: "k1", name: "Rosa Díaz", phone: "+16465550123", state: "sent", reason: null, sent_at: iso(-5 * D), message_status: "delivered",
-  conversation_id: "cv1", replied: false, delivered_at: iso(-5 * D + 60_000), read_at: null, replied_at: null, ...over,
+  contact_id: "k1", name: "Rosa Díaz", first_name: "Rosa", phone: "+16465550123", state: "sent", reason: null, sent_at: iso(-5 * D), message_status: "delivered",
+  conversation_id: "cv1", replied: false, delivered_at: iso(-5 * D + 60_000), read_at: null, replied_at: null,
+  consent_after: null, consent_at: null, consent_purpose: null, reply_words: null, answered_by: null, answered_at: null, waiting_on_you: false, ...over,
 });
 const detailOf = (broadcast, recipients = [person()]) => ({ broadcast, recipients });
 
@@ -142,6 +143,7 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
+await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"]) globalThis[k] = globalThis.window[k];
 const { installPolicyStore } = await import("../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
 installPolicyStore(globalThis.window);
@@ -195,6 +197,8 @@ const fresh = () => { cells = []; seq = 0; went.length = 0; for (const k of Obje
 const answers = new Map();
 const asked = [];
 globalThis.window.__broadcasts = {
+  // The report the verbs publish (broadcast-verbs.ts): the contracts' own, stamped by the clock the page runs on.
+  report: (d) => toRunReportVM(d, { windowMs: REPLY_WINDOW_MS, nowMs: Date.now(), clock: (iso) => (iso ? globalThis.window.__clock.stamp(Date.parse(iso)) : null) }),
   detail: async (id) => {
     asked.push(id);
     const queue = answers.get(id) || [];
@@ -222,26 +226,32 @@ test("REGRESSION (C9): each of a playbook's runs opens that run -- the runs were
   assert.equal(textOf(byTestId(busy, "pb-history-more")), "The newest 10 of 14 runs", "a card that lists some of its runs says so");
 });
 
-test("REGRESSION (C9): a link to a run opens it on Broadcasts -- under its own row when it is listed, first on the page when it is older than the list", async () => {
+test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a screen of its own, as the canvas draws it, whether the list holds it or not", async () => {
   globalThis.window.__BROADCASTS = broadcastsSurface();
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
+  // The ledger's own doors: a card's name and its Open are links to the run.
+  let tree = page({ initialSegment: null, initialRun: null });
+  const card = find(tree, (n) => n.props?.id === "bc-run-b-sent");
+  press(byTestId(card, "bc-open-who"));
+  press(buttonsSaying(card, "Open")[0]);
+  assert.deepEqual(went, ["broadcasts/run:b-sent", "broadcasts/run:b-sent"], "REGRESSION: nothing named one broadcast, so nothing opened one");
+  press(byTestId(tree, "bc-open-who"));
+  assert.equal(went.at(-1), "broadcasts/run:b-sending", "a scheduled or sending broadcast opens by its link too");
+
   const listed = { initialSegment: null, initialRun: "b-sent" };
   page(listed);
   await settle();
-  let tree = again(listed);
+  tree = again(listed);
   const details = all(tree, (n) => n.props?.["data-testid"] === "bc-detail");
-  assert.equal(details.length, 1, "REGRESSION: nothing named one broadcast, so nothing opened one");
-  const row = find(tree, (n) => n.props?.["data-testid"] === "bc-history" && String(n.props.className).includes("is-open"));
-  assert.ok(row && textOf(row).includes("Win-back · 2026-09-10"), "its own row, open");
-  assert.equal(byTestId(tree, "bc-run-solo"), null, "a listed run opens where it is listed");
-  assert.ok(textOf(details[0]).includes("Rosa Díaz"), "who got it");
-
+  assert.equal(details.length, 1);
+  assert.equal(byTestId(tree, "bc-run-solo").props.id, "bc-run-b-sent", "the screen a link lands on carries the run's anchor");
+  assert.equal(byTestId(tree, "bc-head"), null, "the report is its own screen: the ledger is not drawn under it");
+  assert.equal(byTestId(tree, "bc-composer"), null);
+  assert.equal(textOf(find(details[0], (n) => n.type === "h1")), "Win-back · 2026-09-10", "the run's name is the headline");
+  assert.ok(find(details[0], (n) => n.props?.["data-state"] === "sent"), "with its state beside it");
+  assert.ok(textOf(details[0]).includes("Rosa Díaz"), "and who got it");
   press(byTestId(details[0], "bc-detail-close"));
-  assert.deepEqual(went, ["broadcasts"], "closing is a link too, so the address never names a run that is not open");
-  press(row);
-  assert.deepEqual(went, ["broadcasts", "broadcasts"], "and so is pressing the open row");
-  press(byTestId(tree, "bc-open-who"));
-  assert.deepEqual(went.at(-1), "broadcasts/run:b-sending", "a scheduled or sending broadcast opens by its link");
+  assert.deepEqual(went.at(-1), "broadcasts", "closing is a link too, so the address never names a run that is not open");
 
   answers.set("b-old", [{ ok: true, data: detailOf(dto({ id: "b-old", name: "Win-back · 2026-06-01" })) }]);
   const older = { initialSegment: null, initialRun: "b-old" };
@@ -249,10 +259,8 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- under its own r
   await settle();
   tree = again(older);
   const solo = byTestId(tree, "bc-run-solo");
-  assert.ok(solo && textOf(solo).includes("Win-back · 2026-06-01"), "a run past the newest fifty is read by its id and shown");
-  assert.ok(find(solo, (n) => n.props?.["data-state"] === "sent"), "with its state, since no row above it says so");
-  const order = all(tree, (n) => ["bc-run-solo", "bc-composer"].includes(n.props?.["data-testid"])).map((n) => n.props["data-testid"]);
-  assert.deepEqual(order, ["bc-run-solo", "bc-composer"], "first, where a link lands, not under the composer");
+  assert.ok(solo && textOf(solo).includes("Win-back · 2026-06-01"), "a run past the newest fifty is read by its id and shown the same way");
+  assert.ok(find(solo, (n) => n.props?.["data-state"] === "sent"), "with its state");
 });
 
 test("the page follows its link rather than starting again: opening a run keeps the audience chosen, and a link to a list picks it", () => {
@@ -262,7 +270,10 @@ test("the page follows its link rather than starting again: opening a run keeps 
   assert.ok(chosen(tree).startsWith("Regulars"));
   again({ initialSegment: null, initialRun: "b-sent" });
   tree = again({ initialSegment: null, initialRun: "b-sent" });
-  assert.ok(chosen(tree).startsWith("Regulars"), "opening a run leaves the audience where it was");
+  assert.equal(byTestId(tree, "bc-composer"), null, "a run opens on its own screen");
+  again({ initialSegment: null, initialRun: null });
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.ok(chosen(tree).startsWith("Regulars"), "and closing it leaves the send, and its audience, where they were");
   again({ initialSegment: "s2", initialRun: null });
   tree = again({ initialSegment: "s2", initialRun: null });
   assert.ok(chosen(tree).startsWith("Walk-ins"), "and a later link to another list picks that list");
@@ -312,11 +323,13 @@ test("REGRESSION (C23): an open detail keeps up while its broadcast is sending, 
   page(props);
   await settle();
   let tree = again(props);
-  assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Not there yet · 1"), "one on its way");
+  const pillOf = (t) => textOf(find(byTestId(t, "bc-person"), (n) => n.props?.className === "bc-person-pill"));
+  const sentFigure = (t) => textOf(find(byTestId(t, "bc-fig-sent"), (n) => String(n.props?.className).includes("bc-fig-v")));
+  assert.deepEqual([pillOf(tree), sentFigure(tree)], ["Waiting", "0"], "one on its way");
   tree = await onSurfaceRead();
-  assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Got it · 1"), "REGRESSION: the detail never re-read while the send went out");
+  assert.deepEqual([pillOf(tree), sentFigure(tree)], ["Delivered", "1"], "REGRESSION: the detail never re-read while the send went out");
   tree = await onSurfaceRead();
-  assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Got it · 1"), "a re-read that fails mid-send keeps what was read");
+  assert.deepEqual([pillOf(tree), sentFigure(tree)], ["Delivered", "1"], "a re-read that fails mid-send keeps what was read");
   assert.equal(byTestId(tree, "bc-detail-failed"), null, "rather than a failure over it");
   await onSurfaceRead();
   const reads = asked.filter((id) => id === "b-sending").length;

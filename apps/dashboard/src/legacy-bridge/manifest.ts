@@ -24,6 +24,7 @@ import "@/legacy/components/record-fold.jsx";
 import "@/legacy/components/record-sheet.jsx";
 import "@/legacy/components/message-preview.jsx";
 import "@/legacy/components/template-chips.jsx";
+import "@/legacy/components/campaign-bits.jsx";
 import "@/legacy/components/chart-core.jsx";
 import "@/legacy/components/chart-bar.jsx";
 import "@/legacy/components/chart-line.jsx";
@@ -60,6 +61,8 @@ import "@/legacy/pages/ask-real.jsx";
 import "@/legacy/pages/dashboard-a.jsx";
 import "@/legacy/pages/inbox-list.jsx";
 import "@/legacy/pages/inbox-thread.jsx";
+// The one thread, both tabs mount it: after the drawing it wraps, before the pages that use it.
+import "@/legacy/pages/thread-pane.jsx";
 import "@/legacy/pages/inbox-rail.jsx";
 import "@/legacy/pages/inbox.jsx";
 import "@/legacy/pages/clients-bits.jsx";

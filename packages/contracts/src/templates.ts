@@ -264,20 +264,30 @@ export function exampleParams(specs: readonly ParamSpec[], businessName: string)
  * several languages and the thing that sends it names the message.
  */
 export interface TemplateUse {
-  /** The playbooks that send it, by the name the owner gave them. */
-  playbooks: { id: string; name: string; paused: boolean }[];
+  /**
+   * The playbooks that send it, by the name the owner gave them: whether each is
+   * paused, whether one of its runs is waiting on the owner, and its clock in
+   * words ("runs daily at 10:00") when the source gave one.
+   */
+  playbooks: { id: string; name: string; paused: boolean; waiting: boolean; runs: string | null }[];
   /** How many broadcasts a PERSON sent with it; a playbook's runs are its own. */
   broadcasts: number;
+  /** The latest of those broadcasts, newest first, by the names they were given: at most two. */
+  recent: string[];
   /** The Inbox sends this one when somebody asks to book. */
   booking: boolean;
 }
 
-const NOTHING: TemplateUse = { playbooks: [], broadcasts: 0, booking: false };
+const NOTHING: TemplateUse = { playbooks: [], broadcasts: 0, recent: [], booking: false };
 
 export interface TemplateUseSource {
-  playbooks: readonly { id: string; name: string; template_name: string; state?: string | null }[];
-  /** One entry per broadcast a person sent: a playbook's runs carry its id and are not counted here. */
-  broadcasts: readonly { template_name: string; playbook_id?: string | null }[];
+  /** `runs` is the playbook's clock in words (playbooks.ts `runsWords`), worded by the caller. */
+  playbooks: readonly { id: string; name: string; template_name: string; state?: string | null; runs?: string | null }[];
+  /**
+   * Every broadcast. A playbook's runs carry its id: they are not counted as broadcasts, but a
+   * run `pending_approval` is how a playbook comes to be waiting on the owner.
+   */
+  broadcasts: readonly { template_name: string; playbook_id?: string | null; name?: string | null; state?: string | null; created_at?: string | null }[];
   /** The name the Inbox books with, from `bookingTemplate`; null when the workspace has none. */
   bookingName: string | null;
 }
@@ -285,22 +295,31 @@ export interface TemplateUseSource {
 /** One entry per template name that anything sends. A name absent from the map is sent by nothing. */
 export function templateUsage(src: TemplateUseSource): Record<string, TemplateUse> {
   const out: Record<string, TemplateUse> = {};
-  const at = (name: string): TemplateUse => (out[name] ??= { playbooks: [], broadcasts: 0, booking: false });
+  const at = (name: string): TemplateUse => (out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false });
+  const asking = new Set(src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id));
   for (const p of src.playbooks) {
     if (!p.template_name) continue;
-    at(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused" });
+    at(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused", waiting: asking.has(p.id), runs: p.runs ?? null });
   }
-  for (const b of src.broadcasts) {
-    if (!b.template_name || b.playbook_id) continue;
-    at(b.template_name).broadcasts += 1;
+  // Newest first, so the two it names are the two a person remembers sending.
+  const byHand = src.broadcasts.filter((b) => b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  for (const b of byHand) {
+    const u = at(b.template_name);
+    u.broadcasts += 1;
+    if (b.name && u.recent.length < 2) u.recent.push(b.name);
   }
   if (src.bookingName) at(src.bookingName).booking = true;
   return out;
 }
 
+const sayList = (parts: string[]): string => (parts.length < 2 ? parts[0] ?? "" : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`);
+const capital = (s: string): string => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
+
 /**
  * What sends it, in one line. "Nothing sends it" is the answer worth showing:
- * it is the only one that asks the owner to do something about the message.
+ * it is the only one that asks the owner to do something about the message. A
+ * message that ONE playbook sends says "Win-back playbook", because under a
+ * heading called "What sends it" a bare name reads as a person.
  */
 export function templateUseWords(use: TemplateUse | null | undefined): string {
   const u = use ?? NOTHING;
@@ -309,7 +328,25 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
   if (u.broadcasts > 0) parts.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
   if (u.booking) parts.push("the Inbox");
   if (parts.length === 0) return "Nothing sends it";
-  return parts.length < 2 ? parts[0]! : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  // One playbook alone is "Win-back playbook" even when paused: the line under it says so.
+  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0]!.name} playbook`;
+  return capital(sayList(parts));
+}
+
+/**
+ * The line under what sends it: what that thing is doing. A run waiting on the
+ * owner outranks everything; one playbook says its clock or that it is paused;
+ * a message people send by hand names the latest two; the Inbox's says what it
+ * is for. Null when the first line already said all there is.
+ */
+export function templateUseNote(use: TemplateUse | null | undefined): string | null {
+  const u = use ?? NOTHING;
+  if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
+  if (u.playbooks.length === 1) return u.playbooks[0]!.paused ? "paused — nothing goes out" : u.playbooks[0]!.runs;
+  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused — nothing goes out" : null;
+  if (u.recent.length > 0) return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
+  if (u.booking) return "what the receptionist sends to book";
+  return null;
 }
 
 /** True when nothing sends it: the one state the page draws differently. */

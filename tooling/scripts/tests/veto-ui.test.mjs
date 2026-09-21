@@ -118,13 +118,9 @@ test("VW_UTIL's simulated timer is kept off real threads", () => {
   assert.match(data, /if \(t\.real\) return;/);
 });
 
-test("Hold and first-keystroke both commit server-side", () => {
-  const fn = inbox.slice(inbox.indexOf("const realVetoAct"));
-  assert.match(fn, /__cancelSend\(t\.veto\.messageId\)/);
-  assert.match(fn, /act !== "hold" && act !== "type"/);
-  // A failed cancel must not leave the UI claiming a hold that never happened.
-  assert.match(fn, /st\.held = false;/);
-});
+// "Hold and first-keystroke both commit server-side" moved with the hold itself into the one thread
+// (thread-pane.jsx's threadVerbs), where it is a function a test can run instead of a string to read:
+// one-thread.test.mjs proves it there.
 
 test("the draft bubble is visually distinct from a sent one", () => {
   assert.match(thread, /const held = !!entry\.pending;/);
