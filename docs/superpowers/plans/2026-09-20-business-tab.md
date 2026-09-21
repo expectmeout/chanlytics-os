@@ -1941,6 +1941,11 @@ git commit -am "The receptionist gets a voice, and a box to type it in"
 
 This is the test that guards the page's one historical catastrophe. Write it red, first.
 
+> **Changed in execution (21 Sep).** The steps below are the plan as written. What shipped differs in three ways.
+> 1. The helpers live in `pages/business-tab-save.jsx` (created by Task 3.2's review, beside the page's one saver), not in `business-tab.jsx`, and are published on `window.__businessTabSave` as `PATHS_OF`, `KEYS_OF`, `draftOf(fold, stored)`, `saveFold(fold, stored, draft)` and `problemsOf(fold, draft)`. The plan's `draftFor(fold)` returned a changed draft for the test alone; `draftOf` is the draft a fold opens with, which the folds need anyway, and the test owns its edits.
+> 2. `PATHS_OF` names what each fold writes as dotted paths into the whole config, and `KEYS_OF` is read off it, so the test proves the WHOLE config is untouched outside a fold's paths, not only the profile. There are thirteen folds, not ten: `consult_first` (its own key inside `booking_rules`), `extra_instructions` (with the stored prompt) and `calendar` join the plan's list, and `guardrails` also writes `features.vision`.
+> 3. The test clones the stored record before every call and compares against the clone. The saver once handed a patch shallow copies, so a patch that edited a nested object in place changed the base too, was judged to change nothing, and was never sent (Task 3.2's review). Every patch now runs on a copy all the way down, and what a row will say is worked out on the brain its save goes on (the saver's base, one saver per browser tab), not on the settings read.
+
 **Files:**
 - Create: `tooling/scripts/tests/business-tab-folds.test.mjs`
 
