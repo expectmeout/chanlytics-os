@@ -698,6 +698,8 @@ git commit -m "What the receptionist can do, and what it cannot"
 
 ### Task 1.5: The prompt, cut into blocks
 
+> **Superseded in execution — read `eb603795`, not the code below.** The algorithm below cuts on headings alone, and running it on real prompts showed three faults: the owner's own words (`extra_instructions`) have no reliable heading and were folded into whatever came before; the call's hand-off heading (`Handing the caller to a person:`) was missed; and Chanlytics' own per-workspace text landed in rows, including "Who you are". The shipped version takes a third argument, `promptBlocks(text, channel, ownWords?)`, fences the owner's words off by literal text before matching any heading (an old prompt carried into them restates "Services:" under its own heading), names the fixed text as a `platform` row, gives marks a channel, and makes `chars` each block's exact share so the blocks sum to the prompt. Five tests pin it. Every later task passes `ownWords`.
+
 **Files:**
 - Modify: `packages/contracts/src/business-tab.ts`
 - Test: `tooling/scripts/tests/business-tab-vm.test.mjs`
@@ -1466,7 +1468,10 @@ function consequenceOf(
   tz?: string | null,
 ): PromptBlockVM | null {
   const text = composeSystemPrompt(draft.brain, draft.profile as never, channel, tz ?? null);
-  return promptBlocks(text, channel).find((b) => b.row === section) ?? null;
+  // The owner's words are found by their literal text, so pass them: without them
+  // promptBlocks cannot fence them off, and a fold would show them inside a row.
+  const own = (draft.profile as { extra_instructions?: string | null }).extra_instructions ?? null;
+  return promptBlocks(text, channel, own).find((b) => b.row === section) ?? null;
 }
 
 window.__businessTab = { standingLine, abilityRows, CANNOT_ROWS, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf };
@@ -2177,6 +2182,7 @@ test("the contents lists one entry per block, with what each costs", () => {
   const blocks = promptBlocks(
     composeSystemPrompt(W.__SETTINGS.config.brain, melany, "whatsapp", "America/New_York"),
     "whatsapp",
+    melany.extra_instructions ?? null,
   );
   const entries = all(byTestId(tree, "rec-prompt-contents"), (n) => classes(n).includes("rec-prompt-entry"));
   assert.equal(entries.length, blocks.length);
