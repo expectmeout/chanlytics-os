@@ -1791,12 +1791,11 @@ test("the standing line's hours door opens the fold, and the fold asks before it
   press(byTestId(tree, "rec-hours-switch-mon"));
   tree = redrawTab();
   typeAt(tree, "Monday opens", "09:00");
-  tree = redrawTab();
-  // A shift with one of its two times is nothing the save would write, so it is no change yet (holdsChanges).
-  assert.equal(W.__settingsUnsaved(), false);
-  typeAt(tree, "Monday closes", "17:00");
-  // Asked at once, before the page has drawn again: the keystroke is already what the registry reads.
+  // Asked at once, before the page has drawn again: the keystroke is already what the registry reads. Half a shift is
+  // nothing the save would write, and it is still something a person typed.
   assert.equal(W.__settingsUnsaved(), true, "the rail asks before the pane goes");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "17:00");
   const unload = { type: "beforeunload", prevented: false, preventDefault() { this.prevented = true; } };
   W.dispatchEvent(unload);
   assert.equal(unload.prevented, true, "the browser asks before the tab closes");
@@ -1834,8 +1833,8 @@ test("while the week saves its boxes and switches take nothing, and what is aske
   tree = redrawTab(flash);
   assert.deepEqual([labelled(tree, "Monday closes").props.value, byTestId(tree, "rec-hours-switch-tue").props["aria-checked"], labelled(tree, "Monday shift 2 opens")], ["17:00", true, null], "nothing typed or pressed under Saving… is held, to be dropped when it lands");
   assert.equal(find(byTestId(tree, "rec-hours-copy"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").props["aria-disabled"], true);
-  // The fold's own dirty test reads CLEAN now (the saver's base holds the save as if taken), and it still does not give
-  // way: the ask waits, undrawn, and the save's answer opens the row that was asked for.
+  // It does not give way while its save is out, whatever its dirty test says: the ask waits, undrawn, and the save's
+  // answer opens the row that was asked for.
   openFold(tree, "website");
   tree = redrawTab(flash);
   assert.deepEqual([openFolds(tree), openRows(tree), byTestId(tree, "rec-fold-hours-ask-confirm")], [["hours"], [], null]);
@@ -2299,4 +2298,97 @@ test("under Saving…, a press that would add or remove changes nothing and toas
   tree = redrawTab(flash);
   assert.equal(all(foldOf(tree, "closures"), (n) => /^rec-closure-\d+$/.test(n.props?.["data-testid"] || "")).length, 2, "both closed days are still there, and no third");
   assert.deepEqual(flashes.slice(before), [], "and nothing toasts a removal that did not happen");
+});
+
+test("Cancel, another row and the rail ask before throwing away anything typed, whether or not the save would have written it", () => {
+  // The spec review's probe. "Holds changes" was judged by what the save would write, so a shift typed half-way, a
+  // closed day's note with no date yet, or a day switched on with no times read as nothing: Cancel closed at once and
+  // the input was gone without a question. The form this replaces counted any change. What Save SENDS is still judged
+  // by what it would write.
+  const sent = saving();
+  let tree = drawTab();
+  openFold(tree, "hours");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-hours-switch-sun"));
+  tree = redrawTab();
+  typeAt(tree, "Sunday opens", "10:00");
+  tree = redrawTab();
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), ["hours"], "not thrown away");
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard your changes\?/);
+  press(byTestId(tree, "rec-fold-hours-cancel-no"));
+  tree = redrawTab();
+  assert.equal(labelled(tree, "Sunday opens").props.value, "10:00", "keep editing keeps it");
+  // Another row's act, and the rail, the same.
+  assert.equal(W.__settingsUnsaved(), true);
+  openFold(tree, "website");
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), openRows(tree), !!byTestId(tree, "rec-fold-hours-ask-confirm")], [["hours"], [], true]);
+  press(byTestId(tree, "rec-fold-hours-ask-no"));
+  tree = redrawTab();
+  // Put back as it opened, it holds nothing again: Cancel closes at once.
+  typeAt(tree, "Sunday opens", "");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-hours-switch-sun"));
+  tree = redrawTab();
+  assert.equal(W.__settingsUnsaved(), true, "a closed day keeps its one empty shift, which is not how it opened");
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-fold-hours-cancel-yes"));
+  tree = redrawTab();
+  openFold(tree, "hours");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "18:00");
+  tree = redrawTab();
+  assert.equal(W.__settingsUnsaved(), false, "typed and typed back is the week it opened with");
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), []);
+
+  // A closed day's note with no date yet: a row the save would drop, and words somebody typed.
+  openFold(tree, "closures");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-closures-add"));
+  tree = redrawTab();
+  all(byTestId(tree, "rec-closure-0"), (n) => n.type === "input")[2].props.onChange({ target: { value: "Staff training" } });
+  tree = redrawTab();
+  cancelFoldOf(tree, "closures");
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), !!byTestId(tree, "rec-fold-closures-cancel-confirm")], [["closures"], true]);
+  press(byTestId(tree, "rec-fold-closures-cancel-no"));
+  tree = redrawTab();
+  // And Save still sends nothing of it, and closes: nothing it holds is anything to write.
+  saveFoldOf(tree, "closures");
+  tree = redrawTab();
+  assert.deepEqual([sent.length, openFolds(tree)], [0, []]);
+});
+
+test("a day switched on with no times is said under its day, and the week is not closed as if it had been saved", () => {
+  // The save writes a day with no times as closed, so the week "changed nothing", and the fold closed without a word
+  // with the owner's Sunday gone.
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  press(byTestId(tree, "rec-hours-switch-sun"));
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  assert.deepEqual([sent.length, flashes.length, openFolds(tree)], [0, 0, ["hours"]]);
+  assert.equal(textOf(byTestId(tree, "rec-hours-problem-sun")), "Sunday is switched on with no times. Give it an opening and a closing time, or switch it off.");
+  assert.equal(labelled(tree, "Sunday opens").props["aria-invalid"], true, "on the boxes it is about");
+  assert.equal(byTestId(tree, "rec-fold-says-hours"), null, "and nothing is told to the receptionist of a week the page refuses");
+  // Either answer takes the sentence away: its times, or the switch.
+  typeAt(tree, "Sunday opens", "10:00");
+  tree = redrawTab(flash);
+  typeAt(tree, "Sunday closes", "14:00");
+  tree = redrawTab(flash);
+  assert.equal(byTestId(tree, "rec-hours-problem-sun"), null);
+  saveFoldOf(tree, "hours");
+  assert.deepEqual(sent.map((s) => s.config.brain.profile.hours.sun), [{ open: "10:00", close: "14:00" }]);
 });

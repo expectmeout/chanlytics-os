@@ -43,7 +43,10 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  * after it opened (a colleague's save, read back into this tab), and sending the draft would put their change back
  * as it was without a word. The owner is told, nothing is sent, and the fold stays open with what was typed.
  *
- * holdsChanges(fold, base, draft): what it would write is not what the draft it would open with writes, the rows'
+ * holdsChanges(fold, base, draft): whether Save has anything to SEND. It is not the fold's unsaved-changes test: a
+ * fold asks before it throws away anything typed, which is "the draft is not the one it opened with" (BtFold,
+ * business-tab.jsx), since what a save drops (half a shift, a closed day with no date, a service with no name) is
+ * still something a person typed. What it would write is not what the draft it would open with writes, the rows'
  * rule (storedAs). Some records are stored the way no fold writes them back -- a day the hours leave out (written as
  * {}), two of the four rules left to their defaults (all four written out), a prompt carried into the instructions
  * (kept as the owner's words, S4), a voice or a message stored with space around it, a closure whose `until` is its
@@ -53,7 +56,7 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  *
  * The field keys problemsOf names, for each fold to say a problem under its own field (i is a row's place in the draft):
  *   tone                tone
- *   hours               hours-<day>
+ *   hours               hours-<day> (a shift typed half-way, or a day switched on with no times)
  *   closures            closure-<i>-note, closures (too many)
  *   services            service-<i>-name, service-<i>-duration_min, service-<i>-price_note, services (too many)
  *   languages           languages
@@ -402,14 +405,20 @@ const BT_PROBLEMS_OF = {
   },
   // A shift with one of its two times is said under its day, in the words the save's own rule has for a day stated
   // half-way (contracts config.ts checkDay; business-tab-folds.test.mjs holds the two sentences together): written as
-  // it stood it was dropped, and a day with no other shift was saved as closed. A shift with neither is a row nobody
-  // filled in, and is dropped as it always was.
+  // it stood it was dropped, and a day with no other shift was saved as closed. A shift with neither, beside one that is
+  // filled in, is a row nobody filled in, and is dropped as it always was.
+  //
+  // And a day switched on with no times at all is said under the same key, in the page's words (the schema has none:
+  // to it a day with no times is a closed day). The save writes such a day as closed, so a week whose only change was
+  // the switch "changed nothing", and the fold closed without a word with the owner's Sunday gone.
   hours: (draft) => {
     const found = {};
     BT_DAYS.forEach((d) => {
       const x = (draft || {})[d];
       if (!x || !x.isOpen) return;
-      if ((x.shifts || []).some((s) => !!btfTrimmed(s.open) !== !!btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} needs both an opening and a closing time, or neither.`;
+      const shifts = x.shifts || [];
+      if (shifts.some((s) => !!btfTrimmed(s.open) !== !!btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} needs both an opening and a closing time, or neither.`;
+      else if (!shifts.some((s) => btfTrimmed(s.open) && btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} is switched on with no times. Give it an opening and a closing time, or switch it off.`;
     });
     return found;
   },

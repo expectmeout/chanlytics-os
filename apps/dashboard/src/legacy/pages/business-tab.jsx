@@ -229,11 +229,16 @@ const BtRow = ({
  * It follows business-tab-folds.jsx's contract to the letter, because a fold that did not would lose a colleague's
  * change or a workspace's prompt without a word:
  *   as it opens     the draft is draftOf(id, saver.base()), kept as `opened` for as long as it stays open;
- *   unsaved changes holdsChanges(id, saver.base(), draft), asked by the registry however the fold was opened (its own
- *                   act, or its id from the standing line's door), by the Settings rail and by the browser;
+ *   unsaved changes the draft is not the one it opened with, asked by the registry however the fold was opened (its own
+ *                   act, or its id from the standing line's door), by the Settings rail, by the browser, and by Cancel.
+ *                   NOT holdsChanges, which judges what the save would WRITE: a shift typed half-way, a closed day's
+ *                   note with no date yet, a day switched on with no times and (Task 3.4) a service with no name are
+ *                   all dropped by the save, so they read as nothing, and Cancel threw them away without a question.
+ *                   The form this replaces counted any change, and so does this. Asking once too often loses nothing;
  *   on Save         the page's own checks first (problemsOf), each sentence under its field: a shift typed half-way is
  *                   dropped by the save, so a week that "changes nothing" because of one must still be refused, never
- *                   closed as if saved. Then nothing to write is nothing to send, and the fold closes. Then the save's
+ *                   closed as if saved. Then nothing to write (holdsChanges, which stays the test for whether Save
+ *                   sends anything) is nothing to send, and the fold closes. Then the save's
  *                   own schema (saveProblems). Only then saver.save(foldJob(...)), never a hand-written patch. A fold
  *                   nobody typed in closes at once: nothing was asked of it, so nothing of it is judged (a non-owner's
  *                   calendar address arrives masked, and would be refused as no address at all);
@@ -272,10 +277,10 @@ const BtFold = ({
   const live = useBizRef({ draft: null, opened: null, open: false, opening: 0 });
   const busy = saver ? saver.pending(id) : false;
   const base = saver ? saver.base() : null;
+  // Anything typed is something to ask about, whether or not the save would write it (the header says why).
   const holds = () => {
     const l = live.current;
-    const on = saver ? saver.base() : null;
-    return !!(l.open && l.draft != null && on && S.holdsChanges(id, on, l.draft));
+    return !!(l.open && l.draft != null && !S.same(l.draft, l.opened));
   };
   const fold = window.useRecordFold(id, { dirty: holds, saving: () => !!(saver && saver.pending(id)) });
   // A role that may not change the business never has an editor, whatever asked for one; nor does a page with nothing
@@ -288,7 +293,7 @@ const BtFold = ({
   if (open && live.current.opened == null) { live.current.opened = S.draftOf(id, base); live.current.opening += 1; }
   live.current.open = open;
   const now = open ? (draft != null ? draft : live.current.opened) : S.draftOf(id, base || {});
-  const dirty = open && draft != null && S.holdsChanges(id, base, draft);
+  const dirty = open && draft != null && !S.same(draft, live.current.opened);
   const found = problems || {};
 
   // Nothing is typed into a save that is out (record-fold.jsx): asked of the saver at the moment of the change, since an

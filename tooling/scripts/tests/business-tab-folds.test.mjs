@@ -721,9 +721,24 @@ test("a day stored both ways opens with every stretch it states, and a shift typ
   const half = S.draftOf("hours", stored());
   half.tue = { isOpen: true, shifts: [{ open: "09:00", close: "" }] };
   assert.deepEqual(S.problemsOf("hours", half), { "hours-tue": "Tuesday needs both an opening and a closing time, or neither." });
-  // A row opened and left empty is a row nobody filled in: dropped, as before.
-  half.tue = { isOpen: true, shifts: [{ open: "", close: "" }] };
+  // A shift left empty BESIDE one that is filled in is a row nobody filled in: dropped, as before.
+  half.tue = { isOpen: true, shifts: [{ open: "09:00", close: "12:00" }, { open: "", close: "" }] };
   assert.deepEqual(S.problemsOf("hours", half), {});
+  // But a day switched on with no times at all is not an open day: the save writes it as closed, so the week "changed
+  // nothing" and the fold closed without a word, the switch the owner pressed gone with it. Said under the day, in the
+  // page's words (the schema has none: a day with no times is a closed day to it).
+  for (const shifts of [[{ open: "", close: "" }], [], [{ open: " ", close: "" }, { open: "", close: "" }]]) {
+    half.tue = { isOpen: true, shifts };
+    assert.deepEqual(S.problemsOf("hours", half), { "hours-tue": "Tuesday is switched on with no times. Give it an opening and a closing time, or switch it off." });
+  }
+  // Half a shift is the more exact sentence, and wins; a day switched off is asked nothing, whatever it keeps.
+  half.tue = { isOpen: true, shifts: [{ open: "09:00", close: "" }, { open: "", close: "" }] };
+  assert.deepEqual(S.problemsOf("hours", half), { "hours-tue": "Tuesday needs both an opening and a closing time, or neither." });
+  half.tue = { isOpen: false, shifts: [{ open: "", close: "" }] };
+  assert.deepEqual(S.problemsOf("hours", half), {});
+  // No week a fold opens with trips it: a stored day is open only when it states times.
+  assert.deepEqual(S.problemsOf("hours", S.draftOf("hours", stored())), {});
+  assert.deepEqual(S.problemsOf("hours", S.draftOf("hours", {})), {});
 });
 
 test("what the save's schema would refuse for its length or count is said first, under its field, in the page's words", () => {
