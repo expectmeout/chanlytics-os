@@ -26,12 +26,9 @@ const usePlaybooks = () => {
 const PB_NONE = [];
 // The hours a run may start at: the sending hours the clock publishes (contracts SENDING_HOURS_WORDS).
 const pbHours = () => { const h = window.__clock && window.__clock.hours; return h ? Array.from({ length: h.max - h.min + 1 }, (_, i) => h.min + i) : []; };
-const PB_FILTERS = [
-  { id: "all", label: "All", words: "in all" },
-  { id: "running", label: "Running", words: "running" },
-  { id: "approval", label: "Needs you", words: "waiting on you" },
-  { id: "paused", label: "Paused", words: "paused" },
-];
+// A number said as a word inside a sentence -- "the six moments", "two set up" -- the way a person says it.
+const PB_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+const pbSpell = (n, capital = false) => { const w = PB_WORDS[n] || String(n); return capital ? w[0].toUpperCase() + w.slice(1) : w; };
 // The Autonomy row a class runs under, in the matrix's own words (the playbooks surface carries them).
 const pbRowLabel = (cls) => ((window.__PLAYBOOKS && window.__PLAYBOOKS.classWords && window.__PLAYBOOKS.classWords[cls]) || {}).name || cls;
 const pbHour = (h) => `${String(h).padStart(2, "0")}:00`;
@@ -80,39 +77,143 @@ const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.b
 // the route checks it — a template chosen, every slot filled — so an
 // enabled Save is a Save that succeeds unless the server knows something
 // newer (a template no longer approved, a booking link gone).
+// Each of the six moments has its glyph: the arrow that comes back, a wave
+// hello, the phone that only ever rang, the gift, the calendar, the clock of
+// the day after. A playbook on a trigger this list does not know gets a bolt.
+const PB_ICONS = { quiet_30: "undo", new_week: "wave", phoned_only: "phone", everyone_monthly: "gift", visit_tomorrow: "calendar", visited: "clock" };
+const pbIcon = (trigger) => PB_ICONS[trigger] || "bolt";
+// What a moment is for, said once on its empty card: who it reaches and why it
+// is worth a message. The count of who it would reach today follows it.
+const PB_BLURBS = {
+  quiet_30: "Everyone you have not heard from in a month — the easiest customer to win back is one who already came.",
+  new_week: "Everyone who wrote or phoned for the first time this week — the welcome that saves your number in their phone.",
+  phoned_only: "Everyone who only ever phoned — one message, and they can text you instead of calling.",
+  everyone_monthly: "Everyone who said yes to offers, once a month — this month's offer, on a clock.",
+  visit_tomorrow: "Everyone with a visit tomorrow — the reminder that keeps the chair from sitting empty.",
+  visited: "Everyone who came in yesterday and has nothing on the calendar — the shortest path from a visit to the next booking.",
+};
+// The languages a playbook's message exists in, each with its state at WhatsApp:
+// a starter's are the starter set's, a message written elsewhere its own. Read off
+// every template when Templates has been read, else the approved ones this page
+// holds -- where a language that is not approved reads as not there, which for a
+// run is true: an unapproved language sends nothing.
+const pbLangs = (p) => {
+  const S = window.__starters;
+  const own = window.__PLAYBOOKS && Array.isArray(window.__PLAYBOOKS.templates) ? window.__PLAYBOOKS.templates : PB_NONE;
+  const pool = Array.isArray(window.__TEMPLATES_ALL) ? window.__TEMPLATES_ALL : own;
+  const mine = pool.filter((t) => t.name === p.template_name);
+  const langs = S && S.byName && S.byName(p.template_name) ? S.languages : [...new Set(mine.map((t) => t.language))].map((id) => ({ id, label: id }));
+  return langs.map((l) => {
+    const r = mine.find((t) => t.language === l.id);
+    return { id: l.id, label: l.label, status: r ? r.meta_status || "approved" : null };
+  });
+};
+const pbShort = (id) => String(id || "").slice(0, 2).toUpperCase();
+
 /**
- * A moment nobody is using.
+ * A playbook, as the canvas draws it: what starts it and its state; the message
+ * it sends and the languages it has; who it will actually reach, with the people
+ * it holds back named; and when it runs next beside the shape of its last runs.
+ * Pressed, it opens in place across the grid into its detail -- the message as a
+ * customer sees it, its runs, and every verb (PlaybookCard, bare).
+ */
+const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = false }) => {
+  const status = pbStatus(p);
+  const waiting = p.totals.waiting;
+  const paused = p.state === "paused";
+  const warn = status === "approval" || paused;
+  const langs = pbLangs(p);
+  // Who a run reaches: the people on the list who said yes and have not heard
+  // from a playbook this week. Paused, nobody -- and the bar says so. Waiting on
+  // the owner, the run it holds.
+  const will = paused ? 0 : waiting ? (waiting.recipient_count ?? p.candidates) : p.candidates;
+  // Out of everyone on the moment's list who said yes. A paused playbook counts
+  // nobody of its own, so its moment's count says how many it is not reaching.
+  const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
+  const pool = Math.max(will, p.candidates + p.held, trig ? (trig.candidates || 0) + (trig.held || 0) : 0);
+  const reasons = [
+    paused && { t: "paused — nothing goes out", tone: "warn" },
+    !paused && p.held > 0 && { t: `${p.held} heard from a playbook this week`, tone: "warn" },
+    !paused && !waiting && p.candidates > p.cap_per_run && { t: `up to ${p.cap_per_run} a run — the rest go next time`, tone: "plain" },
+    ...langs.filter((l) => !l.status).map((l) => ({ t: `${l.label} was never added`, tone: "plain" })),
+  ].filter(Boolean);
+  const hour = `${String(p.run_hour).padStart(2, "0")}:00`;
+  const spark = (p.totals.history || PB_NONE).slice(0, 6).reverse().map((h) => h.sent || 0);
+  return (
+    <section id={`pb-${p.id}`} className={`pb-tile${warn ? " is-warn" : ""}${open ? " is-open" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
+      <button type="button" className="pb-tile-head" onClick={onOpen} aria-expanded={open} data-testid="pb-open">
+        <span className="pb-tile-mark" data-tone={warn ? "warn" : "ok"} aria-hidden="true"><Icon name={pbIcon(p.trigger)} size={15} /></span>
+        <span className="pb-tile-titles">
+          <span className="pb-tile-name">{p.name}</span>
+          <span className="pb-tile-hint">{p.triggerHint}</span>
+        </span>
+        <StatePill kind="playbook" value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"} />
+      </button>
+      {!open && (
+        <>
+          {/* The message it sends, by the name WhatsApp knows it by, and the
+              languages it has -- what a customer in each language gets. */}
+          <div className="pb-tile-tpl">
+            <span className="pb-tile-tpl-name mono">{p.template_name}</span>
+            {langs.map((l) => (
+              <span key={l.id} className="pb-tile-lang" title={`${l.label}${l.status ? "" : " — not on WhatsApp"}`}>
+                <window.CmLangGlyph status={l.status} size={11} />
+                <span>{pbShort(l.id)}</span>
+              </span>
+            ))}
+          </div>
+          <window.CmReach will={will} pool={pool} of="who said yes" held={paused ? pool : p.held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
+          <div className="pb-tile-foot">
+            {/* A run waiting on the owner: the line says what the press does, and
+                the press opens the card where Approve and Skip are. */}
+            {waiting
+              ? <button type="button" className="pb-tile-next is-warn" onClick={onOpen} data-testid="pb-tile-approve">Approve it and it goes at {hour}</button>
+              : <span className={`pb-tile-next${paused ? " is-warn" : ""}`}>{paused ? "Paused" : `Next run ${p.next}`}</span>}
+            <span className="pb-tile-spacer" />
+            <window.CmSpark values={spark} label={spark.length ? `The last ${spark.length} runs sent ${spark.join(", ")}` : null} />
+            {/* What its runs earned, behind the count: the card keeps to the
+                board's one line, and the numbers are a hover, a focus or a tap
+                away -- with what "wrote back" counts (the reply window). */}
+            <span className="pb-tile-runs" tabIndex={0} data-tip={`${p.totals.sent} sent, ${p.totals.delivered} delivered, ${p.totals.replied} wrote back. ${pbReplyTip()}.`} data-testid="pb-tile-runs"><span className="tabular">{p.totals.runs}</span> {p.totals.runs === 1 ? "run" : "runs"}</span>
+          </div>
+        </>
+      )}
+      {open && <PlaybookCard p={p} canAct={canAct} onEdit={onEdit} flash={flash} bare />}
+    </section>
+  );
+};
+
+/**
+ * A moment nobody is using, as the canvas draws it: dashed and sunken, what it
+ * is for, who it would reach today, and one press to set it up.
  *
- * PLAYBOOK_TRIGGERS is a CLOSED set of six -- win-back, welcome, save our
- * number, the month's offer, the visit reminder, after the visit -- and the
- * page drew only the ones somebody had made. A list that can be any length
- * cannot say "you are using four of six": the two nobody had set up were
- * simply absent, and the surest way to get more out of Campaigns was the one
- * thing it never mentioned.
- *
- * The count is the surface's own for that trigger, so the card says who it
- * would reach TODAY rather than promising anything.
+ * PLAYBOOK_TRIGGERS is a CLOSED set of six, and the page drew only the ones
+ * somebody had made, so the two nobody had set up were simply absent -- the
+ * surest way to get more out of Campaigns was the one thing it never mentioned.
+ * The count is the surface's own for that trigger: who it would reach TODAY.
  */
 const PlaybookSlot = ({ t, onStart }) => (
-  <section className="fl-card ob-card ob-slot" data-testid="pb-slot" data-trigger={t.id}>
-    <div className="ob-head">
-      <div className="ob-titles">
-        <span className="ob-name">{t.label}</span>
-      </div>
-      <span className="ob-slot-state">Not set up</span>
+  <section className="pb-tile is-empty" data-testid="pb-slot" data-trigger={t.id}>
+    <div className="pb-tile-head">
+      <span className="pb-tile-mark" data-tone="plain" aria-hidden="true"><Icon name={pbIcon(t.id)} size={15} /></span>
+      <span className="pb-tile-titles">
+        <span className="pb-tile-name">{t.label}</span>
+        <span className="pb-tile-hint">{t.hint}</span>
+      </span>
+      <span className="pill">Not set up</span>
     </div>
-    <p className="ob-sentence ob-sentence-dim" data-testid="pb-slot-who">
-      {t.hint}
-      {t.candidates > 0 ? ` — ${pbPeople(t.candidates)} today` : " — nobody today"}
-    </p>
-    <div className="ob-actions">
+    <div className="pb-tile-empty">
+      <p className="pb-tile-blurb" data-testid="pb-slot-who">
+        {PB_BLURBS[t.id] || t.hint}
+        {t.candidates > 0 ? ` ${pbPeople(t.candidates)} today.` : " Nobody today."}
+      </p>
       <button
-        className="btn btn-sm"
+        className="btn pb-tile-setup"
         onClick={() => onStart(t.id)}
         data-testid="pb-slot-start"
         {...window.gate("approve", "start a playbook")}
       >
-        Set it up
+        <Icon name="plus" size={12} /> Set it up
       </button>
     </div>
   </section>
@@ -318,7 +419,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
 // One playbook: what starts it, what it sends, its clock, its mode, what its
 // runs earned, and the verbs. A run that waits for a person is approved or
 // skipped right here — the same doors as on Today and Broadcasts.
-const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
+const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false }) => {
   const [busy, setBusy] = React.useState(false);
   const [sure, setSure] = React.useState(false);
   // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
@@ -364,18 +465,10 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
     act(() => V.remove(p.id), () => <><b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers</>);
   };
 
-  return (
-    <section id={`pb-${p.id}`} className={`fl-card ob-card ${status === "approval" ? "is-approval" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
-      <div className="ob-head">
-        <div className="ob-titles">
-          <span className="ob-name">{p.name}</span>
-        </div>
-        <StatePill kind="playbook" value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"} />
-        {/* Beside the state, because it IS part of the state: three cards of
-            "Running" that reach nobody scan as three working playbooks. */}
-        {reachWords && <span className="ob-reach" data-testid="pb-reach">{reachWords}</span>}
-        <PolicyChip cls={p.policy_class} />
-      </div>
+  // Inside a tile (PlaybookTile), the tile draws the name and the state; the
+  // card is its detail -- what it sends, its runs and its verbs -- under them.
+  const inner = (
+    <>
 
       {/* The message first, beside what the rule does with it.
           The card led with the trigger, the schedule, the audience, the template's
@@ -487,6 +580,32 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
           <Confirm question={`Delete ${p.name}?`} detail="Its runs stay in Broadcasts with their numbers." yes="Yes, delete" danger busy={busy} onYes={remove} onNo={() => setSure(false)} testid="pb-delete" />
         )}
       </div>
+    </>
+  );
+  if (bare) {
+    return (
+      <div className="ob-card-detail">
+        <div className="ob-head ob-head-bare">
+          {reachWords && <span className="ob-reach" data-testid="pb-reach">{reachWords}</span>}
+          <PolicyChip cls={p.policy_class} />
+        </div>
+        {inner}
+      </div>
+    );
+  }
+  return (
+    <section id={`pb-${p.id}`} className={`fl-card ob-card ${status === "approval" ? "is-approval" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
+      <div className="ob-head">
+        <div className="ob-titles">
+          <span className="ob-name">{p.name}</span>
+        </div>
+        <StatePill kind="playbook" value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"} />
+        {/* Beside the state, because it IS part of the state: three cards of
+            "Running" that reach nobody scan as three working playbooks. */}
+        {reachWords && <span className="ob-reach" data-testid="pb-reach">{reachWords}</span>}
+        <PolicyChip cls={p.policy_class} />
+      </div>
+      {inner}
     </section>
   );
 };
@@ -496,12 +615,20 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
   const [toastNode, flash] = window.usePPToast();
   // Who may start, change or run a playbook: the role store's answer, View-as included.
   const canAct = !!(window.canDo && window.canDo("approve"));
-  const [filter, setFilter] = React.useState("all");
   const [composing, setComposing] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   // The moment an empty slot was pressed for, so the composer opens on it rather
   // than on whichever trigger happens to be first.
   const [slot, setSlot] = React.useState(null);
+  // The one playbook open in place across the grid: the link's, when a link named
+  // one (Templates' "Win-back playbook", Today's run), else none.
+  const [openId, setOpenId] = React.useState(initialPlaybook);
+  const followed = React.useRef(initialPlaybook);
+  React.useEffect(() => {
+    if (followed.current === initialPlaybook) return;
+    followed.current = initialPlaybook;
+    setOpenId(initialPlaybook);
+  }, [initialPlaybook]);
   React.useEffect(() => {
     const open = () => { setEditing(null); setSlot(null); setComposing(true); };
     window.addEventListener("playbooks:new", open);
@@ -516,77 +643,68 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
   }, [initialPlaybook]);
 
   const rows = data.rows || PB_NONE;
-  const visible = filter === "all" ? rows : rows.filter((p) => pbStatus(p) === filter);
-  // The six moments, and which of them nothing is doing. A filter is about the
-  // playbooks that exist, so it hides the empty slots rather than showing six
-  // cards that match none of it.
+  // The six moments, in their own order, each with the playbook doing it or the
+  // empty card that says nothing is -- so a first day is six cards that each name
+  // what they would do, and a busy one still shows which moment is idle.
   const triggers = data.triggers || PB_NONE;
+  const known = new Set(triggers.map((t) => t.id));
   const usedTriggers = new Set(rows.map((p) => p.trigger));
-  const unused = filter === "all" ? triggers.filter((t) => !usedTriggers.has(t.id)) : PB_NONE;
-  const running = rows.filter((p) => p.state === "running").length;
-  const waiting = rows.filter((p) => p.totals.waiting).length;
-  const sent = rows.reduce((a, p) => a + p.totals.sent, 0);
-  const replied = rows.reduce((a, p) => a + p.totals.replied, 0);
+  const unused = triggers.filter((t) => !usedTriggers.has(t.id));
+  const tiles = [];
+  for (const t of triggers) {
+    const on = rows.filter((p) => p.trigger === t.id);
+    if (on.length) on.forEach((p) => tiles.push({ key: p.id, p }));
+    else tiles.push({ key: `slot:${t.id}`, t });
+  }
+  rows.filter((p) => !known.has(p.trigger)).forEach((p) => tiles.push({ key: p.id, p }));
+  const runningN = rows.filter((p) => p.state === "running" && !p.totals.waiting).length;
+  const waitingN = rows.filter((p) => p.totals.waiting).length;
+  const pausedN = rows.filter((p) => p.state === "paused").length;
   const reachesNobody = rows.filter((p) => pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting }) === "nobody").length;
   const closeComposer = () => { setComposing(false); setEditing(null); setSlot(null); };
+  const startAt = (id) => { setEditing(null); setSlot(id); setComposing(true); };
+  // What the three rules that shape every run are, said once under the cards: the
+  // sending hours, the weekly breath across playbooks, and the gap before the same
+  // playbook reaches the same person again -- the one number a playbook sets itself.
+  const hours = window.__clock && window.__clock.hours;
+  const gaps = [...new Set(rows.map((p) => p.gap_days))];
 
   return (
     <div className="reports pb-page" data-testid="playbooks-real">
-      {/* One line above the cards, the way Today, Reports and People say their
-          numbers (#556, #557, #558). It was a page title the top bar already
-          showed, a two-line sub-headline, a three-cell stat strip and a row of
-          four filter chips -- about 467px of a phone before the first playbook,
-          and the chips filtered nothing at the one to four playbooks a salon
-          runs. Every filter is still here: a count is its own tap, and pressing
-          the one in force clears it, as the People line's does. */}
-      <div className="cm-standing" data-testid="pb-standing">
-        <span className="cm-standing-lead" data-tip="Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.">
-          {/* Out of a fixed six: the line said "3 playbooks" where the number that
-              matters is which of the moments are covered. */}
-          {triggers.length > 0
-            ? `${rows.length} of ${triggers.length} moments`
-            : rows.length === 0 ? "No playbook yet" : `${rows.length} ${rows.length === 1 ? "playbook" : "playbooks"}`}
-        </span>
-        {PB_FILTERS.filter((f) => f.id !== "all").map((f) => {
-          const n = rows.filter((p) => pbStatus(p) === f.id).length;
-          if (n === 0) return null;
-          return (
-            <span className="cm-standing-part" key={f.id}>
-              <span className="cm-standing-dot" aria-hidden="true">·</span>
-              <button
-                type="button"
-                className={`cm-standing-tap ${filter === f.id ? "on" : ""}${f.id === "approval" ? " needs" : ""}`}
-                aria-pressed={filter === f.id}
-                onClick={() => setFilter(filter === f.id ? "all" : f.id)}
-                data-testid={`pb-filter-${f.id}`}
-              >
-                <span className="tabular">{n}</span> {f.words}
-              </button>
-              {/* A running playbook with nobody on its list is the one thing this
-                  line could not say, and on a workspace whose list has emptied it
-                  is true of every one of them: two runs a day, reaching nobody,
-                  for weeks. It rides the running count because that is what it
-                  qualifies -- it is not a filter of its own. */}
-              {f.id === "running" && reachesNobody > 0 && (
-                <>
-                  <span className="cm-standing-dot" aria-hidden="true">·</span>
-                  <span className="cm-standing-warn" data-testid="pb-reaches-nobody">
-                    {reachesNobody === n ? "none with anyone to send to" : `${reachesNobody} with nobody to send to`}
-                  </span>
-                </>
-              )}
+      <div className="rp-body cm-page pb-body">
+        {/* A headline and one line under it, and at the right how the moments
+            stand -- running, waiting on you, paused, not set up -- in the numbers
+            the cards below add up to. A running playbook with nobody to send to
+            is the one thing the cards alone would not say at a glance, and on a
+            workspace whose list has emptied it is true of every one of them: it
+            rides the line, in the tone of something to look at. */}
+        <window.CmHead
+          title="Playbooks"
+          testid="pb-standing"
+          sub={(
+            <span data-tip="Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.">
+              {triggers.length > 0
+                ? <>The {pbSpell(triggers.length)} moments Chanlytics acts on for you, each on its own clock — {rows.length === 0 ? "none set up yet" : <>{pbSpell(Math.min(rows.length, triggers.length))} set up{unused.length ? <>, {pbSpell(unused.length)} not yet</> : null}</>}.</>
+                : rows.length === 0 ? "No playbook yet." : `${rows.length} ${rows.length === 1 ? "playbook" : "playbooks"}.`}
+              {reachesNobody > 0 && <> <span className="pb-standing-warn" data-testid="pb-reaches-nobody">{reachesNobody === runningN + waitingN ? "None of them has anyone to send to." : `${pbSpell(reachesNobody, true)} running with nobody to send to.`}</span></>}
             </span>
-          );
-        })}
-        {sent > 0 && (
-          <span className="cm-standing-part">
-            <span className="cm-standing-dot" aria-hidden="true">·</span>
-            <span className="tabular" data-tip={pbReplyTip()}>{sent} sent, {replied} {replied === 1 ? "reply" : "replies"}</span>
-          </span>
-        )}
-      </div>
-
-      <div className="rp-body">
+          )}
+          right={(
+            <div className="pb-tally">
+              {[
+                { n: runningN, k: "running", tone: "ok" },
+                waitingN > 0 && { n: waitingN, k: "waiting on you", tone: "warn" },
+                pausedN > 0 && { n: pausedN, k: "paused", tone: "warn" },
+                unused.length > 0 && { n: unused.length, k: "not set up", tone: "plain" },
+              ].filter(Boolean).map((t) => (
+                <div className="pb-tally-cell" key={t.k}>
+                  <span className="pb-tally-n tabular" data-tone={t.tone}>{t.n}</span>
+                  <span className="pb-tally-k">{t.k}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        />
         {initialPlaybook && !rows.some((p) => p.id === initialPlaybook) && (
           <EmptyState kind="line" title="That playbook isn't here any more." body="Its runs stay in Broadcasts, with their numbers." testid="pb-gone" />
         )}
@@ -606,16 +724,15 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
             }}
           />
         )}
-        {visible.map((p) => (
-          <PlaybookCard key={p.id} p={p} canAct={canAct} flash={flash} focus={p.id === initialPlaybook} onEdit={(x) => { setComposing(false); setEditing(x); }} />
-        ))}
-        {/* The moments nothing is doing, after the ones something is. On a first
-            day that is all six, each naming what it would do and who it would
-            reach — which is a better empty state than one card describing four
-            of them in prose, and the reason the generic one is gone. */}
-        {!composing && !editing && unused.map((t) => (
-          <PlaybookSlot key={t.id} t={t} onStart={(id) => { setEditing(null); setSlot(id); setComposing(true); }} />
-        ))}
+        {tiles.length > 0 && (
+          <div className="pb-grid">
+            {tiles.map((x) => (x.p
+              ? <PlaybookTile key={x.key} p={x.p} canAct={canAct} flash={flash} open={openId === x.p.id} onOpen={() => setOpenId((o) => (o === x.p.id ? null : x.p.id))} focus={x.p.id === initialPlaybook} onEdit={(e) => { setComposing(false); setEditing(e); }} />
+              // The slots stand down while the composer is open: it is already
+              // setting one of them up.
+              : !composing && !editing && <PlaybookSlot key={x.key} t={x.t} onStart={startAt} />))}
+          </div>
+        )}
         {rows.length === 0 && unused.length === 0 && !composing && (
           <EmptyState
             kind="card"
@@ -626,8 +743,23 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
             testid="pb-empty"
           />
         )}
-        {rows.length > 0 && visible.length === 0 && (
-          <EmptyState kind="line" title={filter === "approval" ? "No run is waiting on you." : `Nothing ${filter}.`} />
+        {/* The three rules that quietly shape every run, under the cards they shape. */}
+        {tiles.length > 0 && (
+          <div className="pb-rules" data-testid="pb-always">
+            <span className="pb-rules-k">Always on</span>
+            <div className="pb-rule">
+              <Icon name="clock" size={14} />
+              <div><b>Sending hours</b><span>{hours ? hours.range : "9:00–20:59"} · a run that would land outside waits for the morning</span></div>
+            </div>
+            <div className="pb-rule">
+              <Icon name="wave" size={14} />
+              <div><b>One a week, per person</b><span>across every playbook, not per playbook</span></div>
+            </div>
+            <div className="pb-rule">
+              <Icon name="refresh" size={14} />
+              <div><b>{gaps.length === 1 ? `${gaps[0]} days between repeats` : "Days between repeats"}</b><span>{gaps.length === 1 ? "the same playbook will not reach the same person sooner" : "each playbook keeps its own gap before reaching the same person again"}</span></div>
+            </div>
+          </div>
         )}
         {!canAct && rows.length > 0 && <div className="bc-excl-hint" data-testid="pb-role">{window.gateTitle("approve", "pause, run, change or delete a playbook")}</div>}
       </div>

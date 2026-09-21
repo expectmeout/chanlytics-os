@@ -56,4 +56,70 @@ const CmBanner = ({ tone = "warn", lead, children = null, act = null, testid = n
   </div>
 );
 
-Object.assign(window, { CmHead, CmDot, CmFlag, CmBanner });
+
+/**
+ * One language of one message, drawn: filled when WhatsApp approved it, dotted
+ * while WhatsApp reads it, struck through when WhatsApp refused it, and an open
+ * dashed ring for a language the message does not exist in. The colour is the
+ * vocabulary's (tone.ts, through the chrome bridge); `status` null is absence.
+ */
+const CmLangGlyph = ({ status = null, size = 12 }) => {
+  const said = status && window.__chrome && window.__chrome.state ? window.__chrome.state("template", status) : null;
+  const tone = said ? said.tone : "none";
+  return (
+    <svg className="cm-lang-glyph" data-tone={tone} width={size} height={size} viewBox="0 0 14 14" aria-hidden="true">
+      <circle cx="7" cy="7" r="5.1" fill={tone === "ok" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" strokeDasharray={!said ? "2 2.1" : tone === "info" ? "1.3 2.3" : undefined} />
+      {tone === "danger" && <path d="M3.8 10.2 L10.2 3.8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />}
+    </svg>
+  );
+};
+
+/**
+ * Who a run will actually reach, with the subtractions named: the number that
+ * gets it, out of how many, a bar of the two -- those it reaches, those held
+ * back -- and one line per reason anybody is held back.
+ *
+ *   will     how many get it
+ *   pool     out of how many
+ *   of       what the pool is, after "of 36": "who said yes"
+ *   held     how many of the pool are held back (the amber part of the bar)
+ *   reasons  [{ t, tone }]: "12 heard from a playbook this week"
+ */
+const CmReach = ({ will, pool, of = null, held = 0, reasons = [], size = "md", testid = null }) => {
+  const total = Math.max(pool, will + held, 1);
+  const w = Math.round((Math.min(will, total) / total) * 100);
+  const h = Math.round((Math.min(held, total - will) / total) * 100);
+  return (
+    <div className={`cm-reach cm-reach-${size}`} data-testid={testid || undefined}>
+      <div className="cm-reach-n">
+        <span className="cm-reach-will tabular">{will}</span>
+        <span className="cm-reach-of">of <span className="tabular">{pool}</span>{of ? ` ${of}` : ""}</span>
+      </div>
+      <div className="cm-reach-bar" aria-hidden="true">
+        {w > 0 && <span className="cm-reach-bar-will" style={{ width: `${w}%` }} />}
+        {h > 0 && <span className="cm-reach-bar-held" style={{ width: `${h}%` }} />}
+        <span className="cm-reach-bar-rest" />
+      </div>
+      {reasons.length > 0 && (
+        <ul className="cm-reach-why">
+          {reasons.map((r, i) => (
+            <li key={i}><span className="cm-reach-dot" data-tone={r.tone || "plain"} aria-hidden="true" />{r.t}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+/** The last few runs as bars of what each sent, oldest first: a shape, not a chart. */
+const CmSpark = ({ values = [], label = null }) => {
+  if (!values.length) return null;
+  const top = Math.max(...values, 1);
+  return (
+    <span className="cm-spark" aria-label={label || undefined} role={label ? "img" : undefined}>
+      {values.map((v, i) => <span key={i} className="cm-spark-bar" style={{ height: `${Math.max(v > 0 ? 3 : 1, Math.round((v / top) * 15))}px` }} />)}
+    </span>
+  );
+};
+
+Object.assign(window, { CmHead, CmDot, CmFlag, CmBanner, CmLangGlyph, CmReach, CmSpark });
