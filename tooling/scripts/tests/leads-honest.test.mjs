@@ -1173,3 +1173,61 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
   // And nothing of the private family is left to disagree with it.
   assert.equal(find(tree, (n) => cls(n).split(" ").some((c) => c === "ld-state-tag" || c === "ld-fit-tag" || c === "ld-dot")), null);
 });
+
+// What opens over the table must be seen whole. Three ways it was not, found on the live page (21 Sep):
+//   the name card opened inside the pinned cell, and a pinned cell is sticky, so it is its own stacking context --
+//   the next row's pinned cell painted straight over the card (clients.css raises the hovered one);
+//   a card on the last row in view hung below the pane's bottom edge and lost 173px of itself;
+//   and a search's menu in the rail opened rightward, past the rail's edge, and showed 51px of 194.
+// CSS is verified against the real stylesheet over production; what is pinned here is the page's own part of it.
+test("a pop hangs above its row when the room is there, every hover asks where it is, and a search's menu opens into the rail", () => {
+  fresh();
+  const tree = draw();
+  const place = globalThis.window.ldPlacePop;
+  assert.equal(typeof place, "function");
+
+  // Every hover on a row asks, on the pointer arriving and on focus arriving alike.
+  const row = rowOf(tree, "l1");
+  const hovers = [
+    byTestId(row, "lead-slot-phone"),
+    byTestId(row, "lead-slot-mailbox"),
+    find(row, (n) => /\bcl-row-name-block\b/.test(String(n.props?.className || ""))),
+    byTestId(row, "lead-rated"),
+    byTestId(row, "lead-found"),
+  ];
+  for (const h of hovers) {
+    assert.ok(h, "each hover is drawn");
+    assert.match(String(h.props.className), /\bld-hover\b/);
+    assert.equal(h.props.onMouseEnter, place, `${h.props["data-testid"] || h.props.className}: asks on the pointer`);
+    assert.equal(h.props.onFocus, place, "and on focus, so a keyboard gets the same placement");
+  }
+
+  // The arithmetic, on elements that answer the questions a browser's would. The pane runs 100..700 with a 39px
+  // header stuck to its top; a card needs 250px below its row and a tip 56.
+  const el = ({ top, bottom, card }) => {
+    const classes = new Set();
+    const pane = { getBoundingClientRect: () => ({ top: 100, bottom: 700 }), classList: { contains: (c) => c === "pl-table-scroll" }, querySelector: (s) => (s === "thead" ? { offsetHeight: 39 } : null) };
+    return {
+      getBoundingClientRect: () => ({ top, bottom }),
+      closest: (s) => (s === ".pl-table-scroll" ? pane : null),
+      querySelector: (s) => (card && s === ":scope > .ld-card" ? {} : null),
+      classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), has: (c) => classes.has(c) },
+    };
+  };
+  const up = (spec) => { const target = el(spec); place({ currentTarget: target }); return target.classList.has("ld-up"); };
+  assert.equal(up({ top: 150, bottom: 212, card: true }), false, "a card near the top has its room below");
+  assert.equal(up({ top: 600, bottom: 662, card: true }), true, "a card on the last row in view hangs above it instead of being cut off");
+  assert.equal(up({ top: 520, bottom: 582, card: true }), true, "118px below is not room for a card");
+  assert.equal(up({ top: 520, bottom: 582, card: false }), false, "but it is room for a tip");
+  assert.equal(up({ top: 140, bottom: 202, card: true }), false, "a row right under the header keeps its card below, where the room is");
+  // A pop outside any pane, or an element that cannot be measured, is left where it hangs.
+  const loose = { getBoundingClientRect: () => ({ top: 0, bottom: 10 }), closest: () => null, querySelector: () => null, classList: { toggle: () => { throw new Error("no pane, no change"); } } };
+  place({ currentTarget: loose });
+  place({ currentTarget: {} });
+  place(null);
+
+  // A search's menu opens leftward, into the rail it lives in.
+  const menu = menus.find((m) => /^What .+ asked for$/.test(m.title || ""));
+  assert.ok(menu, "a kept search has its menu");
+  assert.equal(menu.align, "right", "aligned to its trigger's right edge, so it opens into the rail rather than across its edge");
+});

@@ -60,6 +60,28 @@ const LeadShape = ({ state, word, size = 13 }) => {
 const LeadTip = ({ id, children, testid }) => <span className="ld-tip" role="tooltip" id={id} data-testid={testid}>{children}</span>;
 const LeadCard = ({ id, label, children, testid }) => <div className="ld-card" role="group" id={id} aria-label={label} data-testid={testid} onClick={(e) => e.stopPropagation()}>{children}</div>;
 
+/**
+ * Where a pop hangs. It hangs below its row, and the table's pane cuts off whatever reaches past its bottom edge: the
+ * name card on the last row in view lost 173px. So each hover looks where it is as the pointer or focus arrives, and
+ * hangs its pop above the row when there is not room for it below and there is more room above. A pop is out of the
+ * layout until it shows, so its height cannot be read on arrival; these are the most each kind runs to.
+ */
+const LD_POP_ROOM = { card: 250, tip: 56 };
+const ldPlacePop = (e) => {
+  const el = e && e.currentTarget;
+  if (!el || typeof el.getBoundingClientRect !== "function" || typeof el.closest !== "function" || !el.classList) return;
+  const pane = el.closest(".pl-table-scroll") || el.closest(".pl-main");
+  if (!pane) return;
+  const box = pane.getBoundingClientRect();
+  const at = el.getBoundingClientRect();
+  // The header sticks to the pane's top, so the room above a row ends at the header, not at the pane.
+  const head = pane.classList.contains("pl-table-scroll") ? ((pane.querySelector("thead") || {}).offsetHeight || 0) : 0;
+  const need = el.querySelector(":scope > .ld-card") ? LD_POP_ROOM.card : LD_POP_ROOM.tip;
+  const below = box.bottom - at.bottom;
+  const above = at.top - (box.top + head);
+  el.classList.toggle("ld-up", below < need && above > below);
+};
+
 // The tile (D5, D6): the business's own mark where it has one, else the listing's photo, else initials on a tint
 // the kind of business decides. The three are stacked rather than chosen, so a mark that fails to load simply
 // uncovers the photo under it and a photo that fails uncovers the initials -- no state, and never a broken frame.
@@ -110,7 +132,7 @@ const LeadSlot = ({ id, kind, slot, values, onPress, pressLabel }) => {
     </>
   );
   return (
-    <span className={`ld-hover ld-slot ld-slot-${slot.state}`} data-testid={`lead-slot-${kind}`}>
+    <span className={`ld-hover ld-slot ld-slot-${slot.state}`} data-testid={`lead-slot-${kind}`} onMouseEnter={ldPlacePop} onFocus={ldPlacePop}>
       {onPress
         ? <button type="button" className="ld-slot-btn" aria-label={label} aria-describedby={tipId} onClick={(e) => { e.stopPropagation(); onPress(); }}>{body}</button>
         : <span className="ld-slot-btn" tabIndex={0} aria-label={label} aria-describedby={tipId}>{body}</span>}
@@ -169,7 +191,7 @@ const ldBusinessCell = (l, x) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
       <LeadTile l={l} onExpand={x.onExpand} />
-      <div className="cl-row-name-block ld-hover">
+      <div className="cl-row-name-block ld-hover" onMouseEnter={ldPlacePop} onFocus={ldPlacePop}>
         <div className="cl-row-fullname">
           <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} aria-describedby={`${l.id}-card`} data-testid="lead-name">{l.name}</button>
           {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} listings</span>}
@@ -201,12 +223,12 @@ const LEAD_COLUMNS = [
     </td>
   ) },
   { key: "rating", label: "Rated", sortable: true, cell: (l) => (
-    <td key="rating" className="shrink ld-rated-cell ld-hover" data-testid="lead-rated">
+    <td key="rating" className="shrink ld-rated-cell ld-hover" data-testid="lead-rated" onMouseEnter={ldPlacePop} onFocus={ldPlacePop}>
       {l.rated ? <><span className="ld-rated-score">{l.rated.score}</span><span className="ld-rated-count">{l.rated.count}</span>{l.spread ? <LeadRatedCard l={l} /> : null}</> : null}
     </td>
   ) },
   { key: "found", label: "Found", sortable: true, cell: (l) => (
-    <td key="found" className="shrink dim ld-found-cell ld-hover" data-testid="lead-found">
+    <td key="found" className="shrink dim ld-found-cell ld-hover" data-testid="lead-found" onMouseEnter={ldPlacePop} onFocus={ldPlacePop}>
       <span tabIndex={0} aria-describedby={`${l.id}-found-tip`}>{l.foundLabel}</span>
       <LeadTip id={`${l.id}-found-tip`} testid="lead-tip-found">{l.foundAt}{l.card.found[0] ? ` · ${l.card.found[0].what}` : ""}</LeadTip>
     </td>
@@ -230,7 +252,9 @@ const LEAD_SORT_KEYS = plSortKeys(LEAD_COLUMNS);
 // route: nothing here renames or removes on the spot.
 const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove, onUndo, exportHref }) => (
   <MoreMenu
-    align="left"
+    // Leftward, into the rail. Its trigger sits at the rail's right edge and the rail scrolls, so opening rightward
+    // put all but 51px of a 194px menu past an edge that cuts off whatever crosses it.
+    align="right"
     title={`What ${s.name} asked for`}
     btnClass="btn btn-ghost btn-icon btn-xs ld-search-more"
     items={[
@@ -959,4 +983,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, ldPlacePop, LEAD_COLUMNS, LEAD_SORT_KEYS });
