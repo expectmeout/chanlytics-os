@@ -32,8 +32,25 @@ export const SWEEP_COPY_TIMEOUT_MS = 20_000;
 
 const REC_EXT: Record<string, string> = {
   "audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3",
-  "audio/mp4": "m4a", "application/octet-stream": "wav",
+  "audio/mp4": "m4a",
 };
+
+/**
+ * What the audio is, read from its first bytes. Retell's CDN serves a call's
+ * WAV as `binary/octet-stream`, and the copy used to take its word: every
+ * recording in the bucket was stored, served and recorded as octet-stream, and
+ * a browser that goes by the type (Safari above all) will not play audio that
+ * is not typed as audio. The provider's word counts only when it names audio;
+ * anything else is what Retell records in. tooling/scripts/recordings-retype.mjs
+ * carries a copy of this rule for the recordings stored before it.
+ */
+export function sniffAudioType(bytes: ArrayBuffer, given: string | null): string {
+  const b = new Uint8Array(bytes.slice(0, 12));
+  const ascii = (from: number, to: number) => String.fromCharCode(...b.slice(from, to));
+  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WAVE") return "audio/wav";
+  if (ascii(0, 3) === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return "audio/mpeg";
+  return given && given.startsWith("audio/") ? given : "audio/wav";
+}
 
 export type CopyOutcome = "stored" | "retry" | "failed";
 
@@ -150,15 +167,16 @@ export async function copyRecording(
       await settle(exhausted ? "failed" : "pending", { error: `provider_${got.status}` });
       return exhausted ? "failed" : "retry";
     }
-    const ext = REC_EXT[got.mime || ""] || "wav";
+    const mime = sniffAudioType(got.bytes, got.mime);
+    const ext = REC_EXT[mime] || "wav";
     const path = `${p.tenantId}/calls/${p.callId}.${ext}`;
     const { error } = await withTimeout(
-      db.storage.from("media").upload(path, got.bytes, { contentType: got.mime || "audio/wav", upsert: true }),
+      db.storage.from("media").upload(path, got.bytes, { contentType: mime, upsert: true }),
       p.timeoutMs,
       "storage upload",
     );
     if (error) throw new Error(error.message);
-    await settle("stored", { storage_path: path, mime: got.mime, bytes: got.bytes.byteLength });
+    await settle("stored", { storage_path: path, mime, bytes: got.bytes.byteLength });
     return "stored";
   } catch (e) {
     // A timeout, a network error, a storage error: transient until proven
