@@ -77,7 +77,7 @@ export function whyNotAHandoff(raw: string | null | undefined, ownLine?: string 
   if (!typed) return null; // Empty is a choice: take a message instead.
   const norm = "+" + typed.replace(/[^0-9]/g, "");
   if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm))) {
-    return "The transfer number needs the country code, like +1 646 932 5775.";
+    return "The transfer number needs the country code, like +1 212 555 0143.";
   }
   if (ownLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(ownLine)) {
     return "That is the receptionist's own line — it would ring itself. Use a line a person answers.";

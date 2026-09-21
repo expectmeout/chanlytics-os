@@ -12,12 +12,12 @@
  * It had already drifted in production, and in the worst possible direction.
  * On the live salon:
  *
- *   tenant_channels(voice).number_e164 = +13083368109   ← what it ANSWERS
- *   brain.phone_display                = (646) 932-5775 ← what it SAYS to call
- *   brain.profile.handoff_number       = +16469325775   ← where it TRANSFERS
+ *   tenant_channels(voice).number_e164 = +13085550109   ← what it ANSWERS
+ *   brain.phone_display                = (646) 555-0175 ← what it SAYS to call
+ *   brain.profile.handoff_number       = +16465550175   ← where it TRANSFERS
  *
  * The published number is the transfer number. Every WhatsApp customer told
- * "for anything urgent, call (646) 932-5775" is being sent to a person's line
+ * "for anything urgent, call (646) 555-0175" is being sent to a person's line
  * rather than to the receptionist that is standing by — and the same string is
  * what gets published to Google. Nothing in the product could notice, because
  * a free-text field has no opinion about a channel row.
@@ -108,7 +108,7 @@ const activeChannel = (known: KnownFacts | null | undefined, kind: string): stri
   return trimmed(row?.number_e164);
 };
 
-/** Two ways of writing one number. `(646) 932-5775` and `+16469325775` are the same fact. */
+/** Two ways of writing one number. `(646) 555-0175` and `+16465550175` are the same fact. */
 export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
   const x = normalizePhone(a);
   const y = normalizePhone(b);
@@ -190,9 +190,9 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
     // The one that matters, and the one that should usually be absent.
     //
     // The fallback is FORMATTED, not raw E.164: this value is spoken and
-    // written to customers -- "Phone: +13083368109" in a prompt becomes a
+    // written to customers -- "Phone: +13085550109" in a prompt becomes a
     // receptionist reading digits aloud -- so the provisioned line arrives as
-    // "+1 (308) 336-8109", the way a person says a number.
+    // "+1 (308) 555-0109", the way a person says a number.
     phone_display: typedOverKnown(
       trimmed(typed?.phone_display),
       voice ? formatPhoneDisplay(voice) : null,
