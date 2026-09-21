@@ -13,7 +13,8 @@ import { POLICY_CLASS_WORDS } from "./config";
 import { eligibleFor } from "./broadcasts";
 import { purposeOfPlaybook } from "./consent";
 import { GET_YES_ROUTE, type PersonRowVM } from "./people";
-import type { ParamSpec } from "./templates";
+import { PARAM_SOURCE_LABELS, type ParamSpec } from "./templates";
+import type { BroadcastDto, BroadcastRecipientDto } from "./broadcasts";
 import { visitStartTime, type VisitDto } from "./calendar-people";
 import { shiftKey, zoneMidnight } from "./calendar";
 
@@ -329,4 +330,94 @@ export function visitDayWord(visit: Pick<VisitDto, "start">, tz: string, sendAt:
   } catch {
     return delta > 0 ? "soon" : "recently";
   }
+}
+
+/* --------------------------- a run waiting on you --------------------------- */
+
+export interface ApprovalVM {
+  /** How many it reaches when approved: the people it enrolled. */
+  will: number;
+  /**
+   * The rules that made its list, in words -- true of everyone on it by
+   * construction (eligibleForPlaybook). Never a count of who was left out: a
+   * run records how many it enrolled and nothing about the rest.
+   */
+  rules: string[];
+  /** One value per slot, as `reader` gets them. */
+  values: string[];
+  /** Whose message the words are: the first person on it with a name. Null for a run with nobody on it. */
+  reader: string | null;
+  /** How many a greeting by name reaches with no name on file: they get "Hi there" (resolveParams). */
+  hiThere: number;
+  /** The act: "Approve — 186 now", or "at 9:00" after hours (approveRun sends at the next open moment). Null when its day has passed. */
+  approve: string | null;
+  /** Why it cannot be approved: a playbook's run is a day's run, and approveRun refuses it on a later day. */
+  expired: string | null;
+  /** When it goes, for the line under its name. */
+  goes: string;
+  /** What skipping costs. */
+  skip: string;
+}
+
+/**
+ * A playbook's run waiting on a person, as the sheet says it: the canvas's
+ * "approving from the sofa". What it reaches, by the rules that made its list;
+ * the words as the first person on it reads them; and what approving does,
+ * and when -- or, a day late, why it cannot be approved at all.
+ */
+export function toApprovalVM(
+  d: {
+    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params">;
+    recipients: readonly Pick<BroadcastRecipientDto, "name" | "first_name">[];
+  },
+  opts: {
+    playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null;
+    businessName: string;
+    /** The business's day now, "2026-09-21". */
+    today: string;
+    /** When an approval now would send: the clock's next open moment, and whether it moved past the hours. */
+    open: { time: string; moved: boolean };
+    /** A run's day in words. */
+    day: (ymd: string) => string;
+  },
+): ApprovalVM {
+  const b = d.broadcast;
+  const will = b.recipient_count;
+  const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
+  const rules: string[] = [];
+  if (t && opts.playbook) {
+    rules.push(purposeOfPlaybook(t.cls) === "marketing" ? "each said yes to offers" : "each said yes to hearing from you");
+    if (t.kind === "visit") {
+      rules.push(opts.playbook.trigger === "visit_tomorrow" ? "each has a visit tomorrow on the calendar" : "each visited yesterday and has nothing booked next");
+    } else {
+      const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
+      rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");
+      if (will >= opts.playbook.cap_per_run) rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
+    }
+  }
+  const named = d.recipients.find((r) => r.first_name);
+  const reader = named ?? d.recipients[0] ?? null;
+  const params: readonly ParamSpec[] = Array.isArray(b.params) ? b.params : [];
+  const values = params.map((p) => {
+    switch (p.kind) {
+      case "text": return p.value;
+      case "first_name": return reader?.first_name || "there";
+      case "business_name": return opts.businessName;
+      case "booking_link": return "your booking link";
+      default: return `[${PARAM_SOURCE_LABELS[p.kind].toLowerCase()}]`;
+    }
+  });
+  const greets = params.some((p) => p.kind === "first_name");
+  const late = !!b.run_for && b.run_for !== opts.today;
+  return {
+    will,
+    rules,
+    values,
+    reader: reader ? reader.name : null,
+    hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
+    approve: late ? null : `Approve — ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    expired: late ? `Made for ${opts.day(b.run_for!)}, and that day has passed — its people and its words were that day's. Skip it; the next run starts over.` : null,
+    goes: late ? `made for ${opts.day(b.run_for!)}` : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
+    skip: "Skipping loses this run only — the playbook keeps running.",
+  };
 }
