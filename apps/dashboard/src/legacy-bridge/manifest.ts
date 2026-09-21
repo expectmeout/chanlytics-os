@@ -101,6 +101,7 @@ import "@/legacy/pages/setup.jsx";
 // Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the
 // one-key save and how a number is written, which the old card in settings.jsx uses too.
 import "@/legacy/pages/business-tab-save.jsx";
+import "@/legacy/pages/business-tab-folds.jsx";
 import "@/legacy/pages/business-tab.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/billing-real.jsx";

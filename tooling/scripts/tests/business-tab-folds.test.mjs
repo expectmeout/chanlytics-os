@@ -6,7 +6,7 @@
  * workspace lost a 5,000-character prompt. Every fold is held to the opposite, here, before any fold can save (plan
  * Task 3.6): each fold of the Business tab opens a draft from the stored config (draftOf), is stopped by the old form's
  * own sentences (problemsOf), and writes its own paths onto the config and nothing else (saveFold). All three are
- * pages/business-tab-save.jsx's, run on the stub React as the page tests load it; they are pure, so nothing is drawn.
+ * pages/business-tab-folds.jsx's, run on the stub React as the page tests load it; they are pure, so nothing is drawn.
  *
  * EXECUTED, never read: every claim is something a helper returned for a config it was handed.
  */
@@ -28,6 +28,7 @@ installLegacyReact({
   __instructionsMax: INSTRUCTIONS_MAX,
 });
 await import("../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
 const W = globalThis.window;
 const S = W.__businessTabSave;
 // What each fold's "It will say" is asked of: every fold here must be one consequenceOf knows by name.

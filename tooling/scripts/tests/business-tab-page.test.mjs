@@ -45,6 +45,7 @@ await import(`${L}/components/record-fold.jsx`);
 await import(`${L}/components/record-sheet.jsx`);
 // What the tab's saves write and the one saver they go through, before the page, as both load lists have them.
 await import(`${L}/pages/business-tab-save.jsx`);
+await import(`${L}/pages/business-tab-folds.jsx`);
 await import(`${L}/pages/business-tab.jsx`);
 const W = globalThis.window;
 // The tab's helpers, from the module the app installs: the standing line, and what each row will tell the receptionist.
