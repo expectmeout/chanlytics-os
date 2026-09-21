@@ -40,7 +40,17 @@ test("the four rules carry three different guarantees", () => {
   }
   // The structural one says the switch does not decide it.
   assert.match(ruleStrength("never_confirm_booking").sentence, /no appointments table/i);
-  // The checked one names both channels, because they differ.
-  assert.match(ruleStrength("never_quote_prices").sentence, /before/i);
-  assert.equal(ruleStrength("never_quote_prices").checkedOn?.length, 2);
+  // The checked one names both channels, because they differ -- and it names them in
+  // checkedOn, not in the sentence: the page draws both, so a sentence that said the
+  // channels too would print the same fact twice on one row.
+  const priced = ruleStrength("never_quote_prices");
+  assert.equal(priced.checkedOn?.length, 2);
+  assert.deepEqual(priced.checkedOn.map((c) => c.channel), ["whatsapp", "voice"]);
+  // On chat a draft sits in between, so the swap happens before anyone reads it.
+  assert.match(priced.checkedOn[0].words, /before the customer sees them/i);
+  // On a call there is no before. Saying there is would be the one dishonest sentence
+  // on a page whose whole point is that these four rules are not equivalent.
+  assert.doesNotMatch(priced.checkedOn[1].words, /before/i);
+  assert.match(priced.checkedOn[1].words, /already been heard/i);
+  assert.doesNotMatch(priced.sentence, /WhatsApp|call/i);
 });

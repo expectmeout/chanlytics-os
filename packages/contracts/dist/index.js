@@ -10560,7 +10560,10 @@ var STRENGTHS = {
   never_quote_prices: {
     strength: "checked",
     chip: "Checked, not just told",
-    sentence: "A detector reads every reply for a currency figure and offers a consult or the booking link instead. On WhatsApp that happens before the customer ever sees it; on a call, where it has already been heard, the correction comes in what is said next.",
+    // The sentence says the rule. `checkedOn` says how it lands per channel, and the
+    // page draws both -- so the sentence must not say the channels too, or an owner
+    // reads the same fact twice, once in prose and once in the two boxes under it.
+    sentence: "A detector reads every reply for a currency figure. It offers a consult or the booking link instead.",
     checkedOn: [
       { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
       { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." }
