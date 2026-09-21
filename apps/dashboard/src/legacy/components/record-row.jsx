@@ -14,10 +14,12 @@
 //   and record.css never lets its act go latent, because there is no value to point at.
 // - `source` is a FactSource, drawn as the one pill in the `fact` kind (contracts tone.ts): its tone and its words
 //   are contracts', never this file's. `sourceLabel` overrides the words where the page has better ones.
-// - `disputed` { value, source, severity?, onUse, onKeep?, useLabel?, keepLabel?, sentence?, gate? } is a second
+// - `disputed` { value, source, severity?, onUse?, onKeep?, useLabel?, keepLabel?, sentence?, gate? } is a second
 //   answer that disagrees with this one. The row's chip becomes the kind's `disputed` (warn: a person settles it), and
-//   a line under the value carries the other answer, with its own source's pill and a press to take it instead.
-//   `severity` is "serious" or "minor", passed straight from contracts' FactConflict.
+//   a line under the value carries the other answer, with its own source's pill and, given `onUse`, a press to take
+//   it instead. Without `onUse` the line is there to read and offers nothing: a role that may not settle it, or an
+//   answer that is information rather than a fill, is drawn no dead press. `severity` is "serious" or "minor",
+//   passed straight from contracts' FactConflict.
 // - `act` { label, onClick, gate?, testid? } is the row's one act. `gate` is window.gate(...)'s props, spread AFTER
 //   the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is named
 //   by its words and the row's label together ("Change Website"), and the two carry data-testid rec-row-act-<id>
@@ -44,10 +46,12 @@ const RecordSourceChip = ({ source, label = null, tip = null }) => (
   <window.StatePill kind="fact" value={source} label={label} tip={tip} className="rec-src" />
 );
 
-// The other answer, under the value it disagrees with, and the press that takes it.
+// The other answer, under the value it disagrees with, and the press that takes it when there is one to offer.
 const RecordDispute = ({ id = null, disputed }) => {
   const otherId = id ? `rec-row-${id}-other` : undefined;
   const gated = disputed.gate || {};
+  const uses = typeof disputed.onUse === "function";
+  const keeps = typeof disputed.onKeep === "function";
   return (
     <div className="rec-row-dispute">
       <span className="rec-row-dispute-other" id={otherId}>
@@ -58,16 +62,20 @@ const RecordDispute = ({ id = null, disputed }) => {
           </>
         )}
       </span>
-      <span className="rec-row-dispute-acts">
-        <button type="button" className="btn btn-sm" onClick={disputed.onUse} aria-describedby={otherId} {...gated}>
-          {disputed.useLabel || REC_USE_WORDS[disputed.source] || "Use this one"}
-        </button>
-        {typeof disputed.onKeep === "function" && (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={disputed.onKeep} {...gated}>
-            {disputed.keepLabel || "Keep mine"}
-          </button>
-        )}
-      </span>
+      {uses || keeps ? (
+        <span className="rec-row-dispute-acts">
+          {uses && (
+            <button type="button" className="btn btn-sm" onClick={disputed.onUse} aria-describedby={otherId} {...gated}>
+              {disputed.useLabel || REC_USE_WORDS[disputed.source] || "Use this one"}
+            </button>
+          )}
+          {keeps && (
+            <button type="button" className="btn btn-sm btn-ghost" onClick={disputed.onKeep} {...gated}>
+              {disputed.keepLabel || "Keep mine"}
+            </button>
+          )}
+        </span>
+      ) : null}
     </div>
   );
 };

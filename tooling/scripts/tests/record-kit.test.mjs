@@ -114,6 +114,22 @@ test("a minor disagreement keeps its pill and its line, and leaves the row as it
   assert.equal(row.props["data-empty"], "false");
 });
 
+test("a disagreement with nothing to take it is a line to read, and offers no press", () => {
+  // A role that may not settle it, or an answer that is information rather than a fill (the workspace's own name):
+  // the page passes no onUse, and the kit draws no button that could only refuse.
+  const sentence = "Your receptionist introduces the business as Melany's Beauty Salon; this workspace is named Billing probe.";
+  const read = { value: "Billing probe", source: "workspace", severity: "minor", sentence };
+  const tree = draw(W.RecordRow, { id: "name", label: "Name", value: "Melany's Beauty Salon", source: "typed", disputed: read });
+  const line = find(tree, (n) => classes(n).includes("rec-row-dispute"));
+  assert.equal(textOf(line), sentence, "the disagreement is on the row, whole");
+  assert.ok(find(tree, (n) => classes(n).includes("pill-warn")), "and wears its warn pill");
+  assert.equal(find(line, (n) => n.type === "button"), null, "with no press at all");
+  assert.equal(find(line, (n) => classes(n).includes("rec-row-dispute-acts")), null, "nor an empty place for one");
+  // Given only a way to keep it, that is the one press.
+  const kept = draw(W.RecordRow, { id: "name", label: "Name", value: "Melany's Beauty Salon", source: "typed", disputed: { ...read, onKeep: () => {} } });
+  assert.deepEqual(all(kept, (n) => n.type === "button" && classes(n).includes("btn")).map(textOf), ["Keep mine"]);
+});
+
 test("an act says which row it acts on, and a gate's refusal replaces its press", () => {
   const pressed = [];
   const refused = [];

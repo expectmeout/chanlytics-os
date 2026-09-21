@@ -226,20 +226,22 @@ const RecordInline = ({
   }
 
   // A disagreement, as the kit draws one: the other answer, in the resolver's own sentence when there is one, and one
-  // press that takes it, saved through this row's own commit. Gated like every press on the row.
+  // press that takes it, saved through this row's own commit and gated like every press on the row. A role that may not
+  // change the business reads the disagreement and is offered no press, as it is offered no act; nor is anyone, where
+  // the other answer is information rather than a fill (btDispute's `use` is null).
   const other = disputed ? {
     value: disputed.value,
     source: disputed.source,
     severity: disputed.severity,
     sentence: disputed.sentence,
     useLabel: disputed.useLabel,
-    onUse: () => {
+    onUse: canEdit && disputed.use != null ? () => {
       if (busy) return;
       const bad = check(disputed.use);
       if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
       const c = commit(disputed.use);
       save(c.change, c.said, () => {});
-    },
+    } : undefined,
     gate,
   } : null;
 
@@ -327,23 +329,29 @@ const btTextBox = (words) => ({ draft, set, problem, field }) => (
 
 /**
  * A disagreement on a row, from what the settings read resolved: the other answer (facts.ts `disputed`) and the
- * resolver's sentence and severity for it (factConflicts). `use` turns the other answer into the draft that takes it.
- * Nothing offers "keep mine": nothing stores that choice, and a press that stores nothing would say the disagreement
- * was settled while the database still holds it.
+ * resolver's sentence and severity for it (factConflicts). `take` turns the other answer into the draft that takes it,
+ * and `take.from`, where it is given, names the sources whose answer may be taken; from any other, the disagreement is
+ * information, drawn with no press (`use` is null). Nothing offers "keep mine": nothing stores that choice, and a press
+ * that stores nothing would say the disagreement was settled while the database still holds it.
  */
-const btDispute = (f, conflict, use) => {
+const btDispute = (f, conflict, take) => {
   const theirs = (f && f.disputed) || (conflict ? { value: conflict.known, source: conflict.knownSource } : null);
   if (!theirs) return null;
+  const offered = !take.from || take.from.includes(theirs.source);
   return {
     value: theirs.value,
     source: theirs.source,
     severity: conflict ? conflict.severity : undefined,
     sentence: conflict ? conflict.sentence : null,
-    useLabel: use.label || null,
-    use: use.draft(theirs.value),
+    useLabel: take.label || null,
+    use: offered ? take.draft(theirs.value) : null,
   };
 };
 const BT_TAKE_THEIRS = { draft: (v) => v };
+// The name Google lists may be taken in one press. The workspace's own name may not: it is whatever the workspace was
+// called when it was made -- a Stripe test's "Billing probe" once went to the carriers as a business's name
+// (business-page.ts) -- and a press that renamed the business to it would put that name in front of customers.
+const BT_TAKE_GOOGLES = { draft: (v) => v, from: ["verified"] };
 
 // The pattern every web address on this tab is checked by: the old form's, which the save's own URL rule backs up.
 const BT_WEB = /^https?:\/\/.+\..+/;
@@ -463,7 +471,7 @@ const BtWho = ({ brain, canEdit, flash, rows }) => {
         value={name.value}
         empty="Not set"
         source={chip(name)}
-        disputed={btDispute(name, conflictOn("business_name"), BT_TAKE_THEIRS)}
+        disputed={btDispute(name, conflictOn("business_name"), BT_TAKE_GOOGLES)}
         gate={gate("name")}
         initial={brain.business_name || ""}
         // Checked here so the owner is told before a round trip: the API refuses an empty name too, but names no field.

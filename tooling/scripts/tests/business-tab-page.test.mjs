@@ -663,11 +663,19 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
     assert.match(textOf(band), /no voice of its own/i, "the gap is still named");
     assert.equal(find(band, (n) => typeof n.props?.onClick === "function"), null, "with no door to a row that would not open");
 
-    // A disagreement is still shown, and its press refuses, saying why at the control.
-    const use = find(byTestId(tree, "rec-row-address"), (n) => n.type === "button" && textOf(n) === "Use Google's");
-    assert.equal(use.props["aria-disabled"], true);
-    assert.equal(use.props["data-tip"], roleGate("viewer", "settings", "change the address").reason);
-    press(use);
+    // A disagreement is still there to read, and, like each row's act, its press is absent rather than refused: the
+    // States board's "Each row's act is simply absent".
+    const address = byTestId(tree, "rec-row-address");
+    const minor = W.__FACTS.conflicts.find((k) => k.fact === "address");
+    assert.match(textOf(address), new RegExp(escape(minor.sentence)), "the resolver's own sentence, on the row");
+    assert.ok(find(address, (n) => classes(n).includes("pill-warn")));
+    assert.equal(find(address, (n) => n.type === "button" && classes(n).includes("btn")), null, "and no press, not even a refused one");
+    // The serious one too: its row still washes warn, and still offers nothing.
+    const serious = drawTab({ brain: { phone_display: "(646) 932-5775" }, resolved: KNOWN });
+    const published = byTestId(serious, "rec-row-phone_display");
+    assert.equal(published.props["data-state"], "warn");
+    assert.match(textOf(published), /which is the number it transfers to/);
+    assert.equal(find(published, (n) => n.type === "button"), null);
     assert.equal(sent.length, 0);
     // And nothing opens an editor for it.
     W.__recordFolds.request("website");
@@ -675,6 +683,21 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
   } finally {
     delete W.ST_STORE;
   }
+});
+
+test("a name the workspace goes by is shown against the business's, and never offered in its place", () => {
+  // Resolved as the settings read resolves it: no Google listing, and a workspace named in a Stripe test.
+  const tree = drawTab({ resolved: { ...KNOWN, workspace: { name: "Billing probe", timezone: "America/New_York" } } });
+  const row = byTestId(tree, "rec-row-name");
+  const conflict = W.__FACTS.conflicts.find((k) => k.fact === "business_name");
+  assert.equal(conflict.knownSource, "workspace", "the fixture is the workspace's own name");
+  assert.match(textOf(row), /this workspace is named Billing probe/, "the disagreement is on the row, in the resolver's words");
+  assert.equal(find(row, (n) => n.type === "button" && classes(n).includes("btn")), null, "with no press that would rename the business to it");
+  assert.equal(textOf(byTestId(tree, "rec-row-act-name")), "Change", "the name is still changed the one way, by typing it");
+
+  // Google's answer is a fill: one press takes it.
+  const listed = drawTab({ resolved: { ...KNOWN, listing: { name: "Melany's Salon & Spa", address: null } } });
+  assert.ok(find(byTestId(listed, "rec-row-name"), (n) => n.type === "button" && textOf(n) === "Use Google's"));
 });
 
 /* ------------------------------------ the standing line's door ------------------------------------ */
