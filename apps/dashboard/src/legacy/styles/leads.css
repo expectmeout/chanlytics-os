@@ -310,12 +310,8 @@
 .ld-phone-cell.wrong { color: var(--ink-dim); text-decoration: line-through; }
 .ld-why-cell { max-width: 34ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ld-rating-cell, .ld-found-cell, .ld-distance-cell { font-variant-numeric: tabular-nums; }
-.ld-dot { width: 7px; height: 7px; border-radius: var(--radius-full); display: inline-block; margin-right: 6px; background: var(--ink-faint); }
-/* Ready has no rule: it takes the plain base, like every other silent default. The accent belongs to what is live
-   right now (tokens.css), and it was sitting on the state every lead is born in. */
-.ld-dot.nurture { background: var(--info); }
-.ld-dot.converted { background: var(--ok); }
-.ld-dot.archived { background: var(--ink-faint); }
+/* The Stage column is the app's StatePill, as People's State column is (components.css .pill). It was a dot of
+   its own here, with a colour per stage that the registry now decides. */
 .ld-row-actions { display: inline-flex; gap: 4px; }
 
 /* -------------------------- the three classes, and the Excluded chips (11) */
@@ -541,11 +537,10 @@
 .leads-scope .cl-table tbody tr.ld-row-talking.focused { box-shadow: inset 2px 0 0 var(--accent), inset 5px 0 0 var(--ok); }
 .leads-scope .cl-table tbody tr.ld-row-out .ld-biz-name, .leads-scope .cl-table tbody tr.ld-row-out .ld-rated-score { color: var(--ink-dim); }
 .leads-scope .cl-table tbody tr.ld-row-out .ld-tile { opacity: .7; }
-.ld-state-tag, .ld-fit-tag { flex: none; font-size: var(--text-xs); line-height: 18px; padding: 0 7px; border-radius: 5px; background: var(--bg-active); color: var(--ink-muted); white-space: nowrap; }
-.ld-state-tag.review { background: var(--warn-soft); color: var(--warn-ink); }
-.ld-state-tag.talking { background: var(--ok-soft); color: var(--ok-ink); }
-.ld-fit-tag.strong { background: var(--ok-soft); color: var(--ok-ink); }
-.ld-fit-tag.long { color: var(--ink-dim); }
+/* The row's two tags are StatePills. Their colours are the registry's, so nothing here names one -- the pair kept
+   five of its own, and Contacted drew grey where its dot, its pin and tone.ts all said info. What the pair did
+   carry that a pill does not is its place in the line: the name gives way first, the tags never squeeze. */
+.ld-biz-cell .cl-row-fullname .pill { flex: none; }
 
 /* The tile: the photo, else initials on a tint the kind decides. A photo that fails to load falls back to the tile. */
 .ld-tile { position: relative; flex: none; display: inline-grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--tint); color: var(--tint-ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: default; }
