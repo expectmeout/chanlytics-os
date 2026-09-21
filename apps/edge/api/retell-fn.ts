@@ -179,6 +179,23 @@ export async function POST(request: Request): Promise<Response> {
     // same request (steps.ts layerTwo takes the link back out of a reply).
     const bookingHeld = policyAskClass(rt.policy, "booking") === "booking";
 
+    /** A send refused: said to the caller, and recorded. */
+    const refuse = async (refusal: OutboundRefusal): Promise<Response> => {
+      log("retell_fn_refused", { tenant: routed.tenantId, reason: refusal, mode: replyMode, person_mode: personMode });
+      // A refusal a person can find afterwards. Every other refusal in the
+      // product lands somewhere durable -- the door writes message.send_blocked,
+      // a broadcast marks its recipient, a failed send flags the thread -- and
+      // this one was a line on stdout, so "she says she never got the link" had
+      // no answer. The door's own kind, naming the thread rather than a message,
+      // because the refusal came before any row existed to name.
+      await emitEvent(db, routed.tenantId, "message.send_blocked", "message", "conversation", contact.conversationId, {
+        reason: refusal, source: VOICE_SEND_SOURCE, channel: "whatsapp", call_id: call.call_id ?? null,
+      });
+      // The caller is on the line, so the agent is told what to SAY — never
+      // that a colleague is mid-thread with them, or what our policy is.
+      return json(200, { result: refusalScript(refusal, publishedNumber) });
+    };
+
     // WHICH template, asked of the workspace. A read that fails throws to the
     // outer catch and the caller is told we could not send, which is true; a
     // workspace that genuinely has none is told THAT, which is a different and
@@ -186,6 +203,12 @@ export async function POST(request: Request): Promise<Response> {
     // to fix it.
     const booking = bookingTemplate(await templatesFor(db, routed.tenantId));
     if (!booking) {
+      // Unless it holds its bookings. Under the hold the link would not go
+      // whichever template there was, so the hold is the reason given, and
+      // recorded as the gate records it. Answered first, the missing template
+      // told a caller of a workspace holding its bookings that they "can book
+      // online", the one thing the workspace chose not to have said.
+      if (bookingHeld) return refuse("booking_needs_a_person");
       log("retell_fn_no_template", { tenant: routed.tenantId });
       return json(200, { result: NO_TEMPLATE });
     }
@@ -240,21 +263,7 @@ export async function POST(request: Request): Promise<Response> {
       nowMs: Date.now(),
     });
 
-    if (!gate.allowed) {
-      log("retell_fn_refused", { tenant: routed.tenantId, reason: gate.refusal, mode: replyMode, person_mode: personMode });
-      // A refusal a person can find afterwards. Every other refusal in the
-      // product lands somewhere durable -- the door writes message.send_blocked,
-      // a broadcast marks its recipient, a failed send flags the thread -- and
-      // this one was a line on stdout, so "she says she never got the link" had
-      // no answer. The door's own kind, naming the thread rather than a message,
-      // because the gate refused before any row existed to name.
-      await emitEvent(db, routed.tenantId, "message.send_blocked", "message", "conversation", contact.conversationId, {
-        reason: gate.refusal, source: VOICE_SEND_SOURCE, channel: "whatsapp", call_id: call.call_id ?? null,
-      });
-      // The caller is on the line, so the agent is told what to SAY — never
-      // that a colleague is mid-thread with them, or what our policy is.
-      return json(200, { result: refusalScript(gate.refusal!, publishedNumber) });
-    }
+    if (!gate.allowed) return refuse(gate.refusal!);
 
     // The template's OWN slots, filled from the workspace's facts the way the
     // Inbox and broadcasts fill them (I6): the business's name and its booking
