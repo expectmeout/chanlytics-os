@@ -165,11 +165,7 @@
 .settings .cl-bucket-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .settings .pill { height: 22px; padding: 0 9px; font-size: 11.5px; }
 .settings .cl-tab { font-variant-numeric: tabular-nums; }
-.settings .pill-ok { color: var(--ok-ink); }
-.settings .pill-accent { color: var(--accent-ink); }
-.settings .pill-warn { color: var(--warn-ink); }
-.settings .pill-info { color: var(--info-ink); }
-.settings .pill-danger { color: var(--danger-ink); }
+/* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
 /* A control is identified by its edge, so the edge is not a hairline. The dots
    in the policy matrix have no fill to tell them apart at all. */
 .settings .set-input, .settings .sd-input, .settings .biz-input, .settings .setup-area { border-color: var(--line-strong); }
