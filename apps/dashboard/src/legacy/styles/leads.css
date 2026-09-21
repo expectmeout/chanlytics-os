@@ -382,6 +382,8 @@
 /* --------------------------------------- the rail's kept searches (Task 16) */
 /* Which list is open, over the table, as People names the list it shows (.cl-section-head): in the table's gutter. */
 .ld-list-head { padding: 16px var(--gutter-page) 0; }
+/* And under the leads while more follow, "N of M loaded" and Show more: in the same gutter. */
+.ld-more { padding: 8px var(--gutter-page) 16px; }
 
 /* The row is the rail kit's (RailRow with a menu, clients.css .has-acts): the pick and its menu. Renaming and
    removing happen here, so the rail never loses the row being named. */

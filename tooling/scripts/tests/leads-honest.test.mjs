@@ -929,6 +929,23 @@ test("at a phone's width the page draws the bar instead of the rail and the cont
   globalThis.__phone = false;
 });
 
+test("REGRESSION: past a page of leads, the line under them stands in the scope's gutter on a desktop and on a phone -- its own padding put its words at the pane's edge", () => {
+  for (const phone of [false, true]) {
+    fresh({ leads: surface({ next: { key: "strong", id: "l5" } }) });
+    globalThis.__phone = phone;
+    const tree = draw();
+    const more = byTestId(tree, "leads-more");
+    assert.ok(more, `more leads than a page: the line is drawn (${phone ? "phone" : "desktop"})`);
+    assert.equal(textOf(more), `${ROWS.length} of 322 loaded Show more`, "the count, then the one button");
+    assert.equal(more.props.children.at(-1), byTestId(more, "leads-more-btn"), "the button ends the line");
+    // The gutter is the scope's (.ld-more reads --gutter-page: 28px, and 16px at 900px and under), and nothing on
+    // the line says otherwise.
+    assert.ok(String(more.props.className).split(/\s+/).includes("ld-more"), "the line takes the scope's gutter");
+    assert.equal(more.props.style, undefined, "REGRESSION: an inline padding of 8px 0 16px set the sides to 0, 28px left of the table on a desktop and 16px on a phone");
+  }
+  globalThis.__phone = false;
+});
+
 /* ------------------------------- the strip's controls ------------------------------- */
 
 const running = (over = {}) => ({ ...search(), round: { ...search().round, state: "running", ending: null, ended_at: null, undo_op_id: null, undo_version: null, counted: 12, question: null, ...over } });
