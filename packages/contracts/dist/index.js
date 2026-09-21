@@ -10548,6 +10548,41 @@ function registrationPreflight(f) {
   return out;
 }
 
+// src/business-tab.ts
+var GUARDRAIL_KEYS = ["never_quote_prices", "never_confirm_booking", "disclose_ai", "no_health_advice"];
+var STRENGTHS = {
+  never_confirm_booking: {
+    strength: "structural",
+    chip: "It cannot anyway",
+    sentence: "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
+    checkedOn: null
+  },
+  never_quote_prices: {
+    strength: "checked",
+    chip: "Checked, not just told",
+    sentence: "A detector reads every reply for a currency figure and offers a consult or the booking link instead. On WhatsApp that happens before the customer ever sees it; on a call, where it has already been heard, the correction comes in what is said next.",
+    checkedOn: [
+      { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
+      { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." }
+    ]
+  },
+  disclose_ai: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "A line in what it reads, and it follows it reliably \u2014 but nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    checkedOn: null
+  },
+  no_health_advice: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
+    checkedOn: null
+  }
+};
+function ruleStrength(key) {
+  return STRENGTHS[key];
+}
+
 // src/a2p-enums.ts
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
@@ -12365,6 +12400,7 @@ export {
   FeaturesConfigSchema,
   GET_YES_ROUTE,
   GOOGLE_SHOWN_REVIEWS,
+  GUARDRAIL_KEYS,
   GuardrailsSchema,
   HELD_REASONS,
   HoursSchema,
@@ -13033,6 +13069,7 @@ export {
   reviewsWords,
   roleGate,
   ruleParts,
+  ruleStrength,
   rulesLine,
   runDueNow,
   runningTotal,

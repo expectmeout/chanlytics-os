@@ -51,6 +51,7 @@ export * from "./consent-page";
 export * from "./retention";
 export * from "./activity";
 export * from "./business-page";
+export * from "./business-tab";
 export * from "./a2p-enums";
 export * from "./registration-path";
 export * from "./business-record";

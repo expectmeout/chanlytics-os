@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, SOURCE_WORDS } from "@chanlytics/contracts";
+import { stateOf, SOURCE_WORDS, ruleStrength, GUARDRAIL_KEYS } from "@chanlytics/contracts";
 
 test("a fact's source carries a tone and the words facts.ts already wrote", () => {
   assert.equal(stateOf("fact", "verified").tone, "ok");
@@ -25,4 +25,22 @@ test("a source nobody has registered falls back rather than throwing", () => {
   // stateTone's contract, and the reason FACT_SOURCE_TONE is typed: a sixth
   // FactSource would fail to compile there rather than landing here.
   assert.deepEqual(stateOf("fact", "imported_from_somewhere"), { tone: "plain", label: "imported_from_somewhere" });
+});
+
+test("the four rules carry three different guarantees", () => {
+  assert.equal(ruleStrength("never_confirm_booking").strength, "structural");
+  assert.equal(ruleStrength("never_quote_prices").strength, "checked");
+  assert.equal(ruleStrength("disclose_ai").strength, "instructed");
+  assert.equal(ruleStrength("no_health_advice").strength, "instructed");
+  // Every key the editor writes has a strength, and no key has one it does not write.
+  assert.deepEqual([...GUARDRAIL_KEYS].sort(), ["disclose_ai", "never_confirm_booking", "never_quote_prices", "no_health_advice"]);
+  for (const k of GUARDRAIL_KEYS) {
+    const r = ruleStrength(k);
+    assert.ok(r.chip.length > 0 && r.sentence.length > 0, `${k} needs a chip and a sentence`);
+  }
+  // The structural one says the switch does not decide it.
+  assert.match(ruleStrength("never_confirm_booking").sentence, /no appointments table/i);
+  // The checked one names both channels, because they differ.
+  assert.match(ruleStrength("never_quote_prices").sentence, /before/i);
+  assert.equal(ruleStrength("never_quote_prices").checkedOn?.length, 2);
 });
