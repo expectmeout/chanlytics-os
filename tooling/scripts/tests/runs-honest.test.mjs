@@ -60,7 +60,7 @@ const TEMPLATE = {
 const playbooksSurface = (over = {}) => ({
   rows: [playbook()], templates: [TEMPLATE],
   triggers: [{ id: "quiet_30", label: "Quiet 30 days", hint: "anyone quiet for a month", cls: "reengage", list: "quiet_30", kind: "list", candidates: 4, held: 0 }],
-  classWords: POLICY_CLASS_WORDS, timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
+  timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio", bookingLink: false, fetchedAt: NOW, ...over,
 });
 /** Two broadcasts the Broadcasts surface lists: one sending now, one sent. */

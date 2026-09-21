@@ -8,7 +8,7 @@
  * a broadcast, so the cards and the runs must move together — never a row
  * the page invented while it waited.
  */
-import { PLAYBOOK_REACH_DOOR, PLAYBOOK_REACH_WORDS, playbookReach, poolWords, reachLines } from "@chanlytics/contracts";
+import { PLAYBOOK_REACH_DOOR, PLAYBOOK_REACH_WORDS, playbookName, playbookReach, poolWords, reachLines } from "@chanlytics/contracts";
 import { api } from "./api";
 import { playbooksOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
@@ -56,6 +56,8 @@ declare global {
     __reachLines?: typeof reachLines;
     /** What "of 312" counts on a card: "on the list", "in People", "with a visit tomorrow". */
     __poolWords?: typeof poolWords;
+    /** The name a playbook gets when it is given none, which the composer shows before it is saved. */
+    __playbookName?: typeof playbookName;
   }
 }
 
@@ -67,4 +69,5 @@ export function installPlaybooks(): void {
   window.__playbookReachDoor = PLAYBOOK_REACH_DOOR;
   window.__reachLines = reachLines;
   window.__poolWords = poolWords;
+  window.__playbookName = playbookName;
 }

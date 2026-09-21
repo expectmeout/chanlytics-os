@@ -29,8 +29,6 @@ const pbHours = () => { const h = window.__clock && window.__clock.hours; return
 // A number said as a word inside a sentence -- "the six moments", "two set up" -- the way a person says it.
 const PB_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
 const pbSpell = (n, capital = false) => { const w = PB_WORDS[n] || String(n); return capital ? w[0].toUpperCase() + w.slice(1) : w; };
-// The Autonomy row a class runs under, in the matrix's own words (the playbooks surface carries them).
-const pbRowLabel = (cls) => ((window.__PLAYBOOKS && window.__PLAYBOOKS.classWords && window.__PLAYBOOKS.classWords[cls]) || {}).name || cls;
 const pbHour = (h) => `${String(h).padStart(2, "0")}:00`;
 const pbPeople = (n) => `${n} ${n === 1 ? "person" : "people"}`;
 const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
@@ -59,6 +57,25 @@ const pbExample = (kind, businessName) => (kind === "first_name" ? "Dani" : kind
 // values in the slots; null when it is not among them. The body and the values
 // stay apart -- the preview marks what fills per person, and `words` is the same
 // thing joined up, for the one line a closed card shows.
+// A slot a playbook fills with what it cannot take (contracts slotChoices), in
+// words: the composer let any slot take any source, and a win-back set up with
+// its first name filled by the booking link greets everyone "Hi your booking
+// link" until it is changed. Null when every slot takes what it should. A link
+// the workspace has since removed is a different fault, and the route's.
+const pbWrongSlot = (p, t) => {
+  const S = window.__starters;
+  if (!t || !S || !S.slots || !Array.isArray(p.params)) return null;
+  const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((x) => x.id === p.trigger) || null;
+  const choices = S.slots(t, { visits: !!(trig && trig.kind === "visit"), bookingLink: true });
+  if (!choices) return null;
+  const at = p.params.findIndex((s, i) => s && s.kind && choices[i] && !choices[i].includes(s.kind));
+  if (at < 0) return null;
+  const label = S.slotLabels(t)[at] || `Value ${at + 1}`;
+  const s = p.params[at];
+  return s.kind === "text"
+    ? `“${label}” says “${s.value}” to everyone, where each person's own belongs.`
+    : `“${label}” is filled with ${String((S.sources || {})[s.kind] || s.kind).toLowerCase()}.`;
+};
 const pbMessage = (p, templates, businessName) => {
   const t = templates.find((x) => x.id === p.template_id) || null;
   if (!t) return null;
@@ -73,10 +90,6 @@ const pbMessage = (p, templates, businessName) => {
 const pbReplyTip = () => { const w = window.__PLAYBOOKS && window.__PLAYBOOKS.replyWindow; return w ? `Threads that heard from the customer ${w} of a run` : "Threads that heard from the customer after a run"; };
 const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.bcWhenWords(d) : window.__clock && window.__clock.hours ? `on its way — sends go out ${window.__clock.hours.between} by your clock` : "on its way");
 
-// The composer: a new playbook, or one being changed. Checked here the way
-// the route checks it — a template chosen, every slot filled — so an
-// enabled Save is a Save that succeeds unless the server knows something
-// newer (a template no longer approved, a booking link gone).
 // Each of the six moments has its glyph: the arrow that comes back, a wave
 // hello, the phone that only ever rang, the gift, the calendar, the clock of
 // the day after. A playbook on a trigger this list does not know gets a bolt.
@@ -245,7 +258,63 @@ const PlaybookSlot = ({ t, onStart }) => (
   </section>
 );
 
+// The composer's numbers, a few sensible ones each, chosen in place; a playbook
+// made before them keeps its own among them (pbWith). The route takes any whole
+// number in its range: 1-500 a run, a gap of 7-365 days, a cadence of 1-90.
+const PB_CAPS = [5, 10, 25, 50, 100, 250, 500];
+const PB_GAPS = [7, 14, 30, 60, 90, 180, 365];
+const PB_CADENCES = [7, 14, 30, 60, 90];
+const PB_TEXT = ["text"];
+const pbWith = (list, n) => (list.includes(n) ? list : [...list, n].sort((a, b) => a - b));
+// A new playbook opens on the first moment nothing is doing yet, else the first.
+const pbFirstFree = (triggers, rows) => {
+  const used = new Set((rows || PB_NONE).map((p) => p.trigger));
+  const t = triggers.find((x) => !used.has(x.id)) || triggers[0];
+  return t ? t.id : "quiet_30";
+};
+// A number inside a sentence, chosen where it is said: a select drawn as the
+// words it says, with its chevron. As wide as its longest choice, so picking
+// one moves nothing around it.
+const PbTok = ({ value, options, onChange, label, testid = null }) => (
+  <span className="pb-tok">
+    <select value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={label} data-testid={testid || undefined}>
+      {options.map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}
+    </select>
+    <Icon name="chevron-down" size={9} />
+  </span>
+);
+// What every run keeps to, behind the shield.
+const pbGuardWords = (visits) => (visits
+  ? "Only people with a recorded yes and a number. One message per visit. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire."
+  : "Only people with a recorded yes and a number. Never twice within its gap, and one playbook message per person a week, across every playbook. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire.");
+
+/**
+ * The composer: a new playbook, or one being changed, in a sheet beside the
+ * page (RecordSheet). The moments stay where they were behind it: it was a
+ * panel over the grid that pushed the cards down and took the unset moments
+ * away while it was open, so opening it moved the whole page.
+ *
+ * It reads the way a playbook is: who it is for (the moment, and who that
+ * reaches today), what it says (the message as a customer reads it, and what
+ * fills each of its slots), and when it runs (one sentence, its numbers chosen
+ * in place). Everything else is a press away -- every moment and every message
+ * behind their own control, the rules every run keeps behind the shield.
+ *
+ * A slot takes only what keeps its message true (contracts slotChoices): a
+ * first name is each person's own and a visit's time each visit's, so neither
+ * is a choice; the business name and the booking link may be typed over; a
+ * slot on a message written elsewhere may be anything, its guess first. Each
+ * slot had a free choice of all six, so a first name could be set to the
+ * booking link and a run greeted everyone "Hi your booking link". A message
+ * one of whose slots nothing can fill here -- a visit's reminder, on a list --
+ * is not offered at all.
+ *
+ * Checked here the way the route checks it -- a message chosen, every slot
+ * filled -- so an enabled Start is a Start that succeeds unless the server
+ * knows something newer (a template no longer approved, a booking link gone).
+ */
 const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCancel }) => {
+  const S = window.__starters || null;
   // Null: the templates read failed -- its own state, never "no template yet".
   const templatesRead = data.templates !== null;
   // As on Broadcasts: a template this product cannot put on the wire is not
@@ -253,43 +322,47 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const offered = React.useMemo(() => (window.__starters && window.__starters.sendable
     ? window.__starters.sendable((data.templates || PB_NONE).slice().sort(pbOrder))
     : { sendable: (data.templates || PB_NONE).slice().sort(pbOrder), blocked: PB_NONE, why: null }), [data.templates]);
-  const templates = offered.sendable;
   const triggers = data.triggers || PB_NONE;
-  // What fills a slot, in the composers' words (contracts PARAM_SOURCE_LABELS); a visit's are offered for a visit trigger only (below).
-  const SRC = (window.__starters && window.__starters.sources) || { text: "Type it" };
-  const [trigger, setTrigger] = React.useState(editing ? editing.trigger : initialTrigger || (triggers[0] ? triggers[0].id : "quiet_30"));
-  const [tplId, setTplId] = React.useState(() => {
-    if (editing) return editing.template_id;
-    const d = window.__starters ? window.__starters.defaultFor(templates, trigger) : templates[0];
-    return d ? d.id : "";
-  });
-  const [name, setName] = React.useState(editing ? editing.name : "");
+  const [trigger, setTrigger] = React.useState(() => (editing ? editing.trigger : initialTrigger || pbFirstFree(triggers, data.rows)));
+  // The message the owner chose. Until they choose one it is the moment's own,
+  // and it follows the moment -- nothing is picked for them that the moment
+  // was not written for: it opened on whichever template sorted first.
+  const [tplId, setTplId] = React.useState(editing ? editing.template_id : "");
+  const [picked, setPicked] = React.useState(!!editing);
+  // Null follows the name the route gives a playbook given none; words are the owner's.
+  const [name, setName] = React.useState(editing ? editing.name : null);
   const [hour, setHour] = React.useState(editing ? editing.run_hour : 10);
   const [cap, setCap] = React.useState(editing ? editing.cap_per_run : 25);
   const [gap, setGap] = React.useState(editing ? editing.gap_days : 90);
   const [cadence, setCadence] = React.useState(editing ? editing.cadence_days : 30);
-  // Per template: where each slot's value comes from, and the typed text.
-  const [sources, setSources] = React.useState(() => (editing && Array.isArray(editing.params)
+  // Per message: what fills each slot, and the words typed into it.
+  const [fills, setFills] = React.useState(() => (editing && Array.isArray(editing.params)
     ? { [editing.template_id]: editing.params.map((p) => (p && p.kind ? p.kind : "text")) } : {}));
   const [typed, setTyped] = React.useState(() => (editing && Array.isArray(editing.params)
     ? { [editing.template_id]: editing.params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {}));
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
-  const [picked, setPicked] = React.useState(!!editing);
   const [adding, setAdding] = React.useState(false);
   const canEdit = !!(window.canDo && window.canDo("approve"));
-  React.useEffect(() => {
-    if (!templates.some((t) => t.id === tplId) && templates[0]) setTplId(templates[0].id);
-  }, [templates, tplId]);
-  // The trigger's starter, if the workspace holds it: approved and picked
-  // for you, in review at WhatsApp, or not added yet — one click adds it.
-  const starter = window.__starters ? window.__starters.forTrigger(trigger) : null;
-  const starterRow = starter ? templates.find((t) => t.name === starter.name) || null : null;
+
+  const trig = triggers.find((t) => t.id === trigger) || null;
+  const visits = !!(trig && trig.kind === "visit");
+  const link = !!data.bookingLink;
+  // What each slot of a message may take on a moment, or null when one of them can take nothing there.
+  const slotsOf = (t, v = visits) => (S && S.slots ? S.slots(t, { visits: v, bookingLink: link }) : (Array.isArray(t.variables) ? t.variables : PB_NONE).map(() => PB_TEXT));
+  const usable = offered.sendable.filter((t) => slotsOf(t) !== null);
+  // One entry per message, whatever languages it has: the language is its own control.
+  const groups = S && S.group ? S.group(usable) : usable.map((t) => ({ name: t.name, title: pbTitle(t.name), rows: [t], labels: {} }));
+  const rowIn = (g, lang) => (g ? g.rows.find((r) => r.language === lang) || g.rows.find((r) => r.language === "en_US") || g.rows[0] : null);
+  // The moment's own message: approved and picked for you, in review at
+  // WhatsApp, or not added yet -- one press adds it.
+  const starter = S ? window.__starters.forTrigger(trigger) : null;
+  const starterGroup = starter ? groups.find((g) => g.name === starter.name) || null : null;
   const starterAny = starter ? (window.__TEMPLATES_ALL || PB_NONE).find((t) => t.name === starter.name) || null : null;
-  React.useEffect(() => {
-    if (picked) return;
-    if (starterRow) setTplId(starterRow.id);
-  }, [picked, starterRow]);
+  const tpl = picked ? usable.find((t) => t.id === tplId) || null : rowIn(starterGroup, null);
+  // A playbook being changed whose message is no longer one it can send: said, never swapped for another behind its back.
+  const lost = !!(editing && picked && tplId === editing.template_id && !tpl);
+  const group = tpl ? groups.find((g) => g.name === tpl.name) || null : null;
   const addStarter = async () => {
     if (!window.__templates || !window.__templates.addStarters || !starter || adding) return;
     setAdding(true);
@@ -299,146 +372,262 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     if (!r.ok) setError(r.message || "It could not be added.");
   };
 
-  const trig = triggers.find((t) => t.id === trigger) || null;
-  const tpl = templates.find((t) => t.id === tplId) || null;
-  const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
-  // A starter's slots come filled in; a template written elsewhere gets a
-  // guess from its labels. A booking link the workspace has not set falls
-  // back to typed text.
-  const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : PB_NONE;
-  const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
-  const textOf = (i) => ((typed[tplId] || [])[i] || "");
-  const exampleOf = (kind) => pbExample(kind, data.businessName);
-  const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
-  const filled = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))));
-  const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (textOf(i).trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
+  const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : PB_NONE;
+  const choices = tpl ? slotsOf(tpl) || PB_NONE : PB_NONE;
+  const labels = tpl && S ? S.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
+  const SRC = (S && S.sources) || { text: "Type it" };
+  const HINTS = (S && S.sourceHints) || {};
+  // A slot's source: the one chosen when this slot may take it, else its first (a stored one a slot may not take is not kept).
+  const srcOf = (i) => { const c = choices[i] || PB_TEXT; const s = ((tpl && fills[tpl.id]) || PB_NONE)[i]; return c.includes(s) ? s : c[0]; };
+  const textOf = (i) => (((tpl && typed[tpl.id]) || PB_NONE)[i] || "");
+  const setText = (i, v) => setTyped((p) => { const next = [...(p[tpl.id] || [])]; next[i] = v; return { ...p, [tpl.id]: next }; });
+  const chooseFill = (i, kind) => {
+    const was = srcOf(i);
+    setFills((f) => { const next = vars.map((_, j) => ((f[tpl.id] || PB_NONE)[j] || srcOf(j))); next[i] = kind; return { ...f, [tpl.id]: next }; });
+    // Typing over the business name starts from it.
+    if (kind === "text" && was === "business_name" && !textOf(i).trim() && data.businessName) setText(i, data.businessName);
+  };
+  const shown = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i).trim() || `[${labels[i]}]` : pbExample(srcOf(i), data.businessName)));
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i).trim() : { kind: srcOf(i) }));
+  const missing = vars.findIndex((v, i) => srcOf(i) === "text" && !textOf(i).trim());
+  const ready = !!trig && !!tpl && missing < 0 && !busy;
+
+  // The name the route gives it when it is given none, said before it is saved.
+  const auto = trig && tpl && window.__playbookName ? window.__playbookName(trig, tpl) : trig ? trig.label : "New playbook";
+  const title = name === null ? auto : name;
+
+  // Who it reaches today: the moment's own count, or this playbook's while it
+  // keeps its moment, with the cap as it is set here -- the cards' bar and the
+  // approval sheet's reasons (contracts reachLines), before anything is saved.
   const monthly = trigger === "everyone_monthly";
-  const ready = !!trig && !!tpl && filled.every((v) => String(v).trim()) && !busy;
-  const shown = previewValues.map((v) => String(v).trim());
+  const base = editing && editing.trigger === trigger ? { candidates: editing.candidates || 0, held: editing.held || 0 } : { candidates: trig ? trig.candidates || 0 : 0, held: trig ? trig.held || 0 : 0 };
+  const named = (editing && editing.trigger === trigger && editing.named) || (trig && trig.named) || null;
+  const capN = Math.max(1, Number(cap) || 1);
+  const overCap = visits ? 0 : Math.max(0, base.candidates - capN);
+  const will = base.candidates - overCap;
+  const pool = Math.max(will + base.held, named ? named.pool : base.candidates + base.held);
+  const reasons = named && window.__reachLines
+    ? window.__reachLines({ pool: named.pool, will, noNumber: named.noNumber, stopped: named.stopped, noYes: named.noYes, heardThis: 0, heardAny: base.held, overCap, overLimit: 0 }, { trigger, cap_per_run: capN, gap_days: Number(gap), cadence_days: Number(cadence) }).lines.slice(0, 3).map((l) => ({ t: l.words, tone: l.tone, door: l.door }))
+    : [base.held > 0 && { t: `${base.held} heard from a playbook this week`, tone: "warn" }, overCap > 0 && { t: `${overCap} wait for the next run — ${capN} a run`, tone: "plain" }].filter(Boolean);
+  const of = window.__poolWords ? window.__poolWords(trigger) : "who said yes";
+
+  // A moment moved to keeps the message the owner chose when it can send it; one it cannot gives way to that moment's own.
+  const chooseMoment = (id) => {
+    if (id === trigger) return;
+    const t = triggers.find((x) => x.id === id) || null;
+    if (picked && tpl && slotsOf(tpl, !!(t && t.kind === "visit")) === null) setPicked(false);
+    setTrigger(id);
+  };
+  const chooseMessage = (id) => {
+    const r = rowIn(groups.find((g) => g.name === id) || null, tpl ? tpl.language : null);
+    if (!r) return;
+    setPicked(true);
+    setTplId(r.id);
+  };
+  const chooseLanguage = (lang) => {
+    const r = group ? group.rows.find((x) => x.language === lang) : null;
+    if (!r) return;
+    setPicked(true);
+    setTplId(r.id);
+  };
 
   const save = async () => {
     if (!window.__playbooks || !ready) return;
     setBusy(true);
     setError(null);
-    const body = { name: name.trim() || null, trigger, template_id: tpl.id, params: specs, run_hour: Number(hour), cap_per_run: Number(cap), gap_days: Number(gap), cadence_days: Number(cadence) };
+    const body = { name: name === null || !name.trim() ? null : name.trim(), trigger, template_id: tpl.id, params: specs, run_hour: Number(hour), cap_per_run: capN, gap_days: Number(gap), cadence_days: Number(cadence) };
     const r = editing ? await window.__playbooks.update(editing.id, body) : await window.__playbooks.create(body);
     setBusy(false);
     if (!r.ok) { setError(r.message || "It could not be saved."); return; }
     onDone(r.data, !!editing);
   };
 
+  const momentChoices = triggers.map((t) => ({ id: t.id, label: t.label, sub: t.hint, icon: pbIcon(t.id), hint: t.candidates > 0 ? `${t.candidates} today` : "nobody today" }));
+  const messageChoices = groups.slice().sort((a, b) => (starter ? (b.name === starter.name) - (a.name === starter.name) : 0)).map((g) => {
+    const r = rowIn(g, tpl ? tpl.language : null);
+    return {
+      id: g.name,
+      label: g.title,
+      // Its first words as a customer reads them, so a message is chosen by what it says.
+      sub: S && S.rowPreview ? S.rowPreview(r, { business_name: data.businessName, booking_link: link ? "your booking link" : null }) : String(r.body_preview || ""),
+      group: starter && g.name === starter.name ? "own" : "all",
+      hint: g.rows.length > 1 ? `${g.rows.length} languages` : null,
+    };
+  });
+  const langChoices = group ? group.rows.map((r) => ({ id: r.language, label: pbLabel(r.language), name: pbLangWords(r.language), status: r.meta_status || "approved" })) : PB_NONE;
+  const city = window.__clock && window.__clock.city ? window.__clock.city() : data.timezone;
+  // The Autonomy row its runs keep to, said by the one chip (PolicyChip) -- and not said at all where there is no row to name.
+  const policyRow = trig && window.POLICY && window.POLICY.row ? window.POLICY.row(trig.cls) : null;
+  const repeat = monthly ? cadence : gap;
+  const say = error ? { tone: "danger", t: error }
+    : !trig ? { tone: "plain", t: "Pick the moment it runs on." }
+    : !tpl ? { tone: "plain", t: "Pick the message it sends." }
+    : missing >= 0 ? { tone: "plain", t: `Fill in “${labels[missing]}” to ${editing ? "save it" : "start it"}.` }
+    : null;
+
   return (
-    <section className="bc-composer" data-testid="pb-composer">
-      <div className="ct-sec-head">
-        <span className="ct-sec-title">{editing ? "Change this playbook" : "New playbook"}</span>
-        <span className="ct-sec-meta">one approved template · to the people on a list who said yes · on your clock</span>
-      </div>
-      <div className="bc-row">
-        <span className="bc-row-label">When</span>
-        <div className="bc-chips" style={{ flexWrap: "wrap" }}>
-          {triggers.map((t) => (
-            <button key={t.id} className={"bc-chip" + (t.id === trigger ? " active" : "")} onClick={() => setTrigger(t.id)} title={t.hint} data-testid="pb-trigger">
-              {t.label} <span className="bc-chip-count tabular">{t.candidates}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      {trig && (
-        <div className="cl-prof-aut-hint" data-testid="pb-trigger-hint">
-          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"}{trig.kind !== "visit" && trig.held > 0 ? ` · ${trig.held} more heard from you this week and wait` : ""} · runs under “{pbRowLabel(trig.cls)}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Business" : ""}
+    <window.RecordSheet
+      id="playbook"
+      testid="pb-composer"
+      className="pb-sheet"
+      title={(
+        <span className="pb-title-wrap">
+          <input className="pb-title" value={title} placeholder={auto} onChange={(e) => setName(e.target.value)} maxLength={80} spellCheck={false} aria-label="The playbook's name" data-testid="pb-name" />
+          <Icon name="pencil" size={13} />
+        </span>
+      )}
+      sub={editing ? "A change counts from its next run." : "One approved message, to the people a moment names who said yes — each on its own clock. Replies land in the Inbox."}
+      onClose={onCancel}
+      closeLabel="Cancel"
+      foot={(
+        <div className="pb-foot">
+          <span className="pb-foot-say" data-tone={say ? say.tone : undefined} role={error ? "alert" : undefined} data-testid={error ? "pb-error" : "pb-foot-say"}>{say ? say.t : null}</span>
+          <button type="button" className="btn" onClick={onCancel} data-testid="pb-cancel">Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={!ready} onClick={save} data-testid="pb-save">{busy ? "Saving…" : editing ? "Save changes" : "Start it"}</button>
         </div>
       )}
-      <div className="bc-row">
-        <span className="bc-row-label">Send</span>
-        <div className="bc-chips" style={{ flexWrap: "wrap" }}>
-          {!templatesRead && <FailedRead kind="line" what="your templates" surface="playbooks" testid="pb-templates-failed" />}
-          {templatesRead && templates.length === 0 && (
-            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one, or sync yours from WhatsApp Manager, in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-no-template-open">Templates</button>.</span>
-          )}
-          <window.TemplateChips templates={templates} value={tplId} onPick={(id) => { setPicked(true); setTplId(id); }} testid="pb-template" />
-        </div>
-      </div>
-      {offered.why && <div className="bc-excl-hint warn" data-testid="pb-blocked">{offered.why}</div>}
-      {starter && (
-        <div className="cl-prof-aut-hint" data-testid="pb-starter">
-          {starterRow
-            ? <>Written for this moment: <b>{starter.title}</b>{tplId === starterRow.id ? " — picked for you; change it above if you like" : " — it's above if you'd rather use it"}</>
-            : starterAny
-              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Campaigns › Templates`}</>
-              : <>
-                  The <b>{starter.title}</b> starter is written for this moment.{" "}
-                  {canEdit && window.__templates && window.__templates.addStarters
-                    ? <button className="cl-bucket-link" disabled={adding} onClick={addStarter} data-testid="pb-add-starter">{adding ? "Adding…" : "Add it — WhatsApp reviews it, usually within minutes"}</button>
-                    : null}
-                </>}
-        </div>
-      )}
-      {tpl && vars.length > 0 && (
-        <div className="bc-vars" data-testid="pb-vars">
-          {vars.map((v, i) => (
-            <label key={v.position || i} className="bc-var">
-              <span className="bc-var-label">{labels[i]}</span>
-              <span className="bc-var-row">
-                <select
-                  className="tpl-select"
-                  value={srcOf(i)}
-                  data-testid="pb-var-source"
-                  onChange={(e) => setSources((s) => { const next = [...(s[tplId] || [])]; next[i] = e.target.value; return { ...s, [tplId]: next }; })}
-                >
-                  {Object.keys(SRC).filter((k) => (k !== "booking_link" || data.bookingLink) && (!k.startsWith("visit_") || (trig && trig.kind === "visit"))).map((k) => <option key={k} value={k}>{SRC[k]}</option>)}
-                </select>
-                <input
-                  value={srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))}
-                  disabled={srcOf(i) !== "text"}
-                  placeholder={v.example || ""}
-                  onChange={(e) => setTyped((p) => { const next = [...(p[tplId] || [])]; next[i] = e.target.value; return { ...p, [tplId]: next }; })}
+    >
+      <div className="pb-compose">
+        <section className="pb-sec" data-testid="pb-who">
+          <span className="pb-sec-k">Who it's for</span>
+          <window.CmPicker
+            value={trigger}
+            choices={momentChoices}
+            onPick={chooseMoment}
+            label="The moment it runs on"
+            search={false}
+            fit="trigger"
+            triggerClass="pb-pick"
+            face={trig ? (
+              <>
+                <span className="pb-pick-mark" aria-hidden="true"><Icon name={pbIcon(trig.id)} size={15} /></span>
+                <span className="pb-pick-text"><span className="pb-pick-title">{trig.label}</span><span className="pb-pick-sub">{trig.hint}</span></span>
+              </>
+            ) : <span className="pb-pick-text"><span className="pb-pick-title is-empty">Pick a moment</span></span>}
+            testid="pb-moment"
+          />
+          {trig && <window.CmReach will={will} pool={pool} of={of} held={base.held} reasons={reasons} size="sm" testid="pb-reach" />}
+          {visits && data.calendar !== "ok" && <p className="pb-warn" data-testid="pb-calendar">A visit moment reads the calendar: connect it in Settings › Business before a run can send.</p>}
+        </section>
+
+        <section className="pb-sec" data-testid="pb-message">
+          <span className="pb-sec-k">What it says</span>
+          {usable.length > 0 && (
+            <div className="pb-msg-head">
+              <window.CmPicker
+                value={group ? group.name : null}
+                choices={messageChoices}
+                groups={{ own: "Written for this moment", all: starterGroup ? "Your other messages" : "Your messages" }}
+                onPick={chooseMessage}
+                label="The message it sends"
+                search={messageChoices.length > 7}
+                searchWords={{ placeholder: "Search messages", empty: (q) => <>No message called “{q}”</> }}
+                note={offered.why}
+                fit="trigger"
+                triggerClass="pb-pick pb-pick-msg"
+                face={tpl ? (
+                  <span className="pb-pick-text">
+                    <span className="pb-pick-title">{group ? group.title : pbTitle(tpl.name)}</span>
+                    <span className="pb-pick-sub">{starter && tpl.name === starter.name ? "Written for this moment" : "Your message"}</span>
+                  </span>
+                ) : <span className="pb-pick-text"><span className="pb-pick-title is-empty">Pick a message</span><span className="pb-pick-sub">{groups.length === 1 ? "One approved message fits this moment" : `${pbSpell(Math.min(groups.length, 12), true)} approved messages fit this moment`}</span></span>}
+                testid="pb-template"
+              />
+              {tpl && (
+                <window.LanguagePicker
+                  value={tpl.language}
+                  choices={langChoices}
+                  onPick={chooseLanguage}
+                  status={tpl.meta_status || "approved"}
+                  tag={pbShort(tpl.language)}
+                  label="The language it goes out in"
+                  search={false}
+                  note={langChoices.length < 2 ? "A run sends one language to everyone on it. Another is written in Campaigns › Templates." : "A run sends one language to everyone on it."}
+                  testid="pb-lang"
                 />
-              </span>
-            </label>
-          ))}
-        </div>
-      )}
-      {/* No stamp: a playbook knows the hour it runs at, not the instant its
-          next run lands, and the Clock row below says the hour in words. */}
-      {tpl && <div className="bc-preview-wrap" data-testid="pb-preview"><window.MessagePreview from={data.businessName} body={tpl.body_preview} values={shown} header={tpl.header} footer={pbFooter(tpl)} buttons={tpl.buttons} /></div>}
-      <div className="bc-row">
-        <span className="bc-row-label">Clock</span>
-        <div className="bc-chips" style={{ flexWrap: "wrap", alignItems: "center", gap: 10 }}>
-          <label className="bc-var-label">
-            At <select className="tpl-select" value={hour} onChange={(e) => setHour(Number(e.target.value))} data-testid="pb-hour">
-              {pbHours().map((h) => <option key={h} value={h}>{pbHour(h)}</option>)}
-            </select> {data.timezone}
-          </label>
-          <label className="bc-var-label">
-            Up to <input className="bc-subject" type="number" min={1} max={500} value={cap} onChange={(e) => setCap(e.target.value)} style={{ width: 64 }} data-testid="pb-cap" /> a run
-          </label>
-          {monthly ? (
-            <label className="bc-var-label">
-              Every <input className="bc-subject" type="number" min={1} max={90} value={cadence} onChange={(e) => setCadence(e.target.value)} style={{ width: 64 }} /> days
-            </label>
-          ) : trig && trig.kind === "visit" ? null : (
-            <label className="bc-var-label">
-              Once per person, again after <input className="bc-subject" type="number" min={7} max={365} value={gap} onChange={(e) => setGap(e.target.value)} style={{ width: 64 }} /> days
-            </label>
+              )}
+            </div>
           )}
-        </div>
+          {!tpl && (
+            <div className="pb-empty" data-testid="pb-message-empty">
+              {!templatesRead && <FailedRead kind="line" what="your templates" surface="playbooks" testid="pb-templates-failed" />}
+              {lost && <p className="pb-empty-line is-warn" data-testid="pb-template-lost">Its message, {pbTitle(editing.template_name)}, is not one it can send any more — WhatsApp no longer approves it. Pick another to save a change.</p>}
+              {templatesRead && starter && !starterGroup && (
+                <p className="pb-empty-line" data-testid="pb-starter">
+                  <Icon name="sparkle" size={12} />
+                  <span>
+                    {starterAny
+                      ? <><b>{starter.title}</b>, written for this moment, {starterAny.meta_status === "pending" ? "is in review at WhatsApp — it appears here once approved, usually within minutes." : `is ${starterAny.meta_status} at WhatsApp — see Campaigns › Templates.`}</>
+                      : <>
+                          <b>{starter.title}</b> is written for this moment.{" "}
+                          {canEdit && window.__templates && window.__templates.addStarters
+                            ? <button type="button" className="cl-bucket-link" disabled={adding} onClick={addStarter} data-testid="pb-add-starter">{adding ? "Adding…" : "Add it — WhatsApp reviews it, usually within minutes"}</button>
+                            : null}
+                        </>}
+                  </span>
+                </p>
+              )}
+              {templatesRead && usable.length === 0 && (
+                <p className="pb-empty-line" data-testid="pb-no-template">No approved message {starter ? "for this moment " : ""}yet — write one, or sync yours from WhatsApp Manager, in <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-no-template-open">Templates</button>.</p>
+              )}
+            </div>
+          )}
+          {/* No stamp: a playbook knows the hour it runs at, not the instant its
+              next run lands, and the sentence below says the hour in words. */}
+          {tpl && <div className="pb-preview" data-testid="pb-preview"><window.MessagePreview from={data.businessName} body={tpl.body_preview} values={shown} header={tpl.header} footer={pbFooter(tpl)} buttons={tpl.buttons} /></div>}
+          {tpl && vars.length > 0 && (
+            <div className="pb-fills" data-testid="pb-vars">
+              {vars.map((v, i) => {
+                const src = srcOf(i);
+                const c = choices[i] || PB_TEXT;
+                const hint = src !== "text" ? HINTS[src] : null;
+                return (
+                  <div key={v.position || i} className={`pb-fill${src === "text" ? " is-typed" : ""}`} data-kind={src} data-testid="pb-fill">
+                    <span className="pb-fill-key" id={`pb-fill-${i}`}>{labels[i]}</span>
+                    {src === "text"
+                      ? <input className="pb-fill-input" value={textOf(i)} placeholder={c[0] === "business_name" ? data.businessName || "" : v.example ? String(v.example) : ""} maxLength={1024} onChange={(e) => setText(i, e.target.value)} aria-labelledby={`pb-fill-${i}`} data-testid="pb-fill-input" />
+                      : (
+                        <span className="pb-fill-val" data-tip={hint || undefined}>
+                          <span className="pb-fill-words">{src === "business_name" && data.businessName ? data.businessName : SRC[src] || src}</span>
+                          {hint && <span className="pb-fill-hint">{hint}</span>}
+                        </span>
+                      )}
+                    {c.length > 1 && (
+                      <span className="pb-fill-src" data-tip="What fills it">
+                        <Icon name={src === "text" ? "pencil" : "chevrons"} size={12} />
+                        <select value={src} onChange={(e) => chooseFill(i, e.target.value)} aria-label={`What fills ${labels[i]}`} data-testid="pb-fill-source">
+                          {c.map((k) => <option key={k} value={k}>{SRC[k] || k}</option>)}
+                        </select>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="pb-sec" data-testid="pb-clock">
+          <span className="pb-sec-k">When it runs</span>
+          <p className="pb-when">
+            Every day at <PbTok value={hour} options={pbHours().map((h) => ({ v: h, t: pbHour(h) }))} onChange={setHour} label="The hour it runs at" testid="pb-hour" />{city ? ` ${city} time` : ""}
+            {visits
+              ? <>, to {trigger === "visit_tomorrow" ? "everyone with a visit the next day" : "everyone who came in the day before"} — one message per visit.</>
+              : <>
+                  , up to <PbTok value={cap} options={pbWith(PB_CAPS, Number(cap)).map((n) => ({ v: n, t: String(n) }))} onChange={setCap} label="The most one run sends" testid="pb-cap" /> {Number(cap) === 1 ? "person" : "people"} a run.{" "}
+                  No one hears it more than once every <PbTok value={repeat} options={pbWith(monthly ? PB_CADENCES : PB_GAPS, Number(repeat)).map((n) => ({ v: n, t: `${n} days` }))} onChange={monthly ? setCadence : setGap} label={monthly ? "How often the same person hears it" : "The days before the same person hears it again"} testid="pb-gap" />.
+                </>}
+          </p>
+          <div className="pb-rules-line">
+            {policyRow && <span className="pb-runs-under" data-testid="pb-runs-under"><span>Runs under</span><PolicyChip cls={trig.cls} /></span>}
+            <span className="pb-guard" tabIndex={0} data-tip={pbGuardWords(visits)} aria-description={pbGuardWords(visits)} data-testid="pb-guard"><Icon name="shield" size={12} /> Guardrails</span>
+          </div>
+        </section>
+
+        {data.number && data.number.present && !data.number.health.canSend && <p className="pb-warn" data-testid="pb-number">{data.number.health.refusal}</p>}
+        {data.number && !data.number.present && <p className="pb-warn" data-testid="pb-number">No WhatsApp number connected — connect one in Settings › Connections before a run can send.</p>}
       </div>
-      <div className="bc-meta">
-        <Icon name="shield" size={11} />
-        <span>{trig && trig.kind === "visit"
-          ? "Only people with a recorded yes and a number · one message per visit · people who asked to stop or are mid-thread with a person are held back at the wire"
-          : "Only people with a recorded yes and a number · never twice within the gap · one playbook message per person per week, across playbooks · people who asked to stop or are mid-thread with a person are held back at the wire"}</span>
-      </div>
-      {data.number && data.number.present && !data.number.health.canSend && <div className="bc-excl-hint">{data.number.health.refusal}</div>}
-      {data.number && !data.number.present && <div className="bc-excl-hint">No WhatsApp number connected — connect one in Settings › Connections before a run can send.</div>}
-      {error && <div className="bc-excl-hint" data-testid="pb-error">{error}</div>}
-      <div className="bc-actions">
-        <input className="bc-subject" type="text" placeholder="Name it (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} data-testid="pb-name" />
-        <button className="btn btn-sm" onClick={onCancel} data-testid="pb-cancel">Cancel</button>
-        <button className="btn btn-primary btn-sm" disabled={!ready} onClick={save} data-testid="pb-save">{editing ? "Save changes" : "Start it"}</button>
-      </div>
-    </section>
+    </window.RecordSheet>
   );
 };
 
@@ -460,6 +649,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
   const surface = window.__PLAYBOOKS || {};
   const message = Array.isArray(surface.templates) ? pbMessage(p, surface.templates, surface.businessName) : null;
   const templateGone = Array.isArray(surface.templates) && !message;
+  const wrongSlot = message ? pbWrongSlot(p, message.template) : null;
   const reach = pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting });
   const reachWords = pbReachWords(reach);
   const reachDoor = pbReachDoor(reach);
@@ -539,6 +729,11 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
           </p>
           {templateGone && (
             <p className="bc-excl-hint warn" data-testid="pb-template-gone">Its message is no longer approved by WhatsApp, so its runs are skipped until it is approved again or the playbook sends another.</p>
+          )}
+          {wrongSlot && (
+            <p className="bc-excl-hint warn" data-testid="pb-slot-wrong">
+              Its message reads wrong: {wrongSlot}{canAct ? <> <button type="button" className="ob-link" onClick={() => onEdit(p)} data-testid="pb-slot-wrong-edit">Edit it</button>, and each slot takes what it should.</> : null}
+            </p>
           )}
           {/* What its runs earned, as ONE sentence rather than five numbers with
               dots between them. Numbers read as a sentence here the way they do on
@@ -734,29 +929,16 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
         {initialPlaybook && !rows.some((p) => p.id === initialPlaybook) && (
           <EmptyState kind="line" title="That playbook isn't here any more." body="Its runs stay in Broadcasts, with their numbers." testid="pb-gone" />
         )}
-        {rows.length > 0 && data.templates === null && !(composing || editing) && (
+        {rows.length > 0 && data.templates === null && (
           <FailedRead kind="line" what="your templates" body="The cards show what they send once they read. Everything else here is current." surface="playbooks" testid="pb-cards-templates-failed" />
-        )}
-        {(composing || editing) && (
-          <PlaybookComposer
-            key={editing ? editing.id : slot || "new"}
-            data={data}
-            editing={editing}
-            initialTrigger={slot}
-            onCancel={closeComposer}
-            onDone={(d, changed) => {
-              closeComposer();
-              flash({ msg: changed ? <><b>{d.name}</b> changed</> : <><b>{d.name}</b> is running — its next run is on the card, by your clock</> });
-            }}
-          />
         )}
         {tiles.length > 0 && (
           <div className="pb-grid">
             {tiles.map((x) => (x.p
               ? <PlaybookTile key={x.key} p={x.p} canAct={canAct} flash={flash} open={openId === x.p.id} onOpen={() => setOpenId((o) => (o === x.p.id ? null : x.p.id))} focus={x.p.id === initialPlaybook} onEdit={(e) => { setComposing(false); setEditing(e); }} />
-              // The slots stand down while the composer is open: it is already
-              // setting one of them up.
-              : !composing && !editing && <PlaybookSlot key={x.key} t={x.t} onStart={startAt} />))}
+              // The unset moments stay where they are while the composer is open:
+              // it opens beside the page, and the page does not move under it.
+              : <PlaybookSlot key={x.key} t={x.t} onStart={startAt} />))}
           </div>
         )}
         {rows.length === 0 && unused.length === 0 && !composing && (
@@ -789,6 +971,22 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
         )}
         {!canAct && rows.length > 0 && <div className="bc-excl-hint" data-testid="pb-role">{window.gateTitle("approve", "pause, run, change or delete a playbook")}</div>}
       </div>
+
+      {/* The composer, in a sheet beside the page: last, so the page's own
+          parts keep their place whether it is open or not. */}
+      {(composing || editing) && (
+        <PlaybookComposer
+          key={editing ? editing.id : slot || "new"}
+          data={data}
+          editing={editing}
+          initialTrigger={slot}
+          onCancel={closeComposer}
+          onDone={(d, changed) => {
+            closeComposer();
+            flash({ msg: changed ? <><b>{d.name}</b> changed</> : <><b>{d.name}</b> is running — its next run is on the card, by your clock</> });
+          }}
+        />
+      )}
 
       {toastNode}
     </div>

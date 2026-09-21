@@ -12,7 +12,7 @@
  */
 import { purposeOfTemplate } from "./consent";
 import { WHATSAPP_LANGUAGES, languageLabel, languageName, templateLanguage, type TemplateLanguage } from "./template-languages";
-import type { ParamSpec } from "./templates";
+import { PARAM_SOURCES, type ParamSourceKind, type ParamSpec } from "./templates";
 import type { PlaybookTrigger } from "./playbooks";
 
 export type StarterSlotKind = "first_name" | "business_name" | "booking_link" | "visit_when" | "visit_service" | "text";
@@ -601,6 +601,57 @@ export function defaultSlotKinds(t: { name: string; variables: unknown }): Start
 /** The specs a run or a broadcast would send with, from the default kinds — typed text stays empty for the person to fill. */
 export function defaultParamSpecs(t: { name: string; variables: unknown }): ParamSpec[] {
   return defaultSlotKinds(t).map((k) => (k === "text" ? { kind: "text", value: "" } : { kind: k }));
+}
+
+/**
+ * What may fill a slot, what it is filled with by default first -- the
+ * question the composers' free choice of all six sources never asked, so a
+ * first-name slot could be set to the booking link and a run greeted everyone
+ * "Hi your booking link".
+ *
+ * A slot whose kind is KNOWN (a starter's own) takes only what keeps its
+ * message true. A first name is each person's own: typed, it would greet
+ * everyone by one name. A visit's time or service is each visit's, and there
+ * is a visit only on a visit moment -- anywhere else nothing fills it, and
+ * the list is empty. The business name and the booking link are the ones on
+ * file, or words typed once for everyone; a booking link with none on file
+ * can only be typed. Typed words are typed.
+ *
+ * A slot whose kind is only GUESSED, on a template written elsewhere, may be
+ * any of them, the guess first: the guess is ours, the template is theirs.
+ */
+export function slotChoices(kind: StarterSlotKind, o: { known: boolean; visits: boolean; bookingLink: boolean }): ParamSourceKind[] {
+  const may = (k: ParamSourceKind) => (k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : true);
+  if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
+  switch (kind) {
+    case "first_name": return ["first_name"];
+    case "business_name": return ["business_name", "text"];
+    case "booking_link": return o.bookingLink ? ["booking_link", "text"] : ["text"];
+    case "visit_when":
+    case "visit_service": return o.visits ? [kind] : [];
+    default: return ["text"];
+  }
+}
+
+/**
+ * What each slot of a template may take on a moment (slotChoices), or null
+ * when one of them can take nothing there: the visit reminder, whose time and
+ * service no list has, is not a message a win-back can send.
+ */
+export function templateSlots(t: { name: string; variables: unknown }, o: { visits: boolean; bookingLink: boolean }): ParamSourceKind[][] | null {
+  const known = starterByName(t.name) !== null;
+  const each = defaultSlotKinds(t).map((k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink }));
+  return each.every((c) => c.length > 0) ? each : null;
+}
+
+/**
+ * A playbook's name when it was given none: its moment's own ("Win-back")
+ * when it sends the moment's own starter, else with the message's title
+ * ("Win-back · Autumn offer"). The route names it so, and the composer says
+ * so before it is saved.
+ */
+export function playbookName(trigger: { id: string; label: string }, tpl: { name: string; title?: string | null }): string {
+  return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} · ${templateTitle(tpl.name, tpl.title)}`;
 }
 
 /* ---- Where a template sits, what a composer opens on, what a slot is called ---- */

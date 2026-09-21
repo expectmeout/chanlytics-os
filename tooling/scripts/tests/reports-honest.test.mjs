@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 
-const { toCampaignReportVM, stateOf, POLICY_CLASS_WORDS } = contracts;
+const { toCampaignReportVM, stateOf } = contracts;
 const TID = "t-studio";
 const ZONE = "America/New_York";
 
@@ -42,7 +42,7 @@ const playbook = (over = {}) => ({
 });
 const playbooksSurface = (over = {}) => ({
   rows: [playbook(), playbook({ id: "pb-2", name: "Welcome", trigger: "new_week", policy_class: "campaign" })], templates: [],
-  triggers: [], classWords: POLICY_CLASS_WORDS, timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
+  triggers: [], timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio", bookingLink: false, replyWindow: contracts.REPLY_WINDOW_WORDS, fetchedAt: 1, ...over,
 });
 
@@ -106,6 +106,7 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
@@ -185,10 +186,10 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
   seq = 0;
   tree = globalThis.window.OutboundPage({});
   assert.ok(byTestId(tree, "pb-composer"), "the composer opens");
-  const picked = all(tree, (n) => n.props?.["data-testid"] === "pb-trigger").filter((b) => classes(b).includes("active"));
-  assert.deepEqual(picked.map((b) => textOf(b).trim()), ["Save our number 11"], "on the moment that was pressed");
-  assert.ok(textOf(byTestId(tree, "pb-trigger-hint")).includes("anyone who only ever phoned"), textOf(byTestId(tree, "pb-trigger-hint")));
-  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "pb-slot").length, 0, "and the slots stand down while it is open");
+  const moment = textOf(byTestId(tree, "pb-moment"));
+  assert.ok(moment.includes("Save our number") && moment.includes("anyone who only ever phoned"), `on the moment that was pressed: ${moment}`);
+  // It opens beside the page: nothing on the page stands down or moves under it.
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "pb-slot").map((s) => s.props["data-trigger"]), ["quiet_30", "new_week", "phoned_only", "visited"], "REGRESSION: the slots stood down while it was open");
 });
 
 test("A playbook is a card of the moment it does: its message and languages, who it will reach and who it holds back, when it runs next -- and it opens in place to its verbs", () => {

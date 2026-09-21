@@ -142,8 +142,8 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");
   const p = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
   assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
-  assert.ok(p.includes("window.__starters.forTrigger(trigger)") && p.includes("if (starterRow) setTplId(starterRow.id);"), "the trigger's starter is picked for you");
-  assert.ok(p.includes("<window.TemplateChips") && p.includes("<window.MessagePreview"));
+  assert.ok(p.includes("window.__starters.forTrigger(trigger)") && p.includes("const tpl = picked ? usable.find((t) => t.id === tplId) || null : rowIn(starterGroup, null);"), "the trigger's starter is picked for you");
+  assert.ok(p.includes("<window.CmPicker") && p.includes("<window.MessagePreview"));
   const t = readCode("apps/dashboard/src/legacy/pages/templates-real.jsx");
   assert.ok(t.includes('data-testid="tpl-start-from"') && t.includes("window.starterWords = starterWords;") && !t.includes("WaBubble"));
   const css = readCode("apps/dashboard/src/legacy/styles/components.css");
