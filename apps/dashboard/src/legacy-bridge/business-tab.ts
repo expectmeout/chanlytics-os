@@ -10,7 +10,7 @@
  */
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
-  promptBlocks, resolveSystemPrompt, BrainConfigSchema, type PromptBlockVM,
+  promptBlocks, resolveSystemPrompt, TenantConfigWriteSchema, type PromptBlockVM,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 
@@ -78,15 +78,22 @@ export interface ConsequenceWindow {
  * out the Autonomy tab's rules and the provisioned number, and lost the stored
  * prompt the resolver carries into a cleared box.
  *
- * `next` is the whole brain the fold's save would send, parsed as the edge
- * parses the stored one (BrainConfigSchema). Only a brain that parses can be
- * saved, so only one can ever be told to the receptionist: anything else is
- * null, and the field's own error speaks. Null too with no preview to take the
- * inputs from -- no receptionist, an Autonomy matrix that could not be read, a
- * config the composer refused -- because a prompt resolved without its rules
- * is a wrong prompt, not a partial one. And null when the resolver writes no
- * such block: an empty list, or a record that composes nothing and is answered
- * with its stored prompt, which has no rules block of its own.
+ * `next` is the whole brain the fold's save would send, checked by the save's
+ * own schema (TenantConfigWriteSchema). That schema keeps rules the read's does
+ * not: a day that closes after it opens, shifts that do not overlap, closures
+ * on real dates. So a Monday typed half-way, closing before it opens, shows
+ * nothing rather than a line the save would refuse. Only a brain the save
+ * would accept can ever be told to the receptionist: anything else is null,
+ * and the field's own error speaks. The brain is checked alone, not with the
+ * stored config around it: the rest is not the fold's, and a non-owner's feed
+ * address arrives masked, which the save's feed check would refuse.
+ *
+ * Null too with no preview to take the inputs from -- no receptionist, an
+ * Autonomy matrix that could not be read, a config the composer refused --
+ * because a prompt resolved without its rules is a wrong prompt, not a partial
+ * one. And null when the resolver writes no such block: an empty list, or a
+ * record that composes nothing and is answered with its stored prompt, which
+ * has no rules block of its own.
  *
  * The block is cut with the brain as its source, so the owner's words are found
  * where the resolver put them: their own, or the stored prompt carried into
@@ -111,10 +118,12 @@ export function consequenceFor(
   const row = FOLD_BLOCK[section];
   if (!row) return null;
   const prompt = w.__SETTINGS?.prompt;
-  if (!prompt) return null;
-  const parsed = BrainConfigSchema.safeParse(next);
-  if (!parsed.success) return null;
-  const brain = parsed.data;
+  // No inputs means an older server composed it: one still answering mid-deploy, or a dev session's cache, whose build key never changes.
+  if (!prompt?.inputs) return null;
+  const parsed = TenantConfigWriteSchema.safeParse({ brain: next });
+  // { brain: undefined } parses too, with no brain in it.
+  if (!parsed.success || !parsed.data.brain) return null;
+  const brain = parsed.data.brain;
   const text = resolveSystemPrompt(brain, channel, prompt.tz, now, prompt.inputs.policy, prompt.inputs.known);
   return promptBlocks(text, channel, brain).find((b) => b.row === row) ?? null;
 }

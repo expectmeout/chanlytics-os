@@ -15,7 +15,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks,
+  standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -204,10 +204,20 @@ test("no block where nothing true can be shown", () => {
   for (const section of NOWHERE) {
     for (const channel of CHANNELS) assert.equal(tab.consequenceOf(section, STORED, channel), null, `${section} never reaches the prompt`);
   }
-  // Only a brain that parses is saved, so only one is ever told to the receptionist.
+  // Only a brain the save would accept is ever told to the receptionist.
   assert.equal(tab.consequenceOf("booking_rules", profile(STORED, { booking_rules: { lead_hours: "" } }), "whatsapp"), null, "a notice box left empty is not a notice of ' hours'");
   assert.equal(tab.consequenceOf("tone", { ...STORED, system_prompt: undefined }, "whatsapp"), null, "a brain the edge would refuse");
   assert.equal(tab.consequenceOf("tone", undefined, "whatsapp"), null, "no brain at all");
+  // Each of these reads as a stored brain, and the save refuses it: an hours fold passes through them while an owner types.
+  const refused = [
+    ["hours", profile(STORED, { hours: { mon: { open: "18:00", close: "09:00" } } }), "a Monday that closes before it opens"],
+    ["hours", profile(STORED, { hours: { mon: { intervals: [{ open: "09:00", close: "13:00" }, { open: "12:00", close: "18:00" }] } } }), "two shifts that overlap"],
+    ["closures", profile(STORED, { closures: [{ date: "2099-11-31", note: "No such day" }] }), "a closure on 31 November"],
+  ];
+  for (const [section, draft, what] of refused) {
+    assert.equal(BrainConfigSchema.safeParse(draft).success, true, `${what} reads as a brain`);
+    assert.equal(tab.consequenceOf(section, draft, "whatsapp"), null, `${what}: the save refuses it, so it is never told`);
+  }
   // An empty list composes nothing.
   assert.equal(tab.consequenceOf("notes", profile(STORED, { notes: [] }), "whatsapp"), null);
   assert.equal(tab.consequenceOf("services", profile(STORED, { services: [] }), "whatsapp"), null);
@@ -216,6 +226,10 @@ test("no block where nothing true can be shown", () => {
   assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null);
   delete W.__SETTINGS;
   assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null);
+  // A preview an older server composed carries none: one still answering mid-deploy, or a dev session's cache.
+  const { inputs: _inputs, ...older } = preview(STORED);
+  W.__SETTINGS = { config: { brain: STORED }, prompt: older };
+  assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null, "nothing, and never a throw");
 });
 
 test("a fold it does not know, or a channel that is not one, is refused by name", () => {
