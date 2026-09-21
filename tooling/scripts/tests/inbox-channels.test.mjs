@@ -61,7 +61,7 @@ test("an email thread: email is the channel, its words carry their subject line,
 
 test("the wiring: the page branches on the channel and reads the reason's sentence; the pills say what they mean", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-  for (const s of ["Needs you{thread.waited ? <span className={`ix-take-wait${thread.waitingMin > 30 ? \" late\" : \"\"}`}>{` · waited ${thread.waited}`}</span> : \"\"}", "<>{thread.summary}</>", "Call back", 'aria-label="Nothing needed — hand it back to the receptionist"', "thread.hasChat === false", 'data-testid="ix-call-back"', "`${thread.replyVia || \"WhatsApp\"} to ${thread.who}…`"]) assert.ok(page.includes(s), s);
+  for (const s of ['<StatePill kind="thread" value="escalated" />', "says={thread.summary}", "Call back", 'aria-label="Nothing needed — hand it back to the receptionist"', "thread.hasChat === false", 'data-testid="ix-call-back"', "`${thread.replyVia || \"WhatsApp\"} to ${thread.who}…`"]) assert.ok(page.includes(s), s);
   for (const gone of ["already sent a holding reply", "let the AI resume", "Reply as the salon", "Waiting on you{thread.waitingMin", "They have only phoned", "Call them back"]) assert.ok(!page.includes(gone), `${gone} is gone`);
   const pills = readCode("apps/dashboard/src/legacy/pages/conversations.jsx");
   // The words and the tones are the one pill's now (contracts/tone.ts, run in state-pill.test.mjs); the page names the states.

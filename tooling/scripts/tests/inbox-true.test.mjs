@@ -178,9 +178,10 @@ test("the pane: a thread you have says why it was flagged, where 'Where this sta
   const mine = vmOf(quiet([wrote("m1", "Can I speak to someone?", 40)], { state: "needs_human", paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }), asked());
   assert.equal(mine.takenOver, true);
   const tree = paneOf(mine);
-  const owned = find(tree, (n) => hasClass("ix-resolved")(n) && textOf(n).includes("You own this thread"));
+  const owned = find(tree, byTestId("ix-yours"));
   assert.ok(owned, "the owned thread's line");
-  assert.match(textOf(owned), /You own this thread — the receptionist stays quiet while you have it\./);
+  assert.match(textOf(owned), /^You have it/, "the pill its row wears");
+  assert.match(textOf(owned), /The receptionist stays quiet while you have it\./);
   assert.match(textOf(owned), /They asked for a person\. A holding message went out — they're waiting on you\./, "the reason, now said here once");
   assert.ok(!textOf(tree).includes("agents are standing down"), "one receptionist, not agents");
   assert.ok(!textOf(tree).includes("Where this stands"));
