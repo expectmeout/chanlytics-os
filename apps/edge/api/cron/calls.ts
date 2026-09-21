@@ -13,7 +13,9 @@
  * whether a call is still up, so we ask it rather than inferring.
  *
  * Called by pg_cron via pg_net (migration 00020), same shape and same Vault
- * secret as the deadman sweep. Idempotent by construction: it re-ingests
+ * secret as the deadman sweep. Since 00149 the request is recorded, so this
+ * answer is judged by sweep_health(): anything but a 2xx inside 65 s is a
+ * sweep that is not working. Idempotent by construction: it re-ingests
  * whatever Retell reports, and ingest_call is an upsert — a lost or duplicated
  * request finds the same candidates next tick.
  *
@@ -224,5 +226,11 @@ export async function POST(request: Request): Promise<Response> {
     candidates: stale?.length ?? 0, closed, still_live: stillLive, unknown,
     recordings: JSON.stringify(recordings), notes: JSON.stringify(notes), purge: JSON.stringify(purge),
   });
-  return json(200, { ok: true, candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes, purge });
+  const counts = { candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes };
+  // A purge that failed is the privacy page's ninety days not being kept, so
+  // once the other legs have had their turn the answer says so: pg_net records
+  // it and sweep_health() judges it (00149). The purge goes first, inside the
+  // 200 characters of the answer that the platform's mail quotes.
+  if (purge.error) return json(500, { ok: false, error: "purge_failed", purge, ...counts });
+  return json(200, { ok: true, ...counts, purge });
 }
