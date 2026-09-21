@@ -65,7 +65,7 @@ const LeadCard = ({ id, label, children, testid }) => <div className="ld-card" r
 // uncovers the photo under it and a photo that fails uncovers the initials -- no state, and never a broken frame.
 const LeadTile = ({ l, size = 48, onExpand }) => {
   const hide = (e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; };
-  const cls = `ld-tile tint-${l.tile.tint}${l.tile.image || l.tile.logo ? " has-img" : ""}`;
+  const cls = `ld-tile tint-${l.tile.tint}`;
   const layers = (
     <>
       {l.tile.image ? <img className="ph" src={l.tile.image} alt="" loading="lazy" onError={hide} /> : null}
@@ -163,7 +163,8 @@ const LeadRatedCard = ({ l }) => {
 
 // The identity cell (D5): the tile, the name (which peeks) with its card, the tags the row's state and its fit
 // wear, and one quiet line about where -- or, for a row that waits, what would resolve it; for a left-out row,
-// what left it out.
+// what left it out. The two tags are the app's one StatePill, on the registry's tones (tone.ts): they were a
+// hand-styled pair of their own, and a Contacted tag drew grey while its dot, its pin and the registry said info.
 const ldBusinessCell = (l, x) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
@@ -172,8 +173,8 @@ const ldBusinessCell = (l, x) => (
         <div className="cl-row-fullname">
           <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} aria-describedby={`${l.id}-card`} data-testid="lead-name">{l.name}</button>
           {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} listings</span>}
-          {x.mixedFits && l.fit ? <span className={`ld-fit-tag ${l.fit}`} data-testid="lead-fit-tag">{l.fitLabel}</span> : null}
-          {l.stateTag ? <span className={`ld-state-tag ${l.state}`} data-testid="lead-state-tag">{l.stateTag}</span> : null}
+          {x.mixedFits && l.fit ? <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" /> : null}
+          {l.stateTag ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
         </div>
         <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">{l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub)}</div>
         <LeadNameCard l={l} x={x} />
@@ -212,7 +213,7 @@ const LEAD_COLUMNS = [
   ) },
   { key: "fit", label: "Fit", sortable: true, on: false, cell: (l) => <td key="fit" className={`shrink ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">{l.fitLabel}</td> },
   { key: "why", label: "Why it fits", sortable: false, on: false, cell: (l) => <td key="why" className="dim ld-why-cell" title={l.why}>{l.why}</td> },
-  { key: "stage", label: "Stage", sortable: true, on: false, cell: (l) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <><span className={`ld-dot ${l.stage}`} aria-hidden="true" />{l.stageLabel}</>}</td> },
+  { key: "stage", label: "Stage", sortable: true, on: false, cell: (l) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <StatePill kind="lead_stage" value={l.stage} label={l.stageLabel} />}</td> },
   { key: "distance", label: "Distance", sortable: true, needs: (x) => x.hasCenter, on: false, cell: (l) => <td key="distance" className="shrink dim ld-distance-cell">{l.distance}</td> },
   { key: "source", label: "Source", sortable: false, on: false, cell: (l) => <td key="source" className="shrink dim ld-source-cell">{l.source}</td> },
   { key: "website", label: "Website", sortable: false, on: false, cell: (l) => <td key="website" className="shrink dim ld-website-cell">{l.host}</td> },
@@ -465,11 +466,16 @@ const LeadReviewBench = ({ groups, rows, groupKey, onGroup, search, month, revie
 // with the area the search asked for drawn around it. No projection of the world, no tile, and no request to
 // anybody -- the picture is made from what the search already found. (Streets would mean a tile provider, which is
 // a third-party request on every view; the seam for one is this square, and nothing above it would change.)
+// The pin's colour is contracts' (leadPinTone, tone.ts) -- the same registry the row's dot and its tag read, so
+// a pin can no longer say one thing where a row says another. It used to answer in its own words (`strong`,
+// `part`, `talking`) and leave a table in leads.css to turn them into colours, which is how a `look` fit came to
+// draw amber here and plain everywhere else. Without the bridge (the standalone mockup) every pin is plain.
 const ldPinTone = (l, by) => {
-  if (by === "reach") return l.slots.mailbox.state === "ok" || l.slots.phone.state === "ok" ? "ok" : l.slots.mailbox.state === "none" && l.slots.phone.state === "none" ? "none" : "part";
-  if (by === "stage") return l.state;
-  return l.cls === "qualified" ? l.fit || "look" : l.cls === "review" ? "review" : "out";
+  const V = window.__LEAD_VM || {};
+  return V.leadPinTone ? V.leadPinTone(l, by) : "plain";
 };
+// Left out is plain, like a long shot -- so it steps back by being quieter instead of by being another colour.
+const ldPinOut = (l) => (l.state === "out" ? " is-out" : "");
 const LEAD_MAP_BY = [{ id: "fit", label: "Fit" }, { id: "reach", label: "Reach" }, { id: "stage", label: "Stage" }];
 
 const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch }) => {
@@ -499,7 +505,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
                   <div className="n">{l.name}</div>
                   <div className="s">{l.sub}</div>
                 </div>
-                <span className={`ld-pin-dot tone-${ldPinTone(l, by)}`} aria-hidden="true" />
+                <span className={`ld-pin-dot tone-${ldPinTone(l, by)}${ldPinOut(l)}`} aria-hidden="true" />
               </div>
             );
           })}
@@ -527,7 +533,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
               <button
                 key={p.id}
                 type="button"
-                className={`ld-pin tone-${ldPinTone(l, by)}${picked === p.id ? " on" : ""}`}
+                className={`ld-pin tone-${ldPinTone(l, by)}${ldPinOut(l)}${picked === p.id ? " on" : ""}`}
                 style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
                 aria-label={`${l.name} — ${l.sub}`}
                 data-testid={`lead-pin-${p.id}`}

@@ -192,7 +192,7 @@ const composerOf = (surface) => {
 };
 /** Messages on a workspace with a WhatsApp number, over the starter library the bridge installed. */
 const messages = (over = {}) => {
-  Object.assign(globalThis.window, { __TEMPLATES_ALL: [], __TEMPLATE_USE: null, __CHANNELS: [{ kind: "whatsapp" }], __SETTINGS: { config: { brain: { business_name: "Northside Studio" } } }, ...over });
+  Object.assign(globalThis.window, { __TEMPLATES_ALL: [], __TEMPLATE_USE: null, __TEMPLATE_SENT: null, __CHANNELS: [{ kind: "whatsapp" }], __SETTINGS: { config: { brain: { business_name: "Northside Studio" } } }, ...over });
   fresh();
   return globalThis.window.MessagesPage();
 };
@@ -574,6 +574,31 @@ test("Messages says what sends each message -- every source, so 'nothing sends i
   // A usage read that has not landed is not "nothing sends it".
   tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_USE: undefined });
   assert.equal(byTestId(tree, "template-users"), null, "an unread map makes no claim");
+});
+
+test("Messages says how many of each went out and when the last one did -- and a message that never went out says so in words, not 0", () => {
+  const offer = [templateRow({ name: "offer", language: "en_US" })];
+  let tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_SENT: { offer: { count: "1,204", when: "2d ago" } } });
+  const head = find(tree, (n) => n.props?.className === "msg-list-head");
+  assert.ok(textOf(head).includes("Sent"), `the column is named once, above the rows -- ${textOf(head)}`);
+  let cell = byTestId(byTestId(tree, "custom-row"), "template-sent");
+  assert.ok(cell, "the row carries the cell");
+  assert.match(textOf(cell), /1,204 sent/, "the count, and the word a stacked row and a screen reader need without the heading");
+  assert.ok(textOf(cell).includes("2d ago"), textOf(cell));
+
+  tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_SENT: { offer: { count: null, when: "Never sent" } } });
+  cell = byTestId(byTestId(tree, "custom-row"), "template-sent");
+  assert.equal(textOf(cell).trim(), "Never sent");
+  assert.ok(!/\b0\b/.test(textOf(cell)), "never a 0 in a column of counts");
+
+  // A roll-up that was not read makes no claim -- and a starter not on file has
+  // nothing to count, as it has nothing that sends it.
+  tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_SENT: null });
+  assert.equal(textOf(byTestId(byTestId(tree, "custom-row"), "template-sent")).trim(), "", "not read is not never sent");
+  tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_SENT: { offer: { count: "3", when: "just now" } } });
+  const starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
+  assert.ok(starter, "the fixture draws a starter the workspace has not added");
+  assert.equal(textOf(byTestId(starter, "template-sent")).trim(), "");
 });
 
 /**

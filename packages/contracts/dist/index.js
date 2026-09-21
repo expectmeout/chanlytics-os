@@ -2862,7 +2862,7 @@ Do this whenever the caller asks for a person, is upset, or asks something these
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-Booking: when the caller wants to book, use send_booking_link \u2014 it texts the booking link to the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. If it fails, give the phone number above and offer to have someone follow up.
+Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.
 Ending: once the caller has said goodbye, use end_call.`
     );
   }
@@ -2886,7 +2886,7 @@ ${text}`);
   }
   s.push(
     channel === "voice" ? `
-${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead.` : `
+${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.` : `
 ${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`
   );
   s.push(
@@ -6920,6 +6920,32 @@ function templateUseWords(use) {
 function templateUnused(use) {
   const u = use ?? NOTHING;
   return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}
+function templateSends(src) {
+  const out = {};
+  const nameOf = new Map(src.runs.map((r) => [r.id, r.template_name]));
+  const went = (name, at2) => {
+    const s = out[name] ??= { count: 0, lastAt: null };
+    s.count += 1;
+    const ms2 = at2 === null ? NaN : Date.parse(at2);
+    if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at2;
+  };
+  for (const r of src.recipients) {
+    const name = r.state === "sent" ? nameOf.get(r.broadcast_id) : void 0;
+    if (name) went(name, r.sent_at);
+  }
+  for (const m of src.inbox) {
+    if (m.template_name && m.external_id) went(m.template_name, m.created_at);
+  }
+  return out;
+}
+function templateSentWords(s, tz, nowMs) {
+  if (!s || s.count === 0) return { count: null, when: "Never sent" };
+  const at2 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
+  return {
+    count: s.count.toLocaleString("en-US"),
+    when: Number.isFinite(at2) ? agoWords(at2, nowMs, { date: (ms2) => clockDate(ms2, tz, nowMs) }) : null
+  };
 }
 
 // src/broadcasts.ts
@@ -12001,7 +12027,7 @@ function toLeadPeekVM(r, search, tz, now) {
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), logo: r.logo_url ?? null },
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null, logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
     week,
@@ -12015,7 +12041,6 @@ function toLeadPeekVM(r, search, tz, now) {
     about: r.about ?? null,
     where: leadWhere(r),
     today: leadTodayLine(r.hours ?? [], tz, now),
-    image: r.image_url ?? null,
     claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,
@@ -12295,7 +12320,6 @@ function toLeadRowVM(r, tz, now, search = null) {
       email: r.email ? { address: r.email, state: r.email_state, word: LEAD_EMAIL_WORDS[r.email_state] } : null,
       phone: r.phone ? { number: r.phone, agrees: r.phone_agrees } : null
     },
-    image: r.image_url ?? null,
     reasons: m.reasons ?? [],
     why: m.reason,
     rating,
@@ -12410,7 +12434,10 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   lead_fit: { strong: "ok", look: "plain", long: "plain" },
   // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
   reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
-  lead_call_outcome: LEAD_CALL_OUTCOME_TONES
+  lead_call_outcome: LEAD_CALL_OUTCOME_TONES,
+  // `contacted` and `talking` are `nurture` and `converted` in the owner's words, so they take those tones.
+  // Review is the one state that wants a person. Ready and left-out are both silent, for opposite reasons.
+  lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" }
 }))();
 var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
@@ -12434,6 +12461,11 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
+  // `lead_row_state` is a tone and no words: the row composes its own tag (`Contacted · 2m`) in toLeadRowVM,
+  // and nothing ever asks this map for it. Words here would be a second set of the same five. A map whose
+  // values are read off another map (`LEAD_STAGE_WORDS.ready`) once kept this whole registry and its five
+  // label maps in channels, core, db and jobs: +693 lines for words nobody reads. Built in a call marked pure
+  // (see TONE_OF), this map is dropped wherever nothing reads it, property reads and all.
 }))();
 function stateTone(kind, value) {
   return typeof value === "string" && TONE_OF[kind][value] || "plain";
@@ -12444,6 +12476,15 @@ function stateLabel(kind, value) {
 }
 function stateOf(kind, value) {
   return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
+}
+function leadPinTone(lead, by) {
+  if (by === "reach") {
+    const { phone, mailbox } = lead.slots;
+    if (phone.state === "ok" || mailbox.state === "ok") return "ok";
+    return phone.state === "none" && mailbox.state === "none" ? "plain" : "warn";
+  }
+  if (by === "stage") return stateTone("lead_row_state", lead.state);
+  return lead.cls === "qualified" ? stateTone("lead_fit", lead.fit ?? "look") : stateTone("lead_class", lead.cls);
 }
 
 // src/erasure.ts
@@ -13331,6 +13372,7 @@ export {
   leadNoCardLine,
   leadNotBusinessesLine,
   leadNoteLeft,
+  leadPinTone,
   leadPlanAsk,
   leadPlanFacts,
   leadPlanLikely,
@@ -13562,6 +13604,8 @@ export {
   templateParts,
   templatePreview,
   templatePreviewValues,
+  templateSends,
+  templateSentWords,
   templateTitle,
   templateUnused,
   templateUsage,

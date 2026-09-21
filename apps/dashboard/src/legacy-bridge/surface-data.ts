@@ -1,4 +1,4 @@
-import { POLICY_CLASS_WORDS, templateUnused, templateUseWords, type PersonRowDto } from "@chanlytics/contracts";
+import { POLICY_CLASS_WORDS, templateSentWords, templateUnused, templateUseWords, type PersonRowDto, type TemplateSentWords } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
@@ -16,7 +16,7 @@ import { clearSurfaceCache, resnapshotSurface } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { api, read } from "./api";
 import { getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
-import { workspaceZone } from "./zone";
+import { pageClock, workspaceZone } from "./zone";
 export { getActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
 import type { NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
@@ -498,10 +498,10 @@ export interface WorkspaceSettings {
 
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
-  globals: ["__SETTINGS", "__FACTS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS", "__TEMPLATES_ALL", "__TEMPLATE_USE"],
+  globals: ["__SETTINGS", "__FACTS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS", "__TEMPLATES_ALL", "__TEMPLATE_USE", "__TEMPLATE_SENT"],
   events: ["surface:settings"],
   apply: async () => {
-    const [cfg, team, pol, ch, tpl] = await Promise.all([
+    const [cfg, team, pol, ch, tpl, zone] = await Promise.all([
       read("GET settings"),
       // A team read that fails must not blank the business card beside it.
       read("GET team").catch((e: unknown) => e as Error),
@@ -512,6 +512,10 @@ export const settingsOverride: SurfaceOverride = {
       read("GET channels").catch((e: unknown) => e as Error),
       // Every template with its status, for the Integrations pane's card.
       read("GET templates", { query: { all: "1" } }).catch((e: unknown) => e as Error),
+      // When a template last went out is a date past a week, on the business's
+      // calendar (zone.ts). A zone that cannot be read is the page clock's, and
+      // never a reason to lose the page.
+      workspaceZone().catch(() => pageClock().zone()),
     ]);
     const w = window as unknown as {
       __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null; prompt: PromptPreviewDto | null; updatedBy: string | null; updatedAt: string | null };
@@ -522,6 +526,7 @@ export const settingsOverride: SurfaceOverride = {
       __CHANNELS?: ChannelVM[] | null;
       __TEMPLATES_ALL?: TemplateDto[] | null;
       __TEMPLATE_USE?: Record<string, { words: string; unused: boolean; playbook: string | null }> | null;
+      __TEMPLATE_SENT?: Record<string, TemplateSentWords> | null;
     };
     // `broken` is its own state, not an empty config: the pane closes its
     // forms on it, because a save from a form that read {} would replace the
@@ -545,20 +550,29 @@ export const settingsOverride: SurfaceOverride = {
     if (tpl instanceof Error) {
       w.__TEMPLATES_ALL = null;
       w.__TEMPLATE_USE = null;
+      w.__TEMPLATE_SENT = null;
       console.error("settings_templates_fetch_failed", tpl.message);
     } else {
       w.__TEMPLATES_ALL = (tpl.templates ?? []).filter((t) => t.channel === "whatsapp");
+      const names = [...new Set(w.__TEMPLATES_ALL.map((t) => t.name))];
       // What sends each of them, as the sentence the card draws. Keyed by NAME:
       // a template is one message in several languages, and the thing that sends
       // it names the message. Every name gets an entry, so a name MISSING from
       // the map means the usage was not read -- never "nothing sends it".
       const used = tpl.usedBy ?? {};
       w.__TEMPLATE_USE = Object.fromEntries(
-        [...new Set((w.__TEMPLATES_ALL ?? []).map((t) => t.name))].map((name) => {
+        names.map((name) => {
           const u = used[name] ?? { playbooks: [], broadcasts: 0, booking: false };
           return [name, { words: templateUseWords(u), unused: templateUnused(u), playbook: u.playbooks.length === 1 ? u.playbooks[0]!.id : null }];
         }),
       );
+      // How many of each went out and when the latest did, as the Sent column
+      // says it, one entry per name on file. An answer without the roll-up is a
+      // read that did not happen: null, and the column says nothing -- never a
+      // column of "Never sent".
+      const sends = tpl.sends;
+      const now = Date.now();
+      w.__TEMPLATE_SENT = sends ? Object.fromEntries(names.map((name) => [name, templateSentWords(sends[name], zone, now)])) : null;
     }
     if (pol instanceof Error) {
       w.__POLICIES = null;

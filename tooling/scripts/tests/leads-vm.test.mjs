@@ -137,10 +137,10 @@ test("the answer schemas are the structured-output shape: every property require
 
 test("one row is words and shapes, never a stored value: the fit band, the email word, the phone's agreement, found as 6m", () => {
   const vm = toLeadRowVM(row(), TZ, NOW);
-  // D2: the two contacts as one glance for the Reach column, and the listing's photo for the row's mark.
+  // D2: the two contacts as one glance for the Reach column. The listing's photo is a layer of the tile (D6).
   assert.deepEqual(vm.reach, { email: { address: row().email, state: row().email_state, word: LEAD_EMAIL_WORDS[row().email_state] }, phone: { number: row().phone, agrees: row().phone_agrees } });
-  assert.equal(vm.image, null, "a row from before D2 has no photo, and says so with nothing");
-  assert.equal(toLeadRowVM(row({ image_url: "https://lh3.example/p.jpg" }), TZ, NOW).image, "https://lh3.example/p.jpg");
+  assert.equal(vm.tile.image, null, "a row from before D2 has no photo, and says so with nothing");
+  assert.equal(toLeadRowVM(row({ image_url: "https://lh3.example/p.jpg" }), TZ, NOW).tile.image, "https://lh3.example/p.jpg");
   assert.deepEqual(toLeadRowVM(row({ email: null, email_state: "none", phone: null }), TZ, NOW).reach, { email: null, phone: null });
   assert.deepEqual(vm, {
     id: LEAD_A, searchId: SEARCH_A, searchName: "Personal trainers · Austin",
@@ -149,7 +149,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     email: "hello@zilkerstrength.example", emailState: "ok", emailLabel: "hello@zilkerstrength.example", emailWord: "Checked",
     phone: "+15125550101", phoneAgrees: true, phoneWrong: false,
     reach: { email: { address: "hello@zilkerstrength.example", state: "ok", word: "Checked" }, phone: { number: "+15125550101", agrees: true } },
-    image: null, reasons: [],
+    reasons: [],
     why: "Independent studio, one location, coaching only", rating: "5.0 · 16", reviewsTitle: "",
     stage: "ready", stageLabel: "Ready", foundLabel: "6m", foundAt: "Sep 18, 2026 · 2:14 PM",
     distance: "1.2 mi", source: "Google Maps listing", host: "zilkerstrength.example",
@@ -393,7 +393,7 @@ test("D5: the week's hours as bars, and the peek's own additions -- the tile, th
     { key: "mailbox", how: "seen", answer: "unknown", source: "Mailbox check", reason: null },
     { key: "independent", how: "read", answer: "no", source: "Claude", reason: "a franchise" },
   ] } }), SEARCH_DONE, TZ, NOW);
-  assert.deepEqual([vm.tile, vm.rated, vm.distance, vm.checksSummary], [{ initials: "ZS", tint: leadTintOf("Personal trainer"), logo: null }, { score: "5.0", count: "16", low: null }, "1.2 mi", "1 check passed · 1 couldn't tell · 1 failed"]);
+  assert.deepEqual([vm.tile, vm.rated, vm.distance, vm.checksSummary], [{ initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, logo: null }, { score: "5.0", count: "16", low: null }, "1.2 mi", "1 check passed · 1 couldn't tell · 1 failed"]);
   assert.deepEqual(vm.week.map((d) => [d.day, d.today, d.bar]), [["Friday", true, { x: 25, w: 58.3 }]]);
   assert.deepEqual(vm.facts, [{ k: "Kind", v: "Personal trainer" }, { k: "Price", v: "$$" }, { k: "Rated", v: "5.0 from 16 reviews" }, { k: "Listing", v: "Not claimed by the owner" }, { k: "Found at", v: "#3 for “personal trainer”" }, { k: "Other listings", v: "2 listings for this business" }]);
   assert.deepEqual([vm.slots.phone.state, vm.slots.mailbox.state], ["ok", "ok"]);
@@ -425,7 +425,7 @@ test("the peek knows who they are: their own words, where, whether they are open
   assert.equal(v.today, "Open today · 9 AM to 6 PM");
   assert.equal(toLeadPeekVM(row(shown), SEARCH_DONE, TZ, new Date(NOW.getTime() + 86_400_000)).today, "Closed today", "Saturday");
   assert.equal(toLeadPeekVM(row({ ...shown, hours: [] }), SEARCH_DONE, TZ, NOW).today, null, "no hours, no line");
-  assert.equal(v.image, "https://lh3.example/p.jpg");
+  assert.equal(v.tile.image, "https://lh3.example/p.jpg");
   assert.equal(v.sub, "Personal trainer · $$ · Miami, FL", "the price rides the sub-line between the kind and the place");
   // D7: the peek keeps no distribution, because it drew five bars that repeated the average. What the average cannot
   // say is how much of it unhappy people carry, and that is a line only when it changes the picture. 1 of 41 is not.
@@ -439,8 +439,21 @@ test("the peek knows who they are: their own words, where, whether they are open
   assert.equal(toLeadPeekVM(row({ ...shown, claimed: null }), SEARCH_DONE, TZ, NOW).claimedNote, null, "a listing that did not say is not called unclaimed");
   assert.match(v.found[0].what, /^On Google Maps, #3 for “/, "the rank rides the first line of Found");
   const before = toLeadPeekVM(row(), SEARCH_DONE, TZ, NOW);
-  assert.deepEqual([before.about, before.today, before.image, before.claimedNote, before.links.facebook, before.links.maps], [null, null, null, null, null, null], "a lead from before D2 claims none of it");
+  assert.deepEqual([before.about, before.today, before.tile.image, before.claimedNote, before.links.facebook, before.links.maps], [null, null, null, null, null, null], "a lead from before D2 claims none of it");
   assert.match(before.found[0].what, /^On Google Maps, searching “/, "and is found the way it was");
+});
+
+// D6: the row's tile and the peek's band draw the same three stacked layers -- the business's own mark over the
+// listing's photograph over initials on the kind's tint. They drifted apart once because each surface kept the
+// photo somewhere different, so the shape itself is the thing to hold: one tile, the same keys, the same values.
+test("the two surfaces wear one tile: the peek's is the row's, mark and photograph and all", () => {
+  const dto = row({ image_url: "https://lh3.example/p.jpg", logo_url: "https://zilkerstrength.example/logo.svg" });
+  const r = toLeadRowVM(dto, TZ, NOW).tile;
+  const p = toLeadPeekVM(dto, SEARCH_DONE, TZ, NOW).tile;
+  assert.deepEqual(Object.keys(p).sort(), Object.keys(r).sort(), "one shape, so neither surface can grow a layer the other cannot draw");
+  assert.deepEqual(p, r, "and one set of values, so the mark and the photograph are the same on both");
+  assert.deepEqual([p.logo, p.image], ["https://zilkerstrength.example/logo.svg", "https://lh3.example/p.jpg"], "both reach the peek through the tile, not beside it");
+  assert.equal(toLeadPeekVM(row(), SEARCH_DONE, TZ, NOW).tile.image, null, "and a lead whose listing gave no photograph carries none");
 });
 
 // D5: the same leads, on the ground. A plot of one town, measured in metres from one centre -- no projection of

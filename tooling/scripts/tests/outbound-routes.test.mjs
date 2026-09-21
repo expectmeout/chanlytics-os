@@ -50,7 +50,7 @@ const USER = "u1";
 const membership = (tenant_id, role, slug, created_at) => ({ user_id: USER, tenant_id, role, tenants: { slug }, created_at });
 /** A member of two workspaces: harbor (the older membership, so the default) and bayside. */
 const both = (harbor, bayside) => [membership(A, harbor, "harbor", "2026-01-01T00:00:00Z"), membership(B, bayside, "bayside", "2026-02-01T00:00:00Z")];
-const ctxFor = (tables, params = {}, rpcs = {}) => ({ supabase: fakeDb(tables, {}, rpcs), userId: USER, email: "ada@example.com", params });
+const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({ supabase: fakeDb(tables, {}, rpcs, opts), userId: USER, email: "ada@example.com", params });
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
 const send = (method, body, q = "") => new Request(`http://localhost/api/v1/x${q}`, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const inB = `?workspace=${B}`;
@@ -189,6 +189,75 @@ test("a template says what sends it: the playbooks, the broadcasts a PERSON sent
   // pay for the two reads.
   const composer = await templates.GET.run(get(inB), ctxFor(tables));
   assert.equal(composer.usedBy, undefined, "the composers' read stays one query");
+});
+
+test("a template says how many went out and when the last did: the people a run SENT to and what the Inbox sent on it -- never the audience a run was scheduled for", async () => {
+  const person = (broadcast_id, contact_id, state, sent_at = null, tenant_id = B) => ({ broadcast_id, contact_id, tenant_id, state, reason: null, message_id: null, sent_at });
+  const msg = (id, over) => ({ id, tenant_id: B, conversation_id: "cv1", contact_id: "c1", channel: "whatsapp", direction: "outbound", sender: "human", type: "template", body: "Hi", status: "sent", external_id: `wamid.${id}`, template_name: null, created_at: "2026-09-01T00:00:00Z", meta: {}, ...over });
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    templates: [
+      tpl(T1, B, { name: "winback_offer" }),
+      tpl(T2, B, { name: "winback_offer", language: "es_MX" }),
+      tpl(T3, B, { name: "autumn_promo", category: "marketing", source: "meta" }),
+      tpl(T4, B, { name: "booking_link", variables: [{ position: 1 }, { position: 2 }, { position: 3 }] }),
+      tpl(T9, A, { name: "elsewhere" }),
+    ],
+    playbooks: [pb(K1, B)],
+    // Scheduled for 3 and for 500: the audiences. What left is on the recipient rows.
+    broadcasts: [
+      bc(B1, B, { template_name: "winback_offer", state: "sent", recipient_count: 3 }),
+      bc(B2, B, { template_name: "winback_offer", playbook_id: K1, state: "sent", recipient_count: 500 }),
+      bc(B4, A, { template_name: "winback_offer", state: "sent" }),
+    ],
+    broadcast_recipients: [
+      person(B1, "c1", "sent", "2026-09-10T15:00:00Z"),
+      person(B1, "c2", "sent", "2026-09-10T15:00:04Z"),
+      person(B1, "c3", "skipped"),
+      person(B2, "c1", "sent", "2026-09-17T14:00:00Z"),
+      person(B2, "c4", "failed"),
+      person(B2, "c5", "queued"),
+      // Another workspace's run, on a message of the same name.
+      person(B4, "c9", "sent", "2026-09-19T09:00:00Z", A),
+    ],
+    messages: [
+      // Sent from the Inbox into a closed window, and taken by WhatsApp.
+      msg("m1", { template_name: "booking_link", created_at: "2026-09-18T16:00:00Z" }),
+      // Still in its veto window, and one withdrawn: neither has left.
+      msg("m2", { template_name: "booking_link", status: "queued", external_id: null, created_at: "2026-09-20T10:00:00Z" }),
+      msg("m3", { template_name: "booking_link", status: "canceled", external_id: null, created_at: "2026-09-20T10:05:00Z" }),
+      // A run's own message is on its recipient row already, and names no template.
+      msg("m4", { meta: { source: "broadcast", broadcast_id: B1 }, created_at: "2026-09-10T15:00:00Z" }),
+      msg("m5", { tenant_id: A, template_name: "booking_link", created_at: "2026-09-20T11:00:00Z" }),
+    ],
+  };
+  const all = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
+  assert.deepEqual(all.sends.winback_offer, { count: 3, lastAt: "2026-09-17T14:00:00Z" }, "three people were sent it, not the 503 its runs were scheduled for");
+  assert.deepEqual(all.sends.booking_link, { count: 1, lastAt: "2026-09-18T16:00:00Z" }, "the Inbox's send, and not the two that never left");
+  assert.equal(all.sends.autumn_promo, undefined, "a message nothing ever sent is absent, and the page says it was never sent");
+  assert.equal(all.sends.elsewhere, undefined, "another workspace's sends are not this one's");
+
+  const composer = await templates.GET.run(get(inB), ctxFor(tables));
+  assert.equal(composer.sends, undefined, "the composers never ask, and never pay for the reads");
+});
+
+test("past a thousand, a template's count is still every send: PostgREST answers at most max_rows, and a read that stops there undercounts the busiest messages", async () => {
+  // 1,001 runs of one person each, and one run of 1,500: more runs AND more
+  // people than one answer holds.
+  const ids = Array.from({ length: 1002 }, (_, i) => `run-${String(i).padStart(4, "0")}`);
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    templates: [tpl(T1, B, { name: "visit_reminder" })],
+    playbooks: [],
+    broadcasts: ids.map((id) => bc(id, B, { template_name: "visit_reminder", state: "sent" })),
+    broadcast_recipients: [
+      ...ids.slice(0, 1001).map((id) => ({ broadcast_id: id, contact_id: "c0", tenant_id: B, state: "sent", reason: null, message_id: null, sent_at: "2026-09-01T10:00:00Z" })),
+      ...Array.from({ length: 1500 }, (_, i) => ({ broadcast_id: ids[1001], contact_id: `c${String(i).padStart(4, "0")}`, tenant_id: B, state: "sent", reason: null, message_id: null, sent_at: "2026-09-19T10:00:00Z" })),
+    ],
+    messages: [],
+  };
+  const all = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables, {}, {}, { maxRows: 1000 }));
+  assert.deepEqual(all.sends.visit_reminder, { count: 2501, lastAt: "2026-09-19T10:00:00Z" });
 });
 
 test("templates: the composers see the approved and unhidden, Settings sees everything; a submission is judged in Meta's terms at the door, a duplicate is a conflict, and the door itself is the production guard here", async () => {

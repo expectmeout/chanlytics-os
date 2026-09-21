@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
 import { leadEndingLine, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross, leadMapNote, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { leadPinTone, stateOf } from "../../../packages/contracts/src/tone.ts";
 import { planArea, planMinutes, planVersionOf, planWhere, planWho } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------- the fixtures */
@@ -256,9 +257,11 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadsRouteParse: parseLeadsRoute,
     __leadRail: leadRail,
     __leadsStanding: leadsStanding,
+    // The chrome bridge's state map, as shell.ts publishes it: StatePill takes its tone from here and nowhere else.
+    __chrome: { state: stateOf },
     // The derivations bag seed-globals.ts publishes. Every word in it is contracts' own -- including
     // `leadEndingLine`, which is where all nine of the strip's ending sentences come from.
-    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross, leadMapNote },
+    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross, leadMapNote, leadPinTone },
     __ask: { language: () => "en", send: async () => { uploads.push("ask.send"); }, commit: async () => { uploads.push("ask.commit"); return { ok: false, message: "no" }; } },
     __leadPeekVM: (id) => { const r = ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; },
     __leadSearchWords: (s) => (s ? { askedLine: `You asked on Sep 18: “${s.asked}”.`, keepsLine: "Keeps the ones you contacted or are talking to." } : { askedLine: "", keepsLine: "" }),
@@ -1100,7 +1103,9 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   assert.equal(byTestId(map, "lead-map-toowide"), null, "one city's leads are one place, so the square is drawn");
   assert.equal(all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length, 5, "the same leads beside it, nearest the middle first");
   assert.match(pins[0].props["aria-label"], /^Zilker Strength Lab — /, "a pin says who it is and what it is");
-  assert.match(String(pins[0].props.className), /tone-strong/, "coloured by fit, to start");
+  assert.match(String(pins[0].props.className), /tone-ok/, "coloured by fit, to start: a strong fit is a good outcome, in the registry's own tone");
+  assert.doesNotMatch(String(pins[0].props.className), /is-out/, "a qualified lead stands at full strength");
+  assert.match(String(pins[4].props.className), /is-out/, "a lead that was left out steps back, as its row does");
 
   pins[0].props.onMouseEnter();
   tree = at();
@@ -1108,7 +1113,10 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   click(byTestId(tree, "map-by-reach"));
   tree = at();
   assert.match(String(byTestId(tree, "lead-pin-l1").props.className), /tone-ok/, "coloured by reach: a checked mailbox and a number two sources agree on");
-  assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /tone-part/, "and one with only a number");
+  assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /tone-warn/, "and one with only a number is part-way there, which is worth a look");
+  // It is still left out. Stepping back used to ride a word only two of the three colourings used (`out`), so an
+  // excluded lead came back to full strength the moment the map was coloured by reach. It follows the row now.
+  assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /is-out/, "left out in every colouring, not in whichever uses the word");
 
   click(byTestId(tree, "lead-pin-l1"));
   tree = at();
@@ -1120,4 +1128,48 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   click(byTestId(tree, "leads-map-toggle"));
   tree = at();
   assert.equal(byTestId(tree, "lead-map"), null, "and the rows come back");
+});
+
+// The row's two tags and its Stage column are the app's one StatePill, on the registry's tones. They were a
+// hand-styled family of their own (.ld-state-tag, .ld-fit-tag, .ld-dot), and a Contacted tag drew grey while its
+// dot, its pin and tone.ts all said info. No test ever drew a fit tag: the fixture search publishes no fits, so
+// leadBand never called them mixed. Here a real row in every state is drawn through the whole page.
+test("a lead's state and fit are the one StatePill, in the registry's tones -- and Contacted is info, as its dot and its pin are", () => {
+  const vm = (over) => toLeadRowVM(leadRow(over), TZ, NOW);
+  const rows = [
+    vm({ id: "p1", place_id: "ChIJpill1", business_name: "Ready Gym" }),
+    vm({ id: "p2", place_id: "ChIJpill2", business_name: "Contacted Gym", stage: "nurture", contacted_at: minsAgo(120) }),
+    vm({ id: "p3", place_id: "ChIJpill3", business_name: "Talking Gym", stage: "converted" }),
+    vm({ id: "p4", place_id: "ChIJpill4", business_name: "Review Gym", member: member({ class: "review", fit: "look", reason: "Couldn't check the email" }) }),
+    vm({ id: "p5", place_id: "ChIJpill5", business_name: "Said No Gym", stage: "archived", closed_reason: "said_no" }),
+    vm({ id: "p6", place_id: "ChIJpill6", business_name: "Chain Gym", member: member({ class: "excluded", fit: null, reason: "A chain with 40 locations", excluded_by: "chain" }) }),
+    vm({ id: "p7", place_id: "ChIJpill7", business_name: "Maybe Gym", member: member({ fit: "look", reason: "Might be a franchise" }) }),
+  ];
+  // A search whose fits differ, which is the only time a row wears its fit at all (leadBand's `mixed`).
+  const open = { ...search(), round: { ...search().round, fits: { strong: 5, look: 2, long: 0 } } };
+  fresh({ leads: surface({ searches: [open], rows }) });
+  const tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  const cls = (n) => String(n?.props?.className || "");
+  const tagOf = (id, testid) => byTestId(rowOf(tree, id), testid);
+
+  assert.equal(tagOf("p1", "lead-state-tag"), null, "Ready is the silent default and wears no tag");
+  for (const [id, tone] of [["p2", "info"], ["p3", "ok"], ["p4", "warn"]]) {
+    const tag = tagOf(id, "lead-state-tag");
+    assert.equal(cls(tag), `pill pill-${tone}`, `${id}: the shared pill, in the registry's tone`);
+    assert.equal(textOf(tag), rows.find((r) => r.id === id).stateTag, `${id}: saying the row's own words`);
+  }
+  assert.match(textOf(tagOf("p2", "lead-state-tag")), /^Contacted · /, "and Contacted still says how long ago");
+  for (const id of ["p5", "p6"]) assert.equal(cls(tagOf(id, "lead-state-tag")), "pill", `${id}: out is plain, so its pill carries no tone`);
+
+  assert.equal(cls(tagOf("p1", "lead-fit-tag")), "pill pill-ok", "a strong fit is a good outcome, not an urgent one");
+  assert.equal(cls(tagOf("p7", "lead-fit-tag")), "pill", "a look is plain");
+  assert.equal(textOf(tagOf("p7", "lead-fit-tag")), rows.find((r) => r.id === "p7").fitLabel);
+
+  // The Stage column, off by default but drawn: People's State column is this same pill.
+  const stage = (id) => find(tagOf(id, "lead-stage"), (n) => cls(n).split(" ").includes("pill"));
+  assert.deepEqual(["p1", "p2", "p3", "p5"].map((id) => cls(stage(id))), ["pill", "pill pill-info", "pill pill-ok", "pill"], "ready, contacted, talking, said no");
+  assert.equal(stage("p6"), null, "a left-out lead has no stage to show");
+
+  // And nothing of the private family is left to disagree with it.
+  assert.equal(find(tree, (n) => cls(n).split(" ").some((c) => c === "ld-state-tag" || c === "ld-fit-tag" || c === "ld-dot")), null);
 });

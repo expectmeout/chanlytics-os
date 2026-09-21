@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolveFacts, factConflicts, samePhone, sameAddress, sameName, SOURCE_WORDS } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { importSrc, readCode, readRaw } from "./_source.mjs";
 
 /** Melany's Beauty Salon, exactly as the database held it. */
 const LIVE = {
@@ -218,7 +218,7 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
   assert.ok(flagged.done < clean.done, "and the count of what is ready goes down, which is the point");
 });
 
-test("every voice line a caller hears comes through the resolver too", () => {
+test("every voice line a caller hears comes through the resolver too", async () => {
   // The refusal scripts and the delivery-failure line are spoken to a caller
   // who is waiting, and both read brain.phone_display straight from the
   // document -- so on the live salon, a caller who could not be texted was
@@ -229,9 +229,12 @@ test("every voice line a caller hears comes through the resolver too", () => {
 
   // Optional means a workspace can have none, and a receptionist reading
   // "reach the team on undefined" to a caller is worse than offering nothing.
-  const gate = readCode("apps/edge/lib/outbound-gate.ts");
-  assert.ok(gate.includes("phoneDisplay: string | null | undefined"), "the script accepts an absent number");
-  assert.ok(gate.includes('"I cannot send texts automatically for this business right now. Tell the caller they can book online, and take their name."'), "and says something true instead");
+  const { refusalScript } = await importSrc("apps/edge/lib/outbound-gate.ts");
+  for (const none of [null, undefined]) {
+    const said = refusalScript("policy_hold", none);
+    assert.doesNotMatch(said, /undefined|null|reach the team on/, `the script takes an absent number (${none})`);
+    assert.match(said, /book online, and take their name\.$/, "and says something true instead");
+  }
 });
 
 test("a config change records who and what, and neither is the values", async () => {

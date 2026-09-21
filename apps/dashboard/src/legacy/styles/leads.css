@@ -310,12 +310,8 @@
 .ld-phone-cell.wrong { color: var(--ink-dim); text-decoration: line-through; }
 .ld-why-cell { max-width: 34ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ld-rating-cell, .ld-found-cell, .ld-distance-cell { font-variant-numeric: tabular-nums; }
-.ld-dot { width: 7px; height: 7px; border-radius: var(--radius-full); display: inline-block; margin-right: 6px; background: var(--ink-faint); }
-/* Ready has no rule: it takes the plain base, like every other silent default. The accent belongs to what is live
-   right now (tokens.css), and it was sitting on the state every lead is born in. */
-.ld-dot.nurture { background: var(--info); }
-.ld-dot.converted { background: var(--ok); }
-.ld-dot.archived { background: var(--ink-faint); }
+/* The Stage column is the app's StatePill, as People's State column is (components.css .pill). It was a dot of
+   its own here, with a colour per stage that the registry now decides. */
 .ld-row-actions { display: inline-flex; gap: 4px; }
 
 /* -------------------------- the three classes, and the Excluded chips (11) */
@@ -541,11 +537,10 @@
 .leads-scope .cl-table tbody tr.ld-row-talking.focused { box-shadow: inset 2px 0 0 var(--accent), inset 5px 0 0 var(--ok); }
 .leads-scope .cl-table tbody tr.ld-row-out .ld-biz-name, .leads-scope .cl-table tbody tr.ld-row-out .ld-rated-score { color: var(--ink-dim); }
 .leads-scope .cl-table tbody tr.ld-row-out .ld-tile { opacity: .7; }
-.ld-state-tag, .ld-fit-tag { flex: none; font-size: var(--text-xs); line-height: 18px; padding: 0 7px; border-radius: 5px; background: var(--bg-active); color: var(--ink-muted); white-space: nowrap; }
-.ld-state-tag.review { background: var(--warn-soft); color: var(--warn-ink); }
-.ld-state-tag.talking { background: var(--ok-soft); color: var(--ok-ink); }
-.ld-fit-tag.strong { background: var(--ok-soft); color: var(--ok-ink); }
-.ld-fit-tag.long { color: var(--ink-dim); }
+/* The row's two tags are StatePills. Their colours are the registry's, so nothing here names one -- the pair kept
+   five of its own, and Contacted drew grey where its dot, its pin and tone.ts all said info. What the pair did
+   carry that a pill does not is its place in the line: the name gives way first, the tags never squeeze. */
+.ld-biz-cell .cl-row-fullname .pill { flex: none; }
 
 /* The tile: the photo, else initials on a tint the kind decides. A photo that fails to load falls back to the tile. */
 .ld-tile { position: relative; flex: none; display: inline-grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--tint); color: var(--tint-ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: default; }
@@ -903,16 +898,20 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-pin.on { transform: translate(-50%, -50%) scale(1.6); z-index: 3; background: var(--ink); opacity: 1; box-shadow: 0 0 0 4px oklch(from var(--ink) l c h / 0.18); }
 .ld-pin:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .ld-pin-dot { display: inline-block; }
-/* A pin says the same thing a row dot says. These disagreed on two states: ready was healthy green on the map and
-   the accent on a row, talking was blue on the map and green on a row. Both now read from the registry, and a pin
-   never wears the accent, because a pin is data (the chart kit's rule). */
-.tone-strong, .tone-ok, .tone-talking { background: var(--ok); }
-.tone-look, .tone-part, .tone-review, .tone-unknown { background: var(--warn); }
-.tone-long, .tone-none, .tone-ready, .tone-out { background: var(--ink-faint); }
-.tone-bad { background: var(--danger); }
-.tone-contacted { background: var(--info); }
-/* Left out is plain like a long shot, so it steps back instead by being quieter. */
-.ld-pin.tone-out, .ld-pin-dot.tone-out { opacity: .55; }
+/* A pin says the same thing a row dot says, and it is contracts that decides which (leadPinTone, tone.ts). What
+   stood here was a second table, keyed by the map's own words -- `strong`, `part`, `talking` -- which no tone
+   vocabulary knows, so the registry could not reach it and it had drifted: a `look` fit drew amber here and plain
+   everywhere else. It also named NO ELEMENT. legacy.css imports this file after clients.css, so `.tone-ok` was
+   painting every `tone-ok` in the app solid green: a Today attention row, and the peek's own Interested chip.
+   These are the six tones, on the pin and nothing else. There is no `.tone-accent`: a pin is data, and by the
+   chart kit's rule data never wears the accent -- it keeps the plain base above. */
+.ld-pin.tone-ok, .ld-pin-dot.tone-ok { background: var(--ok); }
+.ld-pin.tone-warn, .ld-pin-dot.tone-warn { background: var(--warn); }
+.ld-pin.tone-info, .ld-pin-dot.tone-info { background: var(--info); }
+.ld-pin.tone-danger, .ld-pin-dot.tone-danger { background: var(--danger); }
+.ld-pin.tone-plain, .ld-pin-dot.tone-plain { background: var(--ink-faint); }
+/* Left out is plain like a long shot, so it steps back by being quieter rather than by being another colour. */
+.ld-pin.is-out, .ld-pin-dot.is-out { opacity: .55; }
 .ld-map-card { position: absolute; left: 12px; bottom: 12px; right: 12px; max-width: 380px; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-md); }
 .ld-map-card .b { min-width: 0; flex: 1; }
 .ld-map-card .n { font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

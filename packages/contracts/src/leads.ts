@@ -703,11 +703,14 @@ export interface LeadPeekVM {
   about: string | null;
   where: { line: string; href: string | null } | null;
   today: string | null;
-  image: string | null;
   claimedNote: string | null;
   /* ---- D5: the peek re-cut ---- */
-  /** The tile behind the photo band: the mark, else initials on the kind's tint, drawn when there is no photo. */
-  tile: { initials: string; tint: number; logo: string | null };
+  /**
+   * The business's face, in the same shape the row's tile wears it: the mark over the listing's photo over initials
+   * on a tint the kind decides. The photograph has ONE home, here -- the band paints it under the mark and the
+   * lightbox opens it on its own. While it rode beside the tile the two surfaces drifted over which one wins (D6).
+   */
+  tile: { initials: string; tint: number; image: string | null; logo: string | null };
   /**
    * "4.7" and "1,284", apart; null where the source does not rate. `low` is the one thing five bars said that an
    * average cannot, and it is null unless it is worth saying: see `leadLowShare`.
@@ -923,7 +926,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), logo: r.logo_url ?? null },
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null, logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
     week,
@@ -937,7 +940,6 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     about: r.about ?? null,
     where: leadWhere(r),
     today: leadTodayLine(r.hours ?? [], tz, now),
-    image: r.image_url ?? null,
     claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,
@@ -1367,9 +1369,8 @@ export interface LeadRowVM {
   fitLabel: string; fitTitle: string;
   email: string | null; emailState: LeadEmailState; emailLabel: string; emailWord: string;
   phone: string | null; phoneAgrees: boolean; phoneWrong: boolean;
-  /** The two contacts as one glance (D2's Reach column), and the listing's photo for the row's mark. */
+  /** The two contacts as one glance (D2's Reach column). */
   reach: { email: { address: string; state: LeadEmailState; word: string } | null; phone: { number: string; agrees: boolean } | null };
-  image: string | null;
   /** The class rule's reason tokens, for the Needs review queue (D3); [] on a row from before. */
   reasons: string[];
   why: string; rating: string;
@@ -1485,7 +1486,6 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
       email: r.email ? { address: r.email, state: r.email_state, word: LEAD_EMAIL_WORDS[r.email_state] } : null,
       phone: r.phone ? { number: r.phone, agrees: r.phone_agrees } : null,
     },
-    image: r.image_url ?? null,
     reasons: m.reasons ?? [],
     why: m.reason,
     rating,
