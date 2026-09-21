@@ -10,6 +10,7 @@ import {
   resolveSystemPrompt,
   ownWordsOf,
   newReceptionistDefaults,
+  PROMPT_OPENINGS,
 } from "@chanlytics/contracts";
 
 const brain = { business_name: "Melany's Beauty Salon", phone_display: "+1 (308) 336-8109", booking_link: "https://booksy.com/x" };
@@ -108,6 +109,86 @@ test("every block has an id of its own, and a row keeps its meaning", () => {
   assert.equal(new Set(ids).size, ids.length, `unique: ${ids.join(", ")}`);
   assert.equal(blocks.filter((b) => b.row === "platform").length, 2, "the platform, before and after the owner's words");
   for (const b of blocks) if (b.row !== "platform") assert.equal(b.id, b.row, `${b.row} appears once, so it is its own id`);
+});
+
+/* ---- The cut follows the composer's own openings ---- */
+
+const NOW = new Date("2026-09-21T15:00:00Z");
+/** Every section the composer can write, filled in, with the owner's own words and Autonomy's rules. */
+const everything = {
+  ...profile,
+  website: "https://melanys.example",
+  closures: [{ date: "2026-12-24", until: "2026-12-26", note: "Holidays" }],
+  booking_rules: { lead_hours: 2, consult_first: ["Color correction"], party_max: 4, notes: ["No children under five."] },
+  handoff_number: "+16469325775",
+  extra_instructions: own,
+};
+
+test("with every section present, the blocks are the composer's sections, in its order", () => {
+  // The test each drifted opening would have failed. A mark that stopped matching the
+  // composer folded its section into the block above: the closures into the hours, the
+  // booking rules into the notes, the medium line into the owner's own words.
+  const O = PROMPT_OPENINGS;
+  const want = {
+    whatsapp: [
+      ["identity", "You are the assistant for Melany's Beauty Salon"],
+      ["hours", O.hours], ["closures", O.closures], ["services", O.services], ["notes", O.notes],
+      ["booking_rules", O.bookingRules], ["handoff", O.handoffChat],
+      ["extra_instructions", O.ownWordsUnderDetails], ["platform", O.chatMedium], ["guardrails", O.rules],
+    ],
+    voice: [
+      ["identity", "You are the assistant for Melany's Beauty Salon"],
+      ["hours", O.hours], ["closures", O.closures], ["services", O.services], ["notes", O.notes],
+      ["booking_rules", O.bookingRules], ["handoff", O.handoffCall], ["platform", O.callTools],
+      ["extra_instructions", O.ownWordsUnderDetails], ["platform", O.callMedium], ["guardrails", O.rules],
+    ],
+  };
+  for (const channel of ["whatsapp", "voice"]) {
+    const blocks = promptBlocks(composeSystemPrompt(brain, everything, channel, tz, NOW, ASK), channel, { profile: everything });
+    assert.deepEqual(blocks.map((b) => b.row), want[channel].map(([row]) => row), `${channel}: the rows, in order`);
+    blocks.forEach((b, n) => assert.ok(b.text.startsWith(want[channel][n][1]), `${channel}: ${b.id} opens with its own opening, not ${JSON.stringify(b.text.slice(0, 50))}`));
+    // The owner's block is their words under the one line the composer frames them with, and
+    // nothing after them: a medium line that stopped matching would have ended up in here.
+    const mine = blocks.find((b) => b.row === "extra_instructions").text.split("\n");
+    assert.equal(mine.slice(1).join("\n"), own, `${channel}: the owner's words, and only theirs, under the frame`);
+    // The platform's last block carries the open-times line too, on a line of its own.
+    assert.ok(blocks.at(-2).text.split("\n").some((l) => l.startsWith(O.openTimes)), `${channel}: the open-times line is the platform's`);
+  }
+});
+
+test("the composer writes every opening the prompt view cuts on, once, at the start of a line", () => {
+  const O = PROMPT_OPENINGS;
+  const openings = {
+    whatsapp: [O.hours, O.closures, O.services, O.notes, O.bookingRules, O.handoffChat, O.ownWordsUnderDetails, O.chatMedium, O.openTimes, O.rules],
+    voice: [O.hours, O.closures, O.services, O.notes, O.bookingRules, O.handoffCall, O.callTools, O.ownWordsUnderDetails, O.callMedium, O.openTimes, O.rules],
+  };
+  for (const channel of ["whatsapp", "voice"]) {
+    const lines = composeSystemPrompt(brain, everything, channel, tz, NOW, ASK).split("\n");
+    for (const opening of openings[channel]) {
+      assert.equal(lines.filter((l) => l.startsWith(opening)).length, 1, `${channel}: ${opening}`);
+    }
+  }
+  // On a call with nothing above to disagree with, the frame is the call's line alone, and it
+  // comes with the owner's words rather than staying with whatever sits above them.
+  const bare = { tone: "Warm.", extra_instructions: own };
+  const call = composeSystemPrompt(brain, bare, "voice", tz, NOW);
+  assert.equal(call.split("\n").filter((l) => l.startsWith(O.ownWordsOnACall)).length, 1);
+  const blocks = promptBlocks(call, "voice", { profile: bare });
+  const mine = blocks.find((b) => b.row === "extra_instructions");
+  assert.ok(mine.text.startsWith(O.ownWordsOnACall), "the frame opens the owner's block");
+  assert.equal(mine.text.split("\n").slice(1).join("\n"), own);
+  for (const b of blocks) if (b.row !== "extra_instructions") assert.ok(!b.text.includes(O.ownWordsOnACall), `${b.id} does not keep the frame`);
+});
+
+test("a heading repeated inside a later block does not start a second block", () => {
+  // Each opening is taken once. A note can run to several lines, and one of them can open
+  // like a heading the composer has already written; it stays the note's.
+  const noted = { ...profile, notes: [{ title: "Parking", text: "Street parking only.\nServices: we also do lashes on Fridays." }] };
+  for (const channel of ["whatsapp", "voice"]) {
+    const blocks = promptBlocks(composeSystemPrompt(brain, noted, channel, tz, NOW), channel, { profile: noted });
+    assert.equal(blocks.filter((b) => b.row === "services").length, 1, `${channel}: one services block`);
+    assert.match(blocks.find((b) => b.row === "notes").text, /^Services: we also do lashes on Fridays\.$/m, `${channel}: the note keeps its own line`);
+  }
 });
 
 /* ---- The hand-off ---- */

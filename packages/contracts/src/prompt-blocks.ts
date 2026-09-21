@@ -7,7 +7,7 @@
  * keep reading it the way the composer writes it.
  */
 
-import { isBaselinePrompt, ownWordsOf } from "./config";
+import { PROMPT_OPENINGS as O, isBaselinePrompt, ownWordsOf } from "./config";
 
 /**
  * The composed prompt, cut into the blocks that wrote it.
@@ -76,42 +76,43 @@ const PLATFORM_LABEL = "Chanlytics' own instructions";
 const PLATFORM_NOTE = "Written by Chanlytics for every workspace, not by you.";
 
 /**
- * Read off `composeSystemPrompt`, not guessed. Each `startsWith` is the exact
- * opening that function writes; a mark with a channel matches only on that
- * channel's prompt, so a coincidence on the other one cannot split a block.
+ * The openings `composeSystemPrompt` writes, from the one place it writes them
+ * from (`PROMPT_OPENINGS`), never copied. A mark with a channel matches only on
+ * that channel's prompt, so a coincidence on the other one cannot split a block.
+ *
+ * Built inside a call marked pure: each `startsWith` reads a property, which the
+ * bundler counts as a side effect, and a bare literal would keep this table in
+ * every package that bundles contracts.
  */
-const BLOCK_MARKS: readonly BlockMark[] = [
-  { row: "hours", label: "When you're open", startsWith: "Opening hours" },
-  { row: "closures", label: "Days you're closed", startsWith: "Closed on these dates" },
-  { row: "services", label: "Services", startsWith: "Services:" },
-  { row: "notes", label: "Things it should know", startsWith: "Other things to know:" },
-  { row: "booking_rules", label: "Booking rules", startsWith: "Booking rules:" },
+const BLOCK_MARKS: readonly BlockMark[] = /* @__PURE__ */ (() => [
+  { row: "hours", label: "When you're open", startsWith: O.hours },
+  { row: "closures", label: "Days you're closed", startsWith: O.closures },
+  { row: "services", label: "Services", startsWith: O.services },
+  { row: "notes", label: "Things it should know", startsWith: O.notes },
+  { row: "booking_rules", label: "Booking rules", startsWith: O.bookingRules },
   // One row on both channels. Each channel has its own heading, and the owner's
   // reasons compose under either. The block is sent whether or not there are any,
   // so each note says why it is there.
   {
     row: "handoff",
     label: "Hand-off",
-    startsWith: "Handing the conversation to a person:",
+    startsWith: O.handoffChat,
     channel: "whatsapp",
     note: "Always sent, whether or not you give reasons — it is how anything it should not decide reaches you. On WhatsApp it hands you the thread.",
   },
   {
     row: "handoff",
     label: "Hand-off",
-    startsWith: "Handing the caller to a person:",
+    startsWith: O.handoffCall,
     channel: "voice",
     note: "Always sent, whether or not you give reasons — it is how a caller who needs a person reaches one. On a call it transfers to your number in opening hours if you gave one, and takes a message otherwise.",
   },
-  { row: "platform", label: PLATFORM_LABEL, startsWith: "Open times: use check_availability", channel: "voice", note: PLATFORM_NOTE },
-  { row: "platform", label: PLATFORM_LABEL, startsWith: "You are speaking aloud.", channel: "voice", note: PLATFORM_NOTE },
-  { row: "platform", label: PLATFORM_LABEL, startsWith: "Keep replies short enough to read on a phone.", channel: "whatsapp", note: PLATFORM_NOTE },
-  { row: "platform", label: PLATFORM_LABEL, startsWith: "If open times are listed after these instructions", note: PLATFORM_NOTE },
-  { row: "guardrails", label: "Rules it always keeps", startsWith: "Rules you must follow:" },
-];
-
-/** The line the composer puts above the owner's words, when it writes one. */
-const OWN_WORDS_FRAMES = ["Further instructions from the business.", "Some of it was written for text conversations"];
+  { row: "platform", label: PLATFORM_LABEL, startsWith: O.callTools, channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: O.callMedium, channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: O.chatMedium, channel: "whatsapp", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: O.openTimes, note: PLATFORM_NOTE },
+  { row: "guardrails", label: "Rules it always keeps", startsWith: O.rules },
+])();
 
 // Named by where a block sits, not by its heading: what comes before the first
 // heading, the owner's words, and the rules after a prompt nothing composed.
@@ -140,8 +141,9 @@ function ownWordsSpan(lines: readonly string[], ownWords: string | null | undefi
   if (!want[0]) return null;
   for (let i = lines.length - want.length; i >= 0; i--) {
     if (!want.every((w, k) => lines[i + k] === w)) continue;
-    // The composer's framing line comes with them when it sits directly above.
-    const framed = i > 0 && OWN_WORDS_FRAMES.some((f) => lines[i - 1].startsWith(f));
+    // The composer's framing line comes with them when it sits directly above: the
+    // one under the details, or the call's, which follows it or stands alone.
+    const framed = i > 0 && [O.ownWordsUnderDetails, O.ownWordsOnACall].some((f) => lines[i - 1].startsWith(f));
     return { from: framed ? i - 1 : i, to: i + want.length };
   }
   return null;

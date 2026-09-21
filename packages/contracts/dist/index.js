@@ -2744,6 +2744,26 @@ function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
     return NO_CLOCK;
   }
 }
+var PROMPT_OPENINGS = {
+  hours: "Opening hours",
+  closures: "Closed on these dates",
+  services: "Services:",
+  notes: "Other things to know:",
+  bookingRules: "Booking rules:",
+  handoffChat: "Handing the conversation to a person:",
+  handoffCall: "Handing the caller to a person:",
+  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+  callTools: "Open times: use check_availability",
+  callMedium: "You are speaking aloud.",
+  chatMedium: "Keep replies short enough to read on a phone.",
+  openTimes: "If open times are listed after these instructions",
+  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+  rules: "Rules you must follow:",
+  /** Above the owner's own words, when there are details above for them to disagree with. */
+  ownWordsUnderDetails: "Further instructions from the business.",
+  /** Above the owner's own words on a call, alone or after the line above. */
+  ownWordsOnACall: "Some of it was written for text conversations"
+};
 function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
@@ -2768,14 +2788,14 @@ Address: ${profile.address}`);
   if (hrs.length) {
     const where = tz ? ` (all times ${tz})` : "";
     s.push(`
-Opening hours${where}:
+${PROMPT_OPENINGS.hours}${where}:
 ${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
   const closed = closureLines(upcomingClosures(profile.closures, tz, now));
   if (closed.length) {
     s.push(
       `
-Closed on these dates, whatever the opening hours above say:
+${PROMPT_OPENINGS.closures}, whatever the opening hours above say:
 ${closed.map((l) => `- ${l}`).join("\n")}
 If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
     );
@@ -2788,12 +2808,12 @@ If someone asks about one of these dates, say the business is closed that day an
       return `- ${bits2.join(" \u2014 ")}`;
     });
     s.push(`
-Services:
+${PROMPT_OPENINGS.services}
 ${lines.join("\n")}`);
   }
   if (profile.notes?.length) {
     s.push(`
-Other things to know:
+${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
   const br = profile.booking_rules;
@@ -2808,7 +2828,7 @@ ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
     if (br.party_max) lines.push(`Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`);
     for (const n of br.notes ?? []) lines.push(n);
     s.push(`
-Booking rules:
+${PROMPT_OPENINGS.bookingRules}
 ${lines.map((l) => `- ${l}`).join("\n")}`);
   }
   if (channel === "whatsapp") {
@@ -2816,7 +2836,7 @@ ${lines.map((l) => `- ${l}`).join("\n")}`);
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
     s.push(
       `
-Handing the conversation to a person:
+${PROMPT_OPENINGS.handoffChat}
 Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
 Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
@@ -2826,12 +2846,15 @@ ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
     const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
     s.push(
       `
-Handing the caller to a person:
+${PROMPT_OPENINGS.handoffCall}
 ${staffed}
 Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
     s.push(
-      "\nOpen times: use check_availability before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\nBooking: when the caller wants to book, use send_booking_link \u2014 it texts the booking link to the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. If it fails, give the phone number above and offer to have someone follow up.\nEnding: once the caller has said goodbye, use end_call."
+      `
+${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
+Booking: when the caller wants to book, use send_booking_link \u2014 it texts the booking link to the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. If it fails, give the phone number above and offer to have someone follow up.
+Ending: once the caller has said goodbye, use end_call.`
     );
   }
   if (profile.extra_instructions?.trim()) {
@@ -2844,8 +2867,8 @@ Do this whenever the caller asks for a person, is upset, or asks something these
     const stated = above.length > 0;
     const text = profile.extra_instructions.trim();
     const header = [
-      stated ? `Further instructions from the business. Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
-      channel === "voice" ? "Some of it was written for text conversations; you are on a phone call." : ""
+      stated ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
+      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
     ].filter(Boolean).join(" ");
     s.push(header ? `
 ${header}
@@ -2853,10 +2876,13 @@ ${text}` : `
 ${text}`);
   }
   s.push(
-    channel === "voice" ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead." : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book."
+    channel === "voice" ? `
+${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead.` : `
+${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`
   );
   s.push(
-    "\nIf open times are listed after these instructions, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link."
+    `
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link.`
   );
   const g = profile.guardrails ?? {};
   const rules = [];
@@ -2875,7 +2901,7 @@ ${text}`);
   }
   rules.push(...policyRules(policy, channel));
   if (rules.length) s.push(`
-Rules you must follow:
+${PROMPT_OPENINGS.rules}
 ${rules.map((r) => `- ${r}`).join("\n")}`);
   return s.join("\n");
 }
@@ -2884,7 +2910,7 @@ function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__
     const rules = policyRules(policy, channel);
     return rules.length ? `${brain.system_prompt}
 
-Rules you must follow:
+${PROMPT_OPENINGS.rules}
 ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   }
   const profile = brain.profile;
@@ -10751,36 +10777,35 @@ var CANNOT_ROWS = [
 // src/prompt-blocks.ts
 var PLATFORM_LABEL = "Chanlytics' own instructions";
 var PLATFORM_NOTE = "Written by Chanlytics for every workspace, not by you.";
-var BLOCK_MARKS = [
-  { row: "hours", label: "When you're open", startsWith: "Opening hours" },
-  { row: "closures", label: "Days you're closed", startsWith: "Closed on these dates" },
-  { row: "services", label: "Services", startsWith: "Services:" },
-  { row: "notes", label: "Things it should know", startsWith: "Other things to know:" },
-  { row: "booking_rules", label: "Booking rules", startsWith: "Booking rules:" },
+var BLOCK_MARKS = /* @__PURE__ */ (() => [
+  { row: "hours", label: "When you're open", startsWith: PROMPT_OPENINGS.hours },
+  { row: "closures", label: "Days you're closed", startsWith: PROMPT_OPENINGS.closures },
+  { row: "services", label: "Services", startsWith: PROMPT_OPENINGS.services },
+  { row: "notes", label: "Things it should know", startsWith: PROMPT_OPENINGS.notes },
+  { row: "booking_rules", label: "Booking rules", startsWith: PROMPT_OPENINGS.bookingRules },
   // One row on both channels. Each channel has its own heading, and the owner's
   // reasons compose under either. The block is sent whether or not there are any,
   // so each note says why it is there.
   {
     row: "handoff",
     label: "Hand-off",
-    startsWith: "Handing the conversation to a person:",
+    startsWith: PROMPT_OPENINGS.handoffChat,
     channel: "whatsapp",
     note: "Always sent, whether or not you give reasons \u2014 it is how anything it should not decide reaches you. On WhatsApp it hands you the thread."
   },
   {
     row: "handoff",
     label: "Hand-off",
-    startsWith: "Handing the caller to a person:",
+    startsWith: PROMPT_OPENINGS.handoffCall,
     channel: "voice",
     note: "Always sent, whether or not you give reasons \u2014 it is how a caller who needs a person reaches one. On a call it transfers to your number in opening hours if you gave one, and takes a message otherwise."
   },
-  { row: "platform", label: PLATFORM_LABEL, startsWith: "Open times: use check_availability", channel: "voice", note: PLATFORM_NOTE },
-  { row: "platform", label: PLATFORM_LABEL, startsWith: "You are speaking aloud.", channel: "voice", note: PLATFORM_NOTE },
-  { row: "platform", label: PLATFORM_LABEL, startsWith: "Keep replies short enough to read on a phone.", channel: "whatsapp", note: PLATFORM_NOTE },
-  { row: "platform", label: PLATFORM_LABEL, startsWith: "If open times are listed after these instructions", note: PLATFORM_NOTE },
-  { row: "guardrails", label: "Rules it always keeps", startsWith: "Rules you must follow:" }
-];
-var OWN_WORDS_FRAMES = ["Further instructions from the business.", "Some of it was written for text conversations"];
+  { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callTools, channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callMedium, channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.chatMedium, channel: "whatsapp", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.openTimes, note: PLATFORM_NOTE },
+  { row: "guardrails", label: "Rules it always keeps", startsWith: PROMPT_OPENINGS.rules }
+])();
 var IDENTITY = { row: "identity", label: "Who you are", startsWith: "" };
 var OWN_WORDS = { row: "extra_instructions", label: "In your own words", startsWith: "" };
 var CARRIED = {
@@ -10796,7 +10821,7 @@ function ownWordsSpan(lines, ownWords) {
   if (!want[0]) return null;
   for (let i = lines.length - want.length; i >= 0; i--) {
     if (!want.every((w, k) => lines[i + k] === w)) continue;
-    const framed = i > 0 && OWN_WORDS_FRAMES.some((f) => lines[i - 1].startsWith(f));
+    const framed = i > 0 && [PROMPT_OPENINGS.ownWordsUnderDetails, PROMPT_OPENINGS.ownWordsOnACall].some((f) => lines[i - 1].startsWith(f));
     return { from: framed ? i - 1 : i, to: i + want.length };
   }
   return null;
@@ -12926,6 +12951,7 @@ export {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
+  PROMPT_OPENINGS,
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,

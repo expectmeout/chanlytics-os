@@ -997,6 +997,41 @@ export function describeNow(
   }
 }
 
+/**
+ * How each part of the composed prompt opens, said once.
+ *
+ * Every value is the start of a line the composer writes: a section's heading,
+ * the first words of a paragraph Chanlytics writes for every workspace, or one
+ * of the two lines that can sit above the owner's own words. The composer
+ * writes them from here, and the Business tab's prompt view (prompt-blocks.ts)
+ * cuts the prompt on them from here. They were literal copies in two files, and
+ * a copy that drifted folded one block into its neighbour without failing
+ * anything: a closure list into the hours, the medium line into the owner's own
+ * words.
+ *
+ * These are words the live receptionist reads. Changing one changes its prompt.
+ */
+export const PROMPT_OPENINGS = {
+  hours: "Opening hours",
+  closures: "Closed on these dates",
+  services: "Services:",
+  notes: "Other things to know:",
+  bookingRules: "Booking rules:",
+  handoffChat: "Handing the conversation to a person:",
+  handoffCall: "Handing the caller to a person:",
+  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+  callTools: "Open times: use check_availability",
+  callMedium: "You are speaking aloud.",
+  chatMedium: "Keep replies short enough to read on a phone.",
+  openTimes: "If open times are listed after these instructions",
+  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+  rules: "Rules you must follow:",
+  /** Above the owner's own words, when there are details above for them to disagree with. */
+  ownWordsUnderDetails: "Further instructions from the business.",
+  /** Above the owner's own words on a call, alone or after the line above. */
+  ownWordsOnACall: "Some of it was written for text conversations",
+} as const;
+
 export function composeSystemPrompt(
   base: { business_name: string; phone_display?: string | null; booking_link: string },
   profile: BusinessProfile,
@@ -1052,7 +1087,7 @@ function composeSystemPromptWith(
     // another state gets a straight answer either way; the model needs the zone
     // to reconcile these with the clock it is given separately.
     const where = tz ? ` (all times ${tz})` : "";
-    s.push(`\nOpening hours${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
+    s.push(`\n${PROMPT_OPENINGS.hours}${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
 
   // EVERY upcoming closure, not the first handful. A cap here and a larger cap
@@ -1063,7 +1098,7 @@ function composeSystemPromptWith(
   const closed = closureLines(upcomingClosures(profile.closures, tz, now));
   if (closed.length) {
     s.push(
-      `\nClosed on these dates, whatever the opening hours above say:\n${closed
+      `\n${PROMPT_OPENINGS.closures}, whatever the opening hours above say:\n${closed
         .map((l) => `- ${l}`)
         .join("\n")}\nIf someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`,
     );
@@ -1076,11 +1111,11 @@ function composeSystemPromptWith(
       if (sv.price_note) bits.push(sv.price_note);
       return `- ${bits.join(" — ")}`;
     });
-    s.push(`\nServices:\n${lines.join("\n")}`);
+    s.push(`\n${PROMPT_OPENINGS.services}\n${lines.join("\n")}`);
   }
 
   if (profile.notes?.length) {
-    s.push(`\nOther things to know:\n${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
+    s.push(`\n${PROMPT_OPENINGS.notes}\n${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
 
   const br = profile.booking_rules;
@@ -1096,7 +1131,7 @@ function composeSystemPromptWith(
     if (br.consult_first?.length) lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
     if (br.party_max) lines.push(`Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`);
     for (const n of br.notes ?? []) lines.push(n);
-    s.push(`\nBooking rules:\n${lines.map((l) => `- ${l}`).join("\n")}`);
+    s.push(`\n${PROMPT_OPENINGS.bookingRules}\n${lines.map((l) => `- ${l}`).join("\n")}`);
   }
 
   // HOW to hand off, not just when — and unconditionally, because the product
@@ -1120,7 +1155,7 @@ function composeSystemPromptWith(
       ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`
       : "";
     s.push(
-      `\nHanding the conversation to a person:\n` +
+      `\n${PROMPT_OPENINGS.handoffChat}\n` +
         `Put the exact token [[HUMAN]] at the very end of your reply. It is removed ` +
         `before the customer sees it, and it is the only thing that alerts a human — ` +
         `saying you will fetch someone does nothing on its own. Write the reply you ` +
@@ -1147,11 +1182,11 @@ function composeSystemPromptWith(
         "Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up."
       : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
     s.push(
-      `\nHanding the caller to a person:\n${staffed}\n` +
+      `\n${PROMPT_OPENINGS.handoffCall}\n${staffed}\n` +
         `Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
     );
     s.push(
-      "\nOpen times: use check_availability before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n" +
+      `\n${PROMPT_OPENINGS.callTools} before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n` +
         "Booking: when the caller wants to book, use send_booking_link — it texts the booking link to the number they are calling from, " +
         "so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. " +
         "If it fails, give the phone number above and offer to have someone follow up.\n" +
@@ -1185,10 +1220,10 @@ function composeSystemPromptWith(
     // came from. The channel line below and the rules after it still win.
     const header = [
       stated
-        ? `Further instructions from the business. Where these disagree with the ${joinList(above)} above, the details above are current and correct.`
+        ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.`
         : "",
       channel === "voice"
-        ? "Some of it was written for text conversations; you are on a phone call."
+        ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.`
         : "",
     ]
       .filter(Boolean)
@@ -1199,15 +1234,15 @@ function composeSystemPromptWith(
   // Medium, not facts. A phone caller cannot re-read a paragraph.
   s.push(
     channel === "voice"
-      ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead."
-      : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book.",
+      ? `\n${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead.`
+      : `\n${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`,
   );
 
   // Open times, when the workspace has a calendar feed, arrive AFTER these
   // instructions (with the clock: they change by the minute and must not
   // evict the cached profile). The receptionist names them; it never books.
   s.push(
-    "\nIf open times are listed after these instructions, offer up to three that fit what the customer wants, then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link.",
+    `\n${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link.`,
   );
 
   // LAST, and never optional.
@@ -1229,7 +1264,7 @@ function composeSystemPromptWith(
   // The Autonomy pane's Booking and FAQ rows, as rules — the same words on
   // both channels' prompts, so a switch flipped once changes both.
   rules.push(...policyRules(policy, channel));
-  if (rules.length) s.push(`\nRules you must follow:\n${rules.map((r) => `- ${r}`).join("\n")}`);
+  if (rules.length) s.push(`\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`);
 
   return s.join("\n");
 }
@@ -1270,7 +1305,7 @@ export function resolveSystemPrompt(
 ): string {
   if (!hasProfile(brain.profile)) {
     const rules = policyRules(policy, channel);
-    return rules.length ? `${brain.system_prompt}\n\nRules you must follow:\n${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
+    return rules.length ? `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   }
   const profile = brain.profile as BusinessProfile;
   const facts = resolveFacts(brain, known);
