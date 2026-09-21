@@ -191,7 +191,8 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
   assert.equal(run.state, "scheduled");
   assert.ok(Date.parse(run.scheduled_for) >= t0 && Date.parse(run.scheduled_for) <= Date.now(), "now: not the veto's half hour, not the ask's wait");
   assert.equal(run.name, `Win-back · ${today}`);
-  assert.deepEqual(run.audience, { kind: "playbook", id: P, label: "Win-back" });
+  // And who it held back, kept on the run: three on the list, one who never said yes to offers.
+  assert.deepEqual(run.audience, { kind: "playbook", id: P, label: "Win-back", reach: { pool: 3, purpose: "marketing", gap_days: 90, held: { no_number: 0, stopped: 0, no_yes: 1, gap: 0, week: 0, cap: 0, limit: 0 } } });
   assert.deepEqual(run.params, [{ kind: "first_name" }]);
   assert.equal(run.recipient_count, 2);
   assert.equal(run.created_by, U, "the person who asked, not the playbook's owner");

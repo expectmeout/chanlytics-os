@@ -69,6 +69,34 @@ export interface Audience {
   /** A People list id (kind "list") or a saved list id (kind "saved"). */
   id: string | null;
   label: string;
+  /** A playbook's run: how many its trigger named when it was made, and who it held back and why (reachOfPlaybook). */
+  reach?: RunReach;
+}
+
+/**
+ * Who a playbook's run held back when it was made, each counted once, by the
+ * first rule that held them: no number to send to, a stop (they asked, or are
+ * on the do-not-contact list), the answer they never gave (the yes this
+ * purpose needs), a message from this playbook inside its gap, one from any
+ * playbook this week, past the run's cap, past the number's daily limit.
+ */
+export interface RunHeld {
+  no_number: number;
+  stopped: number;
+  no_yes: number;
+  gap: number;
+  week: number;
+  cap: number;
+  limit: number;
+}
+
+/** A run's reach as it keeps it: everyone its trigger named, who it held back, and the purpose and gap its words need. */
+export interface RunReach {
+  pool: number;
+  held: RunHeld;
+  purpose: SendPurpose;
+  /** The gap in days a message from this playbook keeps; null for a visit's, which has none. */
+  gap_days: number | null;
 }
 
 export const EVERYONE_LABEL = "Everyone who said yes";

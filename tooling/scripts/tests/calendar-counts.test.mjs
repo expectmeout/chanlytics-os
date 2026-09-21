@@ -96,6 +96,9 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   assert.equal(calendar, "none");
   assert.equal(pools.everyone_monthly.candidates, PEOPLE_PAGE + 3 - 2 - 2, "everyone who said yes and may be texted, past the first page, less the two reached this week");
   assert.equal(pools.everyone_monthly.held, 2, "the two wait for the week's breath: held, not hidden");
+  // Out of everyone the trigger names, with who cannot be written to counted apart: the tile's grey and its words.
+  assert.equal(pools.everyone_monthly.pool, PEOPLE_PAGE + 3, "everyone, whatever they said");
+  assert.deepEqual([pools.everyone_monthly.no_yes, pools.everyone_monthly.stopped, pools.everyone_monthly.no_number], [1, 1, 0], "one never said yes to offers; one asked to stop -- not the same thing");
   assert.deepEqual(Object.keys(pools).sort(), ["everyone_monthly", "new_week", "phoned_only", "quiet_30", "visit_tomorrow", "visited"]);
   assert.equal(pools.visit_tomorrow.candidates, 0, "no calendar, nobody has a visit tomorrow");
 

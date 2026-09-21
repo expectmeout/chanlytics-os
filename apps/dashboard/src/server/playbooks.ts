@@ -1,5 +1,5 @@
 import "server-only";
-import { eligibleForPlaybook, parseParamSpecs, PLAYBOOK_TRIGGERS, toPersonRowVM, type PersonRowDto, type PlaybookDto, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
+import { parseParamSpecs, PLAYBOOK_TRIGGERS, reachOfPlaybook, toPersonRowVM, type PersonRowDto, type PlaybookDto, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
@@ -105,6 +105,12 @@ export interface TriggerPool {
   candidates: number;
   /** Who waits only for the week's breath: eligible, but reached by some broadcast within the week. */
   held: number;
+  /** Everyone the trigger names, whatever they said: what a tile's bar is out of. */
+  pool: number;
+  /** Who it names that cannot be written to, and why: the yes never given, a stop, no number -- the bar's grey. */
+  no_yes: number;
+  stopped: number;
+  no_number: number;
 }
 
 /**
@@ -130,14 +136,13 @@ export async function triggerPools(ctx: RouteContext, tenantId: string, touched:
   });
   const calendar = pv?.calendar.state ?? "none";
   const vms = rows.map((r) => toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now));
-  const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
   const breath = { byThis: new Map<string, number>(), byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])) };
-  const count = (trigger: string, touches: typeof untouched) =>
-    eligibleForPlaybook(vms, { trigger: trigger as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length;
+  // One pass per trigger, the runner's own: who a run would pick, who waits for the week's breath, and who never said
+  // yes -- each held once, by the first rule that holds them (reachOfPlaybook).
   const pools: Record<string, TriggerPool> = {};
   for (const t of PLAYBOOK_TRIGGERS) {
-    const candidates = count(t.id, breath);
-    pools[t.id] = { candidates, held: Math.max(0, count(t.id, untouched) - candidates) };
+    const r = reachOfPlaybook(vms, { trigger: t.id as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, breath, now.getTime());
+    pools[t.id] = { candidates: r.eligible.length, held: r.held.week, pool: r.pool, no_yes: r.held.no_yes, stopped: r.held.stopped, no_number: r.held.no_number };
   }
   return { pools, calendar };
 }

@@ -130,9 +130,12 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   // Out of everyone on the moment's list who said yes. A paused playbook counts
   // nobody of its own, so its moment's count says how many it is not reaching.
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
-  const pool = Math.max(will, p.candidates + p.held, trig ? (trig.candidates || 0) + (trig.held || 0) : 0);
+  // Out of everyone on the moment's list, when the surface says it: the grey is who never said yes (reachOfPlaybook).
+  const never = p.never || 0;
+  const pool = Math.max(will, p.candidates + p.held + never, p.pool || 0, trig ? (trig.candidates || 0) + (trig.held || 0) : 0);
   const reasons = [
     paused && { t: "paused — nothing goes out", tone: "warn" },
+    ...(!paused && never > 0 ? (p.neverWhy || PB_NONE).map((t) => ({ t, tone: "plain" })) : PB_NONE),
     !paused && p.held > 0 && { t: `${p.held} heard from a playbook this week`, tone: "warn" },
     !paused && !waiting && p.candidates > p.cap_per_run && { t: `up to ${p.cap_per_run} a run — the rest go next time`, tone: "plain" },
     ...langs.filter((l) => !l.status).map((l) => ({ t: `${l.label} was never added`, tone: "plain" })),
@@ -162,7 +165,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
               </span>
             ))}
           </div>
-          <window.CmReach will={will} pool={pool} of="who said yes" held={paused ? pool : p.held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
+          <window.CmReach will={will} pool={pool} of={p.pool ? null : "who said yes"} held={paused ? pool : p.held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
           <div className="pb-tile-foot">
             {/* A run waiting on the owner: the line says what the press does, and
                 the press opens the card where Approve and Skip are. */}

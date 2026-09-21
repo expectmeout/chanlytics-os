@@ -129,7 +129,8 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   assert.deepEqual(ops(), ["create", "enrol", "schedule", "decide", "record"]);
   assert.deepEqual(of("create")[0][1], {
     name: "Win-back · 2026-09-06", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US", params: [{ kind: "first_name" }],
-    audience: { kind: "playbook", id: "p1", label: "Win-back" }, state: "scheduled", scheduled_for: NOW.toISOString(), recipient_count: 2, created_by: "owner", playbook_id: "p1", run_for: "2026-09-06",
+    // The run keeps who it held back: here, nobody -- both people are quiet, said yes, and are due.
+    audience: { kind: "playbook", id: "p1", label: "Win-back", reach: { pool: 2, purpose: "marketing", gap_days: 90, held: { no_number: 0, stopped: 0, no_yes: 0, gap: 0, week: 0, cap: 0, limit: 0 } } }, state: "scheduled", scheduled_for: NOW.toISOString(), recipient_count: 2, created_by: "owner", playbook_id: "p1", run_for: "2026-09-06",
   });
   assert.deepEqual(of("schedule")[0], ["schedule", "b1", NOW]);
   assert.deepEqual(of("decide")[0][1], { broadcastId: "b1", by: { kind: "system" }, payload: { playbook_id: "p1", playbook: "Win-back", mode: "auto", recipients: 2, scheduled_for: NOW.toISOString(), run_now: false } });

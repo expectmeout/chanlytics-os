@@ -111,8 +111,19 @@ const BcSheet = ({ d, people, avm, sheet, onClose, seeAll, onSeeAll }) => {
           <div className="bc-sheet-sub">Playbook · {hint} · {avm.goes}</div>
         </div>
         <div className="bc-sheet-reach" data-testid="bc-sheet-reach">
-          <div className="bc-sheet-n"><span className="bc-sheet-v tabular">{avm.will}</span><span className="bc-sheet-will">will get it</span></div>
-          <div className="bc-sheet-bar" aria-hidden="true"><span /></div>
+          <div className="bc-sheet-n"><span className="bc-sheet-v tabular">{avm.will}</span><span className="bc-sheet-will">{avm.pool !== null ? <>of <span className="tabular">{avm.pool}</span> will get it</> : "will get it"}</span></div>
+          {/* Out of everyone its trigger named, when the run kept them: green who gets it, amber who waits by a rule, grey who never said yes. */}
+          <div className="bc-sheet-bar" aria-hidden="true">
+            {avm.pool && avm.split
+              ? (
+                <>
+                  <span className="is-will" style={{ width: `${Math.round((avm.will / Math.max(avm.pool, 1)) * 100)}%` }} />
+                  {avm.split.waiting > 0 && <span className="is-waiting" style={{ width: `${Math.round((avm.split.waiting / Math.max(avm.pool, 1)) * 100)}%` }} />}
+                  {avm.split.never > 0 && <span className="is-never" />}
+                </>
+              )
+              : <span className="is-all" />}
+          </div>
           {avm.rules.length > 0 && <div className="bc-sheet-rules">{avm.rules.map((r) => <div key={r}>{r}</div>)}</div>}
         </div>
         {parts.length > 0 && (
@@ -656,7 +667,12 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
   // Who it reaches: to come, the people it holds; going out, how far it has got;
   // gone, how many it sent out of those it was for, with the rest named.
   const will = finished || sending ? row.counts.sent : row.recipient_count;
-  const pool = Math.max(row.recipient_count, will + held);
+  // A run to come that kept who it held back -- a playbook's, made since runs keep it -- is out of everyone its
+  // trigger named: the amber of who waits by a rule, the grey of who never said yes, each said.
+  const kept = !finished && !sending && row.audience && row.audience.reach ? row.audience.reach : null;
+  const B = window.__broadcasts || {};
+  const keptSplit = kept && B.reachSplit ? B.reachSplit(kept) : null;
+  const pool = kept ? Math.max(kept.pool, will) : Math.max(row.recipient_count, will + held);
   const reasons = sending ? [{ t: `${done} of ${row.recipient_count} done`, tone: "plain" }]
     : finished ? [
       row.counts.skipped > 0 && { t: `${row.counts.skipped} held back`, tone: "warn" },
@@ -664,6 +680,7 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
       row.state === "failed" && row.failureLabel && { t: row.failureLabel, tone: "warn" },
       !held && row.state !== "failed" && { t: `${row.counts.delivered || 0} delivered · ${row.counts.replied || 0} ${row.counts.replied === 1 ? "reply" : "replies"}`, tone: "plain" },
     ].filter(Boolean)
+    : kept && B.reachLines ? B.reachLines(kept).map((l) => ({ t: l.t, tone: l.part === "waiting" ? "warn" : "plain" }))
     : [];
   const inner = (
     <>
@@ -683,7 +700,7 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
           </div>
         </div>
         <div className="bc-run-reach">
-          <window.CmReach will={will} pool={pool} held={finished ? held : 0} reasons={reasons} size="sm" progress={sending ? row.progress || 0 : null} label={`${row.name}, sent so far`} />
+          <window.CmReach will={will} pool={pool} held={finished ? held : keptSplit ? keptSplit.waiting : 0} reasons={reasons} size="sm" progress={sending ? row.progress || 0 : null} label={`${row.name}, sent so far`} />
         </div>
         <div className="bc-run-acts">
           {soon && <span className="bc-run-soon tabular" data-testid="bc-soon" title="Until it goes">{soon}</span>}

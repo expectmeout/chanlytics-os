@@ -1,4 +1,4 @@
-import { eligibleForPlaybook, localDate, nextOpenMoment, parseParamSpecs, planRun, triggerOf, visitFactsFor, type PersonRowVM, type PlaybookTrigger, type RunPlan } from "@chanlytics/contracts";
+import { localDate, nextOpenMoment, parseParamSpecs, planRun, playbookGapDays, purposeOfPlaybook, reachOfPlaybook, triggerOf, visitFactsFor, type PersonRowVM, type PlaybookTrigger, type RunPlan } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import type { RunOutcome, RunPlaybookCommand, RunPlaybookPorts } from "./ports";
 
@@ -62,13 +62,10 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // A visit playbook without a calendar has nothing to read: off, and the run says so.
   if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") return off("no_calendar");
 
-  // Who the run reaches, with the number's daily limit as a ceiling.
-  let eligible = eligibleForPlaybook(
-    ctx.people,
-    { trigger: p.trigger as PlaybookTrigger, cap_per_run: p.cap_per_run, gap_days: p.gap_days, cadence_days: p.cadence_days },
-    { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny },
-    now.getTime(),
-  );
+  // Who the run reaches, and who it holds back and why -- one pass -- with the number's daily limit as a ceiling.
+  const shape = { trigger: p.trigger as PlaybookTrigger, cap_per_run: p.cap_per_run, gap_days: p.gap_days, cadence_days: p.cadence_days };
+  const reach = reachOfPlaybook(ctx.people, shape, { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny }, now.getTime());
+  let eligible = reach.eligible;
   // The number's own daily limit is the one ceiling a reminder meets; the
   // people past it are named in the run's record, never dropped in silence.
   let dropped = 0;
@@ -97,7 +94,16 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       template_name: p.template_name,
       template_language: p.template_language,
       params: specs,
-      audience: { kind: "playbook", id: p.id, label: p.name },
+      // The run keeps who it held back and why, so a run to come can say "186 of 312" rather than one full bar.
+      audience: {
+        kind: "playbook", id: p.id, label: p.name,
+        reach: {
+          pool: reach.pool,
+          purpose: purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null),
+          gap_days: triggerOf(p.trigger)?.kind === "visit" ? null : playbookGapDays(shape),
+          held: { ...reach.held, limit: dropped },
+        },
+      },
       state: plan.state,
       scheduled_for: (open ? open.at : now).toISOString(),
       recipient_count: n,

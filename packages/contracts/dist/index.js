@@ -7249,29 +7249,78 @@ function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 function eligibleForPlaybook(rows, p, touches, nowMs) {
+  return reachOfPlaybook(rows, p, touches, nowMs).eligible;
+}
+function playbookGapDays(p) {
+  return p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days;
+}
+function reachOfPlaybook(rows, p, touches, nowMs) {
+  const held = { no_number: 0, stopped: 0, no_yes: 0, gap: 0, week: 0, cap: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return [];
+  if (!t) return { eligible: [], pool: 0, held };
   const purpose = purposeOfPlaybook(t.cls);
-  if (t.kind === "visit") {
-    const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
-    });
-    pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
-    return pool2;
+  const list2 = t.list ? PEOPLE_LISTS.find((l) => l.id === t.list) : null;
+  const named = t.kind === "visit" ? rows.filter((r) => {
+    if (!r.calendarTz) return false;
+    if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
+    return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
+  }) : t.list ? list2 ? rows.filter(list2.test) : [] : rows;
+  const reached = [];
+  for (const r of named) {
+    if (!r.phone) {
+      held.no_number += 1;
+      continue;
+    }
+    if (mayReceive(r, purpose)) {
+      reached.push(r);
+      continue;
+    }
+    const why = mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true });
+    if (!why.ok && why.reason === "opted_out") held.stopped += 1;
+    else held.no_yes += 1;
   }
-  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS6;
-  const picked = pool.filter((r) => {
+  if (t.kind === "visit") {
+    reached.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
+    return { eligible: reached, pool: named.length, held };
+  }
+  const gapMs = playbookGapDays(p) * DAY_MS6;
+  const picked = [];
+  for (const r of reached) {
     const mine = touches.byThis.get(r.id);
-    if (mine !== void 0 && nowMs - mine < gapMs) return false;
+    if (mine !== void 0 && nowMs - mine < gapMs) {
+      held.gap += 1;
+      continue;
+    }
     const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) return false;
-    return true;
-  });
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) {
+      held.week += 1;
+      continue;
+    }
+    picked.push(r);
+  }
   picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
-  return picked.slice(0, Math.max(1, p.cap_per_run));
+  const cap2 = Math.max(1, p.cap_per_run);
+  held.cap = Math.max(0, picked.length - cap2);
+  return { eligible: picked.slice(0, cap2), pool: named.length, held };
+}
+function reachWords(reach) {
+  return reachLines(reach).map((l) => l.t);
+}
+function reachLines(reach) {
+  const h = reach.held;
+  const out = [];
+  if (h.no_yes) out.push({ t: `${h.no_yes} never said yes to ${reach.purpose === "marketing" ? "offers" : "hearing from you"}`, part: "never" });
+  if (h.stopped) out.push({ t: `${h.stopped} asked to stop`, part: "never" });
+  if (h.no_number) out.push({ t: `${h.no_number} ${h.no_number === 1 ? "has" : "have"} no number`, part: "never" });
+  if (h.week) out.push({ t: `${h.week} heard from a playbook this week`, part: "waiting" });
+  if (h.gap) out.push({ t: `${h.gap} heard from this playbook in the last ${reach.gap_days ?? 0} days`, part: "waiting" });
+  if (h.cap) out.push({ t: `${h.cap} ${h.cap === 1 ? "waits" : "wait"} for the next run`, part: "waiting" });
+  if (h.limit) out.push({ t: `${h.limit} over the number's daily limit`, part: "waiting" });
+  return out;
+}
+function reachSplit(reach) {
+  const h = reach.held;
+  return { never: h.no_yes + (h.stopped || 0) + h.no_number, waiting: h.week + h.gap + h.cap + (h.limit || 0) };
 }
 function planRun(mode, now) {
   switch (mode) {
@@ -7383,8 +7432,9 @@ function toApprovalVM(d, opts) {
   const b = d.broadcast;
   const will = b.recipient_count;
   const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
-  const rules = [];
-  if (t && opts.playbook) {
+  const kept = b.audience && b.audience.reach ? b.audience.reach : null;
+  const rules = kept ? reachWords(kept) : [];
+  if (!kept && t && opts.playbook) {
     rules.push(purposeOfPlaybook(t.cls) === "marketing" ? "each said yes to offers" : "each said yes to hearing from you");
     if (t.kind === "visit") {
       rules.push(opts.playbook.trigger === "visit_tomorrow" ? "each has a visit tomorrow on the calendar" : "each visited yesterday and has nothing booked next");
@@ -7415,6 +7465,8 @@ function toApprovalVM(d, opts) {
   const late = !!b.run_for && b.run_for !== opts.today;
   return {
     will,
+    pool: kept ? kept.pool : null,
+    split: kept ? reachSplit(kept) : null,
     rules,
     values,
     reader: reader ? reader.name : null,
@@ -13324,6 +13376,7 @@ export {
   platformQueue,
   platformRows,
   platformSummary,
+  playbookGapDays,
   playbookReach,
   playbooksStillSending,
   pointsDelta,
@@ -13340,6 +13393,10 @@ export {
   quantile,
   questionAfterProbe,
   ratingWords,
+  reachLines,
+  reachOfPlaybook,
+  reachSplit,
+  reachWords,
   reachedCustomer,
   readAgoLabel,
   reasonShort,

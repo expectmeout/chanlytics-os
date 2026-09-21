@@ -2637,8 +2637,14 @@ button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2
 .bc-sheet-n { display: flex; align-items: baseline; gap: 6px; }
 .bc-sheet-v { font-family: var(--font-mono); font-size: 26px; font-weight: var(--weight-medium); line-height: 1.15; color: var(--ink); }
 .bc-sheet-will { font-size: var(--text-sm); color: var(--ink-dim); }
-.bc-sheet-bar { display: flex; height: 6px; margin-top: 9px; }
-.bc-sheet-bar > span { flex: 1 1 auto; border-radius: 3px; background: var(--ok); }
+.bc-sheet-bar { display: flex; gap: 2px; height: 6px; margin-top: 9px; }
+.bc-sheet-bar > span { flex: none; background: var(--ok); }
+.bc-sheet-bar > span:first-child { border-radius: 3px 0 0 3px; }
+.bc-sheet-bar > span:last-child { border-radius: 0 3px 3px 0; }
+.bc-sheet-bar > span:only-child { border-radius: 3px; }
+.bc-sheet-bar > .is-all, .bc-sheet-bar > .is-never { flex: 1 1 auto; }
+.bc-sheet-bar > .is-waiting { background: var(--warn); }
+.bc-sheet-bar > .is-never { background: var(--line-strong); }
 .bc-sheet-rules { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; font-size: var(--text-xs); color: var(--ink-dim); }
 /* The words, as its first person reads them: what varies tinted as the preview tints it. */
 .bc-sheet-words { padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--radius-lg); }

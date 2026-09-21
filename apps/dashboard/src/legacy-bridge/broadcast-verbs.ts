@@ -8,7 +8,7 @@
  * refresh map re-reads the Broadcasts surface, so the Scheduled and History
  * rows are the server's — never a row the page invented while it waited.
  */
-import { REPLY_WINDOW_MS, broadcastFailureWords, toApprovalVM, toRunReportVM, type BroadcastDetailDto, type PlaybookDto } from "@chanlytics/contracts";
+import { REPLY_WINDOW_MS, broadcastFailureWords, reachLines, reachSplit, toApprovalVM, toRunReportVM, type BroadcastDetailDto, type PlaybookDto } from "@chanlytics/contracts";
 import { api } from "./api";
 import { broadcastsOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
@@ -36,6 +36,9 @@ export const broadcasts = {
   detail: (id: string) => api()("GET broadcasts/[id]", { params: { id } }),
   /** Why a whole broadcast stopped, in the owner's words, for the detail, which reads the row as the route returns it. */
   failureWords: broadcastFailureWords,
+  /** Who a playbook's run held back when it was made, as its card says it: each reason, and the bar's grey and amber. */
+  reachLines,
+  reachSplit,
   /**
    * One run's report, as the opened run draws it: its five figures, everyone it touched in words, every reply, and
    * why it stopped -- stamped by the business's clock (zone.ts), which the page has installed before it opens a run.

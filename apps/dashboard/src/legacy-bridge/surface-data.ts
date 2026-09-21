@@ -198,7 +198,7 @@ import {
   type CalendarVM,
 } from "@chanlytics/contracts";
 import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, REPLY_WINDOW_WORDS, OFFERS_OPT_IN_PHRASES, audiencePreview, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type AudiencePreview, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
-import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
+import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, reachLines, purposeOfPlaybook, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
  * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
@@ -1001,6 +1001,11 @@ export interface PlaybookCardVM extends PlaybookDto {
   candidates: number;
   /** How many more said yes but heard from a broadcast of any kind this week, and wait. */
   held: number;
+  /** Everyone on the trigger's list, whatever they said, and how many of them cannot be written to: a tile's bar is out of the list. */
+  pool: number;
+  never: number;
+  /** Why, in the contracts' words (reachLines): "94 never said yes to offers", "3 asked to stop". */
+  neverWhy: string[];
 }
 
 export interface PlaybookTriggerOption {
@@ -1013,6 +1018,8 @@ export interface PlaybookTriggerOption {
   kind: string;
   candidates: number;
   held: number;
+  pool: number;
+  never: number;
 }
 
 export interface PlaybooksSurface {
@@ -1060,6 +1067,18 @@ export const playbooksOverride: SurfaceOverride = {
     // the week's breath, over everyone in People with their visits.
     const pool = (trigger: string) => pb.pools?.[trigger]?.candidates ?? 0;
     const held = (trigger: string) => pb.pools?.[trigger]?.held ?? 0;
+    const everyone = (trigger: string) => pb.pools?.[trigger]?.pool ?? 0;
+    const outOf = (trigger: string) => {
+      const pl = pb.pools?.[trigger];
+      return { no_yes: pl?.no_yes ?? 0, stopped: pl?.stopped ?? 0, no_number: pl?.no_number ?? 0 };
+    };
+    const never = (trigger: string) => { const o = outOf(trigger); return o.no_yes + o.stopped + o.no_number; };
+    const neverWhy = (trigger: string) => reachLines({
+      pool: everyone(trigger),
+      purpose: purposeOfPlaybook(triggerOf(trigger)?.cls ?? null),
+      gap_days: null,
+      held: { ...outOf(trigger), gap: 0, week: 0, cap: 0, limit: 0 },
+    }).map((l) => l.t);
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
@@ -1077,11 +1096,14 @@ export const playbooksOverride: SurfaceOverride = {
           next: nextRunLabel(p, tz, now),
           candidates: pool(p.trigger),
           held: held(p.trigger),
+          pool: everyone(p.trigger),
+          never: never(p.trigger),
+          neverWhy: neverWhy(p.trigger),
         };
       }),
       timezone: tz,
       calendar: pb.calendar ?? "none",
-      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id) })),
+      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id), pool: everyone(t.id), never: never(t.id) })),
       templates: tpl instanceof Error
         ? null
         : (tpl.templates ?? [])
