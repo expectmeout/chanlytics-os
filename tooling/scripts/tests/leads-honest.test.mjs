@@ -880,26 +880,44 @@ test("a view starts clean of the view before it: its fit filter and its open map
   assert.equal(searchBox(tree).props.value, "");
 });
 
-test("the list is scrolled back to where it was once the view's rows are the ones on screen -- never over the rows of the view before", async () => {
-  // The pane's ref, found on a first draw and put in place before the next first draw: React sets a ref before it
-  // runs an effect, and the stub runs an effect as it draws.
+/**
+ * The page with a pane a browser could have given it. The pane's ref is found on a first draw and put in place before
+ * the next first draw: React sets a ref before it runs an effect, and the stub runs an effect as it draws. The pane
+ * keeps its scroll listeners with the phase each went up in (a removal takes down only one in that same phase) and its
+ * attributes, and holds the table's own box. scrolls(box) is a scroll as a browser delivers it: it does not bubble, so
+ * a box inside the pane reaches only the pane's capture listeners, and the pane's own scroll reaches them all.
+ */
+const paned = (table) => {
   fresh();
   const paneRef = find(draw(), (n) => String(n.props?.className || "").split(/\s+/).includes("cl-main-scroll")).props.ref;
   const at = cells.indexOf(paneRef);
   assert.ok(at >= 0, "the pane's ref is one of the page's cells");
   const heard = [];
-  const table = { scrollTop: 0, scrollHeight: 6000, clientHeight: 600 };
+  const attrs = {};
+  const capture = (opts) => opts === true || !!(opts && opts.capture);
   const pane = {
     scrollTop: 0, scrollHeight: 600, clientHeight: 600,
-    addEventListener: (type, fn, opts) => { if (type === "scroll" && opts && opts.capture) heard.push(fn); },
-    removeEventListener() {}, setAttribute() {}, removeAttribute() {},
+    addEventListener: (type, fn, opts) => { if (type === "scroll") heard.push({ fn, capture: capture(opts) }); },
+    removeEventListener: (type, fn, opts) => {
+      const i = heard.findIndex((h) => type === "scroll" && h.fn === fn && h.capture === capture(opts));
+      if (i >= 0) heard.splice(i, 1);
+    },
+    setAttribute: (k, v) => { attrs[k] = String(v); },
+    removeAttribute: (k) => { delete attrs[k]; },
     querySelector: (sel) => (sel === ".pl-table-scroll" ? table : null),
   };
-  const mountWithPane = (props) => { cells = []; cells[at] = { current: pane }; for (const k of Object.keys(listeners)) delete listeners[k]; heard.length = 0; draw(props); return draw(props); };
+  const mount = (props) => { cells = []; cells[at] = { current: pane }; for (const k of Object.keys(listeners)) delete listeners[k]; heard.length = 0; draw(props); return draw(props); };
+  const scrolls = (target) => { for (const h of [...heard]) if (h.capture || target === pane) h.fn({ target }); };
+  return { pane, heard, attrs, mount, scrolls };
+};
+
+test("the list is scrolled back to where it was once the view's rows are the ones on screen -- never over the rows of the view before", async () => {
+  // A desktop: the rows overflow the table's own box inside the pane, and that is the box that scrolls.
+  const table = { scrollTop: 0, scrollHeight: 6000, clientHeight: 600 };
+  const { mount: mountWithPane, scrolls } = paned(table);
   mountWithPane();
-  assert.equal(heard.length, 1, "one listener on the pane, in the capture phase: a scroll does not bubble, and the desktop's scroller is the table's own box inside it");
   table.scrollTop = 1380;
-  heard[0]({ target: table });
+  scrolls(table);
   await new Promise((r) => setTimeout(r, 260));
   table.scrollTop = 0;
   mountWithPane();
@@ -914,6 +932,35 @@ test("the list is scrolled back to where it was once the view's rows are the one
   globalThis.window.__LEADS = surface({ view: { searchId: SEARCH_A, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" }, route: `clients/leads:s-${SEARCH_A}` });
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   assert.equal(table.scrollTop, 0, "the new view's rows start at their top");
+});
+
+test("a list that is moving shows no hover, on a desktop too: the pane is marked while the table's own box scrolls, for that box alone, and its listener comes down with the page", async () => {
+  const table = { scrollTop: 0, scrollHeight: 6000, clientHeight: 600 };
+  const { pane, heard, attrs, mount, scrolls } = paned(table);
+  const still = () => new Promise((r) => setTimeout(r, 200));
+  mount();
+  // A desktop: the rows overflow the table's own box, and that is the box that moves.
+  scrolls(table);
+  assert.equal(attrs["data-scrolling"], "1", "REGRESSION: the pane listened for its own scroll only, and on a desktop it never scrolls -- the cards stayed up over a moving list (seen in a browser)");
+  scrolls(table);
+  await still();
+  assert.equal(attrs["data-scrolling"], undefined, "still again: they may show");
+  // Some other box inside the pane (a menu's list, a card's text) is not the list moving.
+  scrolls({ scrollTop: 40, scrollHeight: 900, clientHeight: 300 });
+  assert.equal(attrs["data-scrolling"], undefined, "a box that is not the list's marks nothing");
+  // A phone: the table's box holds every row, and the pane is what scrolls.
+  table.scrollHeight = 600;
+  scrolls(table);
+  assert.equal(attrs["data-scrolling"], undefined, "the table's box is not the scroller when nothing overflows it");
+  scrolls(pane);
+  assert.equal(attrs["data-scrolling"], "1", "on a phone the pane moves, and is marked as it always was");
+  await still();
+  assert.equal(attrs["data-scrolling"], undefined);
+  // The page turns to People: what it put on the pane for Leads comes down in the phase it went up in (a browser
+  // removes a capture listener only when told it is one), and the one a moving list needs goes up again.
+  assert.deepEqual(heard.map((h) => h.capture), [true, true], "on Leads: this listener, and the one that keeps the place");
+  draw({ scope: "people", leadsRoute: null });
+  assert.deepEqual(heard.map((h) => h.capture), [true], "nothing of Leads is left listening");
 });
 
 test("typing in the box keeps the selection: leads the words hide are still selected when the box is cleared, and the bar says how many it is not showing", () => {
