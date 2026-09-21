@@ -798,6 +798,7 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
   const drawn = peeks.length;
   at(`leads:s-${SEARCH_A}`);
   assert.equal(peeks.length, drawn, "the view changed under the lead, so the lead is closed");
+  assert.equal(byTestId(draw({ leadsRoute: `leads:s-${SEARCH_A}` }), "leads-bulk-bar"), null, "and a selection never outlives its view");
   assert.equal(navs.length, said, "and the old view's lead is not written onto the new view's address");
   assert.equal(calls.filter(([what]) => what === "view").length, 2, "the new view is read, once");
 });

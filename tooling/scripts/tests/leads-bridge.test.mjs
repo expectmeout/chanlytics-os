@@ -284,7 +284,7 @@ test("the courier installs exactly the names the page and the screens call, and 
     "__leadsBulk", "__leadsMore", "__leadsRouteOf", "__leadsRouteParse", "__leadsStanding", "__leadsTakeOffered", "__leadsView",
   ]);
   assert.equal(globalThis.window.__leadsRouteOf({ searchId: SEARCH_ID, list: "ready", cls: null }), `clients/leads:s-${SEARCH_ID}:l-ready`);
-  assert.deepEqual(globalThis.window.__leadsRouteParse(`clients/leads:s-${SEARCH_ID}:l-ready`), { searchId: SEARCH_ID, list: "ready", cls: null, chips: {} });
+  assert.deepEqual(globalThis.window.__leadsRouteParse(`clients/leads:s-${SEARCH_ID}:l-ready`), { searchId: SEARCH_ID, list: "ready", cls: null, chips: {}, peek: null });
   assert.equal(globalThis.window.__leadRail(COUNTS, [SEARCH_DONE]).searches[0].count, 322);
   assert.equal(globalThis.window.__leadsStanding(COUNTS, [SEARCH_DONE]).total, "322 leads");
   // The words a lead wears are seeded whole in seed-globals.ts (__LEAD_WORDS, __LEAD_VM); the courier carries acts.
