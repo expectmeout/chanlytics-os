@@ -256,9 +256,13 @@
 /* The shape an email state wears beside its word (PRD 10.4). */
 .ld-shape { display: inline-grid; place-items: center; flex: none; }
 .ld-shape-ok { color: var(--ok-ink); }
-.ld-shape-catch_all, .ld-shape-checking { color: var(--ink-muted); }
+/* One rule each, in the tone the registry gives them (contracts/tone.ts). These three shared one grey: a check
+   still RUNNING and a server that accepts EVERY address both read as "nothing here", and a bounce -- the one state
+   that means you cannot reach them -- was the faintest thing on the row. */
+.ld-shape-catch_all { color: var(--warn-ink); }
+.ld-shape-checking { color: var(--info-ink); }
 .ld-shape-unknown { color: var(--warn-ink); }
-.ld-shape-invalid { color: var(--ink-faint); }
+.ld-shape-invalid { color: var(--danger-ink); }
 .ld-shape.spin { animation: ld-spin 1.1s linear infinite; }
 @keyframes ld-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ld-shape.spin { animation: none; } }
@@ -299,7 +303,7 @@
 .ld-reach-phone.wrong { text-decoration: line-through; color: var(--ink-faint); }
 .ld-biz-name { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: left; cursor: pointer; }
 .ld-badge { margin-left: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
-.ld-fit-cell.qualified { color: var(--ink); }
+.ld-fit-cell.qualified { color: var(--ink-muted); }
 .ld-fit-cell.review { color: var(--warn-ink); }
 .ld-fit-cell.excluded { color: var(--ink-dim); }
 .ld-email-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -307,7 +311,8 @@
 .ld-why-cell { max-width: 34ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ld-rating-cell, .ld-found-cell, .ld-distance-cell { font-variant-numeric: tabular-nums; }
 .ld-dot { width: 7px; height: 7px; border-radius: var(--radius-full); display: inline-block; margin-right: 6px; background: var(--ink-faint); }
-.ld-dot.ready { background: var(--accent); }
+/* Ready has no rule: it takes the plain base, like every other silent default. The accent belongs to what is live
+   right now (tokens.css), and it was sitting on the state every lead is born in. */
 .ld-dot.nurture { background: var(--info); }
 .ld-dot.converted { background: var(--ok); }
 .ld-dot.archived { background: var(--ink-faint); }
@@ -509,7 +514,9 @@
    the app's. Every rule here is a token or a measure, nothing a colour of its
    own, so the dark theme needs nothing more. */
 
-.leads-scope { --lead-ok: var(--ok-ink); --lead-part: var(--warn-ink); --lead-none: var(--ink-dim); --lead-bad: var(--danger-ink); --lead-wait: var(--ink-dim); }
+/* The reach glyph's five colours, from the registry's reach kind. The wait colour was the same grey as the
+   nothing-found colour, so a check in flight and a search that found no address were the same mark. */
+.leads-scope { --lead-ok: var(--ok-ink); --lead-part: var(--warn-ink); --lead-none: var(--ink-dim); --lead-bad: var(--danger-ink); --lead-wait: var(--info-ink); }
 
 /* The row: 62px, so the tile has room and the sub-line breathes. */
 .leads-scope .cl-table tbody tr:has(td.ld-biz-cell) td { padding-top: 7px; padding-bottom: 7px; }
@@ -879,12 +886,16 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-pin:hover, .ld-pin.on { transform: translate(-50%, -50%) scale(1.5); z-index: 2; }
 .ld-pin:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .ld-pin-dot { display: inline-block; }
-.tone-strong, .tone-ok, .tone-ready { background: var(--ok); }
-.tone-look, .tone-part, .tone-review { background: var(--warn); }
-.tone-long, .tone-none { background: var(--ink-faint); }
-.tone-out, .tone-bad { background: var(--danger); }
-.tone-contacted { background: var(--line-strong); }
-.tone-talking { background: var(--info); }
+/* A pin says the same thing a row dot says. These disagreed on two states: ready was healthy green on the map and
+   the accent on a row, talking was blue on the map and green on a row. Both now read from the registry, and a pin
+   never wears the accent, because a pin is data (the chart kit's rule). */
+.tone-strong, .tone-ok, .tone-talking { background: var(--ok); }
+.tone-look, .tone-part, .tone-review, .tone-unknown { background: var(--warn); }
+.tone-long, .tone-none, .tone-ready, .tone-out { background: var(--ink-faint); }
+.tone-bad { background: var(--danger); }
+.tone-contacted { background: var(--info); }
+/* Left out is plain like a long shot, so it steps back instead by being quieter. */
+.ld-pin.tone-out, .ld-pin-dot.tone-out { opacity: .55; }
 .ld-map-card { position: absolute; left: 12px; bottom: 12px; right: 12px; max-width: 380px; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-md); }
 .ld-map-card .b { min-width: 0; flex: 1; }
 .ld-map-card .n { font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

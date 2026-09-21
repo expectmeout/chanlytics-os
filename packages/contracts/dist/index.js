@@ -11043,68 +11043,6 @@ var SCHEMA_SETS = {
   "tenants.status": ["active", "paused", "test"]
 };
 
-// src/tone.ts
-var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
-var TONE_OF = {
-  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
-  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
-  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
-  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
-  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
-  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
-  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
-  playbook: { running: "accent", paused: "warn", approval: "warn" },
-  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
-  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
-  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
-  role: { owner: "info", operator: "plain", viewer: "plain" },
-  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
-  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
-  escalation: { open: "warn", resolved: "ok" }
-};
-var LABEL_OF = {
-  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
-  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
-  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
-  person: PERSON_STATE_LABELS,
-  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
-  mode: PERSON_MODE_WORDS,
-  broadcast: BROADCAST_STATE_LABELS,
-  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
-  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
-  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
-  setup: SETUP_STATE_WORDS,
-  role: ROLE_WORDS,
-  calendar: CALENDAR_FEED_WORDS,
-  escalation: { open: "Open", resolved: "Resolved" }
-};
-function stateTone(kind, value) {
-  return typeof value === "string" && TONE_OF[kind][value] || "plain";
-}
-function stateLabel(kind, value) {
-  const v = typeof value === "string" ? value : String(value ?? "");
-  return LABEL_OF[kind]?.[v] ?? v;
-}
-function stateOf(kind, value) {
-  return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
-}
-
-// src/erasure.ts
-async function keyedDigest(tenantId, identifier) {
-  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-function erasedPhoneHash(tenantId, phoneE164) {
-  return keyedDigest(tenantId, phoneE164);
-}
-function erasedEmailHash(tenantId, email) {
-  return keyedDigest(tenantId, email);
-}
-function leadSuppressionHash(tenantId, value) {
-  return keyedDigest(tenantId, value);
-}
-
 // src/leads.ts
 import { z as z7 } from "zod";
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
@@ -11142,6 +11080,7 @@ var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 var LEAD_SUPPRESSING_WHY = "customer";
 var LEAD_REVIEW_WORD = "Needs review";
 var LEAD_LEFT_OUT_WORD = "Left out";
+var LEAD_CLASS_WORDS = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
 var LEAD_UNREACHABLE_WORD = "No way to reach them";
 var LEAD_CHECK_GROUP_WORDS = { seen: "Seen", read: "Claude's read" };
 var LEAD_CHECK_UNSURE = "Couldn't tell";
@@ -12004,6 +11943,81 @@ function leadPlanAsk(plan, facts) {
   return { count, label, covers };
 }
 
+// src/tone.ts
+var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
+var TONE_OF = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  escalation: { open: "warn", resolved: "ok" },
+  // Ready is the silent default every lead starts in, so it is plain: the eye should be drawn to what has moved.
+  lead_class: { qualified: "plain", review: "warn", excluded: "plain" },
+  lead_stage: { ready: "plain", nurture: "info", converted: "ok", archived: "plain" },
+  // A strong fit is a good outcome, not an urgent one. Only the accent means "right now".
+  lead_fit: { strong: "ok", look: "plain", long: "plain" },
+  // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
+  reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
+  lead_call_outcome: LEAD_CALL_OUTCOME_TONES
+};
+var LABEL_OF = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS,
+  broadcast: BROADCAST_STATE_LABELS,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS,
+  role: ROLE_WORDS,
+  calendar: CALENDAR_FEED_WORDS,
+  escalation: { open: "Open", resolved: "Resolved" },
+  lead_class: LEAD_CLASS_WORDS,
+  lead_stage: LEAD_STAGE_WORDS,
+  lead_fit: LEAD_FIT_WORDS,
+  reach: LEAD_EMAIL_WORDS,
+  lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
+};
+function stateTone(kind, value) {
+  return typeof value === "string" && TONE_OF[kind][value] || "plain";
+}
+function stateLabel(kind, value) {
+  const v = typeof value === "string" ? value : String(value ?? "");
+  return LABEL_OF[kind]?.[v] ?? v;
+}
+function stateOf(kind, value) {
+  return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
+}
+
+// src/erasure.ts
+async function keyedDigest(tenantId, identifier) {
+  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function erasedPhoneHash(tenantId, phoneE164) {
+  return keyedDigest(tenantId, phoneE164);
+}
+function erasedEmailHash(tenantId, email) {
+  return keyedDigest(tenantId, email);
+}
+function leadSuppressionHash(tenantId, value) {
+  return keyedDigest(tenantId, value);
+}
+
 // src/lead-judge.ts
 import { z as z8 } from "zod";
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
@@ -12381,6 +12395,7 @@ export {
   LEAD_CHECK_UNSURE,
   LEAD_CHECK_WORDS,
   LEAD_CLASSES,
+  LEAD_CLASS_WORDS,
   LEAD_CLOSED_REASONS,
   LEAD_CLOSED_WORDS,
   LEAD_CONSENT_REFUSAL,

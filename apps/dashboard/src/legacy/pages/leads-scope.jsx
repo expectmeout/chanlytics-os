@@ -300,7 +300,6 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
 
 // Qualified · Needs review · Excluded, under the search that is open: each a count and a view (c-qualified,
 // c-review, c-excluded). The class is not a stage (§9.1): it says whether the place met the plan.
-const LEAD_CLASS_WORDS = { qualified: "Qualified", review: "Needs review", excluded: "Excluded" };
 // The band (D5): one element that says the search's whole shape and filters it. The three classes with their
 // counts are the tabs; the qualified split by fit band draws only when the fits differ (contracts leadBand), and a
 // fit narrows the rows on screen the way an Excluded chip does.
@@ -947,4 +946,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS });
