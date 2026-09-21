@@ -381,8 +381,10 @@ test("the line being said is kept in view without moving the thread under the re
   const view = { top: 56, bottom: 800, height: 744 };
   const line = (top, height = 40) => ({ top, bottom: top + height });
   assert.equal(followBy(line(200), view), 0, "in view: the thread holds still");
-  // Measured on a real thread: ▶ put the player over the first line, which sat at 48, and the thread moved 237px.
+  // Measured on a real thread: ▶ put the player over the first line, which sat at 48, and a quarter of the pane moved
+  // the call's lines 150px down a 567px pane.
   assert.equal(followBy(line(48), view), -8, "REGRESSION: under the player, it comes out just below it and no further");
+  assert.equal(followBy(line(48), { top: 56, bottom: 567, height: 567 }), -8, "the real thread's pane: 8px, where it was 150");
   assert.equal(followBy(line(-300), view), -356, "played from a line above the view: it lands just below the player");
   assert.equal(followBy(line(900), view), 900 - 56 - 186, "below the fold: it comes up to a quarter of the way down, with what follows in view");
   assert.equal(followBy(line(770), view), 770 - 56 - 186, "cut by the foot: the same");
