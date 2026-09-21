@@ -676,6 +676,57 @@ const plLoadView = (scope) => {
   try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people) || "{}") }; } catch { return {}; }
 };
 const plSaveView = (scope, v) => { try { localStorage.setItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people, JSON.stringify(v)); } catch { /* private mode */ } };
+// Where the owner was in each view of Leads: the words in the box, the row the cursor was on, whether the map was
+// open and how far the list was scrolled ({ q, cursor, map, top }). Keyed by the workspace and the view's own route,
+// the last twelve of them. It is the TAB's storage, as the surface cache is: a refresh and a trip to the Inbox keep
+// it, it goes with the tab, and signing out clears it (legacy-bridge/surface-cache.ts). A selection is not part of
+// it: one that came back unseen after a refresh is the kind of thing a bulk act should never find.
+const LD_PLACE_SLOT = "chanlytics.leads.place.v1";
+const LD_PLACE_MAX = 12;
+const ldPlaceId = (view) => { const m = /^\/w\/([^/]+)/.exec((window.location && window.location.pathname) || ""); return `${m ? m[1] : "-"}|${view}`; };
+const ldPlaces = () => { try { return JSON.parse(window.sessionStorage.getItem(LD_PLACE_SLOT) || "{}") || {}; } catch { return {}; } };
+const ldPlaceLoad = (view) => ldPlaces()[ldPlaceId(view)] || null;
+const ldPlaceSave = (view, place) => {
+  try {
+    const all = ldPlaces();
+    const id = ldPlaceId(view);
+    delete all[id];
+    // A view left the way it opens is not remembered at all, and the newest is last, so the oldest is what goes.
+    if (place.q || place.cursor || place.map || place.top) all[id] = place;
+    const ids = Object.keys(all);
+    for (const old of ids.slice(0, Math.max(0, ids.length - LD_PLACE_MAX))) delete all[old];
+    window.sessionStorage.setItem(LD_PLACE_SLOT, JSON.stringify(all));
+  } catch { /* a private window: the place lives for the page */ }
+};
+// A Find that is half-written, for this tab and this workspace: the words, and the plan Claude wrote for them with
+// the card it came on. A plan cost a wait to get, and approving one only posts it (legacy-bridge ask/commit.ts), so
+// it is as good after a refresh as before. A turn still being read, or one being started, is not: it comes back as
+// its words. A day old, it is forgotten.
+const LD_FINDER_SLOT = "chanlytics.leads.finder.v1";
+const LD_FINDER_TTL_MS = 24 * 60 * 60 * 1000;
+const ldFinderLoad = () => {
+  try {
+    const d = JSON.parse(window.sessionStorage.getItem(LD_FINDER_SLOT) || "null");
+    if (!d || d.ws !== ldPlaceId("") || !(Date.now() - d.at < LD_FINDER_TTL_MS)) return null;
+    return d;
+  } catch { return null; }
+};
+const ldFinderSave = (f) => {
+  try {
+    const planned = f.stage === "plan" && !!f.plan;
+    if (!f.words && !planned) { window.sessionStorage.removeItem(LD_FINDER_SLOT); return; }
+    window.sessionStorage.setItem(LD_FINDER_SLOT, JSON.stringify({
+      ws: ldPlaceId(""), at: Date.now(), open: !!f.open, words: f.words || "",
+      stage: planned ? "plan" : "compose", plan: planned ? f.plan : null, proposal: planned ? f.proposal || null : null, more: planned ? f.more || null : null,
+    }));
+  } catch { /* a private window: the draft lives for the page */ }
+};
+// The box that scrolls: on a desktop the table's own (people-table.jsx pl-table-scroll), on a phone the pane itself.
+const ldScroller = (pane) => {
+  if (!pane) return null;
+  const inner = pane.querySelector ? pane.querySelector(".pl-table-scroll") : null;
+  return inner && inner.scrollHeight > inner.clientHeight ? inner : pane;
+};
 // The workspace's copy of the view, one save at a time. Each save replaces the member's whole view (member_view_set),
 // and two in flight could land out of order and leave the older one on the row: while one is out, only the latest view
 // waits, and it goes when that one lands. A save that fails is tried once more, unless a newer view is waiting, which
@@ -1610,7 +1661,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const remembered = React.useMemo(() => ({ ...plLoadView(scope), ...((people.views && people.views[scope]) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
   // Which search, which list and which class this address names (contracts parseLeadsRoute, through the courier).
   // The address is the one place the Leads view's list lives, so the rail, the table and the saved view agree.
-  const leadView = onLeads && window.__leadsRouteParse ? (window.__leadsRouteParse(leadsRoute || "clients/leads") || { searchId: null, list: "all", cls: null, chips: {} }) : null;
+  const leadView = onLeads && window.__leadsRouteParse ? (window.__leadsRouteParse(leadsRoute || "clients/leads") || { searchId: null, list: "all", cls: null, chips: {}, peek: null }) : null;
+  // The view's own route, with no lead open over it, and the lead the address names. The page stays mounted across
+  // its views (app-shell.jsx shellMountKey), so what belongs to a view follows `viewRoute`, never `leadsRoute`: a
+  // lead opened over a view is the same view, and must not read it again or drop what is selected in it.
+  const viewRoute = leadView && window.__leadsRouteOf ? window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls }) : null;
+  const addrPeek = (leadView && leadView.peek) || null;
   // The columns this scope draws with: People's, or the Leads scope's (LEAD_COLUMNS, leads-scope.jsx).
   const cols = onLeads ? LEAD_COLUMNS : PL_COLUMNS;
   // The rail's row, as a name of its own: what a saved view carries and what a read is keyed by, and a name a
@@ -1703,6 +1759,28 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // People's is views.people, the Leads scope's is views.leads, and the page is remounted when the scope changes.
   const viewSaver = React.useRef(null);
   if (!viewSaver.current) viewSaver.current = plViewSaver(scope);
+  // The workspace's copy of every view rides with the People surface. On a cold open of Leads that surface lands
+  // AFTER the page is up (the boot reads the page in the address first, and Leads' gate waits for Leads alone), so
+  // `remembered` above had only this device's copy to go on -- and the page then SAVED that copy, or its defaults,
+  // over what the member had chosen on another computer. Until the workspace's copy has been seen nothing is saved
+  // back, unless the owner chose a sort or a column here, which stands. When the copy arrives it is taken, once;
+  // taking it is not a change to save back either.
+  const peopleLanded = people !== PL_NO_PEOPLE;
+  const serverView = (peopleLanded && people.views && people.views[scope]) || null;
+  const viewKnown = React.useRef(peopleLanded);
+  const viewTouched = React.useRef(false);
+  React.useEffect(() => {
+    if (viewKnown.current || !peopleLanded) return;
+    viewKnown.current = true;
+    if (viewTouched.current || !serverView) return;
+    const by = plSortKeys(cols).includes(serverView.sortBy) ? serverView.sortBy : sortBy;
+    const dir = serverView.sortDir === "asc" || serverView.sortDir === "desc" ? serverView.sortDir : sortDir;
+    const columns = plColumnChoices(cols, serverView.columns);
+    savedView.current = JSON.stringify(onLeads ? { list: leadView.list, sortBy: by, sortDir: dir, columns } : { sortBy: by, sortDir: dir, columns });
+    setSortBy(by);
+    setSortDir(dir);
+    setColChoices(columns);
+  }, [peopleLanded]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     const view = onLeads ? { list: leadView.list, sortBy, sortDir, columns: colChoices } : { sortBy, sortDir, columns: colChoices };
     plSaveView(scope, view);
@@ -1710,6 +1788,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     // what they say does (pickColumn keeps them for Person), so this runs once per change.
     const key = JSON.stringify(view);
     if (key === savedView.current || !window.__saveView) return;
+    if (!viewKnown.current && !viewTouched.current) return;
     savedView.current = key;
     viewSaver.current(view);
   }, [sortBy, sortDir, colChoices, leadList]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1719,7 +1798,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => {
     if (!onLeads || !window.__leadsView) return;
     window.__leadsView({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, chips: leadView.chips, sort: sortBy, dir: sortDir });
-  }, [scope, leadsRoute, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scope, viewRoute, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -1772,6 +1851,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   }, [onLeads]);
 
   const onSort = (key) => {
+    viewTouched.current = true;
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortBy(key); setSortDir(key === "name" || key === "visits" ? "asc" : "desc"); }
   };
@@ -1861,6 +1941,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
   // gives way to Visits once a calendar connects, as it does for everyone.
   const pickColumn = (key) => setColChoices((ch) => {
+    viewTouched.current = true;
     const c = cols.find((x) => x.key === key);
     if (!c || plLocked(c)) return ch;
     const on = !plShows(c, ch, colCtx);
@@ -1896,7 +1977,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // What this scope shows, for the table, the keyboard's cursor and the bulk bar: one list, whichever scope.
   const rowsShown = onLeads ? leadShown : shown;
   const filtered = onLeads ? !!q.trim() || !!chip || !!fitChip || !!leadView.cls || leadView.list !== "all" : tab !== "all" || !!listId || !!savedId || !!q.trim();
-  React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, q, leadsRoute, chip]);
+  // The selection goes with the VIEW, not with the words in the box: someone who selects forty, types a name to find
+  // two more and clears it again still has their forty. Both bars count and act on only the rows they show
+  // (shown AND selected), so a row the words hide is never acted on unseen; "all N that match" is a claim about what
+  // is shown, so the words do take that back.
+  React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, viewRoute, chip]);
+  React.useEffect(() => { setAllMatching(false); }, [q]);
   const shownIds = rowsShown.map((r) => r.id);
   // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
   // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never
@@ -1920,8 +2006,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The cursor's row takes focus, so a screen reader says it and Tab carries on from it, and is scrolled to (under the
   // sticky header: scroll-padding-top). Not when focus is already on it or in it: a row focused by Tab or a click put
   // the cursor here itself (onFocus). It was a scroll inside the state updater, and the row never took focus.
+  // A cursor that came back with the view (the page keeps the owner's place, below) marks its row and takes nothing:
+  // the list has just been put back where it was, and a scrollIntoView after that moved it on again.
+  const cursorCameBack = React.useRef(null);
   React.useEffect(() => {
     if (!cursor || !document.getElementById) return;
+    if (cursorCameBack.current === cursor) { cursorCameBack.current = null; return; }
+    cursorCameBack.current = null;
     // The row's id wears the table's own noun (people-table.jsx), so the cursor and the peek's focus rule find the
     // same element under Leads as under People.
     const row = document.getElementById(`${onLeads ? "lead" : "person"}-${cursor}`);
@@ -1943,6 +2034,107 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The dialog's focus rule (leadPeekFocus): focus moves into the peek when it opens and back to the row when it
   // closes, and the row is the cursor, so Tab carries on from where the owner was.
   React.useEffect(() => { leadPeekFocus(peekId, cursor); }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The lead that is open is part of the address (contracts leadsRoute, `p-`): a refresh keeps it, Back closes it, and
+  // it can be sent to someone. The page's own state still draws the peek; this keeps the two saying one thing.
+  // When the ADDRESS moved -- a link, Back or Forward, a rail pick, the first draw -- the page follows it, and a view
+  // that changed under an open lead closes it. When the PAGE moved, it says so: opening pushes an entry, the cursor
+  // walking the peek on replaces it, and closing goes back to the entry the opening made. A lead that came with the
+  // address has no entry of the page's behind it, so it closes by replacing: going back would leave Leads.
+  const peekAddr = React.useRef({ view: undefined, peek: undefined, asked: null, pushed: false });
+  React.useEffect(() => {
+    if (!onLeads || !window.__leadsRouteOf) return;
+    const a = peekAddr.current;
+    if (a.view !== viewRoute || a.peek !== addrPeek) {
+      a.view = viewRoute;
+      a.peek = addrPeek;
+      a.asked = null;
+      if (!addrPeek) a.pushed = false;
+      if (peekId !== addrPeek) { setPeekId(addrPeek); setPeekMode("info"); setArmed(null); setDraft(null); }
+      return;
+    }
+    if (peekId === addrPeek) return;
+    const want = window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, peek: peekId });
+    // Said once: a push is answered a task later (hashchange), and every draw until then finds the address as it was.
+    if (a.asked === want) return;
+    a.asked = want;
+    if (peekId && !addrPeek && !a.pushed) { a.pushed = true; nav(want); }
+    else if (!peekId && a.pushed && window.history && window.history.back) { a.pushed = false; window.history.back(); }
+    else nav(want, { replace: true });
+  }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The page keeps the owner's place in each view (ldPlaceLoad, above). The page stays mounted from one view to the
+  // next, so a view that is opened -- by the first draw, the rail, Back -- is given ITS place: its own words in the
+  // box, its cursor and its map, or none of them, and never the last view's filters.
+  const placeOf = React.useRef(undefined);  // the view whose place the state below holds
+  const placeNow = React.useRef(null);      // that view and its place as last drawn: what a scroll is saved with
+  const placeTop = React.useRef(0);
+  const placeDue = React.useRef(null);      // a scroll position waiting for its view's rows
+  React.useEffect(() => {
+    if (!onLeads) return;
+    const p = ldPlaceLoad(viewRoute) || {};
+    setQ(p.q || "");
+    cursorCameBack.current = p.cursor || null;
+    setCursor(p.cursor || null);
+    setMapOpen(!!p.map);
+    if (placeOf.current !== undefined) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
+    placeTop.current = p.top || 0;
+    placeDue.current = { view: viewRoute, top: p.top || 0 };
+  }, [viewRoute]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
+  React.useEffect(() => {
+    if (!onLeads) return;
+    if (placeOf.current !== viewRoute) { placeOf.current = viewRoute; return; }
+    ldPlaceSave(viewRoute, { q, cursor, map: mapOpen, top: placeTop.current });
+  }, [viewRoute, q, cursor, mapOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (onLeads && placeOf.current === viewRoute) placeNow.current = { view: viewRoute, place: { q, cursor, map: mapOpen } };
+  // The list goes back to where it was once the rows on screen are this view's (the surface says which view it
+  // holds): scrolled any sooner, it would be the last view's rows that moved.
+  const viewLanded = onLeads && leads.route === viewRoute;
+  React.useEffect(() => {
+    const due = placeDue.current;
+    if (!onLeads || !due || due.view !== viewRoute || !viewLanded) return;
+    placeDue.current = null;
+    const sc = ldScroller(scrollRef.current);
+    if (sc) sc.scrollTop = due.top;
+  }, [viewRoute, viewLanded]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A Find half-written comes back with the page (ldFinderLoad, above), and is kept as it changes. The first pass
+  // still holds the page's empty state, so it keeps nothing: it would clear the draft it is about to be given.
+  const finderKept = React.useRef(false);
+  React.useEffect(() => {
+    const d = onLeads ? ldFinderLoad() : null;
+    if (!d) return;
+    setFinderWords(d.words || "");
+    setFinderPlan(d.plan || null);
+    setFinderProposal(d.proposal || null);
+    setFinderMore(d.more || null);
+    setFinderStage(d.stage === "plan" && d.plan ? "plan" : "compose");
+    setFinderOpen(!!d.open);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    if (!onLeads) return;
+    if (!finderKept.current) { finderKept.current = true; return; }
+    ldFinderSave({ open: finderOpen, stage: finderStage, words: finderWords, plan: finderPlan, proposal: finderProposal, more: finderMore });
+  }, [finderOpen, finderStage, finderWords, finderPlan, finderProposal, finderMore]); // eslint-disable-line react-hooks/exhaustive-deps
+  // How far the list is scrolled, heard on the pane in the capture phase: a scroll does not bubble, and on a desktop
+  // the box that scrolls is the table's own, inside the pane. Saved once it settles, with the place as last drawn.
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!onLeads || !el || !el.addEventListener) return undefined;
+    let t = null;
+    const on = (e) => {
+      const sc = e && e.target;
+      if (!sc || sc !== ldScroller(el)) return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => {
+        const now = placeNow.current;
+        // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
+        if (!now || placeDue.current) return;
+        placeTop.current = sc.scrollTop;
+        ldPlaceSave(now.view, { ...now.place, top: sc.scrollTop });
+      }, 200);
+    };
+    el.addEventListener("scroll", on, { passive: true, capture: true });
+    return () => { el.removeEventListener("scroll", on, { capture: true }); if (t) clearTimeout(t); };
+  }, [onLeads]);
   // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was
   // taken down and added again on every render, and / had a second listener of its own.
   const keys = React.useRef(null);

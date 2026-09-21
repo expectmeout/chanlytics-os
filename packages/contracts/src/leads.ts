@@ -646,18 +646,23 @@ export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
  */
 export type LeadChips = Record<string, never>;
 
-/** "clients/leads:s-<search>:l-<list>:c-<class>" -- the grammar Ask's page citations admit (ask.ts PAGE_PREFIX). Chips join in release C. */
-export function leadsRoute(v: { searchId?: string | null; list?: LeadList | null; cls?: LeadClass | null; chips?: Record<string, unknown> }): string {
+/**
+ * "clients/leads:s-<search>:l-<list>:c-<class>:p-<lead>" -- the grammar Ask's page citations admit (ask.ts PAGE_PREFIX).
+ * Chips join in release C. The lead that is open (`p-`) comes last, so a view's own route is a prefix of the route
+ * with a lead open over it: the view is what a read is keyed by, and the open lead is never part of that key.
+ */
+export function leadsRoute(v: { searchId?: string | null; list?: LeadList | null; cls?: LeadClass | null; chips?: Record<string, unknown>; peek?: string | null }): string {
   const parts = ["clients/leads"];
   if (v.searchId) parts.push(`s-${v.searchId}`);
   if (v.list && v.list !== "all") parts.push(`l-${v.list}`);
   if (v.cls) parts.push(`c-${v.cls}`);
+  if (v.peek) parts.push(`p-${v.peek}`);
   return parts.join(":");
 }
-export function parseLeadsRoute(route: string): { searchId: string | null; list: LeadList; cls: LeadClass | null; chips: Record<string, unknown> } | null {
+export function parseLeadsRoute(route: string): { searchId: string | null; list: LeadList; cls: LeadClass | null; chips: Record<string, unknown>; peek: string | null } | null {
   const [head, ...segs] = route.split(":");
   if (head !== "clients/leads" && head !== "leads") return null;
-  const out = { searchId: null as string | null, list: "all" as LeadList, cls: null as LeadClass | null, chips: {} };
+  const out = { searchId: null as string | null, list: "all" as LeadList, cls: null as LeadClass | null, chips: {}, peek: null as string | null };
   for (const s of segs) {
     const dash = s.indexOf("-");
     if (dash < 1) continue;
@@ -665,6 +670,7 @@ export function parseLeadsRoute(route: string): { searchId: string | null; list:
     if (seg === "s" && /^[0-9a-f-]{36}$/.test(val)) out.searchId = val;
     else if (seg === "l" && (LEAD_LISTS as readonly string[]).includes(val)) out.list = val as LeadList;
     else if (seg === "c" && (LEAD_CLASSES as readonly string[]).includes(val)) out.cls = val as LeadClass;
+    else if (seg === "p" && /^[0-9a-f-]{36}$/.test(val)) out.peek = val;
   }
   return out;
 }

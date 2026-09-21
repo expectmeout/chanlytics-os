@@ -12405,12 +12405,13 @@ function leadsRoute(v) {
   if (v.searchId) parts2.push(`s-${v.searchId}`);
   if (v.list && v.list !== "all") parts2.push(`l-${v.list}`);
   if (v.cls) parts2.push(`c-${v.cls}`);
+  if (v.peek) parts2.push(`p-${v.peek}`);
   return parts2.join(":");
 }
 function parseLeadsRoute(route) {
   const [head, ...segs] = route.split(":");
   if (head !== "clients/leads" && head !== "leads") return null;
-  const out = { searchId: null, list: "all", cls: null, chips: {} };
+  const out = { searchId: null, list: "all", cls: null, chips: {}, peek: null };
   for (const s of segs) {
     const dash = s.indexOf("-");
     if (dash < 1) continue;
@@ -12418,6 +12419,7 @@ function parseLeadsRoute(route) {
     if (seg === "s" && /^[0-9a-f-]{36}$/.test(val)) out.searchId = val;
     else if (seg === "l" && LEAD_LISTS.includes(val)) out.list = val;
     else if (seg === "c" && LEAD_CLASSES.includes(val)) out.cls = val;
+    else if (seg === "p" && /^[0-9a-f-]{36}$/.test(val)) out.peek = val;
   }
   return out;
 }
