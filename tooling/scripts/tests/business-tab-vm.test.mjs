@@ -127,6 +127,26 @@ test("an ability whose input is missing says which row to fill", () => {
   assert.match(byId.transfer.detail, /takes a message instead/i);
 });
 
+test("nothing is ready on a channel that is not answering", () => {
+  // The contract the doc comment states. An input filled against a dead line is a
+  // setting, not an ability: a workspace with nothing picking up must not be told
+  // its receptionist sends the booking link.
+  const dark = abilityRows({
+    voiceLive: false, whatsappLive: false, hasCalendarFeed: true,
+    hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true,
+  });
+  for (const r of dark) assert.equal(r.ready, false, `${r.id} cannot be ready with nothing answering`);
+  // And a phone-only workspace has no chat abilities, whatever is filled in.
+  const phoneOnly = abilityRows({
+    voiceLive: true, whatsappLive: false, hasCalendarFeed: true,
+    hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true,
+  });
+  const byId = Object.fromEntries(phoneOnly.map((r) => [r.id, r]));
+  assert.equal(byId.handoff.ready, false, "there is no thread to hand over");
+  assert.equal(byId.vision.ready, false, "and no photo to look at");
+  assert.equal(byId.transfer.ready, true, "but a caller can still be put through");
+});
+
 test("what it cannot do is stated, and is not a setting", () => {
   const ids = CANNOT_ROWS.map((r) => r.id);
   assert.deepEqual(ids, ["book", "outbound_call", "sms"]);

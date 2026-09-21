@@ -167,6 +167,10 @@ export interface AbilityRowVM {
 
 export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
+  // Nothing is ready on a channel that is not answering. An input filled against a
+  // dead line is a setting, not an ability, and drawing it ready would tell an owner
+  // the booking link goes out when there is nothing to send it.
+  const answering = i.voiceLive || i.whatsappLive;
   return [
     {
       id: "answer",
@@ -184,7 +188,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
         : "No calendar to read, so it does not guess at open times — it sends the link instead.",
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
-      ready: i.hasCalendarFeed,
+      ready: answering && i.hasCalendarFeed,
     },
     {
       id: "booking_link",
@@ -192,7 +196,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       detail: "On a call it texts it to the number they rang from and says so. In chat it sends it in the thread.",
       channels: both,
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: i.hasBookingLink,
+      ready: answering && i.hasBookingLink,
     },
     {
       id: "transfer",
@@ -221,7 +225,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
         : "Off. A photo is acknowledged and passed to a person.",
       channels: { voice: false, whatsapp: i.whatsappLive },
       runsOn: { label: "Turn it on", row: "vision" },
-      ready: i.visionOn,
+      ready: i.whatsappLive && i.visionOn,
       on: i.visionOn,
     },
   ];

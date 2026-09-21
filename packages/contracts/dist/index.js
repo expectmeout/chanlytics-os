@@ -10607,6 +10607,7 @@ function standingLine(i) {
 }
 function abilityRows(i) {
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
+  const answering = i.voiceLive || i.whatsappLive;
   return [
     {
       id: "answer",
@@ -10622,7 +10623,7 @@ function abilityRows(i) {
       detail: i.hasCalendarFeed ? "On a call it asks the calendar at that moment. In chat it is handed the day's openings with each message. Up to three that fit, then the link." : "No calendar to read, so it does not guess at open times \u2014 it sends the link instead.",
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
-      ready: i.hasCalendarFeed
+      ready: answering && i.hasCalendarFeed
     },
     {
       id: "booking_link",
@@ -10630,7 +10631,7 @@ function abilityRows(i) {
       detail: "On a call it texts it to the number they rang from and says so. In chat it sends it in the thread.",
       channels: both,
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: i.hasBookingLink
+      ready: answering && i.hasBookingLink
     },
     {
       id: "transfer",
@@ -10654,7 +10655,7 @@ function abilityRows(i) {
       detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules above." : "Off. A photo is acknowledged and passed to a person.",
       channels: { voice: false, whatsapp: i.whatsappLive },
       runsOn: { label: "Turn it on", row: "vision" },
-      ready: i.visionOn,
+      ready: i.whatsappLive && i.visionOn,
       on: i.visionOn
     }
   ];
