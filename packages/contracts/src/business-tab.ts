@@ -266,3 +266,69 @@ export const CANNOT_ROWS: readonly CannotRowVM[] = [
     soon: true,
   },
 ];
+
+/**
+ * The composed prompt, cut into the blocks that wrote it.
+ *
+ * The preview was one 4,000-character <pre> behind a Show toggle. Every block
+ * in it came from one row upstairs, and naming the row turns a dump into a map
+ * back into the page — which is also the only way an owner can see that
+ * services and their own words are more than half of everything it reads.
+ *
+ * Cut on the headings the composer itself writes, so this cannot drift from it:
+ * a heading that composeSystemPrompt stops emitting simply stops appearing here.
+ */
+export interface PromptBlockVM {
+  /** The row on the page that wrote it. */
+  row: string;
+  label: string;
+  text: string;
+  chars: number;
+  /** A caveat worth saying beside the block. */
+  note?: string;
+}
+
+/**
+ * Read off `composeSystemPrompt`, not guessed. Each `startsWith` is the exact
+ * heading that function emits; a heading it stops emitting simply stops
+ * appearing here, which is the point of cutting on them.
+ */
+const BLOCK_MARKS: { row: string; label: string; startsWith: string; note?: string }[] = [
+  { row: "hours", label: "When you're open", startsWith: "Opening hours" },
+  { row: "closures", label: "Days you're closed", startsWith: "Closed on these dates" },
+  { row: "services", label: "Services", startsWith: "Services:" },
+  { row: "notes", label: "Things it should know", startsWith: "Other things to know:" },
+  { row: "booking_rules", label: "Booking rules", startsWith: "Booking rules:" },
+  {
+    row: "escalate_when",
+    label: "Hand-off",
+    startsWith: "Handing the conversation to a person:",
+    note: "WhatsApp only — on a call the agent has its own transfer, so this block is absent.",
+  },
+  { row: "guardrails", label: "Rules it always keeps", startsWith: "Rules you must follow:" },
+];
+
+export function promptBlocks(text: string, _channel: "whatsapp" | "voice"): PromptBlockVM[] {
+  const lines = text.split("\n");
+  const starts: { at: number; mark: (typeof BLOCK_MARKS)[number] }[] = [];
+  lines.forEach((line, n) => {
+    const mark = BLOCK_MARKS.find((m) => line.trim().startsWith(m.startsWith));
+    if (mark && !starts.some((s) => s.mark.row === mark.row)) starts.push({ at: n, mark });
+  });
+  starts.sort((a, b) => a.at - b.at);
+
+  const out: PromptBlockVM[] = [];
+  // Everything before the first marked heading is who you are: the opening
+  // sentence, the tone, the languages, the address, the phone and the link.
+  const first = starts[0]?.at ?? lines.length;
+  const head = lines.slice(0, first).join("\n").trim();
+  if (head) out.push({ row: "identity", label: "Who you are", text: head, chars: head.length });
+
+  starts.forEach((s, n) => {
+    const end = starts[n + 1]?.at ?? lines.length;
+    const body = lines.slice(s.at, end).join("\n").trim();
+    if (!body) return;
+    out.push({ row: s.mark.row, label: s.mark.label, text: body, chars: body.length, ...(s.mark.note ? { note: s.mark.note } : {}) });
+  });
+  return out;
+}

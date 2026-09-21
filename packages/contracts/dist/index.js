@@ -10678,6 +10678,40 @@ var CANNOT_ROWS = [
     soon: true
   }
 ];
+var BLOCK_MARKS = [
+  { row: "hours", label: "When you're open", startsWith: "Opening hours" },
+  { row: "closures", label: "Days you're closed", startsWith: "Closed on these dates" },
+  { row: "services", label: "Services", startsWith: "Services:" },
+  { row: "notes", label: "Things it should know", startsWith: "Other things to know:" },
+  { row: "booking_rules", label: "Booking rules", startsWith: "Booking rules:" },
+  {
+    row: "escalate_when",
+    label: "Hand-off",
+    startsWith: "Handing the conversation to a person:",
+    note: "WhatsApp only \u2014 on a call the agent has its own transfer, so this block is absent."
+  },
+  { row: "guardrails", label: "Rules it always keeps", startsWith: "Rules you must follow:" }
+];
+function promptBlocks(text, _channel) {
+  const lines = text.split("\n");
+  const starts = [];
+  lines.forEach((line, n) => {
+    const mark = BLOCK_MARKS.find((m) => line.trim().startsWith(m.startsWith));
+    if (mark && !starts.some((s) => s.mark.row === mark.row)) starts.push({ at: n, mark });
+  });
+  starts.sort((a, b) => a.at - b.at);
+  const out = [];
+  const first = starts[0]?.at ?? lines.length;
+  const head = lines.slice(0, first).join("\n").trim();
+  if (head) out.push({ row: "identity", label: "Who you are", text: head, chars: head.length });
+  starts.forEach((s, n) => {
+    const end = starts[n + 1]?.at ?? lines.length;
+    const body = lines.slice(s.at, end).join("\n").trim();
+    if (!body) return;
+    out.push({ row: s.mark.row, label: s.mark.label, text: body, chars: body.length, ...s.mark.note ? { note: s.mark.note } : {} });
+  });
+  return out;
+}
 
 // src/a2p-enums.ts
 var BUSINESS_INDUSTRIES = [
@@ -13131,6 +13165,7 @@ export {
   previewHorizon,
   priceWords,
   priorOf,
+  promptBlocks,
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,

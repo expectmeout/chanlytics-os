@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, SOURCE_WORDS, ruleStrength, GUARDRAIL_KEYS, standingLine, abilityRows, CANNOT_ROWS } from "@chanlytics/contracts";
+import { stateOf, SOURCE_WORDS, ruleStrength, GUARDRAIL_KEYS, standingLine, abilityRows, CANNOT_ROWS, promptBlocks, composeSystemPrompt } from "@chanlytics/contracts";
 
 test("a fact's source carries a tone and the words facts.ts already wrote", () => {
   assert.equal(stateOf("fact", "verified").tone, "ok");
@@ -153,4 +153,45 @@ test("what it cannot do is stated, and is not a setting", () => {
   assert.match(CANNOT_ROWS[0].detail, /no appointments table/i);
   assert.match(CANNOT_ROWS[1].detail, /never dials/i);
   assert.equal(CANNOT_ROWS[2].soon, true);
+});
+
+const brain = { business_name: "Melany's Beauty Salon", phone_display: "+1 (308) 336-8109", booking_link: "https://booksy.com/x" };
+const profile = {
+  tone: "Warm and unhurried.",
+  languages: ["English", "Spanish"],
+  address: "2581 Pitkin Ave, Brooklyn, NY 11208",
+  hours: { mon: { open: "09:30", close: "18:00" }, sat: { open: "09:30", close: "19:00" } },
+  services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
+  notes: [{ title: "Walk-ins", text: "Walk-ins are welcome." }],
+  escalate_when: ["They ask for Melany"],
+  guardrails: { never_quote_prices: true },
+};
+
+test("the prompt is cut into blocks, each naming the row that wrote it", () => {
+  const text = composeSystemPrompt(brain, profile, "whatsapp", "America/New_York");
+  const blocks = promptBlocks(text, "whatsapp");
+
+  const ids = blocks.map((b) => b.row);
+  assert.ok(ids.includes("identity"), "who you are");
+  assert.ok(ids.includes("hours"));
+  assert.ok(ids.includes("services"));
+  assert.ok(ids.includes("escalate_when"));
+  assert.ok(ids.includes("guardrails"), "the rules compose into the prompt too");
+  // The head block holds the tone and the languages, which have no heading of their own.
+  const head = blocks.find((b) => b.row === "identity");
+  assert.match(head.text, /^Tone: Warm and unhurried\./m);
+  assert.match(head.text, /You speak: English, Spanish\./);
+
+  // Each block carries its own size, and the sizes add up to the whole.
+  const total = blocks.reduce((n, b) => n + b.chars, 0);
+  assert.ok(total <= text.length, "blocks cannot claim more than the prompt holds");
+  for (const b of blocks) assert.ok(b.chars > 0 && b.label.length > 0);
+});
+
+test("the hand-off block is WhatsApp's alone", () => {
+  const wa = promptBlocks(composeSystemPrompt(brain, profile, "whatsapp", "America/New_York"), "whatsapp");
+  const voice = promptBlocks(composeSystemPrompt(brain, profile, "voice", "America/New_York"), "voice");
+  assert.ok(wa.some((b) => b.row === "escalate_when"), "chat is told how to hand over");
+  assert.ok(!voice.some((b) => b.row === "escalate_when"), "the phone has its own transfer, so the block is absent");
+  assert.match(wa.find((b) => b.row === "escalate_when").note ?? "", /WhatsApp only/i);
 });
