@@ -733,6 +733,16 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-box-sum { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-box:not([open]) .pk-box-head { padding-bottom: 11px; }
 .pk-box:not([open]) { padding-bottom: 0; }
+/* The week and what the listing said, in the fold. The same rows the expanded photo draws, at the peek's measure. */
+.pk-week, .pk-facts { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
+.pk-day { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 9px; align-items: center; font-size: var(--text-xs); color: var(--ink-dim); }
+.pk-day.today { color: var(--ink); font-weight: var(--weight-medium); }
+.pk-day-track { position: relative; height: 5px; border-radius: 3px; background: var(--bg-active); }
+.pk-day-bar { position: absolute; top: 0; height: 5px; border-radius: 3px; background: var(--line-strong); }
+.pk-day.today .pk-day-bar { background: var(--ok); }
+.pk-fact { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 9px; font-size: var(--text-xs); }
+.pk-fact .k { color: var(--ink-dim); }
+.pk-fact .v { color: var(--ink); }
 .pk-links { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
 .pk-act { background: var(--bg-sunken); }
 .pk-act-main { flex: 1; min-height: 38px; justify-content: center; border-radius: 10px; font-size: var(--text-base); }

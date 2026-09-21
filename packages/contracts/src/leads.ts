@@ -719,6 +719,10 @@ export interface LeadPeekVM {
   week: LeadWeekRow[];
   /** "From the listing": the facts about the place the expanded photo lists beside it. */
   facts: { k: string; v: string }[];
+  /** "Open every day · 11 AM to 10 PM": the head the week folds under; "" when the listing published no hours. */
+  weekSummary: string;
+  /** "From the listing — kind, price, rated": the head the listing's facts fold under; "" when there are none. */
+  factsSummary: string;
   /** "5 checks passed · 2 couldn't tell": the head the checks fold under. */
   checksSummary: string;
   /** One mark per check, in the order they were made: the strip beside the head, so the shape of the evidence reads at a glance. */
@@ -755,6 +759,31 @@ export function leadTodayLine(hours: { day: string; hours: string }[], tz: strin
 }
 /** One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser cannot draw. */
 export interface LeadWeekRow { day: string; hours: string; bar: { x: number; w: number } | null; today: boolean }
+
+/**
+ * The week in one line, so the seven rows can fold away behind it: how many days they open, and the hours they keep
+ * on most of them. Nothing is claimed that the listing did not say -- a week with no two days alike says only how
+ * many days it opens, because "most days" would then be one day.
+ */
+export function leadWeekSummary(week: LeadWeekRow[]): string {
+  const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
+  if (!open.length) return "";
+  const tally = new Map<string, number>();
+  for (const d of open) tally.set(d.hours, (tally.get(d.hours) ?? 0) + 1);
+  let best = "";
+  let most = 0;
+  for (const [hours, n] of tally) if (n > most) { best = hours; most = n; }
+  const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
+  if (most === open.length) return `${days} · ${best}`;
+  if (most * 2 >= open.length) return `${days} · ${best} most days`;
+  return days;
+}
+
+/** What the listing had to say about the place, named rather than listed: "From the listing — kind, price, rated". */
+export function leadFactsSummary(facts: { k: string; v: string }[]): string {
+  if (!facts.length) return "";
+  return `${LEAD_WORDS.fromListing} — ${facts.map((f) => f.k.toLowerCase()).join(", ")}`;
+}
 const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 const hourOf = (h: string, m: string | undefined, ap: string): number => ((Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0)) + (m ? Number(m) / 60 : 0);
 /**
@@ -874,6 +903,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     ...(unsure ? [`${unsure} couldn't tell`] : []),
     ...(failed ? [`${failed} failed`] : []),
   ].join(" · ");
+  const week = leadWeekBars(r.hours ?? [], tz, now);
   const rated =
     r.rating === null || r.rating === undefined
       ? null
@@ -896,8 +926,10 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
-    week: leadWeekBars(r.hours ?? [], tz, now),
+    week,
+    weekSummary: leadWeekSummary(week),
     facts,
+    factsSummary: leadFactsSummary(facts),
     checksSummary,
     checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),

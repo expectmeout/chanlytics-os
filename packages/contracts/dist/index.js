@@ -11486,6 +11486,26 @@ function leadTodayLine(hours, tz, now) {
   if (!h) return null;
   return /^closed/i.test(h.hours) ? "Closed today" : `Open today \xB7 ${h.hours}`;
 }
+function leadWeekSummary(week) {
+  const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
+  if (!open.length) return "";
+  const tally2 = /* @__PURE__ */ new Map();
+  for (const d of open) tally2.set(d.hours, (tally2.get(d.hours) ?? 0) + 1);
+  let best = "";
+  let most = 0;
+  for (const [hours, n] of tally2) if (n > most) {
+    best = hours;
+    most = n;
+  }
+  const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
+  if (most === open.length) return `${days} \xB7 ${best}`;
+  if (most * 2 >= open.length) return `${days} \xB7 ${best} most days`;
+  return days;
+}
+function leadFactsSummary(facts) {
+  if (!facts.length) return "";
+  return `${LEAD_WORDS.fromListing} \u2014 ${facts.map((f) => f.k.toLowerCase()).join(", ")}`;
+}
 var CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 var hourOf = (h, m, ap) => Number(h) % 12 + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
 function leadWeekBars(hours, tz, now) {
@@ -11566,6 +11586,7 @@ function toLeadPeekVM(r, search, tz, now) {
     ...unsure ? [`${unsure} couldn't tell`] : [],
     ...failed ? [`${failed} failed`] : []
   ].join(" \xB7 ");
+  const week = leadWeekBars(r.hours ?? [], tz, now);
   const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US"), low: leadLowShare(r.reviews_dist ?? null) };
   const foundWays = 3;
   const facts = [
@@ -11583,8 +11604,10 @@ function toLeadPeekVM(r, search, tz, now) {
     tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
-    week: leadWeekBars(r.hours ?? [], tz, now),
+    week,
+    weekSummary: leadWeekSummary(week),
     facts,
+    factsSummary: leadFactsSummary(facts),
     checksSummary,
     checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),
@@ -12877,6 +12900,7 @@ export {
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
+  leadFactsSummary,
   leadKindWord,
   leadLowShare,
   leadLowerFirst,
@@ -12901,6 +12925,7 @@ export {
   leadTodayLine,
   leadUndoable,
   leadWeekBars,
+  leadWeekSummary,
   leadWhere,
   leadsFirstDayWays,
   leadsRoute,
