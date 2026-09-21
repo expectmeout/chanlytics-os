@@ -266,6 +266,9 @@ const BT_PATCH_OF = {
   handoff_number: btPatchProfile("handoff_number"),
 };
 
+// window.__businessTabSave: the page's one saver (`saver(onChange)`, which answers { save(job), pending(row) }), the
+// two helpers a row's draft is judged by (`same`, `trimmed`), whether a brain's prompt is the product's own lines under
+// its stored name (`isBaseline`), and each row's STORED_AS, CHECK_OF and PATCH_OF by its id. Task 3.6 adds the folds'.
 Object.assign(window, {
   phoneShown: btPhoneShown,
   useFieldSave: useBtFieldSave,
