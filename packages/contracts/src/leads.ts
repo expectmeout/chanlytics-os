@@ -19,6 +19,7 @@ import {
   type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
+import type { Tone } from "./tone";
 import { agoShort } from "./time";
 import { clockDateYear, clockTime } from "./clock";
 
@@ -50,8 +51,13 @@ export const LEAD_FIT_WORDS: Record<(typeof LEAD_FITS)[number], string> = { stro
 /** Claims only what the check saw (S12): a catch-all server accepts anything, so the check cannot tell. */
 export const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string> = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
 /** How an outcome reads at a glance (D5): the dot beside its word, never colour alone -- the word is always there. */
-export const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], "ok" | "warn" | "quiet" | "bad"> = {
-  interested: "ok", call_back: "warn", voicemail: "quiet", no_answer: "quiet", not_interested: "bad", wrong_number: "bad",
+/**
+ * What each outcome means, in the app's ONE tone vocabulary (tone.ts). This used to carry two words of its own --
+ * `quiet` and `bad` -- which no pill and no stylesheet could draw: `.tone-quiet` was never written, so a voicemail
+ * and a no-answer both fell through to the faintest grey, and a wrong number drew as if nothing had happened.
+ */
+export const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], Tone> = {
+  interested: "ok", call_back: "warn", voicemail: "plain", no_answer: "plain", not_interested: "danger", wrong_number: "danger",
 };
 export const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number], string> = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 /** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
@@ -1378,9 +1384,13 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   const spread: LeadRowVM["spread"] = r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null;
   const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
   const state: LeadRowVM["state"] = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r.stage === "nurture" ? "contacted" : r.stage === "converted" ? "talking" : r.stage === "archived" ? "out" : "ready";
+  // Ready is the silent default and wears nothing; every other state says which one it is. Review said nothing for
+  // its whole life, which left `.ld-state-tag.review` in the stylesheet matching no row ever drawn -- and on a mixed
+  // list a lead that is waiting on something looked exactly like a lead that is ready to call.
   const stateTag = state === "contacted"
     ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` · ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}`
     : state === "talking" ? LEAD_STAGE_WORDS.converted
+    : state === "review" ? LEAD_REVIEW_WORD
     : state === "out" ? (m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason))
     : null;
   const term = search?.plan.terms[0] ?? null;

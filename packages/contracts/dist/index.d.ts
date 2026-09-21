@@ -10094,7 +10094,12 @@ declare const LEAD_FIT_WORDS: Record<(typeof LEAD_FITS)[number], string>;
 /** Claims only what the check saw (S12): a catch-all server accepts anything, so the check cannot tell. */
 declare const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string>;
 /** How an outcome reads at a glance (D5): the dot beside its word, never colour alone -- the word is always there. */
-declare const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], "ok" | "warn" | "quiet" | "bad">;
+/**
+ * What each outcome means, in the app's ONE tone vocabulary (tone.ts). This used to carry two words of its own --
+ * `quiet` and `bad` -- which no pill and no stylesheet could draw: `.tone-quiet` was never written, so a voicemail
+ * and a no-answer both fell through to the faintest grey, and a wrong number drew as if nothing had happened.
+ */
+declare const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], Tone>;
 declare const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number], string>;
 /** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
 declare const LEAD_LIST_WORDS: Record<LeadList, string>;
@@ -10200,7 +10205,7 @@ declare const LEAD_WORDS: {
     readonly outcomes: {
         id: "voicemail" | "interested" | "call_back" | "not_interested" | "no_answer" | "wrong_number";
         label: string;
-        tone: "ok" | "quiet" | "warn" | "bad";
+        tone: Tone;
     }[];
     readonly noteLabel: "A note about the call";
     readonly notePlaceholder: "A note for next time, if you like";

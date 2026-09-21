@@ -59,7 +59,7 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
   const W = window.__LEAD_WORDS;
   return (
     <>
-      <div className={`pk-band tint-${vm.tile.tint}${vm.image || vm.tile.logo ? " has-img" : ""}`} data-testid="peek-photo-band">
+      <div className={`pk-band tint-${vm.tile.tint}`} data-testid="peek-photo-band">
         <span className="pk-band-initials" aria-hidden="true">{vm.tile.initials}</span>
         {/* Who the company is comes first, so the mark paints LAST and covers the photograph, exactly as it does on
             the row's tile. The photograph is what Expand is for. The two are stacked rather than chosen, so a mark
@@ -159,7 +159,7 @@ const LeadLightbox = ({ vm, onClose }) => {
           <button type="button" className="pk-x" aria-label={W.closePhotos} data-testid="lightbox-close" onClick={onClose}><Icon name="x" size={16} /></button>
         </div>
         <div className="ld-lb-body">
-          <div className={`ld-lb-photo tint-${vm.tile.tint}${vm.image ? " has-img" : ""}`} data-testid="lightbox-photo">
+          <div className={`ld-lb-photo tint-${vm.tile.tint}`} data-testid="lightbox-photo">
             <span className="ld-lb-initials" aria-hidden="true">{vm.tile.initials}</span>
             {vm.image ? <img src={vm.image} alt="" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : <span className="ld-lb-nophoto">{W.noPhoto}</span>}
           </div>
@@ -238,7 +238,7 @@ const LeadCallAsk = ({ armed, busy, on, deck }) => {
             type="button"
             role="radio"
             aria-checked={armed && armed.outcome === o.id}
-            className={`pk-chip tone-${o.tone || "quiet"}${armed && armed.outcome === o.id ? " on" : ""}`}
+            className={`pk-chip tone-${o.tone || "plain"}${armed && armed.outcome === o.id ? " on" : ""}`}
             data-testid={`peek-outcome-${o.id}`}
             onClick={() => on.onOutcome(o.id)}
           ><span className="dot" aria-hidden="true" />{o.label}</button>

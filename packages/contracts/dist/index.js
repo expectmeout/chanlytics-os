@@ -11114,10 +11114,10 @@ var LEAD_EMAIL_WORDS = { none: "No email", checking: "Checking", ok: "Checked", 
 var LEAD_CALL_OUTCOME_TONES = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_LIST_WORDS = { all: "All leads", ready: "Ready", nurture: "Contacted", converted: "Talking", said_no: "Said no", not_a_fit: "Not a fit" };
@@ -11885,7 +11885,7 @@ function toLeadRowVM(r, tz, now, search = null) {
   const spread2 = r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null;
   const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
   const state = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r.stage === "nurture" ? "contacted" : r.stage === "converted" ? "talking" : r.stage === "archived" ? "out" : "ready";
-  const stateTag = state === "contacted" ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` \xB7 ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}` : state === "talking" ? LEAD_STAGE_WORDS.converted : state === "out" ? m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason) : null;
+  const stateTag = state === "contacted" ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` \xB7 ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}` : state === "talking" ? LEAD_STAGE_WORDS.converted : state === "review" ? LEAD_REVIEW_WORD : state === "out" ? m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason) : null;
   const term = search?.plan.terms[0] ?? null;
   const card = {
     about: r.about ?? null,
