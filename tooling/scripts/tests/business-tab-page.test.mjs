@@ -20,6 +20,7 @@ Object.assign(globalThis, {
 await import(`${L}/components/data-bits.jsx`);
 await import(`${L}/components/record-row.jsx`);
 await import(`${L}/components/record-field.jsx`);
+await import(`${L}/components/record-fold.jsx`);
 const W = globalThis.window;
 
 /** A new tree, drawn as today-page.test.mjs draws one: the hook cells forgotten, the component created. */
@@ -227,4 +228,159 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
   assert.ok(find(card, (n) => classes(n).includes("rec-card-tip")), "a card is the white card");
   press(find(card, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Use it"));
   assert.equal(used.length, 1);
+});
+
+/* ------------------------------------ the fold ------------------------------------ */
+
+const bookingRules = (over = {}) => ({
+  id: "booking_rules",
+  label: "Booking rules",
+  hint: "It never books. It says which times are open and sends the link.",
+  open: true,
+  says: "Booking rules:\n- At least 2 hours' notice for any appointment.",
+  saysLabel: "Your receptionist will be told",
+  onSave: () => {},
+  onCancel: () => {},
+  ...over,
+});
+
+test("a fold opens, says what the receptionist will be told, and saves only itself", () => {
+  const saved = [];
+  const cancelled = [];
+  const tree = draw(W.RecordFold, bookingRules({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));
+  const fold = find(tree, (n) => classes(n).includes("rec-fold"));
+  assert.equal(fold.props["data-open"], "true");
+  assert.equal(fold.props["data-testid"], "rec-fold-booking_rules");
+  const says = find(tree, (n) => n.props?.["data-testid"] === "rec-fold-says-booking_rules");
+  assert.match(textOf(says), /At least 2 hours/);
+  assert.match(textOf(says), /Your receptionist will be told/, "the eyebrow is the page's words; the kit has none of its own");
+  const save = find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Save");
+  press(save);
+  assert.equal(saved.length, 1);
+  press(find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Cancel"));
+  press(find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Close"));
+  assert.equal(cancelled.length, 2, "Cancel and Close both hand the page the fold's cancel");
+  assert.equal(find(draw(W.RecordFold, bookingRules({ says: "" })), (n) => classes(n).includes("rec-fold-says")), null, "a fold that writes nothing draws no block");
+});
+
+test("a fold's Save is gated, says when it is saving, and the keys cancel and save it", () => {
+  const saved = [];
+  const refused = [];
+  const gated = draw(W.RecordFold, bookingRules({ onSave: () => saved.push(1), gate: { "aria-disabled": true, onClick: () => refused.push(1) } }));
+  press(find(gated, (n) => n.props?.["data-testid"] === "rec-fold-save-booking_rules"));
+  assert.deepEqual([saved.length, refused.length], [0, 1], "the gate is spread after the handler");
+
+  const busy = find(draw(W.RecordFold, bookingRules({ saving: true, savingLabel: "Saving…" })), (n) => n.props?.["data-testid"] === "rec-fold-save-booking_rules");
+  assert.deepEqual([busy.props.disabled, busy.props["aria-busy"], textOf(busy)], [true, true, "Saving…"]);
+
+  const cancelled = [];
+  const tree = draw(W.RecordFold, bookingRules({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));
+  const fold = find(tree, (n) => classes(n).includes("rec-fold"));
+  const key = (k, over = {}) => ({ key: k, defaultPrevented: false, metaKey: false, ctrlKey: false, preventDefault() { this.defaultPrevented = true; }, ...over });
+  fold.props.onKeyDown(key("Escape"));
+  fold.props.onKeyDown(key("Escape", { defaultPrevented: true }));
+  fold.props.onKeyDown(key("Enter", { ctrlKey: true }));
+  fold.props.onKeyDown(key("Enter"));
+  assert.deepEqual([cancelled.length, saved.length], [1, 1], "Escape cancels unless a field inside took it; Ctrl or Cmd with Enter saves; Enter alone does not");
+});
+
+test("a fold takes focus as it opens, and gives it back to its row as it closes", () => {
+  const focused = [];
+  const field = { focus: () => focused.push("field") };
+  const act = { focus: () => focused.push("act") };
+  let tree = draw(W.RecordFold, bookingRules({ open: false }));
+  // The stub attaches no ref, so the test stands in for the element React would have put there.
+  find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = { querySelector: (sel) => (sel.includes("rec-fold-inner") ? field : null), contains: () => false };
+  tree = redraw(W.RecordFold, bookingRules({ open: true }));
+  assert.deepEqual(focused, ["field"], "the first thing to type into, not the page behind");
+
+  const doc = globalThis.document;
+  const was = { activeElement: doc.activeElement, querySelector: doc.querySelector };
+  Object.assign(doc, { activeElement: null, querySelector: (sel) => (sel === '[data-rec-act="booking_rules"]' ? act : null) });
+  try {
+    redraw(W.RecordFold, bookingRules({ open: false }));
+  } finally {
+    Object.assign(doc, was);
+  }
+  assert.deepEqual(focused, ["field", "act"], "focus that went with the fold comes back to the row's act");
+  const row = draw(W.RecordRow, { id: "booking_rules", label: "Booking rules", value: "2 hours' notice", act: { label: "Change", onClick: () => {} } });
+  assert.equal(find(row, (n) => classes(n).includes("rec-row-act")).props["data-rec-act"], "booking_rules", "which is where the row's act says it is");
+});
+
+/* ------------------------------------ one fold at a time ------------------------------------ */
+
+test("only one fold is open, and a dirty one is asked about before it closes", () => {
+  W.__recordFolds.reset();
+  assert.equal(W.__recordFolds.open(), null);
+  W.__recordFolds.request("hours", { dirty: () => false });
+  assert.equal(W.__recordFolds.open(), "hours");
+  // A clean fold gives way without a word.
+  let edited = false;
+  W.__recordFolds.request("services", { dirty: () => edited });
+  assert.equal(W.__recordFolds.open(), "services");
+  assert.equal(W.__recordFolds.asking(), null, "nothing was asked");
+  // Typed into, it does not, and says which fold is holding.
+  edited = true;
+  assert.equal(W.__recordFolds.request("notes", { dirty: () => false }), false, "the request says it was held");
+  const asked = W.__recordFolds.asking();
+  assert.equal(W.__recordFolds.open(), "services", "the dirty fold stays open until it is answered");
+  assert.deepEqual(asked, { holding: "services", wants: "notes" });
+  W.__recordFolds.discard();
+  assert.equal(W.__recordFolds.open(), "notes");
+  assert.equal(W.__recordFolds.asking(), null);
+});
+
+test("an ask is answered by keeping on, or by the holding fold closing, and a fold not open closes nothing", () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  folds.request("hours", { dirty: () => true });
+  folds.request("notes", { dirty: () => false });
+  folds.stay();
+  assert.deepEqual([folds.open(), folds.asking()], ["hours", null], "keep editing keeps the fold that held");
+  folds.request("notes", { dirty: () => false });
+  folds.close("hours");
+  assert.equal(folds.open(), "notes", "once the holding fold closes (saved, or cancelled), the one asked for opens");
+  folds.close("hours");
+  assert.equal(folds.open(), "notes", "a stale close from a fold that is not open does nothing");
+  folds.close("notes");
+  assert.equal(folds.open(), null);
+});
+
+test("the page knows when a fold holds unsaved changes", () => {
+  W.__recordFolds.reset();
+  W.__recordFolds.request("hours", { dirty: () => true });
+  assert.equal(W.__settingsUnsaved(), true);
+  W.__recordFolds.reset();
+  assert.equal(W.__settingsUnsaved(), false);
+});
+
+test("closing the browser tab over a dirty fold asks the browser to ask; over a clean one or none, it does not", () => {
+  const unload = () => {
+    const ev = { type: "beforeunload", returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+    W.dispatchEvent(ev);
+    return ev;
+  };
+  W.__recordFolds.reset();
+  assert.equal(unload().prevented, false, "nothing open");
+  let edited = false;
+  W.__recordFolds.request("hours", { dirty: () => edited });
+  assert.equal(unload().prevented, false, "open, and clean");
+  edited = true;
+  const ev = unload();
+  assert.deepEqual([ev.prevented, ev.returnValue], [true, ""], "open, and holding changes");
+  W.__recordFolds.reset();
+  assert.equal(unload().prevented, false, "and the hold goes with the fold");
+});
+
+test("the registry tells whoever listens each time it changes", () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  const told = [];
+  const stop = folds.subscribe(() => told.push(folds.open()));
+  folds.request("hours", { dirty: () => false });
+  folds.close("hours");
+  stop();
+  folds.request("notes");
+  assert.deepEqual(told, ["hours", null]);
+  folds.reset();
 });

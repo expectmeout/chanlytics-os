@@ -18,7 +18,7 @@
 // - `act` { label, onClick, gate?, testid? } is the row's one act. `gate` is window.gate(...)'s props, spread AFTER
 //   the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is named
 //   by its words and the row's label together ("Change Website"), and the two carry data-testid rec-row-act-<id>
-//   and rec-row-<id>.
+//   and rec-row-<id>. The act's data-rec-act is where a fold that closes (record-fold.jsx) gives focus back.
 // - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips).
 
 // Taking the other answer, by where it came from. A source's words (contracts SOURCE_WORDS: "from Google") are a
@@ -92,6 +92,7 @@ const RecordRow = ({
           className="rec-row-act"
           onClick={act.onClick}
           aria-labelledby={id ? `${wordsId} ${keyId}` : undefined}
+          data-rec-act={id || undefined}
           data-testid={act.testid || (id ? `rec-row-act-${id}` : undefined)}
           {...(act.gate || {})}
         >

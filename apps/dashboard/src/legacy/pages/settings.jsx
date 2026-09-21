@@ -1111,9 +1111,12 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const dirty = draft !== opened.current;
   const dirtyNow = React.useRef(dirty);
   dirtyNow.current = dirty;
+  // Added to, never replaced: the record kit's folds answer the rail's question too (record-fold.jsx sets it as it
+  // loads), so the editor chains onto what it finds and puts that back when it goes.
   useSetEffect(() => {
-    window.__settingsUnsaved = () => dirtyNow.current;
-    return () => { delete window.__settingsUnsaved; };
+    const before = window.__settingsUnsaved;
+    window.__settingsUnsaved = () => dirtyNow.current || !!(before && before());
+    return () => { if (before) window.__settingsUnsaved = before; else delete window.__settingsUnsaved; };
   }, []);
   useSetEffect(() => {
     if (!dirty) return undefined;
@@ -3024,8 +3027,8 @@ const setTabIntoView = (el) => { if (el && el.scrollIntoView) el.scrollIntoView(
 const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
   const active = SET_TAB(tab);
   const [toastNode, flash] = window.usePPToast();
-  // The tab asked for while a pane holds unsaved changes (the business editor registers __settingsUnsaved): the rail
-  // asks before the pane, and the changes with it, are replaced (S22).
+  // The tab asked for while a pane holds unsaved changes (__settingsUnsaved: the record kit's open fold, and the
+  // business editor while it is open): the rail asks before the pane, and the changes with it, are replaced (S22).
   const [leaving, setLeaving] = React.useState(null);
   const go = (id) => {
     if (id !== active.id && window.__settingsUnsaved && window.__settingsUnsaved()) { setLeaving(id); return; }
