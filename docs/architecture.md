@@ -57,10 +57,10 @@ flowchart LR
   META & RET & TWI & RES & APF -->|signed webhooks| WH
   WH -->|service role| PG
   PGC -->|x-cron-key| TICK & CRON
-  TICK -->|sends| META & TWI & RES
+  TICK -->|sends, and starts lead runs| META & TWI & RES & APF
   O --> UI -->|session cookie| API -->|RLS session client| PG
   API -->|x-edge-token| ADM
-  ADM --> RET & TWI & META & APF
+  ADM --> RET & TWI & META
   RT -->|row changes, one workspace| UI
 ```
 
@@ -83,7 +83,7 @@ fails on drift.
 
 Every request proves who is knocking before anything is read.
 
-1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature, Twilio's signature with the line's own token, Svix headers (Resend), Stripe's signature, Apify's webhook secret. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
+1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature, Twilio's signature with the line's own token, Svix headers (Resend), Stripe's signature. Apify signs nothing, so each run is started with a per-run token in its webhook URL, kept only as a hash and compared in constant time. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
 2. **Browser to dashboard.** A Supabase session cookie verified with `getUser()` on every request; same origin required for every write.
 3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key.
 4. **Database to edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`, read from Vault on both sides.
