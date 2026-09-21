@@ -12,14 +12,14 @@
 /* ---------- The card a page's rows sit in ---------- */
 /* Named once: --rec-gutter is the card's side padding, which an open fold reaches through to the card's edge;
    --rec-key is the label column every row and fold head keeps, and the indent a fold's fields start at. */
-.rec-card { --rec-gutter: 18px; --rec-key: 168px; padding: 18px var(--rec-gutter) 6px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.rec-card { --rec-gutter: 18px; --rec-key: 168px; isolation: isolate; padding: 18px var(--rec-gutter) 6px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
 .rec-card-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; }
 /* Two classes deep, so a page's own heading reset (settings.css flattens every .settings h2) cannot undo it. */
 .rec-card-head .rec-card-title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: -0.01em; color: var(--ink); }
 .rec-card-sub { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 
 /* ---------- A row: label, value, where it came from, one act ---------- */
-.rec-row { position: relative; isolation: isolate; display: flex; align-items: baseline; gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); }
+.rec-row { position: relative; display: flex; align-items: baseline; gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); }
 .rec-row-top { align-items: flex-start; }
 .rec-row-key { flex: 0 0 var(--rec-key, 168px); font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-row-val { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--ink); }
@@ -36,7 +36,9 @@
 /* The chevron is the phone's; a desktop reads the act's words. */
 .rec-row-chev { display: none; }
 /* The hover wash reaches 12px past the row on each side and stops at the hairlines. A box-shadow spread reached as far
-   up and down, over the next row's rule. */
+   up and down, over the next row's rule. It sits under the row's words in the card's stacking context (the card and
+   a sheet's body isolate; the row does not): a row that isolated itself painted every row below it over a menu
+   opened from it, and let a press on the menu through to them. */
 .rec-row::before { content: ""; position: absolute; inset: 0 -12px; z-index: -1; border-radius: var(--radius-md); transition: background var(--duration-fast) var(--ease-out); }
 .rec-row:hover::before { background: var(--bg-hover); }
 /* Something wrong or missing is on the row at full strength, hover or not: the warn wash, the key in the warn ink,
@@ -102,7 +104,7 @@
 .rec-sheet-close { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
 .rec-sheet-close:hover { color: var(--ink); background: var(--bg-hover); }
 .rec-sheet-tools { flex: none; display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
-.rec-sheet-body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px; }
+.rec-sheet-body { isolation: isolate; flex: 1; min-height: 0; overflow: auto; padding: 0 22px; }
 .rec-sheet-foot { flex: none; display: flex; flex-direction: column; gap: 11px; padding: 14px 22px 18px; border-top: 1px solid var(--line); background: var(--bg-raised); }
 
 /* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
