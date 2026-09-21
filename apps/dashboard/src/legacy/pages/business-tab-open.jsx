@@ -109,7 +109,7 @@ const btoSameShifts = (a, b) =>
  * The week on one scale (the canvas's Group-Open): a day is a switch, its bars, and its times as boxes. Hookless but
  * for the one menu, which is always drawn: a day's shifts come and go.
  */
-const BtoWeek = ({ draft: week, update, undo, problems, readOnly, flash }) => {
+const BtoWeek = ({ draft: week, update, undo, press, problems, readOnly, flash }) => {
   const max = ((window.__configLimits || {}).maxIntervalsPerDay) || 4;
   const setDay = (d, patch) => update((h) => ({ ...h, [d]: { ...h[d], ...patch } }), [`hours-${d}`]);
   const setShift = (d, n, k, v) =>
@@ -131,7 +131,8 @@ const BtoWeek = ({ draft: week, update, undo, problems, readOnly, flash }) => {
     update((h) => (h[d].shifts.length >= max ? h : { ...h, [d]: { ...h[d], shifts: [...h[d].shifts, { open: "", close: "" }] } }), [`hours-${d}`]);
   const removeShift = (d, n) => {
     const gone = week[d].shifts[n];
-    update((h) => ({ ...h, [d]: { ...h[d], shifts: h[d].shifts.filter((_, j) => j !== n) } }), [`hours-${d}`]);
+    // Said only when it happened: update takes no change while the week saves (BtFold).
+    if (!update((h) => ({ ...h, [d]: { ...h[d], shifts: h[d].shifts.filter((_, j) => j !== n) } }), [`hours-${d}`])) return;
     flash({
       msg: <>Removed the {BTO_SHORT[d]} shift{gone.open ? <> at <b>{gone.open}</b></> : null}</>,
       undo: undo((h) => ({
@@ -157,16 +158,17 @@ const BtoWeek = ({ draft: week, update, undo, problems, readOnly, flash }) => {
    */
   const applyToAll = (from, days) => {
     const src = week[from];
-    if (!src.isOpen || readOnly) return;
+    if (!src.isOpen) return;
     const opened = days.filter((d) => !week[d].isOpen);
     const replaced = days.filter((d) => week[d].isOpen && !btoSameShifts(week[d], src));
     const before = {};
     BTO_DAYS.forEach(([d]) => { before[d] = { isOpen: week[d].isOpen, shifts: week[d].shifts.map((s) => ({ ...s })) }; });
-    update((h) => {
+    const copied = update((h) => {
       const next = { ...h };
       days.forEach((d) => { next[d] = { isOpen: true, shifts: src.shifts.map((s) => ({ ...s })) }; });
       return next;
     });
+    if (!copied) return;
     const names = (list) => list.map((d) => BTO_SHORT[d]).join(", ");
     const notes = [];
     if (opened.length) notes.push(<><b>{names(opened)}</b> {opened.length === 1 ? "was" : "were"} closed and {opened.length === 1 ? "is" : "are"} now open</>);
@@ -235,7 +237,7 @@ const BtoWeek = ({ draft: week, update, undo, problems, readOnly, flash }) => {
                         <button
                           type="button" className="btn btn-ghost btn-icon btn-sm"
                           aria-label={`Remove ${long} shift ${n + 1}`}
-                          onClick={() => removeShift(d, n)}
+                          {...press(() => removeShift(d, n))}
                           data-testid={`rec-hours-remove-${d}-${n}`}
                         ><Icon name="x" size={11} /></button>
                       ) : null}
@@ -250,7 +252,7 @@ const BtoWeek = ({ draft: week, update, undo, problems, readOnly, flash }) => {
               {/* The write schema refuses more than this, so the fold must not offer it (window.__configLimits,
                   published by the bridge from contracts MAX_INTERVALS_PER_DAY). */}
               {day.isOpen && day.shifts.length < max ? (
-                <button type="button" className="bt-week-break" onClick={() => addShift(d)} aria-label={`Add a break to ${long}`} data-testid={`rec-hours-add-${d}`}>
+                <button type="button" className="bt-week-break" {...press(() => addShift(d))} aria-label={`Add a break to ${long}`} data-testid={`rec-hours-add-${d}`}>
                   <Icon name="plus" size={10} /> break
                 </button>
               ) : null}
@@ -400,7 +402,7 @@ const BtoZone = ({ canEdit, gate, flash }) => {
 /* ------------------------------------ the days the week does not apply to ------------------------------------ */
 
 /** The closed days, as rows of from, until and why. Hookless: its rows come and go. */
-const BtoClosures = ({ draft: rows, update, undo, problems, readOnly, flash }) => {
+const BtoClosures = ({ draft: rows, update, undo, press, problems, readOnly, flash }) => {
   // The same cap the write schema enforces (contracts MAX_CLOSURES), so the fold
   // stops at the number the save would refuse, instead of refusing at Save.
   const max = ((window.__configLimits || {}).maxClosures) || 60;
@@ -416,8 +418,9 @@ const BtoClosures = ({ draft: rows, update, undo, problems, readOnly, flash }) =
    */
   const removeClosure = (i) => {
     const gone = rows[i];
-    // Every sentence is asked again at Save: the rows after this one have moved up a place, and so have their keys.
-    update((l) => l.filter((_, j) => j !== i));
+    // Every sentence is asked again at Save: the rows after this one have moved up a place, and so have their keys. And
+    // said only when it happened: update takes no change while the fold saves (BtFold).
+    if (!update((l) => l.filter((_, j) => j !== i))) return;
     flash({
       msg: <>Removed {gone.date ? <b>{gone.date}</b> : "the closure"}{gone.note ? ` — ${gone.note}` : ""}</>,
       undo: undo((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
@@ -455,7 +458,7 @@ const BtoClosures = ({ draft: rows, update, undo, problems, readOnly, flash }) =
             <button
               type="button" className="btn btn-ghost btn-icon btn-sm"
               aria-label={`Remove closure ${c.date || ""}`}
-              onClick={() => removeClosure(i)}
+              {...press(() => removeClosure(i))}
               data-testid={`rec-closure-remove-${i}`}
             ><Icon name="x" size={12} /></button>
             {["date", "until", "note"].map((k) => <window.FieldError key={k} id={idOf(k)} message={bad[k]} testid={`rec-closure-${i}-${k}-problem`} />)}
@@ -463,7 +466,7 @@ const BtoClosures = ({ draft: rows, update, undo, problems, readOnly, flash }) =
         );
       })}
       {rows.length < max ? (
-        <button type="button" className="btn btn-sm bt-fold-add" onClick={add} aria-disabled={readOnly || undefined} data-testid="rec-closures-add">
+        <button type="button" className="btn btn-sm bt-fold-add" {...press(add)} data-testid="rec-closures-add">
           <Icon name="plus" size={12} /> Add a closed day
         </button>
       ) : (

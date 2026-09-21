@@ -245,7 +245,15 @@ const BtRow = ({
  * `body` draws the fields. It is handed the draft, `update(fn, keys)` (the draft as `fn` makes it of the latest one;
  * `keys` are the field keys whose sentences the change answers, all of them when left out), `undo(fn)` (the same, as
  * a toast's Undo: it does nothing once the fold has closed, since the draft it would put something back into is gone),
- * `problems` by field key, and `readOnly` while the fold's save is out. It is drawn on every render, open or not: a
+ * `press(fn)` (the props of a press that changes the draft: an add, a remove), `problems` by field key, and `readOnly`
+ * while the fold's save is out.
+ *
+ * `update` SAYS WHETHER IT TOOK THE CHANGE, and a body toasts only when it did. While the save is out it takes none
+ * (record-fold.jsx), and a body that toasted regardless said "Removed the Mon shift at 14:00", with an Undo, of a shift
+ * that was still there. And every press that changes the draft refuses while the fold saves the way Save does:
+ * focusable, saying it is not to be pressed (aria-disabled, never `disabled`, which lets go of focus), and doing
+ * nothing. `press` is that rule, so a body spreads it and cannot forget half of it:
+ *   <button type="button" {...press(() => removeShift(d, n))}>…</button> It is drawn on every render, open or not: a
  * body may hold hooks (a menu, a field's id), and the tests' stub React keeps every hook on the page as a cell in one
  * order (this file's header). So a body whose rows come and go draws them hookless.
  *
@@ -284,10 +292,10 @@ const BtFold = ({
   const found = problems || {};
 
   // Nothing is typed into a save that is out (record-fold.jsx): asked of the saver at the moment of the change, since an
-  // Undo is pressed long after the draw that made it.
+  // Undo is pressed long after the draw that made it. It answers whether it took the change, for whoever would say so.
   const update = (fn, keys) => {
     const l = live.current;
-    if (!l.open || (saver && saver.pending(id))) return;
+    if (!l.open || (saver && saver.pending(id))) return false;
     const next = fn(l.draft != null ? l.draft : l.opened);
     l.draft = next;
     setDraft(next);
@@ -298,11 +306,16 @@ const BtFold = ({
       return Object.keys(left).length ? left : null;
     });
     setArm(false);
+    return true;
   };
   const undo = (fn) => {
     const at = live.current.opening;
-    return () => { if (live.current.open && live.current.opening === at) update(fn); };
+    return () => (live.current.open && live.current.opening === at ? update(fn) : false);
   };
+  const press = (fn) => ({
+    "aria-disabled": busy || undefined,
+    onClick: (e) => { if (busy) { if (e && e.preventDefault) e.preventDefault(); return; } fn(e); },
+  });
   const close = () => { reset(); fold.close(); };
   const refused = !!(gate && gate["aria-disabled"]);
   const cancel = () => {
@@ -366,7 +379,7 @@ const BtFold = ({
         saveLabel={saveLabel}
         gate={gate}
       >
-        {body({ draft: now, update, undo, problems: found, readOnly: busy, open })}
+        {body({ draft: now, update, undo, press, problems: found, readOnly: busy, open })}
         {/* A refusal that is not this fold's to fix (a stored day that closes before it opens, met while saving the
             closures) stops this save too, and is said once, here, naming where. */}
         <window.FieldError id={`bt-${id}-elsewhere`} message={found.elsewhere || null} testid={`rec-fold-${id}-elsewhere`} />

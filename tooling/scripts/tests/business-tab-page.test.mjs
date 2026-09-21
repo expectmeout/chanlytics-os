@@ -2243,3 +2243,60 @@ test("a refusal that is not the fold's to fix is said once in the fold, and neve
   assert.match(textOf(byTestId(tree, "rec-fold-hours-elsewhere")), /^Something else in your settings stops this save — /, "said where the owner is looking, naming where it is");
   assert.equal(byTestId(tree, "rec-hours-problem-mon"), null, "and under no day, since no day is wrong");
 });
+
+test("under Saving…, a press that would add or remove changes nothing and toasts nothing: it refuses the way Save does", () => {
+  // The spec review's probe. update refused the change while the save was out, and the body toasted anyway: "Removed the
+  // Mon shift at 14:00", with an Undo, of a shift that was still there.
+  W.__saveSettings = () => new Promise(() => {});
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const held = (node) => [node.props["aria-disabled"], node.props.disabled];
+  const two = { ...melany, hours: { ...melany.hours, mon: { intervals: [{ open: "09:30", close: "13:00" }, { open: "14:00", close: "18:00" }] } } };
+  let tree = drawTab({ flash, profile: two });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  assert.deepEqual([held(byTestId(tree, "rec-hours-remove-mon-1")), held(byTestId(tree, "rec-hours-add-tue"))], [[undefined, undefined], [undefined, undefined]], "pressable until the week is sent");
+  typeAt(tree, "Tuesday closes", "17:00");
+  tree = redrawTab(flash);
+  // The week's menu is open, with its copies on screen, as Save is pressed.
+  press(find(byTestId(tree, "rec-hours-copy"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu"));
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "hours");
+  // Pressed in the same breath as Save, before the page has drawn again: the press is still live on screen, so it is
+  // update that answers, by whether it took the change, and the body says nothing of a change it did not make.
+  let before = flashes.length;
+  press(byTestId(tree, "rec-hours-remove-mon-1"));
+  press(find(byTestId(tree, "rec-hours-copy"), (n) => n.props?.role === "menuitem" && textOf(n) === "Every day"));
+  assert.deepEqual(flashes.slice(before), [], "update took nothing, and said so: no shift removed, no week copied");
+  tree = redrawTab(flash);
+  assert.ok(labelled(tree, "Monday shift 2 opens"));
+  assert.equal(byTestId(tree, "rec-hours-switch-sun").props["aria-checked"], false, "Sunday was not opened by a copy that did not happen");
+  assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Saving…");
+  // Focusable, saying they are not to be pressed, and never `disabled`, which lets go of focus: as Save is.
+  assert.deepEqual([held(byTestId(tree, "rec-hours-remove-mon-1")), held(byTestId(tree, "rec-hours-add-tue"))], [[true, undefined], [true, undefined]]);
+  before = flashes.length;
+  press(byTestId(tree, "rec-hours-remove-mon-1"));
+  press(byTestId(tree, "rec-hours-add-tue"));
+  tree = redrawTab(flash);
+  assert.ok(labelled(tree, "Monday shift 2 opens"), "the shift is still there");
+  assert.equal(labelled(tree, "Tuesday shift 2 opens"), null, "and no break was added");
+  assert.deepEqual(flashes.slice(before).map((f) => textOf({ props: { children: f.msg } })), [], "nothing was removed, so nothing says it was");
+
+  tree = drawTab({ flash, profile: { ...melany, closures: [XMAS, NEW_YEAR] } });
+  openFold(tree, "closures");
+  tree = redrawTab(flash);
+  all(byTestId(tree, "rec-closure-1"), (n) => n.type === "input")[2].props.onChange({ target: { value: "New Year" } });
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "closures");
+  before = flashes.length;
+  press(byTestId(tree, "rec-closure-remove-0"));
+  assert.deepEqual(flashes.slice(before), [], "the same, of a closed day removed in the same breath as Save");
+  tree = redrawTab(flash);
+  assert.deepEqual([held(byTestId(tree, "rec-closure-remove-0")), held(byTestId(tree, "rec-closures-add"))], [[true, undefined], [true, undefined]]);
+  before = flashes.length;
+  press(byTestId(tree, "rec-closure-remove-0"));
+  press(byTestId(tree, "rec-closures-add"));
+  tree = redrawTab(flash);
+  assert.equal(all(foldOf(tree, "closures"), (n) => /^rec-closure-\d+$/.test(n.props?.["data-testid"] || "")).length, 2, "both closed days are still there, and no third");
+  assert.deepEqual(flashes.slice(before), [], "and nothing toasts a removal that did not happen");
+});
