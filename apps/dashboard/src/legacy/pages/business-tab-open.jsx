@@ -518,7 +518,10 @@ const btoShortFeed = (url) => {
  * keeps a read before it reads again (its CR_REFRESH_MS, window.__calendarPage.refreshMs: one number, that page's).
  *   fresh                 stated as it stands, and ONE timer is set for the moment it stops being fresh, which draws
  *                         the row again: worked out only as the row drew, an idle page said "read 4m ago" for forty
- *                         minutes;
+ *                         minutes. The timer DECIDES: as it fires it records that the read it was set for has expired,
+ *                         and an expired read is not fresh whatever the clock says. A timer runs on the monotonic
+ *                         clock and Date.now() on the wall clock, so one that fired a moment early met a row that
+ *                         still read fresh, whose effect's inputs had not moved: no second timer, and the same bug;
  *   not fresh             a new read is asked for (window.__calendar.refresh: the route's few minutes' cache, never the
  *                         calendar itself; not from a tab nobody is looking at, as that page's own timer holds off),
  *                         and while it is on its way the last read stays where it is, dimmed (spec §9: a read in
@@ -533,8 +536,9 @@ const btoShortFeed = (url) => {
 const BtoFeedRead = ({ stored }) => {
   const [, setTick] = useBtoState(0);
   const bump = () => setTick((n) => n + 1);
-  // Whether the read this row last asked for failed, and whether the row is still on the page to hear its answer.
-  const flight = useBtoRef({ failed: false, gone: false });
+  // Whether the read this row last asked for failed, whether the row is still on the page to hear its answer, and the
+  // read (by when it was fetched) whose timer has fired.
+  const flight = useBtoRef({ failed: false, gone: false, expired: null });
   useBtoEffect(() => {
     flight.current.gone = false;
     window.addEventListener("surface:calendar", bump);
@@ -549,7 +553,7 @@ const BtoFeedRead = ({ stored }) => {
   const keeps = window.__calendarPage || {};
   const C = window.__CALENDAR || null;
   const at = C && typeof C.fetchedAt === "number" ? C.fetchedAt : null;
-  const fresh = at != null && typeof keeps.refreshMs === "number" && Date.now() - at < keeps.refreshMs;
+  const fresh = at != null && flight.current.expired !== at && typeof keeps.refreshMs === "number" && Date.now() - at < keeps.refreshMs;
   const canAsk = !!(window.__calendar && typeof window.__calendar.refresh === "function");
   const visible = document.visibilityState !== "hidden";
   const ask = () => {
@@ -562,7 +566,7 @@ const BtoFeedRead = ({ stored }) => {
   };
   useBtoEffect(() => {
     if (!stored || !fresh) return undefined;
-    const timer = window.setTimeout(bump, at + keeps.refreshMs - Date.now());
+    const timer = window.setTimeout(() => { flight.current.expired = at; bump(); }, at + keeps.refreshMs - Date.now());
     return () => window.clearTimeout(timer);
   }, [stored, at, keeps.refreshMs]);
   useBtoEffect(() => {

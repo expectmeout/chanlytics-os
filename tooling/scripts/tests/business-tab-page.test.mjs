@@ -2416,6 +2416,9 @@ const clock = () => {
     live: () => timers.filter((t) => !t.cleared && !t.fired),
     /** Time passes, and every timer due by then fires, in order. */
     pass(ms) { at += ms; for (const t of timers.filter((x) => !x.cleared && !x.fired && x.at <= at)) { t.fired = true; t.fn(); } },
+    /** The wall clock moves by `ms`, and every live timer fires whether or not it reads as due: a timer runs on the
+     *  monotonic clock, so a wall clock stepped back, or one a browser coarsens, reads "not yet" as it fires. */
+    early(ms) { at += ms; for (const t of timers.filter((x) => !x.cleared && !x.fired)) { t.fired = true; t.fn(); } },
     restore() { Date.now = real.now; globalThis.setTimeout = real.set; globalThis.clearTimeout = real.clear; },
   };
 };
@@ -2456,6 +2459,24 @@ test("an idle page stops stating a read when the Calendar page would have read a
     // The page goes: its timer goes with it.
     unmount();
     assert.equal(time.live().length, 0, "cleared as the row unmounts");
+
+    // The quality review's probe. The timer fires a millisecond before the wall clock says the read is stale. Asked of
+    // the clock again, the row read "still fresh", its effect's inputs had not moved, so no second timer was set and
+    // nothing ever looked again: the very page the timer was added for. The timer decides: the read it was set for has
+    // expired, whatever the clock says.
+    W.__CALENDAR = { ...calendarRead(readOk()), fetchedAt: Date.now() };
+    tree = drawTab();
+    assert.deepEqual(time.live().map((t) => t.ms), [keeps]);
+    const before = asked.length;
+    time.early(keeps - 1);
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "rec-calendar-read").props["data-reading"], "true", "no longer stated as it stands");
+    assert.equal(asked.length, before + 1, "and a new read is asked for");
+    // A newer read is judged afresh: the expiry was that read's, not the row's.
+    W.__CALENDAR = { ...calendarRead(readOk({ events: 7 })), fetchedAt: Date.now() };
+    W.dispatchEvent({ type: "surface:calendar" });
+    tree = redrawTab();
+    assert.deepEqual([byTestId(tree, "rec-calendar-read").props["data-reading"], time.live().map((t) => t.ms)], [undefined, [keeps]]);
   } finally {
     time.restore();
     delete W.__CALENDAR;
