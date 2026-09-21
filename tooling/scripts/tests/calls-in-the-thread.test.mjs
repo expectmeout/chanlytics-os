@@ -375,6 +375,20 @@ test("a thread opens where a call began when a call is the newest thing said; at
   assert.equal(opensAt(flagged), "e1");
 });
 
+test("the line being said is kept in view without moving the thread under the reader: one under the player comes out just below it", () => {
+  const followBy = globalThis.window.tlFollowBy;
+  // A desk pane 744px tall, reading from 56px (the player's 44 and a gap) to its foot at 800.
+  const view = { top: 56, bottom: 800, height: 744 };
+  const line = (top, height = 40) => ({ top, bottom: top + height });
+  assert.equal(followBy(line(200), view), 0, "in view: the thread holds still");
+  // Measured on a real thread: ▶ put the player over the first line, which sat at 48, and the thread moved 237px.
+  assert.equal(followBy(line(48), view), -8, "REGRESSION: under the player, it comes out just below it and no further");
+  assert.equal(followBy(line(-300), view), -356, "played from a line above the view: it lands just below the player");
+  assert.equal(followBy(line(900), view), 900 - 56 - 186, "below the fold: it comes up to a quarter of the way down, with what follows in view");
+  assert.equal(followBy(line(770), view), 770 - 56 - 186, "cut by the foot: the same");
+  assert.equal(followBy(line(100, 900), view), 0, "a line longer than the pane that starts in view is never pulled back up");
+});
+
 /* ------------------------------- the rest of the thread ------------------------------- */
 
 test("a thread's bubbles name their wire only when its words went by more than one: a call is not a second wire", () => {

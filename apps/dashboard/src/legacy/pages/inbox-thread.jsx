@@ -904,6 +904,16 @@ const TL_SPEEDS = [1, 1.5, 2];
 const tlLineAt = (lines, pos) => { let at = -1; lines.forEach((l, i) => { if (typeof l.start === "number" && l.start <= pos + 0.05) at = i; }); return at; };
 // One call plays at a time: the one playing, which the next to play pauses.
 const TL_PLAYING = { el: null };
+// How far the thread moves to keep the line being said in view, or 0. `view.top` is where reading starts, below the
+// player. A line under the player comes out just below it: pressing ▶ puts the player above the call's first line, the
+// browser's scroll anchoring slides it over that line, and bringing the line to a quarter of the pane moved the whole
+// thread under the reader's finger, 237px on a real one. A line below the fold comes up with some of what follows it in
+// view, and one that starts in view is never pulled back up.
+const tlFollowBy = (line, view) => {
+  if (line.top >= view.top && line.bottom <= view.bottom - 24) return 0;
+  if (line.top < view.top) return line.top - view.top;
+  return Math.max(0, line.top - view.top - view.height * 0.25);
+};
 
 // `call`: the call itself, when it has been read; `note`: the words it left on the thread, which are all an older call
 // has. `open`: its lines shown -- the thread's newest spoken entry, or the call Conversations opened it at. On the side
@@ -937,10 +947,10 @@ const ThreadCall = ({ call = null, note = null, at, mid, open: openFirst = false
     const top = box.top + (bar ? bar.offsetHeight + 12 : 0);
     const seen = (n) => { if (!n) return true; const r = n.getBoundingClientRect(); return r.bottom > top && r.top < box.bottom; };
     if (!seen(before)) return;
-    const r = now.getBoundingClientRect();
-    if (r.top >= top && r.bottom <= box.bottom - 24) return;
+    const by = tlFollowBy(now.getBoundingClientRect(), { top, bottom: box.bottom, height: box.height });
+    if (!by) return;
     const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    scroller.scrollBy({ top: r.top - top - box.height * 0.25, behavior: still ? "auto" : "smooth" });
+    scroller.scrollBy({ top: by, behavior: still ? "auto" : "smooth" });
   }, [active]);
 
   const said = call ? null : tlNoteOf(note);
@@ -1525,6 +1535,8 @@ window.InboxThread = InboxThread;
 // Conversations draws a call no thread holds as the thread draws one; where a thread opens is published for its test.
 window.ThreadCall = ThreadCall;
 window.ixOpensAt = ixOpensAt;
+// Published so the rule can be driven on its own: the effect that applies it measures a laid-out page.
+window.tlFollowBy = tlFollowBy;
 window.InboxEmpty = InboxEmpty;
 // Published for the-pages-say-only-what-is-true.test.mjs, which draws the composer on its own.
 window.InboxComposer = Composer;
