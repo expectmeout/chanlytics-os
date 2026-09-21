@@ -801,6 +801,54 @@ test("a fold opened by its id alone is guarded by the dirty test its hook bound 
   folds.reset();
 });
 
+test("a hook binds one dirty test for its life, so a request made after a redraw is let go of when the page goes", async () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  let edited = false;
+  let tone;
+  // The hook alone, with no fold drawn: nothing counts this page's fold (drawn()), so the test is all that answers for it.
+  const Page = () => { tone = W.useRecordFold("tone", { dirty: () => edited }); return null; };
+  draw(Page);
+  // Every keystroke draws the page again before the row's own act asks for its fold.
+  redraw(Page);
+  tone.request();
+  edited = true;
+  assert.equal(W.__settingsUnsaved(), true, "open and edited, it holds changes");
+  unmount();
+  await settle();
+  assert.equal(folds.dirty(), false, "gone, it answers for nothing");
+  assert.equal(W.__settingsUnsaved(), false, "and the rail is not asked about a page that is not there");
+  folds.reset();
+});
+
+test("an ask for a fold that leaves the page goes with it, and the fold holding changes stays open; one that comes back new keeps it", async () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  // The fold asked for is on the page through its hook; the fold holding changes is open by its id.
+  const Wanted = () => { W.useRecordFold("notes", { dirty: () => false }); return null; };
+  draw(Wanted);
+  folds.request("hours", { dirty: () => true });
+  folds.request("notes");
+  assert.deepEqual(folds.asking(), { holding: "hours", wants: "notes" });
+
+  // A key change, or a new parent: the fold asked for goes and a new one comes in the same commit, and the ask stands.
+  unmount();
+  W.React.createElement(Wanted);
+  await settle();
+  assert.deepEqual(folds.asking(), { holding: "hours", wants: "notes" }, "the fold asked for is still on the page");
+
+  // Gone for good. Answered "discard", the ask would have thrown the changes away to open a fold nothing draws.
+  let heard = 0;
+  const unhear = folds.subscribe(() => { heard += 1; });
+  unmount();
+  await settle();
+  unhear();
+  assert.equal(folds.asking(), null, "the ask goes with the fold it asked for");
+  assert.ok(heard > 0, "and the page is told, so the question it drew goes too");
+  assert.deepEqual([folds.open(), folds.dirty()], ["hours", true], "the fold holding changes stays open, with them");
+  folds.reset();
+});
+
 test("a fold whose id is falsy is still a fold, and one listener that throws does not silence the rest", () => {
   const folds = W.__recordFolds;
   folds.reset();

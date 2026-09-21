@@ -44,13 +44,15 @@
 // hook win the same way; it is a stated limit, not handled, because nothing draws a fold id twice. A clean fold
 // gives way at once; a dirty one stays open and the registry records { holding, wants } until one of three answers:
 // discard() (throw its changes away and open the one asked for), stay() (keep editing it), or close(id) from the
-// holding fold itself (saved or cancelled; the one asked for then opens). close(id) from a fold that is not the open
+// holding fold itself (saved or cancelled; the one asked for then opens). If the fold asked for leaves the page first,
+// the ask goes with it, and the holding fold stays open with its changes. close(id) from a fold that is not the open
 // one does nothing. subscribe(fn) hears every change. A page reaches all of this through useRecordFold rather than by
 // hand.
 // Three are not for pages: drawn(id) is RecordFold's own (it counts the folds with each id on the page, and when the
 // last one with the open id goes, the registry lets go); bind(id, check) is useRecordFold's (a fold's dirty test, by
-// its id, for as long as the fold is on the page; a page drawn again hands over its own); and reset() is for tests (it
-// forgets what is open and asked).
+// its id, for as long as the fold is on the page; a page drawn again hands over its own; one hook binds one test for
+// its life, so the test it binds is the test it hands its requests); and reset() is for tests (it forgets what is open
+// and asked).
 
 const { useRef: useFoldRef, useEffect: useFoldEffect, useState: useFoldState } = React;
 
@@ -125,7 +127,8 @@ const recFolds = (() => {
     // open, waiting behind an ask to open, or closed until something asks for it by its id. A page drawn again as a
     // new instance hands over its own the same way. Nothing else moves, the ask included, and nobody is told: nothing
     // anyone sees has changed. Call what this returns as the fold's page goes: its test is let go of wherever the
-    // registry still holds it, and a test bound since, by a new instance, is left in place.
+    // registry still holds it, a test bound since, by a new instance, is left in place, and an ask for the fold goes
+    // unless a new instance has bound by the end of the commit.
     bind(id, check) {
       if (typeof check !== "function") return () => {};
       bound.set(id, check);
@@ -135,6 +138,13 @@ const recFolds = (() => {
         if (bound.get(id) === check) bound.delete(id);
         if (openDirty === check) openDirty = null;
         if (asked && asked.check === check) asked.check = undefined;
+        // The fold an ask wants is going. Asked a moment later, as drawn() asks, so one that comes straight back as a
+        // new instance (binding its own test in the same commit) keeps the ask. Gone for good, the ask goes with it:
+        // answered "discard", it would have thrown the holding fold's changes away to open a fold nothing draws. The
+        // holding fold stays open with its changes, and is told, so its question goes too.
+        queueMicrotask(() => {
+          if (asked && asked.wants === id && !bound.has(id)) { asked = null; tell(); }
+        });
       };
     },
     // RecordFold's own, not a page's: a fold with this id is on the page; call what this returns when it goes. When
@@ -171,9 +181,18 @@ const useRecordFold = (id, { dirty = false } = {}) => {
     return { open: recFolds.open() === id, asking: ask && ask.holding === id ? ask : null };
   };
   const [seen, setSeen] = useFoldState(read);
-  const dirtyNow = useFoldRef(dirty);
-  dirtyNow.current = dirty;
-  const holds = () => { const d = dirtyNow.current; return typeof d === "function" ? !!d() : !!d; };
+  // ONE test for the hook's life, reading the page's latest `dirty`: what it binds and what its request hands over
+  // are the same function, because the registry lets go of a test by its identity (bind's unbind). A new one each
+  // render was a test the registry never let go of: a request made after a redraw held one the unbind did not know,
+  // and a page gone from the screen still answered the Settings rail with its last "holds changes".
+  const mine = useFoldRef(null);
+  if (!mine.current) {
+    const box = { dirty };
+    box.holds = () => { const d = box.dirty; return typeof d === "function" ? !!d() : !!d; };
+    mine.current = box;
+  }
+  mine.current.dirty = dirty;
+  const holds = mine.current.holds;
   useFoldEffect(() => {
     const unbind = recFolds.bind(id, holds);
     const hear = () => setSeen((was) => { const now = read(); return was.open === now.open && recSameAsk(was.asking, now.asking) ? was : now; });
