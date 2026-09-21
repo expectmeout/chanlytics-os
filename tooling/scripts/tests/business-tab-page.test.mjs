@@ -146,6 +146,31 @@ test("a field carries its label, its unit and its refusal, wired for a screen re
   assert.deepEqual(typed, ["https://booksy.com"], "a keystroke hands the page the words, not the event");
 });
 
+test("fields given no id still name their own sentences, and a combobox its own list", () => {
+  // Two of each on one page, none given an id: React.useId names each, where "rec-undefined-problem" named them all.
+  const Page = () => W.React.createElement("div", null,
+    W.React.createElement(W.RecordField, { label: "Opens", value: "9", onChange: () => {}, problem: "Needs a time." }),
+    W.React.createElement(W.RecordField, { label: "Closes", value: "5", onChange: () => {}, problem: "Needs a time too." }),
+    W.React.createElement(W.RecordCombobox, { label: "Timezone", value: null, options: [], onChange: () => {} }),
+    W.React.createElement(W.RecordCombobox, { label: "Also a timezone", value: null, options: [], onChange: () => {} }));
+  const tree = draw(Page);
+  const boxes = all(tree, (n) => classes(n).includes("rec-input"));
+  const described = boxes.map((b) => b.props["aria-describedby"]);
+  assert.notEqual(described[0], described[1], "each box names its own sentence");
+  assert.deepEqual(described.map((id) => textOf(byId(tree, id))).map((t) => t.trim()), ["Needs a time.", "Needs a time too."]);
+  assert.ok(described.every((id) => !id.includes("undefined")));
+  const lists = all(tree, (n) => n.props?.role === "combobox").map((c) => c.props["aria-controls"]);
+  assert.notEqual(lists[0], lists[1], "each combobox names its own list");
+  assert.deepEqual(lists.map((id) => byId(tree, id)?.props.role), ["listbox", "listbox"]);
+});
+
+test("a field keeps the page's own class and description beside its own", () => {
+  const tree = draw(W.RecordField, { id: "lead", label: "Least notice", value: "2", onChange: () => {}, hint: "Empty means no rule.", className: "tabular", "aria-describedby": "lead-consequence" });
+  const box = find(tree, (n) => n.type === "input");
+  assert.deepEqual(classes(box), ["rec-input", "tabular"]);
+  assert.equal(box.props["aria-describedby"], "rec-lead-hint lead-consequence", "the hint, and the page's consequence line");
+});
+
 test("a switch is a switch, and says which state it is in", () => {
   const flips = [];
   const tree = draw(W.RecordSwitch, { on: true, label: "Never quote a price", onChange: (v) => flips.push(v) });

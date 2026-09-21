@@ -20,7 +20,7 @@ const storage = () => {
   const m = new Map();
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
 };
-const cells = { list: [], seq: 0 };
+const cells = { list: [], seq: 0, ids: 0 };
 
 export function installLegacyReact(extra = {}) {
   globalThis.window = globalThis;
@@ -75,6 +75,12 @@ export function installLegacyReact(extra = {}) {
     },
     useMemo: (fn) => fn(),
     useCallback: (fn) => fn,
+    // React 18 and 19 both have it: an id that stays with its component across draws and is no other's.
+    useId: () => {
+      const k = cells.seq++;
+      if (!(k in cells.list)) cells.list[k] = `:r${(cells.ids++).toString(36)}:`;
+      return cells.list[k];
+    },
     useEffect: effect,
     useLayoutEffect: effect,
   };

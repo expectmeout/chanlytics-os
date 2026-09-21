@@ -10,14 +10,16 @@
 // chip, the app's own dark tooltip (data-bits' __tip) on a mark; RecordCard is the white card, for a tip that
 // carries an act.
 
-const { useState: useRfState, useEffect: useRfEffect, useRef: useRfRef } = React;
+const { useState: useRfState, useEffect: useRfEffect, useRef: useRfRef, useId: useRfId } = React;
 
 // A field: its label, the box (with its unit when it has one), and under it a hint or what is wrong with it.
 //   <RecordField id="lead" label="Least notice" unit="hours" value={v} onChange={setV} hint="Empty means no rule." />
 // The label holds the box, so the box is named by it, and by its unit ("Least notice hours"). `problem` is drawn by
 // the one FieldError (data-bits) with the id rec-<id>-problem, which the box names in aria-describedby as it marks
-// itself aria-invalid; a hint gives way to it. `rows` makes the box a textarea. onChange hands the page the words.
-// Anything else (inputMode, placeholder, maxLength, disabled, onKeyDown, onBlur) goes to the box as it is.
+// itself aria-invalid; a hint gives way to it. Given no `id`, the field takes one from React.useId, so two fields
+// never share a sentence. `rows` makes the box a textarea. onChange hands the page the words. Anything else
+// (inputMode, placeholder, maxLength, disabled, onKeyDown, onBlur) goes to the box as it is; the page's own className
+// and aria-describedby join the field's, so a consequence line of the page's can describe the box too.
 //
 // The rest is gathered by hand, not with `...rest` in the parameters. The standalone mockup compiles each file with
 // Babel into one shared global scope, and Babel keeps an object rest's excluded keys in a top-level `var _excluded`:
@@ -26,17 +28,20 @@ const { useState: useRfState, useEffect: useRfEffect, useRef: useRfRef } = React
 const REC_FIELD_OWN = new Set(["id", "label", "value", "onChange", "unit", "hint", "problem", "rows", "testid", "children"]);
 const RecordField = (props) => {
   const { id, label, value, onChange, unit = null, hint = null, problem = null, rows = null, testid = null } = props;
+  const autoId = useRfId();
   const rest = {};
   for (const k of Object.keys(props)) if (!REC_FIELD_OWN.has(k)) rest[k] = props[k];
-  const problemId = `rec-${id}-problem`;
-  const hintId = `rec-${id}-hint`;
+  const fieldId = id || autoId;
+  const problemId = `rec-${fieldId}-problem`;
+  const hintId = `rec-${fieldId}-hint`;
+  const describedBy = [problem ? problemId : hint ? hintId : null, rest["aria-describedby"]].filter(Boolean).join(" ");
   const box = {
     ...rest,
-    className: "rec-input",
+    className: ["rec-input", rest.className].filter(Boolean).join(" "),
     value: value == null ? "" : value,
     onChange: (e) => { if (onChange) onChange(e.target.value); },
     "aria-invalid": problem ? true : undefined,
-    "aria-describedby": problem ? problemId : hint ? hintId : undefined,
+    "aria-describedby": describedBy || undefined,
   };
   const control = rows ? <textarea rows={rows} {...box} /> : <input type="text" {...box} />;
   return (
@@ -140,20 +145,23 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
   const [active, setActive] = useRfState(0);
   // A click that focuses the box would put the caret where it landed, undoing the selection focus made.
   const clickFocuses = useRfRef(false);
+  // Given no `id`, the list and its options take their names from React.useId, so two comboboxes never share one.
+  const autoId = useRfId();
+  const boxId = id || autoId;
   const refused = !!(gate && gate["aria-disabled"]);
   const chosen = options.find((o) => o.value === value) || null;
   const q = query.trim().toLowerCase();
   const shown = q ? options.filter((o) => String(o.label).toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)) : options;
   const expanded = open && !refused && shown.length > 0;
   const at = Math.max(0, Math.min(active, shown.length - 1));
-  const listId = `rec-${id}-list`;
-  const optId = (i) => `rec-${id}-opt-${i}`;
+  const listId = `rec-${boxId}-list`;
+  const optId = (i) => `rec-${boxId}-opt-${i}`;
   // A long list keeps the option walked to in view.
   useRfEffect(() => {
     if (!expanded || !document.getElementById) return;
-    const el = document.getElementById(`rec-${id}-opt-${at}`);
+    const el = document.getElementById(optId(at));
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
-  }, [expanded, at, id]);
+  }, [expanded, at, boxId]);
   const shut = () => { setOpen(false); setQuery(""); setActive(0); };
   const pick = (o) => { shut(); if (onChange) onChange(o.value); };
   const onKey = (e) => {
