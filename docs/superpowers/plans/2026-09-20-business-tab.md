@@ -698,7 +698,7 @@ git commit -m "What the receptionist can do, and what it cannot"
 
 ### Task 1.5: The prompt, cut into blocks
 
-> **Superseded in execution — read `eb603795`, not the code below.** The algorithm below cuts on headings alone, and running it on real prompts showed three faults: the owner's own words (`extra_instructions`) have no reliable heading and were folded into whatever came before; the call's hand-off heading (`Handing the caller to a person:`) was missed; and Chanlytics' own per-workspace text landed in rows, including "Who you are". The shipped version takes a third argument, `promptBlocks(text, channel, ownWords?)`, fences the owner's words off by literal text before matching any heading (an old prompt carried into them restates "Services:" under its own heading), names the fixed text as a `platform` row, gives marks a channel, and makes `chars` each block's exact share so the blocks sum to the prompt. Five tests pin it. Every later task passes `ownWords`.
+> **Superseded in execution — read `business-tab.ts` and the tests that pin it, not the code below.** The algorithm below cuts on headings alone, and running it on real prompts showed three faults: the owner's own words (`extra_instructions`) have no reliable heading and were folded into whatever came before; the call's hand-off heading (`Handing the caller to a person:`) was missed; and Chanlytics' own per-workspace text landed in rows, including "Who you are". The shipped signature is `promptBlocks(text, channel, from)`, where `from` is required and says what the prompt was composed from: the stored brain for the resolved prompt, `{ profile }` for a draft run through `composeSystemPrompt`, or `null`. Leaving it out throws, because the caller is untyped JSX. The owner's words are the ones `ownWordsOf(from)` names — the resolver's own carry rule, so a prompt carried into a blank box is found too — and they are fenced off by literal text before any heading is matched. The product's baseline prompt is the platform's, not the owner's. The hand-off is one `handoff` row on both channels, and says it is always sent. A workspace with no fields is its own words, then `autonomy` rules. Every block has a unique `id`, because the platform's text recurs on a call, and `chars` sum to the prompt. Every later task passes `from`.
 
 **Files:**
 - Modify: `packages/contracts/src/business-tab.ts`
@@ -1468,10 +1468,10 @@ function consequenceOf(
   tz?: string | null,
 ): PromptBlockVM | null {
   const text = composeSystemPrompt(draft.brain, draft.profile as never, channel, tz ?? null);
-  // The owner's words are found by their literal text, so pass them: without them
-  // promptBlocks cannot fence them off, and a fold would show them inside a row.
-  const own = (draft.profile as { extra_instructions?: string | null }).extra_instructions ?? null;
-  return promptBlocks(text, channel, own).find((b) => b.row === section) ?? null;
+  // Composed from the draft, and the composer never carries the stored prompt in,
+  // so the words to look for are the draft's own: `{ profile }`, not the stored
+  // brain. Blocks are named by row, and the hand-off's is "handoff" on both channels.
+  return promptBlocks(text, channel, { profile: draft.profile as { extra_instructions?: string | null } }).find((b) => b.row === section) ?? null;
 }
 
 window.__businessTab = { standingLine, abilityRows, CANNOT_ROWS, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf };
@@ -2182,7 +2182,7 @@ test("the contents lists one entry per block, with what each costs", () => {
   const blocks = promptBlocks(
     composeSystemPrompt(W.__SETTINGS.config.brain, melany, "whatsapp", "America/New_York"),
     "whatsapp",
-    melany.extra_instructions ?? null,
+    { profile: melany },
   );
   const entries = all(byTestId(tree, "rec-prompt-contents"), (n) => classes(n).includes("rec-prompt-entry"));
   assert.equal(entries.length, blocks.length);
@@ -2200,9 +2200,9 @@ test("a block carries a door back to the row that wrote it", () => {
   assert.ok(door, "the block opens its row");
 });
 
-test("the hand-off block is WhatsApp's, and says so", () => {
-  const wa = byTestId(drawPrompt("whatsapp"), "rec-prompt-block-escalate_when");
-  assert.match(textOf(wa), /WhatsApp only/i);
+test("the hand-off block says it is always sent", () => {
+  const wa = byTestId(drawPrompt("whatsapp"), "rec-prompt-block-handoff");
+  assert.match(textOf(wa), /always sent/i);
 });
 
 test("what is sent beside the prompt is drawn apart, and says why", () => {
@@ -2216,7 +2216,7 @@ test("what is sent beside the prompt is drawn apart, and says why", () => {
 - [ ] **Step 2: Run it and watch it fail**
 - [ ] **Step 3: Implement**
 
-The sheet is `RecordSheet` holding a contents rail and the blocks. Both come from `promptBlocks`; the page composes nothing. The channel switch is `RecordToggleGroup`. The `now` block is `window.__composedPrompt(channel).now`, drawn under a dashed rule with the sentence about the prompt cache that `PromptPreview` already carried — keep those words, they are the reason the split exists.
+The sheet is `RecordSheet` holding a contents rail and the blocks. Both come from `promptBlocks`; the page composes nothing. It cuts `window.__composedPrompt(channel).text`, which is the resolved prompt, so it passes the stored brain (`W.__SETTINGS.config.brain`) as `from`: that is how a prompt carried into a blank box is found. Key each block, and its `rec-prompt-block-*` test id, by `id` rather than `row`, because the platform's text appears twice on a call. The channel switch is `RecordToggleGroup`. The `now` block is `window.__composedPrompt(channel).now`, drawn under a dashed rule with the sentence about the prompt cache that `PromptPreview` already carried — keep those words, they are the reason the split exists.
 
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Run the suite, commit, open the PR**

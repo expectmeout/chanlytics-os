@@ -486,7 +486,8 @@ function baselinePrompt(businessName: string): string {
   return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
 }
 
-function isBaselinePrompt(text: string): boolean {
+/** The product's own opening lines, whatever business name they were written with -- words no owner wrote. */
+export function isBaselinePrompt(text: string): boolean {
   return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 
@@ -1288,11 +1289,28 @@ export function resolveSystemPrompt(
   //
   // So an existing prompt is carried as extra instructions until the owner
   // has written their own. Once they have, theirs wins — they have seen the
-  // old text in the form and decided what to keep.
-  const carried = profile.extra_instructions?.trim()
-    ? profile
-    : { ...profile, extra_instructions: brain.system_prompt };
+  // old text in the form and decided what to keep. ownWordsOf states that
+  // rule, so anything looking for these words in the prompt uses the same one.
+  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? undefined };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+}
+
+/**
+ * The owner's own words, as the receptionist is given them.
+ *
+ * What they have written into the form, once there is anything in it. Until
+ * then the workspace's prompt stands in their place: carried whole when the
+ * profile composes, so filling in one field loses nothing, and read as it
+ * stands when it does not. The one statement of that rule. resolveSystemPrompt
+ * composes with it, and anything that has to find those words in what the
+ * resolver returned looks for them with it, rather than with a copy that can
+ * drift.
+ */
+export function ownWordsOf(
+  brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
+): string | null {
+  const own = brain?.profile?.extra_instructions;
+  return own?.trim() ? own : (brain?.system_prompt ?? null);
 }
 
 /** The details a message sent in the business's name may name, as the owner writes them. */

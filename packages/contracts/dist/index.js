@@ -2881,8 +2881,12 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
     phone_display: facts.phone_display.value,
     booking_link: facts.booking_link.value ?? brain.booking_link
   };
-  const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
+  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+}
+function ownWordsOf(brain) {
+  const own = brain?.profile?.extra_instructions;
+  return own?.trim() ? own : brain?.system_prompt ?? null;
 }
 var FALLBACK_DETAILS = ["business", "booking link", "phone"];
 var FALLBACK_DEFAULTS = {
@@ -10678,35 +10682,48 @@ var CANNOT_ROWS = [
     soon: true
   }
 ];
-var PLATFORM_NOTE = "Written by Chanlytics, the same on every workspace. Not yours to edit.";
+var PLATFORM_LABEL = "Chanlytics' own instructions";
+var PLATFORM_NOTE = "Written by Chanlytics for every workspace, not by you.";
 var BLOCK_MARKS = [
   { row: "hours", label: "When you're open", startsWith: "Opening hours" },
   { row: "closures", label: "Days you're closed", startsWith: "Closed on these dates" },
   { row: "services", label: "Services", startsWith: "Services:" },
   { row: "notes", label: "Things it should know", startsWith: "Other things to know:" },
   { row: "booking_rules", label: "Booking rules", startsWith: "Booking rules:" },
+  // One row on both channels. Each channel has its own heading, and the owner's
+  // reasons compose under either. The block is sent whether or not there are any,
+  // so each note says why it is there.
   {
-    row: "escalate_when",
+    row: "handoff",
     label: "Hand-off",
     startsWith: "Handing the conversation to a person:",
     channel: "whatsapp",
-    note: "WhatsApp only \u2014 on a call the agent transfers to your number instead, and that is the call's own hand-off."
+    note: "Always sent, whether or not you give reasons \u2014 it is how anything it should not decide reaches you. On WhatsApp it hands you the thread."
   },
   {
-    row: "handoff_number",
+    row: "handoff",
     label: "Hand-off",
     startsWith: "Handing the caller to a person:",
     channel: "voice",
-    note: "Phone only \u2014 on WhatsApp the receptionist hands the thread to you instead."
+    note: "Always sent, whether or not you give reasons \u2014 it is how a caller who needs a person reaches one. On a call it transfers to your number in opening hours if you gave one, and takes a message otherwise."
   },
-  { row: "platform", label: "Chanlytics' own instructions", startsWith: "Open times: use check_availability", channel: "voice", note: PLATFORM_NOTE },
-  { row: "platform", label: "Chanlytics' own instructions", startsWith: "You are speaking aloud.", channel: "voice", note: PLATFORM_NOTE },
-  { row: "platform", label: "Chanlytics' own instructions", startsWith: "Keep replies short enough to read on a phone.", channel: "whatsapp", note: PLATFORM_NOTE },
-  { row: "platform", label: "Chanlytics' own instructions", startsWith: "If open times are listed after these instructions", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: "Open times: use check_availability", channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: "You are speaking aloud.", channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: "Keep replies short enough to read on a phone.", channel: "whatsapp", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: "If open times are listed after these instructions", note: PLATFORM_NOTE },
   { row: "guardrails", label: "Rules it always keeps", startsWith: "Rules you must follow:" }
 ];
 var OWN_WORDS_FRAMES = ["Further instructions from the business.", "Some of it was written for text conversations"];
+var IDENTITY = { row: "identity", label: "Who you are", startsWith: "" };
 var OWN_WORDS = { row: "extra_instructions", label: "In your own words", startsWith: "" };
+var CARRIED = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  note: "The prompt this workspace had before it had fields. It is read until you write your own."
+};
+var BASELINE = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
+var AUTONOMY = { row: "autonomy", label: "Autonomy's rules", startsWith: "", note: "Set on the Autonomy tab, not on this page." };
 function ownWordsSpan(lines, ownWords) {
   const want = (ownWords ?? "").trim().split("\n");
   if (!want[0]) return null;
@@ -10717,25 +10734,40 @@ function ownWordsSpan(lines, ownWords) {
   }
   return null;
 }
-function promptBlocks(text, channel, ownWords) {
+function promptBlocks(text, channel, from) {
+  if (from === void 0 || typeof from !== "object") {
+    throw new TypeError("promptBlocks needs what the prompt was composed from: the stored brain, { profile } for a draft, or null.");
+  }
   const lines = text.split("\n");
-  const own = ownWordsSpan(lines, ownWords);
+  const words2 = ownWordsOf(from);
+  const own = ownWordsSpan(lines, words2);
   const insideOwn = (n) => !!own && n >= own.from && n < own.to;
   const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
-  const starts = [];
+  const found = [];
   const seen = /* @__PURE__ */ new Set();
   lines.forEach((line, n) => {
     if (insideOwn(n)) return;
     const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
     if (!mark || seen.has(mark.startsWith)) return;
     seen.add(mark.startsWith);
-    starts.push({ at: n, mark });
+    found.push({ at: n, mark });
   });
-  if (own) starts.push({ at: own.from, mark: OWN_WORDS });
+  const carried = !from?.profile?.extra_instructions?.trim() && !!from?.system_prompt?.trim();
+  const theirs = (body) => isBaselinePrompt(body.trim()) ? BASELINE : carried ? CARRIED : OWN_WORDS;
+  let starts;
+  let head;
+  if (found.some((s) => s.mark.row === "platform")) {
+    starts = own ? [...found, { at: own.from, mark: theirs(words2 ?? "") }] : found;
+    head = IDENTITY;
+  } else {
+    const rules = found.find((s) => s.mark.row === "guardrails");
+    starts = rules ? [{ at: rules.at, mark: AUTONOMY }] : [];
+    head = theirs(lines.slice(0, rules?.at ?? lines.length).join("\n"));
+  }
   starts.sort((a, b) => a.at - b.at);
   const segments = [];
   const first = starts[0]?.at ?? lines.length;
-  if (first > 0) segments.push({ from: 0, to: first, mark: null });
+  if (first > 0) segments.push({ from: 0, to: first, mark: head });
   starts.forEach((s, n) => segments.push({ from: s.at, to: starts[n + 1]?.at ?? lines.length, mark: s.mark }));
   const ranges = segments.filter((s) => s.from < s.to);
   const out = [];
@@ -10743,29 +10775,33 @@ function promptBlocks(text, channel, ownWords) {
   ranges.forEach((seg, n) => {
     const body = lines.slice(seg.from, seg.to).join("\n");
     const chars = body.length + (n < ranges.length - 1 ? 1 : 0);
-    const row2 = seg.mark?.row ?? "identity";
     const prev = out[out.length - 1];
     if (!body.trim()) {
       if (prev) prev.chars += chars;
       else carry += chars;
       return;
     }
-    if (prev && prev.row === row2) {
-      prev.text = `${prev.text}
-${body.trim()}`;
+    if (prev && prev.row === seg.mark.row) {
+      prev.to = seg.to;
       prev.chars += chars;
       return;
     }
     out.push({
-      row: row2,
-      label: seg.mark?.label ?? "Who you are",
-      text: body.trim(),
+      row: seg.mark.row,
+      label: seg.mark.label,
       chars: chars + carry,
-      ...seg.mark?.note ? { note: seg.mark.note } : {}
+      ...seg.mark.note ? { note: seg.mark.note } : {},
+      from: seg.from,
+      to: seg.to
     });
     carry = 0;
   });
-  return out;
+  const times = /* @__PURE__ */ new Map();
+  return out.map(({ from: a, to: b, ...block }) => {
+    const n = (times.get(block.row) ?? 0) + 1;
+    times.set(block.row, n);
+    return { id: n === 1 ? block.row : `${block.row}-${n}`, ...block, text: lines.slice(a, b).join("\n").trim() };
+  });
 }
 
 // src/a2p-enums.ts
@@ -13055,6 +13091,7 @@ export {
   inviteState,
   invoiceStatusWords,
   isActivityNoise,
+  isBaselinePrompt,
   isCarrier,
   isDayKey,
   isForwardingMode,
@@ -13162,6 +13199,7 @@ export {
   overLimitRefusal,
   ownAddressesOf,
   ownMessageRefusal,
+  ownWordsOf,
   pageTitle,
   paramLabel,
   parseAskFinish,
