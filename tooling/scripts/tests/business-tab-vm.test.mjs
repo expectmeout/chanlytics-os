@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, SOURCE_WORDS, ruleStrength, GUARDRAIL_KEYS, standingLine } from "@chanlytics/contracts";
+import { stateOf, SOURCE_WORDS, ruleStrength, GUARDRAIL_KEYS, standingLine, abilityRows, CANNOT_ROWS } from "@chanlytics/contracts";
 
 test("a fact's source carries a tone and the words facts.ts already wrote", () => {
   assert.equal(stateOf("fact", "verified").tone, "ok");
@@ -90,4 +90,47 @@ test("a record with nothing says so without listing every gap", () => {
   assert.match(s.can, /cannot answer anyone yet/i);
   assert.equal(s.wont, null);
   assert.equal(s.missing.row, "name");
+});
+
+test("an ability names its channels and the row it runs on", () => {
+  const rows = abilityRows({
+    voiceLive: true,
+    whatsappLive: true,
+    hasCalendarFeed: true,
+    hasBookingLink: true,
+    hasHandoffNumber: true,
+    hasEscalateWhen: true,
+    visionOn: false,
+  });
+  const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+
+  assert.deepEqual(byId.open_times.channels, { voice: true, whatsapp: true });
+  assert.match(byId.open_times.detail, /at that moment/i, "the phone asks live; chat is handed a snapshot");
+  assert.equal(byId.open_times.runsOn.row, "calendar");
+
+  assert.match(byId.booking_link.detail, /texts it to the number they rang from/i);
+
+  assert.deepEqual(byId.transfer.channels, { voice: true, whatsapp: false });
+  assert.deepEqual(byId.handoff.channels, { voice: false, whatsapp: true });
+
+  assert.equal(byId.vision.on, false);
+});
+
+test("an ability whose input is missing says which row to fill", () => {
+  const rows = abilityRows({
+    voiceLive: true, whatsappLive: true, hasCalendarFeed: false,
+    hasBookingLink: true, hasHandoffNumber: false, hasEscalateWhen: true, visionOn: false,
+  });
+  const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+  assert.equal(byId.open_times.ready, false);
+  assert.equal(byId.transfer.ready, false);
+  assert.match(byId.transfer.detail, /takes a message instead/i);
+});
+
+test("what it cannot do is stated, and is not a setting", () => {
+  const ids = CANNOT_ROWS.map((r) => r.id);
+  assert.deepEqual(ids, ["book", "outbound_call", "sms"]);
+  assert.match(CANNOT_ROWS[0].detail, /no appointments table/i);
+  assert.match(CANNOT_ROWS[1].detail, /never dials/i);
+  assert.equal(CANNOT_ROWS[2].soon, true);
 });

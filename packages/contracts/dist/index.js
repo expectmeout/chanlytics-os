@@ -10605,6 +10605,78 @@ function standingLine(i) {
   const wont = quiet ? "It offers a consult instead of a price, by your rule." : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
+function abilityRows(i) {
+  const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
+  return [
+    {
+      id: "answer",
+      title: "Answer from your facts",
+      detail: "Hours, address, services, your notes \u2014 and it records which facts it leaned on.",
+      channels: both,
+      runsOn: { label: "Name and hours", row: "name" },
+      ready: i.voiceLive || i.whatsappLive
+    },
+    {
+      id: "open_times",
+      title: "Say which times are open",
+      detail: i.hasCalendarFeed ? "On a call it asks the calendar at that moment. In chat it is handed the day's openings with each message. Up to three that fit, then the link." : "No calendar to read, so it does not guess at open times \u2014 it sends the link instead.",
+      channels: both,
+      runsOn: { label: "The calendar it reads", row: "calendar" },
+      ready: i.hasCalendarFeed
+    },
+    {
+      id: "booking_link",
+      title: "Send the booking link",
+      detail: "On a call it texts it to the number they rang from and says so. In chat it sends it in the thread.",
+      channels: both,
+      runsOn: { label: "The booking link", row: "booking_link" },
+      ready: i.hasBookingLink
+    },
+    {
+      id: "transfer",
+      title: "Put a caller through",
+      detail: i.hasHandoffNumber ? "Dials the number you gave and steps out." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.",
+      channels: { voice: i.voiceLive, whatsapp: false },
+      runsOn: { label: "The transfer number", row: "handoff_number" },
+      ready: i.voiceLive && i.hasHandoffNumber
+    },
+    {
+      id: "handoff",
+      title: "Hand the thread to you",
+      detail: "It stops answering, the thread turns Needs you in the Inbox, and your staff are emailed. It will not pick the thread back up on its own.",
+      channels: { voice: false, whatsapp: i.whatsappLive },
+      runsOn: { label: "Your reasons", row: "escalate_when" },
+      ready: i.whatsappLive && i.hasEscalateWhen
+    },
+    {
+      id: "vision",
+      title: "Look at a photo",
+      detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules above." : "Off. A photo is acknowledged and passed to a person.",
+      channels: { voice: false, whatsapp: i.whatsappLive },
+      runsOn: { label: "Turn it on", row: "vision" },
+      ready: i.visionOn,
+      on: i.visionOn
+    }
+  ];
+}
+var CANNOT_ROWS = [
+  {
+    id: "book",
+    title: "Book, move or cancel an appointment",
+    detail: "Not a setting you could switch on. There is no appointments table in this product \u2014 nothing in it can create, move or cancel one. Your booking link does that, whichever tool is behind it."
+  },
+  {
+    id: "outbound_call",
+    title: "Ring a customer",
+    detail: "It answers your line; it never dials out. A call back is a person's, and the receptionist tells you when one is wanted."
+  },
+  {
+    id: "sms",
+    title: "Send a text message",
+    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
+    soon: true
+  }
+];
 
 // src/a2p-enums.ts
 var BUSINESS_INDUSTRIES = [
@@ -12374,6 +12446,7 @@ export {
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
   CAMPAIGN_REPORT_RANGES,
+  CANNOT_ROWS,
   CAPABILITY_KINDS,
   CARRIERS,
   CARRIER_WORDS,
@@ -12709,6 +12782,7 @@ export {
   WABA_FIELDS,
   WA_WINDOW_MS,
   abandonedCall,
+  abilityRows,
   activityTone,
   activityWords,
   addressAlreadyKnown,

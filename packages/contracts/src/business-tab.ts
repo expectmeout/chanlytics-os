@@ -131,3 +131,134 @@ export function standingLine(i: StandingInputs): StandingVM {
 
   return { can, wont, missing: gaps[0] ?? null };
 }
+
+/**
+ * What the receptionist can do, and what it cannot.
+ *
+ * The tab sets the inputs to three of the phone agent's four tools
+ * (`check_availability`, `send_booking_link`, `transfer_to_staff`) and has
+ * never said a tool exists. An owner could not know their phone agent texts
+ * the booking link to the number a caller rang from.
+ *
+ * Computed from what the records show, never typed: an ability is ready only
+ * when its channel is live and its input is filled.
+ */
+export interface AbilityInputs {
+  voiceLive: boolean;
+  whatsappLive: boolean;
+  hasCalendarFeed: boolean;
+  hasBookingLink: boolean;
+  hasHandoffNumber: boolean;
+  hasEscalateWhen: boolean;
+  visionOn: boolean;
+}
+
+export interface AbilityRowVM {
+  id: "answer" | "open_times" | "booking_link" | "transfer" | "handoff" | "vision";
+  title: string;
+  detail: string;
+  channels: { voice: boolean; whatsapp: boolean };
+  /** The row on this page that supplies it. Null when nothing does. */
+  runsOn: { label: string; row: string } | null;
+  ready: boolean;
+  /** Only the opt-in ability carries this. */
+  on?: boolean;
+}
+
+export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
+  const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
+  return [
+    {
+      id: "answer",
+      title: "Answer from your facts",
+      detail: "Hours, address, services, your notes — and it records which facts it leaned on.",
+      channels: both,
+      runsOn: { label: "Name and hours", row: "name" },
+      ready: i.voiceLive || i.whatsappLive,
+    },
+    {
+      id: "open_times",
+      title: "Say which times are open",
+      detail: i.hasCalendarFeed
+        ? "On a call it asks the calendar at that moment. In chat it is handed the day's openings with each message. Up to three that fit, then the link."
+        : "No calendar to read, so it does not guess at open times — it sends the link instead.",
+      channels: both,
+      runsOn: { label: "The calendar it reads", row: "calendar" },
+      ready: i.hasCalendarFeed,
+    },
+    {
+      id: "booking_link",
+      title: "Send the booking link",
+      detail: "On a call it texts it to the number they rang from and says so. In chat it sends it in the thread.",
+      channels: both,
+      runsOn: { label: "The booking link", row: "booking_link" },
+      ready: i.hasBookingLink,
+    },
+    {
+      id: "transfer",
+      title: "Put a caller through",
+      detail: i.hasHandoffNumber
+        ? "Dials the number you gave and steps out."
+        : "No number yet, so it takes a message instead — which is better than a number nobody picks up.",
+      channels: { voice: i.voiceLive, whatsapp: false },
+      runsOn: { label: "The transfer number", row: "handoff_number" },
+      ready: i.voiceLive && i.hasHandoffNumber,
+    },
+    {
+      id: "handoff",
+      title: "Hand the thread to you",
+      detail:
+        "It stops answering, the thread turns Needs you in the Inbox, and your staff are emailed. It will not pick the thread back up on its own.",
+      channels: { voice: false, whatsapp: i.whatsappLive },
+      runsOn: { label: "Your reasons", row: "escalate_when" },
+      ready: i.whatsappLive && i.hasEscalateWhen,
+    },
+    {
+      id: "vision",
+      title: "Look at a photo",
+      detail: i.visionOn
+        ? "It says what it sees and suggests the next step, under the rules above."
+        : "Off. A photo is acknowledged and passed to a person.",
+      channels: { voice: false, whatsapp: i.whatsappLive },
+      runsOn: { label: "Turn it on", row: "vision" },
+      ready: i.visionOn,
+      on: i.visionOn,
+    },
+  ];
+}
+
+export interface CannotRowVM {
+  id: "book" | "outbound_call" | "sms";
+  title: string;
+  detail: string;
+  /** True when it is a thing the product intends to sell later. */
+  soon?: boolean;
+}
+
+/**
+ * Said here so nobody has to find out from a customer.
+ *
+ * None of these is a setting that could be switched on, and saying so on the
+ * page that holds the switches is the difference between a limit and a bug.
+ */
+export const CANNOT_ROWS: readonly CannotRowVM[] = [
+  {
+    id: "book",
+    title: "Book, move or cancel an appointment",
+    detail:
+      "Not a setting you could switch on. There is no appointments table in this product — nothing in it can create, move or cancel one. Your booking link does that, whichever tool is behind it.",
+  },
+  {
+    id: "outbound_call",
+    title: "Ring a customer",
+    detail:
+      "It answers your line; it never dials out. A call back is a person's, and the receptionist tells you when one is wanted.",
+  },
+  {
+    id: "sms",
+    title: "Send a text message",
+    detail:
+      "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
+    soon: true,
+  },
+];
