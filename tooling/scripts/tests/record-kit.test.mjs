@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, again, unmount, remount, settle, all, find, textOf, classes, press } from "./_legacy-react.mjs";
+import { installLegacyReact, again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
@@ -745,6 +745,95 @@ test("a page holds its fold through useRecordFold: open, close and the ask come 
   redrawPage();
   assert.equal(notes.open, false);
   folds.reset();
+});
+
+test("a fold whose save is out never gives way at once: what is asked of it waits, and the save's answer is the answer", () => {
+  // A fold judged against the saver's base reads CLEAN the moment its save goes out (the base holds the save as if
+  // taken), so its dirty test alone would have closed it under another row's press, its draft gone, and a refused save
+  // would have found nothing to put back.
+  const folds = W.__recordFolds;
+  folds.reset();
+  let out = false;
+  let hours;
+  let notes;
+  const Page = () => {
+    hours = W.useRecordFold("hours", { dirty: () => false, saving: () => out });
+    notes = W.useRecordFold("notes", { dirty: false });
+    return null;
+  };
+  const redrawPage = () => again(() => W.React.createElement(Page));
+  draw(Page);
+  hours.request();
+  out = true;
+  assert.deepEqual([folds.dirty(), folds.saving()], [false, true]);
+  assert.deepEqual([W.__settingsUnsaved(), W.__settingsSaving()], [true, true], "the rail is told, and told why, so it asks in words that are true of a save");
+  const unload = { type: "beforeunload", prevented: false, preventDefault() { this.prevented = true; } };
+  W.dispatchEvent(unload);
+  assert.equal(unload.prevented, true, "and the browser is asked to ask: a tab closed over a save may take the request with it");
+
+  assert.equal(notes.request(), false, "the one asked for waits");
+  redrawPage();
+  assert.deepEqual([hours.open, notes.open], [true, false]);
+  assert.deepEqual(hours.asking, { holding: "hours", wants: "notes" }, "the ask is recorded, for the save to answer");
+  // Taken: the fold closes itself, and the one asked for opens.
+  out = false;
+  hours.close();
+  redrawPage();
+  assert.deepEqual([hours.open, notes.open], [false, true]);
+  assert.deepEqual([W.__settingsUnsaved(), W.__settingsSaving()], [false, false]);
+
+  // With no save out, a clean fold gives way at once, as it always did; and a saving test that throws is no save.
+  notes.close();
+  hours.request();
+  assert.equal(notes.request(), true);
+  folds.reset();
+  unmount();
+  const Thrower = () => { hours = W.useRecordFold("hours", { dirty: false, saving: () => { throw new Error("no saver"); } }); return null; };
+  draw(Thrower);
+  hours.request();
+  assert.equal(folds.saving(), false);
+  // A page gone lets go of its saving test with its dirty test.
+  unmount();
+  folds.request("hours");
+  assert.equal(folds.saving(), false);
+  folds.reset();
+});
+
+test("while it saves a gesture says it is busy and draws no ask, and each control can be held read-only", () => {
+  const ask = W.React.createElement("span", { className: "confirm", "data-testid": "ask" }, "Discard your changes?");
+  const foldOf = (tree) => find(tree, (n) => classes(n).includes("rec-fold"));
+  let tree = draw(W.RecordFold, bookingRules({ confirm: ask, saving: true }));
+  assert.equal(foldOf(tree).props["aria-busy"], true);
+  assert.equal(byTestId(tree, "ask"), null, "nothing asks whether to discard a change that is on its way");
+  tree = draw(W.RecordFold, bookingRules({ confirm: ask }));
+  assert.deepEqual([foldOf(tree).props["aria-busy"], !!byTestId(tree, "ask")], [undefined, true], "once the save is answered, the ask is drawn");
+  tree = drawInline(website({ confirm: ask, saving: true }));
+  assert.equal(find(tree, (n) => classes(n).includes("rec-inline")).props["aria-busy"], true);
+  assert.equal(byTestId(tree, "ask"), null);
+
+  // A box keeps its words and its focus and takes no typing: read-only, never disabled, which lets go of focus.
+  const box = find(draw(W.RecordField, { id: "tone", label: "Its voice", value: "Warm.", onChange: () => {}, readOnly: true }), (n) => n.type === "input");
+  assert.deepEqual([box.props.readOnly, box.props.disabled], [true, undefined]);
+  // A switch and a choice say they are not to be pressed, and a press does nothing.
+  const flipped = [];
+  const sw = find(draw(W.RecordSwitch, { on: true, label: "Monday", onChange: (v) => flipped.push(v), readOnly: true }), (n) => n.props?.role === "switch");
+  press(sw);
+  assert.deepEqual([sw.props["aria-disabled"], sw.props.disabled, flipped.length], [true, undefined, 0]);
+  press(find(draw(W.RecordSwitch, { on: true, label: "Monday", onChange: (v) => flipped.push(v) }), (n) => n.props?.role === "switch"));
+  assert.deepEqual(flipped, [false], "held only while it is told to be");
+  const picked = [];
+  const group = draw(W.RecordToggleGroup, { ...numbers, onChange: (v) => picked.push(v), readOnly: true });
+  const radios = all(group, (n) => n.props?.role === "radio");
+  press(radios[1]);
+  find(group, (n) => n.props?.role === "radiogroup").props.onKeyDown({ key: "ArrowRight", preventDefault() {}, currentTarget: { querySelectorAll: () => [] } });
+  assert.deepEqual([radios.map((r) => r.props["aria-disabled"]), picked], [[true, true], []], "neither a press nor an arrow chooses");
+  // A combobox opens no list.
+  const combo = draw(W.RecordCombobox, { id: "tz", label: "Timezone", value: "America/New_York", options: [{ value: "America/New_York", label: "America/New York" }, { value: "America/Chicago", label: "America/Chicago" }], onChange: () => {}, readOnly: true });
+  const input = find(combo, (n) => n.props?.role === "combobox");
+  assert.equal(input.props.readOnly, true);
+  input.props.onKeyDown({ key: "ArrowDown", preventDefault() {} });
+  const after = redraw(W.RecordCombobox, { id: "tz", label: "Timezone", value: "America/New_York", options: [{ value: "America/New_York", label: "America/New York" }, { value: "America/Chicago", label: "America/Chicago" }], onChange: () => {}, readOnly: true });
+  assert.equal(find(after, (n) => n.props?.role === "combobox").props["aria-expanded"], false);
 });
 
 test("a fold's ask is its own: only the section holding the changes is asked, beside them", () => {

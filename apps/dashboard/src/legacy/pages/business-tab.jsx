@@ -63,8 +63,13 @@ const btChangedLines = (before, after) => {
  * store, which is what "holds changes" is judged by; not `valueOf`, which every props object already has from
  * Object.prototype, so a default for it never applies), `check` (the sentence that stops a save, or null), and
  * `commit` (the one-key change a save makes, with its toast's words). `body` draws the box; it is handed the draft, its
- * setter, what stops it and the field's own ids. A disagreement on the row names the other answer and the draft that
- * takes it (`disputed.use`), which saves through the same `commit`.
+ * setter, what stops it, the field's own ids, and whether the row's save is out (`readOnly`, which the field's props
+ * carry too). A disagreement on the row names the other answer and the draft that takes it (`disputed.use`), which
+ * saves through the same `commit`.
+ *
+ * While its save is out the row is not an open, unsaved editor (record-fold.jsx): its box takes no typing, since what
+ * was typed under "Saving…" was dropped without a word when the save landed, and the registry is told the save is out,
+ * so another row's act waits for its answer.
  *
  * `section` is the row's name to consequenceOf (FOLD_BLOCK) where it is not the row's id, or the names of each block
  * its save can change: a rename changes the line the prompt opens with and, where the stored prompt is the product's
@@ -98,7 +103,10 @@ const BtRow = ({
     const l = live.current;
     return l.open && l.draft != null && !S.same(l.storedAs(l.draft), l.storedAs(l.initial));
   };
-  const fold = window.useRecordFold(id, { dirty: holds });
+  // The tab's one saver (business-tab-save.jsx): this row's save waits its turn behind any other, and goes on the
+  // config current then. The registry asks whether it is out as it asks whether the row holds changes: when it needs to.
+  const busy = saver ? saver.pending(id) : false;
+  const fold = window.useRecordFold(id, { dirty: holds, saving: () => !!(saver && saver.pending(id)) });
   // A role that may not change the business never has an editor, whatever asked for one.
   const open = fold.open && canEdit;
   live.current.initial = initial;
@@ -106,9 +114,6 @@ const BtRow = ({
   live.current.open = open;
   const now = open && draft != null ? draft : initial;
   const dirty = open && !S.same(storedAs(now), storedAs(initial));
-  // The tab's one saver (business-tab-save.jsx): this row's save waits its turn behind any other, and goes on the
-  // config current then.
-  const busy = saver ? saver.pending(id) : false;
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
   // Each block as the brain this row's save goes on writes it, resolved once per such brain rather than on every
   // keystroke (the saver hands back the same base while nothing moves).
@@ -118,7 +123,9 @@ const BtRow = ({
   const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); setArm(false); };
   useBizEffect(() => { if (!open) reset(); }, [open]);
 
-  const set = (d) => { live.current.draft = d; setDraft(d); if (problem) setProblem(null); if (arm) setArm(false); };
+  // Nothing is typed into a save that is out: the box is read-only then, and this is the same rule for whatever else
+  // the row's body draws.
+  const set = (d) => { if (busy) return; live.current.draft = d; setDraft(d); if (problem) setProblem(null); if (arm) setArm(false); };
   const close = () => { reset(); fold.close(); };
   const refused = !!(gate && gate["aria-disabled"]);
   const cancel = () => {
@@ -132,6 +139,8 @@ const BtRow = ({
     if (bad) { setProblem(bad); return; }
     // Nothing to write is nothing to send: the editor closes and says nothing, since nothing was saved.
     if (!dirty) { close(); return; }
+    // Saved with Ctrl or Cmd and Enter while Cancel's question was up: the question is answered.
+    if (arm) setArm(false);
     save(commit(now), close);
   };
 
@@ -198,9 +207,9 @@ const BtRow = ({
 
   // The field is named by the row's own label, where the label stays (the canvas's editing row), rather than by a
   // second copy of it over the box; what it will say describes the box too. Both ids are the kit's (RecordInline).
-  const field = { id: `bt-${id}`, label: null, "aria-labelledby": `rec-inline-${id}-key`, "aria-describedby": says ? `rec-inline-${id}-says` : undefined };
+  const field = { id: `bt-${id}`, label: null, "aria-labelledby": `rec-inline-${id}-key`, "aria-describedby": says ? `rec-inline-${id}-says` : undefined, readOnly: busy || undefined };
   // Drawn on every render, open or not: the box holds hooks of its own (RecordField's id).
-  const inner = body({ draft: now, set, problem, field, gate });
+  const inner = body({ draft: now, set, problem, field, gate, readOnly: busy });
   return (
     <>
       {open ? null : (
@@ -518,7 +527,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
             said: v ? <>Customers are told to call <b className="tabular">{v}</b> now.</> : <>Customers are told to call your line.</>,
           };
         }}
-        body={({ draft, set, problem, field, gate: pressable }) => (
+        body={({ draft, set, problem, field, gate: pressable, readOnly }) => (
           <>
             {voiceLine ? (
               <window.RecordToggleGroup
@@ -526,6 +535,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
                 value={draft.own ? "line" : "other"}
                 options={[{ value: "line", label: "Your line" }, { value: "other", label: "A different number" }]}
                 onChange={(v) => set(v === "line" ? { own: true, typed: draft.typed } : { own: false, typed: draft.typed || lineShown })}
+                readOnly={readOnly}
                 gate={pressable}
                 testid="rec-inline-phone_display-choice"
               />

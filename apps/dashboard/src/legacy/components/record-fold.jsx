@@ -52,11 +52,21 @@
 // the ask goes with it, and the holding fold stays open with its changes. close(id) from a fold that is not the open
 // one does nothing. subscribe(fn) hears every change. A page reaches all of this through useRecordFold rather than by
 // hand.
+// A save in progress is not an open, unsaved editor. While the open fold's save is out (`saving`, the second test its
+// hook binds), its fields are read-only (the page hands each of the kit's controls `readOnly`), what is asked of it
+// waits, and nothing asks whether to discard what is on its way to the server: the box once stayed editable under
+// "Saving…" and what was typed then went without a word when the save landed, and another row's "Discard your
+// changes?" still asked, its yes stopping nothing. So a fold that is saving never gives way at once, whatever its
+// dirty test says (a fold judged against the saver's base reads clean the moment its save goes out); the ask is
+// recorded, the fold draws no question while it saves, and the save's answer is the answer: taken, the fold closes and
+// the one asked for opens; refused, the question is drawn, and is true again. saving() says so to the Settings rail,
+// which asks in other words (window.__settingsSaving), and the browser is asked to ask while a save is out too, since
+// a tab closed over it may take the request with it.
 // Three are not for pages: drawn(id) is RecordFold's own (it counts the folds with each id on the page, and when the
-// last one with the open id goes, the registry lets go); bind(id, check) is useRecordFold's (a fold's dirty test, by
-// its id, for as long as the fold is on the page; a page drawn again hands over its own; one hook binds one test for
-// its life, so the test it binds is the test it hands its requests); and reset() is for tests (it forgets what is open
-// and asked).
+// last one with the open id goes, the registry lets go); bind(id, check, saves) is useRecordFold's (a fold's dirty
+// test and its save-is-out test, by its id, for as long as the fold is on the page; a page drawn again hands over its
+// own; one hook binds one of each for its life, so the test it binds is the test it hands its requests); and reset() is
+// for tests (it forgets what is open and asked).
 
 const { useRef: useFoldRef, useEffect: useFoldEffect, useState: useFoldState } = React;
 
@@ -74,6 +84,8 @@ const recFolds = (() => {
   // would each have thrown its changes away without asking. One test per id, the last hook's to mount (the header
   // says why a fold id belongs to one hook).
   const bound = new Map();
+  // Each fold's "my save is out" test, by its id, bound and let go of with its dirty test.
+  const busy = new Map();
   // "Nothing open" is null, never merely falsy: a fold may be called 0 or "". A check that throws is taken as holding
   // changes: asking once too often loses nothing.
   const dirty = () => {
@@ -82,9 +94,17 @@ const recFolds = (() => {
     if (typeof check !== "function") return false;
     try { return !!check(); } catch { return true; }
   };
-  // The browser asks before the tab closes over a dirty fold. The listener is on only while a fold is open, as
-  // BusinessEditor's was only while it held changes, and it asks the fold at the moment the tab closes.
-  const hold = (e) => { if (!dirty()) return; e.preventDefault(); e.returnValue = ""; };
+  // Whether the open fold's save is out. A test that throws is taken as not saving: the dirty test still speaks.
+  const saving = () => {
+    if (openId == null) return false;
+    const check = busy.get(openId);
+    if (typeof check !== "function") return false;
+    try { return !!check(); } catch { return false; }
+  };
+  // The browser asks before the tab closes over a dirty fold, or over one whose save is out: the tab may take the
+  // request with it. The listener is on only while a fold is open, as BusinessEditor's was only while it held changes,
+  // and it asks the fold at the moment the tab closes.
+  const hold = (e) => { if (!dirty() && !saving()) return; e.preventDefault(); e.returnValue = ""; };
   // Each listener hears every change, whatever another does: one that throws is reported and the rest still hear.
   const tell = () => {
     window.removeEventListener("beforeunload", hold);
@@ -102,6 +122,7 @@ const recFolds = (() => {
   return {
     open: () => openId,
     dirty,
+    saving,
     asking: () => (asked ? { holding: asked.holding, wants: asked.wants } : null),
     request(id, { dirty: given } = {}) {
       const check = typeof given === "function" ? given : bound.get(id);
@@ -111,7 +132,8 @@ const recFolds = (() => {
         tell();
         return true;
       }
-      if (openId == null || !dirty()) { become(id, check); return true; }
+      // A fold whose save is out never gives way at once: the ask waits for the save's answer (the header says why).
+      if (openId == null || (!dirty() && !saving())) { become(id, check); return true; }
       asked = { holding: openId, wants: id, check };
       tell();
       return false;
@@ -133,13 +155,15 @@ const recFolds = (() => {
     // anyone sees has changed. Call what this returns as the fold's page goes: its test is let go of wherever the
     // registry still holds it, a test bound since, by a new instance, is left in place, and an ask for the fold goes
     // unless a new instance has bound by the end of the commit.
-    bind(id, check) {
+    bind(id, check, saves) {
       if (typeof check !== "function") return () => {};
       bound.set(id, check);
+      if (typeof saves === "function") busy.set(id, saves);
       if (openId != null && id === openId) openDirty = check;
       if (asked && asked.wants === id) asked.check = check;
       return () => {
         if (bound.get(id) === check) bound.delete(id);
+        if (busy.get(id) === saves) busy.delete(id);
         if (openDirty === check) openDirty = null;
         if (asked && asked.check === check) asked.check = undefined;
         // The fold an ask wants is going. Asked a moment later, as drawn() asks, so one that comes straight back as a
@@ -168,18 +192,21 @@ const recFolds = (() => {
 // One fold's hold on the registry, for the page that draws it, and the one place `open` comes from. A fold the page
 // drew open by itself would carry no rail's question and no unload prompt, and nothing would say so. The hook hears
 // the registry, so the page redraws as its fold opens, closes or is asked about.
-//   const hours = useRecordFold("hours", { dirty: changed });
+//   const hours = useRecordFold("hours", { dirty: changed, saving: busy });
 //   <RecordRow id="hours" act={{ label: "Change", onClick: hours.request }} ... />
-//   <RecordFold id="hours" open={hours.open} onCancel={hours.close} ... />
-//   {hours.asking ? <Confirm ... onYes={hours.discard} onNo={hours.stay} /> : null}
-// Every section may draw that Confirm: `asking` is the registry's { holding, wants } only for the fold holding the
+//   <RecordFold id="hours" open={hours.open} onCancel={hours.close} saving={busy} ...
+//               confirm={hours.asking ? <Confirm ... onYes={hours.discard} onNo={hours.stay} /> : null} />
+// The Confirm is the fold's `confirm`, never drawn beside it: inside the fold it sits above Save and Cancel, where the
+// changes it asks about are, focus comes back into the fold when it is answered, and it is not drawn while the fold
+// saves. Every section may draw that Confirm: `asking` is the registry's { holding, wants } only for the fold holding the
 // unsaved changes, where the prompt belongs, and null for every other, the fold asked for included. A section is
 // drawn again only when what it sees changes. `dirty` is the fold's unsaved-changes test, a boolean or a function,
-// read whenever the registry asks. It is bound to the fold's id as the hook mounts and let go of as it goes, so the
+// read whenever the registry asks; `saving` is whether its save is out, the same way (the header says what the
+// registry does with it). Both are bound to the fold's id as the hook mounts and let go of as it goes, so the
 // registry asks it however the fold was opened, by `request` here or by its id from anywhere else on the page; a page
 // drawn again as a new instance (a key change, a new parent) hands the registry its own, and a pending ask stands.
 const recSameAsk = (a, b) => (a ? a.holding : null) === (b ? b.holding : null) && (a ? a.wants : null) === (b ? b.wants : null);
-const useRecordFold = (id, { dirty = false } = {}) => {
+const useRecordFold = (id, { dirty = false, saving = false } = {}) => {
   const read = () => {
     const ask = recFolds.asking();
     return { open: recFolds.open() === id, asking: ask && ask.holding === id ? ask : null };
@@ -191,14 +218,17 @@ const useRecordFold = (id, { dirty = false } = {}) => {
   // and a page gone from the screen still answered the Settings rail with its last "holds changes".
   const mine = useFoldRef(null);
   if (!mine.current) {
-    const box = { dirty };
+    const box = { dirty, saving };
     box.holds = () => { const d = box.dirty; return typeof d === "function" ? !!d() : !!d; };
+    box.saves = () => { const v = box.saving; return typeof v === "function" ? !!v() : !!v; };
     mine.current = box;
   }
   mine.current.dirty = dirty;
+  mine.current.saving = saving;
   const holds = mine.current.holds;
+  const saves = mine.current.saves;
   useFoldEffect(() => {
-    const unbind = recFolds.bind(id, holds);
+    const unbind = recFolds.bind(id, holds, saves);
     const hear = () => setSeen((was) => { const now = read(); return was.open === now.open && recSameAsk(was.asking, now.asking) ? was : now; });
     hear();
     const unhear = recFolds.subscribe(hear);
@@ -217,8 +247,11 @@ const useRecordFold = (id, { dirty = false } = {}) => {
 // The Settings rail's one question before it replaces a pane (settings.jsx SettingsPage): does anything on it hold
 // unsaved changes? The open fold answers for itself. The kit sets this once, as it loads, before any pane can mount.
 // Anything else that can hold unsaved changes adds its own answer to this one and puts it back when it goes, as
-// BusinessEditor does until the record replaces it; nothing replaces it outright.
-window.__settingsUnsaved = () => recFolds.dirty();
+// BusinessEditor does until the record replaces it; nothing replaces it outright. A fold whose save is out is asked
+// about too, and __settingsSaving says that is why: "Leave without saving?" is untrue of a change on its way to the
+// server, so the rail asks in other words.
+window.__settingsUnsaved = () => recFolds.dirty() || recFolds.saving();
+window.__settingsSaving = () => recFolds.saving();
 
 
 // ---- What the fold and the inline editor share: focus in and back, their keys, what saving writes, the foot ----
@@ -345,6 +378,8 @@ const RecordFoot = ({
 
 // `confirm` is the page's ask (its Confirm), drawn above the foot while it is open: the section's own "Discard your
 // changes?", or the registry's `asking`. Answered with "Keep editing", focus comes back into the fold (useRecFocus).
+// Not while it saves: nothing asks whether to discard a change that is on its way (the header says what happens to an
+// ask meanwhile), and the fold says it is busy.
 const RecordFold = ({
   id, label, hint = null, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null,
   footNote = null, confirm = null,
@@ -352,7 +387,8 @@ const RecordFold = ({
   gate = null, wide = false, children = null,
 }) => {
   const box = useFoldRef(null);
-  useRecFocus(id, open, !!confirm, box, ".rec-fold-inner", ".rec-fold-close");
+  const ask = saving ? null : confirm;
+  useRecFocus(id, open, !!ask, box, ".rec-fold-inner", ".rec-fold-close");
   useRecDrawn(id);
   const labelId = `rec-fold-${id}-label`;
   const closeId = `rec-fold-${id}-close`;
@@ -363,6 +399,7 @@ const RecordFold = ({
       className="rec-fold"
       role="group"
       aria-labelledby={labelId}
+      aria-busy={saving || undefined}
       data-open={open ? "true" : "false"}
       hidden={open ? undefined : true}
       data-wide={wide ? "true" : undefined}
@@ -380,7 +417,7 @@ const RecordFold = ({
         <div className="rec-fold-inner">
           {children}
           <RecordSays id={`rec-fold-${id}-says`} testid={`rec-fold-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} />
-          {confirm}
+          {ask}
           <RecordFoot
             saveTestid={`rec-fold-save-${id}`}
             cancelTestid={`rec-fold-cancel-${id}`}
@@ -423,7 +460,9 @@ const RecordInline = ({
   keys = "Esc cancels · ⌘↵ saves", gate = null, children = null,
 }) => {
   const box = useFoldRef(null);
-  useRecFocus(id, open, !!confirm, box, ".rec-inline-body", null);
+  // Its ask is not drawn while it saves, as a fold's is not.
+  const ask = saving ? null : confirm;
+  useRecFocus(id, open, !!ask, box, ".rec-inline-body", null);
   useRecDrawn(id);
   const keyId = `rec-inline-${id}-key`;
   const refused = !!(gate && gate["aria-disabled"]);
@@ -434,6 +473,7 @@ const RecordInline = ({
       className="rec-inline"
       role="group"
       aria-labelledby={keyId}
+      aria-busy={saving || undefined}
       data-open={open ? "true" : "false"}
       hidden={open ? undefined : true}
       data-testid={`rec-inline-${id}`}
@@ -444,7 +484,7 @@ const RecordInline = ({
         {disputed && Dispute ? <Dispute id={id} disputed={{ value: disputed.value, source: disputed.source, sentence: disputed.sentence }} /> : null}
         {children}
         <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} inline />
-        {confirm}
+        {ask}
         <RecordFoot
           saveTestid={`rec-inline-save-${id}`}
           cancelTestid={`rec-inline-cancel-${id}`}

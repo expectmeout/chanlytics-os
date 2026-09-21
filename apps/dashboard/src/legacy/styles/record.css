@@ -142,6 +142,11 @@
 .rec-input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-raised); font-size: var(--text-base); color: var(--ink); }
 .rec-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
 .rec-input[aria-invalid="true"] { border-color: var(--danger); }
+/* While its fold's or its row's save is out (the gesture says aria-busy) its boxes take no typing, and look it: the
+   sunken ground, the muted ink, the pointer that says wait. A box keeps its focus and its ring, which a disabled one
+   would have let go of. The page's own controls inside a saving gesture can say the same from the same attribute. */
+:is(.rec-fold, .rec-inline)[aria-busy="true"] :is(.rec-input, .rec-input-group, .rec-combo) { background: var(--bg-sunken); color: var(--ink-muted); }
+:is(.rec-fold, .rec-inline)[aria-busy="true"] :is(.rec-input, .rec-combo-input, .rec-switch, .rec-seg-btn) { cursor: progress; }
 textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-height: var(--leading-normal); resize: vertical; }
 /* A box with its unit: the ring and the red edge are the group's, since the group is what the eye reads as the box. */
 .rec-input-group { display: flex; align-items: stretch; min-height: 32px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-raised); }

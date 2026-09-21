@@ -2989,9 +2989,14 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
   const [toastNode, flash] = window.usePPToast();
   // The tab asked for while a pane holds unsaved changes (__settingsUnsaved: the record kit's open fold, and the
   // business editor while it is open): the rail asks before the pane, and the changes with it, are replaced (S22).
+  // And while a fold's save is out (__settingsSaving, record-fold.jsx) it asks in other words, kept from the moment it
+  // asked: "Leave without saving?" is untrue of a change on its way to the server, and a yes never stopped the save.
   const [leaving, setLeaving] = React.useState(null);
   const go = (id) => {
-    if (id !== active.id && window.__settingsUnsaved && window.__settingsUnsaved()) { setLeaving(id); return; }
+    if (id !== active.id && window.__settingsUnsaved && window.__settingsUnsaved()) {
+      setLeaving({ id, saving: !!(window.__settingsSaving && window.__settingsSaving()) });
+      return;
+    }
     onTab(id);
   };
   // Grouped, and derived rather than written twice: the rail can only ever
@@ -3027,7 +3032,18 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
       </aside>
       <div className="set-pane" key={active.id}>
         {leaving && (
-          <Confirm question="Leave without saving?" detail="The changes in the business editor have not been saved." yes="Yes, leave" no="Stay" danger onYes={() => { const to = leaving; setLeaving(null); onTab(to); }} onNo={() => setLeaving(null)} testid="set-leave" />
+          <Confirm
+            question={leaving.saving ? "Leave while this saves?" : "Leave without saving?"}
+            detail={leaving.saving
+              ? "Your change is on its way and carries on without this page. If it does not go through you are told, and what you typed is not kept."
+              : "The changes in the business editor have not been saved."}
+            yes="Yes, leave"
+            no="Stay"
+            danger={!leaving.saving}
+            onYes={() => { const to = leaving.id; setLeaving(null); onTab(to); }}
+            onNo={() => setLeaving(null)}
+            testid="set-leave"
+          />
         )}
         {active.id === "profile" && <PaneProfile flash={flash} />}
         {active.id === "team" && <TeamSection flash={flash} />}

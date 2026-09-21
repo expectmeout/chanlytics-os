@@ -777,6 +777,83 @@ test("Save stays a button focus can rest on while it saves, and a press meanwhil
   assert.deepEqual(openRows(redrawTab()), [], "the moment the server accepts, the editor closes");
 });
 
+test("a save in progress is not an open, unsaved editor: its box takes no typing, and what is asked of it waits for the save's answer", async () => {
+  // Task 3.2's review. The box stayed editable under "Saving…", and what was typed then was dropped without a word
+  // when the save landed; another row's act still asked "Discard your changes?", and a yes stopped nothing.
+  const sent = [];
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  W.__saveSettings = (config, version, accepted) => new Promise((answer) => { sent.push({ config: structuredClone(config), accept: () => accepted({ config: structuredClone(config), version: version + 1 }), answer }); });
+  let tree = drawTab({ flash });
+  openFold(tree, "website");
+  tree = redrawTab(flash);
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab(flash);
+  assert.equal(boxOf(tree, "website").props.readOnly, undefined, "the person's, until it is sent");
+  saveRow(tree, "website");
+  tree = redrawTab(flash);
+  assert.equal(inline(tree, "website").props["aria-busy"], true, "the editor says it is busy");
+  assert.equal(boxOf(tree, "website").props.readOnly, true, "and its box is read-only: never disabled, which lets go of focus");
+  assert.equal(boxOf(tree, "website").props.disabled, undefined);
+  typeInto(tree, "website", "https://typed-while-saving.example");
+  tree = redrawTab(flash);
+  assert.equal(boxOf(tree, "website").props.value, "https://melanys.example", "what is on its way is what the box holds");
+
+  // Another row's act, and the standing line's door, which both ask the registry: no question is drawn over a change
+  // that is on its way, the editor stays, and the rail is told a save is out, to ask in its own words.
+  openFold(tree, "address");
+  tree = redrawTab(flash);
+  assert.deepEqual(openRows(tree), ["website"], "it does not give way while its save is out");
+  assert.equal(byTestId(tree, "rec-inline-website-ask-confirm"), null, "and nothing asks whether to discard what is being saved");
+  assert.deepEqual([W.__settingsUnsaved(), W.__settingsSaving()], [true, true]);
+  const unload = { type: "beforeunload", prevented: false, preventDefault() { this.prevented = true; } };
+  W.dispatchEvent(unload);
+  assert.equal(unload.prevented, true, "the browser asks before the tab goes with the request");
+
+  // Taken: the editor closes, and the row that was asked for opens.
+  sent[0].accept();
+  tree = redrawTab(flash);
+  assert.deepEqual(openRows(tree), ["address"], "the save's answer was the answer");
+  assert.equal(sent[0].config.brain.profile.website, "https://melanys.example", "and what was sent is what was typed before Save");
+  assert.deepEqual([W.__settingsUnsaved(), W.__settingsSaving()], [false, false]);
+
+  // Refused: the question is drawn then, and is true again; the box is the person's, with what was typed.
+  tree = drawTab({ flash });
+  sent.length = 0;
+  openFold(tree, "website");
+  tree = redrawTab(flash);
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab(flash);
+  saveRow(tree, "website");
+  tree = redrawTab(flash);
+  openFold(tree, "address");
+  tree = redrawTab(flash);
+  assert.equal(byTestId(tree, "rec-inline-website-ask-confirm"), null);
+  sent[0].answer({ ok: false, code: "conflict", message: "Someone else saved settings after you loaded them — reload and reapply." });
+  await settle();
+  tree = redrawTab(flash);
+  assert.deepEqual(openRows(tree), ["website"]);
+  assert.match(textOf(byTestId(tree, "rec-inline-website-ask-confirm")), /Discard your changes\?/, "nothing was saved, so the ask is drawn, and says so truly");
+  assert.deepEqual([boxOf(tree, "website").props.readOnly, boxOf(tree, "website").props.value], [undefined, "https://melanys.example"]);
+  assert.equal(W.__settingsSaving(), false);
+
+  // The choice of number is held the same way while its row saves.
+  tree = drawTab({ flash, brain: { phone_display: "(646) 555-0100" }, resolved: KNOWN });
+  sent.length = 0;
+  openFold(tree, "phone_display");
+  tree = redrawTab(flash);
+  const choice = () => byTestId(tree, "rec-inline-phone_display-choice");
+  press(find(choice(), (n) => n.props?.role === "radio" && textOf(n) === "Your line"));
+  tree = redrawTab(flash);
+  saveRow(tree, "phone_display");
+  tree = redrawTab(flash);
+  const other = find(choice(), (n) => n.props?.role === "radio" && textOf(n) === "A different number");
+  assert.equal(other.props["aria-disabled"], true);
+  press(other);
+  tree = redrawTab(flash);
+  assert.equal(find(choice(), (n) => n.props?.role === "radio" && n.props["aria-checked"]).props.children.join(""), "Your line", "a press while it saves chooses nothing");
+});
+
 /* ------------------------------------ the tab's one saver ------------------------------------ */
 
 const google = "2581 Pitkin Ave, Brooklyn, NY 11208, USA";
@@ -952,20 +1029,22 @@ test("what a row will say is worked out on the brain its save goes on: a save st
     typeInto(tree, row, "");
     return redrawTab();
   };
-  // Still out.
+  // Still out. The website's save goes through the tab's saver as its row sends it, with no editor of its own open: a
+  // row whose save is out keeps every other row shut until its answer comes (a save in progress, below), so a save
+  // out under another row's open editor is one sent from a page since drawn again, or by one press on a row.
+  const S = W.__businessTabSave;
+  const out = (row, value) => S.saver.save({ row, change: S.PATCH_OF[row](value), said: "Saved", done: () => {}, flash: () => {} });
   let sent = holding();
   let tree = drawTab({ profile: sparse, resolved: KNOWN });
   tree = empty(tree, "website");
   assert.equal(byTestId(tree, "rec-inline-says-website-note"), null, "the address still composes: emptying the website crosses nothing");
-  saveRow(tree, "website");
+  cancelRow(tree, "website");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-inline-website-cancel-yes"));
+  out("website", "");
   assert.equal(sent.length, 1);
-  openFold(tree, "address");
   tree = redrawTab();
-  // The website's editor still holds its draft, so the registry asks; its save goes on whatever the answer.
-  press(byTestId(tree, "rec-inline-website-ask-yes"));
-  tree = redrawTab();
-  typeInto(tree, "address", "");
-  tree = redrawTab();
+  tree = empty(tree, "address");
   assert.equal(textOf(byTestId(tree, "rec-inline-says-address-note")), PROFILE_CROSSING_WORDS.stops, "said before the address's save goes");
   saveRow(tree, "address");
   sent[0].accept();
@@ -993,10 +1072,12 @@ test("what a row will say is worked out on the brain its save goes on: a save st
   typeInto(tree, "website", "https://bella.example");
   tree = redrawTab();
   assert.equal(textOf(byTestId(tree, "rec-inline-says-website-note")), PROFILE_CROSSING_WORDS.starts);
-  saveRow(tree, "website");
-  openFold(tree, "address");
+  cancelRow(tree, "website");
   tree = redrawTab();
-  press(byTestId(tree, "rec-inline-website-ask-yes"));
+  press(byTestId(tree, "rec-inline-website-cancel-yes"));
+  out("website", "https://bella.example");
+  tree = redrawTab();
+  openFold(tree, "address");
   tree = redrawTab();
   typeInto(tree, "address", "12 Main St, Brooklyn, NY");
   tree = redrawTab();
@@ -1005,9 +1086,10 @@ test("what a row will say is worked out on the brain its save goes on: a save st
   await settle();
 });
 
-test("a rename made while another is out is told against the name that one saves", () => {
+test("a rename made on top of another is told against the name that one saves, and waits for it", () => {
   // The Name row's blocks, and the product's own lines it writes again, are read on the saver's base too: with Google's
-  // name still being saved, a second rename replaces that name, not the one the page was drawn with.
+  // name taken and not read back yet, a second rename replaces that name, not the one the page was drawn with. And
+  // while Google's name is still out, the row's own save is: its editor opens, takes no typing, and its Save waits.
   const was = "Melany's Beauty Salon";
   const google = "Melany's Salon & Spa";
   const now = "Melany's Studio";
@@ -1024,6 +1106,14 @@ test("a rename made while another is out is told against the name that one saves
   tree = redrawTab();
   openFold(tree, "name");
   tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-inline-save-name").props["aria-busy"], true, "the row's own name is out, so its Save waits");
+  assert.equal(boxOf(tree, "name").props.readOnly, true, "and its box takes no typing meanwhile");
+  typeInto(tree, "name", now);
+  tree = redrawTab();
+  assert.equal(boxOf(tree, "name").props.value, was, "nothing typed under a save that is out is held, to be dropped when it lands");
+  sent[0].accept();
+  tree = redrawTab();
+  assert.equal(boxOf(tree, "name").props.readOnly, undefined, "taken, the box is the person's again");
   typeInto(tree, "name", now);
   tree = redrawTab();
   const saving = { ...stored, business_name: google, system_prompt: baselineOf(google) };
@@ -1032,9 +1122,6 @@ test("a rename made while another is out is told against the name that one saves
   assert.deepEqual(partsOf(byTestId(tree, "rec-inline-says-name")), [["It will say", naming(after, now)], ["It will no longer say", naming(saving, google)]]);
   assert.equal(naming(stored, was).split("\n").length, 2);
   assert.doesNotMatch(textOf(byTestId(tree, "rec-inline-says-name")), new RegExp(escape(was)), "the name the page was drawn with is already going");
-  assert.equal(byTestId(tree, "rec-inline-save-name").props["aria-busy"], true, "the row's own name is out, so its Save waits");
-  sent[0].accept();
-  tree = redrawTab();
   saveRow(tree, "name");
   assert.deepEqual(sent[1].config.brain, after, "and the save writes what it said");
 });

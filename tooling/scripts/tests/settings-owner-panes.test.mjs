@@ -451,3 +451,44 @@ test("a class that cannot honour a mode still shows a dash there, and the rest s
   await flush();
   assert.deepEqual(put, [["faq", "ask"]], "REGRESSION: the heading changed and the stored word went with it");
 });
+
+/* ------------------------------ the rail's question ------------------------------ */
+
+test("the rail asks before a pane holding changes goes, and in words that are true of a save that is out", () => {
+  // Task 3.2's review: with a row's save out the rail still asked "Leave without saving?", of a change that was being
+  // saved, and its yes stopped nothing. The record kit says when a save is out (record-fold.jsx __settingsSaving).
+  const W = globalThis.window;
+  const was = { unsaved: W.__settingsUnsaved, saving: W.__settingsSaving };
+  const went = [];
+  const drawRail = () => { frames = [{ key: "root", hook: 0, kids: {} }]; dirty = false; lastTree = W.SettingsPage({ tab: "profile", onTab: (id) => went.push(id) }); return lastTree; };
+  const railTab = (tree, label) => find(tree, (n) => n.type === "button" && (n.props.className || "").includes("set-nav-row") && textOf(n).trim() === label);
+  try {
+    workspace("owner");
+    fresh();
+    W.__settingsUnsaved = () => true;
+    W.__settingsSaving = () => false;
+    press(railTab(drawRail(), "Team"));
+    let ask = byTestId(drawRail(), "set-leave-confirm");
+    assert.match(textOf(ask), /Leave without saving\?/);
+    assert.match(textOf(ask), /have not been saved/);
+    assert.deepEqual(went, [], "nothing goes until it is answered");
+    press(byTestId(drawRail(), "set-leave-no"));
+    assert.equal(byTestId(drawRail(), "set-leave-confirm"), null);
+
+    // A save is out: the change is on its way, so nothing is "unsaved", and the words say what leaving does.
+    W.__settingsSaving = () => true;
+    press(railTab(drawRail(), "Team"));
+    // The words are kept from the moment it asked: the save landing while the question is up does not turn it into
+    // "have not been saved", which by then is the opposite of true.
+    W.__settingsSaving = () => false;
+    ask = byTestId(drawRail(), "set-leave-confirm");
+    assert.match(textOf(ask), /Leave while this saves\?/);
+    assert.match(textOf(ask), /on its way and carries on without this page/);
+    assert.doesNotMatch(textOf(ask), /have not been saved/);
+    press(byTestId(drawRail(), "set-leave-yes"));
+    assert.deepEqual(went, ["team"]);
+  } finally {
+    if (was.unsaved) W.__settingsUnsaved = was.unsaved; else delete W.__settingsUnsaved;
+    if (was.saving) W.__settingsSaving = was.saving; else delete W.__settingsSaving;
+  }
+});
