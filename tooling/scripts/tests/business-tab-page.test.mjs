@@ -21,6 +21,7 @@ await import(`${L}/components/data-bits.jsx`);
 await import(`${L}/components/record-row.jsx`);
 await import(`${L}/components/record-field.jsx`);
 await import(`${L}/components/record-fold.jsx`);
+await import(`${L}/components/record-sheet.jsx`);
 const W = globalThis.window;
 
 /** A new tree, drawn as today-page.test.mjs draws one: the hook cells forgotten, the component created. */
@@ -383,4 +384,81 @@ test("the registry tells whoever listens each time it changes", () => {
   folds.request("notes");
   assert.deepEqual(told, ["hours", null]);
   folds.reset();
+});
+
+/* ------------------------------------ the sheet ------------------------------------ */
+
+const offer = (over = {}) => ({
+  title: "What you offer",
+  sub: "Names and rough timings. A price only if you can state it flatly.",
+  onClose: () => {},
+  foot: null,
+  ...over,
+});
+
+test("a sheet is a dialog with a name, a close and a foot that holds still", () => {
+  const closed = [];
+  const tree = draw(W.RecordSheet, offer({ onClose: () => closed.push(1) }));
+  const sheet = find(tree, (n) => classes(n).includes("rec-sheet"));
+  assert.equal(sheet.props.role, "dialog");
+  assert.equal(sheet.props["aria-modal"], true);
+  assert.ok(sheet.props["aria-label"] === "What you offer" || sheet.props["aria-labelledby"]);
+  const close = find(tree, (n) => n.props?.["aria-label"] === "Close");
+  assert.equal(close.type, "button");
+  press(close);
+  assert.equal(closed.length, 1);
+
+  const saveAll = W.React.createElement("button", { type: "button", onClick: () => {} }, "Save 33 services");
+  fresh();
+  // Children as React hands them, after the props: the stub's createElement sets `children` from these.
+  const full = W.React.createElement(W.RecordSheet, offer({ id: "services", foot: saveAll, tools: "search" }), "row one", "row two");
+  const named = find(full, (n) => classes(n).includes("rec-sheet"));
+  assert.equal(named.props["data-testid"], "rec-sheet-services");
+  assert.equal(textOf(byId(full, named.props["aria-labelledby"])), "What you offer", "with an id, the sheet is named by its heading");
+  assert.match(textOf(byId(full, named.props["aria-describedby"])), /rough timings/, "and described by the line under it");
+  const foot = find(full, (n) => classes(n).includes("rec-sheet-foot"));
+  assert.ok(find(foot, (n) => n === saveAll), "the foot holds the page's act");
+  assert.equal(find(find(full, (n) => classes(n).includes("rec-sheet-body")), (n) => n === saveAll), null, "outside the part that scrolls");
+  assert.equal(textOf(find(full, (n) => classes(n).includes("rec-sheet-body"))), "row onerow two");
+  assert.equal(textOf(find(full, (n) => classes(n).includes("rec-sheet-tools"))), "search");
+});
+
+test("Escape closes a sheet, once, unless something in it took the key", () => {
+  const closed = [];
+  const tree = draw(W.RecordSheet, offer({ onClose: () => closed.push(1) }));
+  const esc = (over = {}) => ({ type: "keydown", key: "Escape", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...over });
+  const inside = esc();
+  find(tree, (n) => classes(n).includes("rec-sheet")).props.onKeyDown(inside);
+  assert.deepEqual([closed.length, inside.defaultPrevented], [1, true], "from inside the sheet, and taken, so a fold around it does not cancel too");
+  W.dispatchEvent(inside);
+  assert.equal(closed.length, 1, "the same key reaching the window does not close it twice");
+  W.dispatchEvent(esc());
+  assert.equal(closed.length, 2, "with focus outside it, the window hears the key");
+  W.dispatchEvent(esc({ defaultPrevented: true }));
+  assert.equal(closed.length, 2, "a key a combobox inside already took is not the sheet's");
+});
+
+test("a sheet takes focus as it opens, gives it back to what opened it, and opens inside the app", () => {
+  const focused = [];
+  const opener = { focus: () => focused.push("opener") };
+  const panel = { focus: () => focused.push("sheet") };
+  const appRoot = { app: "root" };
+  const portals = [];
+  const doc = globalThis.document;
+  const was = { activeElement: doc.activeElement, querySelector: doc.querySelector, createPortal: W.ReactDOM.createPortal };
+  Object.assign(doc, { activeElement: opener, querySelector: (sel) => (sel === ".app-root" ? appRoot : null) });
+  W.ReactDOM.createPortal = (node, into) => { portals.push(into); return node; };
+  try {
+    const tree = draw(W.RecordSheet, offer());
+    const sheet = find(tree, (n) => classes(n).includes("rec-sheet"));
+    assert.equal(sheet.props.tabIndex, -1, "the sheet itself can take focus, so a screen reader names it");
+    // React calls a callback ref with the element as it mounts and with null as it goes; the stub calls neither.
+    sheet.props.ref(panel);
+    sheet.props.ref(null);
+  } finally {
+    Object.assign(doc, { activeElement: was.activeElement, querySelector: was.querySelector });
+    W.ReactDOM.createPortal = was.createPortal;
+  }
+  assert.deepEqual(focused, ["sheet", "opener"]);
+  assert.deepEqual(portals, [appRoot], "drawn in the app's root, where People's overlay check (PL_OVERLAY) finds a dialog, over the pane's own layout");
 });

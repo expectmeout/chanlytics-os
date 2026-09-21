@@ -73,6 +73,13 @@
 /* Focus lands on the sheet itself as it opens, so a screen reader names it; the ring belongs to the controls in it. */
 .rec-sheet:focus { outline: none; }
 .rec-sheet-head { flex: none; display: flex; align-items: flex-start; gap: 14px; padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
+.rec-sheet-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* Two classes deep, for the reason the card's title is. */
+.rec-sheet-head .rec-sheet-title { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: -0.015em; color: var(--ink); }
+.rec-sheet-sub { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.rec-sheet-close { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+.rec-sheet-close:hover { color: var(--ink); background: var(--bg-hover); }
+.rec-sheet-tools { flex: none; display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
 .rec-sheet-body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px; }
 .rec-sheet-foot { flex: none; display: flex; flex-direction: column; gap: 11px; padding: 14px 22px 18px; border-top: 1px solid var(--line); background: var(--bg-raised); }
 
@@ -141,6 +148,7 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
   html.legacy-on .rec-switch::after { content: ""; position: absolute; inset: -13px -7px; }
   html.legacy-on .rec-tip { width: 28px; height: 28px; min-height: 0; }
   html.legacy-on .rec-tip::after { content: ""; position: absolute; inset: -8px; }
+  html.legacy-on .rec-sheet-close { min-width: 44px; }
 }
 
 /* ---------- On a phone ---------- */
@@ -168,5 +176,5 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
 
 @media (prefers-reduced-motion: reduce) {
   .rec-row::before, .rec-row-act, .rec-fold-close, .rec-fold-body, .rec-fold[data-open="false"] .rec-fold-body,
-  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip { transition: none; }
+  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close { transition: none; }
 }
