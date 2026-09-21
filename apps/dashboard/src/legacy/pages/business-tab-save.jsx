@@ -3,9 +3,10 @@
 //
 // The page (pages/business-tab.jsx) draws; this file decides what its saves write. Here: each row's check (the
 // sentence that stops a save before any round trip, or null), what a row's draft stores, and its patch (the one-key
-// change a save makes: a pure function of the stored brain and profile that returns the brain); the tab's one saver,
-// which every row, and every fold after them, saves through; how a number is written for people (phoneShown); and the
-// old card's one-key save (useFieldSave), until Task 3.7 retires that card. Task 3.6 adds the folds' own helpers here.
+// change a save makes: a pure function of the stored brain and profile that returns the brain); each fold's helpers
+// (what it opens with, and the config its save writes, its own paths and nothing else); the tab's one saver, which
+// every row and fold saves through; how a number is written for people (phoneShown); and the old card's one-key save
+// (useFieldSave), until Task 3.7 retires that card.
 //
 // Everything is published on window and read there as each consumer draws: in the app every legacy file is its own
 // module, where a top-level const of one is nothing to another. This file loads before business-tab.jsx, which loads
@@ -90,12 +91,17 @@ const btTrimmed = (d) => String(d == null ? "" : d).trim();
  * was. The one place a patch is run, by the saver as it sends and by a row working out what it will say, so the two
  * never apply one patch two ways.
  *
+ * A job carries its patch one of two ways. A row's is `change`, its one-key change: a function of the brain and its
+ * profile that returns the brain. A fold's is `patch`, a function of the whole config that returns the next one, since
+ * a fold may write beside the brain (the calendar, the photos switch); saveFold builds it (below).
+ *
  * On a copy all the way down (structuredClone). A patch was handed shallow copies, so one that changed a nested object
  * in place (p.booking_rules.lead_hours = 5) changed the config it was about to be compared with as well: the saver
  * found nothing to send, the row closed as if saved, and the settings read showed a value no server held.
  */
 const btPatched = (config, job) => {
   const copy = structuredClone(config);
+  if (typeof job.patch === "function") return job.patch(copy);
   const brain = copy.brain || {};
   return { ...copy, brain: job.change(brain, { ...(brain.profile || {}) }) };
 };
@@ -108,7 +114,7 @@ const btPatched = (config, job) => {
  * config and version as the page last drew them, so "Use Google's" on the address and then on the name sent version 7
  * twice, and the server refused the second as a colleague's save that never happened. So every row asks this saver:
  * a patch waits while another is out, and goes on the config the server answered the last one with (the bridge hands
- * it to onAccepted), or on the settings read when that is newer. A patch is a pure function of (brain, profile), so it
+ * it to onAccepted), or on the settings read when that is newer. A patch is a pure function of what is stored, so it
  * applies to whatever is current when it goes, and one that would change nothing is not sent. The next waits while one
  * is out: plViewSaver's shape (clients-a.jsx).
  *
@@ -118,9 +124,10 @@ const btPatched = (config, job) => {
  * colleague's; and a save still waiting its turn was one the new page's row could not see. A page subscribes as it
  * mounts, and is drawn again whenever a save moves (queued, sent, taken, refused).
  *
- * A job is { row, change, said, done, flash }: `said` is the toast once the server takes it, `done` runs then too (the
- * row closes), and a refusal, or a promise that fails before the server took it, is said in the danger tone. `reset()`
- * is for tests: it forgets the queue, the save out and the last answer, as a new browser tab would start.
+ * A job is { row, change or patch, said, done, flash } (btPatched says which patch is which): `row` is the row's or the
+ * fold's id, `said` is the toast once the server takes it, `done` runs then too (the row closes), and a refusal, or a
+ * promise that fails before the server took it, is said in the danger tone. `reset()` is for tests: it forgets the
+ * queue, the save out and the last answer, as a new browser tab would start.
  */
 const btSaver = () => {
   let last = null;
@@ -331,10 +338,310 @@ const BT_PATCH_OF = {
   handoff_number: btPatchProfile("handoff_number"),
 };
 
+/* ------------------------------------ what each fold opens with, refuses and writes ------------------------------------ */
+
+/*
+ * A fold's helpers, pure: they read nothing but what they are handed and the bridge's published functions
+ * (__instructionsDraft, __fallbackDefaults, __receptionistDefaults), and change nothing they are handed. Ported from the
+ * form they replace, BusinessEditor in settings.jsx, section by section: how it opened each part of its state, and how
+ * its `save` wrote each part back. A fold is named by its id, the same name consequenceOf knows it by (the bridge's
+ * FOLD_BLOCK); any other name is a TypeError naming it.
+ *
+ * How a fold of Tasks 3.3 to 3.5 uses them. `base` is the tab's saver's base(), the config the fold's save will go on:
+ *
+ *   draftOf(fold, base)          as it opens: the draft its fields edit, from what is stored, in the shape the old form
+ *                                held it (lines of a box joined by "\n", a number as its box holds it). The fold's own
+ *                                copy, to change as it likes: nothing it does to it reaches the settings read.
+ *   saveFold(fold, base, draft)  the next config: `base` with the fold's own paths (PATHS_OF) written from the draft, and
+ *                                everything else exactly as it was, down to the order of its keys. `base` is not changed.
+ *                                A booking rule outside its range is written as no rule at all.
+ *
+ * Its save goes through the tab's one saver as a patch of the whole config, run on whatever config is current when it
+ * goes, and what it will say is worked out on the saver's base with the same helper, so it describes that save:
+ *
+ *   saver.save({ row: fold, patch: (config) => saveFold(fold, config, draft), said, done, flash })
+ *   consequenceOf(fold, saveFold(fold, saver.base(), draft).brain, channel)
+ *
+ * It holds changes when what it would write is not what the draft it opened with would write, the rows' rule
+ * (storedAs): same(saveFold(fold, base, draft), saveFold(fold, base, draftOf(fold, base))). Three folds do not write
+ * back exactly what they opened on every record, and say the same thing when they do not: the hours write a day the
+ * record left out as {}, the rules write all four switches out, and the instructions keep a carried prompt as the
+ * owner's words (S4). Judged the rows' way, opening one of them and pressing Save with nothing changed sends nothing.
+ */
+
+// The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
+const BT_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+// The lines of a box, one rule or reason each: those with something on them, trimmed.
+const btLines = (text) => String(text == null ? "" : text).split("\n").map((x) => x.trim()).filter(Boolean);
+
+/**
+ * The booking rules the booking_rules fold edits, each with the range the schema allows (contracts
+ * BookingRulesSchema). Its notes are the fold's too; consult_first is a fold of its own.
+ */
+const BT_RULES = [
+  ["lead_hours", 0, 168],
+  // The slot length has a field of its own now (S2): 15 to 240 minutes, as the schema allows; blank is the calendar's
+  // default.
+  ["slot_min", 15, 240],
+  ["buffer_min", 0, 120],
+  ["max_days_ahead", 1, 90],
+  ["party_max", 1, 20],
+];
+// A blank box is "no rule", never zero; so is a number outside the rule's range.
+const btRuleNumber = (v, lo, hi) => {
+  const n = parseInt(btTrimmed(v), 10);
+  return Number.isFinite(n) && n >= lo && n <= hi ? n : undefined;
+};
+
+// The four rules it always keeps (contracts GUARDRAIL_KEYS), and the three messages sent in the business's name (S5).
+const BT_GUARDRAILS = ["never_quote_prices", "never_confirm_booking", "disclose_ai", "no_health_advice"];
+const BT_FALLBACKS = ["greeting", "error", "non_text"];
+
+/**
+ * Exactly what each fold writes, as dotted paths into the whole config: nothing outside them is the fold's to change.
+ * Two folds share booking_rules, each with only its own of its keys, and three write beside the profile: the rules
+ * write the photos switch (features.vision), the instructions write the stored prompt, and the fallbacks and the
+ * calendar write nothing in the profile at all.
+ */
+const BT_PATHS_OF = {
+  tone: ["brain.profile.tone"],
+  hours: ["brain.profile.hours"],
+  closures: ["brain.profile.closures"],
+  services: ["brain.profile.services"],
+  languages: ["brain.profile.languages"],
+  notes: ["brain.profile.notes"],
+  escalate_when: ["brain.profile.escalate_when"],
+  booking_rules: BT_RULES.map(([key]) => `brain.profile.booking_rules.${key}`).concat(["brain.profile.booking_rules.notes"]),
+  consult_first: ["brain.profile.booking_rules.consult_first"],
+  guardrails: BT_GUARDRAILS.map((key) => `brain.profile.guardrails.${key}`).concat(["features.vision"]),
+  extra_instructions: ["brain.profile.extra_instructions", "brain.system_prompt"],
+  fallbacks: BT_FALLBACKS.map((key) => `brain.fallbacks.${key}`),
+  calendar: ["calendar"],
+};
+
+// The keys of the profile each fold writes into, read off its paths so the two maps never disagree.
+const BT_KEYS_OF = Object.fromEntries(Object.entries(BT_PATHS_OF).map(([fold, paths]) => [
+  fold,
+  paths.filter((p) => p.startsWith("brain.profile.")).map((p) => p.split(".")[2]).filter((k, i, all) => all.indexOf(k) === i),
+]));
+
+// The page is untyped, so a name no fold has is said, rather than found on Object.prototype ("toString") or ignored.
+const btFoldNamed = (fold) => {
+  if (!Object.prototype.hasOwnProperty.call(BT_PATHS_OF, fold)) {
+    throw new TypeError(`The Business tab has no fold named ${JSON.stringify(fold)}. It has ${Object.keys(BT_PATHS_OF).join(", ")}.`);
+  }
+};
+
+/** What each fold opens with, from the stored profile, brain and config: as BusinessEditor set up its state. */
+const BT_DRAFT_OF = {
+  tone: (p) => p.tone || "",
+  // One editable list per day, however the day happens to be stored: a plain open/close pair reads as a single shift,
+  // so the two shapes are one thing to edit and only differ again on save. `isOpen` means the business is open, not
+  // the opening time: a day is closed only when it has no times, which is what the schema stores.
+  hours: (p) => {
+    const week = {};
+    BT_DAYS.forEach((d) => {
+      const x = (p.hours || {})[d] || {};
+      const shifts = (x.intervals || []).filter((s) => s && s.open && s.close).map((s) => ({ open: s.open, close: s.close }));
+      if (!shifts.length && x.open && x.close) shifts.push({ open: x.open, close: x.close });
+      week[d] = { isOpen: shifts.length > 0, shifts };
+    });
+    return week;
+  },
+  closures: (p) => (p.closures || []).map((x) => ({ ...x })),
+  services: (p) => (p.services || []).map((x) => ({ ...x })),
+  languages: (p) => (p.languages || []).slice(),
+  notes: (p) => (p.notes || []).map((x) => ({ ...x })),
+  escalate_when: (p) => (p.escalate_when || []).join("\n"),
+  // Each number as its box holds it, "" where there is no rule; the notes one to a line.
+  booking_rules: (p) => {
+    const rules = p.booking_rules || {};
+    const draft = {};
+    BT_RULES.forEach(([key]) => { draft[key] = rules[key] !== undefined ? String(rules[key]) : ""; });
+    draft.notes = (rules.notes || []).join("\n");
+    return draft;
+  },
+  consult_first: (p) => ((p.booking_rules || {}).consult_first || []).join("\n"),
+  guardrails: (p, brain, config) => {
+    const g = p.guardrails || {};
+    return {
+      // Absent means ON. Only an explicit false turns one off, so an unset config must not render as three unticked
+      // boxes.
+      never_quote_prices: g.never_quote_prices !== false,
+      never_confirm_booking: g.never_confirm_booking !== false,
+      disclose_ai: g.disclose_ai !== false,
+      // Opt-in, unlike the three above: a rule that defaulted on would have changed every composed prompt already live
+      // the moment it shipped.
+      no_health_advice: g.no_health_advice === true,
+      // Opt-in abilities: off unless the owner turned one on.
+      vision: (config.features || {}).vision === true,
+    };
+  },
+  // Pre-filled with the workspace's existing instructions, so nothing a business already told its receptionist quietly
+  // disappears the moment it fills in a form. Chosen in contracts (S4): the owner's own words, or the prompt from
+  // before the form, carried and marked `carried` so the fold can say so -- never the product's opening lines, which
+  // no owner wrote.
+  extra_instructions: (p, brain) => window.__instructionsDraft(brain),
+  // The three messages sent in the business's name when the receptionist cannot answer (S5): the workspace's own, or,
+  // for one set up before them, the product's wording, which names the details rather than copying them in.
+  fallbacks: (p, brain) => ({ ...(brain.fallbacks || window.__fallbackDefaults) }),
+  calendar: (p, brain, config) => (config.calendar && config.calendar.ical_url) || "",
+};
+
+/** The draft `fold` opens with over the stored config `stored` (the saver's base). */
+const btDraftOf = (fold, stored) => {
+  btFoldNamed(fold);
+  const config = stored || {};
+  const brain = config.brain || {};
+  return BT_DRAFT_OF[fold](brain.profile || {}, brain, config);
+};
+
+// A key, written from a draft: only what was filled in. An empty string is not a fact, and storing it would have the
+// composed prompt state an address of nothing, so an emptied field DELETES its key rather than storing "" (the old
+// form's `put`).
+const btPut = (o, key, value) => { if (value === undefined) delete o[key]; else o[key] = value; };
+// The same, for a key of the profile. A profile is made only to hold a value, so a fold that empties a field of a
+// brain with no profile writes nothing at all.
+const btPutProfile = (next, key, value) => {
+  if (!next.brain) next.brain = {};
+  if (value === undefined) { if (next.brain.profile) delete next.brain.profile[key]; return; }
+  if (!next.brain.profile) next.brain.profile = {};
+  next.brain.profile[key] = value;
+};
+const btProfileOf = (next) => (next.brain && next.brain.profile) || {};
+
+/** How each fold writes its draft into `next`, a copy of the stored config: its own paths, and nothing else. */
+const BT_WRITE = {
+  tone: (next, draft) => btPutProfile(next, "tone", btTrimmed(draft) || undefined),
+  hours: (next, draft) => {
+    const week = draft || {};
+    const hours = {};
+    BT_DAYS.forEach((d) => {
+      const x = week[d] || { isOpen: false, shifts: [] };
+      const shifts = x.isOpen ? (x.shifts || []).filter((s) => s.open && s.close) : [];
+      // ONE shift is still written as open/close, not as a one-element intervals array. Writing it the new way would
+      // rewrite every existing config into a new shape the first time anybody pressed Save -- a migration nobody asked
+      // for, on rows that already said this correctly.
+      //
+      // A day that is closed is stored as `{}` -- a real answer. Omitting it would read as "we did not say".
+      hours[d] = shifts.length === 0 ? {}
+        : shifts.length === 1 ? { open: shifts[0].open, close: shifts[0].close }
+        : { intervals: shifts.map((s) => ({ open: s.open, close: s.close })) };
+    });
+    // Only once at least one day has real times, or an untouched week would save seven closed days and read as a
+    // business never open; and through put, so turning every day off CLEARS the stored week instead of leaving
+    // yesterday's behind.
+    const stated = BT_DAYS.some((d) => week[d] && week[d].isOpen && (week[d].shifts || []).some((s) => s.open && s.close));
+    btPutProfile(next, "hours", stated ? hours : undefined);
+  },
+  // A row with no date is a row somebody started and did not finish. Sending it would fail validation and name a field
+  // they cannot see; dropping it is what they meant.
+  closures: (next, draft) => {
+    const closed = (draft || []).filter((c) => btTrimmed(c.date)).map((c) => {
+      const o = { date: btTrimmed(c.date) };
+      // `until` equal to `date` is a one-day closure said twice.
+      if (btTrimmed(c.until) && btTrimmed(c.until) !== o.date) o.until = btTrimmed(c.until);
+      if (btTrimmed(c.note)) o.note = btTrimmed(c.note);
+      return o;
+    });
+    btPutProfile(next, "closures", closed.length ? closed : undefined);
+  },
+  services: (next, draft) => {
+    const services = (draft || []).filter((x) => btTrimmed(x.name)).map((x) => {
+      const o = { name: btTrimmed(x.name) };
+      const d = parseInt(x.duration_min, 10);
+      if (Number.isFinite(d) && d > 0) o.duration_min = d;
+      if (btTrimmed(x.price_note)) o.price_note = btTrimmed(x.price_note);
+      return o;
+    });
+    btPutProfile(next, "services", services.length ? services : undefined);
+  },
+  languages: (next, draft) => btPutProfile(next, "languages", draft && draft.length ? draft.slice() : undefined),
+  notes: (next, draft) => {
+    const notes = (draft || []).map((n) => ({ title: btTrimmed(n.title), text: btTrimmed(n.text) })).filter((n) => n.title || n.text);
+    btPutProfile(next, "notes", notes.length ? notes : undefined);
+  },
+  escalate_when: (next, draft) => {
+    const reasons = btLines(draft);
+    btPutProfile(next, "escalate_when", reasons.length ? reasons : undefined);
+  },
+  // From the stored rules, each of the fold's keys written or deleted where it stands. Everything else stored under
+  // booking_rules -- consult_first, which is a fold of its own, and a rule added later -- is kept as it was: the form
+  // this replaces started the rules from {} and deleted the slot length on every save (settingsRulesKept).
+  booking_rules: (next, draft) => {
+    const d = draft || {};
+    const rules = { ...(btProfileOf(next).booking_rules || {}) };
+    BT_RULES.forEach(([key, lo, hi]) => btPut(rules, key, btRuleNumber(d[key], lo, hi)));
+    const notes = btLines(d.notes);
+    btPut(rules, "notes", notes.length ? notes : undefined);
+    btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);
+  },
+  // The one key of booking_rules that is its own fold (it had no label in the form this replaces), and every other rule
+  // as it was stored.
+  consult_first: (next, draft) => {
+    const rules = { ...(btProfileOf(next).booking_rules || {}) };
+    const list = btLines(draft);
+    btPut(rules, "consult_first", list.length ? list : undefined);
+    btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);
+  },
+  // The four switches written onto what is stored beside them, where the old form wrote the four alone: a switch a
+  // newer form adds is kept by an older tab's save, as a rule added later is kept under booking_rules.
+  guardrails: (next, draft) => {
+    const d = draft || {};
+    const guardrails = { ...(btProfileOf(next).guardrails || {}) };
+    BT_GUARDRAILS.forEach((key) => { guardrails[key] = d[key] === true; });
+    btPutProfile(next, "guardrails", guardrails);
+    // Opt-in abilities, written once the owner has touched them: an untouched workspace keeps no features at all.
+    const features = next.features || {};
+    const vision = d.vision === true;
+    if (vision || features.vision !== undefined) next.features = { ...features, vision };
+  },
+  extra_instructions: (next, draft) => {
+    btPutProfile(next, "extra_instructions", btTrimmed(draft && draft.text) || undefined);
+    // The product's own opening lines, on every save (S4). The box showed the prompt written before the form, and
+    // what the owner kept of it is now their instructions; left in the prompt as well it was stored twice, and an
+    // emptied box carried it straight back. Built in contracts, under the name the brain holds when the save goes.
+    next.brain.system_prompt = window.__receptionistDefaults(next.brain.business_name || "").system_prompt;
+  },
+  // The three messages as the fold holds them (S5), trimmed, onto what is stored beside them. An existing workspace's
+  // open with its own words, never replaced because somebody opened a fold.
+  fallbacks: (next, draft) => {
+    const d = draft || {};
+    if (!next.brain) next.brain = {};
+    const messages = { ...(next.brain.fallbacks || {}) };
+    BT_FALLBACKS.forEach((key) => { messages[key] = btTrimmed(d[key]); });
+    next.brain.fallbacks = messages;
+  },
+  // A top-level section, read by the edge; an emptied field removes it.
+  calendar: (next, draft) => {
+    const feed = btTrimmed(draft);
+    if (feed) next.calendar = { ical_url: feed }; else delete next.calendar;
+  },
+};
+
+/**
+ * The config a fold's save sends: the stored config `stored` (the saver's base, or whatever is current when the save
+ * goes), with the fold's own paths written from its draft.
+ *
+ * Start from what is STORED, not from nothing. The form this replaces once started its profile from {} and added the
+ * known keys back, and that is not a save -- it is a rebuild, and a rebuild silently deletes every key the form does
+ * not happen to render. It is the exact mechanism that lost a live workspace its 5,000-character prompt: nobody deleted
+ * anything, a rebuild simply dropped what it did not know about. So any key added later -- by a newer form, a script,
+ * the API -- survives an owner opening a fold and pressing Save (business-tab-folds.test.mjs holds every fold to it).
+ * On a copy all the way down, so the config handed in stays exactly as it was.
+ */
+const btSaveFold = (fold, stored, draft) => {
+  btFoldNamed(fold);
+  const next = structuredClone(stored || {});
+  BT_WRITE[fold](next, draft);
+  return next;
+};
+
 // window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), base(), subscribe(fn), reset() }),
 // how a job's patch is applied (`patched`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
-// brain's prompt is the product's own lines under its stored name (`isBaseline`), and each row's STORED_AS, CHECK_OF
-// and PATCH_OF by its id. Task 3.6 adds the folds'.
+// brain's prompt is the product's own lines under its stored name (`isBaseline`), each row's STORED_AS, CHECK_OF and
+// PATCH_OF by its id, and each fold's paths and keys (PATHS_OF, KEYS_OF) and helpers (draftOf, saveFold).
 Object.assign(window, {
   phoneShown: btPhoneShown,
   useFieldSave: useBtFieldSave,
@@ -347,5 +654,9 @@ Object.assign(window, {
     STORED_AS: BT_STORED_AS,
     CHECK_OF: BT_CHECK_OF,
     PATCH_OF: BT_PATCH_OF,
+    PATHS_OF: BT_PATHS_OF,
+    KEYS_OF: BT_KEYS_OF,
+    draftOf: btDraftOf,
+    saveFold: btSaveFold,
   },
 });
