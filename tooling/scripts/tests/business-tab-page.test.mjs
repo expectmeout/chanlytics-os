@@ -279,6 +279,13 @@ test("a fold opens, says what the receptionist will be told, and saves only itse
   assert.equal(find(draw(W.RecordFold, bookingRules({ says: "" })), (n) => classes(n).includes("rec-fold-says")), null, "a fold that writes nothing draws no block");
 });
 
+test("a fold whose own grid carries a label column says so, and no other fold does", () => {
+  const foldOf = (tree) => find(tree, (n) => classes(n).includes("rec-fold"));
+  assert.equal(foldOf(draw(W.RecordFold, bookingRules())).props["data-wide"], undefined, "a fold's fields start under the value");
+  // record.css takes the indent off a wide fold's fields, and keeps it on what saving writes and on the foot.
+  assert.equal(foldOf(draw(W.RecordFold, bookingRules({ id: "hours", wide: true }))).props["data-wide"], "true");
+});
+
 test("a fold's Save is gated, says when it is saving, and the keys cancel and save it", () => {
   const saved = [];
   const refused = [];

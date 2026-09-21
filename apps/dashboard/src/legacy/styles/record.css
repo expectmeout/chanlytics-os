@@ -8,8 +8,9 @@
    ============================================================ */
 
 /* ---------- The card a page's rows sit in ---------- */
-/* --rec-gutter is the card's side padding, named once, because an open fold reaches through it to the card's edge. */
-.rec-card { --rec-gutter: 18px; padding: 18px var(--rec-gutter) 6px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+/* Named once: --rec-gutter is the card's side padding, which an open fold reaches through to the card's edge;
+   --rec-key is the label column every row and fold head keeps, and the indent a fold's fields start at. */
+.rec-card { --rec-gutter: 18px; --rec-key: 168px; padding: 18px var(--rec-gutter) 6px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
 .rec-card-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; }
 /* Two classes deep, so a page's own heading reset (settings.css flattens every .settings h2) cannot undo it. */
 .rec-card-head .rec-card-title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: -0.01em; color: var(--ink); }
@@ -18,7 +19,7 @@
 /* ---------- A row: label, value, where it came from, one act ---------- */
 .rec-row { position: relative; isolation: isolate; display: flex; align-items: baseline; gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); }
 .rec-row-top { align-items: flex-start; }
-.rec-row-key { flex: 0 0 168px; font-size: var(--text-sm); color: var(--ink-dim); }
+.rec-row-key { flex: 0 0 var(--rec-key, 168px); font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-row-val { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--ink); }
 .rec-row-value { min-width: 0; overflow-wrap: anywhere; }
 .rec-row-empty { color: var(--ink-faint); }
@@ -55,7 +56,7 @@
    the card, so its head and its fields line up with the rows above and below it. */
 .rec-fold { margin-inline: calc(-1 * var(--rec-gutter, 18px)); padding-inline: calc(var(--rec-gutter, 18px) - 2px) var(--rec-gutter, 18px); border-top: 1px solid var(--line); border-left: 2px solid var(--accent); background: linear-gradient(to right, var(--bg-sunken), var(--bg-raised) 380px); }
 .rec-fold-head { display: flex; align-items: baseline; gap: 16px; padding: 11px 0 4px; }
-.rec-fold-label { flex: 0 0 168px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
+.rec-fold-label { flex: 0 0 var(--rec-key, 168px); font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
 .rec-fold-hint { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-fold-close { flex: none; font-size: var(--text-sm); color: var(--ink-dim); border-radius: var(--radius-xs); transition: color var(--duration-fast) var(--ease-out); }
 .rec-fold-close:hover { color: var(--ink); }
@@ -64,8 +65,14 @@
 .rec-fold-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-out), visibility 0s; }
 .rec-fold-body > * { overflow: hidden; }
 .rec-fold[data-open="false"] .rec-fold-body { grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows var(--duration-base) var(--ease-in-out), opacity var(--duration-base) var(--ease-in-out), visibility 0s var(--duration-base); }
-/* 4px either side, so the clip that folds the body never cuts a focused field's ring. */
-.rec-fold-inner { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px 0; margin-inline: -4px; }
+/* The fields, what saving writes and the foot start under the value, past the label column (Edit-Fold's body is
+   `padding: 8px 18px 0 168px`); 4px more either side, so the clip that folds the body never cuts a focused field's
+   ring. A fold whose own grid carries a label column (a week, its days named) is wide: its fields take the whole
+   width, and what saving writes and the foot keep the indent. */
+.rec-fold-inner { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px 0 calc(var(--rec-key, 168px) + 4px); margin-inline: -4px; }
+.rec-fold[data-wide="true"] .rec-fold-inner { padding-left: 4px; }
+.rec-fold[data-wide="true"] .rec-fold-says { margin-inline-start: var(--rec-key, 168px); }
+.rec-fold[data-wide="true"] .rec-fold-foot { padding-inline-start: var(--rec-key, 168px); }
 .rec-fold-says { display: flex; flex-direction: column; gap: 6px; padding: 11px 12px; background: var(--bg-sunken); border-radius: var(--radius-md); }
 .rec-fold-says-eyebrow { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-faint); }
 .rec-fold-says pre { margin: 0; font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -184,6 +191,10 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
   .rec-fold-label { flex: 1 1 auto; }
   .rec-fold-hint { flex: 1 1 100%; order: 3; }
   .rec-fold-note { flex-basis: 100%; text-align: left; }
+  /* No label column beside a phone's fields: they, what saving writes and the foot start at the fold's edge. */
+  .rec-fold-inner, .rec-fold[data-wide="true"] .rec-fold-inner { padding-left: 4px; }
+  .rec-fold[data-wide="true"] .rec-fold-says { margin-inline-start: 0; }
+  .rec-fold[data-wide="true"] .rec-fold-foot { padding-inline-start: 0; }
   /* The sheet rises from the bottom, and its foot clears the home indicator. */
   .rec-sheet { top: auto; left: 0; width: auto; height: 88vh; height: 88dvh; border-left: none; border-top: 1px solid var(--line-strong); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
   .rec-sheet-foot { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }

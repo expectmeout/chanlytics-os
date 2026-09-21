@@ -11,6 +11,10 @@
 //     …fields…
 //   </RecordFold>
 //
+// Its fields, what saving writes and its foot sit under the value, past the label column the rows keep. A fold whose
+// own grid carries a label column (a week's days, each named) is `wide`: its fields take the fold's whole width, and
+// what saving writes and the foot keep the indent. record.css draws both.
+//
 // Escape cancels, unless something inside the fold took the key first (a combobox's list closing); Ctrl or Cmd
 // with Enter saves. As it opens, focus moves to the first thing in it to type into or press, since the act that
 // opened it has gone; as it closes, focus that went with it comes back to that row's act (data-rec-act).
@@ -103,7 +107,7 @@ const recFoldFocusBack = (id, el) => {
 const RecordFold = ({
   id, label, hint = null, open = true, says = null, saysLabel = null, note = null,
   onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel", closeLabel = "Close",
-  gate = null, children = null,
+  gate = null, wide = false, children = null,
 }) => {
   const foldRef = useFoldRef(null);
   useFoldEffect(() => {
@@ -128,6 +132,7 @@ const RecordFold = ({
       role="group"
       aria-labelledby={labelId}
       data-open={open ? "true" : "false"}
+      data-wide={wide ? "true" : undefined}
       data-testid={`rec-fold-${id}`}
       onKeyDown={onKey}
     >
