@@ -500,13 +500,17 @@ export async function saveSettings(
   config: unknown,
   version: number,
   /**
-   * Fired the moment the SERVER accepts, before the surfaces are re-read.
+   * Fired the moment the SERVER accepts, before the surfaces are re-read, with
+   * the config and version the server now holds.
    *
    * The refresh that follows re-fetches every surface, which takes seconds.
    * A caller that waited for the whole promise showed nothing at all in the
-   * meantime, and pressing Save looked like it had done nothing.
+   * meantime, and pressing Save looked like it had done nothing. And a second
+   * save made in those seconds went out on the version read before the first,
+   * so the server refused it as someone else's; the Business tab's saver
+   * sends the next one on this answer instead.
    */
-  onAccepted?: () => void,
+  onAccepted?: (saved: { config: unknown; version: number }) => void,
   /** The tab's own client and refresh, or a test's stand-ins. */
   deps: { client?: Api; refresh?: () => Promise<void> } = {},
 ): Promise<VerbResult> {

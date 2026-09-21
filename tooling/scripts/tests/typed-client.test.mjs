@@ -60,6 +60,12 @@ test("a write: JSON in, the idempotency key and the via marker on the wire, then
   const bodiless = harness(envelope({ status: "active" }));
   await bodiless.api("POST billing/sync");
   assert.equal(bodiless.sent[0].init.body, undefined);
+  // The accepted hook is handed what the server answered, before the refresh: a save that follows builds on it.
+  const saved = harness(envelope({ config: { brain: { business_name: "Melany's" } }, version: 8 }));
+  const handed = [];
+  await saved.api("PUT settings", { body: { config: {}, version: 7 }, onAccepted: (data) => { handed.push(data); saved.events.push("accepted"); } });
+  assert.deepEqual(handed, [{ config: { brain: { business_name: "Melany's" } }, version: 8 }]);
+  assert.deepEqual(saved.events, ["accepted", "refresh:PUT settings"], "and before the surfaces are read again");
   assert.equal(bodiless.sent[0].init.headers["content-type"], undefined, "no body, no content type");
   const held = harness(envelope({ ok: true }));
   await held.api("PUT contacts/[id]/consent", { params: { id: C1 }, body: { consent: "opted_in", source: "desk" }, refresh: false });

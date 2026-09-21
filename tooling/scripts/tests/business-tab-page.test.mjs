@@ -140,13 +140,23 @@ const cancelRow = (tree, row) => press(byTestId(tree, `rec-inline-cancel-${row}`
 const ownWords = (n) => [].concat(n?.props?.children ?? []).filter((c) => typeof c === "string").join("");
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Stand in for the bridge's versioned PUT: record what is sent and say the server accepted it, as it does. */
+/**
+ * Stand in for the bridge's versioned PUT and the server behind it: record what is sent, refuse a version that is not
+ * the server's as the route does, and on acceptance hand onAccepted the saved config and its new version before the
+ * re-read, as the bridge does (the re-read never lands here). The server stands where the page's latest read says it
+ * does, and moves on with each save it accepts after it.
+ */
 const saving = () => {
   const sent = [];
-  W.__saveSettings = (config, version, accepted) => {
-    sent.push({ config: structuredClone(config), version });
-    accepted();
-    return Promise.resolve({ ok: true });
+  let read = null;
+  let version = null;
+  W.__saveSettings = (config, v, accepted) => {
+    if (W.__SETTINGS !== read) { read = W.__SETTINGS; version = read.version; }
+    sent.push({ config: structuredClone(config), version: v });
+    if (v !== version) return Promise.resolve({ ok: false, code: "conflict", message: "Someone else saved settings after you loaded them — reload and reapply." });
+    version += 1;
+    accepted({ config: structuredClone(config), version });
+    return new Promise(() => {});
   };
   return sent;
 };
@@ -664,6 +674,85 @@ test("Save stays a button focus can rest on while it saves, and a press meanwhil
   assert.equal(sent.length, 1);
   accept();
   assert.deepEqual(openRows(redrawTab()), [], "the moment the server accepts, the editor closes");
+});
+
+/* ------------------------------------ the page's one saver ------------------------------------ */
+
+const google = "2581 Pitkin Ave, Brooklyn, NY 11208, USA";
+/** A record Google lists at another address and under another name: two presses, one on each row. */
+const disputed = () => ({ profile: { ...melany, address: "2581 Pitkin Avenue" }, resolved: { ...KNOWN, listing: { name: "Melany's Salon & Spa", address: google } } });
+const useOn = (tree, row) => press(find(byTestId(tree, `rec-row-${row}`), (n) => n.type === "button" && textOf(n) === "Use Google's"));
+
+test("two saves close together go one after the other, the second on the first's answer, and neither is refused", () => {
+  // The reviewer's case: each row saved on the version the page last drew, so the second press sent version 7 again
+  // and the server refused it as someone else's save.
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash, ...disputed() });
+  useOn(tree, "address");
+  tree = redrawTab(flash);
+  useOn(tree, "name");
+  assert.deepEqual(sent.map((s) => s.version), [7, 8], "in order, each on the version before it");
+  assert.equal(sent[1].config.brain.profile.address, google, "the second carries the first's change");
+  assert.equal(sent[1].config.brain.business_name, "Melany's Salon & Spa");
+  assert.deepEqual(flashes.map((f) => f.tone || "ok"), ["ok", "ok"], "neither is refused");
+
+  // Pressed again before the settings read brings the change back, the address press would write what is there now.
+  tree = redrawTab(flash);
+  useOn(tree, "address");
+  assert.equal(sent.length, 2, "a patch that would change nothing is not sent");
+});
+
+test("a save made while another is out waits its turn, and its row says it is saving meanwhile", () => {
+  const sent = [];
+  const held = [];
+  W.__saveSettings = (config, v, accepted) => {
+    sent.push({ config: structuredClone(config), version: v });
+    return new Promise(() => { held.push(() => accepted({ config: structuredClone(config), version: v + 1 })); });
+  };
+  let tree = drawTab(disputed());
+  useOn(tree, "address");
+  tree = redrawTab();
+  useOn(tree, "name");
+  tree = redrawTab();
+  assert.equal(sent.length, 1, "the second waits while the first is out");
+  openFold(tree, "website");
+  tree = redrawTab();
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab();
+  saveRow(tree, "website");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-inline-save-website").props["aria-busy"], true, "a row whose save waits its turn says it is saving");
+  held[0]();
+  assert.deepEqual(sent.map((s) => s.version), [7, 8], "the first taken, the next goes on its answer");
+  held[1]();
+  assert.deepEqual(sent.map((s) => s.version), [7, 8, 9]);
+  assert.equal(sent[2].config.brain.profile.website, "https://melanys.example");
+  assert.equal(sent[2].config.brain.business_name, "Melany's Salon & Spa", "every change before it, carried");
+  assert.equal(sent[2].config.brain.profile.address, google);
+});
+
+test("a save whose promise fails before the server takes it says so, and leaves the row ready to try again", async () => {
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  W.__saveSettings = () => Promise.reject(new Error("The network went away."));
+  let tree = drawTab({ flash });
+  openFold(tree, "website");
+  tree = redrawTab(flash);
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab(flash);
+  saveRow(tree, "website");
+  await settle();
+  tree = redrawTab(flash);
+  const save = byTestId(tree, "rec-inline-save-website");
+  assert.equal(save.props["aria-busy"], undefined, "not saving for good");
+  assert.deepEqual(openRows(tree), ["website"], "still open");
+  assert.equal(boxOf(tree, "website").props.value, "https://melanys.example", "with what was typed");
+  assert.deepEqual([flashes.at(-1).tone, textOf(flashes.at(-1).msg)], ["danger", "The network went away."]);
+  cancelRow(tree, "website");
+  tree = redrawTab(flash);
+  assert.ok(byTestId(tree, "rec-inline-website-cancel-confirm"), "and Cancel still asks, where it did nothing before");
 });
 
 test("the number it gives out: your line stores nothing, and a different number is checked, then stored as typed", () => {

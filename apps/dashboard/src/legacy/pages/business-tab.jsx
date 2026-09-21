@@ -44,8 +44,8 @@ const phoneShown = (v) => (v && window.__phoneDisplay && /^\+[1-9][0-9]{6,14}$/.
  * starts from what is stored and changes ONE key, which is the same discipline
  * the big form's `save` learned after a rebuild lost a workspace its prompt.
  *
- * Moved here from settings.jsx unchanged when the Business tab became a record (Task 3.2): every row of this page
- * saves through it, and the old card's two number rows take it from window until Task 3.7 retires them.
+ * Moved here from settings.jsx unchanged when the Business tab became a record (Task 3.2). The old card's two number
+ * rows take it from window until Task 3.7 retires them; this page's rows save through the page's one saver (btSaver).
  */
 function useFieldSave(flash) {
   const [busy, setBusy] = React.useState(false);
@@ -68,6 +68,74 @@ function useFieldSave(flash) {
   };
   return [busy, save];
 }
+
+/**
+ * One saver for the page, so saves made close together go one at a time, and each builds on the one before.
+ *
+ * PUT /settings is a versioned compare-and-swap of the whole config (useFieldSave says why), and the settings re-read
+ * that brings the new version lands about half a second after the server accepts. Each row saving on its own sent the
+ * config and version as the page last drew them, so "Use Google's" on the address and then on the name sent version 7
+ * twice, and the server refused the second as a colleague's save that never happened. So every row asks this saver:
+ * a patch waits while another is out, and goes on the config the server answered the last one with (the bridge hands
+ * it to onAccepted), or on the settings read when that is newer. A patch is a pure function of (brain, profile), so it
+ * applies to whatever is current when it goes, and one that would change nothing is not sent. One saver for the page's
+ * life, the next waiting while one is out: plViewSaver's shape (clients-a.jsx).
+ *
+ * A job is { row, change, said, done, flash }: `said` is the toast once the server takes it, `done` runs then too (the
+ * row closes), and a refusal, or a promise that fails before the server took it, is said in the danger tone.
+ */
+const btSaver = (onChange) => {
+  let last = null;
+  let out = null;
+  const queue = [];
+  const base = () => {
+    const read = window.__SETTINGS || null;
+    const held = read && read.config ? { config: read.config, version: read.version } : null;
+    return last && (!held || last.version > held.version) ? last : held;
+  };
+  const next = () => {
+    if (out || !queue.length) return;
+    const job = queue.shift();
+    const from = base();
+    // No door to save through, or nothing read to save onto: nothing goes, and nothing waits on a save that never lands.
+    if (!from || typeof window.__saveSettings !== "function") { onChange(); next(); return; }
+    const cfg = from.config;
+    const brain = cfg.brain || {};
+    const patched = { ...cfg, brain: job.change({ ...brain }, { ...(brain.profile || {}) }) };
+    if (btSame(patched, cfg)) { if (job.done) job.done(); onChange(); next(); return; }
+    out = job;
+    onChange();
+    let accepted = false;
+    const free = () => { if (out !== job) return; out = null; onChange(); next(); };
+    const refused = (words) => { if (!accepted) job.flash({ tone: "danger", msg: <>{words || "That didn't go through."}</> }); };
+    let sent;
+    try {
+      sent = window.__saveSettings(patched, from.version, (saved) => {
+        accepted = true;
+        if (saved && saved.config && typeof saved.version === "number") last = { config: saved.config, version: saved.version };
+        if (job.done) job.done();
+        job.flash({ msg: job.said });
+        // With the server's answer in hand the next patch goes on it now; without one, it waits for the re-read,
+        // which is when the promise settles.
+        if (saved && saved.config) free();
+      });
+    } catch (e) {
+      sent = Promise.reject(e);
+    }
+    Promise.resolve(sent).then((r) => {
+      if (!(r && r.ok)) refused(r && r.message);
+      free();
+    }, (e) => {
+      refused(e && e.message);
+      free();
+    });
+  };
+  return {
+    save(job) { queue.push(job); onChange(); next(); },
+    // A row's save is in hand while it waits its turn or is out: its Save says so, and takes no second press.
+    pending(row) { return !!((out && out.row === row) || queue.some((j) => j.row === row)); },
+  };
+};
 
 /* ------------------------------------ one value, edited where it is stated ------------------------------------ */
 
@@ -143,7 +211,7 @@ const btFocusBack = (id, el) => {
 const RecordInline = ({
   id, section = null, label, brain, value = null, empty = null, hint = null, source = null, disputed = null, wrong = null,
   initial, storedAs = btTrimmed, check = btNoCheck, commit, body, channel = "whatsapp",
-  canEdit = true, gate = null, flash = () => {},
+  canEdit = true, gate = null, flash = () => {}, saver = null,
 }) => {
   const [draft, setDraft] = useBizState(null);
   const [problem, setProblem] = useBizState(null);
@@ -163,7 +231,9 @@ const RecordInline = ({
   live.current.open = open;
   const now = open && draft != null ? draft : initial;
   const dirty = open && !btSame(storedAs(now), storedAs(initial));
-  const [busy, save] = useFieldSave(flash);
+  // The page's one saver (btSaver): this row's save waits its turn behind any other, and goes on the config current then.
+  const busy = saver ? saver.pending(id) : false;
+  const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
   const boxRef = useBizRef(null);
   // Each block as the stored brain writes it, resolved once per stored brain rather than on every keystroke.
   const before = useBizRef({ brain: null, blocks: {} });
@@ -198,7 +268,7 @@ const RecordInline = ({
     // Nothing to write is nothing to send: the editor closes and says nothing, since nothing was saved.
     if (!dirty) { close(); return; }
     const c = commit(now);
-    save(c.change, c.said, close);
+    save(c, close);
   };
   // Only its own keys: a key from something drawn inside it through a portal bubbles through React from outside its
   // DOM, as record-fold.jsx found.
@@ -257,7 +327,7 @@ const RecordInline = ({
       const bad = check(disputed.use);
       if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
       const c = commit(disputed.use);
-      save(c.change, c.said, () => {});
+      save(c, () => {});
     } : undefined,
     gate,
   } : null;
@@ -465,7 +535,7 @@ const btOpenRow = (id) => {
  * The Workspace row is gone. It printed the business's name a second time whenever the workspace's name differed: two
  * names for one business, on the one card that exists to say which name customers hear.
  */
-const BtWho = ({ brain, canEdit, flash }) => {
+const BtWho = ({ brain, canEdit, flash, saver }) => {
   const F = ((window.__FACTS || {}).facts) || {};
   const conflicts = ((window.__FACTS || {}).conflicts) || [];
   const conflictOn = (key) => conflicts.find((k) => k.fact === key) || null;
@@ -475,7 +545,7 @@ const BtWho = ({ brain, canEdit, flash }) => {
   // still what the receptionist says.
   const factOf = (key, typed) => F[key] || (typed ? { value: typed, source: null } : { value: null, source: null });
   const chip = (f) => (f.value ? f.source : null);
-  const shared = { brain, canEdit, flash };
+  const shared = { brain, canEdit, flash, saver };
   const gate = (thing) => window.gate("settings", `change the ${thing}`);
 
   const name = factOf("business_name", brain.business_name);
@@ -714,6 +784,10 @@ const BtWho = ({ brain, canEdit, flash }) => {
  * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
  */
 const BusinessTab = ({ flash = () => {} }) => {
+  // The page's one saver, for its life (btSaver); a save moving through it draws the page again, busy or done.
+  const [, setTick] = useBizState(0);
+  const saver = useBizRef(null);
+  if (!saver.current) saver.current = btSaver(() => setTick((n) => n + 1));
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) return null;
@@ -729,7 +803,7 @@ const BusinessTab = ({ flash = () => {} }) => {
         </p>
       )}
       <BtStanding brain={brain} door={canEdit ? btOpenRow : null} />
-      <BtWho brain={brain} canEdit={canEdit} flash={flash} />
+      <BtWho brain={brain} canEdit={canEdit} flash={flash} saver={saver.current} />
     </>
   );
 };
