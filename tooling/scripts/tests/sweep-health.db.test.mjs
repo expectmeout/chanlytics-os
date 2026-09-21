@@ -37,17 +37,16 @@ const skip = !URL_ || !KEY
  * No other suite, and no clock, ever reads any of it.
  */
 function rolledBack(body) {
-  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', seen; end $$`;
+  // What the block saw leaves as hex: however the CLI dresses a database error
+  // -- a line of JSON here, plain text with more lines after it on CI's Linux --
+  // nothing it adds can escape hex or run on into it.
+  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $$`;
   const r = spawnSync(CLI, ["db", "query", "--local", sql], { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
   if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
   const said = [r.stdout, r.stderr].map((s) => (s ?? "").trim()).filter(Boolean).join("\n");
-  // The CLI reports the database's error as a line of JSON on stdout; the block's last word is its message.
-  let message = said;
-  const line = (r.stdout ?? "").split(/\r?\n/).find((l) => l.trim().startsWith("{"));
-  try { message = JSON.parse(line).error.message; } catch { /* not JSON: read it as it came */ }
-  const at = message.indexOf("seen {");
-  if (at < 0) throw new Error(`the block did not get to say what it saw: ${said.slice(-800)}`);
-  return JSON.parse(message.slice(at + "seen ".length));
+  const seen = /seen (7b[0-9a-f]*)/.exec(said);
+  if (!seen) throw new Error(`the block did not get to say what it saw: ${said.slice(-800)}`);
+  return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
 }
 
 // This transaction's own edge. seed.sql leaves every other session a Vault with none.
