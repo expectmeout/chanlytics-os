@@ -372,7 +372,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
   const line = F.voice_line || null;
   const voiceLine = (line && line.value) || "";
   const lineShown = phoneShown(voiceLine);
-  const pub = F.phone_display || (brain.phone_display ? { value: brain.phone_display, source: null } : { value: null, source: null });
+  const pub = factOf("phone_display", brain.phone_display);
   const transfer = factOf("handoff_number", profile.handoff_number);
   const handoff = transfer.value || null;
 

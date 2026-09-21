@@ -41,9 +41,11 @@ const btPhoneShown = (v) => (v && window.__phoneDisplay && /^\+[1-9][0-9]{6,14}$
  * starts from what is stored and changes ONE key, which is the same discipline
  * the big form's `save` learned after a rebuild lost a workspace its prompt.
  *
- * Moved from settings.jsx unchanged when the Business tab became a record (Task 3.2). On window as `useFieldSave`:
- * the old card's two number rows take it from there until Task 3.7 retires them. The Business tab's rows save through
- * the page's one saver (btSaver) instead.
+ * Moved from settings.jsx when the Business tab became a record (Task 3.2). On window as `useFieldSave`: the old
+ * card's two number rows take it from there until Task 3.7 retires them. The Business tab's rows save through the
+ * page's one saver (btSaver) instead. Since the move it also lets go when the save fails before the server has taken
+ * it (the promise rejects, or the call throws), as btSaver does: it said nothing then, and stayed busy for good, its
+ * row's Save and Cancel pressing nothing.
  */
 function useBtFieldSave(flash) {
   const [busy, setBusy] = useBtSaveState(false);
@@ -54,15 +56,27 @@ function useBtFieldSave(flash) {
     const brain = cfg.brain || {};
     setBusy(true);
     const next = { ...cfg, brain: change({ ...brain }, { ...(brain.profile || {}) }) };
-    window.__saveSettings(next, settings.version, () => {
+    // Once the server has taken the save, nothing after it (the re-read that follows) is said as a refusal.
+    let accepted = false;
+    const refused = (words) => {
       setBusy(false);
-      done();
-      flash({ msg: said });
-    }).then((r) => {
-      if (r.ok) return;
-      setBusy(false);
-      flash({ tone: "danger", msg: <>{r.message}</> });
-    });
+      if (!accepted) flash({ tone: "danger", msg: <>{words || "That didn't go through."}</> });
+    };
+    let sent;
+    try {
+      sent = window.__saveSettings(next, settings.version, () => {
+        accepted = true;
+        setBusy(false);
+        done();
+        flash({ msg: said });
+      });
+    } catch (e) {
+      sent = Promise.reject(e);
+    }
+    Promise.resolve(sent).then((r) => {
+      if (r && r.ok) return;
+      refused(r && r.message);
+    }, (e) => refused(e && e.message));
   };
   return [busy, save];
 }
