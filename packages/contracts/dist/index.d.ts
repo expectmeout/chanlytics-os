@@ -11675,18 +11675,24 @@ declare function planLeadSearch(input: ProposeLeadSearch): LeadPlanned;
  * list: an empty record cannot be given a value by accident.
  */
 type LeadChips = Record<string, never>;
-/** "clients/leads:s-<search>:l-<list>:c-<class>" -- the grammar Ask's page citations admit (ask.ts PAGE_PREFIX). Chips join in release C. */
+/**
+ * "clients/leads:s-<search>:l-<list>:c-<class>:p-<lead>" -- the grammar Ask's page citations admit (ask.ts PAGE_PREFIX).
+ * Chips join in release C. The lead that is open (`p-`) comes last, so a view's own route is a prefix of the route
+ * with a lead open over it: the view is what a read is keyed by, and the open lead is never part of that key.
+ */
 declare function leadsRoute(v: {
     searchId?: string | null;
     list?: LeadList | null;
     cls?: LeadClass | null;
     chips?: Record<string, unknown>;
+    peek?: string | null;
 }): string;
 declare function parseLeadsRoute(route: string): {
     searchId: string | null;
     list: LeadList;
     cls: LeadClass | null;
     chips: Record<string, unknown>;
+    peek: string | null;
 } | null;
 declare const LEAD_DRAFT_JSON_SCHEMA: {
     readonly type: "object";

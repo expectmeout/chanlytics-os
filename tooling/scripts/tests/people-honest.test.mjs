@@ -372,6 +372,22 @@ test("the rail's Saved section draws each kept list as a rail row, and the rail 
   assert.deepEqual(current(), [], "the picked row pressed again: everyone");
 });
 
+test("a selection never outlives its view, and does outlive a search: a list picked on the rail drops it, words typed in the box do not", async () => {
+  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  const railRows = (tree) => [...new Set(all(tree, (n) => n.type === "button" && String(n.props?.className || "").split(" ").includes("cl-rail-row")))];
+  const box = (tree) => find(tree, (n) => n.type === "input" && /^Search/.test(String(n.props?.placeholder || "")));
+  byTestId(draw(), "select-all").props.onChange();
+  assert.ok(byTestId(draw(), "bulk-bar"), "everyone shown is selected");
+  box(draw()).props.onChange({ target: { value: "zz-nobody" } });
+  draw();
+  box(draw()).props.onChange({ target: { value: "" } });
+  draw();
+  assert.ok(byTestId(draw(), "bulk-bar"), "REGRESSION: one letter in the box dropped everything selected");
+  railRows(byTestId(draw(), "saved-lists"))[0].props.onClick({ stopPropagation() {}, preventDefault() {} });
+  draw();
+  assert.equal(byTestId(draw(), "bulk-bar"), null, "another view: a bar counting people who are no longer on screen is what bulk acts go wrong with");
+});
+
 test("REGRESSION (B27): lists that could not be read say so on the rail, the profile and Lists, and the people stay", async () => {
   await freshPage({ people: [person(1)], listsFail: true });
   let tree = draw();
