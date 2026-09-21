@@ -124,8 +124,8 @@ test("the harness's Babel is the one these tests compile with, byte for byte", (
 test("a name Babel adds to one file means the same in every file, because the harness runs them all in one scope", () => {
   // The bridge bundles each file as a module of its own. The harness compiles each in the browser and runs it as a
   // classic script, so every file's top-level `var` lands in ONE scope and the file loaded last is the one they all
-  // read. Babel adds top-level names of its own, every one starting `_`: its helpers, the same text in every file,
-  // and values that are one file's -- an object rest's excluded keys become `var _excluded = ["on", "onChange"]`.
+  // read. Babel adds top-level names of its own: helpers, the same text in every file, and names it makes up for one
+  // file's values, every one starting `_` -- an object rest's excluded keys become `var _excluded = ["on", "onChange"]`.
   // With an `_excluded` in two files, the later one decided what the earlier one's rest left out: LeadPeek handed its
   // panes its six data props along with its handlers, and one object rest loaded after settings.jsx put SetToggle's
   // `on` and `onChange` on its <button> (a record-kit field put its id, label and unit on its <input>).
