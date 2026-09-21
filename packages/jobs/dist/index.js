@@ -453,6 +453,13 @@ function feedProblemWords(reason, status) {
       return null;
   }
 }
+var SOURCE_WORDS = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -756,11 +763,20 @@ function parseTenantConfig(raw) {
   return r2.ok ? r2.config : null;
 }
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CALENDAR_FEED_WORDS = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
+var PERSON_STATE_LABELS = {
+  needs_you: "Needs you",
+  waiting_on_you: "Waiting on you",
+  opted_out: "Opted out",
+  new: "New",
+  quiet: "Quiet",
+  active: "Active"
+};
 var DAY_MS3 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
@@ -891,6 +907,14 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var BROADCAST_STATE_LABELS = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
@@ -943,8 +967,19 @@ var REGISTRATION_COST_WORDS = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var SETUP_STATE_WORDS = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var ROLE_WORDS = {
+  owner: "Owner",
+  operator: "Operator",
+  viewer: "Viewer"
+};
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = z5.object({
@@ -1099,6 +1134,24 @@ var PASSWORD_WORDS = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var LABEL_OF = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS,
+  broadcast: BROADCAST_STATE_LABELS,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS,
+  role: ROLE_WORDS,
+  calendar: CALENDAR_FEED_WORDS,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
+  escalation: { open: "Open", resolved: "Resolved" }
 };
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
@@ -6607,6 +6660,13 @@ function feedProblemWords2(reason, status) {
       return null;
   }
 }
+var SOURCE_WORDS2 = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -6898,11 +6958,20 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c2, n2) => checkClosure2(c2, n2, ctx));
 });
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CALENDAR_FEED_WORDS2 = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS2 = { ...PERSON_MODE_LABELS2, inherit: "Follow the workspace" };
+var PERSON_STATE_LABELS2 = {
+  needs_you: "Needs you",
+  waiting_on_you: "Waiting on you",
+  opted_out: "Opted out",
+  new: "New",
+  quiet: "Quiet",
+  active: "Active"
+};
 var DAY_MS32 = 864e5;
 var WEEK_MS22 = 7 * DAY_MS32;
 var MONTH_MS2 = 30 * DAY_MS32;
@@ -7033,6 +7102,14 @@ var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
+var BROADCAST_STATE_LABELS2 = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
@@ -7085,8 +7162,19 @@ var REGISTRATION_COST_WORDS2 = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
 };
 var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
+var SETUP_STATE_WORDS2 = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
 var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
+var ROLE_WORDS2 = {
+  owner: "Owner",
+  operator: "Operator",
+  viewer: "Viewer"
+};
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
 var SignupSchema2 = z52.object({
@@ -7241,6 +7329,24 @@ var PASSWORD_WORDS2 = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var LABEL_OF2 = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS2,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS2,
+  broadcast: BROADCAST_STATE_LABELS2,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS2,
+  role: ROLE_WORDS2,
+  calendar: CALENDAR_FEED_WORDS2,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS2, disputed: "doesn't match" },
+  escalation: { open: "Open", resolved: "Resolved" }
 };
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
 var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
@@ -8837,6 +8943,13 @@ function feedProblemWords3(reason, status) {
       return null;
   }
 }
+var SOURCE_WORDS3 = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
 var POLICY_CLASS_WORDS3 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -9128,11 +9241,20 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c2, n2) => checkClosure3(c2, n2, ctx));
 });
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CALENDAR_FEED_WORDS3 = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS3 = { ...PERSON_MODE_LABELS3, inherit: "Follow the workspace" };
+var PERSON_STATE_LABELS3 = {
+  needs_you: "Needs you",
+  waiting_on_you: "Waiting on you",
+  opted_out: "Opted out",
+  new: "New",
+  quiet: "Quiet",
+  active: "Active"
+};
 var DAY_MS33 = 864e5;
 var WEEK_MS23 = 7 * DAY_MS33;
 var MONTH_MS3 = 30 * DAY_MS33;
@@ -9263,6 +9385,14 @@ var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
+var BROADCAST_STATE_LABELS3 = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
@@ -9315,8 +9445,19 @@ var REGISTRATION_COST_WORDS3 = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
 };
 var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
+var SETUP_STATE_WORDS3 = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
 var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
+var ROLE_WORDS3 = {
+  owner: "Owner",
+  operator: "Operator",
+  viewer: "Viewer"
+};
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
 var SignupSchema3 = z53.object({
@@ -9471,6 +9612,24 @@ var PASSWORD_WORDS3 = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var LABEL_OF3 = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS3,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS3,
+  broadcast: BROADCAST_STATE_LABELS3,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS3,
+  role: ROLE_WORDS3,
+  calendar: CALENDAR_FEED_WORDS3,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS3, disputed: "doesn't match" },
+  escalation: { open: "Open", resolved: "Resolved" }
 };
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
@@ -10108,6 +10267,13 @@ function feedProblemWords22(reason, status) {
       return null;
   }
 }
+var SOURCE_WORDS22 = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
 var POLICY_CLASS_WORDS22 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -10399,11 +10565,20 @@ var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c2, n2) => checkClosure22(c2, n2, ctx));
 });
 var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CALENDAR_FEED_WORDS22 = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 var LIVE_STALE_MS22 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS22 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS22 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS22 = { ...PERSON_MODE_LABELS22, inherit: "Follow the workspace" };
+var PERSON_STATE_LABELS22 = {
+  needs_you: "Needs you",
+  waiting_on_you: "Waiting on you",
+  opted_out: "Opted out",
+  new: "New",
+  quiet: "Quiet",
+  active: "Active"
+};
 var DAY_MS322 = 864e5;
 var WEEK_MS222 = 7 * DAY_MS322;
 var MONTH_MS22 = 30 * DAY_MS322;
@@ -10574,6 +10749,14 @@ function resolveParams(specs, f) {
     }
   });
 }
+var BROADCAST_STATE_LABELS22 = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 var REPLY_WINDOW_HOURS22 = 72;
@@ -10635,8 +10818,19 @@ var REGISTRATION_COST_WORDS22 = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second.`
 };
 var PROVISIONING_DEADLINE_MS22 = 5 * 6e4;
+var SETUP_STATE_WORDS22 = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
 var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
+var ROLE_WORDS22 = {
+  owner: "Owner",
+  operator: "Operator",
+  viewer: "Viewer"
+};
 var SIGNUP_NAME_MIN22 = 2;
 var SIGNUP_NAME_MAX22 = 120;
 var SignupSchema22 = z522.object({
@@ -10791,6 +10985,24 @@ var PASSWORD_WORDS22 = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var LABEL_OF22 = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS22,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS22,
+  broadcast: BROADCAST_STATE_LABELS22,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS22,
+  role: ROLE_WORDS22,
+  calendar: CALENDAR_FEED_WORDS22,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS22, disputed: "doesn't match" },
+  escalation: { open: "Open", resolved: "Resolved" }
 };
 var LEAD_CLASSES22 = LEAD_MEMBER_CLASSES22;
 var LEAD_LISTS22 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
@@ -11348,6 +11560,13 @@ function feedProblemWords32(reason, status) {
       return null;
   }
 }
+var SOURCE_WORDS32 = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
 var POLICY_CLASS_WORDS32 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -11639,11 +11858,20 @@ var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c2, n2) => checkClosure32(c2, n2, ctx));
 });
 var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CALENDAR_FEED_WORDS32 = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 var LIVE_STALE_MS32 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS32 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS32 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS32 = { ...PERSON_MODE_LABELS32, inherit: "Follow the workspace" };
+var PERSON_STATE_LABELS32 = {
+  needs_you: "Needs you",
+  waiting_on_you: "Waiting on you",
+  opted_out: "Opted out",
+  new: "New",
+  quiet: "Quiet",
+  active: "Active"
+};
 var DAY_MS332 = 864e5;
 var WEEK_MS232 = 7 * DAY_MS332;
 var MONTH_MS32 = 30 * DAY_MS332;
@@ -11774,6 +12002,14 @@ var WHEN42 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM"
 var SERVICE32 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES32 = { ...WHEN42, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES32 = { ...SERVICE32, label: "Servicio", example: "una consulta" };
+var BROADCAST_STATE_LABELS32 = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
 var REPLY_WINDOW_HOURS32 = 72;
 var REPLY_WINDOW_MS32 = REPLY_WINDOW_HOURS32 * 36e5;
 var REPLY_WINDOW_WORDS32 = `within ${REPLY_WINDOW_HOURS32 / 24} days`;
@@ -11826,8 +12062,19 @@ var REGISTRATION_COST_WORDS32 = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second.`
 };
 var PROVISIONING_DEADLINE_MS32 = 5 * 6e4;
+var SETUP_STATE_WORDS32 = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
 var SOLE_PROP_CEILING_SENTENCE32 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE32 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE32}`;
+var ROLE_WORDS32 = {
+  owner: "Owner",
+  operator: "Operator",
+  viewer: "Viewer"
+};
 var SIGNUP_NAME_MIN32 = 2;
 var SIGNUP_NAME_MAX32 = 120;
 var SignupSchema32 = z532.object({
@@ -11982,6 +12229,24 @@ var PASSWORD_WORDS32 = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var LABEL_OF32 = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS32,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS32,
+  broadcast: BROADCAST_STATE_LABELS32,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS32,
+  role: ROLE_WORDS32,
+  calendar: CALENDAR_FEED_WORDS32,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS32, disputed: "doesn't match" },
+  escalation: { open: "Open", resolved: "Resolved" }
 };
 var LEAD_CLASSES32 = LEAD_MEMBER_CLASSES32;
 var LEAD_LISTS32 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
@@ -13028,6 +13293,13 @@ function feedProblemWords4(reason, status) {
       return null;
   }
 }
+var SOURCE_WORDS4 = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
 var POLICY_CLASS_WORDS4 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -13319,11 +13591,20 @@ var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c2, n2) => checkClosure4(c2, n2, ctx));
 });
 var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CALENDAR_FEED_WORDS4 = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 var LIVE_STALE_MS4 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS4 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS4 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS4 = { ...PERSON_MODE_LABELS4, inherit: "Follow the workspace" };
+var PERSON_STATE_LABELS4 = {
+  needs_you: "Needs you",
+  waiting_on_you: "Waiting on you",
+  opted_out: "Opted out",
+  new: "New",
+  quiet: "Quiet",
+  active: "Active"
+};
 var DAY_MS34 = 864e5;
 var WEEK_MS24 = 7 * DAY_MS34;
 var MONTH_MS4 = 30 * DAY_MS34;
@@ -13454,6 +13735,14 @@ var WHEN5 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE4 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES4 = { ...WHEN5, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES4 = { ...SERVICE4, label: "Servicio", example: "una consulta" };
+var BROADCAST_STATE_LABELS4 = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
 var REPLY_WINDOW_HOURS4 = 72;
 var REPLY_WINDOW_MS4 = REPLY_WINDOW_HOURS4 * 36e5;
 var REPLY_WINDOW_WORDS4 = `within ${REPLY_WINDOW_HOURS4 / 24} days`;
@@ -13506,8 +13795,19 @@ var REGISTRATION_COST_WORDS4 = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second.`
 };
 var PROVISIONING_DEADLINE_MS4 = 5 * 6e4;
+var SETUP_STATE_WORDS4 = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
 var SOLE_PROP_CEILING_SENTENCE4 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE4 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE4}`;
+var ROLE_WORDS4 = {
+  owner: "Owner",
+  operator: "Operator",
+  viewer: "Viewer"
+};
 var SIGNUP_NAME_MIN4 = 2;
 var SIGNUP_NAME_MAX4 = 120;
 var SignupSchema4 = z54.object({
@@ -13662,6 +13962,24 @@ var PASSWORD_WORDS4 = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var LABEL_OF4 = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS4,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS4,
+  broadcast: BROADCAST_STATE_LABELS4,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS4,
+  role: ROLE_WORDS4,
+  calendar: CALENDAR_FEED_WORDS4,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS4, disputed: "doesn't match" },
+  escalation: { open: "Open", resolved: "Resolved" }
 };
 var LEAD_CLASSES4 = LEAD_MEMBER_CLASSES4;
 var LEAD_LISTS4 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];

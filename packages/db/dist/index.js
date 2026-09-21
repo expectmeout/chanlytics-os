@@ -314,6 +314,13 @@ function feedProblemWords(reason, status) {
       return null;
   }
 }
+var SOURCE_WORDS = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -605,11 +612,20 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CALENDAR_FEED_WORDS = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
+var PERSON_STATE_LABELS = {
+  needs_you: "Needs you",
+  waiting_on_you: "Waiting on you",
+  opted_out: "Opted out",
+  new: "New",
+  quiet: "Quiet",
+  active: "Active"
+};
 var DAY_MS3 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
@@ -740,6 +756,14 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var BROADCAST_STATE_LABELS = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
@@ -792,8 +816,19 @@ var REGISTRATION_COST_WORDS = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var SETUP_STATE_WORDS = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var ROLE_WORDS = {
+  owner: "Owner",
+  operator: "Operator",
+  viewer: "Viewer"
+};
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = z5.object({
@@ -948,6 +983,24 @@ var PASSWORD_WORDS = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var LABEL_OF = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS,
+  broadcast: BROADCAST_STATE_LABELS,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS,
+  role: ROLE_WORDS,
+  calendar: CALENDAR_FEED_WORDS,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
+  escalation: { open: "Open", resolved: "Resolved" }
 };
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
