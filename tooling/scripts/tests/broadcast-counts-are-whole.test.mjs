@@ -123,3 +123,10 @@ test("the surface carries the route's word that more than fifty broadcasts exist
   await broadcastsOverride.apply();
   assert.equal(globalThis.window.__BROADCASTS.more, false);
 });
+
+test("the surface says where a yes is got, in contracts' one spelling -- the send screen's 'nobody has said yes' is a door there", async () => {
+  const { GET_YES_ROUTE } = await import("@chanlytics/contracts");
+  wire();
+  await broadcastsOverride.apply();
+  assert.equal(globalThis.window.__BROADCASTS.getYes, GET_YES_ROUTE);
+});
