@@ -82,7 +82,6 @@ export interface StandingInputs {
     tone?: string | null;
     hours?: Record<string, unknown> | null;
     services?: unknown[] | null;
-    escalate_when?: string[] | null;
     guardrails?: Partial<Record<GuardrailKey, boolean>> | null;
   } | null;
 }
