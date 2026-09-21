@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { roleGate } from "../../../packages/contracts/src/refusal.ts";
 import {
   LEAD_WORDS, LEAD_EMAIL_WORDS, LEAD_LOCKED_LINE, LEAD_DRAFT_NOTE, LEAD_NO_ADDRESS,
-  LEAD_CHECK_GROUP_WORDS, LEAD_NOT_A_FIT_WORDS, LEAD_CONTACT_STANDARD_WORDS,
+  LEAD_NOT_A_FIT_WORDS, LEAD_CONTACT_STANDARD_WORDS,
   outcomeMove, leadDraftFooter, toLeadPeekVM,
 } from "../../../packages/contracts/src/leads.ts";
 
@@ -68,7 +68,7 @@ await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
 for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");   // Task 2's: LeadShape is its, and this file draws it
 await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
-for (const k of ["LeadPeek", "LeadShape", "LeadPeekActions", "LeadLightbox", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
+for (const k of ["LeadPeek", "LeadShape", "LeadSlotShape", "LeadPeekActions", "LeadLightbox", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
 globalThis.window.__LEAD_WORDS = LEAD_WORDS;
 
 /* ------------------------------------------------------------ the helpers */
@@ -186,7 +186,9 @@ test("the peek names the business, its sub-line, the fit as a sentence and the s
   assert.equal(/\bpl-peek\b/.test(tree.props.className), true, "the page's own overlay: PL_OVERLAY names it apart");
   assert.equal(textOf(byTestId(tree, "peek-name")), "Travis Heights Coaching Co.");
   assert.equal(textOf(byTestId(tree, "peek-sub")), "Personal trainer · Austin, TX");
-  assert.equal(textOf(byTestId(tree, "peek-fit")), "Strong fit. Independent coaching · 5.0 from 16 reviews · email checked");
+  // D8: the fit's word heads the verdict beside the evidence bar, and the why is its own line under it.
+  assert.equal(textOf(byTestId(tree, "peek-fit-word")), "Strong fit");
+  assert.equal(textOf(byTestId(tree, "peek-fit")), "Independent coaching · 5.0 from 16 reviews · email checked");
   const stage = byTestId(tree, "peek-stage");
   assert.equal(stage.props.role, "radiogroup");
   assert.deepEqual(all(stage, (n) => n.props?.role === "radio").map((n) => [textOf(n), n.props["aria-checked"]]), [["Ready", true], ["Contacted", false], ["Talking", false]]);
@@ -195,42 +197,60 @@ test("the peek names the business, its sub-line, the fit as a sentence and the s
 test("How you can reach them: the phone with its sources and Call, the email with its state in words and Copy and Draft, and texts and WhatsApp locked with the reason", async () => {
   reset();
   const { tree, acts } = page().draw();
-  assert.equal(textOf(byTestId(tree, "peek-phone-value")), "+15125550142");
-  assert.equal(textOf(find(byTestId(tree, "peek-phone"), (n) => n.props?.className === "pk-rn")), "The same number on Google Maps and their website");
+  // D8: each channel is one line -- its value, its mark, what to press -- and each note that was a sentence under the
+  // line is what the mark says when pointed at, focused or tapped.
+  const tipOf = (id) => textOf(find(byTestId(tree, id), (n) => n.props?.role === "tooltip"));
+  assert.equal(textOf(byTestId(tree, "peek-phone-value")), "+1 (512) 555-0142", "a number reads as the app writes numbers everywhere else");
+  assert.equal(tipOf("peek-phone"), "The same number on Google Maps and their website.");
+  assert.equal(byTestId(tree, "peek-phone-note").props["aria-describedby"], `${LEAD}-phone-note`, "a screen reader hears the note from the mark");
   assert.ok(byTestId(tree, "peek-call"), "Call is on the phone row");
   assert.equal(textOf(byTestId(tree, "peek-email-value")), "hello@travisheightscoaching.example");
-  assert.equal(textOf(byTestId(tree, "peek-email-word")), LEAD_EMAIL_WORDS.ok);
+  assert.equal(byTestId(tree, "peek-email-note").props["aria-label"], `Email: ${LEAD_EMAIL_WORDS.ok}`, "the state is the mark's name");
   assert.equal(byTestId(tree, "peek-copy").props["aria-label"], "Copy the email");
   assert.ok(byTestId(tree, "peek-draft"));
-  assert.equal(textOf(byTestId(tree, "peek-locked-line")), LEAD_LOCKED_LINE);
-  assert.equal(all(byTestId(tree, "peek-locked"), (n) => n.type === "button" || n.type === "a").length, 0, "nothing sends a text to a lead");
+  assert.equal(tipOf("peek-locked"), LEAD_LOCKED_LINE);
+  assert.deepEqual(all(byTestId(tree, "peek-locked"), (n) => n.type === "button" || n.type === "a").map((n) => n.props.className), ["pk-hint-mark"], "nothing sends a text to a lead: its one button only says why");
+  // Copy is the email row's alone: the pinned bar said it a second time, for the same address.
+  assert.equal(byTestId(tree, "peek-act-copy"), null);
   await press(byTestId(tree, "peek-copy"));
   assert.deepEqual(copied, [`email ${LEAD}`]);
   assert.equal(typeof acts.onDraft, "function");
 });
 
-test("a catch-all email reads Unconfirmed, wears the dashed ring and says the search's own standard beside it", () => {
+test("a catch-all email is named Unconfirmed, wears the half ring the table wears, and its mark says the search's own standard", () => {
   reset();
   const { tree } = page({ vm: vmOf({ email_state: "catch_all" }) }).draw();
-  assert.equal(textOf(byTestId(tree, "peek-email-word")), "Unconfirmed");
-  assert.equal(textOf(byTestId(tree, "peek-email-note")), "Their server accepts every address, so the check can't tell");
-  assert.equal(textOf(byTestId(tree, "peek-email-standard")), LEAD_CONTACT_STANDARD_WORDS.email, "a mailbox the check could not settle says what this search asked for");
-  assert.equal(byTestId(page().draw().tree, "peek-email-standard"), null, "beside an address that checks out it would be a line saying nothing");
-  const shape = find(byTestId(tree, "peek-email"), (n) => /ld-shape-catch_all/.test(n.props?.className || ""));
-  assert.ok(shape, "the dashed ring, not a check");
-  assert.equal(all(byTestId(tree, "peek-email"), (n) => /ld-shape-ok/.test(n.props?.className || "")).length, 0);
+  const tipOf = (t) => textOf(find(byTestId(t, "peek-email"), (n) => n.props?.role === "tooltip"));
+  assert.equal(byTestId(tree, "peek-email-note").props["aria-label"], "Email: Unconfirmed");
+  // The state leads the tip where the note does not say it; the standard follows, as a sentence of its own.
+  assert.equal(tipOf(tree), `Unconfirmed. Their server accepts every address, so the check can't tell. ${LEAD_CONTACT_STANDARD_WORDS.email}`);
+  const ok = page().draw().tree;
+  assert.doesNotMatch(tipOf(ok), new RegExp(LEAD_CONTACT_STANDARD_WORDS.email), "beside an address that checks out the standard would be a sentence saying nothing");
+  assert.doesNotMatch(tipOf(ok), /^Checked\./, "and \"Checked.\" before \"Mailbox exists\" would say it twice");
+  // The mark is the reach shape the row's column wears, so the table and the peek speak one language.
+  assert.ok(find(byTestId(tree, "peek-email"), (n) => /\bld-slot-part\b/.test(n.props?.className || "")), "the half ring, not a check");
+  assert.equal(all(byTestId(tree, "peek-email"), (n) => /\bld-slot-ok\b/.test(n.props?.className || "")).length, 0);
 });
 
-test("the checks come in two groups -- what was seen and what Claude read -- each with where it came from, and nothing Claude read wears a plain check", () => {
+test("the checks are what the verdict's evidence bar says: two groups, what was seen and what Claude read, each with where it came from, and nothing Claude read wears a plain check", () => {
   reset();
   const { tree } = page().draw();
-  const seen = byTestId(tree, "peek-checks-seen");
-  const read = byTestId(tree, "peek-checks-read");
-  assert.equal(textOf(find(seen, (n) => n.props?.className === "pk-group-label")), LEAD_CHECK_GROUP_WORDS.seen);
-  assert.equal(textOf(find(read, (n) => n.props?.className === "pk-group-label")), "Claude's read");
+  // D8: the checks were a fold of their own below the verdict. They are the bar's card now, on the verdict's line.
+  const verdict = byTestId(tree, "peek-verdict");
+  const bar = byTestId(verdict, "peek-check-bar");
+  assert.equal(bar.type, "svg", "one svg with its own geometry, never sized spans (#734)");
+  assert.equal(all(bar, (n) => n.type === "rect").length, CHECKS.length, "one segment a check");
+  assert.equal(byTestId(verdict, "peek-checks-summary").props["aria-label"], "7 checks passed", "the bar's name is the checks' sentence");
+  const seen = byTestId(verdict, "peek-checks-seen");
+  const read = byTestId(verdict, "peek-checks-read");
+  assert.ok(seen && read, "the two groups, told apart by a hairline rather than a heading");
+  assert.equal(find(verdict, (n) => n.props?.className === "pk-group-label"), null);
+  const card = find(verdict, (n) => n.props?.role === "tooltip");
+  assert.equal(byTestId(verdict, "peek-checks-summary").props["aria-describedby"], card.props.id, "a screen reader hears the list from the bar");
+  assert.ok(find(card, (n) => n === seen) && find(card, (n) => n === read), "both groups are the bar's card");
   assert.deepEqual(all(seen, (n) => /^pk-ck /.test(n.props?.className || "")).map((n) => textOf(find(n, (x) => x.props?.className === "pk-ck-t"))), [
     "Open for business",
-    "In the area you asked for — Travis Heights, inside 20km of the center",
+    "In the area you asked for",
     "Phone matches on two sources",
     "Mailbox exists",
   ]);
@@ -244,7 +264,9 @@ test("a criterion Claude could not tell says so, in its own group, and never a c
   const unsure = CHECKS.map((c) => (c.key === "independent" ? { ...c, answer: "unknown", reason: "the listing does not say" } : c));
   const { tree } = page({ vm: vmOf({ member: { checks: unsure } }) }).draw();
   const ck = byTestId(tree, "peek-check-independent");
-  assert.equal(textOf(find(ck, (n) => n.props?.className === "pk-ck-t")), "Independent: couldn't tell — the listing does not say", "the row names what could not be told, then why");
+  // D8: the card names what could not be told and leaves the why off: its source says where, and a card is a list
+  // someone scans, not a paragraph.
+  assert.equal(textOf(find(ck, (n) => n.props?.className === "pk-ck-t")), "Independent: couldn't tell");
   assert.equal(/\bwarn\b/.test(ck.props.className), true);
   assert.equal(all(ck, (n) => /pk-ck-check/.test(n.props?.className || "")).length, 0);
 });
@@ -257,11 +279,16 @@ test("the other addresses are folded, with why Claude picked this one; Found is 
   assert.equal(textOf(byTestId(tree, "peek-others-summary")), "2 other addresses on their site");
   assert.deepEqual(all(others, (n) => n.type === "li").map(textOf), ["careers@travisheightscoaching.example — for job seekers", "A coach's personal mailbox — not the business"]);
   assert.equal(textOf(byTestId(tree, "peek-others-why")), "on their own domain and answers bookings");
-  assert.deepEqual(all(byTestId(tree, "peek-found"), (n) => n.props?.className === "pk-tr").map(textOf), [
-    "2:14 PMOn Google Maps, searching “personal trainer”",
-    "2:14 PMTheir website, travisheightscoaching.example: an email on the contact page",
-    "2:16 PMMailbox check: Mailbox exists",
+  // D8: one short head, and three short steps with the minute each happened in its own hover. Four copies of the same
+  // date and time said nothing the head had not; the mailbox's long sentence is the email row's to say.
+  assert.equal(textOf(byTestId(tree, "peek-found-summary")), "On Google Maps · today");
+  const steps = all(byTestId(tree, "peek-found"), (n) => n.props?.className === "pk-step");
+  assert.deepEqual(steps.map(textOf), [
+    "Google Maps · searching “personal trainer”",
+    "travisheightscoaching.example · an email on the contact page",
+    "Mailbox · Checked",
   ]);
+  assert.deepEqual(steps.map((s) => s.props.title), ["2:14 PM", "2:14 PM", "2:16 PM"], "the minute is kept, where it is asked for");
   assert.equal(byTestId(tree, "peek-website").props.href, "https://travisheightscoaching.example");
   assert.equal(byTestId(tree, "peek-instagram").props.href, "https://instagram.example/travisheights");
 });
@@ -270,7 +297,8 @@ test("a Needs review lead says so and offers Keep and Exclude; an Excluded one s
   reset();
   const review = page({ vm: vmOf({ member: { class: "review", fit: null, reason: "Couldn't check the email" } }) });
   let tree = review.draw().tree;
-  assert.equal(textOf(byTestId(tree, "peek-fit")), "Needs review. Couldn't check the email");
+  assert.equal(textOf(byTestId(tree, "peek-fit-word")), "Needs review");
+  assert.equal(textOf(byTestId(tree, "peek-fit")), "Couldn't check the email");
   await press(byTestId(tree, "peek-keep"));
   await press(byTestId(tree, "peek-exclude"));
   assert.deepEqual(flashes.map((f) => f.msg), [`keep ${LEAD}`, `exclude ${LEAD}`]);
@@ -278,7 +306,8 @@ test("a Needs review lead says so and offers Keep and Exclude; an Excluded one s
   reset();
   const out = page({ vm: vmOf({ member: { class: "excluded", fit: null, excluded_by: "chain", reason: "Part of Crunch Fitness, a chain with many locations" } }) });
   tree = out.draw().tree;
-  assert.equal(textOf(byTestId(tree, "peek-fit")), "Left out — Chain gyms. Part of Crunch Fitness, a chain with many locations", "what happened first, then the owner's own word for the criterion, then the judge's reason");
+  assert.equal(textOf(byTestId(tree, "peek-fit-word")), "Left out — Chain gyms", "what happened first, then the owner's own word for the criterion");
+  assert.equal(textOf(byTestId(tree, "peek-fit")), "Part of Crunch Fitness, a chain with many locations", "then the judge's reason, on its own line");
   assert.equal(byTestId(tree, "peek-stage"), null, "an excluded place has no stage");
   assert.equal(textOf(byTestId(tree, "peek-left-out")), "Left out of this search. It doesn't count.");
   await press(byTestId(tree, "peek-put-back"));
@@ -405,8 +434,9 @@ test("with no business address the draft asks for it in the route's words, and t
 test("a lead whose email bounces is offered Call instead: no Copy, no Draft, and the note says so", () => {
   reset();
   const { tree } = page({ vm: vmOf({ email_state: "invalid" }) }).draw();
-  assert.equal(textOf(byTestId(tree, "peek-email-word")), "Bounces");
-  assert.equal(textOf(byTestId(tree, "peek-email-note")), "That mailbox doesn't exist. Call instead.");
+  assert.equal(byTestId(tree, "peek-email-note").props["aria-label"], "Email: Bounces");
+  assert.match(textOf(find(byTestId(tree, "peek-email"), (n) => n.props?.role === "tooltip")), /^Bounces\. That mailbox doesn't exist\. Call instead\./);
+  assert.ok(find(byTestId(tree, "peek-email"), (n) => /\bld-slot-bad\b/.test(n.props?.className || "")), "the struck ring the table wears for a bounce");
   assert.equal(byTestId(tree, "peek-draft"), null);
   assert.equal(byTestId(tree, "peek-copy"), null);
   assert.ok(byTestId(tree, "peek-call"), "the phone is what is left");
@@ -513,7 +543,7 @@ test("the other five post what they say, each with Undo; a wrong number keeps th
   const { tree } = page({ vm: vmOf({ phone_wrong: true }) }).draw();
   assert.equal(/\bwrong\b/.test(byTestId(tree, "peek-phone-value").props.className), true);
   assert.equal(byTestId(tree, "peek-call"), null, "a number marked wrong is not dialled again");
-  assert.equal(textOf(find(byTestId(tree, "peek-phone"), (n) => n.props?.className === "pk-rn")), "You marked this number wrong.");
+  assert.equal(textOf(find(byTestId(tree, "peek-phone"), (n) => n.props?.role === "tooltip")), "You marked this number wrong.", "the struck number says why when pointed at");
 });
 
 test("I didn't call clears the question and posts nothing", async () => {
@@ -592,7 +622,7 @@ test("the peek shows who they are: the photo, their own words, where, open today
   assert.equal(textOf(byTestId(tree, "peek-about")), "Waterfront venue for weddings.");
   assert.equal(byTestId(tree, "peek-where").props.href, "https://maps.example/?cid=1", "the address opens the Maps page");
   assert.equal(textOf(byTestId(tree, "peek-where")), "101 Biscayne Blvd, Miami, FL 33132");
-  assert.equal(textOf(byTestId(tree, "peek-today")), "Open today · 9 AM to 6 PM");
+  assert.equal(textOf(byTestId(tree, "peek-today")), "Open until 6 PM", "whether they are open now, which is what an owner about to call is asking");
   assert.equal(textOf(byTestId(tree, "peek-claimed")), "Listing not claimed by the owner");
   assert.deepEqual(["peek-facebook", "peek-linkedin", "peek-tiktok", "peek-maps"].map((id) => byTestId(tree, id)?.props.href ?? null), ["https://www.facebook.example/x", null, "https://www.tiktok.example/@x", "https://maps.example/?cid=1"]);
 
@@ -601,9 +631,10 @@ test("the peek shows who they are: the photo, their own words, where, open today
   for (const id of ["peek-photo", "peek-about", "peek-today", "peek-claimed", "peek-facebook", "peek-maps"]) assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
 });
 
-// D7: the week and what the listing said fold like everything else. Both were computed for the peek and read only
-// by the EXPANDED PHOTO, so learning what time a shop opens meant opening a lightbox over a photograph.
-test("the peek's last two folds: the week behind one line, and what the listing said behind another", () => {
+// D7: the week folds like everything else; it was computed for the peek and read only by the expanded photo. D8: in
+// its short hours, and the listing's facts are not repeated here -- kind, rating and rank were each said above, and
+// whether the listing is claimed rides the rating.
+test("the peek's folds: the week behind one line in its short hours, and no second copy of what the listing said", () => {
   const days = [
     { day: "Sunday", hours: "Closed" },
     { day: "Monday", hours: "11 AM to 10 PM" },
@@ -619,18 +650,16 @@ test("the peek's last two folds: the week behind one line, and what the listing 
   const week = byTestId(tree, "peek-week");
   assert.ok(week, "the week is in the peek, not only behind the photograph");
   assert.equal(week.props.open, undefined, "folded, like the checks and the trace");
-  assert.equal(textOf(byTestId(tree, "peek-week-summary")), "Open 6 days · 11 AM to 10 PM most days", "one line says the shape of the week");
-  assert.equal(all(week, (n) => n.props?.["data-testid"] === "peek-day").length, 7, "all seven rows are behind it, closed days included");
+  assert.equal(textOf(byTestId(tree, "peek-week-summary")), "Open 6 days · 11–10 most days", "one line says the shape of the week, in as few characters as say it");
+  const days7 = all(week, (n) => n.props?.["data-testid"] === "peek-day");
+  assert.equal(days7.length, 7, "all seven rows are behind it, closed days included");
+  assert.deepEqual(days7.map((d) => textOf(find(d, (n) => n.props?.className === "h"))), ["Closed", "11–10", "11–10", "11–10", "11–10", "11–11", "11–11"]);
 
-  const facts = byTestId(tree, "peek-facts");
-  assert.ok(facts, "and what the listing said");
-  assert.equal(facts.props.open, undefined);
-  assert.match(textOf(byTestId(tree, "peek-facts-summary")), /^From the listing — /, "the head names the facts rather than listing them");
-  assert.ok(all(facts, (n) => n.props?.["data-testid"] === "peek-fact").length >= 3);
+  assert.equal(byTestId(tree, "peek-facts"), null, "every fact it held was said elsewhere on the panel");
 
   // Every fold is the same shape, including the one that never was: the other addresses had a bare summary with no
   // box and no chevron, so it read as a different kind of thing sitting among them.
-  for (const id of ["peek-checks", "peek-found", "peek-week", "peek-facts"]) {
+  for (const id of ["peek-others", "peek-found", "peek-week"]) {
     const d = byTestId(tree, id);
     assert.match(d.props.className, /\bpk-box\b/, `${id} is the shared shape`);
     assert.ok(find(d, (n) => n.props?.className === "pk-box-line"), `${id} lays out in the span, not the summary`);
@@ -676,7 +705,7 @@ test("the peek's band: the mark covers the photo, the photo stands alone without
 
 /* ======================================================= D5: the peek re-cut ==== */
 
-test("D5: the peek opens on a photo band with Expand, decides with a verdict card, says what people say, folds the checks under their head, and pins the act", async () => {
+test("D5: the peek opens on a photo band with Expand, says what people say under the name, decides with the verdict and its evidence bar, and pins the act", async () => {
   reset();
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => ({ day, hours: day === "Sunday" ? "Closed" : "9 AM to 6 PM" }));
   const shown = page({ vm: vmOf({ about: "Coaching only.", street: "1200 Barton Springs Rd", city: "Austin", state: "TX", postal_code: "78704", hours: days, image_url: "https://lh3.example/p.jpg", claimed: false, price: "$$", rank: 3, reviews_dist: { one: 0, two: 1, three: 1, four: 4, five: 10 }, maps_url: "https://maps.example/?cid=1" }) });
@@ -689,39 +718,38 @@ test("D5: the peek opens on a photo band with Expand, decides with a verdict car
   assert.deepEqual(opened, [`expand ${LEAD}`], "Expand hands the lead to the page's lightbox");
   const identity = byTestId(tree, "peek-identity");
   assert.equal(textOf(byTestId(identity, "peek-name")), "Travis Heights Coaching Co.");
-  assert.equal(textOf(byTestId(identity, "peek-today")), "Open today · 9 AM to 6 PM", "today's hours sit on the sub-line");
+  assert.equal(textOf(byTestId(identity, "peek-today")), "Open until 6 PM", "whether they are open now sits on the sub-line");
   assert.equal(textOf(byTestId(identity, "peek-distance")), "1.5 mi");
   assert.equal(textOf(byTestId(identity, "peek-about")), "Coaching only.");
-  assert.ok(byTestId(tree, "peek-verdict"), "the fit is a card");
-  assert.equal(textOf(byTestId(tree, "peek-fit")), "Strong fit. Independent coaching · 5.0 from 16 reviews · email checked");
-  const rated = byTestId(tree, "peek-rated");
-  // D7: one line, not five bars. This lead's unhappy share is 2 of 16, under the floor, so nothing is said about it.
-  assert.match(textOf(rated), /^What people say5\.016 reviews/);
-  assert.equal(byTestId(rated, "peek-rated-bars"), null, "the five bars are gone: they drew on every lead and repeated the average");
+  // D8: what people say is a line under the name, not a card with a heading for one number. This lead's unhappy share
+  // is 2 of 16, under the floor, so nothing is said about it.
+  const rated = byTestId(identity, "peek-rated");
+  assert.equal(textOf(rated), "5.016 reviewsListing not claimed by the owner");
   assert.equal(byTestId(rated, "peek-rated-low"), null, "an ordinary tail of unhappy reviews is not worth a line");
-  assert.equal(textOf(byTestId(rated, "peek-claimed")), "Listing not claimed by the owner", "whether anyone watches the listing sits with what people say");
-  assert.equal(textOf(byTestId(tree, "peek-checks-summary")), "7 checks passed", "the strip and the words, with the label gone: the head is the summary");
-  assert.equal(byTestId(tree, "peek-checks").props.open, undefined, "folded away, so the act at the foot is reachable without scrolling past seven rows");
-  // The strip is ONE svg with its size in its own attributes, not a row of empty spans that take theirs from the
-  // cascade: on production those drew at two sizes on one line, and a circle in a viewBox cannot do that.
-  const strip = byTestId(tree, "peek-check-dots");
-  assert.equal(strip.type, "svg", "the strip carries its own geometry");
-  const marks = all(strip, (n) => n.type === "circle");
-  assert.equal(marks.length, 7, "one mark a check, in the order they were made");
-  assert.deepEqual(marks.map((c) => c.props.className), ["pk-dot yes", "pk-dot yes", "pk-dot yes", "pk-dot yes", "pk-dot yes", "pk-dot yes", "pk-dot yes"], "and each says which answer it is");
-  assert.deepEqual([...new Set(marks.map((c) => c.props.r))], [3.5], "every mark is the same circle; none of them can become a lozenge");
-  assert.equal(strip.props.width, 7 * 10 - 3, "the svg is exactly as wide as the marks it holds");
-  // The row that lays these out is the span INSIDE the summary, never the summary itself.
-  const head = byTestId(tree, "peek-checks-summary");
-  assert.ok(find(head, (n) => n.props?.className === "pk-box-line"), "a <summary> is a disclosure widget before it is a flex box, so it is not asked to be one");
-  assert.equal(find(head, (n) => n.props?.className === "pk-box-line" && find(n, (m) => m === strip)), find(head, (n) => n.props?.className === "pk-box-line"), "and the strip sits inside that row, not beside it");
-  assert.equal(textOf(byTestId(tree, "peek-found-summary")), "Found 3 ways, 2:14 PM · #3 for “personal trainer”", "and the trace folds under one line that says it");
+  assert.equal(textOf(byTestId(rated, "peek-claimed")), "Listing not claimed by the owner", "whether anyone watches the listing rides the rating");
+  // The verdict: the word, the evidence as a pipeline beside it, and one line of why.
+  const verdict = byTestId(tree, "peek-verdict");
+  assert.equal(textOf(byTestId(verdict, "peek-fit-word")), "Strong fit");
+  assert.equal(textOf(byTestId(verdict, "peek-fit")), "Independent coaching · 5.0 from 16 reviews · email checked");
+  assert.equal(byTestId(tree, "peek-checks"), null, "the checks are no longer a fold the act at the foot must be scrolled past");
+  // The bar is ONE svg with its size in its own attributes, not a row of empty spans that take theirs from the
+  // cascade: on production those drew at two sizes on one line (#734), and a rect in a viewBox cannot.
+  const bar = byTestId(verdict, "peek-check-bar");
+  assert.equal(bar.type, "svg", "the bar carries its own geometry");
+  const segs = all(bar, (n) => n.type === "rect");
+  assert.equal(segs.length, 7, "one segment a check, in the order they were made");
+  assert.deepEqual(segs.map((s) => s.props.className), Array(7).fill("pk-seg yes"), "and each says which answer it is");
+  assert.deepEqual([...new Set(segs.map((s) => `${s.props.width}x${s.props.height}`))], ["14x4"], "every segment is the same size");
+  assert.equal(bar.props.width, 7 * 17 - 3, "the svg is exactly as wide as the segments it holds");
+  assert.equal(bar.props["aria-hidden"], "true", "the bar is named by the button it sits in, not read out rect by rect");
+  assert.equal(byTestId(verdict, "peek-checks-summary").type, "button", "and that button is a stop for a keyboard and a tap for a finger");
+  assert.equal(textOf(byTestId(tree, "peek-found-summary")), "#3 on Google Maps · today", "the trace folds under one short line");
   const act = byTestId(tree, "peek-act");
   assert.equal(tree.props.children.at(-1).rendered.props.children.at(-1), act, "the act bar is the peek's last child: it never scrolls away");
-  assert.equal(textOf(byTestId(act, "peek-act-call")), "Call +15125550142");
+  assert.equal(textOf(byTestId(act, "peek-act-call")), "Call +1 (512) 555-0142");
   await press(byTestId(act, "peek-act-call"));
-  assert.deepEqual(dialled, ["tel:+15125550142"], "the act bar's Call is the phone row's");
-  assert.equal(byTestId(act, "peek-act-copy").props["aria-label"], "Copy the email");
+  assert.deepEqual(dialled, ["tel:+15125550142"], "the act bar's Call is the phone row's, and dials the number as stored");
+  assert.equal(byTestId(act, "peek-act-copy"), null, "one press in the bar: Copy is the email row's");
   // No number: the draft is the act. No rating: no rated card, and the unclaimed note stays with the identity.
   const bare = page({ vm: vmOf({ phone: null, rating: null, reviews: null, claimed: false }) }).draw().tree;
   assert.ok(byTestId(bare, "peek-act-draft"), "with no number the draft is the act");

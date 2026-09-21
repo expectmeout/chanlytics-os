@@ -179,34 +179,72 @@
 .seg button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
 
 .pk-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 20px; }
-.pk-fit { font-size: 13px; line-height: 1.55; color: var(--ink); margin: 0; text-wrap: pretty; }
-.pk-fit b { font-weight: 600; }
-.pk-fit b.strong { color: var(--ok-ink); }
-.pk-fit b.look { color: var(--ink); }
-.pk-fit b.long, .pk-fit b.out { color: var(--ink-muted); }
-.pk-fit b.review { color: var(--warn-ink); }
+/* The verdict (D8): the fit's word and the evidence as a pipeline on one line, and the why under it. */
+.pk-verdict { position: relative; }
+.pk-verdict-head { display: flex; align-items: center; gap: 10px; }
+.pk-fit-word { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
+.pk-fit-word.strong { color: var(--ok-ink); }
+.pk-fit-word.long, .pk-fit-word.out { color: var(--ink-muted); }
+.pk-fit-word.review { color: var(--warn-ink); }
+.pk-verdict-head > .pk-hint { margin-left: auto; }
+.pk-fit { font-size: 13px; line-height: 1.5; color: var(--ink-muted); margin: 6px 0 0; text-wrap: pretty; }
+.pk-bar { display: block; flex: none; }
+.pk-seg { fill: var(--ok); }
+.pk-seg.unknown { fill: var(--warn); }
+.pk-seg.no { fill: var(--ink-faint); }
+
+/* A hint (D8): the mark is quiet until pointed at; its tip spans the row or card it sits in, so a pane that scrolls
+   never cuts it off at the side. Shown on hover and on focus, so a tap on a touch screen shows it too. */
+.pk-hint { display: inline-flex; align-items: center; flex: none; }
+.pk-hint-mark { display: inline-grid; place-items: center; min-width: 22px; min-height: 22px; padding: 3px; border: 0; border-radius: 6px; background: none; color: var(--ink-dim); cursor: help; }
+.pk-hint-mark:hover { background: var(--bg-hover); }
+.pk-hint-tip {
+  position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 30; padding: 8px 10px; border-radius: 8px;
+  background: var(--ink); color: var(--bg); font-size: var(--text-xs); line-height: 1.5; font-weight: 400; white-space: normal;
+  box-shadow: var(--shadow-md); pointer-events: none;
+  display: none; opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out), display var(--duration-fast) allow-discrete;
+}
+.pk-hint:hover > .pk-hint-tip, .pk-hint:focus-within > .pk-hint-tip { display: block; opacity: 1; transition-delay: 150ms; }
+@starting-style { .pk-hint:hover > .pk-hint-tip, .pk-hint:focus-within > .pk-hint-tip { opacity: 0; } }
+/* The evidence's tip is a raised card: a list someone reads, not a line. */
+.pk-hint-tip.card { background: var(--bg-raised); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-lg); padding: 10px 12px; display: none; }
+.pk-hint:hover > .pk-hint-tip.card, .pk-hint:focus-within > .pk-hint-tip.card { display: flex; flex-direction: column; gap: 6px; }
+.pk-hint-tip.card .pk-group { display: flex; flex-direction: column; gap: 5px; }
+.pk-hint-tip.card .pk-group + .pk-group { padding-top: 6px; border-top: 1px solid var(--line); }
+.pk-hint-tip.card .pk-ck { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; }
+
+/* The rating, as a line under who they are (D8). */
+.pk-rate { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: var(--text-xs); color: var(--ink-dim); }
+.pk-rate > .icon { color: var(--warn); fill: currentColor; }
+.pk-rate-score { font-family: var(--font-mono); font-size: 12.5px; font-weight: var(--weight-medium); color: var(--ink); margin-left: -4px; }
+.pk-rate-low { color: var(--warn-ink); }
+
+/* How it was found, as a small pipeline: a rail, a dot a step, a few words each. */
+.pk-steps { list-style: none; margin: 0; padding: 2px 0 0 16px; position: relative; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--ink-muted); }
+.pk-steps::before { content: ""; position: absolute; left: 4px; top: 9px; bottom: 7px; width: 1px; background: var(--line-strong); }
+.pk-step { position: relative; }
+.pk-step::before { content: ""; position: absolute; left: -15px; top: 5px; width: 7px; height: 7px; box-sizing: border-box; border-radius: 50%; background: var(--bg-raised); border: 1.5px solid var(--ink-dim); }
 .pk-decide { display: flex; gap: 6px; margin-top: -12px; }
 .pk-label { font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 4px; }
 
-.pk-rr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line); }
-.pk-rr:first-of-type { border-top: 0; }
-.pk-rr > .icon { margin-top: 2px; color: var(--ink-dim); }
-.pk-rv { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; min-width: 0; }
-.pk-rv > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A channel is one line (D8): its icon, its value, its mark, what to press. The row is what a hint's tip spans. */
+.pk-reach { display: flex; flex-direction: column; }
+.pk-rr { position: relative; display: flex; align-items: center; gap: 8px; min-height: 40px; border-top: 1px solid var(--line); }
+.pk-rr:first-child { border-top: 0; }
+.pk-rr > .icon { flex: none; color: var(--ink-dim); }
+.pk-rr > .sp { flex: 1; }
+.pk-rv { min-width: 0; font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-rv.wrong { text-decoration: line-through; color: var(--ink-muted); }
-.pk-rw { font-size: 11px; font-weight: 400; color: var(--ink-dim); flex: none; }
+.pk-rr.none .pk-rv { color: var(--ink-dim); font-weight: 400; }
 .pk-rn { font-size: 11.5px; color: var(--ink-dim); margin-top: 1px; }
 .pk-rr-acts { display: flex; gap: 6px; }
 .pk-rr.locked .pk-rv { color: var(--ink-muted); font-weight: 400; }
 .pk-rr.locked > .icon { color: var(--ink-faint); }
 
 /* What was seen and what Claude read, apart: nothing read wears a plain check (PRD 0.1, P2). */
-.pk-group + .pk-group { margin-top: 10px; }
-.pk-group-label { font-size: 11px; color: var(--ink-dim); margin: 0 0 4px; }
-.pk-checks { display: flex; flex-direction: column; gap: 6px; }
 .pk-ck { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink); }
 .pk-ck-t { min-width: 0; }
-.pk-ck-why { color: var(--ink-dim); }
 .pk-ck-mark { flex: none; margin-top: 2px; display: grid; place-items: center; }
 .pk-ck-check { color: var(--ok-ink); }
 .pk-ck-read { color: var(--ink-muted); }
@@ -219,9 +257,6 @@
 .pk-alt summary { cursor: pointer; color: var(--ink-muted); }
 .pk-alt ul { margin: 8px 0 0; padding-left: 16px; }
 .pk-alt-why { margin: 6px 0 0; }
-.pk-tl { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
-.pk-tr { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; font-size: 12px; color: var(--ink-muted); }
-.pk-tr .t { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .pk-foot { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
 .pk-foot .sp { flex: 1; }
 
@@ -575,10 +610,13 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-slot-btn:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .ld-slot-shape { display: inline-grid; place-items: center; }
 .ld-slot-shape.spin { animation: ld-spin 1.1s linear infinite; }
-.ld-slot-ok .ld-slot-btn { color: var(--lead-ok); }
-.ld-slot-part .ld-slot-btn { color: var(--lead-part); }
-.ld-slot-bad .ld-slot-btn { color: var(--lead-bad); }
-.ld-slot-checking .ld-slot-btn { color: var(--lead-wait); }
+/* The colour belongs to the shape, wherever it is drawn: the row wraps it in a button, the peek draws it bare beside
+   a channel (D8), and a colour written only for the button left the same shape grey everywhere else. */
+.ld-slot > .ld-slot-shape { color: var(--lead-none); }
+.ld-slot-ok .ld-slot-btn, .ld-slot-ok > .ld-slot-shape { color: var(--lead-ok); }
+.ld-slot-part .ld-slot-btn, .ld-slot-part > .ld-slot-shape { color: var(--lead-part); }
+.ld-slot-bad .ld-slot-btn, .ld-slot-bad > .ld-slot-shape { color: var(--lead-bad); }
+.ld-slot-checking .ld-slot-btn, .ld-slot-checking > .ld-slot-shape { color: var(--lead-wait); }
 .ld-slot-value { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink); white-space: nowrap; }
 .ld-slot-bad .ld-slot-value { text-decoration: line-through; color: var(--ink-dim); }
 .ld-values.on { color: var(--accent); }
@@ -723,15 +761,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-verdict { padding: 12px 14px; border-radius: var(--radius-lg); border: 1px solid var(--line); background: var(--bg-sunken); }
 .pk-verdict.strong { border-color: oklch(from var(--ok) l c h / 0.35); background: var(--ok-soft); }
 .pk-verdict.review { border-color: oklch(from var(--warn) l c h / 0.4); background: var(--warn-soft); }
-.pk-verdict .pk-fit { margin: 0; }
-.pk-rated { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.pk-rated-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 2px 0 0; }
-.pk-rated-score { font-family: var(--font-mono); font-size: 26px; line-height: 1; color: var(--ink); }
-.pk-rated-count { font-size: var(--text-xs); color: var(--ink-dim); }
-/* The one thing the bars said that the average cannot. It speaks rarely, so it is allowed to be the warn colour. */
-.pk-rated-low { font-size: var(--text-xs); color: var(--warn-ink); }
-.pk-rated-note { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
-.pk-rated-note .pk-quiet { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .pk-box { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 0 13px 11px; }
 /* The head is the summary; the ROW is the span inside it. A <summary> is a disclosure widget before it is a box and
    not every engine lets it be a flex container, so nothing here depends on that: the summary only hides its marker
@@ -741,28 +770,18 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-box-line > .icon { color: var(--ink-dim); flex: none; }
 .pk-box-line > .icon:last-child { margin-left: auto; transition: transform var(--duration-fast) var(--ease-out); }
 .pk-box[open] .pk-box-line > .icon:last-child { transform: rotate(180deg); }
-/* The shape of the evidence, at a glance: one mark a check, in the order they were made. */
-/* One svg, sized by its own attributes: `flex: none` so no line can stretch it, and the circles inside keep their
-   shape whatever happens to the box. This was a row of empty spans and they drew at two sizes on the same line. */
-.pk-dots { flex: none; display: block; overflow: visible; }
-.pk-dot { fill: var(--ok); }
-.pk-dot.unknown { fill: var(--warn); }
-.pk-dot.no { fill: var(--ink-faint); }
 .pk-box-head::-webkit-details-marker { display: none; }
 .pk-box-head .pk-label { margin: 0; }
 .pk-box-sum { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-box:not([open]) .pk-box-head { padding-bottom: 11px; }
 .pk-box:not([open]) { padding-bottom: 0; }
-/* The week and what the listing said, in the fold. The same rows the expanded photo draws, at the peek's measure. */
-.pk-week, .pk-facts { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
+/* The week, in the fold: the same rows the expanded photo draws, at the peek's measure, in the short hours. */
+.pk-week { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
 .pk-day { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 9px; align-items: center; font-size: var(--text-xs); color: var(--ink-dim); }
 .pk-day.today { color: var(--ink); font-weight: var(--weight-medium); }
 .pk-day-track { position: relative; height: 5px; border-radius: 3px; background: var(--bg-active); }
 .pk-day-bar { position: absolute; top: 0; height: 5px; border-radius: 3px; background: var(--line-strong); }
 .pk-day.today .pk-day-bar { background: var(--ok); }
-.pk-fact { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 9px; font-size: var(--text-xs); }
-.pk-fact .k { color: var(--ink-dim); }
-.pk-fact .v { color: var(--ink); }
 .pk-links { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
 .pk-act { background: var(--bg-sunken); }
 .pk-act-main { flex: 1; min-height: 38px; justify-content: center; border-radius: 10px; font-size: var(--text-base); }
