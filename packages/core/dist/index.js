@@ -2062,6 +2062,9 @@ var LEAD_WORDS = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -4451,6 +4454,9 @@ var LEAD_WORDS2 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -5828,6 +5834,9 @@ var LEAD_WORDS3 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",

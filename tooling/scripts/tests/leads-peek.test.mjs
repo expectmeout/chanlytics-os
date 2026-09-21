@@ -9,6 +9,7 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate } from "../../../packages/contracts/src/refusal.ts";
+import { stateOf } from "../../../packages/contracts/src/tone.ts";
 import {
   LEAD_WORDS, LEAD_EMAIL_WORDS, LEAD_LOCKED_LINE, LEAD_DRAFT_NOTE, LEAD_NO_ADDRESS,
   LEAD_NOT_A_FIT_WORDS, LEAD_CONTACT_STANDARD_WORDS,
@@ -57,11 +58,13 @@ globalThis.window = {
   location: { assign: (href) => dialled.push(href) },
   navigator: { clipboard: { writeText: async (t) => { copied.push(t); } } },
   __roleGate: roleGate,
-  __chrome: {},
+  // The one colour vocabulary, as the app publishes it: the verdict's pill takes its tone from here.
+  __chrome: { state: stateOf },
 };
 await import("../../../apps/dashboard/src/legacy/components/icons.jsx");
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.Icon = globalThis.window.Icon;
+globalThis.StatePill = globalThis.window.StatePill;
 // The table's own helpers: `leads-scope.jsx` reads plSortKeys at module scope (LEAD_SORT_KEYS), so the file it was
 // lifted from loads first here, as people-honest's harness loads it.
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
@@ -157,6 +160,7 @@ const page = (over = {}) => {
     exclude: (id) => flashes.push({ msg: `exclude ${id}` }),
     putBack: (id) => flashes.push({ msg: `put back ${id}` }),
     copyEmail: (id) => copied.push(`email ${id}`),
+    copyPhone: (id) => copied.push(`phone ${id}`),
     expand: (id) => opened.push(`expand ${id}`),
     dial: (href) => dialled.push(href),
     setPeekId: (v) => { st.peekId = v; },
@@ -186,15 +190,18 @@ test("the peek names the business, its sub-line, the fit as a sentence and the s
   assert.equal(/\bpl-peek\b/.test(tree.props.className), true, "the page's own overlay: PL_OVERLAY names it apart");
   assert.equal(textOf(byTestId(tree, "peek-name")), "Travis Heights Coaching Co.");
   assert.equal(textOf(byTestId(tree, "peek-sub")), "Personal trainer · Austin, TX");
-  // D8: the fit's word heads the verdict beside the evidence bar, and the why is its own line under it.
+  // D8: the fit's word heads the verdict beside the evidence bar, and the why is its own line under it. The word is
+  // the pill its row wears (StatePill, one vocabulary), so Strong fit is the ok tone in the table and in the peek.
   assert.equal(textOf(byTestId(tree, "peek-fit-word")), "Strong fit");
+  assert.equal(byTestId(tree, "peek-fit-word").props.className, "pill pill-ok pk-fit-word");
+  assert.equal(find(byTestId(tree, "peek-verdict"), (n) => n.type === "b"), null, "REGRESSION: a bold word of its own, coloured by hand");
   assert.equal(textOf(byTestId(tree, "peek-fit")), "Independent coaching · 5.0 from 16 reviews · email checked");
   const stage = byTestId(tree, "peek-stage");
   assert.equal(stage.props.role, "radiogroup");
   assert.deepEqual(all(stage, (n) => n.props?.role === "radio").map((n) => [textOf(n), n.props["aria-checked"]]), [["Ready", true], ["Contacted", false], ["Talking", false]]);
 });
 
-test("How you can reach them: the phone with its sources and Call, the email with its state in words and Copy and Draft, and texts and WhatsApp locked with the reason", async () => {
+test("How you can reach them: the phone with its sources and its copy, the email with its state in words and Copy and Draft, and texts and WhatsApp locked with the reason", async () => {
   reset();
   const { tree, acts } = page().draw();
   // D8: each channel is one line -- its value, its mark, what to press -- and each note that was a sentence under the
@@ -203,17 +210,27 @@ test("How you can reach them: the phone with its sources and Call, the email wit
   assert.equal(textOf(byTestId(tree, "peek-phone-value")), "+1 (512) 555-0142", "a number reads as the app writes numbers everywhere else");
   assert.equal(tipOf("peek-phone"), "The same number on Google Maps and their website.");
   assert.equal(byTestId(tree, "peek-phone-note").props["aria-describedby"], `${LEAD}-phone-note`, "a screen reader hears the note from the mark");
-  assert.ok(byTestId(tree, "peek-call"), "Call is on the phone row");
+  // The phone's line copies the number. Call is the act pinned at the foot, said once: it was on this line as well.
+  assert.equal(byTestId(tree, "peek-call"), null, "no second Call on the line");
+  assert.equal(textOf(byTestId(tree, "peek-act-call")), "Call +1 (512) 555-0142");
+  const copyPhone = byTestId(tree, "peek-copy-phone");
+  assert.deepEqual([copyPhone.props["aria-label"], copyPhone.props["data-tip"]], ["Copy the number", "Copy the number"], "a quiet mark, heard and named on hover by the shared tip");
   assert.equal(textOf(byTestId(tree, "peek-email-value")), "hello@travisheightscoaching.example");
   assert.equal(byTestId(tree, "peek-email-note").props["aria-label"], `Email: ${LEAD_EMAIL_WORDS.ok}`, "the state is the mark's name");
-  assert.equal(byTestId(tree, "peek-copy").props["aria-label"], "Copy the email");
-  assert.ok(byTestId(tree, "peek-draft"));
+  // A line's acts are quiet marks: icon buttons, named for a screen reader and on hover (data-tip).
+  for (const [id, name] of [["peek-copy", "Copy the email"], ["peek-draft", "Draft an email"], ["peek-copy-phone", "Copy the number"]]) {
+    const b = byTestId(tree, id);
+    assert.deepEqual([b.props["aria-label"], b.props["data-tip"]], [name, name], id);
+    assert.match(b.props.className, /\bbtn-ghost\b.*\bbtn-icon\b/, `${id} is a quiet mark, not a boxed word`);
+    assert.equal(textOf(b), "", `${id} says its name on hover, not on the line`);
+  }
   assert.equal(tipOf("peek-locked"), LEAD_LOCKED_LINE);
   assert.deepEqual(all(byTestId(tree, "peek-locked"), (n) => n.type === "button" || n.type === "a").map((n) => n.props.className), ["pk-hint-mark"], "nothing sends a text to a lead: its one button only says why");
   // Copy is the email row's alone: the pinned bar said it a second time, for the same address.
   assert.equal(byTestId(tree, "peek-act-copy"), null);
   await press(byTestId(tree, "peek-copy"));
-  assert.deepEqual(copied, [`email ${LEAD}`]);
+  await press(byTestId(tree, "peek-copy-phone"));
+  assert.deepEqual(copied, [`email ${LEAD}`, `phone ${LEAD}`]);
   assert.equal(typeof acts.onDraft, "function");
 });
 
@@ -439,7 +456,7 @@ test("a lead whose email bounces is offered Call instead: no Copy, no Draft, and
   assert.ok(find(byTestId(tree, "peek-email"), (n) => /\bld-slot-bad\b/.test(n.props?.className || "")), "the struck ring the table wears for a bounce");
   assert.equal(byTestId(tree, "peek-draft"), null);
   assert.equal(byTestId(tree, "peek-copy"), null);
-  assert.ok(byTestId(tree, "peek-call"), "the phone is what is left");
+  assert.ok(byTestId(tree, "peek-copy-phone") && byTestId(tree, "peek-act-call"), "the phone is what is left: its line and the Call at the foot");
 });
 
 test("Did you send it? is asked when the tab comes back, not when the draft opened; Yes marks them contacted with Undo", async () => {
@@ -486,7 +503,7 @@ test("Copy copies the subject and the body and arms the same question", async ()
 test("Call dials tel: from the peek and asks how it went when the tab comes back; the six are one radiogroup and the note says its cap", async () => {
   reset();
   const P = page();
-  await press(byTestId(P.draw().tree, "peek-call"));
+  await press(byTestId(P.draw().tree, "peek-act-call"));
   assert.deepEqual(dialled, ["tel:+15125550142"]);
   assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
   assert.equal(byTestId(P.draw().tree, "peek-call-ask"), null);
@@ -542,7 +559,8 @@ test("the other five post what they say, each with Undo; a wrong number keeps th
   reset();
   const { tree } = page({ vm: vmOf({ phone_wrong: true }) }).draw();
   assert.equal(/\bwrong\b/.test(byTestId(tree, "peek-phone-value").props.className), true);
-  assert.equal(byTestId(tree, "peek-call"), null, "a number marked wrong is not dialled again");
+  assert.equal(byTestId(tree, "peek-act-call"), null, "a number marked wrong is not dialled again");
+  assert.equal(byTestId(tree, "peek-copy-phone"), null, "nor offered to be copied");
   assert.equal(textOf(find(byTestId(tree, "peek-phone"), (n) => n.props?.role === "tooltip")), "You marked this number wrong.", "the struck number says why when pointed at");
 });
 
@@ -826,8 +844,14 @@ test("D5: the peek opens on a photo band with Expand, says what people say under
   const segs = all(bar, (n) => n.type === "rect");
   assert.equal(segs.length, 7, "one segment a check, in the order they were made");
   assert.deepEqual(segs.map((s) => s.props.className), Array(7).fill("pk-seg yes"), "and each says which answer it is");
-  assert.deepEqual([...new Set(segs.map((s) => `${s.props.width}x${s.props.height}`))], ["14x4"], "every segment is the same size");
-  assert.equal(bar.props.width, 7 * 17 - 3, "the svg is exactly as wide as the segments it holds");
+  // One length whatever the count, so two leads compare at a glance by how much of it is filled: seven segments
+  // and six 3px gaps make 120 exactly, each segment the same size, and each fills in turn as the peek opens.
+  assert.equal(bar.props.width, 120, "the gauge is one length");
+  assert.deepEqual([...new Set(segs.map((s) => `${s.props.width.toFixed(3)}x${s.props.height}`))], [`${(102 / 7).toFixed(3)}x4`], "every segment is the same size");
+  assert.ok(Math.abs(segs.at(-1).props.x + segs.at(-1).props.width - 120) < 1e-9, "the last segment ends where the gauge does");
+  assert.deepEqual(segs.map((s) => s.props.style.animationDelay), ["0ms", "70ms", "140ms", "210ms", "280ms", "350ms", "420ms"], "a pipeline running once, in order");
+  const four = byTestId(page({ vm: vmOf({ member: { checks: CHECKS.slice(0, 4) } }) }).draw().tree, "peek-check-bar");
+  assert.equal(four.props.width, 120, "four checks draw the same length as seven");
   assert.equal(bar.props["aria-hidden"], "true", "the bar is named by the button it sits in, not read out rect by rect");
   assert.equal(byTestId(verdict, "peek-checks-summary").type, "button", "and that button is a stop for a keyboard and a tap for a finger");
   assert.equal(textOf(byTestId(tree, "peek-found-summary")), "#3 on Google Maps · today", "the trace folds under one short line");

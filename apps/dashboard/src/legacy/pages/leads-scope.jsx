@@ -967,6 +967,7 @@ const LeadsScope = (p) => {
             exclude: p.onExclude,
             putBack: p.onPutBack,
             copyEmail: p.onCopy,
+            copyPhone: p.onCopyPhone,
             draft: p.draft,
             armed: p.armed,
             setMode: p.onPeekMode,
