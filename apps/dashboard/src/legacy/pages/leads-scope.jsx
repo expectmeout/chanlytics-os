@@ -300,7 +300,6 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
 
 // Qualified · Needs review · Excluded, under the search that is open: each a count and a view (c-qualified,
 // c-review, c-excluded). The class is not a stage (§9.1): it says whether the place met the plan.
-const LEAD_CLASS_WORDS = { qualified: "Qualified", review: "Needs review", excluded: "Excluded" };
 // The band (D5): one element that says the search's whole shape and filters it. The three classes with their
 // counts are the tabs; the qualified split by fit band draws only when the fits differ (contracts leadBand), and a
 // fit narrows the rows on screen the way an Excluded chip does.
@@ -473,7 +472,7 @@ const ldPinTone = (l, by) => {
 };
 const LEAD_MAP_BY = [{ id: "fit", label: "Fit" }, { id: "reach", label: "Reach" }, { id: "stage", label: "Stage" }];
 
-const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind }) => {
+const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch }) => {
   const V = window.__LEAD_VM || {};
   const byId = new Map(rows.map((l) => [l.id, l]));
   const near = [...plot.pins].sort((a, b) => Math.hypot(a.x - 0.5, a.y - 0.5) - Math.hypot(b.x - 0.5, b.y - 0.5));
@@ -508,6 +507,11 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
       </div>
 
       <div className="ld-map-main">
+        {plot.tooWide ? (
+          <div className="ld-map-plot ld-map-wide" data-testid="lead-map-toowide">
+            <span className="ld-map-wide-line">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>
+          </div>
+        ) : (
         <div className="ld-map-plot" data-testid="lead-map-plot">
           {plot.ring ? (
             <span
@@ -547,10 +551,11 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
           ) : null}
           <span className="ld-map-scale" data-testid="lead-map-scale">{V.leadMapAcross ? V.leadMapAcross(plot.spanM) : ""}</span>
         </div>
+        )}
         <div className="ld-map-foot">
-          {/* A city ask has no centre until its probe measures one, so there is often no area to draw. The line
-              under the plot says which picture this is, rather than claiming a ring that is not there. */}
-          <span className="ld-map-note" data-testid="lead-map-note">{plot.ring ? "The area this search asked for, and every lead it placed inside it." : "Every lead these searches placed on the ground."}</span>
+          {/* Which picture this is, in contracts' words: the area asked for, or only where the leads are, or --
+              across searches in different cities -- that these were never one place at all. */}
+          <span className="ld-map-note" data-testid="lead-map-note">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>
           <span className="sp" />
           {nearby.map((a) => (
             <button key={a.label} type="button" className="ld-band-fit" onClick={() => onNearby(a)} data-testid={`map-nearby-${a.zip || a.label}`}>{a.label}</button>
@@ -581,7 +586,7 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
       {!allMatching && total > rows.length && (
         <button type="button" className="cl-bucket-link" onClick={onSelectAllMatching} data-testid="leads-select-matching">Select all {total.toLocaleString()} that match</button>
       )}
-      {acts.includes("check_again") && review.canCheckAgain ? <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => review.onCheckAgain(ids)} data-testid="leads-bulk-check-again" {...gate}><Icon name="refresh" size={12} /> Check {ids.length} again <span className="dim">· about {Math.max(1, Math.round(ids.length * 0.089))}¢</span></button> : null}
+      {acts.includes("check_again") && review.canCheckAgain ? <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => review.onCheckAgain(ids)} data-testid="leads-bulk-check-again" {...gate}><Icon name="refresh" size={12} /> Check {ids.length} again <span className="dim">· about {(V.leadCheckAgainCents ? V.leadCheckAgainCents(ids.length) : ids.length)}¢</span></button> : null}
       {acts.includes("find_email") && review.canFindEmail ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onFindEmail(ids)} data-testid="leads-bulk-find-email" {...gate}><Icon name="search" size={12} /> Find {ids.length === 1 ? "an email" : `${ids.length} emails`}</button> : null}
       {acts.includes("keep") ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onKeep(ids)} data-testid="leads-bulk-keep" {...gate}>Keep {ids.length}</button> : null}
       {acts.includes("exclude") ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onExclude(ids)} data-testid="leads-bulk-exclude" {...gate}>Exclude {ids.length}</button> : null}
@@ -783,6 +788,7 @@ const LeadsScope = (p) => {
               <LeadMap
                 rows={p.rows}
                 plot={p.plot}
+                oneSearch={!!p.view.searchId}
                 by={p.mapBy}
                 onBy={p.onMapBy}
                 picked={p.mapPick}
@@ -947,4 +953,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS });

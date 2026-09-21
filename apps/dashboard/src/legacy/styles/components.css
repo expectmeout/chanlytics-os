@@ -1590,6 +1590,39 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .cm-standing-tap.needs.on { color: var(--ink); }
 
 .bc-composer { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* The composer asks three questions side by side and keeps the one irreversible
+   act alone at the foot. Stacked, the audience, the words and Send never shared
+   a screen: the owner scrolled PAST the preview to reach the button. */
+/* Flex-wrap, not a media query: the composer sits inside a pane beside the
+   sidebar, so what decides whether three columns fit is the PANE's width and
+   never the window's. A viewport breakpoint collapsed a wide composer on a
+   narrow window and kept three columns in a pane too narrow for them. */
+.bc-cols { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.bc-col { flex: 1 1 260px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bc-col-what { flex: 2 1 400px; }
+.bc-col-label { font-size: 10px; font-weight: var(--weight-medium); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.bc-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); }
+.bc-foot .bc-subject { flex: 1 1 200px; min-width: 0; }
+
+/* Who it reaches, and who it does not, under the chips that pick them. */
+.bc-who { display: flex; flex-direction: column; gap: 8px; }
+.bc-who-count { display: flex; align-items: baseline; gap: 6px; }
+.bc-who-n { font-size: var(--text-xl); font-weight: var(--weight-medium); color: var(--ink); }
+.bc-who-of { font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-who-bar { display: block; height: 5px; border-radius: var(--radius-full); background: var(--warn); overflow: hidden; }
+.bc-who-bar-send { display: block; height: 5px; border-radius: var(--radius-full); background: var(--ok); }
+.bc-who-list { display: flex; flex-direction: column; gap: 1px; }
+.bc-who-row { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; margin: 0 -8px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; text-align: left; cursor: pointer; }
+.bc-who-row:hover { background: var(--bg-hover); }
+.bc-who-row.on { background: var(--bg-active); }
+.bc-who-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bc-who-name { font-size: var(--text-sm); color: var(--ink); }
+.bc-who-row.held .bc-who-name { color: var(--ink-dim); }
+.bc-who-why { font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+.bc-who-row.held .bc-who-why { color: var(--warn-ink); }
+.bc-who-rest { font-size: var(--text-xs); color: var(--ink-dim); }
+
 .bc-row { display: flex; align-items: flex-start; gap: 12px; }
 .bc-row-label { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); width: 26px; padding-top: 6px; flex-shrink: 0; }
 .bc-chips { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -1960,7 +1993,8 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 /* The name takes the room; the time takes only what it needs. Without this the
    date input's intrinsic width squeezed the name to a square. */
 .bc-actions .bc-subject { margin: 0; flex: 1 1 160px; min-width: 160px; }
-.bc-actions .bc-subject[type="datetime-local"] { flex: 0 0 auto; width: auto; min-width: 0; }
+/* The schedule box sits in the When column now, where it takes the column. */
+.bc-col .bc-subject { width: 100%; min-width: 0; }
 /* The schedule box's note, in amber when the time cannot be scheduled: passed, or past the ceiling. */
 .bc-when-note-warn { color: var(--warn); }
 
@@ -2173,7 +2207,25 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .cl-bucket-link.danger { color: var(--danger); }
 .int-soon-list { font-style: normal; line-height: 1.6; }
 .int-soon-list b { color: var(--ink); font-weight: 500; }
-.msg-intro { padding: 0 0 10px; }
+/* The starter gap sits above the messages it is about, as one sentence and one
+   press -- not as two toolbar buttons whose labels were a remainder. */
+.msg-intro { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: 0 0 10px; }
+.msg-intro .rp2-foot { flex: 1 1 380px; min-width: 0; }
+
+/* Being in step with WhatsApp is a state, so it is drawn as one: a dot, when it
+   last looked, and a press to look again. It sits among the acts because it is
+   still an act, but it never shouts like one. */
+.tpl-fresh { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-xs); color: var(--ink-dim); cursor: pointer; }
+.tpl-fresh:hover:not(:disabled) { background: var(--bg-hover); color: var(--ink-muted); }
+.tpl-fresh:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.tpl-fresh:disabled { cursor: default; }
+.tpl-fresh .icon { color: var(--ink-faint); }
+.tpl-fresh.is-busy .icon { animation: tpl-fresh-spin 1.1s linear infinite; }
+.tpl-fresh-dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--ok); flex: none; }
+.tpl-fresh-dot.never { background: var(--ink-faint); }
+.tpl-fresh.is-busy .tpl-fresh-dot { background: var(--info); }
+@keyframes tpl-fresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tpl-fresh.is-busy .icon { animation: none; } }
 /* A column, not a grid of identical 320px cards: these are a library to scan,
    and a grid of them reads as a wall. Two up only where there is real room. */
 .msg-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }

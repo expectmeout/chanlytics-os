@@ -81,7 +81,9 @@
 .rp2-tile-label { font-size: 9px; letter-spacing: 0.05em; }
 
 /* ---- Google reviews: the words Google shows, with their stars ---- */
-.rp2-reviews { display: flex; flex-direction: column; gap: 8px; }
+/* The reviews take the whole row, so they read in columns at a comfortable measure rather than as one line of text
+   the width of the page; a column holds its own review, and the row keeps them the same height. */
+.rp2-reviews { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
 .rp2-review { display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); }
 /* A new review says "new" in words; the coral accent is for live state, never a review. */
 .rp2-review.is-new { border-color: var(--line-strong); }
@@ -142,8 +144,11 @@
 .rpt-section-title { margin: 0; font-size: 14.5px; font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
 .rpt-section-meta { font-size: 12.5px; color: var(--ink-dim); }
 
-/* A part-bar under a plot in the same card is a second reading: a hairline sets it apart. */
-.rpt .ck-card-body > .ck-plot + .ck-segbar { padding-top: 12px; border-top: 1px solid var(--line); }
+/* A part-bar under a plot or a donut in the same card is a second reading: a hairline sets it apart, and where the
+   row leaves the card room to spare it sits on the card's own foot, so the spare reads as air between two readings
+   rather than as a hole after the last one. */
+.rpt .ck-card-body > .ck-plot + .ck-segbar, .rpt .ck-card-body > .ck-pie + .ck-segbar { padding-top: 12px; border-top: 1px solid var(--line); }
+.rpt .ck-card-body > .ck-segbar:last-child { margin-top: auto; }
 
 /* ---------- the headline ---------- */
 .rpt-hero { grid-column: span 5; flex-direction: row; align-items: center; gap: 20px; padding: 16px 20px; }
@@ -191,9 +196,19 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 
 /* ---------- inside the cards ---------- */
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
-.rpt-booked { display: flex; align-items: center; gap: 20px; flex: 1; }
+/* A card's spare height belongs to its body, so a short card can hold its reading in the middle and anchor a
+   footer to the foot instead of leaving the room under the last thing it drew. */
+.rpt .ck-card-body { flex: 1 1 auto; }
+
+/* Asked, then booked: the share in the room it is given, its other side on a hairline at the foot. */
+.rpt-booked { display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.rpt-booked-share { display: flex; align-items: center; gap: 20px; flex: 1; }
 .rpt-booked-number { font-size: 22px; font-weight: 500; letter-spacing: -0.03em; color: var(--ink); }
 .rpt-booked-copy { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); max-width: 32ch; }
+.rpt-booked-rest { margin: 0; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
+.rpt-booked-rest .icon { flex: none; margin-top: 1px; color: var(--ink-dim); }
+.rpt-booked-rest .cl-bucket-link { margin-left: 6px; }
+.rpt-booked-rest.is-done .icon { color: var(--ok); }
 .rpt-sources { max-height: none; }
 .rpt-src { font-size: 13px; color: var(--ink); font-weight: 500; text-align: left; border-radius: 4px; }
 .rpt-src:hover { text-decoration: underline; text-underline-offset: 3px; }

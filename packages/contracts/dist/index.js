@@ -3647,11 +3647,12 @@ function bookedAfterAsk(visits, askedMs) {
   return !!visits.last && visits.last.start >= askedMs - 864e5;
 }
 function toBookingReportVM(dto) {
-  if (!dto || dto.calendar === "none") return { present: false, calendar: "none", headline: "\u2014", sub: "Connect your calendar under Settings \u203A Business to see who booked.", words: "", pct: null, asked: 0, booked: 0 };
-  if (dto.calendar === "unavailable") return { present: false, calendar: "unavailable", headline: "\u2014", sub: "Your calendar could not be read.", words: "", pct: null, asked: dto.asked, booked: 0 };
-  if (dto.asked === 0) return { present: true, calendar: "ok", headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, words: "", pct: null, asked: 0, booked: 0 };
+  if (!dto || dto.calendar === "none") return { present: false, calendar: "none", headline: "\u2014", sub: "Connect your calendar under Settings \u203A Business to see who booked.", words: "", pct: null, asked: 0, booked: 0, unbooked: 0, rest: "" };
+  if (dto.calendar === "unavailable") return { present: false, calendar: "unavailable", headline: "\u2014", sub: "Your calendar could not be read.", words: "", pct: null, asked: dto.asked, booked: 0, unbooked: 0, rest: "" };
+  if (dto.asked === 0) return { present: true, calendar: "ok", headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, words: "", pct: null, asked: 0, booked: 0, unbooked: 0, rest: "" };
   const pct2 = Math.round(dto.booked / dto.asked * 100);
   const words2 = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
+  const unbooked = dto.asked - dto.booked;
   return {
     present: true,
     calendar: "ok",
@@ -3660,7 +3661,11 @@ function toBookingReportVM(dto) {
     words: words2,
     pct: pct2,
     asked: dto.asked,
-    booked: dto.booked
+    booked: dto.booked,
+    unbooked,
+    // The other side of the same share, said once: who is still waiting to be
+    // given a time. It is the half an owner can do something about.
+    rest: unbooked === 0 ? `Everyone who asked in the last ${dto.days} days has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
   };
 }
 
@@ -11066,68 +11071,6 @@ var SCHEMA_SETS = {
   "tenants.status": ["active", "paused", "test"]
 };
 
-// src/tone.ts
-var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
-var TONE_OF = {
-  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
-  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
-  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
-  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
-  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
-  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
-  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
-  playbook: { running: "accent", paused: "warn", approval: "warn" },
-  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
-  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
-  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
-  role: { owner: "info", operator: "plain", viewer: "plain" },
-  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
-  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
-  escalation: { open: "warn", resolved: "ok" }
-};
-var LABEL_OF = {
-  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
-  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
-  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
-  person: PERSON_STATE_LABELS,
-  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
-  mode: PERSON_MODE_WORDS,
-  broadcast: BROADCAST_STATE_LABELS,
-  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
-  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
-  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
-  setup: SETUP_STATE_WORDS,
-  role: ROLE_WORDS,
-  calendar: CALENDAR_FEED_WORDS,
-  escalation: { open: "Open", resolved: "Resolved" }
-};
-function stateTone(kind, value) {
-  return typeof value === "string" && TONE_OF[kind][value] || "plain";
-}
-function stateLabel(kind, value) {
-  const v = typeof value === "string" ? value : String(value ?? "");
-  return LABEL_OF[kind]?.[v] ?? v;
-}
-function stateOf(kind, value) {
-  return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
-}
-
-// src/erasure.ts
-async function keyedDigest(tenantId, identifier) {
-  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-function erasedPhoneHash(tenantId, phoneE164) {
-  return keyedDigest(tenantId, phoneE164);
-}
-function erasedEmailHash(tenantId, email) {
-  return keyedDigest(tenantId, email);
-}
-function leadSuppressionHash(tenantId, value) {
-  return keyedDigest(tenantId, value);
-}
-
 // src/leads.ts
 import { z as z7 } from "zod";
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
@@ -11142,10 +11085,10 @@ var LEAD_EMAIL_WORDS = { none: "No email", checking: "Checking", ok: "Checked", 
 var LEAD_CALL_OUTCOME_TONES = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_LIST_WORDS = { all: "All leads", ready: "Ready", nurture: "Contacted", converted: "Talking", said_no: "Said no", not_a_fit: "Not a fit" };
@@ -11165,6 +11108,7 @@ var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 var LEAD_SUPPRESSING_WHY = "customer";
 var LEAD_REVIEW_WORD = "Needs review";
 var LEAD_LEFT_OUT_WORD = "Left out";
+var LEAD_CLASS_WORDS = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
 var LEAD_UNREACHABLE_WORD = "No way to reach them";
 var LEAD_CHECK_GROUP_WORDS = { seen: "Seen", read: "Claude's read" };
 var LEAD_CHECK_UNSURE = "Couldn't tell";
@@ -11570,6 +11514,26 @@ function leadTodayLine(hours, tz, now) {
   if (!h) return null;
   return /^closed/i.test(h.hours) ? "Closed today" : `Open today \xB7 ${h.hours}`;
 }
+function leadWeekSummary(week) {
+  const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
+  if (!open.length) return "";
+  const tally2 = /* @__PURE__ */ new Map();
+  for (const d of open) tally2.set(d.hours, (tally2.get(d.hours) ?? 0) + 1);
+  let best = "";
+  let most = 0;
+  for (const [hours, n] of tally2) if (n > most) {
+    best = hours;
+    most = n;
+  }
+  const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
+  if (most === open.length) return `${days} \xB7 ${best}`;
+  if (most * 2 >= open.length) return `${days} \xB7 ${best} most days`;
+  return days;
+}
+function leadFactsSummary(facts) {
+  if (!facts.length) return "";
+  return `${LEAD_WORDS.fromListing} \u2014 ${facts.map((f) => f.k.toLowerCase()).join(", ")}`;
+}
 var CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 var hourOf = (h, m, ap) => Number(h) % 12 + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
 function leadWeekBars(hours, tz, now) {
@@ -11650,6 +11614,7 @@ function toLeadPeekVM(r, search, tz, now) {
     ...unsure ? [`${unsure} couldn't tell`] : [],
     ...failed ? [`${failed} failed`] : []
   ].join(" \xB7 ");
+  const week = leadWeekBars(r.hours ?? [], tz, now);
   const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US"), low: leadLowShare(r.reviews_dist ?? null) };
   const foundWays = 3;
   const facts = [
@@ -11667,8 +11632,10 @@ function toLeadPeekVM(r, search, tz, now) {
     tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
-    week: leadWeekBars(r.hours ?? [], tz, now),
+    week,
+    weekSummary: leadWeekSummary(week),
     facts,
+    factsSummary: leadFactsSummary(facts),
     checksSummary,
     checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),
@@ -11837,10 +11804,11 @@ function leadReviewGroups(rows, search) {
   return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
 }
 var M_PER_DEG_LAT = 111320;
+var LEAD_MAP_MAX_SPAN_M = 8e4;
 function leadMapPlot(rows, area) {
   const placed = rows.filter((r) => !!r.point);
   const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
-  if (!anchor || !placed.length && !area?.center) return { pins: [], ring: null, spanM: 0, center: anchor };
+  if (!anchor || !placed.length && !area?.center) return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
   const perLng = M_PER_DEG_LAT * Math.cos(anchor.lat * Math.PI / 180);
   const at2 = (p) => ({ e: (p.lng - anchor.lng) * perLng, s: (anchor.lat - p.lat) * M_PER_DEG_LAT });
   const metres = placed.map((r) => at2(r.point));
@@ -11856,10 +11824,16 @@ function leadMapPlot(rows, area) {
     pins: placed.map((r, i) => ({ id: r.id, ...into(metres[i]) })),
     ring: area?.center && area.radius_m ? { ...into(at2(area.center)), r: area.radius_m / (half * 2) } : null,
     spanM,
+    tooWide: !area?.center && spanM > LEAD_MAP_MAX_SPAN_M,
     center: anchor
   };
 }
 var leadMapAcross = (spanM) => spanM ? `${milesLabel(spanM)} across` : "";
+function leadMapNote(plot, oneSearch) {
+  if (plot.tooWide) return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
+  if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
+  return oneSearch ? "Where this search's leads are. It never measured a centre, so there is no area to draw." : "Every lead these searches placed on the ground.";
+}
 var LEAD_SLOT_WORDS = { ok: "Checked", part: "Unconfirmed", none: "Nothing found", bad: "Bad", checking: "Still checking" };
 function leadSlots(r) {
   const phone = !r.phone ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false } : r.phone_wrong ? { state: "bad", value: r.phone, word: LEAD_SLOT_WORDS.bad, tip: `${r.phone} \u2014 you marked this number wrong`, copy: false } : r.phone_agrees ? { state: "ok", value: r.phone, word: LEAD_SLOT_WORDS.ok, tip: `${r.phone} \u2014 the same number on Google Maps and on their website`, copy: true } : { state: "part", value: r.phone, word: LEAD_SLOT_WORDS.part, tip: `${r.phone} \u2014 one source, their Google Maps listing`, copy: true };
@@ -11913,7 +11887,7 @@ function toLeadRowVM(r, tz, now, search = null) {
   const spread2 = r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null;
   const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
   const state = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r.stage === "nurture" ? "contacted" : r.stage === "converted" ? "talking" : r.stage === "archived" ? "out" : "ready";
-  const stateTag = state === "contacted" ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` \xB7 ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}` : state === "talking" ? LEAD_STAGE_WORDS.converted : state === "out" ? m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason) : null;
+  const stateTag = state === "contacted" ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` \xB7 ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}` : state === "talking" ? LEAD_STAGE_WORDS.converted : state === "review" ? LEAD_REVIEW_WORD : state === "out" ? m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason) : null;
   const term = search?.plan.terms[0] ?? null;
   const card = {
     about: r.about ?? null,
@@ -12025,6 +11999,81 @@ function leadPlanAsk(plan, facts) {
   const who = planWho(plan);
   const covers = facts.bound === "budget" ? `Emails for ${who} are hard to find, so this month covers about ${count} more. Find ${count} now?` : `You have ${count} lead${count === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
   return { count, label, covers };
+}
+
+// src/tone.ts
+var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
+var TONE_OF = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  escalation: { open: "warn", resolved: "ok" },
+  // Ready is the silent default every lead starts in, so it is plain: the eye should be drawn to what has moved.
+  lead_class: { qualified: "plain", review: "warn", excluded: "plain" },
+  lead_stage: { ready: "plain", nurture: "info", converted: "ok", archived: "plain" },
+  // A strong fit is a good outcome, not an urgent one. Only the accent means "right now".
+  lead_fit: { strong: "ok", look: "plain", long: "plain" },
+  // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
+  reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
+  lead_call_outcome: LEAD_CALL_OUTCOME_TONES
+};
+var LABEL_OF = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS,
+  broadcast: BROADCAST_STATE_LABELS,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS,
+  role: ROLE_WORDS,
+  calendar: CALENDAR_FEED_WORDS,
+  escalation: { open: "Open", resolved: "Resolved" },
+  lead_class: LEAD_CLASS_WORDS,
+  lead_stage: LEAD_STAGE_WORDS,
+  lead_fit: LEAD_FIT_WORDS,
+  reach: LEAD_EMAIL_WORDS,
+  lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
+};
+function stateTone(kind, value) {
+  return typeof value === "string" && TONE_OF[kind][value] || "plain";
+}
+function stateLabel(kind, value) {
+  const v = typeof value === "string" ? value : String(value ?? "");
+  return LABEL_OF[kind]?.[v] ?? v;
+}
+function stateOf(kind, value) {
+  return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
+}
+
+// src/erasure.ts
+async function keyedDigest(tenantId, identifier) {
+  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function erasedPhoneHash(tenantId, phoneE164) {
+  return keyedDigest(tenantId, phoneE164);
+}
+function erasedEmailHash(tenantId, email) {
+  return keyedDigest(tenantId, email);
+}
+function leadSuppressionHash(tenantId, value) {
+  return keyedDigest(tenantId, value);
 }
 
 // src/lead-judge.ts
@@ -12404,6 +12453,7 @@ export {
   LEAD_CHECK_UNSURE,
   LEAD_CHECK_WORDS,
   LEAD_CLASSES,
+  LEAD_CLASS_WORDS,
   LEAD_CLOSED_REASONS,
   LEAD_CLOSED_WORDS,
   LEAD_CONSENT_REFUSAL,
@@ -12434,6 +12484,7 @@ export {
   LEAD_LOCKED_LINE,
   LEAD_LOW_SHARE_FLOOR,
   LEAD_MAILBOX_WORDS,
+  LEAD_MAP_MAX_SPAN_M,
   LEAD_MAX_PLACES,
   LEAD_MEMBER_CLASSES,
   LEAD_MONTHLY_ALLOWANCE,
@@ -12877,10 +12928,12 @@ export {
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
+  leadFactsSummary,
   leadKindWord,
   leadLowShare,
   leadLowerFirst,
   leadMapAcross,
+  leadMapNote,
   leadMapPlot,
   leadMonth,
   leadNoCardLine,
@@ -12900,6 +12953,7 @@ export {
   leadTodayLine,
   leadUndoable,
   leadWeekBars,
+  leadWeekSummary,
   leadWhere,
   leadsFirstDayWays,
   leadsRoute,

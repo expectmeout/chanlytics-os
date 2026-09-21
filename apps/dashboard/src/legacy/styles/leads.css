@@ -256,9 +256,13 @@
 /* The shape an email state wears beside its word (PRD 10.4). */
 .ld-shape { display: inline-grid; place-items: center; flex: none; }
 .ld-shape-ok { color: var(--ok-ink); }
-.ld-shape-catch_all, .ld-shape-checking { color: var(--ink-muted); }
+/* One rule each, in the tone the registry gives them (contracts/tone.ts). These three shared one grey: a check
+   still RUNNING and a server that accepts EVERY address both read as "nothing here", and a bounce -- the one state
+   that means you cannot reach them -- was the faintest thing on the row. */
+.ld-shape-catch_all { color: var(--warn-ink); }
+.ld-shape-checking { color: var(--info-ink); }
 .ld-shape-unknown { color: var(--warn-ink); }
-.ld-shape-invalid { color: var(--ink-faint); }
+.ld-shape-invalid { color: var(--danger-ink); }
 .ld-shape.spin { animation: ld-spin 1.1s linear infinite; }
 @keyframes ld-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ld-shape.spin { animation: none; } }
@@ -299,16 +303,16 @@
 .ld-reach-phone.wrong { text-decoration: line-through; color: var(--ink-faint); }
 .ld-biz-name { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: left; cursor: pointer; }
 .ld-badge { margin-left: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
-.ld-fit-cell.qualified { color: var(--ink); }
+.ld-fit-cell.qualified { color: var(--ink-muted); }
 .ld-fit-cell.review { color: var(--warn-ink); }
 .ld-fit-cell.excluded { color: var(--ink-dim); }
 .ld-email-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .ld-phone-cell.wrong { color: var(--ink-dim); text-decoration: line-through; }
-.ld-tick2 { color: var(--ok-ink); margin-left: 4px; }
 .ld-why-cell { max-width: 34ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ld-rating-cell, .ld-found-cell, .ld-distance-cell { font-variant-numeric: tabular-nums; }
 .ld-dot { width: 7px; height: 7px; border-radius: var(--radius-full); display: inline-block; margin-right: 6px; background: var(--ink-faint); }
-.ld-dot.ready { background: var(--accent); }
+/* Ready has no rule: it takes the plain base, like every other silent default. The accent belongs to what is live
+   right now (tokens.css), and it was sitting on the state every lead is born in. */
 .ld-dot.nurture { background: var(--info); }
 .ld-dot.converted { background: var(--ok); }
 .ld-dot.archived { background: var(--ink-faint); }
@@ -510,7 +514,9 @@
    the app's. Every rule here is a token or a measure, nothing a colour of its
    own, so the dark theme needs nothing more. */
 
-.leads-scope { --lead-ok: var(--ok-ink); --lead-part: var(--warn-ink); --lead-none: var(--ink-dim); --lead-bad: var(--danger-ink); --lead-wait: var(--ink-dim); }
+/* The reach glyph's five colours, from the registry's reach kind. The wait colour was the same grey as the
+   nothing-found colour, so a check in flight and a search that found no address were the same mark. */
+.leads-scope { --lead-ok: var(--ok-ink); --lead-part: var(--warn-ink); --lead-none: var(--ink-dim); --lead-bad: var(--danger-ink); --lead-wait: var(--info-ink); }
 
 /* The row: 62px, so the tile has room and the sub-line breathes. */
 .leads-scope .cl-table tbody tr:has(td.ld-biz-cell) td { padding-top: 7px; padding-bottom: 7px; }
@@ -527,6 +533,12 @@
 .leads-scope .cl-table tbody tr.ld-row-review { box-shadow: inset 3px 0 0 var(--warn); }
 .leads-scope .cl-table tbody tr.ld-row-contacted { box-shadow: inset 3px 0 0 var(--line-strong); }
 .leads-scope .cl-table tbody tr.ld-row-talking { box-shadow: inset 3px 0 0 var(--ok); }
+/* The cursor's accent edge and the row state's edge are the same property, and the state rules are the more
+   specific, so a row that had moved on lost the keyboard cursor entirely. Draw both: the accent at 2px with the
+   state's own colour behind it out to 5px. The first shadow in the list paints on top. */
+.leads-scope .cl-table tbody tr.ld-row-review.focused { box-shadow: inset 2px 0 0 var(--accent), inset 5px 0 0 var(--warn); }
+.leads-scope .cl-table tbody tr.ld-row-contacted.focused { box-shadow: inset 2px 0 0 var(--accent), inset 5px 0 0 var(--line-strong); }
+.leads-scope .cl-table tbody tr.ld-row-talking.focused { box-shadow: inset 2px 0 0 var(--accent), inset 5px 0 0 var(--ok); }
 .leads-scope .cl-table tbody tr.ld-row-out .ld-biz-name, .leads-scope .cl-table tbody tr.ld-row-out .ld-rated-score { color: var(--ink-dim); }
 .leads-scope .cl-table tbody tr.ld-row-out .ld-tile { opacity: .7; }
 .ld-state-tag, .ld-fit-tag { flex: none; font-size: var(--text-xs); line-height: 18px; padding: 0 7px; border-radius: 5px; background: var(--bg-active); color: var(--ink-muted); white-space: nowrap; }
@@ -721,6 +733,16 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-box-sum { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-box:not([open]) .pk-box-head { padding-bottom: 11px; }
 .pk-box:not([open]) { padding-bottom: 0; }
+/* The week and what the listing said, in the fold. The same rows the expanded photo draws, at the peek's measure. */
+.pk-week, .pk-facts { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
+.pk-day { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 9px; align-items: center; font-size: var(--text-xs); color: var(--ink-dim); }
+.pk-day.today { color: var(--ink); font-weight: var(--weight-medium); }
+.pk-day-track { position: relative; height: 5px; border-radius: 3px; background: var(--bg-active); }
+.pk-day-bar { position: absolute; top: 0; height: 5px; border-radius: 3px; background: var(--line-strong); }
+.pk-day.today .pk-day-bar { background: var(--ok); }
+.pk-fact { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 9px; font-size: var(--text-xs); }
+.pk-fact .k { color: var(--ink-dim); }
+.pk-fact .v { color: var(--ink); }
 .pk-links { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
 .pk-act { background: var(--bg-sunken); }
 .pk-act-main { flex: 1; min-height: 38px; justify-content: center; border-radius: 10px; font-size: var(--text-base); }
@@ -824,7 +846,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); flex: none; margin-right: 7px; display: inline-block; vertical-align: -1px; }
 .pk-chip.tone-ok .dot { background: var(--ok); }
 .pk-chip.tone-warn .dot { background: var(--warn); }
-.pk-chip.tone-bad .dot { background: var(--danger); }
+.pk-chip.tone-danger .dot { background: var(--danger); }
+.pk-chip.tone-info .dot { background: var(--info); }
+.pk-chip.tone-plain .dot { background: var(--ink-faint); }
 
 @media (max-width: 900px) {
   /* Where you are in the pile, and the two ways through it -- a swipe does the same. */
@@ -858,6 +882,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-map-row .s { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ld-map-main { flex: 999 1 420px; min-width: 320px; display: flex; flex-direction: column; gap: 8px; }
+/* Not a place: the square would be a continent with every city as a dot, so it says so instead of drawing one. */
+.ld-map-wide { display: grid; place-items: center; padding: 28px 22px; background: var(--bg-sunken); }
+.ld-map-wide-line { max-width: 34ch; text-align: center; font-size: var(--text-sm); color: var(--ink-dim); line-height: 1.5; }
 .ld-map-plot {
   position: relative; width: 100%; padding-top: 68%; border: 1px solid var(--line); border-radius: var(--radius-lg);
   background:
@@ -866,18 +893,26 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     var(--bg-sunken);
   overflow: hidden;
 }
-.ld-map-ring { position: absolute; border: 1px dashed var(--accent); border-radius: 50%; background: var(--accent-soft); }
+/* The area a search asked for is context, not urgency: it is the ground the pins sit on. It wore the accent --
+   the one colour reserved for what is live right now -- and filled a third of the plot with it. */
+.ld-map-ring { position: absolute; border: 1px dashed var(--line-strong); border-radius: 50%; background: oklch(from var(--ink) l c h / 0.04); }
 .ld-pin, .ld-pin-dot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg-raised); background: var(--ink-faint); padding: 0; }
 .ld-pin { position: absolute; transform: translate(-50%, -50%); cursor: pointer; transition: transform var(--duration-fast) var(--ease-out); }
-.ld-pin:hover, .ld-pin.on { transform: translate(-50%, -50%) scale(1.5); z-index: 2; }
+.ld-pin:hover { transform: translate(-50%, -50%) scale(1.5); z-index: 2; }
+/* The one being looked at goes to ink and keeps its ring, so it reads as the answer rather than a bigger pin. */
+.ld-pin.on { transform: translate(-50%, -50%) scale(1.6); z-index: 3; background: var(--ink); opacity: 1; box-shadow: 0 0 0 4px oklch(from var(--ink) l c h / 0.18); }
 .ld-pin:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .ld-pin-dot { display: inline-block; }
-.tone-strong, .tone-ok, .tone-ready { background: var(--ok); }
-.tone-look, .tone-part, .tone-review { background: var(--warn); }
-.tone-long, .tone-none { background: var(--ink-faint); }
-.tone-out, .tone-bad { background: var(--danger); }
-.tone-contacted { background: var(--line-strong); }
-.tone-talking { background: var(--info); }
+/* A pin says the same thing a row dot says. These disagreed on two states: ready was healthy green on the map and
+   the accent on a row, talking was blue on the map and green on a row. Both now read from the registry, and a pin
+   never wears the accent, because a pin is data (the chart kit's rule). */
+.tone-strong, .tone-ok, .tone-talking { background: var(--ok); }
+.tone-look, .tone-part, .tone-review, .tone-unknown { background: var(--warn); }
+.tone-long, .tone-none, .tone-ready, .tone-out { background: var(--ink-faint); }
+.tone-bad { background: var(--danger); }
+.tone-contacted { background: var(--info); }
+/* Left out is plain like a long shot, so it steps back instead by being quieter. */
+.ld-pin.tone-out, .ld-pin-dot.tone-out { opacity: .55; }
 .ld-map-card { position: absolute; left: 12px; bottom: 12px; right: 12px; max-width: 380px; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-md); }
 .ld-map-card .b { min-width: 0; flex: 1; }
 .ld-map-card .n { font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

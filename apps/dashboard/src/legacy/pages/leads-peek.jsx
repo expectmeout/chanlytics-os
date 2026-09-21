@@ -59,7 +59,7 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
   const W = window.__LEAD_WORDS;
   return (
     <>
-      <div className={`pk-band tint-${vm.tile.tint}${vm.image || vm.tile.logo ? " has-img" : ""}`} data-testid="peek-photo-band">
+      <div className={`pk-band tint-${vm.tile.tint}`} data-testid="peek-photo-band">
         <span className="pk-band-initials" aria-hidden="true">{vm.tile.initials}</span>
         {/* Who the company is comes first, so the mark paints LAST and covers the photograph, exactly as it does on
             the row's tile. The photograph is what Expand is for. The two are stacked rather than chosen, so a mark
@@ -159,7 +159,7 @@ const LeadLightbox = ({ vm, onClose }) => {
           <button type="button" className="pk-x" aria-label={W.closePhotos} data-testid="lightbox-close" onClick={onClose}><Icon name="x" size={16} /></button>
         </div>
         <div className="ld-lb-body">
-          <div className={`ld-lb-photo tint-${vm.tile.tint}${vm.image ? " has-img" : ""}`} data-testid="lightbox-photo">
+          <div className={`ld-lb-photo tint-${vm.tile.tint}`} data-testid="lightbox-photo">
             <span className="ld-lb-initials" aria-hidden="true">{vm.tile.initials}</span>
             {vm.image ? <img src={vm.image} alt="" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : <span className="ld-lb-nophoto">{W.noPhoto}</span>}
           </div>
@@ -238,7 +238,7 @@ const LeadCallAsk = ({ armed, busy, on, deck }) => {
             type="button"
             role="radio"
             aria-checked={armed && armed.outcome === o.id}
-            className={`pk-chip tone-${o.tone || "quiet"}${armed && armed.outcome === o.id ? " on" : ""}`}
+            className={`pk-chip tone-${o.tone || "plain"}${armed && armed.outcome === o.id ? " on" : ""}`}
             data-testid={`peek-outcome-${o.id}`}
             onClick={() => on.onOutcome(o.id)}
           ><span className="dot" aria-hidden="true" />{o.label}</button>
@@ -413,8 +413,14 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
           ))}
         </details>
         {vm.others ? (
-          <details className="pk-alt" data-testid="peek-others">
-            <summary data-testid="peek-others-summary">{vm.others.summary}</summary>
+          <details className="pk-box pk-alt" data-testid="peek-others">
+            <summary className="pk-box-head" data-testid="peek-others-summary">
+              <span className="pk-box-line">
+                <Icon name="mail" size={12} />
+                <span className="pk-box-sum">{vm.others.summary}</span>
+                <Icon name="chevron-down" size={12} />
+              </span>
+            </summary>
             <ul>{vm.others.items.map((o) => <li key={o.email}>{`${o.email} — ${o.why}`}</li>)}</ul>
             {vm.others.picked ? <p className="pk-alt-why" data-testid="peek-others-why">{vm.others.picked}</p> : null}
           </details>
@@ -434,6 +440,42 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
             ))}
           </div>
         </details>
+        {/* The week and what the listing said fold like everything else (D7). Both were computed for the peek and
+            read only by the expanded photo, so the panel asked the owner to open a lightbox to learn the hours. */}
+        {vm.weekSummary ? (
+          <details className="pk-box" data-testid="peek-week">
+            <summary className="pk-box-head" data-testid="peek-week-summary">
+              <span className="pk-box-line">
+                <Icon name="calendar" size={12} />
+                <span className="pk-box-sum">{vm.weekSummary}</span>
+                <Icon name="chevron-down" size={12} />
+              </span>
+            </summary>
+            <div className="pk-week">
+              {vm.week.map((d) => (
+                <div key={d.day} className={`pk-day${d.today ? " today" : ""}`} data-testid="peek-day">
+                  <span className="d">{d.day.slice(0, 3)}</span>
+                  <span className="pk-day-track">{d.bar ? <span className="pk-day-bar" style={{ left: `${d.bar.x}%`, width: `${d.bar.w}%` }} /> : null}</span>
+                  <span className="h">{d.hours}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
+        {vm.factsSummary ? (
+          <details className="pk-box" data-testid="peek-facts">
+            <summary className="pk-box-head" data-testid="peek-facts-summary">
+              <span className="pk-box-line">
+                <Icon name="list" size={12} />
+                <span className="pk-box-sum">{vm.factsSummary}</span>
+                <Icon name="chevron-down" size={12} />
+              </span>
+            </summary>
+            <div className="pk-facts">
+              {vm.facts.map((f) => <div key={f.k} className="pk-fact" data-testid="peek-fact"><span className="k">{f.k}</span><span className="v">{f.v}</span></div>)}
+            </div>
+          </details>
+        ) : null}
         <div className="pk-links" data-testid="peek-links">
           {vm.links.website
             ? <a className="btn btn-ghost btn-sm" href={vm.links.website.href} target="_blank" rel="noopener noreferrer" data-testid="peek-website"><Icon name="external" size={12} />{vm.links.website.label}</a>

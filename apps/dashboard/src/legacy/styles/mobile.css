@@ -549,8 +549,8 @@
   /* The send row wraps: the name on its own line, the time on its own line,
      then the two buttons sharing the last one. */
   .bc-actions { flex-wrap: wrap; }
-  .bc-actions .bc-subject,
-  .bc-actions .bc-subject[type="datetime-local"] { flex: 1 1 100%; width: 100%; min-width: 0; }
+  .bc-actions .bc-subject { flex: 1 1 100%; width: 100%; min-width: 0; }
+  .bc-foot .bc-subject { flex: 1 1 100%; }
   .bc-actions .btn { flex: 1 1 auto; justify-content: center; }
   .bc-actions .confirm { flex: 1 1 100%; }
 

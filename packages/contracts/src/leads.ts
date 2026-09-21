@@ -19,6 +19,7 @@ import {
   type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
+import type { Tone } from "./tone";
 import { agoShort } from "./time";
 import { clockDateYear, clockTime } from "./clock";
 
@@ -50,8 +51,13 @@ export const LEAD_FIT_WORDS: Record<(typeof LEAD_FITS)[number], string> = { stro
 /** Claims only what the check saw (S12): a catch-all server accepts anything, so the check cannot tell. */
 export const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string> = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
 /** How an outcome reads at a glance (D5): the dot beside its word, never colour alone -- the word is always there. */
-export const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], "ok" | "warn" | "quiet" | "bad"> = {
-  interested: "ok", call_back: "warn", voicemail: "quiet", no_answer: "quiet", not_interested: "bad", wrong_number: "bad",
+/**
+ * What each outcome means, in the app's ONE tone vocabulary (tone.ts). This used to carry two words of its own --
+ * `quiet` and `bad` -- which no pill and no stylesheet could draw: `.tone-quiet` was never written, so a voicemail
+ * and a no-answer both fell through to the faintest grey, and a wrong number drew as if nothing had happened.
+ */
+export const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], Tone> = {
+  interested: "ok", call_back: "warn", voicemail: "plain", no_answer: "plain", not_interested: "danger", wrong_number: "danger",
 };
 export const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number], string> = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 /** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
@@ -78,6 +84,8 @@ export const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
 export const LEAD_REVIEW_WORD = "Needs review";
 export const LEAD_LEFT_OUT_WORD = "Left out";
+/** What a lead's class is called. The page kept a second copy that said "Excluded" for the same state. */
+export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
 /** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
 export const LEAD_UNREACHABLE_WORD = "No way to reach them";
 /** The peek's two groups of checks (P2, §0.1). Nothing read wears a plain check mark. */
@@ -711,6 +719,10 @@ export interface LeadPeekVM {
   week: LeadWeekRow[];
   /** "From the listing": the facts about the place the expanded photo lists beside it. */
   facts: { k: string; v: string }[];
+  /** "Open every day · 11 AM to 10 PM": the head the week folds under; "" when the listing published no hours. */
+  weekSummary: string;
+  /** "From the listing — kind, price, rated": the head the listing's facts fold under; "" when there are none. */
+  factsSummary: string;
   /** "5 checks passed · 2 couldn't tell": the head the checks fold under. */
   checksSummary: string;
   /** One mark per check, in the order they were made: the strip beside the head, so the shape of the evidence reads at a glance. */
@@ -747,6 +759,31 @@ export function leadTodayLine(hours: { day: string; hours: string }[], tz: strin
 }
 /** One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser cannot draw. */
 export interface LeadWeekRow { day: string; hours: string; bar: { x: number; w: number } | null; today: boolean }
+
+/**
+ * The week in one line, so the seven rows can fold away behind it: how many days they open, and the hours they keep
+ * on most of them. Nothing is claimed that the listing did not say -- a week with no two days alike says only how
+ * many days it opens, because "most days" would then be one day.
+ */
+export function leadWeekSummary(week: LeadWeekRow[]): string {
+  const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
+  if (!open.length) return "";
+  const tally = new Map<string, number>();
+  for (const d of open) tally.set(d.hours, (tally.get(d.hours) ?? 0) + 1);
+  let best = "";
+  let most = 0;
+  for (const [hours, n] of tally) if (n > most) { best = hours; most = n; }
+  const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
+  if (most === open.length) return `${days} · ${best}`;
+  if (most * 2 >= open.length) return `${days} · ${best} most days`;
+  return days;
+}
+
+/** What the listing had to say about the place, named rather than listed: "From the listing — kind, price, rated". */
+export function leadFactsSummary(facts: { k: string; v: string }[]): string {
+  if (!facts.length) return "";
+  return `${LEAD_WORDS.fromListing} — ${facts.map((f) => f.k.toLowerCase()).join(", ")}`;
+}
 const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 const hourOf = (h: string, m: string | undefined, ap: string): number => ((Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0)) + (m ? Number(m) / 60 : 0);
 /**
@@ -866,6 +903,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     ...(unsure ? [`${unsure} couldn't tell`] : []),
     ...(failed ? [`${failed} failed`] : []),
   ].join(" · ");
+  const week = leadWeekBars(r.hours ?? [], tz, now);
   const rated =
     r.rating === null || r.rating === undefined
       ? null
@@ -888,8 +926,10 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
-    week: leadWeekBars(r.hours ?? [], tz, now),
+    week,
+    weekSummary: leadWeekSummary(week),
     facts,
+    factsSummary: leadFactsSummary(facts),
     checksSummary,
     checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),
@@ -1157,6 +1197,12 @@ export interface LeadMapPlot {
   ring: { x: number; y: number; r: number } | null;
   /** How many metres the square is across, for the scale bar; 0 when there was nothing to place. */
   spanM: number;
+  /**
+   * True when these leads are not one place. Without an area to anchor on, the square is drawn from the leads
+   * themselves, so six searches in six cities produced one square four thousand miles across with every city
+   * collapsed into a dot. That is arithmetically honest and tells the owner nothing.
+   */
+  tooWide: boolean;
   /** What the square is centred on, so "widen the area" asks about the ground the owner is looking at. */
   center: { lat: number; lng: number } | null;
 }
@@ -1167,10 +1213,13 @@ const M_PER_DEG_LAT = 111_320;
  * is measured in metres from one centre and then scaled into a square, so the picture is honest at a town's size
  * without a projection, a tile or a request to anyone. A lead the source placed nowhere is simply not on it.
  */
+/** Past this, leads with no area to anchor them are not one place. Fifty miles: a city and the towns around it. */
+export const LEAD_MAP_MAX_SPAN_M = 80_000;
+
 export function leadMapPlot(rows: { id: string; point: { lat: number; lng: number } | null }[], area: LeadArea | null): LeadMapPlot {
   const placed = rows.filter((r): r is { id: string; point: { lat: number; lng: number } } => !!r.point);
   const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
-  if (!anchor || (!placed.length && !area?.center)) return { pins: [], ring: null, spanM: 0, center: anchor };
+  if (!anchor || (!placed.length && !area?.center)) return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
   const perLng = M_PER_DEG_LAT * Math.cos((anchor.lat * Math.PI) / 180);
   const at = (p: { lat: number; lng: number }) => ({ e: (p.lng - anchor.lng) * perLng, s: (anchor.lat - p.lat) * M_PER_DEG_LAT });
   const metres = placed.map((r) => at(r.point));
@@ -1188,12 +1237,26 @@ export function leadMapPlot(rows: { id: string; point: { lat: number; lng: numbe
     pins: placed.map((r, i) => ({ id: r.id, ...into(metres[i]) })),
     ring: area?.center && area.radius_m ? { ...into(at(area.center)), r: area.radius_m / (half * 2) } : null,
     spanM,
+    tooWide: !area?.center && spanM > LEAD_MAP_MAX_SPAN_M,
     center: anchor,
   };
 }
 
 /** How wide the square is, in the owner's own unit: "3.4 mi across", and nothing when there was nothing to place. */
 export const leadMapAcross = (spanM: number): string => (spanM ? `${milesLabel(spanM)} across` : "");
+
+/**
+ * What the line under the plot says. A city ask has no centre until its probe measures one, so there is often no
+ * area to draw and the picture is only where the leads are -- which is worth saying rather than implying a ring
+ * that is not there.
+ */
+export function leadMapNote(plot: LeadMapPlot, oneSearch: boolean): string {
+  if (plot.tooWide) return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
+  if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
+  return oneSearch
+    ? "Where this search's leads are. It never measured a centre, so there is no area to draw."
+    : "Every lead these searches placed on the ground.";
+}
 
 export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }
 /**
@@ -1378,9 +1441,13 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   const spread: LeadRowVM["spread"] = r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null;
   const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
   const state: LeadRowVM["state"] = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r.stage === "nurture" ? "contacted" : r.stage === "converted" ? "talking" : r.stage === "archived" ? "out" : "ready";
+  // Ready is the silent default and wears nothing; every other state says which one it is. Review said nothing for
+  // its whole life, which left `.ld-state-tag.review` in the stylesheet matching no row ever drawn -- and on a mixed
+  // list a lead that is waiting on something looked exactly like a lead that is ready to call.
   const stateTag = state === "contacted"
     ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` · ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}`
     : state === "talking" ? LEAD_STAGE_WORDS.converted
+    : state === "review" ? LEAD_REVIEW_WORD
     : state === "out" ? (m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason))
     : null;
   const term = search?.plan.terms[0] ?? null;

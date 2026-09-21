@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateTone, stateLabel, stateOf, TONES, PERSON_STATE_LABELS, BROADCAST_STATE_LABELS, ROLE_WORDS, toInboxThreadVM, PLATFORM_VERDICTS } from "@chanlytics/contracts";
+import { stateTone, stateLabel, stateOf, TONES, PERSON_STATE_LABELS, BROADCAST_STATE_LABELS, ROLE_WORDS, toInboxThreadVM, PLATFORM_VERDICTS, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_WORDS, LEAD_EMAIL_WORDS, LEAD_STAGE_WORDS, LEAD_LEFT_OUT_WORD } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -51,6 +51,45 @@ test("the words are the label maps contracts already keeps, and a value nobody w
   assert.equal(stateLabel("thread", "zzz"), "zzz");
   assert.deepEqual(stateOf("setup", "ready"), { tone: "ok", label: "Ready" });
   for (const t of TONES) assert.ok(["accent", "warn", "info", "ok", "danger", "plain"].includes(t));
+});
+
+// Leads registered NONE of its states here for its whole life, so it grew a private colour family in leads.css and
+// that family drifted: a mailbox still being checked shared one grey with a server that accepts every address, a
+// bounce drew fainter than a success, and the accent -- reserved above for what is live right now -- sat on Ready,
+// the state every lead is born in. Registering the five kinds is what lets one rule decide all of it.
+test("a lead's five state families speak the same six tones, and the accent is on none of them", () => {
+  const kinds = ["lead_class", "lead_stage", "lead_fit", "reach", "lead_call_outcome"];
+  const values = {
+    lead_class: ["qualified", "review", "excluded"],
+    lead_stage: ["ready", "nurture", "converted", "archived"],
+    lead_fit: ["strong", "look", "long"],
+    reach: ["none", "checking", "ok", "catch_all", "unknown", "invalid"],
+    lead_call_outcome: [...LEAD_CALL_OUTCOMES],
+  };
+  for (const kind of kinds) {
+    for (const v of values[kind]) {
+      const { tone, label } = stateOf(kind, v);
+      assert.ok(TONES.includes(tone), `${kind}/${v} is "${tone}", which is not one of the six`);
+      assert.notEqual(tone, "accent", `${kind}/${v} wears the accent, which means live right now and nothing else`);
+      assert.ok(label && label !== v, `${kind}/${v} has no words of its own`);
+    }
+  }
+
+  // The silent defaults. A lead is born Ready and most of them are qualified: neither is news.
+  assert.equal(stateTone("lead_stage", "ready"), "plain", "the state every lead starts in draws no attention");
+  assert.equal(stateTone("lead_class", "qualified"), "plain");
+  assert.equal(stateTone("lead_fit", "strong"), "ok", "a strong fit is a good outcome, not an urgent one");
+
+  // The three that were wrong on their own terms, and are the reason this exists.
+  assert.equal(stateTone("reach", "checking"), "info", "a check still running is in progress, not nothing");
+  assert.equal(stateTone("reach", "catch_all"), "warn", "a server that accepts every address is a caveat");
+  assert.equal(stateTone("reach", "invalid"), "danger", "a bounce is the one state that means you cannot reach them");
+
+  // The words come from the maps the rest of the app already reads, never a second set.
+  assert.equal(stateLabel("lead_stage", "nurture"), LEAD_STAGE_WORDS.nurture);
+  assert.equal(stateLabel("reach", "catch_all"), LEAD_EMAIL_WORDS.catch_all);
+  assert.equal(stateLabel("lead_class", "excluded"), LEAD_LEFT_OUT_WORD, "one state, one word: the page kept a second that said Excluded");
+  assert.equal(stateLabel("lead_call_outcome", "wrong_number"), LEAD_CALL_OUTCOME_WORDS.wrong_number);
 });
 
 test("the back office's verdicts speak the same six tones: waiting on an owner is in progress, not live", () => {
