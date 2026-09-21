@@ -117,7 +117,8 @@ test("REGRESSION: a real thread's header names its channel once and keeps Snooze
   const pane = paneOf(vm);
   assert.equal(find(pane, hasClass("ix-context-strip")), undefined);
   const head = headOf(pane);
-  assert.equal(textOf(find(head, hasClass("ix-th-meta"))), "WhatsApp · +1 (646) 555-0123");
+  // The wire, once: the number was the line's other half, and it is on their profile, one tap away in the menu.
+  assert.equal(textOf(find(head, hasClass("ix-th-meta"))), "WhatsApp");
   assert.equal(find(head, hasClass("ix-channel-chip")), undefined, "REGRESSION: a chip said WhatsApp again");
   assert.equal(textOf(head).split("WhatsApp").length - 1, 1, `the channel once: ${textOf(head)}`);
   assert.equal(find(head, (n) => (n.type === "button" || n.type === "a") && /Snooze|Open profile|Call back/.test(textOf(n))), undefined, "REGRESSION: Snooze and Open profile beside the menu");

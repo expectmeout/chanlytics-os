@@ -1762,11 +1762,39 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 .ix-th-status .ix-resolved.danger > .icon { color: var(--danger); }
 .ix-th-status .ix-take { column-gap: 12px; row-gap: 8px; }
 /* The one signal: a thread that needs you has a dot, and its wait turns amber past 30 minutes. */
-.ix-status-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: var(--radius-full); background: var(--accent); }
-.ix-th-status .ix-take-title { font-size: var(--text-base); font-weight: 500; }
-.ix-take-wait { font-weight: 400; color: var(--ink-dim); }
-.ix-take-wait.late { color: var(--warn); }
-.ix-th-status .ix-take-sub { margin-top: 2px; font-size: var(--text-sm); line-height: 1.45; }
+/* ---- The state a real thread is in (IxState): one anatomy for every state ----
+   The row's own pill and a quiet word beside it, what you can do set to the right, and one sentence under them. */
+.ix-state {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "head acts" "says says";
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 6px;
+}
+.ix-state.bare { display: block; }
+.ix-state-head { grid-area: head; display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* The pill names the state, with a dot in its colour: how much it asks of you, said without a word more. */
+.ix-state-head .pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 18px; }
+.ix-state-head .pill::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; vertical-align: 1px; border-radius: 50%; background: currentColor; }
+.ix-state-meta { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+/* As the row's pill does: amber once they have waited past half an hour. */
+.ix-state-meta.late { color: var(--warn-ink); }
+.ix-state-acts { grid-area: acts; display: flex; flex-direction: row-reverse; align-items: center; gap: 4px; }
+.ix-state-says { grid-area: says; font-size: 13px; line-height: 1.5; color: var(--ink-muted); }
+.ix-state-says .ix-take-ask { margin-top: 8px; }
+/* The act that answers the state: a soft fill, not a slab. The screen keeps one solid button, the reply box's Send. */
+.btn.ix-state-go { background: color-mix(in oklab, var(--ink) 9%, transparent); border-color: transparent; color: var(--ink); }
+.btn.ix-state-go:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); border-color: transparent; }
+.btn.ix-state-go .icon { color: currentColor; }
+/* A narrow pane -- a phone, a closed sidebar -- puts the acts under the sentence, the first act first. */
+@container ixpane (max-width: 560px) {
+  .ix-state { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "says" "acts"; }
+  .ix-state-acts { flex-direction: row; justify-content: flex-start; margin-top: 2px; }
+}
+/* The thread's … : a quiet icon, lit only while its menu is open. */
+.btn.ix-th-more { width: 32px; height: 32px; border-radius: 8px; color: var(--ink-dim); }
+.btn.ix-th-more:hover, .btn.ix-th-more[aria-expanded="true"] { background: var(--bg-hover); color: var(--ink); }
 /* What they asked, as words under the reason: it was a boxed quote with a side stripe inside the banner. */
 .ix-th-status .ix-take-ask { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 6px; margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: none; }
 .ix-th-status .ix-take-ask-label { font-size: var(--text-sm); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
