@@ -38,7 +38,7 @@
 /* A second answer that disagrees, under the value, offered as a fill: the other value with its own source's pill, and
    the press that takes it. */
 .rec-row-dispute { flex: 1 1 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 11px; background: var(--bg-sunken); border-radius: var(--radius-md); }
-.rec-row-dispute-other { flex: 1; min-width: 0; display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
+.rec-row-dispute-other { flex: 1 1 14em; min-width: 0; display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
 .rec-row-dispute-value { font-weight: var(--weight-medium); color: var(--ink); overflow-wrap: anywhere; }
 .rec-row-dispute-acts { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 
@@ -107,7 +107,8 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
 .rec-switch[aria-checked="true"] .rec-knob { transform: translateX(12px); }
 
 /* ---------- A choice of a few: a radiogroup drawn as a segmented control ---------- */
-.rec-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); }
+/* Its own width in any container: a column of fields would otherwise stretch it across the fold. */
+.rec-seg { display: inline-flex; width: fit-content; max-width: 100%; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); }
 .rec-seg-btn { height: 26px; padding: 0 12px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
 .rec-seg-btn:hover { color: var(--ink); }
 .rec-seg-btn[aria-checked="true"] { background: var(--bg-raised); box-shadow: var(--shadow-sm); font-weight: var(--weight-medium); color: var(--ink); }

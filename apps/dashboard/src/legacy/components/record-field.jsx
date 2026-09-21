@@ -18,7 +18,16 @@ const { useState: useRfState, useEffect: useRfEffect } = React;
 // the one FieldError (data-bits) with the id rec-<id>-problem, which the box names in aria-describedby as it marks
 // itself aria-invalid; a hint gives way to it. `rows` makes the box a textarea. onChange hands the page the words.
 // Anything else (inputMode, placeholder, maxLength, disabled, onKeyDown, onBlur) goes to the box as it is.
-const RecordField = ({ id, label, value, onChange, unit = null, hint = null, problem = null, rows = null, testid = null, children: _kids, ...rest }) => {
+//
+// The rest is gathered by hand, not with `...rest` in the parameters. The standalone mockup compiles each file with
+// Babel into one shared global scope, and Babel keeps an object rest's excluded keys in a top-level `var _excluded`:
+// the last file compiled wins, so every earlier rest drops the wrong keys (this one put id, label and unit on the
+// <input>, with settings.jsx's SetToggle's list in force).
+const REC_FIELD_OWN = new Set(["id", "label", "value", "onChange", "unit", "hint", "problem", "rows", "testid", "children"]);
+const RecordField = (props) => {
+  const { id, label, value, onChange, unit = null, hint = null, problem = null, rows = null, testid = null } = props;
+  const rest = {};
+  for (const k of Object.keys(props)) if (!REC_FIELD_OWN.has(k)) rest[k] = props[k];
   const problemId = `rec-${id}-problem`;
   const hintId = `rec-${id}-hint`;
   const box = {
