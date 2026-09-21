@@ -1,108 +1,241 @@
 /**
- * The Business tab's view models, as the bridge publishes them.
+ * The Business tab's view models, as the bridge publishes them, and what a fold says the receptionist will be told.
  *
- * The page is untyped JSX that reads everything through `window`, so it has the
- * tab's sentences only if the bridge publishes them, and a fold's footer says what
- * the receptionist will be told only if the bridge composes it with the function
- * the edge runs. Run, never read: the bridge is installed over a bare window and
- * asked, and each answer is held against contracts' own -- by what it says, since
- * the runner loads the bridge's copy of contracts apart from this file's.
+ * The page is untyped JSX that reads everything through `window`, so it has the tab's sentences only if the bridge
+ * publishes them. And a fold's footer is worth drawing only if it is what the edge would tell the receptionist were
+ * the fold saved. So every block expected here is cut from the settings read's own preview (composePromptPreview,
+ * which resolves as whatsapp/inbound.ts and lib/call-start.ts do) of the same brain, with the same inputs, and never
+ * recomputed the way the bridge computes it. Run, never read: the bridge is installed over a bare window and asked,
+ * and its answers are compared by what they say, since the runner loads the bridge's copy of contracts apart from
+ * this file's.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import vm from "node:vm";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
-  promptBlocks, composeSystemPrompt, PROMPT_OPENINGS,
+  standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks,
 } from "@chanlytics/contracts";
 
-globalThis.window = {};
-const { installInboxVerbs } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-installInboxVerbs();
-const tab = globalThis.window.__businessTab;
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+const { composePromptPreview } = await import(at("apps/dashboard/src/server/prompt-preview.ts"));
 
-const brain = { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/en-us/1817434" };
-/** Melany's record, as a fold holds it. */
-const profile = {
-  tone: "Warm and unhurried.",
-  languages: ["English", "Spanish"],
-  address: "2581 Pitkin Ave, Brooklyn, NY 11208",
-  hours: { mon: { open: "09:30", close: "18:00" }, sat: { open: "09:30", close: "19:00" } },
-  services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
-  escalate_when: ["They ask for Melany"],
-  booking_rules: { lead_hours: 2, slot_min: 30, party_max: 4, consult_first: ["Color correction", "Extensions"] },
-  guardrails: { never_quote_prices: true },
-};
+globalThis.window = {};
+const W = globalThis.window;
+const { installBusinessTab, FOLD_BLOCK } = await import(at("apps/dashboard/src/legacy-bridge/business-tab.ts"));
+const { installInboxVerbs } = await import(at("apps/dashboard/src/legacy-bridge/inbox-verbs.ts"));
+installBusinessTab();
+installInboxVerbs();
+const tab = W.__businessTab;
+
 const TZ = "America/New_York";
+const CHANNELS = ["whatsapp", "voice"];
+/** A brain with some of its profile changed, the way a fold's save changes it. */
+const profile = (brain, over) => ({ ...brain, profile: { ...brain.profile, ...over } });
+
+/**
+ * Melany's record as stored: a prompt written before the workspace had fields, not the product's baseline; no
+ * number of its own to give out; its own box empty, so that prompt is carried into it; a closure long past and one
+ * to come.
+ */
+const STORED = {
+  business_name: "Melany's Beauty Salon",
+  booking_link: "https://booksy.com/en-us/1817434",
+  system_prompt: "You are the WhatsApp assistant for Melany's Beauty Salon. Lashes, brows and nails; end with [[HUMAN]] if unsure.",
+  fallbacks: { greeting: "Hi! Someone will be with you shortly.", error: "Sorry, something went wrong on our side.", non_text: "Thanks, a person will look at this." },
+  profile: {
+    tone: "Warm and unhurried.",
+    languages: ["English", "Spanish"],
+    address: "2581 Pitkin Ave, Brooklyn, NY 11208",
+    website: "https://melanysbeautysalon.com",
+    hours: { mon: { open: "09:30", close: "18:00" }, sat: { open: "09:30", close: "19:00" } },
+    closures: [{ date: "2020-01-01", note: "Long gone" }, { date: "2099-12-24", note: "Christmas Eve" }],
+    services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
+    notes: [{ title: "Walk-ins", text: "Walk-ins are welcome." }],
+    escalate_when: ["They ask for Melany"],
+    booking_rules: { lead_hours: 2, party_max: 4, consult_first: ["Color correction"] },
+    guardrails: { never_quote_prices: true },
+    handoff_number: "+16469325775",
+  },
+};
+/** What the platform knows: the voice line it provisioned, and the workspace's zone. */
+const KNOWN = { workspace: { name: "Melany's", timezone: TZ }, channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }], listing: null };
+/** The Autonomy tab holds bookings for a person to confirm. */
+const POLICY = { booking: { mode: "ask" }, faq: { mode: "auto" } };
+const FACTS = { tz: TZ, policy: POLICY, known: KNOWN, openings: null };
+
+/** The settings read's preview of a brain: what `__SETTINGS.prompt` carries. */
+const preview = (brain) => composePromptPreview(brain, FACTS, new Date());
+/** The page's window after the settings read of a stored record. */
+const settle = (stored = STORED) => { W.__SETTINGS = { config: { brain: stored }, prompt: preview(stored) }; };
+/** The block the server's preview of a brain cuts for a row: what the edge would send, were that brain saved. */
+const served = (brain, channel, row) => promptBlocks(preview(brain)[channel], channel, brain).find((b) => b.row === row) ?? null;
+
+/** The real rows whose effect never reaches the cached prompt. */
+const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
     "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "consequenceOf", "promptBlocks", "ruleStrength", "standingLine",
   ]);
-  const stored = { ...brain, profile };
-  assert.deepEqual(tab.standingLine(stored), standingLine(stored));
+  assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
   const inputs = {
     voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true, hasBookingTemplate: true,
     hasHandoffNumber: true, hasEscalateWhen: true, pauseHours: null, visionOn: false, bookingHeld: false,
   };
   assert.deepEqual(tab.abilityRows(inputs), abilityRows(inputs));
   for (const smsLive of [false, true]) assert.deepEqual(tab.cannotRows({ smsLive }), cannotRows({ smsLive }));
-  const policies = [null, { booking: { mode: "auto" } }, { booking: { mode: "ask" } }];
+  const policies = [null, { booking: { mode: "auto" } }, POLICY];
   assert.deepEqual(policies.map((p) => tab.bookingHeld(p)), policies.map((p) => bookingHeld(p)));
-  assert.equal(tab.bookingHeld({ booking: { mode: "ask" } }), true, "a held booking is said to be held");
+  assert.equal(tab.bookingHeld(POLICY), true, "a held booking is said to be held");
   const starter = { name: "booking_link", language: "en_US", meta_status: "approved", variables: [{ position: 1 }, { position: 2 }, { position: 3 }] };
   assert.equal(tab.bookingTemplate([starter]), bookingTemplate([starter]));
   assert.equal(tab.bookingTemplate([starter]), starter, "the approved starter is the one a call sends the link with");
   assert.deepEqual(tab.GUARDRAIL_KEYS, GUARDRAIL_KEYS);
   for (const key of GUARDRAIL_KEYS) assert.deepEqual(tab.ruleStrength(key), ruleStrength(key), key);
-  const text = composeSystemPrompt(brain, profile, "whatsapp", TZ);
-  assert.deepEqual(tab.promptBlocks(text, "whatsapp", { profile }), promptBlocks(text, "whatsapp", { profile }));
+  const text = preview(STORED).whatsapp;
+  assert.deepEqual(tab.promptBlocks(text, "whatsapp", STORED), promptBlocks(text, "whatsapp", STORED));
 });
 
-test("a fold shows the block the composer writes for it, from the draft it holds", () => {
-  const block = tab.consequenceOf("booking_rules", { brain, profile });
-  const composed = composeSystemPrompt(brain, profile, "whatsapp", null);
-  assert.deepEqual(block, promptBlocks(composed, "whatsapp", { profile }).find((b) => b.row === "booking_rules"), "the block contracts cuts from the composer's prompt, whole");
-  assert.ok(block.text.startsWith(PROMPT_OPENINGS.bookingRules), block.text);
-  assert.ok(composed.includes(block.text), "in the composer's own words, never the page's");
-  assert.match(block.text, /^- At least 2 hours' notice for any appointment\.$/m, "a typed 2 is the notice it states");
-
-  // The page passes the stored brain, which carries its own profile and prompt. Neither is read: the block follows the fold.
-  const saved = { ...brain, system_prompt: "You are the WhatsApp assistant for Melany's Beauty Salon. Always end with [[HUMAN]] if unsure.", profile };
-  const retyped = tab.consequenceOf("booking_rules", { brain: saved, profile: { ...profile, booking_rules: { lead_hours: 0 } } });
-  assert.match(retyped.text, /^- Same-day bookings are fine, right up to the time\.$/m);
-  assert.doesNotMatch(retyped.text, /notice|consultation|per booking|HUMAN/);
+test("the live card reads the server's composition word for word, and nothing without one (inbox-verbs.ts)", () => {
+  settle();
+  for (const channel of CHANNELS) {
+    assert.deepEqual(W.__composedPrompt(channel), { text: W.__SETTINGS.prompt[channel], now: W.__SETTINGS.prompt.now, tz: TZ }, channel);
+  }
+  W.__SETTINGS = { config: { brain: STORED }, prompt: null };
+  assert.equal(W.__composedPrompt("whatsapp"), null, "no receptionist to compose for");
 });
 
-test("folds that share a block find the same one, and the channel and the zone reach the composer", () => {
-  const draft = { brain, profile };
-  const who = tab.consequenceOf("tone", draft);
-  assert.equal(who.row, "identity");
-  assert.match(who.text, /^Tone: Warm and unhurried\.$/m, "the voice is a line of Who you are");
-  assert.deepEqual(tab.consequenceOf("languages", draft), who, "and so are the languages: one block, whichever fold asks");
-
-  const chat = tab.consequenceOf("escalate_when", draft);
-  const call = tab.consequenceOf("escalate_when", draft, "voice");
-  assert.ok(chat.text.startsWith(PROMPT_OPENINGS.handoffChat), chat.text);
-  assert.ok(call.text.startsWith(PROMPT_OPENINGS.handoffCall), call.text);
-  for (const block of [chat, call]) assert.match(block.text, /^- They ask for Melany$/m, "the owner's reason, under the hand-off on either channel");
-
-  assert.match(tab.consequenceOf("hours", draft, "whatsapp", TZ).text, /^Opening hours \(all times America\/New_York\):$/m);
-  assert.doesNotMatch(tab.consequenceOf("hours", draft).text, /all times/, "and with no zone given, none is claimed");
+test("for the record as stored, every fold shows the block the server's preview cuts for it, on both channels", () => {
+  settle();
+  assert.deepEqual(W.__SETTINGS.prompt.inputs, { policy: POLICY, known: KNOWN }, "the preview carries what it was resolved with");
+  for (const channel of CHANNELS) {
+    const cut = promptBlocks(W.__SETTINGS.prompt[channel], channel, STORED);
+    for (const [section, row] of Object.entries(FOLD_BLOCK)) {
+      const block = tab.consequenceOf(section, STORED, channel);
+      assert.deepEqual(block, row ? cut.find((b) => b.row === row) ?? null : null, `${section} on ${channel}`);
+      if (row) assert.ok(block, `${section} on ${channel}: this record writes a ${row} block`);
+    }
+  }
+  // What composing the draft left out, and the edge sends.
+  assert.match(tab.consequenceOf("tone", STORED, "whatsapp").text, /^Phone: \+1 \(308\) 336-8109$/m, "the number it gives out is the line the platform provisioned");
+  assert.match(tab.consequenceOf("guardrails", STORED, "whatsapp").text, /^- Booking: when someone wants to book, reschedule or cancel, do not send the booking link\./m, "the Autonomy tab's rule");
+  assert.match(tab.consequenceOf("hours", STORED, "voice").text, /^Opening hours \(all times America\/New_York\):$/m, "the zone the hours are in");
+  const closures = tab.consequenceOf("closures", STORED, "whatsapp").text;
+  assert.match(closures, /Christmas Eve/);
+  assert.doesNotMatch(closures, /Long gone/, "a closure that has passed is not said");
+  const carried = tab.consequenceOf("extra_instructions", STORED, "whatsapp");
+  assert.ok(carried.text.endsWith(STORED.system_prompt), "an empty box holds the stored prompt the resolver carries in");
+  assert.match(carried.note, /before it had fields/);
 });
 
-test("a fold the prompt never reads, or one the composer writes nothing for, draws no block", () => {
-  const draft = { brain, profile };
-  assert.equal(tab.consequenceOf("fallbacks", draft), null, "sent when the model cannot be reached, never part of the prompt");
-  assert.equal(tab.consequenceOf("not_a_fold", draft), null);
-  assert.equal(tab.consequenceOf("notes", draft), null, "no notes, no block");
-  assert.equal(tab.consequenceOf("booking_rules", { brain, profile: { ...profile, booking_rules: {} } }), null, "a rule with no lines");
-  assert.equal(tab.consequenceOf("services", { brain, profile: { ...profile, services: [] } }), null, "an empty list");
-  assert.equal(tab.consequenceOf("extra_instructions", draft), null, "no words of the owner's, so none are shown as theirs");
+/** A change only that fold makes, the line its block then holds, and the channel it is read on. */
+const EDITS = [
+  ["business_name", "identity", (b) => ({ ...b, business_name: "Melany's Salon & Spa" }), "You are the assistant for Melany's Salon & Spa, answering customers over WhatsApp."],
+  ["address", "identity", (b) => profile(b, { address: "10 Pier St, Brooklyn, NY 11201" }), "Address: 10 Pier St, Brooklyn, NY 11201"],
+  ["website", "identity", (b) => profile(b, { website: "https://melanys.example" }), "Website: https://melanys.example"],
+  ["booking_link", "identity", (b) => ({ ...b, booking_link: "https://book.example/melany" }), "Booking link: https://book.example/melany"],
+  ["phone_display", "identity", (b) => ({ ...b, phone_display: "+1 (646) 555-0100" }), "Phone: +1 (646) 555-0100"],
+  ["tone", "identity", (b) => profile(b, { tone: "Brisk and exact." }), "Tone: Brisk and exact."],
+  ["languages", "identity", (b) => profile(b, { languages: ["English", "French"] }), "You speak: English, French. Answer in whichever of these the caller uses", "voice"],
+  ["hours", "hours", (b) => profile(b, { hours: { mon: { open: "08:00", close: "12:00" } } }), "- Monday: 08:00–12:00"],
+  ["closures", "closures", (b) => profile(b, { closures: [{ date: "2099-07-04", note: "Independence Day" }] }), "Independence Day"],
+  ["services", "services", (b) => profile(b, { services: [{ name: "Keratin", duration_min: 120 }] }), "- Keratin — about 120 minutes"],
+  ["booking_rules", "booking_rules", (b) => profile(b, { booking_rules: { lead_hours: 0 } }), "- Same-day bookings are fine, right up to the time."],
+  ["consult_first", "booking_rules", (b) => profile(b, { booking_rules: { ...b.profile.booking_rules, consult_first: ["Perms"] } }), "- These need a consultation before they can be booked: Perms."],
+  ["notes", "notes", (b) => profile(b, { notes: [{ title: "Parking", text: "Free after 6." }] }), "- Parking: Free after 6."],
+  ["escalate_when", "handoff", (b) => profile(b, { escalate_when: ["They want a refund"] }), "- They want a refund"],
+  ["handoff_number", "handoff", (b) => profile(b, { handoff_number: undefined }), "There is no line to transfer to.", "voice"],
+  ["guardrails", "guardrails", (b) => profile(b, { guardrails: { never_quote_prices: true, no_health_advice: true } }), "- Never give medical or health advice"],
+  ["extra_instructions", "extra_instructions", (b) => profile(b, { extra_instructions: "Never discuss competitors." }), "Never discuss competitors."],
+];
 
-  // Each has its block the moment the fold holds something to say.
-  const notes = tab.consequenceOf("notes", { brain, profile: { ...profile, notes: [{ title: "Walk-ins", text: "Walk-ins are welcome." }] } });
-  assert.ok(notes.text.startsWith(PROMPT_OPENINGS.notes), notes.text);
-  const own = tab.consequenceOf("extra_instructions", { brain, profile: { ...profile, extra_instructions: "Never discuss competitors." } });
-  assert.equal(own.row, "extra_instructions");
-  assert.ok(own.text.endsWith("\nNever discuss competitors."), "the owner's words, found as theirs");
+test("each fold's draft lands in the block it maps to, as the server would compose that draft", () => {
+  assert.deepEqual(Object.keys(FOLD_BLOCK).sort(), [...EDITS.map((e) => e[0]), ...NOWHERE].sort(), "every fold and row the page has is here, once");
+  settle();
+  for (const [section, row, edit, holds, channel = "whatsapp"] of EDITS) {
+    const draft = edit(STORED);
+    const block = tab.consequenceOf(section, draft, channel);
+    assert.equal(block?.row, row, `${section} writes the ${row} block`);
+    assert.deepEqual(block, served(draft, channel, row), `${section}: what the server would compose from the draft`);
+    assert.ok(block.text.includes(holds), `${section}: ${block.text}`);
+    assert.notDeepEqual(block, tab.consequenceOf(section, STORED, channel), `${section}: the draft moved it`);
+  }
+  // The transfer number is a call's: the chat hand-off is the same block with it or without it.
+  assert.deepEqual(tab.consequenceOf("handoff_number", profile(STORED, { handoff_number: undefined }), "whatsapp"), tab.consequenceOf("handoff_number", STORED, "whatsapp"));
+});
+
+test("a record that composes nothing is answered with its stored prompt: no rules, notice or hand-off block, and the prompt as it stands", () => {
+  // What a save that writes only the switches leaves: nothing the resolver composes from (hasProfile).
+  const RULES_ONLY = {
+    ...STORED,
+    system_prompt: "Answer as the front desk of Northside Studio: brief, warm, and never a price.",
+    profile: { guardrails: { no_health_advice: true }, booking_rules: { lead_hours: 2 }, handoff_number: "+16469325775" },
+  };
+  settle(RULES_ONLY);
+  for (const channel of CHANNELS) {
+    for (const section of ["guardrails", "booking_rules", "consult_first", "escalate_when", "handoff_number", "tone", "hours"]) {
+      assert.equal(tab.consequenceOf(section, RULES_ONLY, channel), null, `${section} on ${channel}: the edge sends none of it`);
+    }
+    const own = tab.consequenceOf("extra_instructions", RULES_ONLY, channel);
+    assert.deepEqual(own, served(RULES_ONLY, channel, "extra_instructions"), channel);
+    assert.equal(own.text, RULES_ONLY.system_prompt, "its own prompt, as it stands");
+  }
+});
+
+test("an owner who clears their box is shown the stored prompt the resolver carries into it", () => {
+  const OWN = profile(STORED, { extra_instructions: "Never discuss competitors." });
+  settle(OWN);
+  for (const cleared of [profile(OWN, { extra_instructions: "" }), profile(OWN, { extra_instructions: undefined })]) {
+    for (const channel of CHANNELS) {
+      const block = tab.consequenceOf("extra_instructions", cleared, channel);
+      assert.deepEqual(block, served(cleared, channel, "extra_instructions"), channel);
+      assert.ok(block.text.endsWith(STORED.system_prompt), block.text);
+      assert.doesNotMatch(block.text, /competitors/, "their old words are gone with the box");
+      assert.match(block.note, /before it had fields/);
+    }
+  }
+});
+
+test("no block where nothing true can be shown", () => {
+  settle();
+  for (const section of NOWHERE) {
+    for (const channel of CHANNELS) assert.equal(tab.consequenceOf(section, STORED, channel), null, `${section} never reaches the prompt`);
+  }
+  // Only a brain that parses is saved, so only one is ever told to the receptionist.
+  assert.equal(tab.consequenceOf("booking_rules", profile(STORED, { booking_rules: { lead_hours: "" } }), "whatsapp"), null, "a notice box left empty is not a notice of ' hours'");
+  assert.equal(tab.consequenceOf("tone", { ...STORED, system_prompt: undefined }, "whatsapp"), null, "a brain the edge would refuse");
+  assert.equal(tab.consequenceOf("tone", undefined, "whatsapp"), null, "no brain at all");
+  // An empty list composes nothing.
+  assert.equal(tab.consequenceOf("notes", profile(STORED, { notes: [] }), "whatsapp"), null);
+  assert.equal(tab.consequenceOf("services", profile(STORED, { services: [] }), "whatsapp"), null);
+  // No preview is no inputs: a prompt resolved without its rules is a wrong prompt, not a partial one.
+  W.__SETTINGS = { config: { brain: STORED }, prompt: null };
+  assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null);
+  delete W.__SETTINGS;
+  assert.equal(tab.consequenceOf("tone", STORED, "whatsapp"), null);
+});
+
+test("a fold it does not know, or a channel that is not one, is refused by name", () => {
+  settle();
+  assert.throws(() => tab.consequenceOf("not_a_fold", STORED, "whatsapp"), { name: "TypeError", message: /"not_a_fold"/ });
+  assert.throws(() => tab.consequenceOf("toString", STORED, "whatsapp"), { name: "TypeError", message: /"toString"/ }, "a name every object has is not a fold");
+  assert.throws(() => tab.consequenceOf("tone", STORED, "sms"), { name: "TypeError", message: /"sms"/ });
+  assert.throws(() => tab.consequenceOf("tone", STORED), { name: "TypeError", message: /not undefined/ }, "the channel is never assumed");
+});
+
+test("the mockup's bundle publishes the same helpers and never bundles the bridge's api (serve-legacy.mjs)", async () => {
+  const { businessTabBundle } = await import("../serve-legacy.mjs");
+  const js = await businessTabBundle();
+  assert.ok(!js.includes("legacy-bridge/api.ts"), "a browser bundle with no session behind it");
+  const win = {};
+  // URL as every browser has it: the brain's links are checked with it before a draft is resolved.
+  vm.runInNewContext(js, { window: win, console, Date, Intl, URL });
+  assert.deepEqual(Object.keys(win.__businessTab).sort(), Object.keys(tab).sort(), "installed at load");
+  assert.equal(win.__businessTab.consequenceOf("guardrails", STORED, "voice"), null, "with no settings read behind it, no fold is told anything");
+  win.__SETTINGS = { prompt: preview(STORED) };
+  const plain = (x) => JSON.parse(JSON.stringify(x));
+  assert.deepEqual(plain(win.__businessTab.consequenceOf("guardrails", STORED, "voice")), plain(served(STORED, "voice", "guardrails")));
 });

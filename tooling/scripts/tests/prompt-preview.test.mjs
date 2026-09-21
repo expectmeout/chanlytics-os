@@ -104,8 +104,8 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
   }
 });
 
-test("the browser only reads what the server composed: no composer runs in the page", () => {
-  assert.ok(!verbs.includes("resolveSystemPrompt(") && !verbs.includes("describeNow("), "the bridge no longer composes a prompt of its own, which is how it drifted");
+test("the card reads only what the server composed", () => {
+  // That the card's text is the server's, word for word, is executed in business-tab-bridge.test.mjs.
   assert.ok(verbs.includes("return { text: prompt[channel], now: prompt.now, tz: prompt.tz };"));
 });
 

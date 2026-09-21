@@ -12,8 +12,8 @@
  *
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
- * Two files are built rather than read: `data/reports-sample.js` and `data/today-sample.js`, the demo's Reports and
- * Today (see SAMPLES below).
+ * Three files are built rather than read: `data/reports-sample.js` and `data/today-sample.js`, the demo's Reports and
+ * Today, and `data/business-tab.js`, the Business tab's helpers (see SAMPLES below).
  *
  *   node tooling/scripts/serve-legacy.mjs [port] [dir]
  */
@@ -53,6 +53,9 @@ const CONTRACTS = path.join(REPO, "packages/contracts/dist/index.js");
 const SAMPLES = {
   "/data/reports-sample.js": { entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/reports-sample.ts"), globalName: "__RS", footer: "window.__reportsSample = __RS.reportsSample;" },
   "/data/today-sample.js": { entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/today-sample.ts"), globalName: "__TS", footer: "window.__todaySample = __TS.todaySample; __TS.installTodaySample(window);" },
+  // Not a sample: the object the app publishes as window.__businessTab (legacy-bridge/business-tab.ts). With no
+  // settings read behind the mockup, a fold is told nothing.
+  "/data/business-tab.js": { entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/business-tab.ts"), globalName: "__BT", footer: "__BT.installBusinessTab();" },
 };
 const built = new Map();
 
@@ -80,6 +83,7 @@ async function sampleBundle(route) {
 
 export const reportsSampleBundle = () => sampleBundle("/data/reports-sample.js");
 export const todaySampleBundle = () => sampleBundle("/data/today-sample.js");
+export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 
 const send = (res, status, type, body) => {
   res.writeHead(status, { "content-type": type, "cache-control": "no-store, must-revalidate" });

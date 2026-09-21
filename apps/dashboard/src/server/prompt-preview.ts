@@ -38,6 +38,14 @@ export interface PromptPreviewDto {
   /** The uncached block, rebuilt for every message: the clock in the business's zone with its closures, then the openings from the calendar. */
   now: string;
   tz: string | null;
+  /**
+   * What the two texts were resolved with besides the brain and the zone: the
+   * Autonomy rows and what the platform knows. The Business tab resolves a
+   * fold's unsaved draft with them (legacy-bridge/business-tab.ts), so what a
+   * fold says the receptionist will be told has the rules and the provisioned
+   * number the edge would give it.
+   */
+  inputs: { policy: Record<string, { mode: string }>; known: KnownFacts };
 }
 
 export interface PromptFacts {
@@ -57,6 +65,7 @@ export function composePromptPreview(brain: BrainConfig, facts: PromptFacts, now
     voice: resolveSystemPrompt(brain, "voice", facts.tz, now, facts.policy, facts.known),
     now: `${clock}${facts.openings ? `\n\n${facts.openings}` : ""}`,
     tz: facts.tz,
+    inputs: { policy: facts.policy, known: facts.known },
   };
 }
 
