@@ -140,9 +140,9 @@ async function listening(fn) {
 
 /* ---------------------------------------------------- what the agent says */
 
-const CANNOT_SEND = "I could not send the text just now. Let the caller know they can book online, and offer to have someone follow up.";
+const CANNOT_SEND = "I could not send the WhatsApp message just now. Let the caller know they can book online, and offer to have someone follow up.";
 const READ_IT_BACK = "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call.";
-const CALLERS_OWN = "I can only text the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.";
+const CALLERS_OWN = "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.";
 const SENT = "Booking link sent to their WhatsApp. Confirm they should see it momentarily.";
 /** The line this workspace's receptionist answers on, as the resolver publishes it. */
 const PUBLISHED = "+1 (305) 555-0100";
@@ -350,7 +350,7 @@ test("before a workspace is known: a number that is no phone is read back before
 
 /* ------------------------------------------------------------ the gate */
 
-test("a paused workspace is refused at the gate, on the runtime's word: the caller hears texting is paused, the wire is never reached, and the only thing written is the refusal itself -- and once billing resumes, the stamp moves and the next ask is sent", async () => {
+test("a paused workspace is refused at the gate, on the runtime's word: the caller hears WhatsApp messages are paused, the wire is never reached, and the only thing written is the refusal itself -- and once billing resumes, the stamp moves and the next ask is sent", async () => {
   const w = world({ status: "paused" });
   const caller = w.number();
   w.person(caller);
@@ -479,14 +479,14 @@ test("every number a caller is told is the one the resolver publishes: with none
       await listening(async (log) => {
         graphReply = null;
         assert.equal(await spoken(await knock(w.ask(held))), published
-          ? `I cannot send texts automatically for this business right now. Tell the caller they can book online, or reach the team on ${published}.`
-          : "I cannot send texts automatically for this business right now. Tell the caller they can book online, and take their name.", `a hold: ${why}`);
+          ? `I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, or reach the team on ${published}.`
+          : "I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, and take their name.", `a hold: ${why}`);
 
         graphReply = (u) => (u.startsWith(GRAPH) ? json(400, UNDELIVERABLE) : json(404, {}));
         const ask = w.ask(failing);
         assert.equal(await spoken(await knock(ask)), published
-          ? `The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${published}.`
-          : "The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.", `a failed delivery: ${why}`);
+          ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${published}.`
+          : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.", `a failed delivery: ${why}`);
         graphReply = null;
 
         // The attempt is on the record: a failed row in the caller's thread, and the event that says why.
@@ -616,7 +616,7 @@ test("the wire has the last word: a workspace paused after its runtime was kept,
   });
 });
 
-test("a repository call that throws is not a 500: the caller is told the text could not be sent, it is said, and nothing leaves", async () => {
+test("a repository call that throws is not a 500: the caller is told the WhatsApp message could not be sent, it is said, and nothing leaves", async () => {
   const w = world();
   const caller = w.number();
   w.person(caller);
@@ -703,7 +703,7 @@ test("a workspace with no approved booking template is told so, in the cause a b
     const caller = w.number();
     w.person(caller);
     const said = await listening(async () => spoken(await knock(w.ask(caller))));
-    assert.match(said, /has not set up its booking-link text/i, why);
+    assert.match(said, /has not set up its booking-link WhatsApp message/i, why);
     assert.match(said, /take their name/i, "and the agent is told what to do instead");
     assert.deepEqual(w.left().graph, [], `nothing reached Meta: ${why}`);
   }

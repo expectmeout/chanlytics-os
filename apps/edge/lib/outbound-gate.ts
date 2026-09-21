@@ -137,37 +137,44 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
  * Spoken aloud to a caller who is waiting, so each one names an alternative
  * rather than describing our internal state. The caller must never hear "policy
  * hold" or learn that a colleague is mid-thread with them elsewhere.
+ *
+ * The send being refused is the booking link, which goes by WhatsApp and
+ * nothing else (retell-fn.ts), so these call it a WhatsApp message and never
+ * a text.
  */
 export function refusalScript(refusal: OutboundRefusal, phoneDisplay: string | null | undefined): string {
   switch (refusal) {
     case "opted_out":
-      return "That number has asked us to stop sending messages, so I cannot text them. Offer to book them on the call instead.";
+      return "That number has asked us to stop sending messages, so I cannot send them a WhatsApp message. Offer to book them on the call instead.";
     // Reachable only when a caller asks us to text a THIRD party — the person on
     // the line is answering us, so their own send is never proactive. Spoken to
     // the caller, so it says what to do and never that we hold a record on
     // somebody else.
     case "not_opted_in":
-      return "I can only text the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.";
+      return "I can only send WhatsApp messages to the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.";
     case "no_marketing_consent":
-      return "I cannot send that as a text, because it is a promotional message and that number has not asked for those. Offer to book them on the call instead.";
+      return "I cannot send that on WhatsApp, because it is a promotional message and that number has not asked for those. Offer to book them on the call instead.";
+    // The texting line's own refusal: the door returns it on channel "sms" only
+    // (core deliver), so the WhatsApp booking link never meets it, and "text" here
+    // means the texting line.
     case "sms_carries_no_promotions":
       return "I cannot send that as a text: this business sends offers on WhatsApp only, never by text message. Offer to book them on the call instead.";
     case "paused":
-      return "Texting is paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.";
+      return "WhatsApp messages are paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.";
     case "human_has_it":
-      return "Someone from the team is already messaging that number, so I will not text over them. Tell the caller a person is on it and will follow up there.";
+      return "Someone from the team is already messaging that number, so I will not send a WhatsApp message over them. Tell the caller a person is on it and will follow up there.";
     case "policy_hold":
       // The published number is optional now (it defaults to the line), so a
       // workspace can genuinely have none. Reading "reach the team on
       // undefined" to a caller is worse than not offering a number at all.
       return phoneDisplay
-        ? `I cannot send texts automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.`
-        : "I cannot send texts automatically for this business right now. Tell the caller they can book online, and take their name.";
+        ? `I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.`
+        : "I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, and take their name.";
     // The same sentence the prompt already gives a workspace on this setting
     // (contracts policyRules, voice): a person confirms, so take their name.
     case "booking_needs_a_person":
       return "This business confirms bookings itself, so I cannot send the booking link. Tell the caller a member of the team will call or text them to confirm, and take their name.";
     case "daily_cap":
-      return "I have already texted that number several times today, so I will not send another. Tell the caller to check their WhatsApp for the earlier message.";
+      return "I have already sent that number several WhatsApp messages today, so I will not send another. Tell the caller to check their WhatsApp for the earlier message.";
   }
 }
