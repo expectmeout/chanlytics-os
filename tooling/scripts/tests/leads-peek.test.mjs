@@ -601,6 +601,47 @@ test("the peek shows who they are: the photo, their own words, where, open today
   for (const id of ["peek-photo", "peek-about", "peek-today", "peek-claimed", "peek-facebook", "peek-maps"]) assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
 });
 
+// D7: the week and what the listing said fold like everything else. Both were computed for the peek and read only
+// by the EXPANDED PHOTO, so learning what time a shop opens meant opening a lightbox over a photograph.
+test("the peek's last two folds: the week behind one line, and what the listing said behind another", () => {
+  const days = [
+    { day: "Sunday", hours: "Closed" },
+    { day: "Monday", hours: "11 AM to 10 PM" },
+    { day: "Tuesday", hours: "11 AM to 10 PM" },
+    { day: "Wednesday", hours: "11 AM to 10 PM" },
+    { day: "Thursday", hours: "11 AM to 10 PM" },
+    { day: "Friday", hours: "11 AM to 11 PM" },
+    { day: "Saturday", hours: "11 AM to 11 PM" },
+  ];
+  reset();
+  const tree = page({ vm: vmOf({ hours: days, price: "$$", rank: 3, claimed: false, maps_url: "https://maps.example/?cid=1" }) }).draw().tree;
+
+  const week = byTestId(tree, "peek-week");
+  assert.ok(week, "the week is in the peek, not only behind the photograph");
+  assert.equal(week.props.open, undefined, "folded, like the checks and the trace");
+  assert.equal(textOf(byTestId(tree, "peek-week-summary")), "Open 6 days · 11 AM to 10 PM most days", "one line says the shape of the week");
+  assert.equal(all(week, (n) => n.props?.["data-testid"] === "peek-day").length, 7, "all seven rows are behind it, closed days included");
+
+  const facts = byTestId(tree, "peek-facts");
+  assert.ok(facts, "and what the listing said");
+  assert.equal(facts.props.open, undefined);
+  assert.match(textOf(byTestId(tree, "peek-facts-summary")), /^From the listing — /, "the head names the facts rather than listing them");
+  assert.ok(all(facts, (n) => n.props?.["data-testid"] === "peek-fact").length >= 3);
+
+  // Every fold is the same shape, including the one that never was: the other addresses had a bare summary with no
+  // box and no chevron, so it read as a different kind of thing sitting among them.
+  for (const id of ["peek-checks", "peek-found", "peek-week", "peek-facts"]) {
+    const d = byTestId(tree, id);
+    assert.match(d.props.className, /\bpk-box\b/, `${id} is the shared shape`);
+    assert.ok(find(d, (n) => n.props?.className === "pk-box-line"), `${id} lays out in the span, not the summary`);
+  }
+
+  // A listing that published no hours claims none, and the fold is not drawn at all.
+  reset();
+  const bare = page({ vm: vmOf({ hours: [] }) }).draw().tree;
+  assert.equal(byTestId(bare, "peek-week"), null, "no hours, no fold");
+});
+
 // D6: who the company IS comes before which shop this is, so the mark covers the photograph here exactly as it does
 // on the row's tile -- the photograph is what Expand is for. The two are stacked rather than chosen: the layers are
 // both in the band, in paint order, and a mark that fails to load hides its own layer and uncovers the photo. No

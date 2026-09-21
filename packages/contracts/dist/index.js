@@ -1623,6 +1623,17 @@ function mediaVM(m) {
     available: m.media.fetch_state === "stored"
   };
 }
+var QUOTE_BLOCK = /^[ \t]*(?:(?:-{2,}[ \t]*Original Message[ \t]*-{2,})|(?:_{5,})|(?:>[ \t]?))/m;
+var QUOTE_ATTRIBUTION = /\bOn\b[\s\S]{0,240}?\bwrote:[ \t]*(?=\r?\n|>)/;
+function splitQuotedReply(body) {
+  const cuts = [QUOTE_ATTRIBUTION.exec(body), QUOTE_BLOCK.exec(body)].filter((m) => m !== null).map((m) => m.index);
+  if (cuts.length === 0) return { text: body, quoted: null };
+  const cut = Math.min(...cuts);
+  const text = body.slice(0, cut).trim();
+  const quoted = body.slice(cut).trim();
+  if (!text || !quoted) return { text: body, quoted: null };
+  return { text, quoted };
+}
 function messageText(m) {
   if (m.type === "call_summary" && m.body) {
     return m.body.replace(CALL_NOTE_PREFIX, "").trim();
@@ -1717,6 +1728,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
+    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
     return {
       type: "msg",
       from: m.sender === "customer" ? "client" : "agent",
@@ -1725,7 +1737,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       ...subject ? { subject } : {},
       ...leftOut ? { leftOut } : {},
       at: bubbleTime(messageAt(m), tz, now),
-      body: messageText(m),
+      body: said ? said.text : messageText(m),
+      ...said && said.quoted ? { quoted: said.quoted } : {},
       ...media ? { media } : {},
       ...why ? { why } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
@@ -6834,6 +6847,34 @@ function resolveParams(specs, f) {
 function exampleParams(specs, businessName) {
   return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
 }
+var NOTHING = { playbooks: [], broadcasts: 0, booking: false };
+function templateUsage(src) {
+  const out = {};
+  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, booking: false };
+  for (const p of src.playbooks) {
+    if (!p.template_name) continue;
+    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused" });
+  }
+  for (const b of src.broadcasts) {
+    if (!b.template_name || b.playbook_id) continue;
+    at2(b.template_name).broadcasts += 1;
+  }
+  if (src.bookingName) at2(src.bookingName).booking = true;
+  return out;
+}
+function templateUseWords(use) {
+  const u = use ?? NOTHING;
+  const parts2 = [];
+  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
+  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  if (u.booking) parts2.push("the Inbox");
+  if (parts2.length === 0) return "Nothing sends it";
+  return parts2.length < 2 ? parts2[0] : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function templateUnused(use) {
+  const u = use ?? NOTHING;
+  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}
 
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
@@ -11486,6 +11527,26 @@ function leadTodayLine(hours, tz, now) {
   if (!h) return null;
   return /^closed/i.test(h.hours) ? "Closed today" : `Open today \xB7 ${h.hours}`;
 }
+function leadWeekSummary(week) {
+  const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
+  if (!open.length) return "";
+  const tally2 = /* @__PURE__ */ new Map();
+  for (const d of open) tally2.set(d.hours, (tally2.get(d.hours) ?? 0) + 1);
+  let best = "";
+  let most = 0;
+  for (const [hours, n] of tally2) if (n > most) {
+    best = hours;
+    most = n;
+  }
+  const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
+  if (most === open.length) return `${days} \xB7 ${best}`;
+  if (most * 2 >= open.length) return `${days} \xB7 ${best} most days`;
+  return days;
+}
+function leadFactsSummary(facts) {
+  if (!facts.length) return "";
+  return `${LEAD_WORDS.fromListing} \u2014 ${facts.map((f) => f.k.toLowerCase()).join(", ")}`;
+}
 var CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 var hourOf = (h, m, ap) => Number(h) % 12 + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
 function leadWeekBars(hours, tz, now) {
@@ -11566,6 +11627,7 @@ function toLeadPeekVM(r, search, tz, now) {
     ...unsure ? [`${unsure} couldn't tell`] : [],
     ...failed ? [`${failed} failed`] : []
   ].join(" \xB7 ");
+  const week = leadWeekBars(r.hours ?? [], tz, now);
   const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US"), low: leadLowShare(r.reviews_dist ?? null) };
   const foundWays = 3;
   const facts = [
@@ -11583,8 +11645,10 @@ function toLeadPeekVM(r, search, tz, now) {
     tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null, logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
-    week: leadWeekBars(r.hours ?? [], tz, now),
+    week,
+    weekSummary: leadWeekSummary(week),
     facts,
+    factsSummary: leadFactsSummary(facts),
     checksSummary,
     checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),
@@ -11752,10 +11816,11 @@ function leadReviewGroups(rows, search) {
   return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
 }
 var M_PER_DEG_LAT = 111320;
+var LEAD_MAP_MAX_SPAN_M = 8e4;
 function leadMapPlot(rows, area) {
   const placed = rows.filter((r) => !!r.point);
   const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
-  if (!anchor || !placed.length && !area?.center) return { pins: [], ring: null, spanM: 0, center: anchor };
+  if (!anchor || !placed.length && !area?.center) return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
   const perLng = M_PER_DEG_LAT * Math.cos(anchor.lat * Math.PI / 180);
   const at2 = (p) => ({ e: (p.lng - anchor.lng) * perLng, s: (anchor.lat - p.lat) * M_PER_DEG_LAT });
   const metres = placed.map((r) => at2(r.point));
@@ -11771,10 +11836,16 @@ function leadMapPlot(rows, area) {
     pins: placed.map((r, i) => ({ id: r.id, ...into(metres[i]) })),
     ring: area?.center && area.radius_m ? { ...into(at2(area.center)), r: area.radius_m / (half * 2) } : null,
     spanM,
+    tooWide: !area?.center && spanM > LEAD_MAP_MAX_SPAN_M,
     center: anchor
   };
 }
 var leadMapAcross = (spanM) => spanM ? `${milesLabel(spanM)} across` : "";
+function leadMapNote(plot, oneSearch) {
+  if (plot.tooWide) return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
+  if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
+  return oneSearch ? "Where this search's leads are. It never measured a centre, so there is no area to draw." : "Every lead these searches placed on the ground.";
+}
 var LEAD_SLOT_WORDS = { ok: "Checked", part: "Unconfirmed", none: "Nothing found", bad: "Bad", checking: "Still checking" };
 function leadSlots(r) {
   const phone = !r.phone ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false } : r.phone_wrong ? { state: "bad", value: r.phone, word: LEAD_SLOT_WORDS.bad, tip: `${r.phone} \u2014 you marked this number wrong`, copy: false } : r.phone_agrees ? { state: "ok", value: r.phone, word: LEAD_SLOT_WORDS.ok, tip: `${r.phone} \u2014 the same number on Google Maps and on their website`, copy: true } : { state: "part", value: r.phone, word: LEAD_SLOT_WORDS.part, tip: `${r.phone} \u2014 one source, their Google Maps listing`, copy: true };
@@ -12424,6 +12495,7 @@ export {
   LEAD_LOCKED_LINE,
   LEAD_LOW_SHARE_FLOOR,
   LEAD_MAILBOX_WORDS,
+  LEAD_MAP_MAX_SPAN_M,
   LEAD_MAX_PLACES,
   LEAD_MEMBER_CLASSES,
   LEAD_MONTHLY_ALLOWANCE,
@@ -12867,10 +12939,12 @@ export {
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
+  leadFactsSummary,
   leadKindWord,
   leadLowShare,
   leadLowerFirst,
   leadMapAcross,
+  leadMapNote,
   leadMapPlot,
   leadMonth,
   leadNoCardLine,
@@ -12890,6 +12964,7 @@ export {
   leadTodayLine,
   leadUndoable,
   leadWeekBars,
+  leadWeekSummary,
   leadWhere,
   leadsFirstDayWays,
   leadsRoute,
@@ -13074,6 +13149,7 @@ export {
   spanLabel,
   spanUnits,
   speedOf,
+  splitQuotedReply,
   spokenBreach,
   spokenBreachDetails,
   spokenDuration,
@@ -13102,6 +13178,9 @@ export {
   templatePreview,
   templatePreviewValues,
   templateTitle,
+  templateUnused,
+  templateUsage,
+  templateUseWords,
   tenantStatusFor,
   textingTermsMetadata,
   textingTermsVM,

@@ -255,6 +255,55 @@ const bcWhenNote = (at, maxDays) => {
 };
 window.bcWhenNote = bcWhenNote;
 
+// Who the send really reaches, beside the chips that choose them.
+//
+// The count was already honest -- the chip carries it -- but a count is the one
+// thing an owner cannot check. audiencePreview (contracts, broadcasts.ts) already
+// names a handful of the pool and orders them on purpose: an ordinary person
+// first, then the FIRST person with no name on file, because they are greeted
+// "Hi there" and that is the case nobody has ever been shown; anyone held back
+// comes last with the reason in the operator's own words. Those people were
+// reachable only by stepping the preview's arrows, under the message, so the
+// list nobody scrolled to was the list that answered "who exactly".
+//
+// The rows are the control and the bubble is the readout: pressing one walks the
+// preview to that person, so the same press both scans and previews.
+const BcAudience = ({ sample, people, who, onWho }) => {
+  if (!sample || people.length === 0) return null;
+  const pool = sample.sending + sample.held;
+  const shownHeld = people.filter((p) => p.refusal).length;
+  const rest = Math.max(0, sample.held - shownHeld);
+  return (
+    <div className="bc-who" data-testid="bc-who">
+      <div className="bc-who-count">
+        <span className="bc-who-n tabular">{sample.sending.toLocaleString()}</span>
+        <span className="bc-who-of">of {pool.toLocaleString()} will get it</span>
+      </div>
+      <span className="bc-who-bar" aria-hidden="true">
+        <span className="bc-who-bar-send" style={{ width: `${pool ? Math.round((sample.sending / pool) * 100) : 0}%` }} />
+      </span>
+      <div className="bc-who-list">
+        {people.map((p, i) => (
+          <button
+            key={p.id}
+            type="button"
+            className={`bc-who-row${i === who ? " on" : ""}${p.refusal ? " held" : ""}`}
+            aria-pressed={i === who}
+            onClick={() => onWho(i)}
+            data-testid="bc-who-row"
+          >
+            <span className="bc-who-name">{p.label}</span>
+            <span className="bc-who-why">
+              {p.refusal || (p.firstName ? `Greeted “Hi ${p.firstName}”` : "No name on file — greeted “Hi there”")}
+            </span>
+          </button>
+        ))}
+      </div>
+      {rest > 0 && <span className="bc-who-rest" data-testid="bc-who-rest">{rest} more held back, for the same reasons</span>}
+    </div>
+  );
+};
+
 // The history in ONE LINE above the work, the way Today, Reports and People say
 // their numbers (#556, #557, #558). It was a three-cell stat strip under a page
 // title the top bar already showed and a two-line sub-headline: 384px of a phone
@@ -526,40 +575,15 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
 
       <BcHistoryStats rows={rows} more={data.more} replyWindow={data.replyWindow} origin={origin} onOrigin={setOrigin} />
 
+      {/* Three questions, side by side -- who, what, when -- and the one act that
+          cannot be taken back alone at the foot. As a single column, the audience,
+          the words and the send button never appeared on the same screen: an owner
+          scrolled past the preview to reach Send, which is the wrong direction of
+          travel for the only irreversible control on the surface. */}
       <section className="bc-composer" data-testid="bc-composer">
         <div className="ct-sec-head">
           <span className="ct-sec-title">New broadcast</span>
-        </div>
-        <div className="bc-row">
-          <span className="bc-row-label">To</span>
-          <div className="bc-chips" style={{ flexWrap: "wrap" }}>
-            {audiences.map((a) => (
-              <button key={bcKey(a)} className={"bc-chip" + (active && bcKey(active) === bcKey(a) ? " active" : "")} onClick={() => setAud(bcKey(a))} title={a.hint} data-testid="bc-audience">
-                {a.label} <span className="bc-chip-count tabular">{sizeOf(a)}</span>
-              </button>
-            ))}
-            {data.listsRead === false && <FailedRead kind="line" what="your saved lists" body="The built-in audiences are current; the lists you keep by hand are missing until they read." surface="broadcasts" testid="bc-lists-failed" />}
-          </div>
-        </div>
-        <div className="bc-row">
-          <span className="bc-row-label">Send</span>
-          <div className="bc-chips" style={{ flexWrap: "wrap" }}>
-            {!templatesRead && <FailedRead kind="line" what="your templates" surface="broadcasts" testid="bc-templates-failed" />}
-            {templatesRead && templates.length === 0 && (
-              <span className="bc-excl-hint" data-testid="bc-no-template">
-                {starterPending > 0
-                  ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
-                  : <>No approved template yet — add the starter set, write one here, or sync yours from WhatsApp Manager in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="bc-no-template-open">Templates</button>.</>}
-              </span>
-            )}
-            {templatesRead && templates.length === 0 && starterPending === 0 && window.__templates && window.__templates.addStarters && (
-              <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters" {...window.gate("approve", "add the starter set")}><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
-            )}
-            <window.TemplateChips templates={templates} value={tplId} onPick={setTplId} testid="bc-template" />
-            {window.TemplateComposer && (
-              <button className="bc-chip" onClick={() => setComposing((c) => !c)} data-testid="bc-new-template" {...window.gate("approve", "write a template")}><Icon name="plus" size={10} /> New template</button>
-            )}
-          </div>
+          <span className="ct-sec-meta">replies land in the Inbox, where the receptionist answers them</span>
         </div>
         {composing && window.TemplateComposer && (
           <window.TemplateComposer
@@ -568,99 +592,143 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; it appears here once approved</> }); }}
           />
         )}
-        {offered.why && <div className="bc-excl-hint warn" data-testid="bc-blocked">{offered.why}</div>}
-        {tpl && vars.length > 0 && (
-          <div className="bc-vars" data-testid="bc-vars">
-            {vars.map((v, i) => (
-              <label key={v.position || i} className="bc-var">
-                <span className="bc-var-label">{labels[i]}</span>
-                <span className="bc-var-row">
-                  <select
-                    className="tpl-select"
-                    value={srcOf(i)}
-                    data-testid="bc-var-source"
-                    onChange={(e) => setSources((s) => { const next = [...(s[tplId] || [])]; next[i] = e.target.value; return { ...s, [tplId]: next }; })}
-                  >
-                    {Object.keys(SRC).filter((k) => k !== "booking_link" || data.bookingLink).map((k) => <option key={k} value={k}>{SRC[k]}</option>)}
-                  </select>
-                  <input
-                    value={srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))}
-                    disabled={srcOf(i) !== "text"}
-                    placeholder={v.example || ""}
-                    onChange={(e) => setParams((p) => { const next = [...(p[tplId] || [])]; next[i] = e.target.value; return { ...p, [tplId]: next }; })}
-                  />
+        <div className="bc-cols">
+
+          <div className="bc-col" data-testid="bc-col-who">
+            <span className="bc-col-label">Who</span>
+            <div className="bc-chips" style={{ flexWrap: "wrap" }}>
+              {audiences.map((a) => (
+                <button key={bcKey(a)} className={"bc-chip" + (active && bcKey(active) === bcKey(a) ? " active" : "")} onClick={() => setAud(bcKey(a))} title={a.hint} data-testid="bc-audience">
+                  {a.label} <span className="bc-chip-count tabular">{sizeOf(a)}</span>
+                </button>
+              ))}
+              {data.listsRead === false && <FailedRead kind="line" what="your saved lists" body="The built-in audiences are current; the lists you keep by hand are missing until they read." surface="broadcasts" testid="bc-lists-failed" />}
+            </div>
+            <BcAudience sample={sample} people={people} who={who} onWho={setWho} />
+            <div className="bc-meta">
+              <Icon name="shield" size={11} />
+              <span>
+                {active
+                  ? `${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}” said yes${purpose === "marketing" ? " to offers" : " to messages"}`
+                  : "Pick who this goes to"}
+                {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire{data.chunk ? ` · sent ${data.chunk} at a time` : ""}
+              </span>
+            </div>
+            {/* Said once, here, where an offer is picked: why a customer who only ever
+                texted is not in an offer's count. The wire refuses per customer
+                (sms_carries_no_promotions); the page states the rule. */}
+            {purpose === "marketing" && data.offersNote && <div className="bc-excl-hint" data-testid="bc-offers-note">{data.offersNote}</div>}
+            {overLimit && active && number && (
+              <div className="bc-excl-hint" data-testid="bc-over-limit">This number can start up to {number.health.limitPerDay.toLocaleString()} new conversations a day; “{active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.</div>
+            )}
+            {canSend && active && activeCount === 0 && (
+              <div className="bc-excl-hint" data-testid="bc-nobody">
+                {purpose === "marketing"
+                  ? <>Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and QR below.</>
+                  : <>Nobody on “{active.label}” has said yes to messages yet. Record it on their profile, or get their yes with the phrase and QR below.</>}
+              </div>
+            )}
+          </div>
+
+          <div className="bc-col bc-col-what" data-testid="bc-col-what">
+            <span className="bc-col-label">What</span>
+            <div className="bc-chips" style={{ flexWrap: "wrap" }}>
+              {!templatesRead && <FailedRead kind="line" what="your templates" surface="broadcasts" testid="bc-templates-failed" />}
+              {templatesRead && templates.length === 0 && (
+                <span className="bc-excl-hint" data-testid="bc-no-template">
+                  {starterPending > 0
+                    ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
+                    : <>No approved template yet — add the starter set, write one here, or sync yours from WhatsApp Manager in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="bc-no-template-open">Templates</button>.</>}
                 </span>
-              </label>
-            ))}
+              )}
+              {templatesRead && templates.length === 0 && starterPending === 0 && window.__templates && window.__templates.addStarters && (
+                <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters" {...window.gate("approve", "add the starter set")}><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
+              )}
+              <window.TemplateChips templates={templates} value={tplId} onPick={setTplId} testid="bc-template" />
+              {window.TemplateComposer && (
+                <button className="bc-chip" onClick={() => setComposing((c) => !c)} data-testid="bc-new-template" {...window.gate("approve", "write a template")}><Icon name="plus" size={10} /> New template</button>
+              )}
+            </div>
+            {offered.why && <div className="bc-excl-hint warn" data-testid="bc-blocked">{offered.why}</div>}
+            {tpl && vars.length > 0 && (
+              <div className="bc-vars" data-testid="bc-vars">
+                {vars.map((v, i) => (
+                  <label key={v.position || i} className="bc-var">
+                    <span className="bc-var-label">{labels[i]}</span>
+                    <span className="bc-var-row">
+                      <select
+                        className="tpl-select"
+                        value={srcOf(i)}
+                        data-testid="bc-var-source"
+                        onChange={(e) => setSources((s) => { const next = [...(s[tplId] || [])]; next[i] = e.target.value; return { ...s, [tplId]: next }; })}
+                      >
+                        {Object.keys(SRC).filter((k) => k !== "booking_link" || data.bookingLink).map((k) => <option key={k} value={k}>{SRC[k]}</option>)}
+                      </select>
+                      <input
+                        value={srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))}
+                        disabled={srcOf(i) !== "text"}
+                        placeholder={v.example || ""}
+                        onChange={(e) => setParams((p) => { const next = [...(p[tplId] || [])]; next[i] = e.target.value; return { ...p, [tplId]: next }; })}
+                      />
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {tpl && (
+              <div className="bc-preview-wrap" data-testid="bc-preview">
+                <window.MessagePreview from={data.businessName} body={tpl.body_preview} values={forPerson} header={tpl.header} footer={bcFooter(tpl)} buttons={tpl.buttons} at={goesAt} held={person ? person.refusal : null}>
+                  <window.PreviewStepper
+                    people={people.map((x, i) => ({ label: x.label, position: x.refusal ? "held back" : `${i + 1} of ${sample.sending}` }))}
+                    index={Math.min(who, Math.max(people.length - 1, 0))}
+                    onStep={setWho}
+                    note={personNote}
+                    tone={person && (person.refusal || noName) ? "warn" : null}
+                  />
+                </window.MessagePreview>
+              </div>
+            )}
           </div>
-        )}
-        {tpl && (
-          <div className="bc-preview-wrap" data-testid="bc-preview">
-            <window.MessagePreview from={data.businessName} body={tpl.body_preview} values={forPerson} header={tpl.header} footer={bcFooter(tpl)} buttons={tpl.buttons} at={goesAt} held={person ? person.refusal : null}>
-              <window.PreviewStepper
-                people={people.map((x, i) => ({ label: x.label, position: x.refusal ? "held back" : `${i + 1} of ${sample.sending}` }))}
-                index={Math.min(who, Math.max(people.length - 1, 0))}
-                onStep={setWho}
-                note={personNote}
-                tone={person && (person.refusal || noName) ? "warn" : null}
+
+          <div className="bc-col" data-testid="bc-col-when">
+            <span className="bc-col-label">When</span>
+            <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
+            <div id="bc-when-note" className={`bc-excl-hint${whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`} data-testid="bc-when-note">{whenNote.words}</div>
+            {number && (
+              <div className={`bc-number bc-number-${number.health.tone}`} data-testid="bc-number">
+                <Icon name="chat" size={11} />
+                <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : "No WhatsApp number connected — connect one in Settings › Connections."}</span>
+              </div>
+            )}
+            {number && number.present && !number.health.canSend && <div className="bc-excl-hint" data-testid="bc-number-refusal">{number.health.refusal}</div>}
+          </div>
+        </div>
+
+        <div className="bc-foot">
+          <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+          {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
+          {!canSend && <div className="bc-excl-hint" data-testid="bc-role">{window.gateTitle("approve", "stop or cancel a broadcast")}</div>}
+          <span className="bc-actions-spacer" />
+          <div className="bc-actions">
+            {/* Schedule stays one press: a scheduled run is cancelled from the row above,
+                and nothing has left. Send now does not -- it is the only act on this
+                surface that cannot be taken back, and it was the only one that was not
+                armed, while Stop, Skip and both Deletes each ask first. */}
+            {!armed && <button className="btn btn-sm" disabled={!ready || !whenNote.ok} onClick={() => submit(true)} {...window.gate("approve", "schedule a broadcast")}>Schedule</button>}
+            {!armed && <button className="btn btn-primary btn-sm" disabled={!ready} onClick={() => setArmed(true)} data-testid="bc-send" {...window.gate("approve", "send a broadcast")}>Send now</button>}
+            {armed && tpl && active && (
+              <Confirm
+                question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}
+                detail={`It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
+                yes="Yes, send it"
+                busy={busy}
+                onYes={() => submit(false)}
+                onNo={() => setArmed(false)}
+                testid="bc-send"
               />
-            </window.MessagePreview>
+            )}
           </div>
-        )}
-        <div className="bc-meta">
-          <Icon name="shield" size={11} />
-          <span>
-            {active
-              ? `${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}” said yes${purpose === "marketing" ? " to offers" : " to messages"}`
-              : "Pick who this goes to"}
-            {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire{data.chunk ? ` · sent ${data.chunk} at a time` : ""}
-          </span>
         </div>
-        {number && (
-          <div className={`bc-number bc-number-${number.health.tone}`} data-testid="bc-number">
-            <Icon name="chat" size={11} />
-            <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : "No WhatsApp number connected — connect one in Settings › Connections."}</span>
-          </div>
-        )}
-        {number && number.present && !number.health.canSend && <div className="bc-excl-hint" data-testid="bc-number-refusal">{number.health.refusal}</div>}
-        {/* Said once, here, where an offer is picked: why a customer who only ever
-            texted is not in an offer's count. The wire refuses per customer
-            (sms_carries_no_promotions); the page states the rule. */}
-        {purpose === "marketing" && data.offersNote && <div className="bc-excl-hint" data-testid="bc-offers-note">{data.offersNote}</div>}
-        {overLimit && active && number && (
-          <div className="bc-excl-hint" data-testid="bc-over-limit">This number can start up to {number.health.limitPerDay.toLocaleString()} new conversations a day; “{active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.</div>
-        )}
-        <div className="bc-actions">
-          <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
-          <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
-          {/* Schedule stays one press: a scheduled run is cancelled from the row above,
-              and nothing has left. Send now does not -- it is the only act on this
-              surface that cannot be taken back, and it was the only one that was not
-              armed, while Stop, Skip and both Deletes each ask first. */}
-          {!armed && <button className="btn btn-sm" disabled={!ready || !whenNote.ok} onClick={() => submit(true)} {...window.gate("approve", "schedule a broadcast")}>Schedule</button>}
-          {!armed && <button className="btn btn-primary btn-sm" disabled={!ready} onClick={() => setArmed(true)} data-testid="bc-send" {...window.gate("approve", "send a broadcast")}>Send now</button>}
-          {armed && tpl && active && (
-            <Confirm
-              question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}
-              detail={`It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
-              yes="Yes, send it"
-              busy={busy}
-              onYes={() => submit(false)}
-              onNo={() => setArmed(false)}
-              testid="bc-send"
-            />
-          )}
-        </div>
-        <div id="bc-when-note" className={`bc-excl-hint${whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`} data-testid="bc-when-note">{whenNote.words}</div>
-        {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
-        {!canSend && <div className="bc-excl-hint" data-testid="bc-role">{window.gateTitle("approve", "stop or cancel a broadcast")}</div>}
-        {canSend && active && activeCount === 0 && (
-          <div className="bc-excl-hint" data-testid="bc-nobody">
-            {purpose === "marketing"
-              ? <>Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and QR below.</>
-              : <>Nobody on “{active.label}” has said yes to messages yet. Record it on their profile, or get their yes with the phrase and QR below.</>}
-          </div>
-        )}
       </section>
 
       {data.optIn && data.optIn.link && (

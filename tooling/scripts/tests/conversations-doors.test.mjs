@@ -145,8 +145,11 @@ test("REGRESSION (A23): the Inbox says the same author as Conversations -- a per
   const vm = toInboxThreadVM(conv([msg({ id: "m1" }), ours({ sender: "human", body: "See you Friday!" })]), null, ZONE, NOW);
   cells = []; seq = 0;
   const tree = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
-  assert.match(textOf(tree), /by your team ·/);
-  assert.doesNotMatch(textOf(tree), /by you ·/, "REGRESSION: every teammate's reply read 'by you'");
+  // The author, not the punctuation after it: the separator used to lead into a repeat of the
+  // time that already sits over the bubble, and no longer exists. "by you" must still not match
+  // "by your team", so the boundary is explicit.
+  assert.match(textOf(tree), /by your team/);
+  assert.doesNotMatch(textOf(tree), /by you(?!r)/, "REGRESSION: every teammate's reply read 'by you'");
 });
 
 test("REGRESSION (A7, A9, A23): the Conversations viewer says who answered, signs our messages, and opens the thread in the Inbox", () => {

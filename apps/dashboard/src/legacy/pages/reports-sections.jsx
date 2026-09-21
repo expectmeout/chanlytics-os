@@ -272,7 +272,7 @@ const ReportsSections = ({ R, pick }) => {
                 table={{ columns: ["Day", "Calls", "Seconds on the phone"], rows: vm.calls.points.map((p) => [p.label, p.calls, p.callSeconds]) }}>
                 {vm.calls.total ? (
                   <>
-                    <BarChart data={vm.calls.points} keys={["calls"]} config={RPT_CALLS} height={128} yTicks={2} animKey={days}
+                    <BarChart data={vm.calls.points} keys={["calls"]} config={RPT_CALLS} height="fill" floor={128} yTicks={2} animKey={days}
                       ariaLabel="Calls per day. The arrow keys read each day." describe={(d) => `${d.label}: ${rptPlural(d.calls, "call")}`} />
                     <SegmentBar title="Caller mood, as the voice provider read it" testid="caller-mood" small
                       rows={vm.calls.sentiments.map((r) => ({ key: r.id, value: r.value }))} config={rptMood(vm.calls.sentiments)} />
@@ -292,7 +292,7 @@ const ReportsSections = ({ R, pick }) => {
                 {reached ? (
                   <>
                     <PieChart data={channels.map((c) => ({ key: c.key, value: c.value }))} config={RPT_CHANNELS} center={{ value: reached, label: "messages and calls" }}
-                      size={138} thickness={16} ariaLabel="Messages and calls by channel. The arrow keys read each channel." />
+                      size="fill" floor={138} thickness={16} ariaLabel="Messages and calls by channel. The arrow keys read each channel." />
                     {/* The same split the period before, in the same colours: the donut says where they reach you now,
                         this says whether that is a change. Its own counts, which no tile and no legend above give. */}
                     <SegmentBar title={vm.period.before} testid="channels-before" small
@@ -319,7 +319,7 @@ const ReportsSections = ({ R, pick }) => {
               <ChartCard className="rpt-span-4" title="New people, adding up" testid="chart-people" config={people}
                 table={{ columns: ["Day", "New people"], rows: vm.people.points.map((p) => [p.label, p.newPeople]) }}>
                 {vm.people.total ? (
-                  <LineChart data={vm.people.cumulative.points} keys={[{ key: "total", fill: true }]} prior={peopleBefore} config={people} height={250} animKey={days}
+                  <LineChart data={vm.people.cumulative.points} keys={[{ key: "total", fill: true }]} prior={peopleBefore} config={people} height="fill" floor={176} animKey={days}
                     ariaLabel="New people added up over the period, beside the period before. The arrow keys read each day."
                     tip={(d, i, ctx) => ({ title: d.label, rows: [
                       { key: "total", label: "so far", value: d.total },

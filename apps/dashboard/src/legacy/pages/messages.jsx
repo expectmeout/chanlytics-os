@@ -19,6 +19,11 @@ const tplAgo = (iso) => {
   if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
   return `${Math.round(diff / 86400000)}d ago`;
 };
+// "English", "English and Spanish", "English, Spanish and Portuguese" -- the
+// languages a workspace answers in, said the way a person says a list. The line
+// under the messages named English and Spanish in the markup, so a workspace
+// that answers in neither read a sentence about two languages it does not have.
+const tplAnd = (words) => (words.length < 2 ? words[0] || "" : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
 // Words for people: a starter's title, the workspace's own, or the name with its underscores made spaces.
 const tplTitle = (t) => (window.__starters ? window.__starters.title(t) : (t && t.name) || "");
 // Meta's own sample lives in every account and is nobody's message: never shown, whatever the sync keeps.
@@ -64,7 +69,15 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
   // starter not yet added shows the library's, which is what WhatsApp would see.
   const footer = row && S ? S.footer(row) : starterText ? starterText.footer : null;
   const closeMenu = () => { setMenu(false); setRenaming(false); setArm(false); };
+  // What sends this MESSAGE, in the words the bridge composed: the playbooks,
+  // the broadcasts a person sent and the Inbox's booking template, joined on the
+  // server. Keyed by name, because a message is one thing in several languages.
+  // Null: the usage was not read, and the card says nothing rather than guessing.
+  const named = g.rows.find((r) => r.row);
+  const gName = g.starter ? g.starter.name : named ? named.row.name : null;
+  const use = gName && window.__TEMPLATE_USE ? window.__TEMPLATE_USE[gName] || null : null;
   // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
+  // Per ROW, not per message: this is what a delete of ONE language must refuse on.
   const pbRows = window.__PLAYBOOKS ? window.__PLAYBOOKS.rows || [] : null;
   const users = row && pbRows ? pbRows.filter((p) => p.template_name === row.name && p.template_language === row.language) : [];
   const sending = users.filter((p) => p.state === "running").map((p) => p.name);
@@ -116,14 +129,18 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
           : <span className="msg-card-meta">Not on WhatsApp in {cur ? cur.lang.label : "this language"} yet — the words WhatsApp would review</span>}
         {/* The rating WhatsApp gives the template in view, as of the last sync; nothing when none was synced. */}
         {row && row.quality && <StatePill kind="template_quality" value={String(row.quality).toUpperCase()} testid="template-quality" />}
-        {/* What sends it. The card worked this out already -- it is how a delete
-            knows to refuse -- and then showed it only inside that refusal, so
-            the page that exists to hold the messages could not say which of
-            them anything uses. Null pbRows: the playbooks were not read, and
-            "nothing sends it" would be a claim rather than a reading. */}
-        {row && pbRows && (users.length > 0
-          ? <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(users.length === 1 ? `outbound/${users[0].id}` : "outbound")} data-testid="template-users">Sent by {users.length === 1 ? quoted([users[0].name]) : `${users.length} playbooks`}{sending.length === 0 ? " · paused" : ""}</button>
-          : <span className="msg-card-meta" data-testid="template-users">No playbook sends it</span>)}
+        {/* What sends it -- every source, not only the playbooks.
+            This line read the playbooks alone, off another surface's global, so
+            the most it could honestly say was "No playbook sends it": a message
+            two broadcasts had gone out with, or the one the Inbox books with,
+            read the same as one nothing has ever touched. The server joins the
+            three (a playbook names its template, a broadcast names its template,
+            the Inbox books by rule) and hands down the sentence, so "Nothing
+            sends it" is now a reading rather than a guess about what it could
+            not see. A name missing from the map is usage unread: say nothing. */}
+        {use && (use.unused
+          ? <span className="msg-card-meta is-unused" data-testid="template-users">Nothing sends it</span>
+          : <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(use.playbook ? `outbound/${use.playbook}` : "outbound")} data-testid="template-users">Sent by {use.words}</button>)}
         <span className="msg-card-spacer" />
         {row && canAct && !menu && <button className="cl-bucket-link" onClick={() => setMenu(true)} aria-label={`More for ${g.title}`} data-testid="template-menu">···</button>}
       </div>
@@ -211,6 +228,10 @@ const MessagesReal = () => {
   const hiddenGroups = groupsOf(hiddenRows, () => "hidden from the composers");
   const missing = langs.map((l) => ({ lang: l, n: starters.filter((g) => !g.rows.find((r) => r.lang.id === l.id).row).length }));
   const missingTotal = missing.reduce((a, m) => a + m.n, 0);
+  // A workspace with none of the set is starting, not broken: it is offered the
+  // set, while one part-way through is told what the hole costs.
+  const allMissing = missingTotal > 0 && missingTotal === starters.length * langs.length;
+  const addingAll = doing === `add:all:${langs.map((l) => l.id).join(",")}`;
   const shown = list.filter((t) => !t.hidden_at);
   const approved = shown.filter((t) => t.meta_status === "approved").length;
   const pending = shown.filter((t) => t.meta_status === "pending").length;
@@ -252,16 +273,6 @@ const MessagesReal = () => {
             <span className="tabular">{approved} approved{pending ? `, ${pending} in review with WhatsApp` : ""}</span>
           </span>
         )}
-        {missingTotal > 0 && (
-          <span className="cm-standing-part">
-            <span className="cm-standing-dot" aria-hidden="true">·</span>
-            <span className="tabular">{missingTotal} of the starter set not added</span>
-          </span>
-        )}
-        <span className="cm-standing-part">
-          <span className="cm-standing-dot" aria-hidden="true">·</span>
-          <span>{lastSync ? `synced ${tplAgo(lastSync)}` : "never synced from WhatsApp"}</span>
-        </span>
       </div>
 
       <div className="cl-controls">
@@ -269,10 +280,25 @@ const MessagesReal = () => {
           {/* The page's own acts stay where they are for every role and say who may
               (window.gate); a message's rename, hide and delete stay with those who may. */}
           {!canAct && hasWhatsApp && <span className="bc-excl-hint" data-testid="messages-role">{window.gateTitle("approve", "rename, hide or delete a template")}</span>}
-          {hasWhatsApp && missing.filter((m) => m.n > 0).map((m) => (
-            <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all" {...window.gate("approve", "add a starter template")}>{doing === `add:all:${m.lang.id}` ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
-          ))}
-          {hasWhatsApp && <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates" {...window.gate("approve", "sync from WhatsApp")}>{doing === "sync" ? "Syncing…" : "Sync from WhatsApp"}</button>}
+          {/* Being in step with WhatsApp is a STATE the page is in, not a chore the
+              owner remembers. It was a button beside two others, permanently loud,
+              whose answer was a toast of counts. The state says when it last looked
+              and presses to look again; while it looks, it is the only control that
+              says it is working (C20 holds that for every control here). */}
+          {hasWhatsApp && (
+            <button
+              className={`tpl-fresh${doing === "sync" ? " is-busy" : ""}`}
+              onClick={sync}
+              disabled={busy}
+              data-testid="sync-templates"
+              aria-label="Check WhatsApp for changes"
+              {...window.gate("approve", "sync from WhatsApp")}
+            >
+              <span className={`tpl-fresh-dot${lastSync ? "" : " never"}`} aria-hidden="true" />
+              {doing === "sync" ? "Checking WhatsApp…" : lastSync ? `In step with WhatsApp · ${tplAgo(lastSync)}` : "Never checked with WhatsApp"}
+              <Icon name="refresh" size={11} />
+            </button>
+          )}
           {hasWhatsApp && <button className="btn btn-primary btn-sm" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a template")}><Icon name="plus" size={12} /> New template</button>}
         </div>
       </div>
@@ -294,9 +320,36 @@ const MessagesReal = () => {
           </section>
         )}
         <section data-testid="templates">
+          {/* The gap, where the gap is, in one sentence.
+              It was two buttons in the toolbar doing arithmetic -- "Add the 3 in
+              English", "Add the 7 in Spanish" -- whose labels were a remainder that
+              changed each time they were pressed, and whose asymmetry read as
+              breakage when it only meant English was added first. Meta's model is
+              one template per name PER LANGUAGE; that is the product's problem, not
+              the owner's. The set is the set: one line, one press, and the
+              consequence rather than the count. */}
           {hasWhatsApp && S && (
             <div className="msg-intro" data-testid="starters">
-              <span className="rp2-foot">The starter set: {S.list.length} templates for the moments Chanlytics acts on, in English and Spanish — WhatsApp reviews each, usually within minutes.</span>
+              {missingTotal === 0
+                ? <span className="rp2-foot">The starter set is here in {tplAnd(langs.map((l) => l.label))} — {S.list.length} messages for the moments Chanlytics acts on.</span>
+                : (
+                  <>
+                    <span className="rp2-foot">
+                      {allMissing
+                        ? <>The starter set is {S.list.length} messages for the moments Chanlytics acts on, in {tplAnd(langs.map((l) => l.label))}. WhatsApp reviews each, usually within minutes.</>
+                        : <>{missingTotal} of the starter set {missingTotal === 1 ? "is" : "are"} missing: {tplAnd(missing.filter((m) => m.n > 0).map((m) => `${m.n} in ${m.lang.label}`))}. A message that exists in one language reaches only the customers who read it.</>}
+                    </span>
+                    <button
+                      className="btn btn-sm"
+                      disabled={busy}
+                      onClick={() => addStarters(null, langs.map((l) => l.id))}
+                      data-testid="starter-add-all"
+                      {...window.gate("approve", "add a starter template")}
+                    >
+                      {addingAll ? "Adding…" : allMissing ? "Add the starter set" : `Add the missing ${missingTotal}`}
+                    </button>
+                  </>
+                )}
             </div>
           )}
           <div className="msg-grid">

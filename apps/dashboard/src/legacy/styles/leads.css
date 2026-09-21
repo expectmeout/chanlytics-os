@@ -733,6 +733,16 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-box-sum { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-box:not([open]) .pk-box-head { padding-bottom: 11px; }
 .pk-box:not([open]) { padding-bottom: 0; }
+/* The week and what the listing said, in the fold. The same rows the expanded photo draws, at the peek's measure. */
+.pk-week, .pk-facts { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
+.pk-day { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 9px; align-items: center; font-size: var(--text-xs); color: var(--ink-dim); }
+.pk-day.today { color: var(--ink); font-weight: var(--weight-medium); }
+.pk-day-track { position: relative; height: 5px; border-radius: 3px; background: var(--bg-active); }
+.pk-day-bar { position: absolute; top: 0; height: 5px; border-radius: 3px; background: var(--line-strong); }
+.pk-day.today .pk-day-bar { background: var(--ok); }
+.pk-fact { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 9px; font-size: var(--text-xs); }
+.pk-fact .k { color: var(--ink-dim); }
+.pk-fact .v { color: var(--ink); }
 .pk-links { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
 .pk-act { background: var(--bg-sunken); }
 .pk-act-main { flex: 1; min-height: 38px; justify-content: center; border-radius: 10px; font-size: var(--text-base); }
@@ -872,6 +882,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-map-row .s { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ld-map-main { flex: 999 1 420px; min-width: 320px; display: flex; flex-direction: column; gap: 8px; }
+/* Not a place: the square would be a continent with every city as a dot, so it says so instead of drawing one. */
+.ld-map-wide { display: grid; place-items: center; padding: 28px 22px; background: var(--bg-sunken); }
+.ld-map-wide-line { max-width: 34ch; text-align: center; font-size: var(--text-sm); color: var(--ink-dim); line-height: 1.5; }
 .ld-map-plot {
   position: relative; width: 100%; padding-top: 68%; border: 1px solid var(--line); border-radius: var(--radius-lg);
   background:
@@ -880,10 +893,14 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     var(--bg-sunken);
   overflow: hidden;
 }
-.ld-map-ring { position: absolute; border: 1px dashed var(--accent); border-radius: 50%; background: var(--accent-soft); }
+/* The area a search asked for is context, not urgency: it is the ground the pins sit on. It wore the accent --
+   the one colour reserved for what is live right now -- and filled a third of the plot with it. */
+.ld-map-ring { position: absolute; border: 1px dashed var(--line-strong); border-radius: 50%; background: oklch(from var(--ink) l c h / 0.04); }
 .ld-pin, .ld-pin-dot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg-raised); background: var(--ink-faint); padding: 0; }
 .ld-pin { position: absolute; transform: translate(-50%, -50%); cursor: pointer; transition: transform var(--duration-fast) var(--ease-out); }
-.ld-pin:hover, .ld-pin.on { transform: translate(-50%, -50%) scale(1.5); z-index: 2; }
+.ld-pin:hover { transform: translate(-50%, -50%) scale(1.5); z-index: 2; }
+/* The one being looked at goes to ink and keeps its ring, so it reads as the answer rather than a bigger pin. */
+.ld-pin.on { transform: translate(-50%, -50%) scale(1.6); z-index: 3; background: var(--ink); opacity: 1; box-shadow: 0 0 0 4px oklch(from var(--ink) l c h / 0.18); }
 .ld-pin:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .ld-pin-dot { display: inline-block; }
 /* A pin says the same thing a row dot says. These disagreed on two states: ready was healthy green on the map and
