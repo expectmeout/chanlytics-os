@@ -626,9 +626,13 @@ test("a press on the wash behind a sheet keeps focus where it was", () => {
 test("Tab stays inside a sheet, and wraps round both ways", () => {
   const sheet = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet"));
   const focused = [];
-  const [first, middle, last] = ["first", "middle", "last"].map((name) => ({ name, focus: () => focused.push(name) }));
-  // What the sheet's own controls would be, in the order a browser tabs through them.
-  const box = { querySelectorAll: () => [first, middle, last] };
+  const control = (name, over = {}) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], focus: () => focused.push(name), ...over });
+  const [first, middle, last] = ["first", "middle", "last"].map((name) => control(name));
+  // Last in the sheet, and never a tab stop: a radiogroup's unchosen option (tabindex -1), and a closed fold's button,
+  // which has no box on screen. A trap that counted them took them for its last stop, and Tab walked out of the sheet.
+  const unchosen = control("unchosen", { tabIndex: -1 });
+  const folded = control("folded", { getClientRects: () => [] });
+  const box = { querySelectorAll: () => [first, middle, last, unchosen, folded] };
   const doc = globalThis.document;
   const was = doc.activeElement;
   const tabFrom = (at, shiftKey) => {
