@@ -344,6 +344,34 @@ test("REGRESSION (B4): a yes recorded for more than fifty goes for fifty, says s
   assert.ok(textOf(byTestId(tree, "bulk-bar")).includes("10 selected"), "the ten stay selected, one press from the next fifty");
 });
 
+// The rail is one kit for both scopes (RailSection, RailRow, railToggle in clients-a.jsx); Leads draws its lists and
+// searches with the same rows. Run here: the Saved section, and the one-at-a-time pick both scopes share.
+test("the rail's Saved section draws each kept list as a rail row, and the rail picks one row at a time: a pick replaces the last, pressed again shows everyone", async () => {
+  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }, { id: "s2", name: "Walk-ins", ids: ["p2"] }] });
+  // The stub tree reaches a row through its parent's children and its parent's drawing both: each is counted once.
+  const railRows = (tree) => [...new Set(all(tree, (n) => n.type === "button" && String(n.props?.className || "").split(" ").includes("cl-rail-row")))];
+  const press = (b) => b.props.onClick({ stopPropagation() {}, preventDefault() {} });
+  const savedRows = () => railRows(byTestId(draw(), "saved-lists"));
+  assert.deepEqual(savedRows().map((b) => textOf(b)), ["Regulars1", "Walk-ins1"], "each kept list, its name and who is still on it");
+  const current = () => railRows(draw()).filter((b) => b.props["aria-current"] === "true").map((b) => textOf(b));
+  assert.deepEqual(current(), [], "nothing is picked: everyone");
+  press(savedRows()[0]);
+  assert.deepEqual(current(), ["Regulars1"], "one row picked, and a screen reader hears which");
+  press(savedRows()[1]);
+  assert.deepEqual(current(), ["Walk-ins1"], "a pick replaces the last");
+  const smart = railRows(draw()).find((b) => b.props.className.split(" ").includes("smart"));
+  assert.ok(smart, "the smart lists are rail rows too");
+  // Every smart list stands in its group (RailGroup, rail-group-<id>), as the rail's groups say.
+  const isSmart = (b) => b.props.className.split(" ").includes("smart");
+  const groups = [...new Set(all(draw(), (n) => n.type === "div" && String(n.props?.["data-testid"] || "").startsWith("rail-group-")))];
+  assert.ok(groups.length > 0, "the smart lists are grouped");
+  assert.equal(groups.reduce((k, g) => k + railRows(g).filter(isSmart).length, 0), railRows(draw()).filter(isSmart).length, "and none stands outside a group");
+  press(smart);
+  assert.deepEqual(current(), [textOf(smart)], "a smart list replaces a kept one, as a kept one replaces a smart one");
+  press(railRows(draw()).find((b) => b.props["aria-current"] === "true"));
+  assert.deepEqual(current(), [], "the picked row pressed again: everyone");
+});
+
 test("REGRESSION (B27): lists that could not be read say so on the rail, the profile and Lists, and the people stay", async () => {
   await freshPage({ people: [person(1)], listsFail: true });
   let tree = draw();

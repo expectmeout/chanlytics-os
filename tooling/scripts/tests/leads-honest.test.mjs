@@ -178,7 +178,7 @@ globalThis.useHotkey = () => {};
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
 for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
-for (const k of ["PeopleRail", "PeopleStanding", "PeopleScopeTabs"]) globalThis[k] = globalThis.window[k];
+for (const k of ["PeopleRail", "PeopleStanding", "PeopleScopeTabs", "RailSection", "RailRow"]) globalThis[k] = globalThis.window[k];
 // The boards this task does not write: the finder (Task 8), the strip (Task 10) and the peek (Task 12). Drawn
 // here as their props, so what THIS task hands them is what is pinned. The first day is NOT among them: it is
 // Task 17's own component, loaded below with leads-finder.jsx, because a stub of it is what let the Leads scope
@@ -459,6 +459,40 @@ test("the rail counts what the lists hold, a waiting search wears a question mar
   assert.equal(textOf(byTestId(tree, "leads-standing")), "322 leads·272 ready·2 searches·1 search needs you");
   click(byTestId(tree, "leads-standing-needs"));
   assert.deepEqual(went, [`clients/leads:s-${SEARCH_B}`], "and it is the tap that opens the search waiting on you");
+});
+
+// The rail picks the way People's does (railToggle, clients-a.jsx). On production (21 Sep) a list pressed while a
+// search was open kept the search in the address and only narrowed inside it: the rail lit neither row, and "All
+// leads" changed nothing, which read as a link that went nowhere. A search picked kept the list, so it showed fewer
+// leads than its count said.
+test("the Leads rail picks one row at a time, as People's does: a list leaves an open search, a search shows all of itself, and the picked row pressed again goes back to all leads", () => {
+  fresh();
+  const pressed = (route, testid) => { went.length = 0; click(byTestId(draw({ leadsRoute: route }), testid)); return went.at(-1); };
+  assert.equal(pressed(`leads:s-${SEARCH_A}`, "leads-list-ready"), leadsRoute({ list: "ready" }), "a list leaves the search that was open");
+  assert.equal(pressed(`leads:s-${SEARCH_A}`, "leads-list-all"), leadsRoute({}), "All leads is all of them, from a search too");
+  assert.equal(pressed("leads:l-ready", `leads-search-${SEARCH_A}`), leadsRoute({ searchId: SEARCH_A }), "a search shows all of itself, not its Ready ones");
+  assert.equal(pressed(`leads:s-${SEARCH_A}:c-review`, `leads-search-${SEARCH_B}`), leadsRoute({ searchId: SEARCH_B }), "and starts on all of its classes");
+  assert.equal(pressed(`leads:s-${SEARCH_A}`, `leads-search-${SEARCH_A}`), leadsRoute({}), "the open search pressed again: all leads");
+  assert.equal(pressed("leads:l-ready", "leads-list-ready"), leadsRoute({}), "the open list pressed again: all leads");
+  // Whatever an old address combines, one row is picked, and a screen reader hears which. (The stub tree reaches a
+  // row through its parent's children and its parent's drawing both, so rows are counted once each, by identity.)
+  const picked = (route) => [...new Set(all(draw({ leadsRoute: route }), (n) => n.props?.["aria-current"] === "true"))].map((n) => n.props["data-testid"]);
+  assert.deepEqual(picked(`leads:s-${SEARCH_A}:l-ready`), [`leads-search-${SEARCH_A}`]);
+  assert.deepEqual(picked("leads:l-ready"), ["leads-list-ready"]);
+  assert.deepEqual(picked("leads"), ["leads-list-all"]);
+  // The list that is open is named over the table, as People names its list, with the way back to all leads.
+  const head = (route) => byTestId(draw({ leadsRoute: route }), "leads-list-head");
+  assert.equal(textOf(byTestId(head("leads"), "leads-list-title")), "All leads");
+  assert.equal(byTestId(head("leads"), "leads-show-all"), null, "all of them has nowhere to go back to");
+  assert.equal(textOf(byTestId(head("leads:l-ready"), "leads-list-title")), "Ready");
+  went.length = 0;
+  click(byTestId(head("leads:l-ready"), "leads-show-all"));
+  assert.equal(went.at(-1), leadsRoute({}), "Show all leads goes back to all of them");
+  assert.equal(head(`leads:s-${SEARCH_A}`), null, "a search that is open says itself in the strip instead");
+  // A search's row is the kit's row with acts: its pick and its menu side by side, never a button in a button.
+  const row = find(draw(), (n) => n.type === "div" && typeof n.props?.className === "string" && n.props.className.split(" ").includes("ld-search-row"));
+  assert.ok(row && row.props.className.split(" ").includes("has-acts"), "the row carries its acts beside its pick");
+  assert.equal(all(byTestId(row, `leads-search-${SEARCH_A}`), (n) => n.type === "button").length, 1, "the pick holds no other button");
 });
 
 test("the People | Leads switch is a tablist in both scopes, and picking the other one navigates to it", () => {

@@ -368,19 +368,15 @@
 .ld-chip.on .count { color: var(--accent); }
 
 /* --------------------------------------- the rail's kept searches (Task 16) */
-/* The row is the pick and its menu; renaming and removing happen here, so the
-   rail never loses the row being named. */
+/* Which list is open, over the table, as People names the list it shows (.cl-section-head): in the table's gutter. */
+.ld-list-head { padding: 16px var(--gutter-page) 0; }
 
-.ld-search-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.ld-search-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
-.ld-search-pick .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ld-search-pick .count { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+/* The row is the rail kit's (RailRow with a menu, clients.css .has-acts): the pick and its menu. Renaming and
+   removing happen here, so the rail never loses the row being named. */
+
 .ld-search-row .rail-q { color: var(--accent); font-weight: var(--weight-medium); }
-.ld-search-more { opacity: 0; flex: none; }
-.ld-search-row:hover .ld-search-more, .ld-search-row.active .ld-search-more, .ld-search-more:focus-visible { opacity: 1; }
-.ld-search-renaming { display: flex; align-items: center; gap: 6px; width: 100%; }
+.ld-search-renaming { display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 0 3px 8px; }
 .ld-search-renaming input { flex: 1; min-width: 0; }
-.ld-search-row .confirm { flex-basis: 100%; }
 
 /* ======================================================= the first day ====
    No search kept yet (Task 17, §8.9): people first, then the composer and the

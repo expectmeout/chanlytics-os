@@ -1,4 +1,4 @@
-/* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, PeopleStanding, PeopleTable,
+/* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, RailSection, RailRow, PeopleStanding, PeopleTable,
    PeopleColumnsMenu, plSortKeys, plDrawnColumns, plColumnOptions, PL_NO_SEL, LeadFinder, LeadStrip, LeadPeek,
    LeadPeekActions, LeadNotFitWhy, LeadsFirstDay */
 // The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
@@ -258,7 +258,7 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
     escape
     align="left"
     title={`What ${s.name} asked for`}
-    btnClass="btn btn-ghost btn-icon btn-xs ld-search-more"
+    btnClass="btn btn-ghost btn-icon btn-sm ld-search-more"
     items={[
       { header: words.askedLine },
       { label: "Rename", icon: "pencil", onClick: () => onRename(s), gate: canFind ? undefined : window.gate("find", "rename this search") },
@@ -274,47 +274,44 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
   />
 );
 
-// The rail under Leads: the lists, then the searches, each with its count, a live dot while it runs and a "?" in
-// the accent while it waits on the owner. Renaming and removing are asked where the search is, so the rail never
-// loses the row that is being named.
+// The rail under Leads, drawn with People's kit (RailSection, RailRow in clients-a.jsx) and picked the way People's
+// is: one row at a time, a list or a search. The lists, then the searches, each with its count, a live dot while it
+// runs and a "?" in the accent while it waits on the owner. Renaming and removing are asked where the search is, so
+// the rail never loses the row that is being named.
 const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, onUndo, hrefFor, onNew }) => (
   <>
-    <div className="cl-rail-section" data-testid="leads-lists">
-      <div className="cl-rail-group-label">Leads</div>
+    {/* "Lists", not "Leads": the switch right above already says which scope this is. */}
+    <RailSection label="Lists" testid="leads-lists">
       {rail.lists.map((l) => (
-        <button key={l.id} type="button" className={`cl-rail-row ${list === l.id && !searchId ? "active" : ""}`} onClick={() => onPickList(l.id)} data-testid={`leads-list-${l.id}`}>
-          <span className="label">{l.label}</span>
-          <span className="count">{l.count}</span>
-        </button>
+        <RailRow key={l.id} label={l.label} count={l.count} active={!searchId && list === l.id} onPick={() => onPickList(l.id)} testid={`leads-list-${l.id}`} />
       ))}
-    </div>
-    <div className="cl-rail-section" data-testid="leads-searches">
-      <div className="cl-rail-group-label">Searches</div>
+    </RailSection>
+    <RailSection label="Searches" testid="leads-searches">
       {rail.searches.map((s) => (
-        <div key={s.id} className={`cl-rail-row ld-search-row ${searchId === s.id ? "active" : ""}`}>
-          {renaming && renaming.id === s.id ? (
+        <RailRow
+          key={s.id}
+          className="ld-search-row"
+          pickClass="ld-search-pick"
+          label={s.name}
+          count={s.count}
+          active={searchId === s.id}
+          onPick={() => onPickSearch(s.id)}
+          testid={`leads-search-${s.id}`}
+          mark={s.mark === "live" ? <span className="live-dot" aria-hidden="true" /> : s.mark === "question" ? <span className="rail-q" title="This search needs you">?</span> : null}
+          menu={<LeadSearchMenu s={s} words={wordsFor(s.id)} canFind={canFind} onRename={onRename} onMore={onMore} onAgain={onAgain} onRemove={onRemoveAsk} onUndo={onUndo} exportHref={hrefFor(s)} />}
+          edit={renaming && renaming.id === s.id ? (
             <span className="cl-bulk-naming ld-search-renaming">
               <input autoFocus defaultValue={s.name} maxLength={80} aria-label="The search's name" data-testid="leads-rename-name" onKeyDown={(e) => { if (e.key === "Enter") onRenameSave(s, e.target.value); if (e.key === "Escape") onRenameCancel(); }} />
               <button type="button" className="btn btn-sm btn-primary" onClick={(e) => onRenameSave(s, e.currentTarget.parentNode.querySelector("input").value)} data-testid="leads-rename-save">Save</button>
             </span>
-          ) : (
-            <>
-              <button type="button" className="ld-search-pick" onClick={() => onPickSearch(s.id)} data-testid={`leads-search-${s.id}`}>
-                {s.mark === "live" && <span className="live-dot" aria-hidden="true" />}
-                {s.mark === "question" && <span className="rail-q" title="This search needs you">?</span>}
-                <span className="label">{s.name}</span>
-                <span className="count">{s.count}</span>
-              </button>
-              <LeadSearchMenu s={s} words={wordsFor(s.id)} canFind={canFind} onRename={onRename} onMore={onMore} onAgain={onAgain} onRemove={onRemoveAsk} onUndo={onUndo} exportHref={hrefFor(s)} />
-            </>
-          )}
-          {removing && removing.id === s.id && (
+          ) : null}
+          after={removing && removing.id === s.id ? (
             <Confirm question={`Remove “${s.name}”?`} detail={wordsFor(s.id).keepsLine} yes="Yes, remove" danger busy={removeBusy} error={removeError} onYes={() => onRemoveYes(s)} onNo={onRemoveNo} testid="leads-remove" />
-          )}
-        </div>
+          ) : null}
+        />
       ))}
       {rail.searches.length === 0 && <div className="cl-rail-hint">No searches yet. Describe the businesses you want and Claude finds them.</div>}
-    </div>
+    </RailSection>
     <div className="cl-rail-foot">
       <button type="button" className="cl-rail-newseg" onClick={onNew} data-testid="leads-new-search" {...(canFind ? {} : window.gate("find", "find leads"))}>
         <Icon name="plus" size={11} /> New search
@@ -806,6 +803,18 @@ const LeadsScope = (p) => {
             );
             return phone ? <LeadFinderSheet onClose={p.onCloseFinder}>{finder}</LeadFinderSheet> : finder;
           })()}
+
+          {/* Which list is open, as People says which of its lists is (its .cl-section-head, the same classes): the
+              list's name, and the way back to all leads. A search that is open says itself in the strip instead, and
+              the phone's bar already names the list. */}
+          {!search && !phone && !p.firstDay && !L.readFailed ? (
+            <div className="cl-section-head ld-list-head" data-testid="leads-list-head">
+              <div className="cl-section-lead">
+                <span className="cl-section-title" data-testid="leads-list-title">{p.listTitle}</span>
+                {p.view.list !== "all" ? <button type="button" className="cl-bucket-link" onClick={() => p.onPickList("all")} data-testid="leads-show-all">Show all leads</button> : null}
+              </div>
+            </div>
+          ) : null}
 
           {search && <LeadStrip vm={p.strip} onAction={p.onStripAction} />}
 
