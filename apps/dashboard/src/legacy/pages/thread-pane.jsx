@@ -145,8 +145,9 @@ const threadVerbs = (flash) => {
 // `thread`: the one the Inbox holds (a seeded one carries the mockup's overlays). `threadId`: the one a Conversations
 // row carries, found in the Inbox's store -- every workspace surface boots together, and the Inbox reads the same
 // GET conversations page Conversations lists. `flash`: the host's toast; alone, the pane keeps its own stack.
-// `mock`: the Inbox's own handlers for a seeded thread, which only the mockup reaches.
-const ThreadPane = ({ thread: given = null, threadId = null, onBack = null, onOpenClient = () => {}, notice = null, flash = null, mock = null }) => {
+// `mock`: the Inbox's own handlers for a seeded thread, which only the mockup reaches. `focusMessageId`: the message
+// it opens at instead of its newest -- a call, opened from Conversations.
+const ThreadPane = ({ thread: given = null, threadId = null, onBack = null, onOpenClient = () => {}, notice = null, flash = null, mock = null, focusMessageId = null }) => {
   const [ownToast, ownFlash] = window.usePPToast();
   const say = flash || ownFlash;
   const [, redraw] = React.useReducer((n) => n + 1, 0);
@@ -170,7 +171,9 @@ const ThreadPane = ({ thread: given = null, threadId = null, onBack = null, onOp
       redraw();
     };
     window.addEventListener("surface:inbox", onSwap);
-    return () => window.removeEventListener("surface:inbox", onSwap);
+    // A call's card reads the calls Conversations holds (inbox-thread.jsx tlCallFor): drawn again when they are read.
+    window.addEventListener("surface:conversations", redraw);
+    return () => { window.removeEventListener("surface:inbox", onSwap); window.removeEventListener("surface:conversations", redraw); };
   }, []);
 
   // Alone, the pane keeps its own draft's countdown and looks again at zero. Inside the Inbox, the list's tick draws
@@ -229,6 +232,7 @@ const ThreadPane = ({ thread: given = null, threadId = null, onBack = null, onOp
         channelLabels={labels}
         onOpenClient={onOpenClient}
         notice={words}
+        focusMessageId={focusMessageId}
         veto={tpVetoLeft(t)}
         vetoPaused={!!(window.PR_STORE && window.PR_STORE.away)}
         onVetoAct={(_id, act) => hold(t, act, redraw)}

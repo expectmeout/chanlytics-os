@@ -143,9 +143,7 @@ test("the API attaches the mode in force, and an erasure scrubs the jobs that ca
 test("a deep link to a thread that is not in view says so instead of opening someone else's", () => {
   const cv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
   assert.ok(cv.includes("const requestedMissing = !!initialId"));
-  assert.ok(cv.includes("open the person in People to find it"));
   assert.ok(!cv.includes('String(c.who || "").split(" ")[0]'), "REGRESSION: 'Latest from +1'");
-  assert.ok(cv.includes('m.channel === "phone" ? "Phone · call note"'));
   const ix = readRaw("apps/dashboard/src/legacy/pages/inbox.jsx");
   assert.ok(ix.includes("const requestedMissing = !!initialThreadId"));
   const pane = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");

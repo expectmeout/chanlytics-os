@@ -90,9 +90,8 @@ test("an ordinary sent message says nothing rather than something reassuring", (
 
 /* ------------------------ one vocabulary, one place ----------------------- */
 
-test("neither pane keeps its own private list of these words", () => {
+test("the thread keeps no private list of these words", () => {
   const thread = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-  const convo = readCode("apps/dashboard/src/legacy/pages/conversations.jsx");
   // The Inbox's ternary WAS the only home of this vocabulary, which is why the
   // other pane had none.
   assert.ok(
@@ -100,15 +99,11 @@ test("neither pane keeps its own private list of these words", () => {
     "the labels belong to the viewmodel now",
   );
   assert.ok(thread.includes("entry.statusLabel"), "the Inbox renders the shared label");
-  assert.ok(convo.includes("m.statusLabel"), "so does Conversations");
+  // Conversations draws the same thread (one-thread.test.mjs), so it says the same words.
 });
 
-test("Conversations visibly separates what was said from what was only drafted", () => {
-  const convo = readCode("apps/dashboard/src/legacy/pages/conversations.jsx");
-  assert.ok(
-    convo.includes('m.reachedCustomer === false ? " undelivered" : ""'),
-    "an undelivered bubble must be marked, not merely annotated",
-  );
+test("the thread visibly separates what was said from what was only drafted", () => {
+  // The mark on the bubble is drawn and run in inbox-true.test.mjs ("the reply that didn't send says so").
   const css = readCode("apps/dashboard/src/legacy/styles/conversations.css");
   assert.ok(css.includes(".tl-msg.undelivered .tl-msg-bubble"), "and the mark must have a style");
 });

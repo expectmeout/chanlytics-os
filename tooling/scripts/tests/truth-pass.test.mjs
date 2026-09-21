@@ -32,13 +32,6 @@ test("AI memory is an honest pane that keeps the settings nav; Billing is real",
   }
 });
 
-test("outside a demo the Conversations header has no menu of things that do nothing", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/conversations.jsx");
-  const menu = page.indexOf('{ label: "Export transcript"');
-  const gate = page.lastIndexOf("{window.__DEMO_MODE && (", menu);
-  assert.ok(menu > 0 && gate > 0 && menu - gate < 400, "the Export/Assign menu renders only in a demo");
-});
-
 test("the thread menu on a real workspace offers only verbs that act", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
   assert.ok(page.includes('...(window.__DEMO_MODE ? [{ label: "Mark as unread"'), "Mark as unread is demo-only until unread state exists");

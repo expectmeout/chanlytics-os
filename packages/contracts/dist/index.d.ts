@@ -957,6 +957,7 @@ interface InboxThreadVM {
         statusLabel?: string;
         /** False when these words never reached the customer: the page dashes them, as Conversations does. */
         reachedCustomer?: boolean;
+        /** The message's own id, on every bubble: a call's note finds its call by it, and a link opens the thread there. */
         messageId?: string;
         /** Written but NOT sent — sitting out its veto window. */
         pending?: true;
@@ -1120,6 +1121,17 @@ interface CallVM {
     recordingState: "ready" | "pending" | "failed" | "purged" | "none";
     recordingUrl?: string;
     threadId?: string;
+    /** The note this call left on its thread (a call_summary message): the thread draws the call there. */
+    messageId?: string;
+    direction: "inbound" | "outbound";
+    /** It never connected. */
+    missed: boolean;
+    /** What the call was about: what the caller wanted, in the analysis's plain words, or the provider's first sentence.
+     *  Null when it never connected or nothing was said about it -- never a sentence saying there is no sentence. */
+    about: string | null;
+    /** How it went, a few words each: how the caller sounded, how it ended, why there is no recording to play. The call
+     *  card's one quiet line. */
+    facts: string[];
 }
 /** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
 declare function spokenDuration(ms: number | null): string;

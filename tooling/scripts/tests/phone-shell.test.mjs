@@ -32,12 +32,10 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
   const cv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
   assert.ok(cv.includes('${phoneOpen ? "phone-detail" : ""}'));
   assert.ok(cv.includes("onSelect={(id) => { setSelectedId(id); setPhoneOpen(true); }}"));
-  assert.ok(cv.includes('data-testid="cv-back"'));
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
-  assert.ok(css.includes(".ix-back, .cv-back { display: none; }"), "hidden by default");
+  assert.ok(css.includes(".ix-back { display: none; }"), "hidden by default");
   assert.ok(css.includes(".inbox.phone-thread .ix-list { display: none; }"));
   assert.ok(css.includes(".inbox.phone-thread .ix-thread-pane { display: flex; }"));
-  assert.ok(css.includes(".conversations.phone-detail .cv-viewer { display: flex; }"));
   assert.ok(css.includes(".lm-whisper .btn { min-height: 44px; }"), "the whisper's buttons take a thumb on Live, on the class the page draws");
 });
 
