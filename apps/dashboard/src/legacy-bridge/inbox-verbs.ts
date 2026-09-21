@@ -17,7 +17,13 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiOptions, ApiResult, Params, RouteKey } from "../client/api";
-import { FALLBACK_DEFAULTS, INSTRUCTIONS_MAX, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, fallbackMessages, hoursLines, inboxTemplates, instructionsDraft, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn, unknownDetails } from "@chanlytics/contracts";
+import {
+  FALLBACK_DEFAULTS, INSTRUCTIONS_MAX, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, fallbackMessages, hoursLines, inboxTemplates,
+  instructionsDraft, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn, unknownDetails,
+  // For the Business tab (window.__businessTab). promptBlocks lives in contracts' prompt-blocks.ts since the Phase 1 review; the package exports it as before.
+  standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
+  promptBlocks, composeSystemPrompt, type PromptBlockVM,
+} from "@chanlytics/contracts";
 import { workspaceZone } from "./zone";
 import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -301,6 +307,53 @@ export function composedPrompt(
 }
 
 /**
+ * The prompt block each fold writes into. A fold is named for the keys it saves; a block
+ * for the heading the composer writes it under (PROMPT_OPENINGS, cut by prompt-blocks.ts),
+ * and some folds share one. The voice and the languages are lines of "Who you are"; the
+ * hand-off's reasons compose under the one hand-off heading on either channel, as the
+ * transfer number does. The fallbacks are sent when the model cannot be reached and are
+ * never part of the prompt, so their fold has no block.
+ */
+const FOLD_BLOCK: Record<string, string | null> = {
+  tone: "identity",
+  languages: "identity",
+  hours: "hours",
+  closures: "closures",
+  services: "services",
+  booking_rules: "booking_rules",
+  notes: "notes",
+  escalate_when: "handoff",
+  guardrails: "guardrails",
+  extra_instructions: "extra_instructions",
+  fallbacks: null,
+};
+
+/**
+ * What one fold will add to the prompt.
+ *
+ * Composed with the same function the edge runs, over the draft as the fold
+ * currently holds it, so a fold shows exactly what the receptionist will be
+ * told and nothing the page invented. A section the composer writes nothing
+ * for — a rule with no lines, an empty list — returns null, and the fold
+ * simply draws no block rather than an empty one.
+ */
+function consequenceOf(
+  section: string,
+  draft: { brain: { business_name: string; phone_display?: string | null; booking_link: string }; profile: Record<string, unknown> },
+  channel: "whatsapp" | "voice" = "whatsapp",
+  tz?: string | null,
+): PromptBlockVM | null {
+  const row = FOLD_BLOCK[section] ?? null;
+  if (!row) return null;
+  const text = composeSystemPrompt(draft.brain, draft.profile as never, channel, tz ?? null);
+  // Composed from the draft, and the composer never carries the stored prompt in,
+  // so the words to look for are the draft's own: `{ profile }`, not the stored
+  // brain. Whose words they are is whoseWords' (config.ts), the decision the
+  // instructions box reads too.
+  return promptBlocks(text, channel, { profile: draft.profile as { extra_instructions?: string | null } }).find((b) => b.row === row) ?? null;
+}
+
+/**
  * Team changes, against the routes that have existed since Session A and had
  * no caller until now.
  *
@@ -363,6 +416,18 @@ declare global {
     __refreshInbox: typeof refreshInbox;
     __saveSettings: typeof saveSettings;
     __composedPrompt: typeof composedPrompt;
+    /** The Business tab's view models, and the block of the prompt each fold writes. */
+    __businessTab: {
+      standingLine: typeof standingLine;
+      abilityRows: typeof abilityRows;
+      cannotRows: typeof cannotRows;
+      bookingHeld: typeof bookingHeld;
+      bookingTemplate: typeof bookingTemplate;
+      ruleStrength: typeof ruleStrength;
+      GUARDRAIL_KEYS: typeof GUARDRAIL_KEYS;
+      promptBlocks: typeof promptBlocks;
+      consequenceOf: typeof consequenceOf;
+    };
     __receptionistDefaults: typeof newReceptionistDefaults;
     /** What the Business editor's instructions box opens with, and the most it holds (S4). */
     __instructionsDraft: typeof instructionsDraft;
@@ -462,6 +527,8 @@ export function installInboxVerbs(): void {
   window.__refreshInbox = refreshInbox;
   window.__saveSettings = saveSettings;
   window.__composedPrompt = composedPrompt;
+  // The Business tab's sentences, from contracts, and what a fold will add to the prompt, from the composer the edge runs.
+  window.__businessTab = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf };
   // The settings form builds a brand-new brain and must satisfy the same
   // schema the edge parses; the defaults live beside that schema.
   window.__receptionistDefaults = newReceptionistDefaults;
