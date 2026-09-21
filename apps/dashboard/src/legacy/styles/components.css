@@ -1435,6 +1435,14 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .ob-progress { flex: 1; min-width: 80px; height: 4px; border-radius: 2px; background: var(--bg-sunken); border: 1px solid var(--line); overflow: hidden; }
 .ob-progress-fill { display: block; height: 100%; background: var(--accent); opacity: 0.6; transition: width 0.5s var(--ease-out); }
 .ob-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* A moment nothing is doing. Dashed and quiet: it is an invitation among
+   working playbooks, never one of them wearing a fault.
+   Two classes, as .ob-card.is-approval is: .fl-card sets the background and the
+   border in fleet.css, which this sheet is loaded BEFORE, so one class loses. */
+.ob-card.ob-slot { border-style: dashed; background: var(--bg-sunken); }
+.ob-slot .ob-name { color: var(--ink-muted); }
+.ob-slot-state { font-size: var(--text-xs); color: var(--ink-dim); flex: none; }
 /* ---- A playbook is a message, a list and a clock ----
    The card led with the trigger, the schedule, the audience, the template's NAME
    and the next run -- five chips and a meta line -- and the message itself was
