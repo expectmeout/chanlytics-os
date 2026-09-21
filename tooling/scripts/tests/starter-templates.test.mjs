@@ -136,7 +136,7 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"'));
-  assert.ok(b.includes("const srcOf = (i) => ((sources[tplId] || defaults)[i] || \"text\");"), "a starter's slots come filled in");
+  assert.ok(b.includes("const srcOf = (i) => { const c = choices[i] || BC_TEXT; const s = (sources[tplId] || BC_NONE)[i]; return c.includes(s) ? s : c[0]; };"), "a starter's slots come filled in, each with what it may take");
   assert.ok(b.includes("<window.MessagePreview") && b.includes('data-testid="bc-preview"'), "the preview is the message as the customer sees it");
   assert.ok(b.includes("<window.PreviewStepper"), "and it walks the real people the count is a length of, not an example");
   assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");

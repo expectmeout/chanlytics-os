@@ -619,10 +619,6 @@
   .tpl-row { flex-direction: column; gap: 6px; }
   .tpl-row .bc-row-label { padding-top: 0; }
 
-  /* A slot's source and its value stack rather than sharing 302px. */
-  .bc-var-row { flex-wrap: wrap; }
-  .bc-var-row .tpl-select, .bc-var-row input { flex: 1 1 100%; }
-
   /* The QR and the wording it explains stopped being side by side. */
   .bc-optin-body { flex-wrap: wrap; }
 }

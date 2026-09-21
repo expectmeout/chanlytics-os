@@ -2106,9 +2106,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .tpl-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin: 8px 0; }
 .tpl-fields .tpl-body { grid-column: 1 / -1; }
 .tpl-fields textarea { font: inherit; font-size: 13px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); resize: vertical; }
-.bc-var-row { display: flex; gap: 6px; }
-.bc-var-row input { flex: 1; min-width: 0; }
-.bc-var-row input:disabled { color: var(--ink-faint); }
 
 /* ---- The message as the customer sees it, and the starter set ---- */
 .bc-preview-wrap { display: flex; margin-bottom: 8px; }
