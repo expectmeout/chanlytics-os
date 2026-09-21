@@ -22,9 +22,9 @@
  * writes the count; this reads, and is proved against a database in memory.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
-import { mailboxFor } from "./workspace/db.js";
-import { emailReceiptFrom, emailReceivedEventFrom, platformRecipient, verifyResendWebhook, type EmailReceipt, type SvixHeaders } from "./workspace/channels.js";
+import type { Database } from "./packages/db.js";
+import { mailboxFor } from "./packages/db.js";
+import { emailReceiptFrom, emailReceivedEventFrom, platformRecipient, verifyResendWebhook, type EmailReceipt, type SvixHeaders } from "./packages/channels.js";
 
 type Db = SupabaseClient<Database>;
 

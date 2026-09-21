@@ -21,7 +21,7 @@
  * person's consent row and the message's PURPOSE and asks `mayMessageFor`, so
  * there is one rule again and this file no longer holds a copy of it.
  */
-import { mayMessageFor, type PurposeBearing, type SendPurpose } from "./workspace/contracts.js";
+import { mayMessageFor, type PurposeBearing, type SendPurpose } from "./packages/contracts.js";
 
 export interface OutboundFacts {
   /**

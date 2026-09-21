@@ -14,7 +14,7 @@
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { ASK_TOKENS_DAY } from "../../lib/workspace/contracts.js";
+import { ASK_TOKENS_DAY } from "../../lib/packages/contracts.js";
 import {
   GATEWAY_MAX_BODY,
   GATEWAY_PURPOSES,

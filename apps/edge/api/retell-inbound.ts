@@ -23,11 +23,11 @@
  * judgement never refuses: every way it can fall short is a fallback variable
  * and a line in the log.
  */
-import { phoneTail } from "../lib/workspace/contracts.js";
+import { phoneTail } from "../lib/packages/contracts.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { planCallStart } from "../lib/call-start.js";
-import { claimControl, CALL_CONTROL_S } from "../lib/workspace/db.js";
+import { claimControl, CALL_CONTROL_S } from "../lib/packages/db.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { logger } from "../lib/log.js";
 

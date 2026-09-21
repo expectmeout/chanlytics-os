@@ -14,14 +14,14 @@
  * file is the order they happen in.
  */
 import { isThreadUnknown, type ThreadState } from "../thread.js";
-import { normalizeInbound, withCarrierConsent, type CarrierConsent, type WaChangeValue, type WaRawMessage } from "../workspace/channels.js";
-import { shortCode, optInConfirmation, phoneTail } from "../workspace/contracts.js";
-import { describeLead, type IngestResult } from "../workspace/db.js";
-import type { Json, RoutedChannel } from "../workspace/db.js";
+import { normalizeInbound, withCarrierConsent, type CarrierConsent, type WaChangeValue, type WaRawMessage } from "../packages/channels.js";
+import { shortCode, optInConfirmation, phoneTail } from "../packages/contracts.js";
+import { describeLead, type IngestResult } from "../packages/db.js";
+import type { Json, RoutedChannel } from "../packages/db.js";
 import { waCfgFor } from "../tenant-runtime.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../vision.js";
-import type { BrainConfig, BrainMeta, NotificationsConfig, SendPurpose } from "../workspace/contracts.js";
-import { isOptedOutContact, resolveSystemPrompt, describeNow, fallbackMessages } from "../workspace/contracts.js";
+import type { BrainConfig, BrainMeta, NotificationsConfig, SendPurpose } from "../packages/contracts.js";
+import { isOptedOutContact, resolveSystemPrompt, describeNow, fallbackMessages } from "../packages/contracts.js";
 import { replyPosture, effectiveReplyMode } from "../reply-posture.js";
 import { resolveConsent } from "../consent.js";
 import { logger, errField } from "../log.js";
@@ -29,7 +29,7 @@ import type { NotifyTarget } from "../notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../tenant-fallback.js";
 import { IngestFailed } from "./persist.js";
 import { realPorts, type InboundPorts } from "./ports.js";
-import type { Wire } from "../workspace/core.js";
+import type { Wire } from "../packages/core.js";
 import { MAX_REPLIES_PER_DAY, PAUSE_MS, ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, noModelPlan, NO_MODEL_PAGE } from "./steps.js";
 
 

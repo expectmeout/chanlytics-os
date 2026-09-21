@@ -8,8 +8,8 @@
  * -- is the person coming back, and is not this file's business.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
-import { erasedEmailHash, erasedPhoneHash } from "./workspace/contracts.js";
+import type { Database } from "./packages/db.js";
+import { erasedEmailHash, erasedPhoneHash } from "./packages/contracts.js";
 
 type Db = SupabaseClient<Database>;
 

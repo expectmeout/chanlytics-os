@@ -30,7 +30,7 @@ import {
   parseTranscriptText,
   updateLiveCall,
   type RetellCall,
-} from "../lib/workspace/channels.js";
+} from "../lib/packages/channels.js";
 import {
   pauseConversation,
   resolveChannel,
@@ -42,13 +42,13 @@ import {
   claimControl,
   releaseControl,
   CALL_CONTROL_S,
-} from "../lib/workspace/db.js";
+} from "../lib/packages/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
 import { markForwardingVerified } from "../lib/forwarding.js";
 import { erasedBeforeCall } from "../lib/erased.js";
-import { upsertEscalation } from "../lib/workspace/jobs.js";
-import { callOutcomeWords, formatPhoneDisplay, guardSpokenTurns, frameGuardrail } from "../lib/workspace/contracts.js";
-import type { RoutedChannel } from "../lib/workspace/db.js";
+import { upsertEscalation } from "../lib/packages/jobs.js";
+import { callOutcomeWords, formatPhoneDisplay, guardSpokenTurns, frameGuardrail } from "../lib/packages/contracts.js";
+import type { RoutedChannel } from "../lib/packages/db.js";
 
 export const config = { maxDuration: 60 };
 

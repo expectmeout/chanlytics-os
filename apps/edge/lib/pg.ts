@@ -8,8 +8,8 @@
  * keeps enqueuing, so the client is purely a credential question and that is
  * all it asks for.
  */
-import { createServiceClient } from "./workspace/db.js";
-import type { Database } from "./workspace/db.js";
+import { createServiceClient } from "./packages/db.js";
+import type { Database } from "./packages/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient<Database> | null = null;

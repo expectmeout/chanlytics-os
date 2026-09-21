@@ -11,7 +11,7 @@
  * when the positions still match; a sync never makes a template less
  * legible than it was.
  */
-import type { SchemaSet, TemplateStatus } from "./workspace/contracts.js";
+import type { SchemaSet, TemplateStatus } from "./packages/contracts.js";
 import { GRAPH_VERSION } from "./meta-graph.js";
 
 export interface MetaTemplateComponent {

@@ -8,7 +8,7 @@
  * how sure, how fast, how many held or handed off. Neither writes anything.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 import { MAX_ROWS } from "./paged.js";
 
 const DAY_MS = 24 * 3600 * 1000;

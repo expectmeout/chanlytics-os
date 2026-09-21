@@ -365,7 +365,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   for (const pin of ['"POST lines/search"', '"POST lines/buy"', '"POST lines/retry"']) assert.ok(bridge.includes(pin), pin);
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   for (const pin of ['verb.to === "verb:choose-line"', 'verb.to.startsWith("verb:retry-line:")', 'data-testid="setup-chooser"', 'data-testid="setup-buy"', "Get this number", 'window.canDo("team")']) assert.ok(page.includes(pin), pin);
-  assert.ok(readCode("apps/edge/lib/lines.ts").includes('export { LINE_STEP_WORDS } from "./workspace/contracts.js";'), "one list of step words");
+  assert.ok(readCode("apps/edge/lib/lines.ts").includes('export { LINE_STEP_WORDS } from "./packages/contracts.js";'), "one list of step words");
 });
 
 test("the landing rule: an owner whose receptionist answers nowhere lands on Setup once, from Today or nothing", () => {

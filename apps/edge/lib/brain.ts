@@ -14,7 +14,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import type { ThreadTurn } from "./thread.js";
-import { BRAIN_OUTPUT_JSON_SCHEMA, parseBrainOutput, brainMetaOf, type BrainMeta } from "./workspace/contracts.js";
+import { BRAIN_OUTPUT_JSON_SCHEMA, parseBrainOutput, brainMetaOf, type BrainMeta } from "./packages/contracts.js";
 
 export const BRAIN_MODEL = "claude-opus-5";
 

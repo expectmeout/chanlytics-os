@@ -18,7 +18,7 @@ import { calendarDue, markCalendarChecked, noteBacklog, CALENDAR_PER_TICK } from
 import { feedItemsFor } from "../../lib/availability.js";
 import { addPeopleFromCalendar } from "../../lib/calendar-people.js";
 import { recordNotification } from "../../lib/notify.js";
-import { parseTenantConfig, peopleFromItems } from "../../lib/workspace/contracts.js";
+import { parseTenantConfig, peopleFromItems } from "../../lib/packages/contracts.js";
 
 export const config = { maxDuration: 60 };
 

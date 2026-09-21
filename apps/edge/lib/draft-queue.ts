@@ -10,10 +10,10 @@
  * outcome than a vetoed one, and no reply at all is worse than both.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
-import { recordOutbound } from "./workspace/db.js";
-import { scheduleJob } from "./workspace/jobs.js";
-import type { BrainMeta } from "./workspace/contracts.js";
+import type { Database, Json } from "./packages/db.js";
+import { recordOutbound } from "./packages/db.js";
+import { scheduleJob } from "./packages/jobs.js";
+import type { BrainMeta } from "./packages/contracts.js";
 
 export type DraftSource = "veto_window" | "low_confidence" | "steered";
 

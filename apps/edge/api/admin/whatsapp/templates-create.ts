@@ -14,7 +14,7 @@ import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { createTemplate, mapCategory, mapStatus, type MetaTemplateComponent } from "../../../lib/meta-templates.js";
-import type { Json } from "../../../lib/workspace/db.js";
+import type { Json } from "../../../lib/packages/db.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[a-z0-9_]{1,512}$/;

@@ -21,10 +21,10 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
-import { readThreadState, readLeadContext, describeLead } from "../../lib/workspace/db.js";
-import type { RoutedChannel } from "../../lib/workspace/db.js";
-import { resolveSystemPrompt, describeNow, frameSteer, violatesNoPrices, replyDelayMs, fallbackMessages } from "../../lib/workspace/contracts.js";
-import { cancelJobsFor } from "../../lib/workspace/jobs.js";
+import { readThreadState, readLeadContext, describeLead } from "../../lib/packages/db.js";
+import type { RoutedChannel } from "../../lib/packages/db.js";
+import { resolveSystemPrompt, describeNow, frameSteer, violatesNoPrices, replyDelayMs, fallbackMessages } from "../../lib/packages/contracts.js";
+import { cancelJobsFor } from "../../lib/packages/jobs.js";
 import { generateReply } from "../../lib/brain.js";
 import { queueDraft } from "../../lib/draft-queue.js";
 

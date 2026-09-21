@@ -34,8 +34,8 @@
  * invalid is logged and the neutral default below stands in: the receptionist
  * still answers, and says nothing it cannot know.
  */
-import type { BrainConfig, NotificationsConfig } from "./workspace/contracts.js";
-import { parseTenantConfigResult } from "./workspace/contracts.js";
+import type { BrainConfig, NotificationsConfig } from "./packages/contracts.js";
+import { parseTenantConfigResult } from "./packages/contracts.js";
 
 /**
  * What answers when the environment says nothing.

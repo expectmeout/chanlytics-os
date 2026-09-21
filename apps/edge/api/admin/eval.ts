@@ -17,8 +17,8 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
-import { resolveSystemPrompt, describeNow, fallbackMessages } from "../../lib/workspace/contracts.js";
-import type { RoutedChannel } from "../../lib/workspace/db.js";
+import { resolveSystemPrompt, describeNow, fallbackMessages } from "../../lib/packages/contracts.js";
+import type { RoutedChannel } from "../../lib/packages/db.js";
 import { generateReply } from "../../lib/brain.js";
 
 const MAX_CASES = 6;

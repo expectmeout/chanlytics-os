@@ -11,7 +11,7 @@
  * so a noisy pinger cannot become a load on the database.
  */
 import { pg } from "../lib/pg.js";
-import { platformHealthOf } from "../lib/workspace/contracts.js";
+import { platformHealthOf } from "../lib/packages/contracts.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
 
 const CACHE_MS = 10_000;

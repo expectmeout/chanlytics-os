@@ -26,7 +26,7 @@ import {
   publishAgentVersion,
   planAgentSettings,
   type LiveAgentSettings,
-} from "../../lib/workspace/channels.js";
+} from "../../lib/packages/channels.js";
 
 interface Body {
   agent_id?: string;

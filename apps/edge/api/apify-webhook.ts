@@ -17,7 +17,7 @@ import { logger, errField } from "../lib/log.js";
 import { planApifyIngress, tokenMatches, RUN_ROW_ID, WEBHOOK_TOKEN, type IngressRunRow } from "../lib/apify-ingress.js";
 import { leadDb } from "../lib/lead-db.js";
 import { leadWires } from "../lib/lead-wires.js";
-import { scheduleJobOnce } from "../lib/workspace/jobs.js";
+import { scheduleJobOnce } from "../lib/packages/jobs.js";
 
 export const config = { maxDuration: 30 };
 /** The delivery is a pointer: ids and a status. Anything larger is not one. */

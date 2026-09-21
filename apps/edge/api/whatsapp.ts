@@ -31,13 +31,13 @@
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 import crypto from "node:crypto";
-import { phoneTail } from "../lib/workspace/contracts.js";
+import { phoneTail } from "../lib/packages/contracts.js";
 import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/waba-events.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import type { WaChangeValue } from "../lib/workspace/channels.js";
-import { resolveChannelDetailed, recordStatusByExternalId, recordEchoAndPause, emitEvent } from "../lib/workspace/db.js";
-import type { Json, RoutedChannel } from "../lib/workspace/db.js";
+import type { WaChangeValue } from "../lib/packages/channels.js";
+import { resolveChannelDetailed, recordStatusByExternalId, recordEchoAndPause, emitEvent } from "../lib/packages/db.js";
+import type { Json, RoutedChannel } from "../lib/packages/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { pgSafe, IngestFailed } from "../lib/whatsapp/persist.js";

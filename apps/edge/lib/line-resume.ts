@@ -20,9 +20,9 @@
  * second caller's filters match nothing and it learns, from an empty result, that
  * somebody else has it.
  */
-import { PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, formatPhoneDisplay } from "./workspace/contracts.js";
+import { PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, formatPhoneDisplay } from "./packages/contracts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
+import type { Database, Json } from "./packages/db.js";
 import type { Logger } from "./log.js";
 
 type Db = SupabaseClient<Database>;

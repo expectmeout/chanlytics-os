@@ -6,7 +6,7 @@
  * place a real SID, token or key is handled.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
+import type { Database, Json } from "./packages/db.js";
 import {
   chooseLineProvider,
   twilioProvider,
@@ -24,9 +24,9 @@ import {
   type ProviderAccount,
   type RetellConfig,
   type ProvisionSecrets,
-} from "./workspace/channels.js";
+} from "./packages/channels.js";
 import { ensureVoiceAgent } from "./voice-agent.js";
-import type { LineDto } from "./workspace/contracts.js";
+import type { LineDto } from "./packages/contracts.js";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -337,4 +337,4 @@ export async function releaseRoutingRows(
 }
 
 /** The step, in the owner's words — one list, shared with the page (contracts/setup.ts). */
-export { LINE_STEP_WORDS } from "./workspace/contracts.js";
+export { LINE_STEP_WORDS } from "./packages/contracts.js";

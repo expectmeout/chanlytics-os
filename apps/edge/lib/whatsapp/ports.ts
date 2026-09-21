@@ -12,16 +12,16 @@
  * Nothing here decides anything.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../workspace/db.js";
+import type { Database } from "../packages/db.js";
 import { pg } from "../pg.js";
-import { readLeadContext, personReplyMode } from "../workspace/db.js";
+import { readLeadContext, personReplyMode } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../availability.js";
 import { tokensLast24h } from "../budget.js";
 import { pgThread, pgIngest, pgSink, queueReply } from "./persist.js";
 import { alertStaff } from "./alerts.js";
 import { pageOperator } from "../page-operator.js";
-import { whatsappSender } from "../workspace/core.js";
+import { whatsappSender } from "../packages/core.js";
 
 export interface InboundPorts {
   /** The database, or null when this deployment persists nothing. */

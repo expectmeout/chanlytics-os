@@ -12,7 +12,7 @@
  * write.
  */
 import crypto from "node:crypto";
-import { APIFY_RUN_END_EVENTS } from "./workspace/channels.js";
+import { APIFY_RUN_END_EVENTS } from "./packages/channels.js";
 
 /** The endings, spelled once: exactly the events every run is started asking for (core runner.ts). Anything else is progress. */
 export const APIFY_FINAL_EVENTS: ReadonlySet<string> = new Set(APIFY_RUN_END_EVENTS);

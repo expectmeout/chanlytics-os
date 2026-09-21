@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pg } from "../pg.js";
-import { fetchMediaBytes, type NormalizedInbound } from "../workspace/channels.js";
+import { fetchMediaBytes, type NormalizedInbound } from "../packages/channels.js";
 import {
   ingestInbound,
   markProcessed,
@@ -16,13 +16,13 @@ import {
   emitEvent,
   readThreadState,
   type IngestResult,
-} from "../workspace/db.js";
-import type { Database, Json } from "../workspace/db.js";
-import { upsertEscalation, type EscalationOutcome } from "../workspace/jobs.js";
-import { deliverSafely, type Delivered, type SendKind, type Wire } from "../workspace/core.js";
+} from "../packages/db.js";
+import type { Database, Json } from "../packages/db.js";
+import { upsertEscalation, type EscalationOutcome } from "../packages/jobs.js";
+import { deliverSafely, type Delivered, type SendKind, type Wire } from "../packages/core.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { queueDraft } from "../draft-queue.js";
-import type { BrainMeta, SendPurpose } from "../workspace/contracts.js";
+import type { BrainMeta, SendPurpose } from "../packages/contracts.js";
 import { unreadableThread, type ThreadState } from "../thread.js";
 import { logger, errField } from "../log.js";
 

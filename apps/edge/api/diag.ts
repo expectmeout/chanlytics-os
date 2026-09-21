@@ -10,7 +10,7 @@ import { pg } from "../lib/pg.js";
 import { brainSummary } from "../lib/budget.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
 import { pageStates, untoldPages, type PageRow } from "../lib/page-operator.js";
-import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/workspace/channels.js";
+import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/packages/channels.js";
 import { metaAppId } from "../lib/meta-graph.js";
 
 const META_APP_ID = metaAppId();

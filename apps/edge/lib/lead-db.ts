@@ -6,9 +6,9 @@
  * Nothing here decides anything: the rules are in core and in SQL.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
-import { leadSuppressionHash, type LeadRoundEnding, type LeadRunState, type LeadSearchPlan } from "./workspace/contracts.js";
-import type { CollectCommitResult, CollectPage, LeadDb, LeadMemberRow, LeadRoundRow, LeadRunRow, LeadShare } from "./workspace/core.js";
+import type { Database, Json } from "./packages/db.js";
+import { leadSuppressionHash, type LeadRoundEnding, type LeadRunState, type LeadSearchPlan } from "./packages/contracts.js";
+import type { CollectCommitResult, CollectPage, LeadDb, LeadMemberRow, LeadRoundRow, LeadRunRow, LeadShare } from "./packages/core.js";
 
 type Db = SupabaseClient<Database>;
 type Rpc = (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>;

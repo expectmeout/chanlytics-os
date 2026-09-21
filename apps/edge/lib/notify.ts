@@ -23,9 +23,9 @@
  * needs configuring without the customer's words travelling to a stranger.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
-import type { NotificationsConfig } from "./workspace/contracts.js";
-import { SERVER_NOTIFICATION_KINDS } from "./workspace/contracts.js";
+import type { Database } from "./packages/db.js";
+import type { NotificationsConfig } from "./packages/contracts.js";
+import { SERVER_NOTIFICATION_KINDS } from "./packages/contracts.js";
 import { pg } from "./pg.js";
 
 type Db = SupabaseClient<Database>;
