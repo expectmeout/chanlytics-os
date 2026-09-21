@@ -166,7 +166,8 @@
 .pk-where { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--ink-dim); }
 .pk-where a, .pk-where span { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; }
 .pk-where a:hover { color: var(--ink); }
-.pk-where .pk-quiet { color: var(--ink-faint); }
+/* "Listing not claimed by the owner" is dim here as it is in the rating card: one note, one ink. */
+.pk-where .pk-quiet { color: var(--ink-dim); }
 .pk-x { width: 30px; height: 30px; border-radius: 8px; border: 0; background: transparent; color: var(--ink-dim); display: grid; place-items: center; cursor: pointer; flex: none; }
 .pk-x:hover { background: var(--bg-hover); color: var(--ink); }
 
@@ -523,7 +524,9 @@
 .ld-biz-cell .cl-row-fullname .ld-biz-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ld-biz-cell .ld-sub { display: block; font-size: var(--text-sm); color: var(--ink-dim); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ld-biz-cell .ld-sub.waits { color: var(--lead-part); }
-.ld-biz-cell.excluded .ld-sub { color: var(--ink-faint); }
+/* Why a lead was left out is what an owner reads to decide Put back, so it stays readable: quieter than the name, never
+   the 2.3:1 of --ink-faint. */
+.ld-biz-cell.excluded .ld-sub { color: var(--ink-dim); }
 
 /* Six states of one row: Ready is silent, so the eye is drawn to change, not to sameness. */
 .leads-scope .cl-table tbody tr.ld-row-review { box-shadow: inset 3px 0 0 var(--warn); }
@@ -816,7 +819,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-g.on .n { color: var(--accent); }
 .ld-bench-g .l { font-size: var(--text-sm); color: var(--ink); }
 .ld-bench-g .a { grid-column: 2; font-size: var(--text-xs); color: var(--ink-dim); }
-.ld-bench-g.mailbox_waiting .a { color: var(--ink-faint); }
+.ld-bench-g.mailbox_waiting .a { color: var(--ink-dim); }
 
 .ld-bench-main { flex: 999 1 420px; min-width: 340px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden; }
 .ld-bench-head { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
