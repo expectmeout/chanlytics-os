@@ -10800,12 +10800,16 @@ interface LeadPeekVM {
         href: string | null;
     } | null;
     today: string | null;
-    image: string | null;
     claimedNote: string | null;
-    /** The tile behind the photo band: the mark, else initials on the kind's tint, drawn when there is no photo. */
+    /**
+     * The business's face, in the same shape the row's tile wears it: the mark over the listing's photo over initials
+     * on a tint the kind decides. The photograph has ONE home, here -- the band paints it under the mark and the
+     * lightbox opens it on its own. While it rode beside the tile the two surfaces drifted over which one wins (D6).
+     */
     tile: {
         initials: string;
         tint: number;
+        image: string | null;
         logo: string | null;
     };
     /**
@@ -11358,7 +11362,7 @@ interface LeadRowVM {
     phone: string | null;
     phoneAgrees: boolean;
     phoneWrong: boolean;
-    /** The two contacts as one glance (D2's Reach column), and the listing's photo for the row's mark. */
+    /** The two contacts as one glance (D2's Reach column). */
     reach: {
         email: {
             address: string;
@@ -11370,7 +11374,6 @@ interface LeadRowVM {
             agrees: boolean;
         } | null;
     };
-    image: string | null;
     /** The class rule's reason tokens, for the Needs review queue (D3); [] on a row from before. */
     reasons: string[];
     why: string;

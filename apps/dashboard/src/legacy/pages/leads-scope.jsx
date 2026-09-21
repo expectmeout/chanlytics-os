@@ -65,7 +65,7 @@ const LeadCard = ({ id, label, children, testid }) => <div className="ld-card" r
 // uncovers the photo under it and a photo that fails uncovers the initials -- no state, and never a broken frame.
 const LeadTile = ({ l, size = 48, onExpand }) => {
   const hide = (e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; };
-  const cls = `ld-tile tint-${l.tile.tint}${l.tile.image || l.tile.logo ? " has-img" : ""}`;
+  const cls = `ld-tile tint-${l.tile.tint}`;
   const layers = (
     <>
       {l.tile.image ? <img className="ph" src={l.tile.image} alt="" loading="lazy" onError={hide} /> : null}
