@@ -35,6 +35,12 @@
    up and down, over the next row's rule. */
 .rec-row::before { content: ""; position: absolute; inset: 0 -12px; z-index: -1; border-radius: var(--radius-md); transition: background var(--duration-fast) var(--ease-out); }
 .rec-row:hover::before { background: var(--bg-hover); }
+/* A second answer that disagrees, under the value, offered as a fill: the other value with its own source's pill, and
+   the press that takes it. */
+.rec-row-dispute { flex: 1 1 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 11px; background: var(--bg-sunken); border-radius: var(--radius-md); }
+.rec-row-dispute-other { flex: 1; min-width: 0; display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
+.rec-row-dispute-value { font-weight: var(--weight-medium); color: var(--ink); overflow-wrap: anywhere; }
+.rec-row-dispute-acts { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---------- A fold: a set of fields, opened under its row ---------- */
 /* The accent left edge is the page's one accent, and it marks the fold that is open. The fold reaches both edges of
