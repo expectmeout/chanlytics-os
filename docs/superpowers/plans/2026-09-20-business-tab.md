@@ -2121,7 +2121,8 @@ Deferred here from Phase 1 on 21 Sep, because it changes what the live form does
 
 **The fix.** Route `instructionsDraft` through `whoseWords` (one rule, as Phase 1 intended). **And** make the new "In your own words" fold's save (Task 3.6's helper) handle `kind: "baseline"` in the owner's field without either failure:
 - opening the box empty is right, since no owner wrote it;
-- saving the box empty must not flip `hasProfile` off where it was on. Either keep the field until the owner writes their own, or move the baseline back to `system_prompt` in the same write, so the resolver still composes. Prove it with the Task 3.6 patch harness and a before/after `resolveSystemPrompt` comparison on a record whose only composed field is that copy.
+- saving the box empty must not flip `hasProfile` off where it was on. Either keep the field until the owner writes their own, or move the baseline back to `system_prompt` in the same write, so the resolver still composes. Prove it with the Task 3.6 patch harness and a before/after `resolveSystemPrompt` comparison on a record whose only composed field is that copy;
+- and a rename must reach that copy too (added in Task 3.2's review). The Name row writes the baseline again under a new name only where it is the stored prompt (`system_prompt`); with the baseline in the owner's own field, a rename leaves the old name there, so the resolved prompt keeps it and the Name row's *It will say* shows only the identity line. Whatever this task does with that field must carry the business's current name.
 
 **Tests.** The Phase 1 pins must flip when this lands, and they're written to:
 - `prompt-blocks.test.mjs` "the instructions box opens exactly as it does on main" loses its baseline-in-the-box rows' "unchanged" status;

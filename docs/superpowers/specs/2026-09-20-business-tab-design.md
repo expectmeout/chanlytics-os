@@ -67,9 +67,9 @@ Three clauses, not a meter: what it can answer, what it deliberately will not, a
 
 | Row | Source | Gesture |
 |---|---|---|
-| Name | `verified` when Google agrees, else `typed` | inline |
+| Name | `typed`, which is how the read reports a typed name even where Google agrees (below); a different name Google lists is offered as **Use Google's**, and a different workspace name is shown and never offered, since it is only what the workspace was called when it was made | inline |
 | Address | `verified` / `typed`, with **Use Google's** when they differ | inline |
-| Website | `typed`; empty says we publish `/b/<slug>` and file it | inline |
+| Website | `typed`; empty says the receptionist is given no website, which is exact: the prompt names one only when it is typed here, and the carriers are filed the carrier record's own website, or `/b/<slug>` when that has none (`a2p.ts`), never this field | inline |
 | Booking link | `typed`; the note about never confirming moves under it | inline |
 | Answers on | `provisioned`, read-only, one link to Connections | — |
 | Tells customers to call | `typed` or follows the line | inline (unchanged behaviour) |

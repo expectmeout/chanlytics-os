@@ -31,7 +31,11 @@
 // replaces a pane. A page asks it to open a fold with request(id), or request(id, { dirty }), where `dirty` says
 // whether that fold holds unsaved changes once it is open. Without one, the fold's own is used: useRecordFold binds
 // each fold's dirty test to its id as the fold mounts, so a fold opened from anywhere by its id alone (the Business
-// tab's standing line opens a row it names) is guarded exactly as its own act would have guarded it. A clean fold
+// tab's standing line opens a row it names) is guarded exactly as its own act would have guarded it.
+// The registry keeps ONE dirty test per fold id: the one bound by the last useRecordFold hook to mount with that id.
+// So a fold id belongs to one hook on the page. Two hooks drawing the same id would leave that id unguarded once the
+// later of them unmounted, its test let go and the earlier's already replaced. The rebind this replaced let the last
+// hook win the same way; it is a stated limit, not handled, because nothing draws a fold id twice. A clean fold
 // gives way at once; a dirty one stays open and the registry records { holding, wants } until one of three answers:
 // discard() (throw its changes away and open the one asked for), stay() (keep editing it), or close(id) from the
 // holding fold itself (saved or cancelled; the one asked for then opens). close(id) from a fold that is not the open
@@ -55,7 +59,8 @@ const recFolds = (() => {
   const live = new Map();
   // Each fold's own dirty test, by its id, from the moment its hook mounts until it goes (bind). A request that brings
   // none uses it. Without it, a fold opened by its id alone held no test: the rail, another fold's act and the browser
-  // would each have thrown its changes away without asking.
+  // would each have thrown its changes away without asking. One test per id, the last hook's to mount (the header
+  // says why a fold id belongs to one hook).
   const bound = new Map();
   // "Nothing open" is null, never merely falsy: a fold may be called 0 or "". A check that throws is taken as holding
   // changes: asking once too often loses nothing.
