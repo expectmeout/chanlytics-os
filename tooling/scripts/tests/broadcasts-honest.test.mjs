@@ -3,6 +3,8 @@
  *
  * - A broadcast's composer could pick a visit's time a broadcast does not have, a visit playbook's composer held a
  *   value its select had no option for, and a run's detail printed "visit_when" (the wiring audit's C6, C24).
+ * - Every slot of a broadcast took any source, so a starter's first name could be set to the booking link and a
+ *   broadcast greeted everyone "Hi your booking link"; Send it again kept a run's sources as they were.
  * - Deleting a message a running playbook sends went through, and its runs skipped from then on (C8).
  * - A failed broadcast read "· failed" with its reason on file (C12); a send in flight was prose with no bar, an
  *   Approve could be pressed twice, and "N queued" counted runs waiting for a person (C14).
