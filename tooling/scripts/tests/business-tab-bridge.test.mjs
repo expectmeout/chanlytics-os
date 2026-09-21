@@ -79,7 +79,7 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
-    "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "consequenceOf", "profileCrossing", "promptBlocks", "ruleStrength", "standingLine",
+    "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "consequenceOf", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "standingLine",
   ]);
   assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
   const inputs = {
@@ -291,4 +291,17 @@ test("the mockup's bundle publishes the same helpers and never bundles the bridg
   win.__SETTINGS = { prompt: preview(STORED) };
   const plain = (x) => JSON.parse(JSON.stringify(x));
   assert.deepEqual(plain(win.__businessTab.consequenceOf("guardrails", STORED, "voice")), plain(served(STORED, "voice", "guardrails")));
+});
+
+test("saveIssues says what the save's own schema refuses in a part of the config, each with where it is and the schema's sentence", () => {
+  assert.deepEqual(tab.saveIssues({ brain: STORED }), [], "a brain the save would take has none");
+  const overlapping = { ...STORED, profile: { ...STORED.profile, hours: { mon: { intervals: [{ open: "09:00", close: "13:00" }, { open: "12:00", close: "18:00" }] } } } };
+  const issues = tab.saveIssues({ brain: overlapping });
+  assert.equal(issues.length, 1);
+  assert.deepEqual(issues[0].path.slice(0, 4), ["brain", "profile", "hours", "mon"]);
+  assert.match(issues[0].message, /Monday: two shifts overlap/);
+  // The part is parsed as it is handed over: the calendar alone, for a fold that writes nothing in the brain.
+  const feed = tab.saveIssues({ calendar: { ical_url: "https://localhost/feed.ics" } });
+  assert.deepEqual(feed.map((i) => i.path), [["calendar", "ical_url"]]);
+  assert.deepEqual(tab.saveIssues(undefined), [], "nothing to judge is nothing refused");
 });

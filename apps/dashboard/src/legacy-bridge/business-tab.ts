@@ -166,7 +166,26 @@ export function profileCrossing(stored: unknown, next: unknown): { crossing: Pro
   return { crossing, sentence: PROFILE_CROSSING_WORDS[crossing] };
 }
 
-export const BUSINESS_TAB = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing };
+/**
+ * What the save's own schema (TenantConfigWriteSchema, the one PUT /settings parses with) refuses in a part of the
+ * config, each issue with where it is and the schema's sentence. `part` is parsed as it is handed over: `{ brain }`
+ * for a fold of the brain, `{ calendar }` for the calendar's. Never the whole stored config, for the reason
+ * consequenceFor gives: a non-owner's feed address arrives masked, and the save's feed check would refuse it.
+ *
+ * For what only the schema can judge: two shifts that overlap, a day that closes before it opens, a date that is not
+ * on the calendar, an address the receptionist may not read. The server refuses the same things, but says the first
+ * three under no field the owner can see, after a round trip; and consequenceFor goes quiet for such a draft, so a
+ * fold's "It will say" vanished with nothing to say why. The page's folds map each issue to the field it is under
+ * (business-tab-folds.jsx schemaProblems). Nothing to judge is nothing refused.
+ */
+export function saveIssues(part: unknown): Array<{ path: Array<string | number>; message: string }> {
+  if (!part || typeof part !== "object") return [];
+  const parsed = TenantConfigWriteSchema.safeParse(part);
+  if (parsed.success) return [];
+  return parsed.error.issues.map((i) => ({ path: i.path.filter((p): p is string | number => typeof p === "string" || typeof p === "number"), message: i.message }));
+}
+
+export const BUSINESS_TAB = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing, saveIssues };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 
 declare global {

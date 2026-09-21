@@ -67,7 +67,10 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  * its braces, it is a plain string here. The rest are new: the save's schema (contracts BusinessProfileSchema) refuses
  * a length or a count the old form never checked, and the server's refusal named no field the owner could see, so each
  * is said here first, from the one table of limits (LIMITS). What only the schema can judge -- overlapping shifts, a
- * date that is not on the calendar, an address the receptionist may not read -- stays the schema's to say.
+ * date that is not on the calendar, an address the receptionist may not read -- stays the schema's to say, and
+ * schemaProblems(fold, base, draft) puts its sentence under the same field keys, plus closure-<i>-date and
+ * closure-<i>-until, and `elsewhere` for a refusal in a part of the settings that is not this fold's to fix. A fold's
+ * Save asks problemsOf first, then schemaProblems, and sends only when both are {}.
  */
 
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
@@ -500,6 +503,57 @@ const btProblemsOf = (fold, draft) => {
   return Object.prototype.hasOwnProperty.call(BT_PROBLEMS_OF, fold) ? BT_PROBLEMS_OF[fold](draft) : {};
 };
 
+// Which row of the draft each WRITTEN row came from: saveFold drops the rows nobody filled in before it writes, so the
+// save's schema counts from a list the owner is not looking at.
+const BT_WRITTEN_ROWS = {
+  services: (draft) => (draft || []).map((x, i) => (btfTrimmed(x.name) ? i : -1)).filter((i) => i >= 0),
+  closures: (draft) => (draft || []).map((c, i) => (btfTrimmed(c.date) ? i : -1)).filter((i) => i >= 0),
+  notes: (draft) => (draft || []).map((n, i) => (btfTrimmed(n.title) || btfTrimmed(n.text) ? i : -1)).filter((i) => i >= 0),
+};
+// The field a refusal is said under, from where the schema found it; null when it is not under this fold's own paths.
+const btFieldOf = (fold, path, draft) => {
+  const dotted = path.join(".");
+  const own = BT_PATHS_OF[fold].some((p) => dotted === p || dotted.startsWith(`${p}.`));
+  if (!own) return null;
+  if (fold === "hours") return `hours-${path[3]}`;
+  if (fold === "services" || fold === "closures" || fold === "notes") {
+    if (typeof path[3] !== "number") return fold;
+    const row = BT_WRITTEN_ROWS[fold](draft)[path[3]];
+    const at = row === undefined ? path[3] : row;
+    if (fold === "notes") return `note-${at}`;
+    return `${fold === "services" ? "service" : "closure"}-${at}${typeof path[4] === "string" ? `-${path[4]}` : ""}`;
+  }
+  if (fold === "booking_rules" || fold === "consult_first") return String(path[3]);
+  if (fold === "fallbacks") return String(path[2]);
+  if (fold === "calendar") return "ical_url";
+  return fold === "guardrails" && path[0] === "features" ? "vision" : fold;
+};
+
+/**
+ * What the save's own schema refuses of a fold's draft, by the field it is under: { fieldKey: sentence }, {} when the
+ * save would take it. The schema's judgement and its sentence (the bridge's saveIssues), and this file's field keys:
+ * a row is named by its place in the DRAFT, which is the list the owner is looking at. The fold's part of the config
+ * is judged alone, the brain or the calendar, as the bridge says why. A refusal somewhere that is not this fold's to
+ * fix (a stored day that closes before it opens, met while saving the voice) would stop this save too, so it is said
+ * once, as `elsewhere`, naming where the way the server's refusal does. {} without the bridge: nothing to ask.
+ */
+const btSchemaProblems = (fold, base, draft) => {
+  btFoldNamed(fold);
+  const ask = window.__businessTab && window.__businessTab.saveIssues;
+  if (typeof ask !== "function") return {};
+  const next = btSaveFold(fold, base, draft);
+  const issues = ask(fold === "calendar" ? { calendar: next.calendar } : { brain: next.brain });
+  const found = {};
+  issues.forEach((issue) => {
+    const key = btFieldOf(fold, issue.path, draft);
+    if (key) { if (!found[key]) found[key] = issue.message; return; }
+    if (found.elsewhere) return;
+    const where = issue.path.filter((p) => typeof p === "string").slice(-2).join(".");
+    found.elsewhere = `Something else in your settings stops this save — ${where ? `${where}: ` : ""}${issue.message}`;
+  });
+  return found;
+};
+
 /** Whether a fold's draft holds changes: what it would write onto `base` is not what the draft it would open with writes. */
 const btHoldsChanges = (fold, base, draft) => !btfSame(btSaveFold(fold, base, draft), btSaveFold(fold, base, btDraftOf(fold, base)));
 
@@ -535,7 +589,7 @@ const btFoldJob = (fold, draft, job) => {
 };
 
 // Added to window.__businessTabSave, the object business-tab-save.jsx published: each fold's paths and keys (PATHS_OF,
-// KEYS_OF), its helpers (draftOf, problemsOf, saveFold, holdsChanges, foldJob), and how much of each thing the save
+// KEYS_OF), its helpers (draftOf, problemsOf, schemaProblems, saveFold, holdsChanges, foldJob), and how much of each thing the save
 // takes (LIMITS, and RULES: each booking rule's key, least, most and sentence).
 if (!window.__businessTabSave) throw new Error("business-tab-folds.jsx loads after business-tab-save.jsx: window.__businessTabSave is not there.");
 Object.assign(window.__businessTabSave, {
@@ -543,6 +597,7 @@ Object.assign(window.__businessTabSave, {
   KEYS_OF: BT_KEYS_OF,
   draftOf: btDraftOf,
   problemsOf: btProblemsOf,
+  schemaProblems: btSchemaProblems,
   saveFold: btSaveFold,
   holdsChanges: btHoldsChanges,
   foldJob: btFoldJob,

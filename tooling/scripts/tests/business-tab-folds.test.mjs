@@ -32,7 +32,9 @@ await import("../../../apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
 const W = globalThis.window;
 const S = W.__businessTabSave;
 // What each fold's "It will say" is asked of: every fold here must be one consequenceOf knows by name.
-const { FOLD_BLOCK } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
+const { FOLD_BLOCK, installBusinessTab } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
+// And what the save's own schema refuses, which schemaProblems puts under the fold's fields.
+installBusinessTab();
 
 /* ------------------------------------ the record ------------------------------------ */
 
@@ -755,4 +757,48 @@ test("a fold saved onto a config with no brain, or no profile, writes nothing it
   const next = S.saveFold("services", stored(), draft);
   draft[0].name = "changed after the save was built";
   assert.equal(next.brain.profile.services[0].name, "Balayage", "what was built holds nothing of the draft it was built from");
+});
+
+/* ------------------------------------ what only the save's schema can judge ------------------------------------ */
+
+/**
+ * The record as the save would take it. STORED carries two keys no form renders, to prove every fold leaves them be;
+ * the save's schema is strict and refuses both, so what it judges here is the record without them.
+ */
+const taken = () => {
+  const config = stored();
+  delete config.brain.profile.a_key_no_form_renders;
+  delete config.brain.profile.booking_rules.a_rule_added_later;
+  return config;
+};
+
+test("what only the save's schema can judge is said under the fold's own field, in the schema's words", () => {
+  // Two shifts that overlap: no one box is wrong, so the old form said nothing and the server named no field.
+  const week = S.draftOf("hours", taken());
+  week.mon = { isOpen: true, shifts: [{ open: "09:00", close: "13:00" }, { open: "12:00", close: "18:00" }] };
+  assert.deepEqual(S.problemsOf("hours", week), {}, "nothing the page's own checks can see");
+  assert.deepEqual(S.schemaProblems("hours", taken(), week), { "hours-mon": "Monday: two shifts overlap." });
+
+  // A row's place in the DRAFT, not in what is written: the empty first row is dropped before the save's schema sees it.
+  const closures = [{ date: "", note: "" }, { date: "2099-11-31", note: "No such day" }];
+  assert.deepEqual(Object.keys(S.schemaProblems("closures", taken(), closures)), ["closure-1-date"]);
+  const services = [{ name: "" }, { name: "Cut", duration_min: "45" }, { name: "Colour", duration_min: "0" }];
+  assert.deepEqual(S.schemaProblems("services", taken(), services), {}, "a duration of nothing is no duration, as it always was");
+
+  // The calendar's part is judged alone: the brain is not the fold's.
+  assert.deepEqual(Object.keys(S.schemaProblems("calendar", taken(), "https://localhost/feed.ics")), ["ical_url"]);
+
+  for (const fold of FOLDS) assert.deepEqual(S.schemaProblems(fold, taken(), S.draftOf(fold, taken())), {}, `${fold}: the stored record is one the save would take`);
+});
+
+test("a refusal that is not this fold's to fix is said once, as elsewhere, naming where", () => {
+  const bad = taken();
+  bad.brain.profile.hours.mon = { open: "18:00", close: "09:00" };
+  const found = S.schemaProblems("tone", bad, "Bright.");
+  assert.deepEqual(Object.keys(found), ["elsewhere"]);
+  assert.match(found.elsewhere, /Monday/);
+  // Without the bridge (the standalone mockup before it loads, a test that never installed it) there is nothing to ask.
+  const tab = W.__businessTab;
+  W.__businessTab = undefined;
+  try { assert.deepEqual(S.schemaProblems("tone", bad, "Bright."), {}); } finally { W.__businessTab = tab; }
 });
