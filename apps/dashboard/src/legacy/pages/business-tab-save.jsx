@@ -107,6 +107,35 @@ const btPatched = (config, job) => {
 };
 
 /**
+ * A patch's own refusal: an error whose `said` is the sentence for the owner. A patch throws one when it finds, on the
+ * config it is about to go on, that it must not go (a fold whose part of the settings changed after it opened,
+ * business-tab-folds.jsx). The saver says `said` in the danger tone and drops the job; any other throw is said in the
+ * saver's own words.
+ */
+const btRefusal = (words) => {
+  const e = new Error(words);
+  e.said = words;
+  return e;
+};
+
+/**
+ * A patch, tried: { patched } when it ran and handed back a config, { failed } when it threw or handed back none.
+ * The page is untyped and a fold's draft is whatever its fields held, so a patch can throw on a draft nobody foresaw;
+ * and base() runs every waiting patch each time the page draws. Unguarded, one bad draft waiting behind a save took the
+ * page down on its next draw, and then threw inside the accepted save's callback, which skipped the settings re-read.
+ */
+const btTried = (config, job) => {
+  try {
+    const patched = btPatched(config, job);
+    if (!patched || typeof patched !== "object") throw new Error("A save's patch handed back no config.");
+    return { patched };
+  } catch (failed) {
+    if (window.console) window.console.error(failed);
+    return { failed };
+  }
+};
+
+/**
  * One saver for the browser tab, so saves made close together go one at a time, and each builds on the one before.
  *
  * PUT /settings is a versioned compare-and-swap of the whole config (useFieldSave says why), and the settings re-read
@@ -126,14 +155,25 @@ const btPatched = (config, job) => {
  *
  * A job is { row, change or patch, said, done, flash } (btPatched says which patch is which): `row` is the row's or the
  * fold's id, `said` is the toast once the server takes it, `done` runs then too (the row closes), and a refusal, or a
- * promise that fails before the server took it, is said in the danger tone. `reset()` is for tests: it forgets the
- * queue, the save out and the last answer, as a new browser tab would start.
+ * promise that fails before the server took it, is said in the danger tone. So is a patch that cannot run, or that
+ * refuses the config it would go on (btRefusal): said, dropped, and the save behind it goes. `reset()` is for tests: it
+ * forgets the queue, the save out and the last answer, as a new browser tab would start, and a save from before it
+ * closes nothing and says nothing when its answer comes.
  */
 const btSaver = () => {
   let last = null;
   let out = null;
+  // Which life of the saver a save was sent in: reset() starts a new one, and an answer from an earlier life closes
+  // nothing and says nothing.
+  let life = 0;
   const queue = [];
   const subs = new Set();
+  // A job's own callbacks are the page's, and one that throws (a fold already gone, a toast with nowhere to go) must
+  // not stop the save behind it or the re-read that follows an accepted one.
+  const safely = (fn, arg) => {
+    if (typeof fn !== "function") return;
+    try { fn(arg); } catch (err) { if (window.console) window.console.error(err); }
+  };
   // Each page listening hears every move, whatever another does: one that throws is reported and the rest still hear.
   const onChange = () => {
     for (const fn of [...subs]) {
@@ -168,7 +208,8 @@ const btSaver = () => {
     const ahead = out ? [out].concat(queue) : queue.slice();
     const key = [from.config].concat(ahead);
     if (memo && memo.key.length === key.length && memo.key.every((k, i) => k === key[i])) return memo.config;
-    const config = ahead.reduce((cfg, job) => btPatched(cfg, job), from.config);
+    // A patch that cannot run is left out: next() says it and drops it when its turn comes.
+    const config = ahead.reduce((cfg, job) => btTried(cfg, job).patched || cfg, from.config);
     memo = { key, config };
     return config;
   };
@@ -179,22 +220,27 @@ const btSaver = () => {
     // No door to save through, or nothing read to save onto: nothing goes, and nothing waits on a save that never lands.
     if (!from || typeof window.__saveSettings !== "function") { onChange(); next(); return; }
     const cfg = from.config;
-    // Compared with the config as it was: the patch ran on a copy (btPatched).
-    const patched = btPatched(cfg, job);
-    if (btSame(patched, cfg)) { if (job.done) job.done(); onChange(); next(); return; }
+    const mine = life;
+    let accepted = false;
+    const refused = (words) => { if (!accepted && mine === life) safely(job.flash, { tone: "danger", msg: <>{words || "That didn't go through."}</> }); };
+    // Compared with the config as it was: the patch ran on a copy (btPatched). One that cannot run, or refuses to go on
+    // this config, is said and dropped, and the fold stays open with what was typed.
+    const tried = btTried(cfg, job);
+    if (tried.failed) { refused(typeof tried.failed.said === "string" ? tried.failed.said : null); onChange(); next(); return; }
+    const patched = tried.patched;
+    if (btSame(patched, cfg)) { safely(job.done); onChange(); next(); return; }
     out = job;
     onChange();
-    let accepted = false;
     const free = () => { if (out !== job) return; out = null; onChange(); next(); };
-    const refused = (words) => { if (!accepted) job.flash({ tone: "danger", msg: <>{words || "That didn't go through."}</> }); };
     let sent;
     try {
       sent = window.__saveSettings(patched, from.version, (saved) => {
+        // After a reset, an answer from before it is no answer to anything now.
+        if (mine !== life) return;
         accepted = true;
-        // Only while this save is the one out: after a reset, an answer from before it is no answer to anything now.
         if (out === job && saved && saved.config && typeof saved.version === "number") last = { config: saved.config, version: saved.version };
-        if (job.done) job.done();
-        job.flash({ msg: job.said });
+        safely(job.done);
+        safely(job.flash, { msg: job.said });
         // With the server's answer in hand the next patch goes on it now; without one, it waits for the re-read,
         // which is when the promise settles.
         if (saved && saved.config) free();
@@ -217,7 +263,7 @@ const btSaver = () => {
     base,
     // A page hears every move while it is on screen; call what this returns as it goes.
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
-    reset() { last = null; out = null; queue.length = 0; memo = null; onChange(); },
+    reset() { life += 1; last = null; out = null; queue.length = 0; memo = null; onChange(); },
   };
 };
 
@@ -339,7 +385,7 @@ const BT_PATCH_OF = {
 };
 
 // window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), base(), subscribe(fn), reset() }),
-// how a job's patch is applied (`patched`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
+// how a job's patch is applied (`patched`) and how one refuses the config it would go on (`refusal`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
 // brain's prompt is the product's own lines under its stored name (`isBaseline`), each row's STORED_AS, CHECK_OF and
 // PATCH_OF by its id. business-tab-folds.jsx adds each fold's paths, keys and helpers to it as it loads.
 Object.assign(window, {
@@ -348,6 +394,7 @@ Object.assign(window, {
   __businessTabSave: {
     saver: btTabSaver,
     patched: btPatched,
+    refusal: btRefusal,
     same: btSame,
     trimmed: btTrimmed,
     isBaseline: btIsBaseline,
