@@ -4,10 +4,13 @@
 // A set of fields opens under the row that states them. Its head keeps the row's label where it was and puts the
 // page's hint where the value was; its act becomes Close. Under its fields, a fold can show what saving it will
 // write (`says`, under the page's own eyebrow, `saysLabel`), and its foot carries its own Save and Cancel. The page
-// decides whether it is open, what its fields are and what saving does; the kit knows none of it.
+// decides what its fields are and what saving does; the kit knows none of it. Whether it is open comes from the
+// registry, through useRecordFold (below): the `open` prop stays, but a fold drawn open without the registry holds
+// no guard.
 //
-//   <RecordFold id="booking_rules" label="Booking rules" hint="…" open says={block} saysLabel="…"
-//               onSave={save} onCancel={cancel} saving={busy} gate={window.gate("settings", "change the booking rules")}>
+//   const rules = useRecordFold("booking_rules", { dirty: changed });
+//   <RecordFold id="booking_rules" label="Booking rules" hint="…" open={rules.open} says={block} saysLabel="…"
+//               onSave={save} onCancel={rules.close} saving={busy} gate={window.gate("settings", "change the booking rules")}>
 //     …fields…
 //   </RecordFold>
 //
@@ -33,7 +36,7 @@
 // subscribe(fn) hears every change. drawn(id) is RecordFold's own: it counts the folds with each id on the page, and
 // when the last one with the open id goes, the registry lets go.
 
-const { useRef: useFoldRef, useEffect: useFoldEffect } = React;
+const { useRef: useFoldRef, useEffect: useFoldEffect, useState: useFoldState } = React;
 
 const recFolds = (() => {
   let openId = null;
@@ -101,6 +104,37 @@ const recFolds = (() => {
     },
   };
 })();
+
+// One fold's hold on the registry, for the page that draws it, and the one place `open` comes from. A fold the page
+// drew open by itself would carry no rail's question and no unload prompt, and nothing would say so. The hook hears
+// the registry, so the page redraws as its fold opens, closes or is asked about.
+//   const hours = useRecordFold("hours", { dirty: changed });
+//   <RecordRow id="hours" act={{ label: "Change", onClick: hours.request }} ... />
+//   <RecordFold id="hours" open={hours.open} onCancel={hours.close} ... />
+//   {hours.asking ? <Confirm ... onYes={hours.discard} onNo={hours.stay} /> : null}
+// `dirty` is the fold's unsaved-changes test, a boolean or a function, read whenever the registry asks. `asking` is
+// the registry's { holding, wants } while a fold holds, or null.
+const recSameAsk = (a, b) => (a ? a.holding : null) === (b ? b.holding : null) && (a ? a.wants : null) === (b ? b.wants : null);
+const useRecordFold = (id, { dirty = false } = {}) => {
+  const read = () => ({ open: recFolds.open() === id, asking: recFolds.asking() });
+  const [seen, setSeen] = useFoldState(read);
+  const dirtyNow = useFoldRef(dirty);
+  dirtyNow.current = dirty;
+  useFoldEffect(() => {
+    const hear = () => setSeen((was) => { const now = read(); return was.open === now.open && recSameAsk(was.asking, now.asking) ? was : now; });
+    hear();
+    return recFolds.subscribe(hear);
+  }, [id]);
+  const holds = () => { const d = dirtyNow.current; return typeof d === "function" ? !!d() : !!d; };
+  return {
+    open: seen.open,
+    asking: seen.asking,
+    request: () => recFolds.request(id, { dirty: holds }),
+    close: () => recFolds.close(id),
+    discard: () => recFolds.discard(),
+    stay: () => recFolds.stay(),
+  };
+};
 
 // The Settings rail's one question before it replaces a pane (settings.jsx SettingsPage): does anything on it hold
 // unsaved changes? The open fold answers for itself. The kit sets this once, as it loads, before any pane can mount.
@@ -201,4 +235,4 @@ const RecordFold = ({
   );
 };
 
-Object.assign(window, { RecordFold, __recordFolds: recFolds });
+Object.assign(window, { RecordFold, useRecordFold, __recordFolds: recFolds });

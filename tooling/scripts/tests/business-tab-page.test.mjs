@@ -484,6 +484,45 @@ test("a fold that was closed, or gave way, before it went leaves the open one al
   folds.reset();
 });
 
+test("a page holds its fold through useRecordFold: open, close and the ask come from the registry, and a change redraws it", () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  let edited = false;
+  let hours;
+  let notes;
+  const Page = () => {
+    hours = W.useRecordFold("hours", { dirty: () => edited });
+    notes = W.useRecordFold("notes", { dirty: false });
+    return null;
+  };
+  const redrawPage = () => again(() => W.React.createElement(Page));
+  draw(Page);
+  assert.deepEqual([hours.open, notes.open, hours.asking], [false, false, null], "nothing is open until it is asked for");
+
+  hours.request();
+  assert.equal(folds.open(), "hours");
+  // The hook holds what the registry told it: without its subscription, this draw would still say closed.
+  redrawPage();
+  assert.deepEqual([hours.open, notes.open], [true, false], "the registry's change redraws the page with its fold open");
+
+  edited = true;
+  assert.equal(W.__settingsUnsaved(), true, "the rail's guard is the hook's own dirty test, read when asked");
+  notes.request();
+  redrawPage();
+  assert.deepEqual(hours.asking, { holding: "hours", wants: "notes" }, "a dirty fold is asked about before it gives way");
+  hours.stay();
+  redrawPage();
+  assert.deepEqual([hours.open, hours.asking], [true, null], "keep editing");
+  notes.request();
+  hours.discard();
+  redrawPage();
+  assert.deepEqual([hours.open, notes.open], [false, true], "discard, and the one asked for opens");
+  notes.close();
+  redrawPage();
+  assert.equal(notes.open, false);
+  folds.reset();
+});
+
 test("the page knows when a fold holds unsaved changes", () => {
   W.__recordFolds.reset();
   W.__recordFolds.request("hours", { dirty: () => true });
