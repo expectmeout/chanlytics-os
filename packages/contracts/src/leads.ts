@@ -84,6 +84,8 @@ export const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
 export const LEAD_REVIEW_WORD = "Needs review";
 export const LEAD_LEFT_OUT_WORD = "Left out";
+/** What a lead's class is called. The page kept a second copy that said "Excluded" for the same state. */
+export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
 /** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
 export const LEAD_UNREACHABLE_WORD = "No way to reach them";
 /** The peek's two groups of checks (P2, §0.1). Nothing read wears a plain check mark. */
