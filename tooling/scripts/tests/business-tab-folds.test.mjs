@@ -868,3 +868,113 @@ test("saveProblems is the one question a fold asks before it saves: the page's o
   assert.doesNotMatch(feed.ical_url, /Too big|Invalid|expected/);
   assert.deepEqual(S.saveProblems("tone", taken(), "Bright."), {});
 });
+
+/* ------------------------------------ what a save will say ------------------------------------ */
+
+// The settings read's own preview, built as the server builds it: willSay resolves a draft with its inputs.
+const { composePromptPreview } = await import("../../../apps/dashboard/src/server/prompt-preview.ts");
+const previewed = (config) => {
+  W.__SETTINGS = {
+    version: 7,
+    config,
+    prompt: composePromptPreview(config.brain, { tz: "America/New_York", policy: {}, known: { workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" }, channels: [], listing: null }, openings: null }),
+  };
+  return config;
+};
+const linesOf = (text) => (text ? text.split("\n").filter((l) => l.trim() !== "") : []);
+
+test("one helper says what a row's or a fold's save will tell the receptionist: what comes, what goes, the whole block, and the crossing", () => {
+  try {
+    const base = previewed(taken());
+    const tab = W.__businessTab;
+    const blockOf = (brain) => tab.consequenceOf("hours", brain, "whatsapp");
+
+    // A fold's draft, written as its save writes it: Monday closes an hour earlier.
+    const week = S.draftOf("hours", base);
+    week.mon = { isOpen: true, shifts: [{ open: "09:30", close: "17:00" }] };
+    const next = S.saveFold("hours", base, week).brain;
+    const will = S.willSay({ was: base.brain, next, sections: "hours", channel: "whatsapp" });
+    assert.equal(will.whole, blockOf(next).text, "the whole block as the save would leave it, in the composer's own words");
+    assert.deepEqual([linesOf(will.added).length, linesOf(will.removed).length], [1, 1], "a line rewritten is one of each");
+    assert.match(will.added, /17:00/);
+    assert.match(will.removed, /18:00/);
+    assert.equal(will.note, null, "and no line crossed");
+
+    // Unchanged, a fold still shows its block, and nothing comes or goes.
+    const same = S.willSay({ was: base.brain, next: S.saveFold("hours", base, S.draftOf("hours", base)).brain, sections: "hours", channel: "whatsapp" });
+    assert.deepEqual([same.added, same.removed, same.note], [null, null, null]);
+    assert.equal(same.whole, blockOf(base.brain).text);
+
+    // A block the save takes away whole goes line by line: every day closed, on a record that still composes.
+    const shut = S.draftOf("hours", base);
+    DAYS.forEach((d) => { shut[d] = { isOpen: false, shifts: shut[d].shifts }; });
+    const closed = S.saveFold("hours", base, shut).brain;
+    assert.equal("hours" in closed.profile, false);
+    const gone = S.willSay({ was: base.brain, next: closed, sections: "hours", channel: "whatsapp" });
+    assert.deepEqual([gone.whole, gone.added, gone.note], [null, null, null]);
+    assert.deepEqual(linesOf(gone.removed), linesOf(blockOf(base.brain).text), "showing only what a save adds hid that the week goes");
+
+    // No channel that reads the words: nothing is resolved, and nothing is claimed.
+    assert.deepEqual(S.willSay({ was: base.brain, next, sections: "hours", channel: null }), { note: null, added: null, removed: null, whole: null });
+    // A draft the save's own schema refuses: nothing true can be said of a save that will not go, and a block that is
+    // null for THAT reason must not read as one the save takes away.
+    const overlap = S.draftOf("hours", base);
+    overlap.mon = { isOpen: true, shifts: [{ open: "09:00", close: "13:00" }, { open: "12:00", close: "18:00" }] };
+    assert.equal(S.willSay({ was: base.brain, next: S.saveFold("hours", base, overlap).brain, sections: "hours", channel: "whatsapp" }), null);
+    assert.equal(S.willSay({ was: null, next, sections: "hours", channel: "whatsapp" }), null);
+  } finally {
+    delete W.__SETTINGS;
+  }
+});
+
+test("a save that crosses the resolver's line says so, whichever gesture sends it, and lists no one block's lines for a record that stops composing", () => {
+  try {
+    // The week is the one thing this record composes from.
+    const sparse = { brain: { ...taken().brain, profile: { hours: { mon: { open: "09:30", close: "18:00" } }, guardrails: { never_quote_prices: true }, handoff_number: "+16469325775" } } };
+    assert.equal(hasProfile(sparse.brain.profile), true);
+    const base = previewed(sparse);
+    const shut = S.draftOf("hours", base);
+    shut.mon = { isOpen: false, shifts: shut.mon.shifts };
+    const stops = S.willSay({ was: base.brain, next: S.saveFold("hours", base, shut).brain, sections: "hours", channel: "whatsapp" });
+    assert.match(stops.note, /stops being given the details on this page/);
+    assert.deepEqual([stops.whole, stops.added, stops.removed], [null, null, null], "everything composed goes, and the sentence says all of it");
+
+    // The other way: the first field a record composes from, with every line of the block it starts.
+    const bare = previewed({ brain: { ...taken().brain, profile: { guardrails: { never_quote_prices: true } } } });
+    const opened = S.draftOf("hours", bare);
+    opened.mon = { isOpen: true, shifts: [{ open: "09:30", close: "18:00" }] };
+    const starts = S.willSay({ was: bare.brain, next: S.saveFold("hours", bare, opened).brain, sections: "hours", channel: "whatsapp" });
+    assert.match(starts.note, /starts being given the details on this page/);
+    assert.equal(starts.added, linesOf(starts.whole).join("\n"), "every line of the block is new");
+  } finally {
+    delete W.__SETTINGS;
+  }
+});
+
+test("each block of the brain a save goes on is resolved once for that brain, by channel and block, and again for a new base", () => {
+  const tab = W.__businessTab;
+  const real = tab.consequenceOf;
+  const asked = [];
+  try {
+    const base = previewed(taken());
+    tab.consequenceOf = (block, brain, channel) => { asked.push([block, channel, brain === base.brain ? "base" : "next"]); return real(block, brain, channel); };
+    const nextOf = (close) => { const w = S.draftOf("hours", base); w.mon = { isOpen: true, shifts: [{ open: "09:30", close }] }; return S.saveFold("hours", base, w).brain; };
+    // Three keystrokes on one base: the base's block once, the draft's each time.
+    for (const close of ["17:00", "17:30", "17:45"]) S.willSay({ was: base.brain, next: nextOf(close), sections: "hours", channel: "whatsapp" });
+    assert.deepEqual(asked.filter((a) => a[2] === "base"), [["hours", "whatsapp", "base"]]);
+    assert.equal(asked.filter((a) => a[2] === "next").length, 3);
+    // Another channel is another block of the same brain; another row's block, another again.
+    S.willSay({ was: base.brain, next: nextOf("17:00"), sections: "hours", channel: "voice" });
+    S.willSay({ was: base.brain, next: nextOf("17:00"), sections: ["hours", "closures"], channel: "voice" });
+    assert.deepEqual(asked.filter((a) => a[2] === "base").map((a) => a.slice(0, 2)), [["hours", "whatsapp"], ["hours", "voice"], ["closures", "voice"]]);
+    // A new base (a save taken, a newer read) forgets them all: what was resolved describes a brain that is gone.
+    const moved = structuredClone(base);
+    asked.length = 0;
+    tab.consequenceOf = (block, brain, channel) => { asked.push([block, channel, brain === moved.brain ? "base" : "next"]); return real(block, brain, channel); };
+    S.willSay({ was: moved.brain, next: nextOf("17:00"), sections: "hours", channel: "whatsapp" });
+    assert.deepEqual(asked.filter((a) => a[2] === "base"), [["hours", "whatsapp", "base"]]);
+  } finally {
+    tab.consequenceOf = real;
+    delete W.__SETTINGS;
+  }
+});

@@ -32,17 +32,6 @@ const BT_SAVED = "Saved — the receptionist picks it up within a minute";
 const btNoCheck = () => null;
 
 /**
- * What a draft changes in its block of the prompt, line by line: the lines it adds or rewrites, and the lines it takes
- * away. Both blocks are the composer's own text (consequenceOf); nothing here writes a word of them.
- */
-const btChangedLines = (before, after) => {
-  const lines = (b) => (b && typeof b.text === "string" ? b.text.split("\n").filter((l) => l.trim() !== "") : []);
-  const was = lines(before);
-  const now = lines(after);
-  return { added: now.filter((l) => !was.includes(l)), removed: was.filter((l) => !now.includes(l)) };
-};
-
-/**
  * One of this page's rows: at rest a RecordRow, and while it is edited the kit's inline editor (RecordInline,
  * record-fold.jsx), which holds the gesture itself -- its focus, its keys, what saving writes and its foot. What is the
  * page's is here: the draft, what stops a save, the save through the tab's one saver, what the receptionist will be
@@ -115,9 +104,6 @@ const BtRow = ({
   const now = open && draft != null ? draft : initial;
   const dirty = open && !S.same(storedAs(now), storedAs(initial));
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
-  // Each block as the brain this row's save goes on writes it, resolved once per such brain rather than on every
-  // keystroke (the saver hands back the same base while nothing moves).
-  const before = useBizRef({ brain: null, blocks: {} });
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); setArm(false); };
@@ -144,46 +130,19 @@ const BtRow = ({
     save(commit(now), close);
   };
 
-  // What saving would tell the receptionist: the lines of its blocks that the draft changes, resolved as the edge
-  // resolves them. Only for a draft the save would send, and only while the editor is open, because each call parses
-  // the whole brain and resolves a full prompt. Nothing is drawn when nothing changes, and nothing when a block is null
-  // (the save's schema refuses the draft, or a record whose profile composes nothing is answered with its stored
-  // prompt): never an empty "It will say". The lines it adds are what it will say and the lines it takes away what it
-  // will no longer say, both at once: a line rewritten is one of each, and a save that drops one thing and adds another
-  // says both, where showing only what it adds hid what goes.
-  //
-  // And when the save crosses the resolver's own line between composing a prompt and answering with the stored one
-  // (hasProfile, decided in the bridge), the sentence that says so goes first: emptying the last field it composes
-  // from drops the hand-off and every rule line, far beyond the field's own line. Not a refusal; the save still goes.
+  // What saving would tell the receptionist: the lines of its blocks that the draft changes, and the sentence for a
+  // save that crosses the resolver's own line, from the one helper the folds ask too (business-tab-folds.jsx willSay,
+  // which says what each part is). Only for a draft the save would send, and only while the editor is open, because
+  // each call parses the whole brain and resolves a full prompt. Nothing is drawn when nothing changes: never an empty
+  // "It will say".
   let says = null;
-  const tab = window.__businessTab;
-  if (dirty && !check(now) && tab) {
-    // Both brains are the saver's: the one this row's save will go on (its base, which is the settings read until a
-    // save is out, or taken and not read back yet), and that one with this row's patch applied as the saver will apply
-    // it (patched), on a copy, so a patch that edits a nested object in place leaves the base as it was. Read off the
-    // settings read instead, they described a save that was not the one sent whenever another went first.
+  if (dirty && !check(now)) {
+    // Both brains are the saver's: the one this row's save will go on (its base), and that one with this row's patch
+    // applied as the saver will apply it (patched), on a copy, so a patch that edits a nested object in place leaves
+    // the base as it was.
     const on = base && base.brain ? base : { brain };
-    const was = on.brain;
-    const next = S.patched(on, { change: commit(now).change }).brain;
-    const crossing = tab.profileCrossing ? tab.profileCrossing(was, next) : null;
-    const added = [];
-    const removed = [];
-    if (channel && tab.consequenceOf) {
-      if (before.current.brain !== was) before.current = { brain: was, blocks: {} };
-      const stored = before.current.blocks;
-      for (const block of [].concat(section || id)) {
-        const after = tab.consequenceOf(block, next, channel);
-        if (!after) continue;
-        if (!(block in stored)) stored[block] = tab.consequenceOf(block, was, channel);
-        const changed = btChangedLines(stored[block], after);
-        added.push(...changed.added);
-        removed.push(...changed.removed);
-      }
-    }
-    const note = crossing ? crossing.sentence : null;
-    if (added.length || removed.length || note) {
-      says = { note, says: added.length ? added.join("\n") : null, gone: removed.length ? removed.join("\n") : null };
-    }
+    const will = S.willSay({ was: on.brain, next: S.patched(on, { change: commit(now).change }).brain, sections: section || id, channel });
+    if (will && (will.added || will.removed || will.note)) says = { note: will.note, says: will.added, gone: will.removed };
   }
 
   // A disagreement, as the kit draws one: the other answer, in the resolver's own sentence when there is one, and one

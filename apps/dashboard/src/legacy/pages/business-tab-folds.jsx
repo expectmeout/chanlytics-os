@@ -1,7 +1,8 @@
-// Chanlytics — Settings › Business: what each fold opens with, refuses and writes.
+// Chanlytics — Settings › Business: what each fold opens with, refuses and writes, and what a save will say.
 //
 // The folds' own helpers, split from business-tab-save.jsx (which keeps the tab's one saver and the rows' tables) when
-// the two had grown to two jobs in one file. Pure, and no JSX: nothing here draws. It loads after business-tab-save.jsx
+// the two had grown to two jobs in one file, and the one helper for what a row's or a fold's save will tell the
+// receptionist (willSay, at the foot). Pure but for that helper's cache, and no JSX: nothing here draws. It loads after business-tab-save.jsx
 // and before business-tab.jsx (both load lists), and adds its names to the object that file published,
 // window.__businessTabSave, read there as each consumer draws. Its top-level names are bt-prefixed and no pattern in it
 // holds an object rest, for the reasons business-tab-save.jsx gives; the two helpers it takes from that file it takes
@@ -621,9 +622,82 @@ const btFoldJob = (fold, draft, job) => {
   };
 };
 
+/* ------------------------------------ what a save will tell the receptionist ------------------------------------ */
+
+// Each block as the brain a save goes on writes it, by channel and block: resolved once for that brain rather than on
+// every keystroke, since each asks the bridge to parse a whole brain and resolve a full prompt. The saver hands back the
+// same base while nothing moves, so the brain's identity is the key; a new base forgets them all. One cache for the
+// page: each row once kept its own, and twelve folds would have kept twelve more.
+let btSaidOn = { brain: null, blocks: {} };
+const btBlockLines = (b) => (b && typeof b.text === "string" ? b.text.split("\n").filter((l) => l.trim() !== "") : []);
+
+/**
+ * What a save would tell the receptionist, for a row or a fold alike: willSay({ was, next, sections, channel }).
+ *
+ * `was` is the brain the save goes on and `next` that brain as the save would leave it. Both are the saver's: `was` is
+ * its base() (the settings read until a save is out, or taken and not read back yet) and `next` is that base with the
+ * row's patch applied as the saver applies it (patched) or the fold's draft written as its save writes it (saveFold),
+ * each on a copy. Read off the settings read instead, as the rows' first were, they described a save that was not the
+ * one sent whenever another went first. `sections` names the block or blocks the save can change, by the names
+ * consequenceOf knows (the bridge's FOLD_BLOCK), and `channel` the one its words are read on; a null channel is no
+ * channel that reads them on this workspace, and nothing is resolved.
+ *
+ * It answers { note, added, removed, whole }, each a string or null, all in the composer's own words, resolved as the
+ * edge resolves them (the bridge's consequenceOf); nothing here writes a word of them:
+ *   added    the lines the save adds or rewrites, which a row draws under "It will say";
+ *   removed  the lines it takes away, under "It will no longer say": a line rewritten is one of each, and a save that
+ *            drops one thing and adds another says both, where showing only what it adds hid what goes. A block the
+ *            save takes away whole (the last open day closed, the last closure removed) goes line by line;
+ *   whole    every line of its blocks as the save would leave them, which a fold draws under "Your receptionist will
+ *            be told" for as long as it is open, changed or not;
+ *   note     the sentence for a save that crosses the resolver's own line between composing a prompt and answering
+ *            with the stored one (hasProfile, decided in the bridge's profileCrossing): emptying the last field it
+ *            composes from drops the hand-off and every rule line, far beyond the save's own lines, and the first such
+ *            field does the reverse. Not a refusal; the save still goes. Where the record stops composing, no block is
+ *            left to show a line of, and the sentence says all of it: listing one block's lines would say too little.
+ *
+ * Null when nothing true can be said: no bridge, or a `next` the save's own schema refuses (the field's own error
+ * speaks; and a block that is null for THAT reason must not read as one the save takes away). Call it only for a
+ * draft the page's own checks pass, and only while the row or fold is open.
+ */
+const btWillSay = ({ was, next, sections, channel }) => {
+  const tab = window.__businessTab;
+  if (!tab || !was || !next) return null;
+  if (typeof tab.saveIssues === "function" && tab.saveIssues({ brain: next }).length) return null;
+  const crossing = tab.profileCrossing ? tab.profileCrossing(was, next) : null;
+  const added = [];
+  const removed = [];
+  const whole = [];
+  if (channel && tab.consequenceOf) {
+    if (btSaidOn.brain !== was) btSaidOn = { brain: was, blocks: {} };
+    const stored = btSaidOn.blocks;
+    for (const block of [].concat(sections)) {
+      const key = `${channel}:${block}`;
+      if (!(key in stored)) stored[key] = tab.consequenceOf(block, was, channel);
+      const before = btBlockLines(stored[key]);
+      const after = tab.consequenceOf(block, next, channel);
+      if (!after) {
+        if (!crossing) removed.push(...before);
+        continue;
+      }
+      const now = btBlockLines(after);
+      whole.push(after.text);
+      added.push(...now.filter((l) => !before.includes(l)));
+      removed.push(...before.filter((l) => !now.includes(l)));
+    }
+  }
+  return {
+    note: crossing ? crossing.sentence : null,
+    added: added.length ? added.join("\n") : null,
+    removed: removed.length ? removed.join("\n") : null,
+    whole: whole.length ? whole.join("\n\n") : null,
+  };
+};
+
 // Added to window.__businessTabSave, the object business-tab-save.jsx published: each fold's paths and keys (PATHS_OF,
-// KEYS_OF), its helpers (draftOf, saveProblems and its two halves, saveFold, holdsChanges, foldJob), and how much of each thing the save
-// takes (LIMITS, and RULES: each booking rule's key, least, most and sentence).
+// KEYS_OF), its helpers (draftOf, saveProblems and its two halves, saveFold, holdsChanges, foldJob), how much of each thing the save
+// takes (LIMITS, and RULES: each booking rule's key, least, most and sentence), and what a row's or a fold's save will
+// tell the receptionist (willSay).
 if (!window.__businessTabSave) throw new Error("business-tab-folds.jsx loads after business-tab-save.jsx: window.__businessTabSave is not there.");
 Object.assign(window.__businessTabSave, {
   PATHS_OF: BT_PATHS_OF,
@@ -637,4 +711,5 @@ Object.assign(window.__businessTabSave, {
   foldJob: btFoldJob,
   LIMITS: BT_LIMITS,
   RULES: BT_RULES,
+  willSay: btWillSay,
 });
