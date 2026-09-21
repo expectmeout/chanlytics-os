@@ -162,3 +162,10 @@ test("the verbs publish the words for a list whose yeses have no number to send 
   assert.equal(broadcasts.noNumberWords("“Regulars”", "marketing"), "Nobody on “Regulars” can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.");
   assert.equal(broadcasts.noNumberWords("“Regulars”", "conversational"), "Nobody on “Regulars” can be sent a message yet — a broadcast reaches only a recorded yes with a number to send to.");
 });
+
+test("the verbs publish how many on an audience said yes, as the line under it says it: the reach, and who said yes when nobody can be sent it", async () => {
+  const { broadcasts } = await import("../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts");
+  assert.equal(typeof broadcasts.saidYesWords, "function", "the send screen's words for it");
+  assert.equal(broadcasts.saidYesWords("“Regulars”", "marketing", 0, 1), "1 person on “Regulars” said yes to offers, with no number to send to");
+  assert.equal(broadcasts.saidYesWords("“Regulars”", "marketing", 3, 5), "3 people on “Regulars” said yes to offers");
+});

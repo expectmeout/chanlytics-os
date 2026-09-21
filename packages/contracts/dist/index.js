@@ -4150,8 +4150,15 @@ function peopleListAction(id, members) {
 function savedListAction(id, members) {
   return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
 }
+var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
 function noNumberWords(who, purpose) {
-  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 a broadcast reaches only a recorded yes with a number to send to.`;
+  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
+}
+function saidYesWords(who, purpose, sending, saidYes) {
+  const noNumber = sending === 0 && saidYes > 0;
+  const n = noNumber ? saidYes : sending;
+  const words2 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
+  return noNumber ? `${words2}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words2;
 }
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
@@ -5581,9 +5588,10 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
   }
   const yes = list2("opted_in");
   const offers = list2("offers_ok");
-  if (yes && offers && yes.count >= 3 && offers.count === 0) {
-    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`;
-    const math = "a broadcast reaches only the second yes \xB7 0 can receive one";
+  if (people && yes && offers && yes.count >= 3 && offers.count === 0) {
+    const noNumber = people.rows.some((r) => saidYesTo(r, "marketing"));
+    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
+    const math = `${noNumber ? NO_NUMBER_REACH : "a broadcast reaches only the second yes"} \xB7 0 can receive one`;
     found.set("unreachable", {
       id: "unreachable",
       tone: "warn",
@@ -5594,7 +5602,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
       people: [],
       ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
-      also: yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
+      also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
     });
   }
   const quiet = list2("quiet");
@@ -7386,8 +7394,9 @@ var HELD_REASONS = {
   // holds the two spellings together.
   outcome_unknown: "a run that did not finish"
 };
-function emptyAudienceRefusal(purpose) {
-  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
+function emptyAudienceRefusal(purpose, label, pool) {
+  if (pool.some((r) => saidYesTo(r, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR on Broadcasts." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
 }
 var LIMIT_TIERS = {
   TIER_50: 50,
@@ -13578,6 +13587,7 @@ export {
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_MS,
+  NO_NUMBER_REACH,
   NO_REPLY_AFTER_MS,
   NoteSchema,
   NotificationsConfigSchema,
@@ -14140,6 +14150,7 @@ export {
   runsWords,
   safeNavigate,
   saidYesTo,
+  saidYesWords,
   sameAddress,
   sameName,
   samePhone,

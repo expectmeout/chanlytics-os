@@ -970,12 +970,32 @@ export function savedListAction(id: string, members: PersonRowVM[]): PeopleListA
 }
 
 /**
+ * Why nobody can be sent a thing when somebody said the yes it needs: what a broadcast reaches. The reason in
+ * `noNumberWords`, and the arithmetic under Today's reach row (today.ts todayLeaks), in one spelling.
+ */
+export const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
+
+/**
  * Nobody on a list can be sent this, and somebody on it said yes: what is missing is a number to send it to. People's
  * list step says it of a list (#663) and the send screen of the audience it has open -- `who` is "this list" or the
  * audience's name -- so the two say it in one spelling.
  */
 export function noNumberWords(who: string, purpose: SendPurpose): string {
-  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet — a broadcast reaches only a recorded yes with a number to send to.`;
+  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet — ${NO_NUMBER_REACH}.`;
+}
+
+/**
+ * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
+ * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
+ * this list said yes to offers — a broadcast reaches them") -- except when that is 0 and somebody DID say yes
+ * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
+ * did, and what they are missing.
+ */
+export function saidYesWords(who: string, purpose: SendPurpose, sending: number, saidYes: number): string {
+  const noNumber = sending === 0 && saidYes > 0;
+  const n = noNumber ? saidYes : sending;
+  const words = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
+  return noNumber ? `${words}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words;
 }
 
 function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleListAction {
