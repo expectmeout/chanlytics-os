@@ -142,6 +142,7 @@ Object.assign(globalThis.window, {
 });
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
+await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
@@ -398,8 +399,10 @@ test("A message is a row you scan, and the words open under it: what it is, ever
   let tree = messages({ __TEMPLATES_ALL: [en], __TEMPLATE_USE: { offer: { words: "Win-back", unused: false, playbook: "pb-1" } } });
   const row = byTestId(tree, "custom-row");
   // A line of the words rides the row, on one line whatever the message does with
-  // newlines and tabs -- so a row IS the message rather than a name for one.
-  assert.ok(textOf(row).includes("Hi {{1}}, 20% off this week."), textOf(row));
+  // newlines and tabs, in quotes and with its slots NAMED rather than numbered --
+  // so a row IS the message, and shows what varies per person. A slot nothing
+  // names on file is "value 1": never Meta's "{{1}}".
+  assert.ok(textOf(row).includes("“Hi {value 1}, 20% off this week.”"), textOf(row));
   assert.ok(textOf(row).includes("offer"), "and the name WhatsApp knows it by");
   assert.ok(textOf(byTestId(row, "template-users")).includes("Win-back"), "and what sends it, closed");
   assert.equal(byTestId(row, "template-open-body"), null, "the whole message is not drawn until it is asked for");
@@ -588,17 +591,20 @@ test("Messages says how many of each went out and when the last one did -- and a
 
   tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_SENT: { offer: { count: null, when: "Never sent" } } });
   cell = byTestId(byTestId(tree, "custom-row"), "template-sent");
-  assert.equal(textOf(cell).trim(), "Never sent");
+  // A dash where the number would be (aria-hidden: a screen reader hears the words), then the words.
+  assert.equal(textOf(cell).replace("—", "").trim(), "Never sent");
   assert.ok(!/\b0\b/.test(textOf(cell)), "never a 0 in a column of counts");
 
-  // A roll-up that was not read makes no claim -- and a starter not on file has
-  // nothing to count, as it has nothing that sends it.
+  // A roll-up that was not read makes no claim.
   tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_SENT: null });
   assert.equal(textOf(byTestId(byTestId(tree, "custom-row"), "template-sent")).trim(), "", "not read is not never sent");
+  // A starter not on file has nothing to count, and says why: it was never added.
+  // Not "Never sent", which would say a template exists that nothing sent.
   tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_SENT: { offer: { count: "3", when: "just now" } } });
   const starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
   assert.ok(starter, "the fixture draws a starter the workspace has not added");
-  assert.equal(textOf(byTestId(starter, "template-sent")).trim(), "");
+  assert.equal(textOf(byTestId(starter, "template-sent")).replace("—", "").trim(), "Not added");
+  assert.ok(!/\b0\b|Never sent/.test(textOf(byTestId(starter, "template-sent"))), "neither a 0 nor a send that never happened");
 });
 
 /**
@@ -761,13 +767,17 @@ test("A message says its state once, and a refusal is a line rather than a hover
   for (const l of langs) assert.ok(!/approved|review/i.test(textOf(l)), `a language slot says a language, not a state: ${textOf(l)}`);
   // Each slot DRAWS its own language's state, so the row is legible at a glance.
   assert.deepEqual(langs.map((l) => l.props["data-tone"]), ["ok", "info"]);
-  // Words for the one in view, once -- and only where there is something to say.
-  // English is approved, which is what a working message is; a green "Approved"
-  // on every row is the state said twice, beside the slot that already drew it.
-  assert.equal(byTestId(tree, "template-status"), null, "nothing to say about an approved message");
+  // Words once per MESSAGE, beside the title, for the language that is not simply
+  // approved -- whichever language is in view. It was the state of the language in
+  // view, so a message half in review read as fine until Spanish was pressed.
+  assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review", "the language that is not approved, in words, beside the title");
   press(langs[1]);
   tree = messagesAgain();
-  assert.equal(textOf(byTestId(tree, "template-status")).trim(), "In review", "the state of the language in view, in words, beside the title");
+  assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review", "and the same words with the other language in view");
+  // A message whose every language is approved has nothing to say: a green
+  // "Approved" on every row is the state said twice, beside the slot that drew it.
+  tree = messages({ __TEMPLATES_ALL: [templateRow({ id: "t-en", name: "offer", language: "en_US", meta_status: "approved" })] });
+  assert.equal(byTestId(byTestId(tree, "custom-row"), "template-status"), null, "nothing to say about an approved message");
 
   tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US", meta_status: "rejected", rejected_reason: "ABUSIVE_CONTENT" })] });
   const said = textOf(byTestId(tree, "template-rejected"));

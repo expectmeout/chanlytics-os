@@ -20,6 +20,7 @@ import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";
 import "@/legacy/components/message-preview.jsx";
 import "@/legacy/components/template-chips.jsx";
+import "@/legacy/components/campaign-bits.jsx";
 import "@/legacy/components/chart-core.jsx";
 import "@/legacy/components/chart-bar.jsx";
 import "@/legacy/components/chart-line.jsx";

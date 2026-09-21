@@ -191,6 +191,44 @@ test("a template says what sends it: the playbooks, the broadcasts a PERSON sent
   assert.equal(composer.usedBy, undefined, "the composers' read stays one query");
 });
 
+test("what sends a template says what that thing is doing: a playbook's clock, a run waiting on the owner, the latest broadcasts a person sent -- the line under the words", async () => {
+  const C = await import("@chanlytics/contracts");
+  const K3 = "99999999-9999-4999-8999-999999999993";
+  const tables = {
+    memberships: both("viewer", "operator"),
+    // The Inbox books with the starter's three slots, as it does on a real workspace;
+    // without one, bookingTemplate falls back to another template and the Inbox sends that.
+    templates: [tpl(T1, B, { name: "winback_offer" }), tpl(T2, B, { name: "monthly_offer" }), tpl(T3, B, { name: "quick_note" }), tpl(T4, B, { name: "save_our_number" }),
+      tpl(T9, B, { name: "booking_link", variables: [{ position: 1 }, { position: 2 }, { position: 3 }] })],
+    playbooks: [
+      pb(K1, B),
+      pb(K2, B, { name: "The month's offer", trigger: "everyone_monthly", template_name: "monthly_offer", cadence_days: 30 }),
+      pb(K3, B, { name: "Save our number", trigger: "phoned_only", template_name: "save_our_number", state: "paused" }),
+    ],
+    broadcasts: [
+      // The month's offer has a run waiting on the owner.
+      bc(B1, B, { template_name: "monthly_offer", playbook_id: K2, state: "pending_approval" }),
+      // Three a person sent with the quick note: the latest two are the ones named.
+      bc(B2, B, { template_name: "quick_note", name: "Labor Day hours", state: "sent", created_at: "2026-09-01T00:00:00Z" }),
+      bc(B3, B, { template_name: "quick_note", name: "Autumn colour", state: "sent", created_at: "2026-09-12T00:00:00Z" }),
+      bc(B4, B, { template_name: "quick_note", name: "VIP regulars", state: "scheduled", created_at: "2026-09-20T00:00:00Z" }),
+    ],
+  };
+  const { usedBy } = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
+  assert.equal(usedBy.winback_offer.playbooks[0].runs, "runs daily at 10:00", "the clock, worded by the route from the playbook's own columns");
+  assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back playbook", "one playbook alone says what it is");
+  assert.equal(C.templateUseNote(usedBy.winback_offer), "runs daily at 10:00");
+  assert.equal(usedBy.monthly_offer.playbooks[0].waiting, true, "a run pending approval is its playbook waiting on the owner");
+  assert.equal(C.templateUseNote(usedBy.monthly_offer), "a run is waiting on you", "which outranks its clock");
+  assert.equal(C.templateUseWords(usedBy.save_our_number), "Save our number playbook", "paused, still named plainly");
+  assert.equal(C.templateUseNote(usedBy.save_our_number), "paused — nothing goes out", "and the line under it says it is paused");
+  assert.equal(usedBy.quick_note.broadcasts, 3);
+  assert.deepEqual(usedBy.quick_note.recent, ["VIP regulars", "Autumn colour"], "newest first, two at most");
+  assert.equal(C.templateUseNote(usedBy.quick_note), "VIP regulars, Autumn colour and 1 more");
+  assert.equal(C.templateUseNote(null), null, "nothing sends it: no line under it");
+  assert.equal(C.runsWords({ trigger: "everyone_monthly", run_hour: 9, cadence_days: 30 }), "runs every 30 days at 09:00");
+});
+
 test("a template says how many went out and when the last did: the people a run SENT to and what the Inbox sent on it -- never the audience a run was scheduled for", async () => {
   const person = (broadcast_id, contact_id, state, sent_at = null, tenant_id = B) => ({ broadcast_id, contact_id, tenant_id, state, reason: null, message_id: null, sent_at });
   const msg = (id, over) => ({ id, tenant_id: B, conversation_id: "cv1", contact_id: "c1", channel: "whatsapp", direction: "outbound", sender: "human", type: "template", body: "Hi", status: "sent", external_id: `wamid.${id}`, template_name: null, created_at: "2026-09-01T00:00:00Z", meta: {}, ...over });

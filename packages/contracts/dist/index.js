@@ -6850,21 +6850,26 @@ function resolveParams(specs, f) {
 function exampleParams(specs, businessName) {
   return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
 }
-var NOTHING = { playbooks: [], broadcasts: 0, booking: false };
+var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
 function templateUsage(src) {
   const out = {};
-  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, booking: false };
+  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false };
+  const asking = new Set(src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id));
   for (const p of src.playbooks) {
     if (!p.template_name) continue;
-    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused" });
+    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused", waiting: asking.has(p.id), runs: p.runs ?? null });
   }
-  for (const b of src.broadcasts) {
-    if (!b.template_name || b.playbook_id) continue;
-    at2(b.template_name).broadcasts += 1;
+  const byHand = src.broadcasts.filter((b) => b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  for (const b of byHand) {
+    const u = at2(b.template_name);
+    u.broadcasts += 1;
+    if (b.name && u.recent.length < 2) u.recent.push(b.name);
   }
   if (src.bookingName) at2(src.bookingName).booking = true;
   return out;
 }
+var sayList = (parts2) => parts2.length < 2 ? parts2[0] ?? "" : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 function templateUseWords(use) {
   const u = use ?? NOTHING;
   const parts2 = [];
@@ -6872,7 +6877,17 @@ function templateUseWords(use) {
   if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
   if (u.booking) parts2.push("the Inbox");
   if (parts2.length === 0) return "Nothing sends it";
-  return parts2.length < 2 ? parts2[0] : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
+  return capital(sayList(parts2));
+}
+function templateUseNote(use) {
+  const u = use ?? NOTHING;
+  if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
+  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused \u2014 nothing goes out" : u.playbooks[0].runs;
+  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : null;
+  if (u.recent.length > 0) return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
+  if (u.booking) return "what the receptionist sends to book";
+  return null;
 }
 function templateUnused(use) {
   const u = use ?? NOTHING;
@@ -7169,6 +7184,10 @@ function scheduleLine(p) {
   if (triggerOf(p.trigger)?.kind === "visit") return `Daily ${at2} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at2} \xB7 up to ${p.cap_per_run} a day`;
   return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
+}
+function runsWords(p) {
+  const at2 = `${two2(p.run_hour)}:00`;
+  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at2}` : `runs daily at ${at2}`;
 }
 function nextRunLabel(p, tz, now) {
   if (p.state !== "running") return "paused";
@@ -13163,6 +13182,7 @@ export {
   rulesLine,
   runDueNow,
   runningTotal,
+  runsWords,
   safeNavigate,
   sameAddress,
   sameName,
@@ -13230,6 +13250,7 @@ export {
   templateTitle,
   templateUnused,
   templateUsage,
+  templateUseNote,
   templateUseWords,
   tenantStatusFor,
   textingTermsMetadata,
