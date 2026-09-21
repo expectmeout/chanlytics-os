@@ -24,7 +24,7 @@
  */
 import { templateTitle } from "./template-library";
 import { clockDate, clockWhen } from "./clock";
-import { PEOPLE_LISTS, mayReceive, type PersonRowVM } from "./people";
+import { PEOPLE_LISTS, mayReceive, saidYesTo, type PersonRowVM } from "./people";
 import { firstNameOf, type ParamSpec } from "./templates";
 import { mayMessageFor, PURPOSE_REFUSALS, type SendPurpose } from "./consent";
 import type { RunReach } from "./playbooks";
@@ -147,6 +147,12 @@ export interface AudiencePreview {
   /** How many the send really reaches, and how many in the list it does not. */
   sending: number;
   held: number;
+  /**
+   * How many in the list said yes to what this message needs, a number to send it to or not: `sending` is those
+   * with one. When nobody can be sent it, this tells the two causes apart -- nobody said yes (get their yes), or the
+   * ones who did have no number, whom a door to "get their yes" would ask for an answer they gave (#663's rule).
+   */
+  saidYes: number;
 }
 
 function previewPerson(r: PersonRowVM, refusal: string | null): PreviewPerson {
@@ -177,7 +183,7 @@ export function audiencePreview(
       : PURPOSE_REFUSALS[mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).reason ?? ""] ?? "Held back.";
     people.push(previewPerson(r, why));
   }
-  return { people, sending: sending.length, held: held.length };
+  return { people, sending: sending.length, held: held.length, saidYes: pool.filter((r) => saidYesTo(r, purpose)).length };
 }
 
 /** The words a person will read: the body with its numbered slots filled. */

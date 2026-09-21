@@ -668,6 +668,15 @@ export function whyNotReceive(
   return said.reason === "opted_out" ? "stopped" : "no_yes";
 }
 
+/**
+ * Whether this person's yes covers a message of this purpose, a number to send it to aside: the half of
+ * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
+ * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
+ */
+export function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: SendPurpose): boolean {
+  return mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).ok;
+}
+
 export type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
 
 export interface PersonReceptionist {
@@ -960,6 +969,15 @@ export function savedListAction(id: string, members: PersonRowVM[]): PeopleListA
   return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
 }
 
+/**
+ * Nobody on a list can be sent this, and somebody on it said yes: what is missing is a number to send it to. People's
+ * list step says it of a list (#663) and the send screen of the audience it has open -- `who` is "this list" or the
+ * audience's name -- so the two say it in one spelling.
+ */
+export function noNumberWords(who: string, purpose: SendPurpose): string {
+  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet — a broadcast reaches only a recorded yes with a number to send to.`;
+}
+
 function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleListAction {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
@@ -973,7 +991,7 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
     // NOT when someone here already said yes and simply has no number to send
     // to: sending them to "get their yes" would ask for an answer they gave. That
     // case keeps the list's own step, waiting, as before.
-    const saidYes = members.some((m) => m.consent.marketing === "opted_in");
+    const saidYes = members.some((m) => saidYesTo(m, "marketing"));
     if (members.length && !saidYes) {
       return {
         text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer.",
@@ -981,9 +999,7 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
       };
     }
     return {
-      text: members.length
-        ? "Nobody on this list can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to."
-        : "Nobody here right now.",
+      text: members.length ? noNumberWords("this list", "marketing") : "Nobody here right now.",
       cta, to, enabled: false,
     };
   }

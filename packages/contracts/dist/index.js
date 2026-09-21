@@ -4000,6 +4000,9 @@ function whyNotReceive(r, purpose) {
   if (said.ok) return null;
   return said.reason === "opted_out" ? "stopped" : "no_yes";
 }
+function saidYesTo(r, purpose) {
+  return mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).ok;
+}
 function receptionistOf(r, tz, nowMs) {
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r.open_escalation_reason) return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
@@ -4147,10 +4150,13 @@ function peopleListAction(id, members) {
 function savedListAction(id, members) {
   return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
 }
+function noNumberWords(who, purpose) {
+  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 a broadcast reaches only a recorded yes with a number to send to.`;
+}
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
-    const saidYes = members.some((m) => m.consent.marketing === "opted_in");
+    const saidYes = members.some((m) => saidYesTo(m, "marketing"));
     if (members.length && !saidYes) {
       return {
         text: "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer.",
@@ -4160,7 +4166,7 @@ function broadcastStep(cta, to, members) {
       };
     }
     return {
-      text: members.length ? "Nobody on this list can be sent an offer yet \u2014 a broadcast reaches only a recorded yes with a number to send to." : "Nobody here right now.",
+      text: members.length ? noNumberWords("this list", "marketing") : "Nobody here right now.",
       cta,
       to,
       enabled: false
@@ -7287,7 +7293,7 @@ function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5) {
     const why = !r.phone ? "No phone number on file, so nothing can be sent." : PURPOSE_REFUSALS[mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).reason ?? ""] ?? "Held back.";
     people.push(previewPerson(r, why));
   }
-  return { people, sending: sending.length, held: held.length };
+  return { people, sending: sending.length, held: held.length, saidYes: pool.filter((r) => saidYesTo(r, purpose)).length };
 }
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
@@ -14007,6 +14013,7 @@ export {
   nextOpenMoment,
   nextRunLabel,
   nextThemePref,
+  noNumberWords,
   normalizeEmail,
   normalizeLocalPart,
   normalizeNavigate,
@@ -14132,6 +14139,7 @@ export {
   runningTotal,
   runsWords,
   safeNavigate,
+  saidYesTo,
   sameAddress,
   sameName,
   samePhone,

@@ -901,6 +901,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // and then the composer shows the example values as it always did.
   const sample = (active && active.preview && active.preview[purpose]) || null;
   const people = sample ? sample.people : BC_NONE;
+  // Nobody on it can be sent this, and somebody on it said yes: the ones who did have no number to send to. Said in
+  // People's words (#663), with no door -- asking for their yes would ask for an answer they gave.
+  const noNumber = active && activeCount === 0 && sample && sample.saidYes > 0 && window.__broadcasts && window.__broadcasts.noNumberWords
+    ? window.__broadcasts.noNumberWords(`“${active.label}”`, purpose)
+    : null;
   const person = people.length ? people[Math.min(who, people.length - 1)] : null;
   // What this person really reads. A first-name slot takes THEIR name, and the
   // words the wire uses when nobody has one -- "Hi there" (contracts
@@ -1145,7 +1150,9 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             )}
             {canSend && active && activeCount === 0 && (
               <div className="bc-excl-hint" data-testid="bc-nobody">
-                {purpose === "marketing"
+                {noNumber
+                  ? noNumber
+                  : purpose === "marketing"
                   ? <>Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile{yesDoor}.</>
                   : <>Nobody on “{active.label}” has said yes to messages yet. Record it on their profile{yesDoor}.</>}
               </div>

@@ -182,6 +182,8 @@ const answers = new Map();
 globalThis.window.__broadcasts = {
   // The bridge's words for why a whole broadcast stopped, and a run's report (broadcast-verbs.ts), as the verbs publish them.
   failureWords: (code) => contracts.broadcastFailureWords(code),
+  // And for a list whose yeses have no number to send to: People's (#663), as the verbs publish them.
+  noNumberWords: (who, purpose) => contracts.noNumberWords(who, purpose),
   report: (d) => contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: (iso) => (iso ? globalThis.window.__clock.stamp(Date.parse(iso)) : null) }),
   approval: (d, playbook, businessName) => {
     const clock = globalThis.window.__clock;
@@ -617,6 +619,65 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
   } finally {
     globalThis.document.getElementById = keep;
   }
+});
+
+test("REGRESSION: the send screen tells a list with no number from a list with no yes -- a yes with no number to send to read 'Nobody has said yes', and its door asked for an answer already given", () => {
+  const optIn = { phrase: "YES OFFERS", phraseEs: "SI OFERTAS", link: "https://wa.me/13055550100?text=YES%20OFFERS", qrPath: "/api/v1/consent/qr", pageUrl: null };
+  const rows = [
+    // Wrote in by email and said yes to both there: an address, and no number (the email channel, live since 18 Sep).
+    contact({ id: "c-ana", display_name: "Ana Reyes", wa_profile_name: null, phone_e164: null, email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent_source: "customer_message" }),
+    // Walked in, said yes to messages at the desk, and left no number.
+    contact({
+      id: "c-bea", display_name: "Bea Soto", wa_profile_name: null, phone_e164: null, consent_source: "in_person", marketing_consent: "unknown", channels: [], has_chat: false,
+      conversation_count: 0, latest_conversation_id: null, latest_state: null, latest_wa_inbound_at: null, last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null,
+    }),
+    // A number, and a yes to messages only: offers he was never asked about.
+    contact({ id: "c-luis", display_name: "Luis Mora", wa_profile_name: "Luis", phone_e164: "+17865550199", consent_source: "in_person", marketing_consent: "unknown" }),
+  ].map((c) => contracts.toPersonRowVM(c, ZONE, new Date(NOW)));
+  const on = (ids) => rows.filter((r) => ids.includes(r.id));
+  // A list kept by hand, as the bridge publishes it (surface-data.ts broadcastsOverride): both purposes, from contracts.
+  const listOf = (id, label, ids) => {
+    const preview = {
+      conversational: contracts.audiencePreview(rows, "saved", null, new Set(ids), "conversational"),
+      marketing: contracts.audiencePreview(rows, "saved", null, new Set(ids), "marketing"),
+    };
+    return { kind: "saved", id, label, counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }, preview, hint: "A list kept by hand — of those whose yes covers this message" };
+  };
+  const audiences = [listOf("s-reg", "Regulars", ["c-ana", "c-luis"]), listOf("s-walk", "Walk-ins", ["c-bea", "c-luis"]), listOf("s-desk", "At the desk", ["c-bea"])];
+  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
+  const note = templateRow({ id: "tpl-note", name: "hours_note", category: "utility", purpose: "conversational" });
+  /** The send screen, opened on a list the way People opens it, with one message to pick: its "nobody" line. */
+  const nobodyOn = (list, tpl) => {
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [tpl], audiences, number: healthyNumber, optIn });
+    const tree = page({ initialSegment: list, initialRun: null });
+    assert.ok(byTestId(tree, "bc-composer"), list);
+    return byTestId(tree, "bc-nobody");
+  };
+
+  // Ana said yes to offers and there is no number to send one to: the list is missing a number, not an answer.
+  let line = nobodyOn("s-reg", offer);
+  assert.equal(textOf(line), "Nobody on “Regulars” can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.", "REGRESSION: 'Nobody on “Regulars” has said yes to offers yet'");
+  assert.equal(byTestId(line, "bc-nobody-door"), null, "REGRESSION: a door asking Ana for the yes she gave");
+  // People says the same of the same list, and nothing to press (contracts broadcastStep, #663).
+  assert.deepEqual(contracts.savedListAction("s-reg", on(["c-ana", "c-luis"])), {
+    text: "Nobody on this list can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.",
+    cta: "Use in a broadcast", to: "broadcasts/s-reg", enabled: false,
+  });
+
+  // Nobody on Walk-ins said yes to offers -- Bea's yes is to messages: that IS a missing answer, and the door stays.
+  line = nobodyOn("s-walk", offer);
+  assert.equal(textOf(line), "Nobody on “Walk-ins” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and the QR.");
+  assert.ok(byTestId(line, "bc-nobody-door"), "the door, for the list that needs a yes");
+  assert.equal(contracts.savedListAction("s-walk", on(["c-bea", "c-luis"])).to, contracts.GET_YES_ROUTE, "where People's step goes too");
+
+  // The yes is the message's own. Bea said yes to messages, so a message to her list is missing a number...
+  line = nobodyOn("s-desk", note);
+  assert.equal(textOf(line), "Nobody on “At the desk” can be sent a message yet — a broadcast reaches only a recorded yes with a number to send to.");
+  assert.equal(byTestId(line, "bc-nobody-door"), null);
+  // ...and an offer to it is missing her answer.
+  line = nobodyOn("s-desk", offer);
+  assert.ok(textOf(line).startsWith("Nobody on “At the desk” has said yes to offers yet"), textOf(line));
+  assert.ok(byTestId(line, "bc-nobody-door"));
 });
 
 test("REGRESSION (C14): a send in flight draws its progress, Approve says it is approving and cannot approve twice, and Scheduled counts by state -- 'N queued' counted runs waiting for you", async () => {
