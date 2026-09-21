@@ -141,3 +141,15 @@ test("with no workspace active, a save writes nothing into the cache -- not even
     globalThis.window.__ACTIVE_WORKSPACE = active;
   }
 });
+
+test("signing out clears where the owner was in Leads and the Find they had half-written, with the cache: nothing the tab kept outlives the session that kept it", () => {
+  // The page's own keys (clients-a.jsx LD_PLACE_KEY, LD_FINDER_KEY): an owner's words in a box, and a plan they had not approved.
+  globalThis.sessionStorage.setItem("chanlytics.leads.place.v1", JSON.stringify({ "salon|clients/leads": { q: "nail", top: 380 } }));
+  globalThis.sessionStorage.setItem("chanlytics.leads.finder.v1", JSON.stringify({ ws: "salon|", words: "dentists in Queens" }));
+  globalThis.sessionStorage.setItem("something.else", "kept");
+  clearSurfaceCache();
+  assert.equal(globalThis.sessionStorage.getItem("chanlytics.leads.place.v1"), null);
+  assert.equal(globalThis.sessionStorage.getItem("chanlytics.leads.finder.v1"), null);
+  assert.equal(globalThis.sessionStorage.getItem("something.else"), "kept", "and only what is the app's own");
+  globalThis.sessionStorage.removeItem("something.else");
+});

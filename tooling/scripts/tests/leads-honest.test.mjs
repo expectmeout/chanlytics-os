@@ -319,6 +319,8 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   globalThis.window.location.href = "";
   globalThis.localStorage.removeItem("chanlytics-people-view");
   globalThis.localStorage.removeItem("chanlytics-leads-view");
+  globalThis.sessionStorage.removeItem("chanlytics.leads.place.v1");
+  globalThis.sessionStorage.removeItem("chanlytics.leads.finder.v1");
   delete globalThis.window.__saveView;
 };
 const draw = (props = {}) => { seq = 0; return globalThis.window.ClientsA({ scope: "leads", leadsRoute: "leads", onNavigate: (to) => went.push(to), onOpenProfile: (id) => opened.push(id), ...props }); };
@@ -772,6 +774,148 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
   assert.equal(peeks.length, drawn, "the view changed under the lead, so the lead is closed");
   assert.equal(navs.length, said, "and the old view's lead is not written onto the new view's address");
   assert.equal(calls.filter(([what]) => what === "view").length, 2, "the new view is read, once");
+});
+
+/* ------------------------------ the page keeps your place ------------------------------ */
+
+const searchBox = (tree) => find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
+/** The tab refreshed, or the owner went to the Inbox and came back: the page's state is gone, the tab's storage is not. */
+const comeBack = (props) => { cells = []; for (const k of Object.keys(listeners)) delete listeners[k]; draw(props); return draw(props); };
+
+test("the search box's words, the row the cursor was on and the map come back with the view: after a refresh, and after leaving and coming back", () => {
+  fresh();
+  let tree = draw();
+  searchBox(tree).props.onChange({ target: { value: "strength" } });
+  draw();
+  press("j");
+  draw();
+  press("j");
+  tree = draw();
+  assert.deepEqual([names(tree), cursorRow(tree)], [["Zilker Strength Lab", "Lamar Strength Co."], "lead-l3"]);
+  tree = comeBack();
+  assert.equal(searchBox(tree).props.value, "strength", "the words are in the box again");
+  assert.deepEqual(names(tree), ["Zilker Strength Lab", "Lamar Strength Co."], "and the rows are the ones they found");
+  assert.equal(cursorRow(tree), "lead-l3", "the cursor is on the row it was on");
+  // The map stands where the table stood, so it is its own trip: left open, it is open on the way back.
+  click(byTestId(tree, "leads-map-toggle"));
+  draw();
+  tree = comeBack();
+  assert.ok(byTestId(tree, "lead-map"), "the map is open, as it was left");
+  assert.equal(searchBox(tree).props.value, "strength", "with the words still in the box");
+});
+
+test("each view keeps its own place: what was typed over one search is not the next one's, and is there again on the way back", () => {
+  fresh();
+  const at = (route) => { draw({ leadsRoute: route }); return draw({ leadsRoute: route }); };
+  searchBox(at("leads")).props.onChange({ target: { value: "lamar" } });
+  at("leads");
+  let tree = at(`leads:s-${SEARCH_A}`);
+  assert.equal(searchBox(tree).props.value, "", "a search opened from the rail starts with an empty box: the page stayed, its words did not follow");
+  assert.equal(names(tree).length, 5);
+  searchBox(tree).props.onChange({ target: { value: "zilker" } });
+  at(`leads:s-${SEARCH_A}`);
+  assert.equal(searchBox(at("leads")).props.value, "lamar", "back on all leads, with what was typed there");
+  assert.equal(searchBox(at(`leads:s-${SEARCH_A}`)).props.value, "zilker", "and the search has its own");
+});
+
+test("a view starts clean of the view before it: its fit filter and its open map do not follow the owner down the rail", () => {
+  fresh({ leads: surface({ view: { searchId: SEARCH_A, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" }, route: `clients/leads:s-${SEARCH_A}` }) });
+  const at = (route) => { draw({ leadsRoute: route }); return draw({ leadsRoute: route }); };
+  let tree = at(`leads:s-${SEARCH_A}`);
+  click(byTestId(tree, "leads-map-toggle"));
+  tree = at(`leads:s-${SEARCH_A}`);
+  assert.ok(byTestId(tree, "lead-map"));
+  tree = at("leads:l-ready");
+  assert.equal(byTestId(tree, "lead-map"), null, "the list picked next draws its table");
+  assert.equal(searchBox(tree).props.value, "");
+});
+
+test("the list is scrolled back to where it was once the view's rows are the ones on screen -- never over the rows of the view before", async () => {
+  // The pane's ref, found on a first draw and put in place before the next first draw: React sets a ref before it
+  // runs an effect, and the stub runs an effect as it draws.
+  fresh();
+  const paneRef = find(draw(), (n) => String(n.props?.className || "").split(/\s+/).includes("cl-main-scroll")).props.ref;
+  const at = cells.indexOf(paneRef);
+  assert.ok(at >= 0, "the pane's ref is one of the page's cells");
+  const heard = [];
+  const table = { scrollTop: 0, scrollHeight: 6000, clientHeight: 600 };
+  const pane = {
+    scrollTop: 0, scrollHeight: 600, clientHeight: 600,
+    addEventListener: (type, fn, opts) => { if (type === "scroll" && opts && opts.capture) heard.push(fn); },
+    removeEventListener() {}, setAttribute() {}, removeAttribute() {},
+    querySelector: (sel) => (sel === ".pl-table-scroll" ? table : null),
+  };
+  const mountWithPane = (props) => { cells = []; cells[at] = { current: pane }; for (const k of Object.keys(listeners)) delete listeners[k]; heard.length = 0; draw(props); return draw(props); };
+  mountWithPane();
+  assert.equal(heard.length, 1, "one listener on the pane, in the capture phase: a scroll does not bubble, and the desktop's scroller is the table's own box inside it");
+  table.scrollTop = 1380;
+  heard[0]({ target: table });
+  await new Promise((r) => setTimeout(r, 260));
+  table.scrollTop = 0;
+  mountWithPane();
+  assert.equal(table.scrollTop, 1380, "a refresh puts the list back where it was");
+  // The address names a search whose rows have not landed: the surface still holds all leads.
+  table.scrollTop = 0;
+  mountWithPane({ leadsRoute: "leads" });
+  table.scrollTop = 700;
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.equal(table.scrollTop, 700, "the old view's rows are not scrolled for the new view");
+  globalThis.window.__LEADS = surface({ view: { searchId: SEARCH_A, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" }, route: `clients/leads:s-${SEARCH_A}` });
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.equal(table.scrollTop, 0, "the new view's rows start at their top");
+});
+
+/** The finder as drawn by `fn`, or null when `fn` drew none: the recorder's last entry may be an older draw's. */
+const finderAfter = (fn) => { const n = finders.length; fn(); return finders.length > n ? finders.at(-1) : null; };
+
+test("a Find half-written is still there after a refresh and after a rail pick: the words, and the plan Claude wrote, open as they were left", async () => {
+  fresh();
+  draw();
+  press("f");
+  draw();
+  finders.at(-1).onWords("personal trainers in Austin with a website");
+  draw();
+  // Down the rail and back: the page stayed, so the finder did.
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.deepEqual([finders.at(-1).open, finders.at(-1).words], [true, "personal trainers in Austin with a website"], "a rail pick used to tear the page down, and the words with it");
+  let back = finderAfter(comeBack);
+  assert.ok(back, "a refresh too: the finder is open again");
+  assert.deepEqual([back.stage, back.words], ["compose", "personal trainers in Austin with a website"]);
+  // Claude writes the plan; the owner refreshes before approving it.
+  globalThis.window.__ask.send = async (_turn, on) => { on({ t: "final", message: { text: "", proposals: [{ kind: "lead_search", payload: { plan: PLAN } }] } }); };
+  await finders.at(-1).onPlan("personal trainers in Austin with a website");
+  draw();
+  assert.equal(finders.at(-1).stage, "plan");
+  back = finderAfter(comeBack);
+  assert.ok(back, "open again");
+  assert.deepEqual([back.stage, back.plan && back.plan.name, back.proposal && back.proposal.kind], ["plan", PLAN.name, "lead_search"], "the plan is the one Claude wrote: asking again would be another wait, and another answer");
+});
+
+test("a Find keeps only what can still be used: a turn that was still being read comes back as its words, and one that started leaves nothing", async () => {
+  fresh();
+  draw();
+  press("f");
+  draw();
+  finders.at(-1).onWords("gyms in Denver");
+  draw();
+  globalThis.window.__ask.send = () => new Promise(() => {});
+  finders.at(-1).onPlan("gyms in Denver");
+  draw();
+  assert.equal(finders.at(-1).stage, "thinking");
+  const back = finderAfter(comeBack);
+  assert.ok(back, "the finder is open again");
+  assert.deepEqual([back.stage, back.words], ["compose", "gyms in Denver"], "the answer that was on its way went with the page; the words did not");
+  // Approved and started: the finder closes itself and clears its words (leadFinderApprove), and so does what is kept.
+  globalThis.window.__ask.send = async (_turn, on) => { on({ t: "final", message: { text: "", proposals: [{ kind: "lead_search", payload: { plan: PLAN } }] } }); };
+  globalThis.window.__ask.commit = async () => ({ ok: true, receipt: "Finding 200 personal trainers.", undo: { search_id: SEARCH_A } });
+  await finders.at(-1).onPlan("gyms in Denver");
+  draw();
+  await finders.at(-1).onApprove(PLAN);
+  draw();
+  assert.equal(globalThis.sessionStorage.getItem("chanlytics.leads.finder.v1"), null, "nothing of a search that is already running waits to be started again");
+  assert.equal(finderAfter(comeBack), null, "and the finder is closed on the way back");
 });
 
 test("the peek is handed acts, not setters: every control it draws has a function behind it, and each one moves the page's own state", () => {
