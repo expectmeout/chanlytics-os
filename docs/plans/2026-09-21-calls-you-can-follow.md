@@ -96,8 +96,10 @@ that call, as in #775.
   - Without details, the reason's sentence stays.
   - The view model's `ask` keeps its text, because the row and its search read it. It gains a required
     `kind: "call" | "wrote" | "sent"`, which the band reads instead of matching a label.
-- **The flag line** in the timeline says why it was flagged, "Flagged for a human — <reason>", without quoting the
-  details. The open escalation's details are in the band.
+- **The flag line** of a call-back says why it was flagged, "Flagged for a human — <reason>", without quoting the to-do.
+  The to-do is the band's sentence.
+  - Every other reason keeps its quoted details, such as the cause of a failed send, because they are said only there.
+  - The nightly thread.spec reads the cause of a failed send there.
 - **One Call back.** The reply area offers it only when the band shows none. That is one predicate for both
   (`ixBandCallBack`), for an approver and a viewer alike.
 - **The reply area** says nothing while the templates load. When the band already offers the call, the reply area of a

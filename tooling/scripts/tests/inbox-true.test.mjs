@@ -81,13 +81,24 @@ test("every message of ours carries what became of it, the receptionist's as muc
   assert.deepEqual([note.channel, note.from], ["phone", "agent"]);
 });
 
-test("the flag says why it was flagged; the to-do is said once, whole, as the band's sentence", () => {
+test("a call back's flag says why it was flagged, and its to-do is said once, whole, as the band's sentence", () => {
   const vm = (details) => vmOf(quiet([callNote("m1", 60)], { state: "needs_human", last_wa_inbound_at: null }), asked({ reason: "callback", details }));
   const long = "Call Emily back to confirm the bridal trial on October 3 — she needs a quote for three people and asked to speak with Melany directly";
   const flag = vm(long).timeline.find((e) => e.type === "event").body;
   // It quoted the to-do (cut at 120 characters), under the band that said it again beside "From the call".
   assert.equal(flag, "Flagged for a human — Needs a call back — the phone receptionist could not finish it", "REGRESSION: the flag quoted the to-do a third time");
   assert.equal(vm(long).summary, long, "said whole, where it is acted on");
+});
+
+test("any other flag's details are said there, whole, or cut at a word with an ellipsis -- never mid-word inside their quotes", () => {
+  // The cause of a failed send is said only on the flag (thread.spec.ts reads it there).
+  const flag = (details) => vmOf(quiet([wrote("m1", "Can I book at 3?", 60)], { state: "needs_human" }), asked({ reason: "send_failed", details })).timeline.find((e) => e.type === "event").body;
+  assert.match(flag("the WhatsApp number is not connected"), /^Flagged for a human — .* · “the WhatsApp number is not connected”$/);
+  const long = "The reply could not be delivered because the WhatsApp number is not connected to this workspace any more, so reconnect it from Settings before anything else";
+  const cut = flag(long);
+  assert.match(cut, /…”$/, "REGRESSION: cut at 120 characters, mid-word, with nothing to say so");
+  const kept = cut.slice(cut.indexOf("“") + 1, -2);
+  assert.ok(long.startsWith(kept) && long[kept.length] === " ", `cut after a whole word: "${kept}"`);
 });
 
 /* ------------------------------ the pane, drawn ------------------------------ */

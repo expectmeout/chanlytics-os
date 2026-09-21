@@ -1776,9 +1776,10 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       type: "event",
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      // Why it was flagged, not what to do: the open escalation's details are the band's sentence, and quoting them here
-      // said a call back's to-do a third time.
-      body: `Flagged for a human \u2014 ${reasonLabel}`
+      // Why it was flagged, and the details that say more -- except a call back's, which are the band's own sentence (the
+      // to-do): quoted here as well, they were said a third time. Any other reason's details, the cause of a failed send,
+      // are said only here.
+      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
