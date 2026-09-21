@@ -551,6 +551,32 @@ test("the Leads view is saved with its list, sort and columns every time, throug
   assert.equal(held.length, 2, "and nothing after it");
 });
 
+test("REGRESSION: a cold open of Leads still takes the view the workspace remembers -- it rides with People, which lands after Leads, and the page had settled for this device's copy and never looked again", async () => {
+  const PEOPLE = (views) => ({ rows: [], lists: [], saved: [], groups: [], aggregates: { total: 0, needsYou: 0, reachedWeek: 0 }, views, attention: {}, savedRead: true, page: null, calendar: null });
+  const lastRead = () => calls.filter(([what]) => what === "view").at(-1)[1];
+  fresh({ people: false });
+  const held = [];
+  globalThis.window.__saveView = (page, view) => new Promise((land) => held.push({ page, view, land }));
+  let tree = draw();
+  assert.deepEqual([lastRead().sort, lastRead().dir, headings(tree).includes("Website")], ["fit", "asc", false], "nothing to go on yet: the page's own defaults");
+  // People lands, carrying what this member chose on another computer.
+  globalThis.window.__PEOPLE = PEOPLE({ leads: { list: "all", sortBy: "rating", sortDir: "desc", columns: { website: true } } });
+  draw();
+  tree = draw();
+  assert.deepEqual([lastRead().sort, lastRead().dir], ["rating", "desc"], "the sort they chose is the one read");
+  assert.ok(headings(tree).includes("Website"), "and their columns are the ones drawn");
+  assert.deepEqual(held, [], "taking the workspace's view is not a change to save back to it");
+  // Once they have chosen here, a copy that arrives late does not take the choice back.
+  fresh({ people: false });
+  tree = draw();
+  sortByHeading(tree, "Found");
+  draw();
+  globalThis.window.__PEOPLE = PEOPLE({ leads: { list: "all", sortBy: "rating", sortDir: "desc", columns: {} } });
+  draw();
+  draw();
+  assert.equal(lastRead().sort, "found", "what the owner just pressed stands");
+});
+
 test("a sort is the surface's to read, not the page's to re-order: the rows hold their order until the read lands", () => {
   fresh();
   let tree = draw();
