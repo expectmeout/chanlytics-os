@@ -252,9 +252,11 @@ const LEAD_SORT_KEYS = plSortKeys(LEAD_COLUMNS);
 // route: nothing here renames or removes on the spot.
 const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove, onUndo, exportHref }) => (
   <MoreMenu
-    // Leftward, into the rail. Its trigger sits at the rail's right edge and the rail scrolls, so opening rightward
-    // put all but 51px of a 194px menu past an edge that cuts off whatever crosses it.
-    align="right"
+    // It escapes the rail: the rail scrolls and cuts off whatever crosses its edge, so opening rightward showed 51px of
+    // 194, and a menu held inside it (196px) broke its words onto three to six lines. Placed against the window, it
+    // opens rightward over the table at a menu's full width.
+    escape
+    align="left"
     title={`What ${s.name} asked for`}
     btnClass="btn btn-ghost btn-icon btn-xs ld-search-more"
     items={[

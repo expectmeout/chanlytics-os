@@ -1226,8 +1226,10 @@ test("a pop hangs above its row when the room is there, every hover asks where i
   place({ currentTarget: {} });
   place(null);
 
-  // A search's menu opens leftward, into the rail it lives in.
+  // A search's menu escapes the rail it lives in (MoreMenu `escape`, placed against the window by moreFit): held
+  // inside the rail it was 196px and broke its words onto three to six lines. It opens rightward, over the table.
   const menu = menus.find((m) => /^What .+ asked for$/.test(m.title || ""));
   assert.ok(menu, "a kept search has its menu");
-  assert.equal(menu.align, "right", "aligned to its trigger's right edge, so it opens into the rail rather than across its edge");
+  assert.equal(menu.escape, true, "it escapes the rail, so the rail's edge cannot cut it off or squeeze it");
+  assert.equal(menu.align, "left", "hung from its trigger's left edge, so it opens over the table");
 });
