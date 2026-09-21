@@ -19,6 +19,19 @@ const ixDockDials = (t) => !!(t && t.real && t.phone && t.primaryChannel === "ph
   && t.state === "escalated" && !t.takenOver && !t.claimedByOther
   && (!window.canDo || window.canDo("approve")));
 
+// The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
+const ixNewestSaid = (timeline) => { for (let i = (timeline || []).length - 1; i >= 0; i--) if (timeline[i].type === "msg") return i; return -1; };
+
+// Where a real thread opens: at the message it was opened at (a call, from Conversations), or where a call began when a
+// call is the newest thing said -- its lines are below it, and play is the next thing to press -- else at its newest
+// message (null).
+const ixOpensAt = (thread, focusMessageId = null) => {
+  if (focusMessageId) return focusMessageId;
+  const tl = (thread && thread.timeline) || [];
+  const i = ixNewestSaid(tl);
+  return thread && thread.real && i >= 0 && tl[i].channel === "phone" && tl[i].messageId ? tl[i].messageId : null;
+};
+
 const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, onArchive = null, planParam = 0, onPlanParam = () => {}, notice = null, focusMessageId = null }) => {
   // Archive asks first: it closes the customer's request. Above the early return, so the hooks keep their order.
   const [askArchive, setAskArchive] = useCvtState(false);
@@ -27,14 +40,18 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
   // return, so the hooks keep their order.
   const scrollRef = React.useRef(null);
   const stuckRef = React.useRef(true);
-  // Opened at a message -- a call, from Conversations -- it opens there instead, once the pane has a size to scroll.
+  // Opened at a message -- a call, from Conversations -- or at the start of a call that is the newest thing said, it
+  // opens there instead (ixOpensAt), once the pane has a size to scroll. The thread is read when the effect runs, which
+  // is when it first arrives, not when the pane first drew.
   const focusRef = React.useRef(focusMessageId);
+  const threadRef = React.useRef(thread);
+  threadRef.current = thread;
   const real = !!(thread && thread.real);
   const entries = thread && thread.timeline ? thread.timeline.length : 0;
   React.useEffect(() => {
     const el = scrollRef.current;
     if (!real || !el) return undefined;
-    let aim = focusRef.current;
+    let aim = ixOpensAt(threadRef.current, focusRef.current);
     if (aim) stuckRef.current = false;
     const toEnd = () => {
       if (aim) {
@@ -61,6 +78,7 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
   if (!thread) return <InboxEmpty />;
 
   const decided = !!thread.resolution;
+  const newestSaid = ixNewestSaid(thread.timeline);
   const statusProps = { thread, decided, stale, onReconcile, onDismissStale, onWake, onTakeOver, onDecide, onHandBack, veto, vetoPaused, onVetoAct };
 
   return (
@@ -100,7 +118,7 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
             // "by WhatsApp Receptionist · Read" under it, 79–127px apiece on a phone.
             const run = (a, b) => !!a && !!b && a.type === "msg" && b.type === "msg" && a.from === b.from && a.at === b.at && a.channel === b.channel && (a.agentName || "") === (b.agentName || "") && !!a.byYou === !!b.byYou;
             const lines = thread.real && entry.type === "msg" ? { meta: !run(thread.timeline[i - 1], entry), by: !run(entry, thread.timeline[i + 1]) } : null;
-            return <TimelineEntry key={i} entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} focus={!!focusMessageId && entry.messageId === focusMessageId} />;
+            return <TimelineEntry key={i} entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} focus={!!focusMessageId && entry.messageId === focusMessageId} newest={i === newestSaid} />;
           })}
         </div>
       </div>
@@ -743,7 +761,7 @@ const TlWhyPanel = ({ why }) => {
   );
 };
 
-const TimelineEntry = ({ entry, thread, channelLabels, lines = null, focus = false }) => {
+const TimelineEntry = ({ entry, thread, channelLabels, lines = null, focus = false, newest = false }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
 
   if (entry.type === "agent-thinking" || entry.type === "agent-decision") {
@@ -775,15 +793,16 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null, focus = fal
     );
   }
 
-  return <TlMsgEntry entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} channelIcon={channelIcon} focus={focus} />;
+  return <TlMsgEntry entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} channelIcon={channelIcon} focus={focus} newest={newest} />;
 };
 
 // The message branch, with the hooks its two disclosures need. It is its own component so those
 // hooks are not behind the event and agent-thinking returns above.
-const TlMsgEntry = ({ entry, thread, channelLabels, lines, channelIcon, focus = false }) => {
+const TlMsgEntry = ({ entry, thread, channelLabels, lines, channelIcon, focus = false, newest = false }) => {
   const [whyOpen, setWhyOpen] = React.useState(false);
-  // A call is drawn as the call, where it happened: its note was a dashed bubble of words nobody said.
-  if (thread.real && entry.channel === "phone") return <CallCard call={tlCallFor(entry.messageId)} note={entry.body} at={entry.at} mid={entry.messageId} focus={focus} />;
+  // A call is part of the conversation, where it happened: its note was a dashed bubble of words nobody said. Its lines
+  // are shown when it is the newest thing said, or the call Conversations opened the thread at.
+  if (thread.real && entry.channel === "phone") return <ThreadCall call={tlCallFor(entry.messageId)} note={entry.body} at={entry.at} mid={entry.messageId} focus={focus} open={focus || newest} />;
   const isClient = entry.from === "client";
   // A held draft is a message the customer has NOT seen. Rendered as an
   // ordinary agent bubble it reads as already-sent, and an operator would
@@ -848,12 +867,12 @@ const TlMsgEntry = ({ entry, thread, channelLabels, lines, channelIcon, focus = 
   );
 };
 
-// =============== A CALL, WHERE IT HAPPENED IN THE THREAD ===============
-// A call's note was a dashed bubble -- "Phone · call note", "Inbound call · 3 min — …" -- and the call itself, its
-// recording and its transcript, was on a second screen in Conversations, under a card of eight facts, beside a Play
-// button that played nothing. Every call with a caller behind it already belongs to a thread, so the note is the call:
-// what it was about, how it went in a few quiet words, the recording when there is one, and the transcript on a tap.
-// Conversations opens a call here, at its card, and draws a call no thread holds with the same card (CallPane).
+// =============== A CALL, IN ITS CONVERSATION ===============
+// A call is part of the thread, not a card on it (docs/plans/2026-09-21-calls-you-can-follow.md): a quiet line where it
+// began, what was said as the thread's own bubbles -- the caller's on the left, the receptionist's on the right -- and a
+// quiet line where it ended. Pressing play, or a line, plays it: a slim player floats at the top of the thread while the
+// lines pass under it, and the line being said is outlined and kept in view. It was a 420px card with its transcript
+// behind a tap and a strip of a player, and before that a second screen in Conversations (#775).
 
 // The call a note stands for, from the calls Conversations reads: one GET calls page, which every surface boots with.
 // A call older than that page is drawn from its note alone.
@@ -873,70 +892,51 @@ const tlNoteOf = (body) => {
   return { direction: m[1] === "Outbound" ? "outbound" : "inbound", length: m[2] ? `${m[2]} ${m[3] === "min" ? "min" : "sec"}` : null, about: /^No summary available\.?$/.test(about) ? null : about };
 };
 
-const TL_LINK_FRESH_MS = 4 * 60 * 1000;
-const tlClock = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
-
-// The recording, through a short-lived signed link: the provider's own link never reaches the browser. It is read
-// through the client (window.__recording), which names the workspace as every read does; the route signs it for five
-// minutes, so an old link is read again before playing. A failure says why, and Play tries again -- one failure used
-// to disable it for good.
-const CallPlayer = ({ callId, length = null }) => {
-  const audioRef = React.useRef(null);
-  const linkAt = React.useRef(0);
-  const [playing, setPlaying] = React.useState(false);
-  const [pos, setPos] = React.useState(0);
-  const [dur, setDur] = React.useState(0);
-  const [loading, setLoading] = React.useState(false);
-  const [failed, setFailed] = React.useState(null); // the sentence, while the recording can't be played
-
-  const toggle = async () => {
-    const el = audioRef.current;
-    if (!el || loading) return;
-    if (playing) { el.pause(); return; }
-    if (!el.src || Date.now() - linkAt.current > TL_LINK_FRESH_MS) {
-      setLoading(true);
-      const r = window.__recording ? await window.__recording(callId) : null;
-      setLoading(false);
-      if (!r || !r.ok || !r.data || !r.data.url) {
-        setFailed((r && r.message) || "Couldn't load the recording.");
-        return;
-      }
-      el.src = r.data.url;
-      linkAt.current = Date.now();
-    }
-    setFailed(null);
-    el.play().catch(() => { linkAt.current = 0; setFailed("Couldn't play the recording."); });
-  };
-
-  const words = failed ? "Try the recording again" : playing ? "Pause the recording" : "Play the recording";
-  return (
-    <>
-      <div className="tl-call-player">
-        <audio
-          ref={audioRef}
-          preload="none"
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => setPlaying(false)}
-          onTimeUpdate={(e) => setPos(e.target.currentTime)}
-          onLoadedMetadata={(e) => setDur(e.target.duration || 0)}
-          onError={() => { linkAt.current = 0; setPlaying(false); setFailed("Couldn't play the recording."); }}
-        />
-        <button type="button" className="tl-call-play" title={words} aria-label={words} onClick={toggle} disabled={loading} data-testid="tl-call-play">
-          <Icon name={playing ? "pause" : "play"} size={12} />
-        </button>
-        <div className="tl-call-track" aria-hidden="true"><div className="tl-call-fill" style={{ width: `${dur ? (pos / dur) * 100 : 0}%` }} /></div>
-        <span className="tl-call-clock tabular">{loading ? "Loading…" : `${tlClock(pos)} / ${length || tlClock(dur)}`}</span>
-      </div>
-      {failed && <div className="tl-call-failed" role="status" data-testid="tl-call-failed">{failed} Press play to try again.</div>}
-    </>
-  );
-};
+const tlClock = (sec) => { const s = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const TL_SPEEDS = [1, 1.5, 2];
+// The line being said at `pos` seconds: the last one that had begun by then. A line with no moment (a whisper) never is.
+const tlLineAt = (lines, pos) => { let at = -1; lines.forEach((l, i) => { if (typeof l.start === "number" && l.start <= pos + 0.05) at = i; }); return at; };
+// One call plays at a time: the one playing, which the next to play pauses.
+const TL_PLAYING = { el: null };
 
 // `call`: the call itself, when it has been read; `note`: the words it left on the thread, which are all an older call
-// has. On the side of the thread it came from: theirs when they phoned, ours when the receptionist did.
-const CallCard = ({ call = null, note = null, at, mid, focus = false }) => {
-  const [open, setOpen] = React.useState(false);
+// has. `open`: its lines shown -- the thread's newest spoken entry, or the call Conversations opened it at. On the side
+// it came from, for its direction; drawn across the thread, for it is neither side's words.
+const ThreadCall = ({ call = null, note = null, at, mid, open: openFirst = false, focus = false }) => {
+  const [open, setOpen] = React.useState(!!openFirst);
+  const [listening, setListening] = React.useState(false);
+  const [playing, setPlaying] = React.useState(false);
+  const [pos, setPos] = React.useState(0);
+  const [dur, setDur] = React.useState((call && call.durationSec) || 0);
+  const [speed, setSpeed] = React.useState(1);
+  const [failed, setFailed] = React.useState(null); // the sentence, while the recording can't be played
+  const audioRef = React.useRef(null);
+  const turnsRef = React.useRef(null);
+  const followed = React.useRef(-1);
+  const lines = call && call.transcript && call.transcript.length ? call.transcript : null;
+  const active = listening && lines ? tlLineAt(lines, pos) : -1;
+
+  // Keep the line being said in view -- unless you have scrolled away from the one before it: then you are reading
+  // something else, and the thread does not pull you back.
+  React.useEffect(() => {
+    const list = turnsRef.current;
+    if (!list || active < 0 || !list.closest) return;
+    const scroller = list.closest(".ix-th-scroll");
+    const now = list.children[active];
+    const before = followed.current >= 0 ? list.children[followed.current] : null;
+    followed.current = active;
+    if (!scroller || !now) return;
+    const box = scroller.getBoundingClientRect();
+    const bar = list.parentElement ? list.parentElement.querySelector(".tl-listen") : null;
+    const top = box.top + (bar ? bar.offsetHeight + 12 : 0);
+    const seen = (n) => { if (!n) return true; const r = n.getBoundingClientRect(); return r.bottom > top && r.top < box.bottom; };
+    if (!seen(before)) return;
+    const r = now.getBoundingClientRect();
+    if (r.top >= top && r.bottom <= box.bottom - 24) return;
+    const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scroller.scrollBy({ top: r.top - top - box.height * 0.25, behavior: still ? "auto" : "smooth" });
+  }, [active]);
+
   const said = call ? null : tlNoteOf(note);
   const direction = call ? call.direction || "inbound" : said.direction;
   const missed = !!(call && call.missed);
@@ -945,37 +945,139 @@ const CallCard = ({ call = null, note = null, at, mid, focus = false }) => {
   const length = call ? (missed ? null : call.duration || null) : said.length;
   const kind = missed ? (direction === "outbound" ? "Call didn't connect" : "Missed call") : direction === "outbound" ? "Outbound call" : "Inbound call";
   const facts = (call && call.facts) || [];
-  const lines = call && call.transcript && call.transcript.length ? call.transcript : null;
   const them = (call && (call.whoShort || call.who)) || "Caller";
-  const file = lines && call.real && !window.__DEMO_MODE && window.__href ? window.__href("GET calls/[id]/export", { id: call.callId }) : null;
+  // The recording is the route's own address: it redirects to a link signed for each request, so a seek or a play after a
+  // long pause is signed afresh (calls/[id]/recording). The route names the workspace as every read does.
+  const real = !!(call && call.real && !window.__DEMO_MODE && window.__href);
+  const src = real && call.recordingState === "ready" ? window.__href("GET calls/[id]/recording", { id: call.callId }) : null;
+  const file = real && lines ? window.__href("GET calls/[id]/export", { id: call.callId }) : null;
+
+  const el = () => audioRef.current;
+  const play = () => {
+    const a = el();
+    if (!a) return;
+    setListening(true);
+    setFailed(null);
+    const p = a.play();
+    if (p && typeof p.catch === "function") p.catch(() => setFailed("Couldn't play the recording."));
+  };
+  const listen = () => { setOpen(true); play(); };
+  const toggle = () => {
+    const a = el();
+    if (!a) return;
+    // Asked again: the route signs a new link for the new request.
+    if (failed) { a.load(); play(); return; }
+    if (a.paused) play(); else a.pause();
+  };
+  const seek = (sec) => { const a = el(); if (!a) return; a.currentTime = sec; setPos(sec); };
+  const playFrom = (sec) => { const a = el(); if (!a || typeof sec !== "number") return; seek(sec); if (a.paused) play(); else setListening(true); };
+  const cycle = () => { const next = TL_SPEEDS[(TL_SPEEDS.indexOf(speed) + 1) % TL_SPEEDS.length]; setSpeed(next); if (el()) el().playbackRate = next; };
+  const stop = () => { const a = el(); if (a) a.pause(); setListening(false); };
+  const pct = dur ? Math.min(100, (pos / dur) * 100) : 0;
+
   return (
-    <div className={`tl-call ${direction}${focus ? " focus" : ""}`} data-mid={mid} data-testid="tl-call">
-      <div className="tl-call-card">
-        <div className="tl-call-head">
-          <span className="tl-call-glyph" aria-hidden="true"><Icon name="phone" size={11} /></span>
-          <span className="tl-call-kind">{kind}{length && <span className="tl-call-length tabular"> · {length}</span>}</span>
-          <span className="tl-call-at tabular">{at}</span>
-        </div>
-        {about && <div className="tl-call-about">{about}</div>}
-        {facts.length > 0 && <div className="tl-call-facts">{facts.join(" · ")}</div>}
-        {call && call.recordingState === "ready" && <CallPlayer callId={call.callId} length={call.duration} />}
-        {lines && (
-          <button type="button" className="tl-call-open" aria-expanded={open} onClick={() => setOpen((v) => !v)} data-testid="tl-call-open">
-            Transcript <Icon name="chevron-down" size={10} />
+    <div className={`tl-call ${direction}${listening ? " listening" : ""}${focus ? " focus" : ""}`} data-mid={mid} data-testid="tl-call">
+      {src && (
+        <audio
+          ref={audioRef}
+          src={src}
+          preload="metadata"
+          onPlay={(e) => {
+            // One call at a time: this one playing pauses the one that was.
+            if (TL_PLAYING.el && TL_PLAYING.el !== e.target && TL_PLAYING.el.pause) TL_PLAYING.el.pause();
+            TL_PLAYING.el = e.target;
+            setPlaying(true);
+          }}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
+          onTimeUpdate={(e) => setPos(e.target.currentTime)}
+          onLoadedMetadata={(e) => setDur(e.target.duration || (call && call.durationSec) || 0)}
+          onError={() => { setPlaying(false); setFailed("Couldn't play the recording."); }}
+        />
+      )}
+      {src && listening && (
+        <div className="tl-listen" role="group" aria-label={`The call with ${them}`} data-testid="tl-listen">
+          <button type="button" className="tl-listen-play" onClick={toggle} aria-label={failed ? "Try the recording again" : playing ? "Pause" : "Play"} data-testid="tl-listen-play">
+            <Icon name={playing ? "pause" : "play"} size={12} />
           </button>
-        )}
-        {lines && open && (
-          <div className="tl-call-lines" data-testid="tl-call-lines">
-            {lines.map((line, i) => (
-              <div key={i} className={`tl-call-line ${line.speaker}`}>
-                <span className="tl-call-who">{line.speaker === "agent" ? "Receptionist" : line.speaker === "whisper" ? "You whispered" : them}</span>
-                <span className="tl-call-said">{line.text}</span>
-              </div>
-            ))}
-            {file && <a className="tl-call-file" href={file} download>Download the transcript</a>}
-          </div>
-        )}
+          <span className="tl-listen-who">{them}</span>
+          <input
+            type="range"
+            className="tl-listen-track"
+            min="0"
+            max={dur || 0}
+            step="0.1"
+            value={Math.min(pos, dur || 0)}
+            onChange={(e) => seek(Number(e.target.value))}
+            aria-label="Position in the call"
+            aria-valuetext={`${tlClock(pos)} of ${tlClock(dur)}`}
+            style={{ "--fill": `${pct}%` }}
+            data-testid="tl-listen-track"
+          />
+          {failed
+            ? <span className="tl-listen-failed" role="status" data-testid="tl-listen-failed">{failed}</span>
+            : <span className="tl-listen-clock tabular">{tlClock(pos)} / {tlClock(dur)}</span>}
+          <button type="button" className="tl-listen-speed tabular" onClick={cycle} aria-label={`Speed ${speed}×. Change it`} data-testid="tl-listen-speed">{speed}×</button>
+          <button type="button" className="tl-listen-close" onClick={stop} aria-label="Stop listening" data-testid="tl-listen-close"><Icon name="x" size={12} /></button>
+        </div>
+      )}
+      <div className="tl-call-mark" data-testid="tl-call-start">
+        {src && !listening
+          ? <button type="button" className="tl-call-play" onClick={listen} aria-label={`Listen to the call${length ? `, ${length}` : ""}`} data-testid="tl-call-play"><Icon name="play" size={10} /></button>
+          : <span className="tl-call-glyph" aria-hidden="true"><Icon name="phone" size={11} /></span>}
+        <span className="tl-call-words">
+          <span className="tl-call-kind">{kind}</span>
+          {length && <span className="tl-call-length tabular">{length}</span>}
+          {/* A call with no lines says how it went on its one line: "Missed call · No answer". */}
+          {!lines && facts.length > 0 && <span className="tl-call-facts">{facts.join(" · ")}</span>}
+          <span className="tl-call-at tabular">{at}</span>
+        </span>
       </div>
+      {lines && open && (
+        <>
+          <div className="tl-call-turns" ref={turnsRef} data-testid="tl-call-lines">
+            {lines.map((line, i) => {
+              const whisper = line.speaker === "whisper";
+              const playable = !!src && !whisper && typeof line.start === "number";
+              return (
+                <div
+                  key={i}
+                  className={`tl-msg ${line.speaker === "client" ? "client" : "agent"} tl-spoken${whisper ? " whisper" : ""}${i === active ? " now" : ""}${playable ? " playable" : ""}`}
+                  aria-current={i === active ? "true" : undefined}
+                  // A line plays from itself -- unless you were selecting its words to copy them.
+                  onClick={playable ? () => { const sel = window.getSelection ? window.getSelection() : null; if (!sel || sel.isCollapsed) playFrom(line.start); } : undefined}
+                  data-testid="tl-spoken"
+                >
+                  <div className="tl-msg-bubble">
+                    <div className="tl-msg-meta">
+                      {/* Who spoke, for a screen reader: the side says it to the eye. */}
+                      {!whisper && <span className="tl-spoken-who">{line.speaker === "agent" ? "Receptionist" : them}</span>}
+                      {whisper && <span className="tl-spoken-whisper">You whispered</span>}
+                      {playable
+                        ? <button type="button" className="tl-spoken-t tabular" onClick={(e) => { e.stopPropagation(); playFrom(line.start); }} aria-label={`Play from ${tlClock(line.start)}`}>{tlClock(line.start)}</button>
+                        : !whisper && typeof line.start === "number" ? <span className="tl-msg-time tabular">{tlClock(line.start)}</span> : null}
+                    </div>
+                    <div className="tl-msg-body">{line.text}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="tl-call-mark end" data-testid="tl-call-end">
+            <span className="tl-call-ended">{["Call ended", ...facts].join(" · ")}</span>
+            {file && <a className="tl-call-file" href={file} download aria-label="Download the transcript" title="Download the transcript"><Icon name="download" size={11} /></a>}
+          </div>
+        </>
+      )}
+      {lines && !open && (
+        <div className="tl-call-folded">
+          {about && <span className="tl-call-about">{about}</span>}
+          <button type="button" className="tl-call-open" aria-expanded="false" onClick={() => setOpen(true)} data-testid="tl-call-open">
+            Show the call · {lines.length} {lines.length === 1 ? "line" : "lines"}
+          </button>
+        </div>
+      )}
+      {!lines && about && <div className="tl-call-about">{about}</div>}
     </div>
   );
 };
@@ -1408,8 +1510,9 @@ const InboxEmpty = () => (
 );
 
 window.InboxThread = InboxThread;
-// Conversations draws a call no thread holds with the thread's own card.
-window.CallCard = CallCard;
+// Conversations draws a call no thread holds as the thread draws one; where a thread opens is published for its test.
+window.ThreadCall = ThreadCall;
+window.ixOpensAt = ixOpensAt;
 window.InboxEmpty = InboxEmpty;
 // Published for the-pages-say-only-what-is-true.test.mjs, which draws the composer on its own.
 window.InboxComposer = Composer;

@@ -1,12 +1,12 @@
 /**
- * Calls are in the thread (docs/plans/2026-09-21-one-thread.md, PR 2).
+ * Calls are in the thread (docs/plans/2026-09-21-one-thread.md, PR 2), and you can follow them
+ * (docs/plans/2026-09-21-calls-you-can-follow.md).
  *
- * A call opened a second viewer in Conversations: its name broke onto two lines, a card listed eight facts --
- * "Inbound · 3 min 10 sec", "Ended: Receptionist ended the call", "Needs a call back", "Noted on Emily's thread in the
- * Inbox" -- most of them said again elsewhere, and a Play button stood beside "No recording for this call". In its
- * thread the same call was a dashed bubble reading "Phone · call note". Every one of the workspace's 34 calls already
- * belongs to a thread. So a call opens its thread, and its note there is the call: what it was about, how it went in a
- * few quiet words, the recording when there is one, the transcript on a tap.
+ * A call opened a second viewer in Conversations: a card of eight facts beside a Play button that played nothing. #775
+ * put the call in its thread, as a 420px card with its transcript behind a tap. Ruben: "the transcript and everything
+ * should be on the chat container to feel more seamless like the text style threads". So a call is part of the
+ * conversation: a quiet line where it began, its lines as the thread's own bubbles, a quiet line where it ended; a
+ * player floats while you listen, and the line being said is lit.
  *
  * Run against the contracts and the pages on a stub React, never read from them.
  */
@@ -164,96 +164,215 @@ const again = (vm) => { seq = 0; return InboxThread({ thread: vm, channelLabels:
 const cardOf = (tree) => find(tree, byTestId("tl-call"));
 const emily = () => toInboxThreadVM(conv([note()]), null, ZONE, NOW);
 
-/* ----------------------------------- the card ----------------------------------- */
+/* --------------------------------- the call, drawn --------------------------------- */
 
-test("in its thread a call is the call: what it was about, how it went, and its recording -- not a bubble of words nobody said", () => {
+// An <audio> as the page drives it: what it was told, and what it was asked to do.
+const audio = () => ({ src: "", currentTime: 0, paused: true, playbackRate: 1, played: 0, paused_: 0, loaded: 0,
+  play() { this.played += 1; this.paused = false; return Promise.resolve(); },
+  pause() { this.paused_ += 1; this.paused = true; },
+  load() { this.loaded += 1; } });
+// Hand the page the <audio> it drew, as the browser would through its ref.
+const wire = (tree, el) => { const node = find(tree, (n) => n.type === "audio"); node.props.ref.current = el; return node; };
+const spoken = (tree) => all(tree, byTestId("tl-spoken"));
+const words = (n) => textOf(find(n, hasClass("tl-msg-body")));
+
+test("a call is part of its conversation: where it began, its lines as the thread's own bubbles, where it ended -- not a card", () => {
   calls(toCallVM(callDto(), ZONE, NOW));
   const tree = draw(emily());
-  const card = cardOf(tree);
-  assert.ok(card, "the call's card");
-  assert.equal(all(tree, hasClass("tl-msg")).length, 0, "REGRESSION: the note was a dashed bubble");
+  const call = cardOf(tree);
+  assert.ok(call, "the call");
+  assert.equal(all(tree, hasClass("tl-call-card")).length, 0, "REGRESSION: a card on the conversation, not part of it");
+  const start = find(call, byTestId("tl-call-start"));
+  assert.deepEqual([textOf(find(start, hasClass("tl-call-kind"))), textOf(find(start, hasClass("tl-call-length")))], ["Inbound call", "3:10"]);
+  const lines = spoken(call);
+  assert.deepEqual(lines.map((l) => [hasClass("client")(l) ? "theirs" : "ours", words(l)]), [
+    ["ours", "Thank you for calling Melany's Beauty Salon. How can I help?"],
+    ["theirs", "Hi! I'd like to do a bridal trial on October third."],
+  ], "the receptionist's words on our side, the caller's on theirs, as a written thread draws them");
+  assert.ok(lines.every((l) => hasClass("tl-msg")(l)), "the thread's own bubbles");
+  assert.equal(all(tree, (n) => hasClass("tl-msg")(n) && !hasClass("tl-spoken")(n)).length, 0, "REGRESSION: the note was a dashed bubble of words nobody said");
   assert.ok(!textOf(tree).includes("call note"), "REGRESSION: 'Phone · call note'");
-  assert.ok(hasClass("inbound")(card), "on the side it came from");
-  assert.equal(textOf(find(card, hasClass("tl-call-kind"))), "Inbound call · 3:10");
-  assert.equal(textOf(find(card, hasClass("tl-call-about"))), "Wants to book a bridal trial on October 3 for herself and two bridesmaids");
-  assert.equal(textOf(find(card, hasClass("tl-call-facts"))), "Sounded positive · Receptionist ended the call", "one quiet line");
-  assert.ok(find(card, byTestId("tl-call-play")), "its recording plays here");
-  for (const gone of ["3 min 10 sec", "Ended:", "Noted on", "Recording saved", "What happened on this call", "the voice provider's own read"]) {
-    assert.ok(!textOf(card).includes(gone), `REGRESSION: the card of eight facts said "${gone}"`);
+  assert.equal(textOf(find(call, byTestId("tl-call-end"))), "Call ended · Sounded positive · Receptionist ended the call", "how it went, where it ended");
+  for (const gone of ["3 min 10 sec", "Ended:", "Noted on", "Recording saved", "What happened on this call", "the voice provider's own read", "Transcript"]) {
+    assert.ok(!textOf(call).includes(gone), `REGRESSION: "${gone}"`);
   }
 });
 
-test("no recording, no Play -- and the call says why there is none", () => {
+test("a call the conversation moved on from folds to what it was about, and opens on a tap", () => {
+  calls(toCallVM(callDto(), ZONE, NOW));
+  const vm = toInboxThreadVM(conv([note(), m("m2", 60, { body: "Thanks for calling back!" })], { last_wa_inbound_at: at(60) }), null, ZONE, NOW);
+  let call = cardOf(draw(vm));
+  assert.equal(spoken(call).length, 0, "folded: a newer message came after it");
+  assert.equal(textOf(find(call, hasClass("tl-call-about"))), "Wants to book a bridal trial on October 3 for herself and two bridesmaids");
+  const more = find(call, byTestId("tl-call-open"));
+  assert.equal(textOf(more), "Show the call · 2 lines");
+  more.props.onClick();
+  call = cardOf(again(vm));
+  assert.equal(spoken(call).length, 2, "and open on a tap");
+});
+
+test("the call plays from where it began: the recording is the route's own link, and listening floats a player over the thread", () => {
+  calls(toCallVM(callDto(), ZONE, NOW));
+  const vm = emily();
+  let tree = draw(vm);
+  const node = find(tree, (n) => n.type === "audio");
+  assert.equal(node.props.src, "GET calls/[id]/recording|k7", "REGRESSION: a link fetched once and signed for five minutes");
+  assert.equal(node.props.preload, "metadata");
+  assert.equal(find(tree, byTestId("tl-listen")), undefined, "nothing floats until you listen");
+  const el = audio();
+  wire(tree, el);
+  find(tree, byTestId("tl-call-play")).props.onClick();
+  assert.equal(el.played, 1, "it plays");
+  tree = again(vm);
+  const bar = find(tree, byTestId("tl-listen"));
+  assert.ok(bar, "the player, while you listen");
+  assert.equal(find(tree, byTestId("tl-call-play")), undefined, "one play, not two");
+  const track = find(bar, byTestId("tl-listen-track"));
+  assert.equal(track.props.type, "range", "a track the keyboard moves");
+  assert.equal(track.props.max, 190, "as long as the call, before the audio says its own");
+  track.props.onChange({ target: { value: "95" } });
+  assert.equal(el.currentTime, 95, "pressed or dragged, it seeks");
+});
+
+test("a line plays from itself, and the line being said is the one lit", () => {
+  calls(toCallVM(callDto(), ZONE, NOW));
+  const vm = emily();
+  let tree = draw(vm);
+  const el = audio();
+  const node = wire(tree, el);
+  const t = find(spoken(tree)[1], hasClass("tl-spoken-t"));
+  assert.equal(t.props["aria-label"], "Play from 0:06");
+  t.props.onClick({ stopPropagation() {} });
+  assert.deepEqual([el.currentTime, el.played], [6, 1], "from the caller's line, playing");
+  node.props.onTimeUpdate({ target: { currentTime: 7.5 } });
+  tree = again(vm);
+  assert.deepEqual(spoken(tree).map((l) => l.props["aria-current"] || null), [null, "true"], "the caller's line is being said");
+  node.props.onTimeUpdate({ target: { currentTime: 1 } });
+  tree = again(vm);
+  assert.deepEqual(spoken(tree).map((l) => l.props["aria-current"] || null), ["true", null]);
+});
+
+test("the speed goes 1×, 1.5×, 2× and round, on the recording itself", () => {
+  calls(toCallVM(callDto(), ZONE, NOW));
+  const vm = emily();
+  let tree = draw(vm);
+  const el = audio();
+  wire(tree, el);
+  find(tree, byTestId("tl-call-play")).props.onClick();
+  const rates = [];
+  for (let i = 0; i < 3; i++) {
+    tree = again(vm);
+    find(tree, byTestId("tl-listen-speed")).props.onClick();
+    rates.push(el.playbackRate);
+  }
+  assert.deepEqual(rates, [1.5, 2, 1]);
+});
+
+test("one call at a time: playing one pauses the one that was playing", () => {
+  const first = audio();
+  const second = audio();
+  calls(toCallVM(callDto(), ZONE, NOW));
+  const one = wire(draw(emily()), first);
+  one.props.onPlay({ target: first });
+  calls(toCallVM(callDto({ id: "k8", message_id: "e2" }), ZONE, NOW));
+  const two = wire(draw(toInboxThreadVM(conv([note({ id: "e2" })]), null, ZONE, NOW)), second);
+  two.props.onPlay({ target: second });
+  assert.equal(first.paused_, 1, "REGRESSION: two calls talking over each other");
+  assert.equal(second.paused_, 0);
+});
+
+test("a recording that will not play says so where you listen, and play tries again with a newly signed link", () => {
+  calls(toCallVM(callDto(), ZONE, NOW));
+  const vm = emily();
+  let tree = draw(vm);
+  const el = audio();
+  const node = wire(tree, el);
+  find(tree, byTestId("tl-call-play")).props.onClick();
+  node.props.onError();
+  tree = again(vm);
+  assert.equal(textOf(find(tree, byTestId("tl-listen-failed"))), "Couldn't play the recording.");
+  find(tree, byTestId("tl-listen-play")).props.onClick();
+  assert.deepEqual([el.loaded, el.played], [1, 2], "asked again: the route signs a new link for the new request");
+});
+
+test("no recording, no play -- and the call says why there is none", () => {
   calls(toCallVM(callDto({ recording: null }), ZONE, NOW));
-  let card = cardOf(draw(emily()));
-  assert.equal(find(card, byTestId("tl-call-play")), undefined, "REGRESSION: a Play button beside 'No recording for this call'");
+  let call = cardOf(draw(emily()));
+  assert.equal(find(call, byTestId("tl-call-play")), undefined, "REGRESSION: a Play button beside 'No recording for this call'");
+  assert.equal(find(call, (n) => n.type === "audio"), undefined);
   // #775 said nothing of a call never recorded; Emily's (filler, never a call) then read as a player that failed to draw.
-  assert.equal(textOf(find(card, hasClass("tl-call-facts"))), "Sounded positive · Receptionist ended the call · No recording", "a call never recorded says so, once");
+  assert.equal(textOf(find(call, byTestId("tl-call-end"))), "Call ended · Sounded positive · Receptionist ended the call · No recording");
+  assert.equal(spoken(call).length, 2, "the lines are there to read");
+  assert.equal(find(spoken(call)[0], hasClass("tl-spoken-t")), undefined, "nothing to play them from");
 
   calls(toCallVM(callDto({ recording: { fetch_state: "pending" } }), ZONE, NOW));
-  card = cardOf(draw(emily()));
-  assert.equal(find(card, byTestId("tl-call-play")), undefined);
-  assert.match(textOf(find(card, hasClass("tl-call-facts"))), / · Recording still processing$/);
-
+  call = cardOf(draw(emily()));
+  assert.match(textOf(find(call, byTestId("tl-call-end"))), / · Recording still processing$/);
   calls(toCallVM(callDto({ recording: { fetch_state: "purged" } }), ZONE, NOW));
-  assert.match(textOf(find(cardOf(draw(emily())), hasClass("tl-call-facts"))), new RegExp(` · Recording removed after ${RECORDING_RETENTION_DAYS} days$`));
+  assert.match(textOf(find(cardOf(draw(emily())), byTestId("tl-call-end"))), new RegExp(` · Recording removed after ${RECORDING_RETENTION_DAYS} days$`));
 });
 
-test("a call that never connected says so in its head, and was about nothing", () => {
+test("a call that never connected is the one line: what it was, how it ended, when", () => {
   calls(toCallVM(callDto({ status: "not_connected", duration_ms: 0, disconnection_reason: "dial_no_answer", sentiment: null, recording: null, transcript_object: [] }), ZONE, NOW));
-  const card = cardOf(draw(emily()));
-  assert.equal(textOf(find(card, hasClass("tl-call-kind"))), "Missed call");
-  assert.equal(find(card, hasClass("tl-call-about")), undefined);
-  assert.equal(textOf(find(card, hasClass("tl-call-facts"))), "No answer");
-  assert.equal(find(card, byTestId("tl-call-open")), undefined, "no transcript to open");
+  const call = cardOf(draw(emily()));
+  const start = find(call, byTestId("tl-call-start"));
+  assert.equal(textOf(find(start, hasClass("tl-call-kind"))), "Missed call");
+  assert.equal(textOf(find(start, hasClass("tl-call-facts"))), "No answer");
+  assert.equal(find(call, hasClass("tl-call-length")), undefined);
+  assert.equal(spoken(call).length, 0);
+  assert.equal(find(call, byTestId("tl-call-end")), undefined, "one line, not two");
 });
 
-test("a call older than the calls read is drawn from the note it left: its head and its words, nothing to play", () => {
+test("a call older than the calls read is drawn from the note it left: where it began, and what it was about", () => {
   calls();
-  const card = cardOf(draw(emily()));
-  assert.equal(textOf(find(card, hasClass("tl-call-kind"))), "Inbound call · 3 min");
-  assert.equal(textOf(find(card, hasClass("tl-call-about"))), "Wants to book a bridal trial on October 3 for herself and two bridesmaids (needs a call back)");
-  assert.equal(find(card, byTestId("tl-call-play")), undefined);
-  assert.equal(find(card, byTestId("tl-call-open")), undefined);
-  // A note written before the call's summary existed says there was none; the card says nothing instead.
+  const call = cardOf(draw(emily()));
+  assert.equal(textOf(find(call, hasClass("tl-call-kind"))), "Inbound call");
+  assert.equal(textOf(find(call, hasClass("tl-call-length"))), "3 min");
+  assert.equal(textOf(find(call, hasClass("tl-call-about"))), "Wants to book a bridal trial on October 3 for herself and two bridesmaids (needs a call back)");
+  assert.equal(find(call, byTestId("tl-call-play")), undefined);
+  // A note written before the call's summary existed says there was none; the call says nothing instead.
   const bare = cardOf(draw(toInboxThreadVM(conv([note({ body: "Outbound call — No summary available." })]), null, ZONE, NOW)));
   assert.equal(textOf(find(bare, hasClass("tl-call-kind"))), "Outbound call");
-  assert.ok(hasClass("outbound")(bare), "ours, on our side");
+  assert.ok(hasClass("outbound")(bare), "ours");
   assert.equal(find(bare, hasClass("tl-call-about")), undefined);
-  // A short call's note says its seconds: three of the salon's 34 read "· 23 s —", and the card printed them whole,
-  // its own head included, under "Inbound call".
+  // A short call's note says its seconds: three of the salon's 34 read "· 23 s —", and the card printed them whole.
   const short = cardOf(draw(toInboxThreadVM(conv([note({ body: "Inbound call · 23 s — The caller asked whether the salon is open on Sunday." })]), null, ZONE, NOW)));
-  assert.equal(textOf(find(short, hasClass("tl-call-kind"))), "Inbound call · 23 sec");
+  assert.equal(textOf(find(short, hasClass("tl-call-length"))), "23 sec");
   assert.equal(textOf(find(short, hasClass("tl-call-about"))), "The caller asked whether the salon is open on Sunday.", "REGRESSION: the note's own head, again, as what the call was about");
 });
 
-test("the transcript opens on a tap: the receptionist, the caller by name, a whisper as the owner's own words -- and the call's own file", () => {
+test("a whisper is the owner's own words, marked as theirs, with no moment in the recording; the call's file is a quiet link where it ended", () => {
   const whispered = [...callDto().transcript_object, { role: "injected", content: frameWhisper("mention the bridal package") }];
   calls(toCallVM(callDto({ transcript_object: whispered }), ZONE, NOW));
   const vm = emily();
-  let card = cardOf(draw(vm));
-  const open = find(card, byTestId("tl-call-open"));
-  assert.equal(open.props["aria-expanded"], false);
-  assert.equal(find(card, byTestId("tl-call-lines")), undefined, "closed until asked for");
-  open.props.onClick();
-  card = cardOf(again(vm));
-  assert.equal(find(card, byTestId("tl-call-open")).props["aria-expanded"], true);
-  const lines = all(find(card, byTestId("tl-call-lines")), hasClass("tl-call-line")).map((l) => [textOf(find(l, hasClass("tl-call-who"))), textOf(find(l, hasClass("tl-call-said")))]);
-  assert.deepEqual(lines, [
-    ["Receptionist", "Thank you for calling Melany's Beauty Salon. How can I help?"],
-    ["Emily", "Hi! I'd like to do a bridal trial on October third."],
-    ["You whispered", "mention the bridal package"],
-  ]);
-  const file = find(card, (n) => n.type === "a" && hasClass("tl-call-file")(n));
+  const call = cardOf(draw(vm));
+  const whisper = spoken(call)[2];
+  assert.ok(hasClass("whisper")(whisper) && hasClass("agent")(whisper), "on our side, marked");
+  assert.match(textOf(whisper), /You whispered/);
+  assert.equal(words(whisper), "mention the bridal package");
+  assert.equal(find(whisper, hasClass("tl-spoken-t")), undefined, "not a sound in the recording, so nothing to play from");
+  assert.deepEqual(spoken(call).map((l) => textOf(find(l, hasClass("tl-spoken-who")))), ["Receptionist", "Emily", ""], "who spoke, for a screen reader: the side says it to the eye");
+  const file = find(call, (n) => n.type === "a" && hasClass("tl-call-file")(n));
   assert.equal(file.props.href, "GET calls/[id]/export|k7", "the call's own transcript, from the route that writes it");
-  assert.ok("download" in file.props, "fetched as a file");
-
+  assert.ok("download" in file.props);
   globalThis.window.__DEMO_MODE = true;
   try {
-    assert.equal(find(cardOf(again(vm)), (n) => hasClass("tl-call-file")(n)), undefined, "no file in a demo, where there is no route to write it");
+    assert.equal(find(cardOf(again(vm)), hasClass("tl-call-file")), undefined, "no file in a demo, where there is no route to write it");
   } finally {
     globalThis.window.__DEMO_MODE = false;
   }
+});
+
+test("a thread opens where a call began when a call is the newest thing said; at a message it was opened at; else at its newest", () => {
+  const opensAt = globalThis.window.ixOpensAt;
+  assert.equal(opensAt(emily()), "e1", "the call is the newest thing said: its lines are below it, and play is the next thing to press");
+  const moved = toInboxThreadVM(conv([note(), m("m2", 60)], { last_wa_inbound_at: at(60) }), null, ZONE, NOW);
+  assert.equal(opensAt(moved), null, "a message came after it: the newest, as ever");
+  assert.equal(opensAt(moved, "e1"), "e1", "opened at the call, from Conversations");
+  // A flag after the call is not something said.
+  const flagged = toInboxThreadVM(conv([note()], { state: "needs_human" }), { id: "x1", reason: "callback", details: "Call Emily back", state: "open", created_at: at(1190) }, ZONE, NOW);
+  assert.equal(flagged.timeline.at(-1).type, "event");
+  assert.equal(opensAt(flagged), "e1");
 });
 
 /* ------------------------------- the rest of the thread ------------------------------- */

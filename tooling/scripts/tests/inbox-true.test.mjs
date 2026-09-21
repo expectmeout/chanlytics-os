@@ -163,9 +163,10 @@ test("the pane: a quiet thread says its last word once, in its tone; the reply t
   const failed = bubbles.find((b) => textOf(b).includes("3pm works"));
   assert.ok(hasClass("undelivered")(failed), "REGRESSION: drawn as a reply the customer read");
   assert.match(textOf(failed), /Didn't send/);
-  // A call is drawn as the call, where it happened (calls-in-the-thread.test.mjs) -- never as a bubble of words.
+  // A call is part of the conversation, where it happened (calls-in-the-thread.test.mjs) -- never a bubble of words.
   assert.equal(bubbles.find((b) => textOf(b).includes("bridal trial")), undefined, "REGRESSION: a call note was drawn as words the receptionist sent");
-  assert.match(textOf(find(tree, byTestId("tl-call"))), /^Inbound call · 3 min.*asked about a bridal trial$/);
+  const call = find(tree, byTestId("tl-call"));
+  assert.deepEqual([textOf(find(call, hasClass("tl-call-kind"))), textOf(find(call, hasClass("tl-call-length"))), textOf(find(call, hasClass("tl-call-about")))], ["Inbound call", "3 min", "asked about a bridal trial"]);
 
   const answered = find(paneOf(vmOf(quiet([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29, "read")]))), byTestId("ix-last-word"));
   assert.equal(textOf(answered), "Answered by the receptionist — no one asked for you.");
