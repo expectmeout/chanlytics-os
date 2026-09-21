@@ -961,48 +961,93 @@ const PeopleScopeTabs = ({ scope, onScope }) => (
   </div>
 );
 
-// The rail. The switch heads it in both scopes; under Leads the rows below it are the Leads scope's own
-// (LeadsRailRows, leads-scope.jsx), so the smart lists and the lists kept by hand are People's alone.
+/* ------------------------------------------------------------ the rail kit
+   One rail for both scopes of People. People's lists and Leads' lists and searches are the same thing to the rail:
+   sections, perhaps groups in them, and rows, each one thing to pick with its count. Leads drew its own rows beside
+   People's and they drifted apart -- its headings were a group's, a row's edges took no press, and its picks combined
+   where People's replace, so a list pressed while a search was open only narrowed inside the search, and the rail
+   lit neither. Now both scopes draw these, and both pick the same way: one row at a time (aria-current), a pick
+   replaces what was picked, and pressing the picked row again goes back to all of them (railToggle). Hookless, like
+   the table: the tests' stub React keys hooks by call order. */
+
+/** The rail's one rule for a pick: the row pressed, unless it was the one picked, which goes back to none. */
+const railToggle = (current, id) => (current === id ? null : id);
+
+const RailSection = ({ label, icon = null, testid = null, children }) => (
+  <div className="cl-rail-section" data-testid={testid || undefined}>
+    <div className="cl-rail-label">
+      {icon ? <Icon name={icon} size={11} /> : null}
+      {label}
+    </div>
+    {children}
+  </div>
+);
+
+const RailGroup = ({ label, testid = null, children }) => (
+  <div className="cl-rail-group" data-testid={testid || undefined}>
+    <div className="cl-rail-group-label">{label}</div>
+    {children}
+  </div>
+);
+
+/**
+ * One row. Its mark, label and count are the pick. A row with acts of its own (a search's menu) keeps them beside
+ * the pick, never a button inside a button, and the pick fills the row, so a press anywhere on it but the acts picks
+ * it. While the row is being named, `edit` stands in for the pick and its acts; `after` hangs under it (a Confirm).
+ */
+const RailRow = ({ label, count = null, active = false, onPick, smart = false, tip = null, mark = null, menu = null, edit = null, after = null, testid = null, className = "", pickClass = "" }) => {
+  const cls = `cl-rail-row${smart ? " smart" : ""}${active ? " active" : ""}${className ? ` ${className}` : ""}`;
+  const said = (
+    <>
+      {mark}
+      <span className="label">{label}</span>
+      {count === null || count === undefined ? null : <span className="count">{count}</span>}
+    </>
+  );
+  if (!menu && !edit && !after) {
+    return <button type="button" className={cls} onClick={onPick} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>;
+  }
+  return (
+    <div className={`${cls} has-acts`}>
+      {edit || (
+        <button type="button" className={`cl-rail-pick${pickClass ? ` ${pickClass}` : ""}`} onClick={onPick} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>
+      )}
+      {edit ? null : menu}
+      {after}
+    </div>
+  );
+};
+
+// The rail. The switch heads it in both scopes; under Leads the rows below it are the Leads scope's (LeadsRailRows,
+// leads-scope.jsx), drawn with the same kit, so the smart lists and the lists kept by hand are People's alone.
 const PeopleRail = ({ scope = "people", onScope = () => {}, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
   <aside className="cl-rail">
     <PeopleScopeTabs scope={scope} onScope={onScope} />
     {scope === "leads" ? children : (
     <>
-    <div className="cl-rail-section">
-      <div className="cl-rail-label">
-        <Icon name="sparkle" size={11} />
-        Smart lists
-      </div>
+    <RailSection label="Smart lists" icon="sparkle">
       {groups.map((g) => {
         const own = lists.filter((l) => (l.group || "reach") === g.id);
         if (own.length === 0) return null;
         return (
-          <div key={g.id} className="cl-rail-group" data-testid={`rail-group-${g.id}`}>
-            <div className="cl-rail-group-label">{g.label}</div>
+          <RailGroup key={g.id} label={g.label} testid={`rail-group-${g.id}`}>
             {own.map((l) => (
-              <button key={l.id} className={`cl-rail-row smart ${active === l.id ? "active" : ""}`} onClick={() => onPick(l.id)} data-tip={PL_LIST_TIP[l.id] || null}>
-                <span className="label">{l.label}</span>
-                <span className="count">{l.count}</span>
-              </button>
+              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} />
             ))}
-          </div>
+          </RailGroup>
         );
       })}
-    </div>
-    <div className="cl-rail-section" data-testid="saved-lists">
-      <div className="cl-rail-label">Saved</div>
+    </RailSection>
+    <RailSection label="Saved" testid="saved-lists">
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
       {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
       {saved.map((s) => (
-        <button key={s.id} className={`cl-rail-row ${activeSaved === s.id ? "active" : ""}`} onClick={() => onPickSaved(s.id)} data-tip="A list kept by hand — add people from their profile">
-          <span className="label">{s.name}</span>
-          <span className="count">{s.count}</span>
-        </button>
+        <RailRow key={s.id} label={s.name} count={s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip="A list kept by hand — add people from their profile" />
       ))}
       {savedRead && saved.length === 0 && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>
       )}
-    </div>
+    </RailSection>
     {canEdit && onCreateList && <NewListRow onCreate={onCreateList} openSignal={newListSignal} />}
     </>
     )}
@@ -1793,8 +1838,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
   // One list open at a time: it is the page's title, so two open at once would be a title over a table it does
   // not describe. Picking the open one again shows everyone.
-  const pickSmart = (id) => { setSavedId(null); setListId((cur) => (cur === id ? null : id)); };
-  const pickSaved = (id) => { setListId(null); setSavedId((cur) => (cur === id ? null : id)); };
+  const pickSmart = (id) => { setSavedId(null); setListId((cur) => railToggle(cur, id)); };
+  const pickSaved = (id) => { setListId(null); setSavedId((cur) => railToggle(cur, id)); };
   // One person off the list kept by hand that is open, from their row; Undo puts them back.
   const dropFromList = async (p) => {
     if (!window.__lists || !activeSaved) return;
@@ -2212,6 +2257,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         surface={leads}
         rail={rail}
         railLabel={railLabel}
+        listTitle={openList ? openList.label : "All leads"}
         listsOpen={listsOpen}
         onLists={() => setListsOpen(true)}
         onCloseLists={() => setListsOpen(false)}
@@ -2300,8 +2346,11 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         canExport={canExport}
         exportHref={window.__href ? window.__href("GET leads/export", undefined, { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }) : null}
         onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
-        onPickList={(id) => goto({ list: id, searchId: leadView.searchId })}
-        onPickSearch={(id) => nav(window.__leadsRouteOf({ searchId: leadView.searchId === id ? null : id, list: leadView.list, cls: null }))}
+        // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
+        // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
+        // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
+        onPickList={(id) => { setChip(null); nav(window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null })); }}
+        onPickSearch={(id) => { setChip(null); nav(window.__leadsRouteOf({ searchId: railToggle(leadView.searchId, id), list: "all", cls: null })); }}
         onPickClass={(cls) => { setChip(null); goto({ cls }); }}
         chip={chip}
         onPickChip={setChip}
@@ -2558,4 +2607,4 @@ const ClientsA = (props) => ((props.scope === "leads" ? window.__LEADS : window.
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads").
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet });
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, RailSection, RailGroup, RailRow, railToggle });

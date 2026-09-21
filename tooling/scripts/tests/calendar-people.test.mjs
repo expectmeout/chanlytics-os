@@ -612,7 +612,8 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
 
 test("the list page: the rail is grouped, a state is a chip, a list has its step, the view is linkable and remembered", () => {
   assert.ok(PEOPLE_PAGE.includes('data-testid="row-next-visit"') && !PEOPLE_PAGE.includes("row-booked"), "the column carries the outcome; the chip is gone");
-  assert.ok(PEOPLE_PAGE.includes('data-testid={`rail-group-${g.id}`}') && PEOPLE_PAGE.includes("cl-rail-group-label"));
+  // The groups themselves are the rail kit's (RailGroup), drawn and counted in people-honest, not read here.
+  assert.ok(PEOPLE_PAGE.includes("cl-rail-group-label"));
   assert.ok(PEOPLE_PAGE.includes('data-testid="state-filter"') && !PEOPLE_PAGE.includes('{["all", ...PL_TABS].map((t) => ('), "one state switcher: the strip, echoed as a chip");
   assert.ok(PEOPLE_PAGE.includes('data-testid="list-action"') && PEOPLE_PAGE.includes("window.CHANLY.nav(listStep.to)"));
   assert.ok(PEOPLE_PAGE.includes('window.history.replaceState(null, "", next)') && PEOPLE_PAGE.includes("`seg:${listId}` : savedId ? `list:${savedId}` : tab !== \"all\" ? `state:${tab}`"), "linkable");

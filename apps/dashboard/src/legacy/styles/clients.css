@@ -118,14 +118,34 @@
 .cl-rail-row.smart.active::before { opacity: 1; }
 .cl-rail-row .glyph { color: var(--ink-faint); flex-shrink: 0; }
 .cl-rail-row .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A count is read, so it takes the dim ink: --ink-faint is 2.1 to 2.7:1 in both themes (Leads' counts were dim,
+   People's faint, in one rail). */
 .cl-rail-row .count {
   font-size: 10.5px;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 .cl-rail-row.smart .count { color: var(--accent); font-weight: 500; }
 .cl-rail-row.active .count { color: var(--ink); }
+
+/* A row with acts of its own (RailRow `menu`: a search's …) is its pick and its acts side by side. The pick fills the
+   row and carries its padding, so a press anywhere on the row but the acts picks it; the acts sit inside its right
+   edge, shown on hover, on focus, open or picked, and always on a touch screen, which has no hover to show them. */
+.cl-rail-row.has-acts { padding: 0 4px 0 0; gap: 2px; flex-wrap: wrap; }
+.cl-rail-pick {
+  flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 8px; padding: 5px 4px 5px 8px;
+  border: 0; border-radius: inherit; background: none; font: inherit; line-height: normal; color: inherit; text-align: left;
+  cursor: pointer; /* line-height as a button row's own, which `font: inherit` would take from the page */
+}
+.cl-rail-row.has-acts > .more-wrap { flex: none; }
+.cl-rail-row.has-acts > .more-wrap > button { opacity: 0; }
+.cl-rail-row.has-acts:hover > .more-wrap > button,
+.cl-rail-row.has-acts.active > .more-wrap > button,
+.cl-rail-row.has-acts > .more-wrap > button:focus-visible,
+.cl-rail-row.has-acts > .more-wrap > button[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .cl-rail-row.has-acts > .more-wrap > button { opacity: 1; } }
+.cl-rail-row.has-acts > .confirm { flex-basis: 100%; margin: 2px 8px 6px; }
 
 .cl-rail-foot {
   margin-top: auto;
