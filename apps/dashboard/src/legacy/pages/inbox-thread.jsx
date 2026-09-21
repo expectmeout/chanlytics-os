@@ -906,9 +906,9 @@ const tlLineAt = (lines, pos) => { let at = -1; lines.forEach((l, i) => { if (ty
 const TL_PLAYING = { el: null };
 // How far the thread moves to keep the line being said in view, or 0. `view.top` is where reading starts, below the
 // player. A line under the player comes out just below it: pressing ▶ puts the player above the call's first line, the
-// browser's scroll anchoring slides it over that line, and bringing the line to a quarter of the pane moved the whole
-// thread under the reader's finger, 237px on a real one. A line below the fold comes up with some of what follows it in
-// view, and one that starts in view is never pulled back up.
+// browser's scroll anchoring slides it over that line, and bringing the line to a quarter of the pane moved the call's
+// lines under the reader's finger: 150px on a real thread in a 567px pane, where this moves them 8. A line below the fold
+// comes up with some of what follows it in view, and one that starts in view is never pulled back up.
 const tlFollowBy = (line, view) => {
   if (line.top >= view.top && line.bottom <= view.bottom - 24) return 0;
   if (line.top < view.top) return line.top - view.top;
