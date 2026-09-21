@@ -3,6 +3,12 @@
    ==================================================================== */
 
 .clients {
+  /* People fills the shell's row, as the Inbox does. In that flex row the grid was only as wide as its content: a
+     search's "left out" table stopped 62px short of the pane at 1280 and the review bench 77px short at 1920. The
+     bench's cards are a container now (they fold by their own width, leads.css), and a container counts as empty
+     when its content is measured, which would have left the bench 215px short. */
+  flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   grid-template-columns: var(--rail-nav) minmax(0, 1fr);
   height: 100%;
