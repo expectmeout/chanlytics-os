@@ -1102,6 +1102,8 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   assert.equal(all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length, 5, "the same leads beside it, nearest the middle first");
   assert.match(pins[0].props["aria-label"], /^Zilker Strength Lab — /, "a pin says who it is and what it is");
   assert.match(String(pins[0].props.className), /tone-ok/, "coloured by fit, to start: a strong fit is a good outcome, in the registry's own tone");
+  assert.doesNotMatch(String(pins[0].props.className), /is-out/, "a qualified lead stands at full strength");
+  assert.match(String(pins[4].props.className), /is-out/, "a lead that was left out steps back, as its row does");
 
   pins[0].props.onMouseEnter();
   tree = at();
@@ -1110,6 +1112,9 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   tree = at();
   assert.match(String(byTestId(tree, "lead-pin-l1").props.className), /tone-ok/, "coloured by reach: a checked mailbox and a number two sources agree on");
   assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /tone-warn/, "and one with only a number is part-way there, which is worth a look");
+  // It is still left out. Stepping back used to ride a word only two of the three colourings used (`out`), so an
+  // excluded lead came back to full strength the moment the map was coloured by reach. It follows the row now.
+  assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /is-out/, "left out in every colouring, not in whichever uses the word");
 
   click(byTestId(tree, "lead-pin-l1"));
   tree = at();
