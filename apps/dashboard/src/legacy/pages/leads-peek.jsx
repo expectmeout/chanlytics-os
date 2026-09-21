@@ -64,7 +64,7 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
         {/* Who the company is comes first, so the mark paints LAST and covers the photograph, exactly as it does on
             the row's tile. The photograph is what Expand is for. The two are stacked rather than chosen, so a mark
             that fails to load hides its own layer and uncovers the photo, and no state decides anything (D6). */}
-        {vm.image ? <img src={vm.image} alt="" loading="lazy" data-testid="peek-photo" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : null}
+        {vm.tile.image ? <img src={vm.tile.image} alt="" loading="lazy" data-testid="peek-photo" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : null}
         {vm.tile.logo ? <img className="pk-band-mark" src={vm.tile.logo} alt="" loading="lazy" data-testid="peek-mark" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
         <button type="button" className="pk-band-expand" data-testid="peek-expand" onClick={onExpand}><Icon name="external" size={11} />{W.expand}</button>
         <button type="button" className="pk-x pk-band-x" id="lead-peek-close" aria-label={W.close} data-testid="peek-close" onClick={onClose}><Icon name="x" size={16} /></button>
@@ -161,7 +161,7 @@ const LeadLightbox = ({ vm, onClose }) => {
         <div className="ld-lb-body">
           <div className={`ld-lb-photo tint-${vm.tile.tint}`} data-testid="lightbox-photo">
             <span className="ld-lb-initials" aria-hidden="true">{vm.tile.initials}</span>
-            {vm.image ? <img src={vm.image} alt="" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : <span className="ld-lb-nophoto">{W.noPhoto}</span>}
+            {vm.tile.image ? <img src={vm.tile.image} alt="" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : <span className="ld-lb-nophoto">{W.noPhoto}</span>}
           </div>
           <div className="ld-lb-side">
             {vm.where ? (
