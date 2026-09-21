@@ -6847,6 +6847,34 @@ function resolveParams(specs, f) {
 function exampleParams(specs, businessName) {
   return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
 }
+var NOTHING = { playbooks: [], broadcasts: 0, booking: false };
+function templateUsage(src) {
+  const out = {};
+  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, booking: false };
+  for (const p of src.playbooks) {
+    if (!p.template_name) continue;
+    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused" });
+  }
+  for (const b of src.broadcasts) {
+    if (!b.template_name || b.playbook_id) continue;
+    at2(b.template_name).broadcasts += 1;
+  }
+  if (src.bookingName) at2(src.bookingName).booking = true;
+  return out;
+}
+function templateUseWords(use) {
+  const u = use ?? NOTHING;
+  const parts2 = [];
+  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
+  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  if (u.booking) parts2.push("the Inbox");
+  if (parts2.length === 0) return "Nothing sends it";
+  return parts2.length < 2 ? parts2[0] : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function templateUnused(use) {
+  const u = use ?? NOTHING;
+  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}
 
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
@@ -13152,6 +13180,9 @@ export {
   templatePreview,
   templatePreviewValues,
   templateTitle,
+  templateUnused,
+  templateUsage,
+  templateUseWords,
   tenantStatusFor,
   textingTermsMetadata,
   textingTermsVM,

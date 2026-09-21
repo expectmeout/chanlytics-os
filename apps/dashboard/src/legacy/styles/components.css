@@ -2284,6 +2284,8 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .msg-card .mp-bubble { max-width: 300px; }
 .msg-card-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-dim); margin-top: auto; }
 .msg-card-meta { min-width: 0; }
+/* Nothing sends it: the one answer on this card that asks for something to be done. */
+.msg-card-meta.is-unused { color: var(--warn-ink); }
 .msg-card-spacer { flex: 1; }
 .msg-card-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11.5px; padding-top: 6px; border-top: 1px solid var(--line); }
 .msg-fold { display: grid; gap: 12px; }

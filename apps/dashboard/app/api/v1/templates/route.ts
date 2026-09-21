@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, templateBlocked, templateComponents, templateParts, validateTemplateDraft } from "@chanlytics/contracts";
+import { AppError, bookingTemplate, templateBlocked, templateComponents, templateParts, templateUsage, validateTemplateDraft } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate } from "@/server/service";
@@ -56,7 +56,24 @@ export const GET = read({
     // three composers digging the same shapes out of it would put Meta's schema
     // in a .jsx file, where the compiler cannot see it.
     const templates = (data ?? []).map(({ components, ...t }) => ({ ...t, ...templateParts(components), blocked: templateBlocked({ components }) }));
-    return { templates };
+    // What sends each of them, for the page that lists every one. The composers
+    // (`!all`) are choosing a template to send and never ask, so they do not pay
+    // for the two reads. A workspace can carry a message nothing has ever sent --
+    // one written in WhatsApp Manager, or a starter added and never wired up --
+    // and this list was the one place that could not say so.
+    if (!all) return { templates };
+    const [pb, bc] = await Promise.all([
+      ctx.supabase.from("playbooks").select("id, name, template_name, state").eq("tenant_id", tenantId),
+      ctx.supabase.from("broadcasts").select("template_name, playbook_id").eq("tenant_id", tenantId),
+    ]);
+    if (pb.error) throw new Error(pb.error.message);
+    if (bc.error) throw new Error(bc.error.message);
+    const usedBy = templateUsage({
+      playbooks: pb.data ?? [],
+      broadcasts: bc.data ?? [],
+      bookingName: bookingTemplate(templates)?.name ?? null,
+    });
+    return { templates, usedBy };
   },
 });
 

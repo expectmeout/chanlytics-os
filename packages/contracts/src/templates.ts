@@ -245,3 +245,73 @@ export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): strin
 export function exampleParams(specs: readonly ParamSpec[], businessName: string): string[] {
   return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
 }
+
+/* ------------------------------ what sends it ----------------------------- */
+
+/**
+ * What actually sends a template.
+ *
+ * Every send names its template: a playbook keeps `template_name`, a broadcast
+ * keeps `template_name`, and the Inbox picks the booking one by rule
+ * (`bookingTemplate`). So the answer to "which of my messages does anything"
+ * was one join away and nobody made it -- a workspace could carry a message
+ * written in WhatsApp Manager a year ago that nothing has ever sent, and the
+ * page that lists every template was the one place that could not say so.
+ *
+ * Keyed by NAME rather than by row, because a template is one message in
+ * several languages and the thing that sends it names the message.
+ */
+export interface TemplateUse {
+  /** The playbooks that send it, by the name the owner gave them. */
+  playbooks: { id: string; name: string; paused: boolean }[];
+  /** How many broadcasts a PERSON sent with it; a playbook's runs are its own. */
+  broadcasts: number;
+  /** The Inbox sends this one when somebody asks to book. */
+  booking: boolean;
+}
+
+const NOTHING: TemplateUse = { playbooks: [], broadcasts: 0, booking: false };
+
+export interface TemplateUseSource {
+  playbooks: readonly { id: string; name: string; template_name: string; state?: string | null }[];
+  /** One entry per broadcast a person sent: a playbook's runs carry its id and are not counted here. */
+  broadcasts: readonly { template_name: string; playbook_id?: string | null }[];
+  /** The name the Inbox books with, from `bookingTemplate`; null when the workspace has none. */
+  bookingName: string | null;
+}
+
+/** One entry per template name that anything sends. A name absent from the map is sent by nothing. */
+export function templateUsage(src: TemplateUseSource): Record<string, TemplateUse> {
+  const out: Record<string, TemplateUse> = {};
+  const at = (name: string): TemplateUse => (out[name] ??= { playbooks: [], broadcasts: 0, booking: false });
+  for (const p of src.playbooks) {
+    if (!p.template_name) continue;
+    at(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused" });
+  }
+  for (const b of src.broadcasts) {
+    if (!b.template_name || b.playbook_id) continue;
+    at(b.template_name).broadcasts += 1;
+  }
+  if (src.bookingName) at(src.bookingName).booking = true;
+  return out;
+}
+
+/**
+ * What sends it, in one line. "Nothing sends it" is the answer worth showing:
+ * it is the only one that asks the owner to do something about the message.
+ */
+export function templateUseWords(use: TemplateUse | null | undefined): string {
+  const u = use ?? NOTHING;
+  const parts: string[] = [];
+  for (const p of u.playbooks) parts.push(p.paused ? `${p.name} (paused)` : p.name);
+  if (u.broadcasts > 0) parts.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  if (u.booking) parts.push("the Inbox");
+  if (parts.length === 0) return "Nothing sends it";
+  return parts.length < 2 ? parts[0]! : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/** True when nothing sends it: the one state the page draws differently. */
+export function templateUnused(use: TemplateUse | null | undefined): boolean {
+  const u = use ?? NOTHING;
+  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}

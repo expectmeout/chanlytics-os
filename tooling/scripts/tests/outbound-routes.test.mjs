@@ -161,6 +161,36 @@ test("approving and canceling a run: judged where it lives; a run not waiting is
   await refused(cancel.POST.run(send("POST"), ctxFor(tables, { id: B2 })), "conflict", 409, "already been canceled");
 });
 
+test("a template says what sends it: the playbooks, the broadcasts a PERSON sent, and the one the Inbox books with -- and nothing, when nothing does", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [
+      tpl(T1, B, { name: "winback_offer" }),
+      tpl(T2, B, { name: "winback_offer", language: "es_MX" }),
+      tpl(T3, B, { name: "autumn_promo", category: "marketing", source: "meta" }),
+      // The starter's own three slots -- a name, the business, the link -- which is
+      // what makes it the one bookingTemplate picks.
+      tpl(T4, B, { name: "booking_link", variables: [{ position: 1 }, { position: 2 }, { position: 3 }] }),
+      tpl(T9, A, { name: "elsewhere" }),
+    ],
+    playbooks: [pb(K1, B), pb(K2, B, { name: "Second wind", state: "paused" }), pb(K9, A, { name: "Another workspace" })],
+    // Two by hand on one message, and one a playbook's run made: a run is the
+    // playbook's doing and is not counted a second time as a broadcast.
+    broadcasts: [bc(B1, B, { template_name: "winback_offer" }), bc(B2, B, { template_name: "winback_offer" }), bc(B3, B, { template_name: "winback_offer", playbook_id: K1 }), bc(B4, A, { template_name: "elsewhere" })],
+  };
+  const all = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
+  assert.deepEqual(all.usedBy.winback_offer.playbooks.map((p) => [p.name, p.paused]), [["Win-back", false], ["Second wind", true]], "both playbooks, and which is paused");
+  assert.equal(all.usedBy.winback_offer.broadcasts, 2, "the playbook's own run is not a third broadcast");
+  assert.equal(all.usedBy.booking_link.booking, true, "the Inbox books with it");
+  assert.equal(all.usedBy.autumn_promo, undefined, "a message nothing sends is absent, and the page reads that as nothing");
+  assert.equal(all.usedBy.elsewhere, undefined, "another workspace's playbook and broadcast are not this one's");
+
+  // The composers are picking something to send and never ask, so they do not
+  // pay for the two reads.
+  const composer = await templates.GET.run(get(inB), ctxFor(tables));
+  assert.equal(composer.usedBy, undefined, "the composers' read stays one query");
+});
+
 test("templates: the composers see the approved and unhidden, Settings sees everything; a submission is judged in Meta's terms at the door, a duplicate is a conflict, and the door itself is the production guard here", async () => {
   const tables = {
     memberships: both("viewer", "operator"),

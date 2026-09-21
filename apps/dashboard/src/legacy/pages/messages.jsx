@@ -69,7 +69,15 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
   // starter not yet added shows the library's, which is what WhatsApp would see.
   const footer = row && S ? S.footer(row) : starterText ? starterText.footer : null;
   const closeMenu = () => { setMenu(false); setRenaming(false); setArm(false); };
+  // What sends this MESSAGE, in the words the bridge composed: the playbooks,
+  // the broadcasts a person sent and the Inbox's booking template, joined on the
+  // server. Keyed by name, because a message is one thing in several languages.
+  // Null: the usage was not read, and the card says nothing rather than guessing.
+  const named = g.rows.find((r) => r.row);
+  const gName = g.starter ? g.starter.name : named ? named.row.name : null;
+  const use = gName && window.__TEMPLATE_USE ? window.__TEMPLATE_USE[gName] || null : null;
   // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
+  // Per ROW, not per message: this is what a delete of ONE language must refuse on.
   const pbRows = window.__PLAYBOOKS ? window.__PLAYBOOKS.rows || [] : null;
   const users = row && pbRows ? pbRows.filter((p) => p.template_name === row.name && p.template_language === row.language) : [];
   const sending = users.filter((p) => p.state === "running").map((p) => p.name);
@@ -121,14 +129,18 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
           : <span className="msg-card-meta">Not on WhatsApp in {cur ? cur.lang.label : "this language"} yet — the words WhatsApp would review</span>}
         {/* The rating WhatsApp gives the template in view, as of the last sync; nothing when none was synced. */}
         {row && row.quality && <StatePill kind="template_quality" value={String(row.quality).toUpperCase()} testid="template-quality" />}
-        {/* What sends it. The card worked this out already -- it is how a delete
-            knows to refuse -- and then showed it only inside that refusal, so
-            the page that exists to hold the messages could not say which of
-            them anything uses. Null pbRows: the playbooks were not read, and
-            "nothing sends it" would be a claim rather than a reading. */}
-        {row && pbRows && (users.length > 0
-          ? <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(users.length === 1 ? `outbound/${users[0].id}` : "outbound")} data-testid="template-users">Sent by {users.length === 1 ? quoted([users[0].name]) : `${users.length} playbooks`}{sending.length === 0 ? " · paused" : ""}</button>
-          : <span className="msg-card-meta" data-testid="template-users">No playbook sends it</span>)}
+        {/* What sends it -- every source, not only the playbooks.
+            This line read the playbooks alone, off another surface's global, so
+            the most it could honestly say was "No playbook sends it": a message
+            two broadcasts had gone out with, or the one the Inbox books with,
+            read the same as one nothing has ever touched. The server joins the
+            three (a playbook names its template, a broadcast names its template,
+            the Inbox books by rule) and hands down the sentence, so "Nothing
+            sends it" is now a reading rather than a guess about what it could
+            not see. A name missing from the map is usage unread: say nothing. */}
+        {use && (use.unused
+          ? <span className="msg-card-meta is-unused" data-testid="template-users">Nothing sends it</span>
+          : <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(use.playbook ? `outbound/${use.playbook}` : "outbound")} data-testid="template-users">Sent by {use.words}</button>)}
         <span className="msg-card-spacer" />
         {row && canAct && !menu && <button className="cl-bucket-link" onClick={() => setMenu(true)} aria-label={`More for ${g.title}`} data-testid="template-menu">···</button>}
       </div>

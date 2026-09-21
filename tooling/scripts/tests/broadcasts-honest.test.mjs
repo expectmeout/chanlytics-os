@@ -192,7 +192,7 @@ const composerOf = (surface) => {
 };
 /** Messages on a workspace with a WhatsApp number, over the starter library the bridge installed. */
 const messages = (over = {}) => {
-  Object.assign(globalThis.window, { __TEMPLATES_ALL: [], __CHANNELS: [{ kind: "whatsapp" }], __SETTINGS: { config: { brain: { business_name: "Northside Studio" } } }, ...over });
+  Object.assign(globalThis.window, { __TEMPLATES_ALL: [], __TEMPLATE_USE: null, __CHANNELS: [{ kind: "whatsapp" }], __SETTINGS: { config: { brain: { business_name: "Northside Studio" } } }, ...over });
   fresh();
   return globalThis.window.MessagesPage();
 };
@@ -483,22 +483,30 @@ test("The preview is the message as the customer receives it: the name in the ch
   assert.deepEqual(globalThis.window.mpParts("Hi {{1}}.", []).map((p) => p.text), ["Hi ", "{{1}}", "."]);
 });
 
-test("Messages says what sends each message -- the card worked it out to refuse a delete and then showed it only there", () => {
+test("Messages says what sends each message -- every source, so 'nothing sends it' is a reading and not a guess about the two it could not see", () => {
+  const offer = [templateRow({ name: "offer", language: "en_US" })];
   let tree = messages({
-    __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })],
-    __PLAYBOOKS: { rows: [playbook({ id: "pb-1", name: "Win-back", template_name: "offer", template_language: "en_US", state: "running" })] },
+    __TEMPLATES_ALL: offer,
+    __TEMPLATE_USE: { offer: { words: "Win-back and 2 broadcasts", unused: false, playbook: "pb-1" } },
   });
   const users = byTestId(tree, "template-users");
-  assert.ok(textOf(users).includes("Win-back"), textOf(users));
+  assert.ok(textOf(users).includes("Win-back and 2 broadcasts"), textOf(users));
   press(users);
   assert.equal(went.at(-1), "outbound/pb-1", "and it opens that playbook's card");
 
-  tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })], __PLAYBOOKS: { rows: [] } });
-  assert.equal(textOf(byTestId(tree, "template-users")).trim(), "No playbook sends it");
+  // The answer the page could not give while it read the playbooks alone: a
+  // message two broadcasts had gone out with read the same as a dead one.
+  tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_USE: { offer: { words: "Nothing sends it", unused: true, playbook: null } } });
+  assert.equal(textOf(byTestId(tree, "template-users")).trim(), "Nothing sends it");
 
-  // A playbooks read that has not landed is not "nothing sends it".
-  tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })], __PLAYBOOKS: undefined });
-  assert.equal(byTestId(tree, "template-users"), null, "an unread list makes no claim");
+  // More than one playbook: the line still says them, and opens the list.
+  tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_USE: { offer: { words: "Win-back and Welcome", unused: false, playbook: null } } });
+  press(byTestId(tree, "template-users"));
+  assert.equal(went.at(-1), "outbound", "no single playbook to open, so the list");
+
+  // A usage read that has not landed is not "nothing sends it".
+  tree = messages({ __TEMPLATES_ALL: offer, __TEMPLATE_USE: undefined });
+  assert.equal(byTestId(tree, "template-users"), null, "an unread map makes no claim");
 });
 
 /**
