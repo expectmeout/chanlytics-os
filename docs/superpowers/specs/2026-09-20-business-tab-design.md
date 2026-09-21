@@ -1,0 +1,223 @@
+# Settings · Business: design spec
+
+**Date:** 20 Sep 2026 · **Owner:** Ruben · **Status:** approved (design canvas, 20 Sep)
+**Canvas:** https://claude.ai/artifact/GomguHCbTbFahYS9aotLn2 — 18 artboards on the house tokens.
+**Scope taken:** the page, the kit and the honesty. Nothing here needs a new route, a new column or an edge change.
+
+Every claim below carries the file and line it came from, checked against `origin/main` at `eea146af`.
+
+## 1. Goal
+
+Make the Business tab a record an owner reads, not a form they fill in.
+
+Today it is two surfaces that disagree about what exists. `PaneWorkspace` (`settings.jsx:1998`) shows **nine** facts in one card. Press Edit and the card is replaced by `BusinessEditor` (`settings.jsx:1013-1965`), which edits about **twenty-five** across **fourteen sections in four groups**, behind one Save at the bottom. On this workspace's real record that form renders roughly **150 inputs in a single 720px scroll** — 99 of them the three fields on 33 services.
+
+The page already knows the right shape and does not use it. Three rows — the timezone, the published number, the transfer number — edit **inline, in the row that states them**, through `useFieldSave` (`settings.jsx:415`). Its own comment says why: those two numbers "used to be sections nine and thirteen of a fourteen-section form". The big form is the holdout.
+
+## 2. Decisions taken in brainstorming
+
+| # | Decision | Why |
+|---|---|---|
+| D1 | One view. The read card and the form stop being two surfaces; every fact is a row, and editing happens where the fact is stated. | They disagree about what exists: 9 facts readable, ~25 editable. Twelve facts are editable and invisible. |
+| D2 | The gesture is chosen by the shape of the data: **inline** for one value, **fold** for a set of fields, **sheet** for a list you scroll. | `useFieldSave` already proves the inline case. A 99-input list inside a 720px column is the wall we are removing. Ruben's choice. |
+| D3 | One fold open at a time; each fold saves only its own keys onto the stored config. | Otherwise the page becomes the long form again, and the all-or-nothing Save returns. |
+| D4 | Every fold footer states what the receptionist will be told, composed by the same function the edge runs. | `composeSystemPrompt` is pure and already in the browser as `window.__composedPrompt`. The link between a typed 2 and "at least 2 hours' notice" is currently drawn nowhere. |
+| D5 | `profile.tone` gets a field, and it is the first row of *How it answers*. | It is read (`:1036`), diffed (`:1109`), saved (`:1272`) and composed into every prompt — and `value={tone}` appears **zero times** in the file. |
+| D6 | A new card, **What it can do**, and an honest **what it cannot**. | The phone agent has four tools (`voice-shell.ts` `voiceShellTools`). This tab sets the inputs to three and never says a tool exists. |
+| D7 | The four guardrails are drawn at three different strengths, because they have three different guarantees. | One is structural, one has a detector on both channels, two are prompt lines — and `policy.ts` says so in its own header. |
+| D8 | A conflict moves onto the row it is about; the banner above the card goes. | `factConflicts` already computes them with severity and a sentence. |
+| D9 | One kit, `record-*`, in the house shape. No shadcn, no JS animation library. | Babel, no bundler (`legacy/CLAUDE.md`). The precedent is stated: "Charts are one kit, shaped like shadcn's." |
+| D10 | The old `BusinessEditor` is deleted in the PR that replaces it, not left behind a flag. | Two editors writing one versioned config is how they drift, and the page's worst historical bug was a save that rebuilt rather than patched. |
+| D11 | The `facts_used` aggregate and the Google place imagery are out of scope, and get their own plans. | Both need backend work. Ruben's choice, 20 Sep. |
+
+## 3. Principles the page holds
+
+- **One fact, one owner.** `facts.ts` states it: a fact the system can know is owned by whatever provisions or verifies it; free text is only for what only a human knows. The page applies it to every field (§8).
+- **A fact carries where it came from.** `SOURCE_WORDS` already names five sources. Every row shows one, not three rows out of nine.
+- **Nothing is asked twice.** The legal name and registered address stay on Connections, and this tab says so once.
+- **A save patches, never rebuilds.** Every fold starts from the stored profile and writes its own keys. This is the discipline `BusinessEditor.save` learned after a rebuild lost a live workspace its 5,000-character prompt (`:1257-1265`).
+- **The accent appears once per screen**, on the open fold. `tokens.css:102` reserves it for live state; nothing on Settings is live, so nothing pulses.
+- **Every sentence with a number comes from a view model.** The standing line, the consequence lines and the capability words are composed in `contracts`, never written in the page.
+- **A refused act is absent and the page says why once.** The existing `gate()` rule, unchanged.
+- **A read that failed says so where its content would be.** `FailedRead`, unchanged.
+
+## 4. The page
+
+`--measure-prose` (720px), as every settings card already is. Six cards in one column.
+
+```
+Business                                        [ Read what it's told ]
+Last changed by Ruben, just now
+
+[ standing: three clauses — what it can say, what it deliberately won't, what is missing ]
+
+[ Who you are         ]  7 rows
+[ When you're open    ]  4 rows
+[ What you offer      ]  3 rows
+[ How it answers      ]  7 rows
+[ What it can do      ]  6 abilities + what it cannot
+[ Your data           ]  2 rows
+```
+
+### 4.1 The standing line
+
+Three clauses, not a meter: what it can answer, what it deliberately will not, and what is missing — the last one a link to the row that fixes it. Derived from which fields are filled against `BRAIN_INTENTS` (booking, pricing, hours, services, location, complaint, smalltalk, other). A percentage would be a number nobody can act on.
+
+### 4.2 Who you are
+
+| Row | Source | Gesture |
+|---|---|---|
+| Name | `verified` when Google agrees, else `typed` | inline |
+| Address | `verified` / `typed`, with **Use Google's** when they differ | inline |
+| Website | `typed`; empty says we publish `/b/<slug>` and file it | inline |
+| Booking link | `typed`; the note about never confirming moves under it | inline |
+| Answers on | `provisioned`, read-only, one link to Connections | — |
+| Tells customers to call | `typed` or follows the line | inline (unchanged behaviour) |
+| Transfers a caller to | `typed` | inline (unchanged behaviour) |
+
+Foot: one sentence saying the legal name and registered address live on Connections and are asked once.
+
+The **Workspace** row goes. It printed the business's name a second time whenever it differed.
+
+### 4.3 When you're open
+
+Hours as a week ribbon plus one sentence; timezone with the local time beside it; closed days; the calendar it reads, stating its last read and event count. The **Check the address** button goes — the row says what a check would have told you.
+
+The hours fold is a week on one scale: a day is a toggle, a bar on a 6am–10pm axis, and its times. A break is a second bar on the same row. Copy-to-day becomes one menu, and names every day it opens or overwrites, with the whole grid restorable in one press — the behaviour `applyToAll` already has (`:1225-1256`), given a control that does not sit inches from two other links.
+
+### 4.4 What you offer
+
+Services as a count, four chips and a sentence about pricing, opening a **sheet**: searchable, inline rows, sticky footer, remove-with-undo. Booking rules as one sentence, opening a **fold** with the five numbers. Consult-first gets its own row and its own name — it is one of two unlabelled textareas today.
+
+### 4.5 How it answers
+
+Its voice (the new field) · Languages · Rules it always keeps · Hands you a customer · Things it should know · In your own words · When it can't answer.
+
+**Hands you a customer** is one row naming both channels: the WhatsApp reasons (which compose only for WhatsApp — `config.ts` says "On the phone there is no token to emit"), and the phone's transfer number. Today these are a form section and a read-card row, a page apart, neither naming the other.
+
+### 4.6 Rules it always keeps — three strengths
+
+| Rule | Strength | What actually happens |
+|---|---|---|
+| Never confirm an appointment | **It cannot anyway** | There is no appointments table. Switching it off would not let it book, only stop it being told not to *claim* it had. |
+| Never quote a price | **Checked, not just told** | `violatesNoPrices` swaps the words before a chat customer sees them; on a call `spokenBreach` reads the agent's turns and a correction goes in live, and the owner is told while the call is up. |
+| Say it's an assistant | Told, and trusted | A prompt line. `policy.ts` says why there is no detector: the phrase that catches a denial also catches the correct disclosure. |
+| Never give health advice | Told, and trusted | Same. |
+
+The vision toggle is separated by a dashed rule and labelled as an ability, not a limit — it is the only one that starts off.
+
+### 4.7 What it can do
+
+Six abilities, each with which channel has it and what it runs on, computed from `capabilityStatus` and the tool list, never typed:
+
+- Answer from your facts — both
+- Say which times are open — phone asks the calendar mid-call; chat is handed the day's openings with each message
+- Send the booking link — phone **texts it to the number they rang from**; chat sends it in the thread
+- Put a caller through — phone only
+- Hand the thread to you — chat only
+- Look at a photo — off
+
+And what it cannot: book, move or cancel an appointment (structural); ring a customer (it answers, never dials); send a text message (not sold until the carriers approve a line).
+
+## 5. The three gestures
+
+**Inline.** The value becomes an input on the same baseline. Save/Cancel on the row, Esc cancels, ⌘↵ saves. The consequence line sits between the field and the buttons. Refusals appear under the box before any round trip.
+
+**Fold.** Opens under its row inside the card, `grid-template-rows: 0fr → 1fr`. The accent left edge marks it. Its footer carries the composed block and its own Save. One at a time: opening another closes a clean fold and asks about a dirty one. The rows below are pushed, never covered, and the fold's top edge does not move.
+
+**Sheet.** Right-hand panel for the services list and the prompt. Head, search, rows, sticky footer. The page behind stays readable.
+
+`window.__settingsUnsaved` narrows from the whole form to the open fold.
+
+## 6. The record kit
+
+`apps/dashboard/src/legacy/components/record-*.jsx` + `apps/dashboard/src/legacy/styles/record.css`, added to **both** load lists (`legacy-bridge/manifest.ts` and `legacy/Chanlytics.html`) with `?v=` bumped, as `legacy/CLAUDE.md` requires.
+
+| Component | Replaces |
+|---|---|
+| `RecordRow` | `.cl-prof-attr`, `.set-row`, `.set-team-row`, `.set-int-row` — four classes drawing one row |
+| `RecordField` | `.biz-field`, `.set-ident-row`, `.set-br-field`; wraps the existing `FieldError` |
+| `RecordFold` | new |
+| `RecordSheet` | new; the phone's `PeopleListsSheet` is the precedent |
+| `RecordSwitch` | `.set-switch`, lifted out of settings.css |
+| `RecordToggleGroup` | `.cl-tabs` used as a radiogroup |
+| `RecordTip` / `RecordCard` | `set-mark` + `window.__tip`, formalised as two tiers |
+| `RecordCombobox` | the 418-option timezone `<select>`, and the language add |
+
+Not built, and why: DatePicker (native `type="date"` is deliberate — 31 November cannot be typed), DataTable (`PeopleTable` is one; Settings has no table), Command (⌘K is Ask, shell-owned), Pagination, Drawer, Progress, Carousel, Menubar, Message/Bubble.
+
+Reused unchanged: `StatePill`, `Confirm`, `EmptyState`, `FailedRead`, `FieldError`, `MoreMenu`, `usePPToast`, `gate()`.
+
+## 7. Contracts
+
+All additive; nothing existing changes meaning.
+
+1. **`tone.ts`** — a `fact` StateKind: `verified`/`provisioned` → `ok`, `typed`/`workspace`/`absent` → `plain`, `disputed` → `warn`. Deletes the bespoke `.set-fact-src` family.
+2. **`business-tab.ts`** (new — named apart from the existing `business-page.ts`, which is the public `/b/<slug>` page, and `business-record.ts`, which is the carrier record) — the view models the page composes from:
+   - `standingLine(facts, profile)` → the three clauses.
+   - `abilityRows(capabilities, channels, profile)` → §4.7, with the cannots.
+   - `ruleStrength(key)` → `structural | checked | instructed`, with its sentence.
+   - `promptBlocks(composed)` → the prompt cut into blocks with the row that wrote each and its character count.
+   - `consequenceOf(section, draft)` → the block a fold shows, from `composeSystemPrompt`.
+3. No change to `config.ts`, `facts.ts`, `capabilities.ts`, `policy.ts`, `voice-shell.ts`. The page reads what they already return.
+
+## 8. One fact, one owner — applied
+
+| Fact | Owner | What changes |
+|---|---|---|
+| Business name | Google, else the workspace | One row, chipped. The Workspace row goes. |
+| Address | Google | **Use Google's** instead of a silently recorded disagreement. |
+| The line it answers | the platform | Shown, never a box. |
+| The published number | you | Asked once, in its row — not again in the create path. |
+| Website | you | Says what empty means. |
+| Legal name, registered address, EIN | Connections | **Never asked here.** One sentence at the foot of *Who you are*. |
+
+## 9. Motion
+
+Four additions to the grammar `components.css` already documents (rise-in + 30ms stagger, draw-line, breathing only where live, press feedback), on the existing duration tokens:
+
+1. **Fold** — `grid-template-rows` + opacity, `--duration-base`, `--ease-out` opening and `--ease-in-out` closing. Never `max-height`.
+2. **Value → field** — 120ms cross-fade on a shared baseline; the focus ring arrives on the second frame; the caret lands at the end.
+3. **Consequence line** — only the changed clause washes `--ok-soft` → transparent over 400ms, once. Never a typewriter, never a re-layout.
+4. **Save settle** — fold closes (200ms), row value arrives on `rise-in`, toast rises 8px. Overlapping, about a third of a second.
+
+Four refusals: nothing pulses (the accent means a live call); no skeleton shimmer (a read in flight dims the last value); no number counts up; every new selector joins the `prefers-reduced-motion` block.
+
+## 10. The words
+
+| Retired | Kept |
+|---|---|
+| Anything else it should know · Other things it should know · Rules it always follows · extra instructions | **what it's told**, each row naming its own part |
+| Your business · Business · Business facts | **Business**; *the business on record* only for the carrier form |
+| Hand over to a person when · Transfers a caller to | **Hands you a customer**, one row, both channels named |
+| Calendar it may look at | **Calendar it reads**, here and on the Calendar page |
+
+Sentence case throughout; no colons in a label; the label names the thing and the hint says what it is for, never both in the label.
+
+## 11. What is on screen
+
+At rest: **four** controls — *Read what it's told*, the standing line's one link, *Download*, and the one act under the pointer. Twenty more are in the tab order at all times and draw themselves on hover or focus.
+
+Four things are never hidden: anything wrong or missing; the act on an empty row; everything on a touch screen (no hover on a phone — the whole row is the act and the chevron is always drawn); and the keyboard path.
+
+## 12. Tests
+
+House rule: no `readCode` assertions. Every test executes the page on the stub React, as `today-page.test.mjs` does.
+
+- `settings-editor`, `settings-save`, `settings-save-keeps-rules`, `settings-truth`, `settings-words`, `settings-honest`, `settings-owner-panes` all pin the current form and are rewritten against the rows and folds.
+- New: one test per fold proving it writes **only** its own keys onto a stored profile carrying an unknown key, and that the unknown key survives.
+- New: the standing line, the ability rows and the rule strengths are pure functions with their own contract tests.
+- `legacy-harness.test.mjs` pins the two load lists in file order; the kit's files go in both.
+
+## 13. Risks
+
+- **A save that loses config.** The one historical catastrophe on this page. Mitigation: every fold patches from stored, and the unknown-key test above is written red first.
+- **Test churn.** Seven test files pin the form's shape. They are rewritten, not deleted, and each PR keeps the suite green.
+- **The live workspace.** This is an operator surface, not a customer one, and no edge code changes — but the config it writes is read by the live line within a minute. No PR lands without `corepack pnpm test` green.
+
+## 14. Out of scope, with a home
+
+- The `facts_used` aggregate and the suggestion cards (canvas board *The loop closes*) — needs one `/api/v1` read and a period query.
+- The Google place imagery (`photo_uri` on `GoogleListingDto`, a Places photo call) — touches `apps/edge`.
+- Colouring the prompt blocks by which tab wrote them (Autonomy's policy rows compose into this same prompt).
+- The voice half of the loop: `caller_wanted`, `outcome`, `follow_up`, `caller_name`.
