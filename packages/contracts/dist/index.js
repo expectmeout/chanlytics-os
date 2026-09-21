@@ -1327,7 +1327,7 @@ function replyWhy(meta) {
   const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
   const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
   const source = typeof meta.source === "string" ? meta.source : null;
-  const heldFor = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
+  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
   const label = intent ? INTENT_LABELS[intent] : "Reply";
   return {
     intent: intent ?? "other",
@@ -1335,7 +1335,7 @@ function replyWhy(meta) {
     confidence: conf,
     reason,
     facts,
-    heldFor,
+    heldFor: heldFor2,
     summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
   };
 }
@@ -2300,6 +2300,9 @@ function policyAskClass(policy, intent) {
   const mode = policy?.[cls]?.mode ?? "auto";
   return mode === "auto" ? null : cls;
 }
+function bookingHeld(policy) {
+  return policyAskClass(policy, "booking") === "booking";
+}
 function policyRules(policy, channel) {
   const out = [];
   const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
@@ -2747,6 +2750,26 @@ function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
     return NO_CLOCK;
   }
 }
+var PROMPT_OPENINGS = {
+  hours: "Opening hours",
+  closures: "Closed on these dates",
+  services: "Services:",
+  notes: "Other things to know:",
+  bookingRules: "Booking rules:",
+  handoffChat: "Handing the conversation to a person:",
+  handoffCall: "Handing the caller to a person:",
+  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+  callTools: "Open times: use check_availability",
+  callMedium: "You are speaking aloud.",
+  chatMedium: "Keep replies short enough to read on a phone.",
+  openTimes: "If open times are listed after these instructions",
+  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+  rules: "Rules you must follow:",
+  /** Above the owner's own words, when there are details above for them to disagree with. */
+  ownWordsUnderDetails: "Further instructions from the business.",
+  /** Above the owner's own words on a call, alone or after the line above. */
+  ownWordsOnACall: "Some of it was written for text conversations"
+};
 function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
@@ -2771,14 +2794,14 @@ Address: ${profile.address}`);
   if (hrs.length) {
     const where = tz ? ` (all times ${tz})` : "";
     s.push(`
-Opening hours${where}:
+${PROMPT_OPENINGS.hours}${where}:
 ${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
   const closed = closureLines(upcomingClosures(profile.closures, tz, now));
   if (closed.length) {
     s.push(
       `
-Closed on these dates, whatever the opening hours above say:
+${PROMPT_OPENINGS.closures}, whatever the opening hours above say:
 ${closed.map((l) => `- ${l}`).join("\n")}
 If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
     );
@@ -2791,12 +2814,12 @@ If someone asks about one of these dates, say the business is closed that day an
       return `- ${bits2.join(" \u2014 ")}`;
     });
     s.push(`
-Services:
+${PROMPT_OPENINGS.services}
 ${lines.join("\n")}`);
   }
   if (profile.notes?.length) {
     s.push(`
-Other things to know:
+${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
   const br = profile.booking_rules;
@@ -2811,7 +2834,7 @@ ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
     if (br.party_max) lines.push(`Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`);
     for (const n of br.notes ?? []) lines.push(n);
     s.push(`
-Booking rules:
+${PROMPT_OPENINGS.bookingRules}
 ${lines.map((l) => `- ${l}`).join("\n")}`);
   }
   if (channel === "whatsapp") {
@@ -2819,7 +2842,7 @@ ${lines.map((l) => `- ${l}`).join("\n")}`);
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
     s.push(
       `
-Handing the conversation to a person:
+${PROMPT_OPENINGS.handoffChat}
 Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
 Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
@@ -2829,12 +2852,15 @@ ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
     const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
     s.push(
       `
-Handing the caller to a person:
+${PROMPT_OPENINGS.handoffCall}
 ${staffed}
 Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
     s.push(
-      "\nOpen times: use check_availability before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\nBooking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\nEnding: once the caller has said goodbye, use end_call."
+      `
+${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
+Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.
+Ending: once the caller has said goodbye, use end_call.`
     );
   }
   if (profile.extra_instructions?.trim()) {
@@ -2847,8 +2873,8 @@ Do this whenever the caller asks for a person, is upset, or asks something these
     const stated = above.length > 0;
     const text = profile.extra_instructions.trim();
     const header = [
-      stated ? `Further instructions from the business. Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
-      channel === "voice" ? "Some of it was written for text conversations; you are on a phone call." : ""
+      stated ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
+      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
     ].filter(Boolean).join(" ");
     s.push(header ? `
 ${header}
@@ -2856,10 +2882,13 @@ ${text}` : `
 ${text}`);
   }
   s.push(
-    channel === "voice" ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book."
+    channel === "voice" ? `
+${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.` : `
+${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`
   );
   s.push(
-    "\nIf open times are listed after these instructions, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link."
+    `
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link.`
   );
   const g = profile.guardrails ?? {};
   const rules = [];
@@ -2878,7 +2907,7 @@ ${text}`);
   }
   rules.push(...policyRules(policy, channel));
   if (rules.length) s.push(`
-Rules you must follow:
+${PROMPT_OPENINGS.rules}
 ${rules.map((r) => `- ${r}`).join("\n")}`);
   return s.join("\n");
 }
@@ -2887,7 +2916,7 @@ function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__
     const rules = policyRules(policy, channel);
     return rules.length ? `${brain.system_prompt}
 
-Rules you must follow:
+${PROMPT_OPENINGS.rules}
 ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   }
   const profile = brain.profile;
@@ -2897,8 +2926,25 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
     phone_display: facts.phone_display.value,
     booking_link: facts.booking_link.value ?? brain.booking_link
   };
-  const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
+  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+}
+function ownWordsOf(brain) {
+  const own = brain?.profile?.extra_instructions;
+  return own?.trim() ? own : brain?.system_prompt ?? null;
+}
+function whoseWords(brain) {
+  const text = ownWordsOf(brain);
+  if (!text?.trim()) return { kind: "none", text: null };
+  if (brain?.profile?.extra_instructions?.trim()) return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
+  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
+  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
+}
+function isBaselineInOwnersField(text) {
+  const t = text.trim();
+  if (!isBaselinePrompt(t)) return false;
+  const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
+  return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
 }
 var FALLBACK_DETAILS = ["business", "booking link", "phone"];
 var FALLBACK_DEFAULTS = {
@@ -10825,6 +10871,319 @@ function registrationPreflight(f) {
   return out;
 }
 
+// src/business-tab.ts
+var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
+var STRENGTHS = {
+  never_confirm_booking: {
+    strength: "structural",
+    chip: "It cannot anyway",
+    sentence: "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
+    checkedOn: null
+  },
+  never_quote_prices: {
+    strength: "checked",
+    chip: "Checked, not just told",
+    // The sentence says the rule. `checkedOn` says how it lands per channel, and the
+    // page draws both -- so the sentence must not say the channels too, or an owner
+    // reads the same fact twice, once in prose and once in the two boxes under it.
+    // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
+    // more: forty-five euros, or a pound sign, would pass it untouched.
+    //
+    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
+    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
+    // call) run either way; the switch adds or removes the one prompt line that tells it
+    // not to quote one. So the sentence cannot say the switch turns the checking on.
+    sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
+    checkedOn: [
+      { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
+      { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." }
+    ]
+  },
+  disclose_ai: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    checkedOn: null
+  },
+  no_health_advice: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
+    checkedOn: null
+  }
+};
+function ruleStrength(key) {
+  return STRENGTHS[key];
+}
+var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
+function standingLine(i) {
+  const p = i.profile ?? {};
+  const gaps = [];
+  if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
+  if (!has2(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
+  if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
+  if (!has2(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
+  if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
+  if (!has2(p.tone)) gaps.push({ sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.", row: "tone" });
+  const answers = [];
+  if (has2(p.address)) answers.push("where you are");
+  if (has2(p.hours)) answers.push("when you're open");
+  if (has2(p.services)) answers.push("what you offer");
+  if (has2(i.booking_link)) answers.push("how to book");
+  const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
+  const wont = has2(p.services) ? "It offers a consult or the booking link instead of a price." : null;
+  return { can, wont, missing: gaps[0] ?? null };
+}
+var BOOLEAN_INPUTS = {
+  voiceLive: true,
+  whatsappLive: true,
+  hasCalendarFeed: true,
+  hasBookingLink: true,
+  hasBookingTemplate: true,
+  hasHandoffNumber: true,
+  hasEscalateWhen: true,
+  visionOn: true,
+  bookingHeld: true
+};
+function heldFor(pauseHours) {
+  const hours = Math.max(1, Math.round(pauseHours));
+  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
+  return hours === 1 ? "an hour" : `${hours} hours`;
+}
+function abilityRows(i) {
+  if (!i || typeof i !== "object") throw new TypeError("abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.");
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof i[k] !== "boolean");
+  if (notBoolean.length) {
+    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`);
+  }
+  const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
+  const answering = i.voiceLive || i.whatsappLive;
+  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
+  const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
+  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const handoffWhen = i.hasEscalateWhen ? "On your reasons, or when a customer asks for a person or it can't help, it" : "When a customer asks for a person or it can't help, it";
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  return [
+    {
+      id: "answer",
+      title: "Answer from your facts",
+      // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
+      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
+      channels: both,
+      runsOn: { label: "Name and hours", row: "name" },
+      ready: answering
+    },
+    {
+      id: "open_times",
+      title: "Say which times are open",
+      // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
+      // With bookings held, check_availability offers a caller no times (retell-availability.ts),
+      // while the call still starts with the openings (call-start.ts) and chat is still handed
+      // them, so this says only what holds on both: it has them, and a request to book gets no link.
+      detail: !i.hasCalendarFeed ? linkGoes ? "No calendar to read, so it does not guess at open times \u2014 it sends the link instead." : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
+      channels: both,
+      runsOn: { label: "The calendar it reads", row: "calendar" },
+      ready: answering && i.hasCalendarFeed
+    },
+    {
+      id: "booking_link",
+      title: "Send the booking link",
+      detail: bookingDetail,
+      channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
+      runsOn: { label: "The booking link", row: "booking_link" },
+      ready: linkGoes
+    },
+    {
+      id: "transfer",
+      title: "Put a caller through",
+      // config.ts: "Use transfer_to_staff during opening hours -- it rings the line a person
+      // answers, and you stay on until they pick up."
+      detail: i.hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.",
+      channels: { voice: i.voiceLive, whatsapp: false },
+      // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt.
+      runsOn: { label: "The transfer number", row: "handoff" },
+      ready: i.voiceLive && i.hasHandoffNumber
+    },
+    {
+      id: "handoff",
+      title: "Hand the thread to you",
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
+      // after that the receptionist answers the next message itself, Needs you or not.
+      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`,
+      channels: { voice: false, whatsapp: i.whatsappLive },
+      runsOn: { label: "Your reasons", row: "handoff" },
+      ready: i.whatsappLive
+    },
+    {
+      id: "vision",
+      title: "Look at a photo",
+      detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
+      channels: { voice: false, whatsapp: i.whatsappLive },
+      // The switch sits with the rules it keeps, which is the row that opens it.
+      runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
+      ready: i.whatsappLive && i.visionOn,
+      on: i.visionOn
+    }
+  ];
+}
+var CANNOT_ROWS = [
+  {
+    id: "book",
+    title: "Book, move or cancel an appointment",
+    detail: "Not a setting you could switch on. There is no appointments table in this product \u2014 nothing in it can create, move or cancel one. Your booking link does that, whichever tool is behind it."
+  },
+  {
+    id: "outbound_call",
+    title: "Ring a customer",
+    // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
+    detail: "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and the receptionist tells you when one is wanted."
+  },
+  {
+    id: "sms",
+    title: "Send a text message",
+    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
+    soon: true
+  }
+];
+function cannotRows(i) {
+  if (typeof i?.smsLive !== "boolean") {
+    throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
+  }
+  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
+}
+
+// src/prompt-blocks.ts
+var PLATFORM_LABEL = "Chanlytics' own instructions";
+var PLATFORM_NOTE = "Written by Chanlytics for every workspace, not by you.";
+var BLOCK_MARKS = /* @__PURE__ */ (() => [
+  { row: "hours", label: "When you're open", startsWith: PROMPT_OPENINGS.hours },
+  { row: "closures", label: "Days you're closed", startsWith: PROMPT_OPENINGS.closures },
+  { row: "services", label: "Services", startsWith: PROMPT_OPENINGS.services },
+  { row: "notes", label: "Things it should know", startsWith: PROMPT_OPENINGS.notes },
+  { row: "booking_rules", label: "Booking rules", startsWith: PROMPT_OPENINGS.bookingRules },
+  // One row on both channels. Each channel has its own heading, and the owner's
+  // reasons compose under either. The block is sent whether or not there are any,
+  // so each note says why it is there.
+  {
+    row: "handoff",
+    label: "Hand-off",
+    startsWith: PROMPT_OPENINGS.handoffChat,
+    channel: "whatsapp",
+    note: "Always sent, whether or not you give reasons \u2014 it is how anything it should not decide reaches you. On WhatsApp it hands you the thread."
+  },
+  {
+    row: "handoff",
+    label: "Hand-off",
+    startsWith: PROMPT_OPENINGS.handoffCall,
+    channel: "voice",
+    note: "Always sent, whether or not you give reasons \u2014 it is how a caller who needs a person reaches one. On a call it transfers to your number in opening hours if you gave one, and takes a message otherwise."
+  },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callTools, channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callMedium, channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.chatMedium, channel: "whatsapp", note: PLATFORM_NOTE },
+  { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.openTimes, note: PLATFORM_NOTE },
+  {
+    row: "guardrails",
+    label: "Rules it always keeps",
+    startsWith: PROMPT_OPENINGS.rules,
+    note: "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS, and any rule your Autonomy tab adds."
+  }
+])();
+var IDENTITY = { row: "identity", label: "Who you are", startsWith: "" };
+var OWN_WORDS = { row: "extra_instructions", label: "In your own words", startsWith: "" };
+var CARRIED = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  note: "The prompt this workspace had before it had fields. It is read until you write your own."
+};
+var PROMPT = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  note: "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet."
+};
+var BASELINE = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
+var AUTONOMY = { row: "autonomy", label: "Autonomy's rules", startsWith: "", note: "Set on the Autonomy tab, not on this page." };
+var MARK_OF = { own: OWN_WORDS, carried: CARRIED, prompt: PROMPT, baseline: BASELINE };
+function ownWordsSpan(lines, ownWords) {
+  const want = (ownWords ?? "").trim().split("\n");
+  if (!want[0]) return null;
+  for (let i = lines.length - want.length; i >= 0; i--) {
+    if (!want.every((w, k) => lines[i + k] === w)) continue;
+    const framed = i > 0 && [PROMPT_OPENINGS.ownWordsUnderDetails, PROMPT_OPENINGS.ownWordsOnACall].some((f) => lines[i - 1].startsWith(f));
+    return { from: framed ? i - 1 : i, to: i + want.length };
+  }
+  return null;
+}
+function promptBlocks(text, channel, from) {
+  if (from === void 0 || typeof from !== "object") {
+    throw new TypeError("promptBlocks needs what the prompt was composed from: the stored brain, { profile } for a draft, or null.");
+  }
+  const lines = text.split("\n");
+  const whose = whoseWords(from);
+  const own = ownWordsSpan(lines, whose.text);
+  const insideOwn = (n) => !!own && n >= own.from && n < own.to;
+  const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
+  const found = [];
+  const seen = /* @__PURE__ */ new Set();
+  lines.forEach((line, n) => {
+    if (insideOwn(n)) return;
+    const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
+    if (!mark || seen.has(mark.startsWith)) return;
+    seen.add(mark.startsWith);
+    found.push({ at: n, mark });
+  });
+  let starts;
+  let head;
+  if (found.some((s) => s.mark.row === "platform")) {
+    starts = own && whose.kind !== "none" ? [...found, { at: own.from, mark: MARK_OF[whose.kind] }] : found;
+    head = IDENTITY;
+  } else {
+    const rules = found.find((s) => s.mark.row === "guardrails");
+    starts = rules ? [{ at: rules.at, mark: AUTONOMY }] : [];
+    head = whose.kind === "none" ? PROMPT : MARK_OF[whose.kind];
+  }
+  starts.sort((a, b) => a.at - b.at);
+  const segments = [];
+  const first = starts[0]?.at ?? lines.length;
+  if (first > 0) segments.push({ from: 0, to: first, mark: head });
+  starts.forEach((s, n) => segments.push({ from: s.at, to: starts[n + 1]?.at ?? lines.length, mark: s.mark }));
+  const ranges = segments.filter((s) => s.from < s.to);
+  const out = [];
+  let carry = 0;
+  ranges.forEach((seg, n) => {
+    const body = lines.slice(seg.from, seg.to).join("\n");
+    const chars = body.length + (n < ranges.length - 1 ? 1 : 0);
+    const prev = out[out.length - 1];
+    if (!body.trim()) {
+      if (prev) prev.chars += chars;
+      else carry += chars;
+      return;
+    }
+    if (prev && prev.row === seg.mark.row) {
+      prev.to = seg.to;
+      prev.chars += chars;
+      return;
+    }
+    out.push({
+      row: seg.mark.row,
+      label: seg.mark.label,
+      chars: chars + carry,
+      ...seg.mark.note ? { note: seg.mark.note } : {},
+      from: seg.from,
+      to: seg.to
+    });
+    carry = 0;
+  });
+  const times = /* @__PURE__ */ new Map();
+  return out.map(({ from: a, to: b, ...block }) => {
+    const n = (times.get(block.row) ?? 0) + 1;
+    times.set(block.row, n);
+    return { id: n === 1 ? block.row : `${block.row}-${n}`, ...block, text: lines.slice(a, b).join("\n").trim() };
+  });
+}
+
 // src/a2p-enums.ts
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
@@ -11007,17 +11366,17 @@ var REGISTERABLE_COUNTRIES = ["US", "CA"];
 var digits = (s) => s.replace(/\D/g, "");
 function businessRecordProblems(r, path, facts = {}) {
   const out = {};
-  const has2 = (k) => String(r[k] ?? "").trim().length > 0;
-  for (const f of businessFieldsFor(path)) if (f.required && !has2(f.name)) out[f.name] = `${f.label} is needed.`;
-  if (has2("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
-  if (has2("contact_email") && !EMAIL.test(String(r.contact_email).trim())) out.contact_email = "That does not look like an email address.";
-  if (has2("contact_phone") && !E1642.test(String(r.contact_phone).replace(/[\s()-]/g, ""))) out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
-  if (has2("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
-  if (has2("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim())) out.website_url = "A full address a reviewer can open, starting with https://";
-  if (has2("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
+  const has3 = (k) => String(r[k] ?? "").trim().length > 0;
+  for (const f of businessFieldsFor(path)) if (f.required && !has3(f.name)) out[f.name] = `${f.label} is needed.`;
+  if (has3("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
+  if (has3("contact_email") && !EMAIL.test(String(r.contact_email).trim())) out.contact_email = "That does not look like an email address.";
+  if (has3("contact_phone") && !E1642.test(String(r.contact_phone).replace(/[\s()-]/g, ""))) out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
+  if (has3("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
+  if (has3("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim())) out.website_url = "A full address a reviewer can open, starting with https://";
+  if (has3("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
     out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
   }
-  if (path === "sole_proprietor" && has2("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
+  if (path === "sole_proprietor" && has3("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
     out.contact_phone = "This is the number Chanlytics answers for you. The carriers need YOUR handset \u2014 they text a code to it and you reply from the phone in your hand.";
   }
   return out;
@@ -12289,7 +12648,14 @@ function leadPlanAsk(plan, facts) {
 
 // src/tone.ts
 var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
-var TONE_OF = {
+var FACT_SOURCE_TONE = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
+var TONE_OF = /* @__PURE__ */ (() => ({
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
   call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
@@ -12307,6 +12673,11 @@ var TONE_OF = {
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
   escalation: { open: "warn", resolved: "ok" },
   // Ready is the silent default every lead starts in, so it is plain: the eye should be drawn to what has moved.
   lead_class: { qualified: "plain", review: "warn", excluded: "plain" },
@@ -12319,8 +12690,8 @@ var TONE_OF = {
   // `contacted` and `talking` are `nurture` and `converted` in the owner's words, so they take those tones.
   // Review is the one state that wants a person. Ready and left-out are both silent, for opposite reasons.
   lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" }
-};
-var LABEL_OF = {
+}))();
+var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
   call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
@@ -12334,6 +12705,8 @@ var LABEL_OF = {
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
   calendar: CALENDAR_FEED_WORDS,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
   escalation: { open: "Open", resolved: "Resolved" },
   lead_class: LEAD_CLASS_WORDS,
   lead_stage: LEAD_STAGE_WORDS,
@@ -12341,11 +12714,11 @@ var LABEL_OF = {
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
   // `lead_row_state` is a tone and no words: the row composes its own tag (`Contacted · 2m`) in toLeadRowVM,
-  // and nothing ever asks this map for it. Words here would be a second set of the same five -- and a map
-  // whose values are read off another map (`LEAD_STAGE_WORDS.ready`) cannot be dropped by the bundler, which
-  // pulled this whole registry and its five label maps into channels, core, db and jobs: +693 lines for
-  // words nobody reads. A bare identifier is free; a property read is not.
-};
+  // and nothing ever asks this map for it. Words here would be a second set of the same five. A map whose
+  // values are read off another map (`LEAD_STAGE_WORDS.ready`) once kept this whole registry and its five
+  // label maps in channels, core, db and jobs: +693 lines for words nobody reads. Built in a call marked pure
+  // (see TONE_OF), this map is dropped wherever nothing reads it, property reads and all.
+}))();
 function stateTone(kind, value) {
   return typeof value === "string" && TONE_OF[kind][value] || "plain";
 }
@@ -12735,6 +13108,7 @@ export {
   FeaturesConfigSchema,
   GET_YES_ROUTE,
   GOOGLE_SHOWN_REVIEWS,
+  GUARDRAIL_KEYS,
   GuardrailsSchema,
   HELD_REASONS,
   HoursSchema,
@@ -12926,6 +13300,7 @@ export {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
+  PROMPT_OPENINGS,
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,
@@ -13023,6 +13398,7 @@ export {
   WABA_FIELDS,
   WA_WINDOW_MS,
   abandonedCall,
+  abilityRows,
   activityTone,
   activityWords,
   addressAlreadyKnown,
@@ -13046,6 +13422,7 @@ export {
   billingDoorOpen,
   billingPill,
   bookedAfterAsk,
+  bookingHeld,
   bookingLinkAction,
   bookingTemplate,
   brainMetaOf,
@@ -13068,6 +13445,7 @@ export {
   callOutcomeOf,
   callOutcomeWords,
   cameFromOf,
+  cannotRows,
   capabilityStatus,
   changedConfigFields,
   channelFor,
@@ -13207,6 +13585,7 @@ export {
   inviteState,
   invoiceStatusWords,
   isActivityNoise,
+  isBaselinePrompt,
   isCarrier,
   isDayKey,
   isForwardingMode,
@@ -13319,6 +13698,7 @@ export {
   overLimitRefusal,
   ownAddressesOf,
   ownMessageRefusal,
+  ownWordsOf,
   pageTitle,
   paramLabel,
   parseAskFinish,
@@ -13377,6 +13757,7 @@ export {
   previewHorizon,
   priceWords,
   priorOf,
+  promptBlocks,
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,
@@ -13414,6 +13795,7 @@ export {
   reviewsWords,
   roleGate,
   ruleParts,
+  ruleStrength,
   rulesLine,
   runDueNow,
   runningTotal,
@@ -13457,6 +13839,7 @@ export {
   spokenBreachDetails,
   spokenDuration,
   stageArgs,
+  standingLine,
   standingOf,
   starsOf,
   starterByKey,
@@ -13558,6 +13941,7 @@ export {
   weekOf,
   whenLabel,
   whisperText,
+  whoseWords,
   whyCannotSpend,
   whyNotAFromName,
   whyNotAHandoff,

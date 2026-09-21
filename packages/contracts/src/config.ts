@@ -121,6 +121,23 @@ export function policyAskClass(policy: Record<string, { mode: string }> | null |
 }
 
 /**
+ * The Autonomy tab's Booking row holds the booking link back: it is not on
+ * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
+ * does in policyAskClass.
+ *
+ * The edge asks this question inline, through policyAskClass, and this must keep
+ * agreeing with every place it does: apps/edge/api/retell-fn.ts (its
+ * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
+ * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
+ * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
+ * chat reply classed as a booking -- a price or services reply still carries it).
+ * Stated here so the Business tab reads the rule instead of keeping a copy of it.
+ */
+export function bookingHeld(policy: Record<string, { mode: string }> | null | undefined): boolean {
+  return policyAskClass(policy, "booking") === "booking";
+}
+
+/**
  * What the Booking and FAQ rows say in the prompt, per channel. "auto" says
  * nothing — the profile already tells the receptionist how to book and what
  * it offers. "ask" hands the matter to a person, in words the customer can
@@ -486,7 +503,8 @@ function baselinePrompt(businessName: string): string {
   return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
 }
 
-function isBaselinePrompt(text: string): boolean {
+/** The product's own opening lines, whatever business name they were written with -- words no owner wrote. */
+export function isBaselinePrompt(text: string): boolean {
   return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 
@@ -500,6 +518,18 @@ function isBaselinePrompt(text: string): boolean {
  * save then keeps what the box holds as the owner's and puts the baseline back
  * as the prompt: the text is stored once, and an emptied box stays empty
  * instead of filling itself again from the copy left behind.
+ *
+ * DELIBERATELY NOT whoseWords, for now. This opens the box of the Settings form
+ * that is live today, and the Business redesign's first phase promised to
+ * change nothing live. An attempt to route this through whoseWords did change
+ * it: the baseline stored in the owner's own field (a save before S4 put it
+ * there) began opening an EMPTY box, and the next Save deleted it -- and a
+ * workspace whose only composed field was that copy fell from a composed prompt
+ * to the bare baseline, losing its hand-off and every rule line. So the two
+ * disagree on exactly that one case, knowingly: the prompt view calls it the
+ * platform's, which is true, and the box opens it as it always has. They are
+ * reconciled in the redesign's Phase 3 (plan Task 3.8), where the save that
+ * would have lost it is rewritten in the same change.
  */
 export function instructionsDraft(
   brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
@@ -996,6 +1026,41 @@ export function describeNow(
   }
 }
 
+/**
+ * How each part of the composed prompt opens, said once.
+ *
+ * Every value is the start of a line the composer writes: a section's heading,
+ * the first words of a paragraph Chanlytics writes for every workspace, or one
+ * of the two lines that can sit above the owner's own words. The composer
+ * writes them from here, and the Business tab's prompt view (prompt-blocks.ts)
+ * cuts the prompt on them from here. They were literal copies in two files, and
+ * a copy that drifted folded one block into its neighbour without failing
+ * anything: a closure list into the hours, the medium line into the owner's own
+ * words.
+ *
+ * These are words the live receptionist reads. Changing one changes its prompt.
+ */
+export const PROMPT_OPENINGS = {
+  hours: "Opening hours",
+  closures: "Closed on these dates",
+  services: "Services:",
+  notes: "Other things to know:",
+  bookingRules: "Booking rules:",
+  handoffChat: "Handing the conversation to a person:",
+  handoffCall: "Handing the caller to a person:",
+  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+  callTools: "Open times: use check_availability",
+  callMedium: "You are speaking aloud.",
+  chatMedium: "Keep replies short enough to read on a phone.",
+  openTimes: "If open times are listed after these instructions",
+  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+  rules: "Rules you must follow:",
+  /** Above the owner's own words, when there are details above for them to disagree with. */
+  ownWordsUnderDetails: "Further instructions from the business.",
+  /** Above the owner's own words on a call, alone or after the line above. */
+  ownWordsOnACall: "Some of it was written for text conversations",
+} as const;
+
 export function composeSystemPrompt(
   base: { business_name: string; phone_display?: string | null; booking_link: string },
   profile: BusinessProfile,
@@ -1051,7 +1116,7 @@ function composeSystemPromptWith(
     // another state gets a straight answer either way; the model needs the zone
     // to reconcile these with the clock it is given separately.
     const where = tz ? ` (all times ${tz})` : "";
-    s.push(`\nOpening hours${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
+    s.push(`\n${PROMPT_OPENINGS.hours}${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
 
   // EVERY upcoming closure, not the first handful. A cap here and a larger cap
@@ -1062,7 +1127,7 @@ function composeSystemPromptWith(
   const closed = closureLines(upcomingClosures(profile.closures, tz, now));
   if (closed.length) {
     s.push(
-      `\nClosed on these dates, whatever the opening hours above say:\n${closed
+      `\n${PROMPT_OPENINGS.closures}, whatever the opening hours above say:\n${closed
         .map((l) => `- ${l}`)
         .join("\n")}\nIf someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`,
     );
@@ -1075,11 +1140,11 @@ function composeSystemPromptWith(
       if (sv.price_note) bits.push(sv.price_note);
       return `- ${bits.join(" — ")}`;
     });
-    s.push(`\nServices:\n${lines.join("\n")}`);
+    s.push(`\n${PROMPT_OPENINGS.services}\n${lines.join("\n")}`);
   }
 
   if (profile.notes?.length) {
-    s.push(`\nOther things to know:\n${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
+    s.push(`\n${PROMPT_OPENINGS.notes}\n${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
 
   const br = profile.booking_rules;
@@ -1095,7 +1160,7 @@ function composeSystemPromptWith(
     if (br.consult_first?.length) lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
     if (br.party_max) lines.push(`Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`);
     for (const n of br.notes ?? []) lines.push(n);
-    s.push(`\nBooking rules:\n${lines.map((l) => `- ${l}`).join("\n")}`);
+    s.push(`\n${PROMPT_OPENINGS.bookingRules}\n${lines.map((l) => `- ${l}`).join("\n")}`);
   }
 
   // HOW to hand off, not just when — and unconditionally, because the product
@@ -1119,7 +1184,7 @@ function composeSystemPromptWith(
       ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`
       : "";
     s.push(
-      `\nHanding the conversation to a person:\n` +
+      `\n${PROMPT_OPENINGS.handoffChat}\n` +
         `Put the exact token [[HUMAN]] at the very end of your reply. It is removed ` +
         `before the customer sees it, and it is the only thing that alerts a human — ` +
         `saying you will fetch someone does nothing on its own. Write the reply you ` +
@@ -1146,7 +1211,7 @@ function composeSystemPromptWith(
         "Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up."
       : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
     s.push(
-      `\nHanding the caller to a person:\n${staffed}\n` +
+      `\n${PROMPT_OPENINGS.handoffCall}\n${staffed}\n` +
         `Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
     );
     // The booking link is a WhatsApp message and nothing else: retell-fn
@@ -1155,7 +1220,7 @@ function composeSystemPromptWith(
     // "texts" the link, so a caller could be promised a text and get a
     // WhatsApp message -- or nothing, on a number with no WhatsApp.
     s.push(
-      "\nOpen times: use check_availability before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n" +
+      `\n${PROMPT_OPENINGS.callTools} before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n` +
         "Booking: when the caller wants to book, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, " +
         "so do not ask them for a number unless they want it sent somewhere else. " +
         "Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " +
@@ -1190,10 +1255,10 @@ function composeSystemPromptWith(
     // came from. The channel line below and the rules after it still win.
     const header = [
       stated
-        ? `Further instructions from the business. Where these disagree with the ${joinList(above)} above, the details above are current and correct.`
+        ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.`
         : "",
       channel === "voice"
-        ? "Some of it was written for text conversations; you are on a phone call."
+        ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.`
         : "",
     ]
       .filter(Boolean)
@@ -1204,15 +1269,15 @@ function composeSystemPromptWith(
   // Medium, not facts. A phone caller cannot re-read a paragraph.
   s.push(
     channel === "voice"
-      ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead."
-      : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book.",
+      ? `\n${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.`
+      : `\n${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`,
   );
 
   // Open times, when the workspace has a calendar feed, arrive AFTER these
   // instructions (with the clock: they change by the minute and must not
   // evict the cached profile). The receptionist names them; it never books.
   s.push(
-    "\nIf open times are listed after these instructions, offer up to three that fit what the customer wants, then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link.",
+    `\n${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link.`,
   );
 
   // LAST, and never optional.
@@ -1234,7 +1299,7 @@ function composeSystemPromptWith(
   // The Autonomy pane's Booking and FAQ rows, as rules — the same words on
   // both channels' prompts, so a switch flipped once changes both.
   rules.push(...policyRules(policy, channel));
-  if (rules.length) s.push(`\nRules you must follow:\n${rules.map((r) => `- ${r}`).join("\n")}`);
+  if (rules.length) s.push(`\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`);
 
   return s.join("\n");
 }
@@ -1275,7 +1340,7 @@ export function resolveSystemPrompt(
 ): string {
   if (!hasProfile(brain.profile)) {
     const rules = policyRules(policy, channel);
-    return rules.length ? `${brain.system_prompt}\n\nRules you must follow:\n${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
+    return rules.length ? `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   }
   const profile = brain.profile as BusinessProfile;
   const facts = resolveFacts(brain, known);
@@ -1294,11 +1359,90 @@ export function resolveSystemPrompt(
   //
   // So an existing prompt is carried as extra instructions until the owner
   // has written their own. Once they have, theirs wins — they have seen the
-  // old text in the form and decided what to keep.
-  const carried = profile.extra_instructions?.trim()
-    ? profile
-    : { ...profile, extra_instructions: brain.system_prompt };
+  // old text in the form and decided what to keep. ownWordsOf states that
+  // rule, so anything looking for these words in the prompt uses the same one.
+  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? undefined };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+}
+
+/**
+ * The owner's own words, as the receptionist is given them.
+ *
+ * What they have written into the form, once there is anything in it. Until
+ * then the workspace's prompt stands in their place: carried whole when the
+ * profile composes, so filling in one field loses nothing, and read as it
+ * stands when it does not. The one statement of that rule. resolveSystemPrompt
+ * composes with it, and anything that has to find those words in what the
+ * resolver returned looks for them with it, rather than with a copy that can
+ * drift.
+ */
+export function ownWordsOf(
+  brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
+): string | null {
+  const own = brain?.profile?.extra_instructions;
+  return own?.trim() ? own : (brain?.system_prompt ?? null);
+}
+
+/** Whose words stand in the owner's place: see whoseWords. */
+export type WhoseWords =
+  | { kind: "own" | "carried" | "prompt" | "baseline"; text: string }
+  | { kind: "none"; text: null };
+
+/**
+ * Whose words the receptionist is given in the owner's place, decided once.
+ *
+ * The words are ownWordsOf's, the resolver's own rule. This says whose they are,
+ * for the prompt view (promptBlocks). The instructions box (instructionsDraft)
+ * does not ask here yet: it opens the Settings form that is live today, and on
+ * one case -- the baseline stored in the owner's own field by a save before S4
+ * -- asking here would change what it opens with. That case is reconciled in
+ * the redesign's Phase 3 (plan Task 3.8); see instructionsDraft.
+ *
+ *   baseline  the product's own opening lines. In the stored prompt that is
+ *             isBaselinePrompt, which reads only the opening and the closing:
+ *             only the product writes that prompt. In the OWNER'S field it is
+ *             stricter (isBaselineInOwnersField), because there an owner may
+ *             have typed their own sentences where the business's name goes,
+ *             and calling those the platform's would disown words they wrote.
+ *   own       what the owner wrote into the profile's own field.
+ *   carried   the profile composes, but its own field is blank, so the stored
+ *             prompt stands in: the resolver carries it into the owner's place.
+ *   prompt    nothing composes, so the stored prompt is simply the workspace's
+ *             prompt, read as it stands. "Composes" is the resolver's own test
+ *             (hasProfile): no profile at all, or one holding nothing the
+ *             resolver composes from, and the resolver hands the prompt back.
+ *   none      nothing to read.
+ */
+export function whoseWords(
+  brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
+): WhoseWords {
+  const text = ownWordsOf(brain);
+  if (!text?.trim()) return { kind: "none", text: null };
+  // The owner's own field first, and under the strict test: the loose one read
+  // "…Salon, a family salon since 1998. We never book walk-ins after 5pm. …" as
+  // the product's, and would have charged an owner's own words to the platform.
+  if (brain?.profile?.extra_instructions?.trim()) return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
+  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
+  // The profile arrives as the brain stores it; hasProfile reads only what it counts.
+  return { kind: hasProfile(brain?.profile as BusinessProfile | null | undefined) ? "carried" : "prompt", text };
+}
+
+/**
+ * The product's baseline, and only it, when it sits in the OWNER'S own field.
+ *
+ * isBaselinePrompt reads the opening and the closing and accepts anything
+ * between them, which is right for the stored prompt: only the product writes
+ * that. In the owner's field it is not -- an owner may have typed their own
+ * sentences where the business's name goes. So here the part between must read
+ * as a name: something there, on one line, with no sentence break. A name that
+ * happens to hold one ("Dr. Rivera's") is read as the owner's, which is the safe
+ * way to be wrong: their words shown as theirs, never theirs disowned.
+ */
+function isBaselineInOwnersField(text: string): boolean {
+  const t = text.trim();
+  if (!isBaselinePrompt(t)) return false;
+  const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
+  return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
 }
 
 /** The details a message sent in the business's name may name, as the owner writes them. */

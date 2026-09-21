@@ -26,6 +26,7 @@ import { PERSON_MODE_WORDS, PERSON_STATE_LABELS } from "./people";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "./setup";
 import { CALENDAR_FEED_WORDS } from "./calendar";
+import { SOURCE_WORDS, type FactSource } from "./facts";
 import {
   LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CLASS_WORDS,
   LEAD_EMAIL_WORDS, LEAD_FIT_WORDS, LEAD_STAGE_WORDS,
@@ -50,6 +51,8 @@ export type StateKind =
   | "role"        // a teammate's role
   | "tone"        // a tone the caller already holds (a Connections row, the back office), said as itself
   | "calendar"    // the calendar feed the receptionist reads: the Calendar's pill, Connections and Setup (C3)
+  /** Where a fact came from: the chip beside a value on the Business tab. */
+  | "fact"
   | "escalation"
   // Leads. The scope had registered none of these and grew a private colour family instead, which drifted in five
   // places: a mailbox still being checked read as "nothing there", a bounce drew fainter than a success, and the
@@ -63,7 +66,34 @@ export type StateKind =
   // private family for exactly this, in CSS, keyed by words no tone vocabulary knows.
   | "lead_row_state";
 
-const TONE_OF: Record<StateKind, Record<string, Tone>> = {
+/**
+ * The tone of each source a fact can have, typed by `FactSource` itself.
+ *
+ * Not inlined below, and the difference matters. `LABEL_OF.fact` spreads
+ * `SOURCE_WORDS`, which IS typed by `FactSource` — so a sixth source forces
+ * that map to answer and flows through automatically. `TONE_OF`'s value type
+ * is `Record<string, Tone>`, so an inlined literal here would let the new
+ * source gain a label and quietly keep no tone: a grey pill with a raw
+ * internal string on it, and a label that looks handled. The provenance this
+ * models has already drifted once in production (facts.ts), so it is the kind
+ * of set that grows.
+ */
+const FACT_SOURCE_TONE: Record<FactSource, Tone> = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain",
+};
+
+/**
+ * Built inside a call marked pure, and the difference is what the four packages
+ * that bundle contracts carry. The spread in `fact` below is a side effect to the
+ * bundler (a spread can run a getter), so a plain literal here kept this table,
+ * `LABEL_OF` and every word map they name in the channels, core, db and jobs
+ * dists, none of which reads a pill. Marked pure, an unused table is dropped.
+ */
+const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => ({
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
   call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
@@ -81,6 +111,11 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
   escalation: { open: "warn", resolved: "ok" },
   // Ready is the silent default every lead starts in, so it is plain: the eye should be drawn to what has moved.
   lead_class: { qualified: "plain", review: "warn", excluded: "plain" },
@@ -93,10 +128,10 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   // `contacted` and `talking` are `nurture` and `converted` in the owner's words, so they take those tones.
   // Review is the one state that wants a person. Ready and left-out are both silent, for opposite reasons.
   lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" },
-};
+}))();
 
-/** The words a pill says when the page has none better. */
-const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
+/** The words a pill says when the page has none better. Marked pure for the reason `TONE_OF` is. */
+const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE__ */ (() => ({
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
   call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
@@ -110,6 +145,8 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
   calendar: CALENDAR_FEED_WORDS,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
   escalation: { open: "Open", resolved: "Resolved" },
   lead_class: LEAD_CLASS_WORDS,
   lead_stage: LEAD_STAGE_WORDS,
@@ -117,11 +154,11 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS,
   // `lead_row_state` is a tone and no words: the row composes its own tag (`Contacted · 2m`) in toLeadRowVM,
-  // and nothing ever asks this map for it. Words here would be a second set of the same five -- and a map
-  // whose values are read off another map (`LEAD_STAGE_WORDS.ready`) cannot be dropped by the bundler, which
-  // pulled this whole registry and its five label maps into channels, core, db and jobs: +693 lines for
-  // words nobody reads. A bare identifier is free; a property read is not.
-};
+  // and nothing ever asks this map for it. Words here would be a second set of the same five. A map whose
+  // values are read off another map (`LEAD_STAGE_WORDS.ready`) once kept this whole registry and its five
+  // label maps in channels, core, db and jobs: +693 lines for words nobody reads. Built in a call marked pure
+  // (see TONE_OF), this map is dropped wherever nothing reads it, property reads and all.
+}))();
 
 /** The tone for a state, or plain for one this map has never heard of. */
 export function stateTone(kind: StateKind, value: unknown): Tone {
