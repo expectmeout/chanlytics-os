@@ -50,6 +50,12 @@ test.describe("the opt-in page", () => {
     // Nothing that could take a customer's number, and nothing internal.
     expect(html).not.toMatch(/<form|<input/i);
     expect(html).not.toMatch(/service_role|supabase\.co|tenant_id/i);
+    // A carrier opens this page as the business's website too (30919, 21 Sep 2026): whenever the business's own
+    // page publishes, who they are is said here as well, and not only one link away.
+    if ((await request.get(`/b/${slug}`, { maxRedirects: 0 })).status() === 200) {
+      expect(html).toContain('data-testid="yes-who-identity"');
+      expect(html).toContain("Legal name");
+    }
   });
 
   test("on a phone it reads as one column, with the QR where a customer can scan it", async ({ page }) => {

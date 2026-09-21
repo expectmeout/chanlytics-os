@@ -251,6 +251,13 @@ body {
 }
 .yes-terms li { margin: 0 0 7px; }
 .yes-terms li:last-child { margin-bottom: 0; }
+/* Who is asking: the business's name, contacts and services, for the carrier
+   reviewer who opens this page as the business's website (30919). */
+.yes-who { margin: 22px 0 0; padding: 18px; border: 1px solid var(--auth-line); border-radius: 14px; font-size: 0.88rem; }
+.yes-who ul { margin: 0 0 16px; padding: 0 0 0 18px; color: var(--auth-muted); }
+.yes-who li { margin: 0 0 5px; overflow-wrap: anywhere; }
+.yes-who li b { color: var(--auth-ink); font-weight: 600; }
+.yes-who-more { margin: 0; font-size: 0.85rem; }
 .yes-foot { color: var(--auth-muted); font-size: 0.8rem; margin: 22px 0 0; text-align: center; }
 .yes a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
 /* Specificity, deliberately: the link rule above is (0,1,1) and would
