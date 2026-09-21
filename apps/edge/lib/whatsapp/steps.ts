@@ -125,7 +125,7 @@ export function holdCopy(x: {
   replyMode: string;
   configBroken: boolean;
   /**
-   * The control plane could not be READ (tenant-runtime's DR stub). A third
+   * The control plane could not be READ (tenant-runtime's failed read). A third
    * state, because it is neither of the other two: a workspace with a perfectly
    * good persona was being told it had none and sent to Settings to fix a
    * database outage.

@@ -26,7 +26,6 @@ import { replyPosture, effectiveReplyMode } from "../reply-posture.js";
 import { resolveConsent } from "../consent.js";
 import { logger, errField } from "../log.js";
 import type { NotifyTarget } from "../notify.js";
-import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../tenant-fallback.js";
 import { IngestFailed } from "./persist.js";
 import { realPorts, type InboundPorts } from "./ports.js";
 import type { Wire } from "../packages/core.js";
@@ -56,7 +55,6 @@ export async function handleInbound(
   tenantId: string | null,
   routed: RoutedChannel | null,
   isEnvDefault: boolean,
-  routingFailed = false,
   carrier: InboundCarrier | null = null,
   /** Everything outside this function: the real modules unless a test says otherwise (./ports.ts). */
   ports: InboundPorts = realPorts(),
@@ -69,33 +67,26 @@ export async function handleInbound(
   // Bound once, here, where the tenant becomes known. Every line below carries
   // it, which is the only way that stays true as this function changes.
   const L = logger({ tenant_id: tenantId, wamid: m.id, from_tail: phoneTail(from), type: m.type });
-
   // The control plane, through its one door (PRD §03). A tenant with no brain
-  // profile never auto-replies — silence over someone else's voice — while the
-  // env-default tenant keeps its baked DR fallback when the plane is UNREADABLE
-  // (same semantics as the creds env fallback: absence configures, errors fall
-  // back).
+  // profile never auto-replies, and a control plane that cannot be READ holds
+  // the thread for a person: silence over someone else's voice, and no second
+  // copy of anyone's profile to answer from.
   const rt = db && routed ? await ports.runtime(db, routed) : null;
   // The posture rules live in ./reply-posture.ts, dependency-free and tested as
   // a truth table — they were four inline booleans, and one of them made
   // `status='disabled'` fail to silence the receptionist.
   const posture = replyPosture({
-    isEnvDefault,
-    routingConsulted: !!db,
-    routingFailed,
-    channelResolved: !!routed,
     runtimeUsable: !!rt && !rt.loadFailed,
     policyMode: rt?.policy["reply"]?.mode,
   });
-  const { drFallback } = posture;
   // Reassigned once THIS person's own setting is known, just before the
   // policy is consulted below.
   let replyMode = posture.replyMode;
   let personMode: string | null = null;
-  const brainCfg: BrainConfig | null = rt?.brain ?? (drFallback ? FALLBACK_BRAIN : null);
+  const brainCfg: BrainConfig | null = rt?.brain ?? null;
   // What goes out in the business's name when the receptionist cannot answer, with its details as they are now (S5).
   const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
-  const notif: NotificationsConfig | null = rt?.notifications ?? (drFallback ? FALLBACK_NOTIFICATIONS : null);
+  const notif: NotificationsConfig | null = rt?.notifications ?? null;
   // One addressing decision per message, reused by every alert below.
   const notifyTarget: NotifyTarget = { tenantId, notifications: notif, isEnvDefault };
   const replyLimits = rt?.policy["reply"]?.limits ?? {};
@@ -245,7 +236,7 @@ export async function handleInbound(
   // just above the policy consult, below the non-text acknowledgement — so a
   // person set to Never who sent a photo got the canned "I can't read
   // attachments" text from the receptionist that was told to stay out.
-  if (db && tenantId && ing?.contact_id && !drFallback) {
+  if (db && tenantId && ing?.contact_id) {
     try {
       personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
       replyMode = effectiveReplyMode(posture, personMode);

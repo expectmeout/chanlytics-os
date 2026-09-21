@@ -1,44 +1,23 @@
 /**
  * Whether the receptionist may speak, and in whose voice.
  *
- * This decision was four inline booleans inside a 550-line webhook handler, and
- * it was wrong in a way nobody could see: `routed === null` meant two entirely
- * different things and both took the same branch.
+ * One rule: a routed workspace whose runtime was read follows its own reply
+ * policy; anything else holds the thread for a person. There is no fallback
+ * profile. A control plane that cannot be read is an outage, and during an
+ * outage the receptionist says nothing in anyone's voice: the customer's
+ * message is persisted, the thread is escalated, and a person is told.
  *
- *   no database configured   the pre-Postgres rollback path. The env-default
- *                            tenant legitimately runs on its baked DR profile.
- *   database said no         the channel row is missing, or its status is not
- *                            'active'. A DELIBERATE state.
+ * This used to carry a second posture, `drFallback`: the environment's own
+ * number rode a read failure out on a baked copy of one workspace's profile.
+ * That copy was a customer's data in the repository, then in the deployment's
+ * environment, with a special case in every door and a golden test to keep it
+ * in step with the row it duplicated. The pilot is one workspace among many
+ * and behaves like the rest.
  *
- * Because `drFallback` keyed only on the env var, setting
- * `tenant_channels.status='disabled'` — the one channel-level off switch the
- * schema offers — did not silence the receptionist. It dropped it into the DR
- * persona with no tenant, so it kept answering real customers with nothing
- * written to the database and the historical opt-out check dead (that check
- * reads the ingest result, and ingest needs a tenant).
- *
- * The rule, stated once: DR is for a control-plane READ FAILURE, never for a
- * configuration state. Absence configures; errors fall back.
- *
- * Deliberately dependency-free so the truth table can be tested directly.
+ * Deliberately dependency-free so the rule can be tested directly.
  */
 
 export interface RoutingFacts {
-  /** This webhook's phone_number_id is the env-default tenant's own number. */
-  isEnvDefault: boolean;
-  /** A database was configured, so routing could actually be consulted. */
-  routingConsulted: boolean;
-  /**
-   * The routing lookup could not be completed (database error, nothing cached).
-   * Distinct from `channelResolved: false`, which means the database ANSWERED
-   * and said this channel is not active. Without this third state a Postgres
-   * blip on a cold lambda is indistinguishable from someone deliberately
-   * flipping the off switch — and silencing the live line during an infra
-   * hiccup is exactly what the DR profile exists to prevent.
-   */
-  routingFailed?: boolean;
-  /** The control plane resolved an ACTIVE channel for this number. */
-  channelResolved: boolean;
   /** The tenant runtime was read AND the read succeeded. */
   runtimeUsable: boolean;
   /** policies.reply.mode for this tenant, when the runtime carried one. */
@@ -46,38 +25,22 @@ export interface RoutingFacts {
 }
 
 export interface ReplyPosture {
-  /** Speak with the baked DR profile (env-default tenant only). */
-  drFallback: boolean;
-  /** The reply policy in force. Anything but 'auto' holds for a human. */
+  /** The reply policy in force. Anything but 'auto' or 'veto' holds for a human. */
   replyMode: string;
 }
 
 export function replyPosture(f: RoutingFacts): ReplyPosture {
-  // Did we get an ANSWER about this channel? Not "is there a channel" — an
-  // answer. No database and a failed lookup are both "we do not know", and only
-  // a completed lookup that returned no active channel is a decision.
-  const answered = f.routingConsulted && !f.routingFailed;
-
-  const drFallback =
-    f.isEnvDefault && (!answered || (f.channelResolved && !f.runtimeUsable));
-
-  // A routed tenant's own policy wins. Otherwise only the DR path may be
-  // automatic — keying this to isEnvDefault instead is how an unroutable
-  // channel inherited 'auto' from the number it happens to share.
-  const replyMode = f.runtimeUsable ? (f.policyMode ?? "ask") : drFallback ? "auto" : "ask";
-
-  return { drFallback, replyMode };
+  // A routed tenant's own policy, or 'ask'. Never 'auto' without a runtime to
+  // say so: that is how an unroutable number once inherited a voice.
+  return { replyMode: f.runtimeUsable ? (f.policyMode ?? "ask") : "ask" };
 }
 
 /**
  * The mode in force for ONE message, once the person's own setting is known.
  *
- * A person-level setting (People → profile → "Receptionist for …") wins over
- * the workspace policy — on the routed path only. The DR profile answers the
- * env-default tenant with no control plane to consult, so nothing
- * person-specific can exist there, and an absent setting changes nothing.
+ * A person-level setting (People, their profile, "Receptionist for ...") wins
+ * over the workspace policy. An absent setting changes nothing.
  */
 export function effectiveReplyMode(posture: ReplyPosture, personMode: string | null | undefined): string {
-  if (posture.drFallback || !personMode) return posture.replyMode;
-  return personMode;
+  return personMode || posture.replyMode;
 }
