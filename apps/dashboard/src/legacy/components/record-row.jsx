@@ -20,6 +20,9 @@
 //   by its words and the row's label together ("Change Website"), and the two carry data-testid rec-row-act-<id>
 //   and rec-row-<id>. The act's data-rec-act is where a fold that closes (record-fold.jsx) gives focus back.
 // - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips).
+// - Something wrong is on the row at full strength, hover or not: data-state="warn", which record.css draws as the warn
+//   wash with the key in the warn ink and the act always drawn. A disagreement is one; `wrong` is any other, a sentence
+//   the page writes (a fact that is missing and needed), drawn under the value and describing the act that fixes it.
 
 // Taking the other answer, by where it came from. A source's words (contracts SOURCE_WORDS: "from Google") are a
 // pill's, not a verb's object, and contracts keeps no possessive form of them; `useLabel` wins wherever these read
@@ -65,23 +68,26 @@ const RecordDispute = ({ id = null, disputed }) => {
 
 const RecordRow = ({
   id = null, label, value = null, empty = null, hint = null, source = null, sourceLabel = null,
-  disputed = null, act = null, top = false, testid = null, children = null,
+  disputed = null, wrong = null, act = null, top = false, testid = null, children = null,
 }) => {
   const isEmpty = recEmpty(value);
   const kids = recHasKids(children);
   const keyId = id ? `rec-row-${id}-key` : undefined;
   const wordsId = id ? `rec-row-${id}-act` : undefined;
-  const tall = top || !!hint || !!disputed || kids;
+  const wrongId = id && wrong ? `rec-row-${id}-wrong` : undefined;
+  const tall = top || !!hint || !!disputed || !!wrong || kids;
   return (
     <div
       className={`rec-row${tall ? " rec-row-top" : ""}`}
       data-empty={isEmpty ? "true" : "false"}
+      data-state={disputed || wrong ? "warn" : undefined}
       data-testid={testid || (id ? `rec-row-${id}` : undefined)}
     >
       <span className="rec-row-key" id={keyId}>{label}</span>
       <div className="rec-row-val">
         {isEmpty ? <span className="rec-row-empty">{empty}</span> : <span className="rec-row-value">{value}</span>}
         {disputed ? <RecordSourceChip source="disputed" /> : source ? <RecordSourceChip source={source} label={sourceLabel} /> : null}
+        {wrong ? <span className="rec-row-wrong" id={wrongId}>{wrong}</span> : null}
         {hint ? <span className="rec-row-hint">{hint}</span> : null}
         {kids ? children : null}
         {disputed ? <RecordDispute id={id} disputed={disputed} /> : null}
@@ -92,6 +98,7 @@ const RecordRow = ({
           className="rec-row-act"
           onClick={act.onClick}
           aria-labelledby={id ? `${wordsId} ${keyId}` : undefined}
+          aria-describedby={wrongId}
           data-rec-act={id || undefined}
           data-testid={act.testid || (id ? `rec-row-act-${id}` : undefined)}
           {...(act.gate || {})}

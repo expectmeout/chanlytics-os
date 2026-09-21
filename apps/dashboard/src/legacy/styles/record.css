@@ -36,6 +36,13 @@
    up and down, over the next row's rule. */
 .rec-row::before { content: ""; position: absolute; inset: 0 -12px; z-index: -1; border-radius: var(--radius-md); transition: background var(--duration-fast) var(--ease-out); }
 .rec-row:hover::before { background: var(--bg-hover); }
+/* Something wrong or missing is on the row at full strength, hover or not: the warn wash, the key in the warn ink,
+   and the act drawn. The :hover twin outranks every hover rule below (a touch screen's, a phone's), so none of them
+   takes the wash away. */
+.rec-row[data-state="warn"]::before, .rec-row[data-state="warn"]:hover::before { background: var(--warn-soft); }
+.rec-row[data-state="warn"] .rec-row-key { color: var(--warn-ink); }
+.rec-row[data-state="warn"] .rec-row-act { opacity: 1; }
+.rec-row-wrong { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
 /* A second answer that disagrees, under the value, offered as a fill: the other value with its own source's pill, and
    the press that takes it. */
 .rec-row-dispute { flex: 1 1 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 11px; background: var(--bg-sunken); border-radius: var(--radius-md); }

@@ -80,6 +80,21 @@ test("a disputed fact wears warn and offers the other answer", () => {
   assert.equal(kept.length, 1, "and keeping yours is a press too");
 });
 
+test("something wrong is on its row at full strength: a disagreement, or a sentence the page names", () => {
+  const rowOf = (tree) => find(tree, (n) => classes(n).includes("rec-row"));
+  assert.equal(rowOf(draw(W.RecordRow, { label: "Website", value: "melanys.com" })).props["data-state"], undefined, "nothing wrong, no state");
+  const disputed = { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", onUse: () => {} };
+  assert.equal(rowOf(draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Avenue", source: "typed", disputed })).props["data-state"], "warn", "a disagreement is a person's to settle");
+
+  const sentence = "Without a booking link it has nowhere to send anyone who asks to book.";
+  const tree = draw(W.RecordRow, { id: "booking_link", label: "Booking link", value: null, empty: "Not set", wrong: sentence, act: { label: "Add one", onClick: () => {} } });
+  const row = rowOf(tree);
+  assert.equal(row.props["data-state"], "warn", "a fact that is missing and needed is drawn the same way");
+  assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-wrong"))), sentence, "in the page's own words");
+  const act = find(tree, (n) => classes(n).includes("rec-row-act"));
+  assert.equal(textOf(byId(tree, act.props["aria-describedby"])), sentence, "and the act that fixes it is described by it");
+});
+
 test("an act says which row it acts on, and a gate's refusal replaces its press", () => {
   const pressed = [];
   const refused = [];
