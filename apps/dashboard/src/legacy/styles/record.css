@@ -60,11 +60,13 @@
 .rec-fold-hint { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-fold-close { flex: none; font-size: var(--text-sm); color: var(--ink-dim); border-radius: var(--radius-xs); transition: color var(--duration-fast) var(--ease-out); }
 .rec-fold-close:hover { color: var(--ink); }
-/* Open and close on the grid's rows, never max-height. Closed, the body is hidden once it has folded, so nothing in it
-   stays in the tab order while it cannot be seen. */
-.rec-fold-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-out), visibility 0s; }
+/* Closed, a fold is hidden whole (the `hidden` attribute): no head, no Close, nothing in the tab order or read out,
+   and the row it opens from is what shows. It opens on the grid's rows, never max-height: whether it was drawn open
+   or kept and then opened, it appears folded and unfolds. */
+.rec-fold[hidden] { display: none; }
+.rec-fold-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-out); }
 .rec-fold-body > * { overflow: hidden; }
-.rec-fold[data-open="false"] .rec-fold-body { grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows var(--duration-base) var(--ease-in-out), opacity var(--duration-base) var(--ease-in-out), visibility 0s var(--duration-base); }
+@starting-style { .rec-fold-body { grid-template-rows: 0fr; opacity: 0; } }
 /* The fields, what saving writes and the foot start under the value, past the label column (Edit-Fold's body is
    `padding: 8px 18px 0 168px`); 4px more either side, so the clip that folds the body never cuts a focused field's
    ring. A fold whose own grid carries a label column (a week, its days named) is wide: its fields take the whole
@@ -201,6 +203,6 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rec-row::before, .rec-row-act, .rec-fold-close, .rec-fold-body, .rec-fold[data-open="false"] .rec-fold-body,
+  .rec-row::before, .rec-row-act, .rec-fold-close, .rec-fold-body,
   .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close { transition: none; }
 }

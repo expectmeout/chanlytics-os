@@ -279,6 +279,16 @@ test("a fold opens, says what the receptionist will be told, and saves only itse
   assert.equal(find(draw(W.RecordFold, bookingRules({ says: "" })), (n) => classes(n).includes("rec-fold-says")), null, "a fold that writes nothing draws no block");
 });
 
+test("a fold kept while closed is hidden whole, its head and its Close with it", () => {
+  const foldOf = (tree) => find(tree, (n) => classes(n).includes("rec-fold"));
+  const closed = foldOf(draw(W.RecordFold, bookingRules({ open: false })));
+  assert.equal(closed.props["data-open"], "false");
+  // `hidden` is spelled the same in React 18 (the mockup) and 19 (the app), where `inert` is not, and it takes the
+  // fold out of sight, out of the tab order and out of the accessibility tree at once. The row is what shows.
+  assert.equal(closed.props.hidden, true);
+  assert.ok(!foldOf(draw(W.RecordFold, bookingRules({ open: true }))).props.hidden, "open, it is there");
+});
+
 test("a fold whose own grid carries a label column says so, and no other fold does", () => {
   const foldOf = (tree) => find(tree, (n) => classes(n).includes("rec-fold"));
   assert.equal(foldOf(draw(W.RecordFold, bookingRules())).props["data-wide"], undefined, "a fold's fields start under the value");

@@ -15,6 +15,11 @@
 // own grid carries a label column (a week's days, each named) is `wide`: its fields take the fold's whole width, and
 // what saving writes and the foot keep the indent. record.css draws both.
 //
+// A page may draw a fold only while it is open, or keep it and flip `open`. Closed, it is `hidden`, whole: its head
+// and its Close go with its fields, out of sight, the tab order and the accessibility tree, and the row it opens from
+// is what shows. (`inert` would do the last two, but React 18 and 19 spell it differently; `hidden` they share.) Either
+// way it unfolds as it appears (record.css, @starting-style).
+//
 // Escape cancels, unless something inside the fold took the key first (a combobox's list closing); Ctrl or Cmd
 // with Enter saves. As it opens, focus moves to the first thing in it to type into or press, since the act that
 // opened it has gone; as it closes, focus that went with it comes back to that row's act (data-rec-act).
@@ -132,6 +137,7 @@ const RecordFold = ({
       role="group"
       aria-labelledby={labelId}
       data-open={open ? "true" : "false"}
+      hidden={open ? undefined : true}
       data-wide={wide ? "true" : undefined}
       data-testid={`rec-fold-${id}`}
       onKeyDown={onKey}
