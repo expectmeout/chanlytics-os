@@ -385,6 +385,13 @@ export function splitQuotedReply(body: string): { text: string; quoted: string |
   return { text, quoted };
 }
 
+/* What a message says, wherever it is shown: an email's own words, without the chain it quoted back
+   (splitQuotedReply). One function, because each place that said it its own way drifted: the bubble split
+   the chain, while the Conversations row previewed it and the status band's "They wrote" printed it whole. */
+export function messageWords(m: MessageDto): string {
+  return m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
+}
+
 export function messageText(m: MessageDto): string {
   if (m.type === "call_summary" && m.body) {
     // the body already names itself ("Inbound call · 3 min — …"); the legacy
@@ -776,7 +783,7 @@ export function toInboxThreadVM(
     : escalation.reason === "callback"
       ? (escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null)
       : lastInbound
-        ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageText(lastInbound), quoted: lastInbound.type === "text" }
+        ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageWords(lastInbound), quoted: lastInbound.type === "text" }
         : null;
 
   // A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1).
@@ -828,7 +835,7 @@ export function toInboxThreadVM(
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
     // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
-    preview: last ? messageText(last).slice(0, 110) : "",
+    preview: last ? messageWords(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther
@@ -940,10 +947,6 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
   // An identifier is not split: "+1" is nobody's first name. The viewer
   // read "Latest from +1" for a person known only by number.
   const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
-  // What a message says on this surface: an email's own words, without the chain it quoted back
-  // (splitQuotedReply) -- the words its bubble in the thread says. The row previewed and was searched
-  // by "On Thu, Sep 17, 2026 at 10:44 PM … wrote: >" while the thread beside it said "Got it, thanks!".
-  const said = (m: MessageDto) => (m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m));
   // The status travels with the bubble. It used to be dropped here, and the
   // conversations API filters nothing — so a queued draft still inside its veto
   // window, a send that failed, and a reply an operator canceled all arrived on
@@ -959,7 +962,7 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     // column since I1 (toInboxThreadVM); these two view models had drifted.
     channel: m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel),
     at: bubbleTime(messageAt(m), tz, now),
-    text: said(m),
+    text: messageWords(m),
     ...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),
     ...(m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) as ReplyWhyVM } : {}),
     ...(messageAuthor(m) ? { by: (messageAuthor(m) as MessageAuthor).words } : {}),
@@ -1014,11 +1017,11 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     outcome,
-    snippet: last ? said(last).slice(0, 110) : "",
+    snippet: last ? messageWords(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
     ts: last ? new Date(messageAt(last)).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     summary: {
-      headline: lastInbound ? said(lastInbound).slice(0, 110) : "No customer messages yet.",
+      headline: lastInbound ? messageWords(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
         `${chat.length} message${chat.length === 1 ? "" : "s"}${
           callNotes ? ` · ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""

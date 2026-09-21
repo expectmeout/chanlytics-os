@@ -21,6 +21,7 @@ import {
   contactMeta,
   threadChannelWords,
   messageText,
+  messageWords,
   ESCALATION_REASON_LABELS,
   DISCONNECTION_LABELS,
   formatWaited,
@@ -737,7 +738,7 @@ export function toTodayVM(
       warn: waitedMs > 30 * 60000,
       since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
-      quote: lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "",
+      quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
       who: conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : e.reason === "callback" ? "Unknown caller" : "Unknown",
       closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null,
     };
@@ -1113,7 +1114,7 @@ export function toTodayVM(
       // handoff row above names the wire the reply would go out on instead.
       id: `q-w-${c.id}`, kind: "window", conversationId: c.id, callId: null, who, initials: initialsOf(who), channel: "WhatsApp",
       when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
-      sentence: last ? clipAtWord(messageText(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.", quoted: !!last,
+      sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.", quoted: !!last,
       status: ["Reply window closing", "they wrote last"], tone: "warn", warn: leftMs < 2 * 3600000,
       cta: { label: "Open thread", to: `inbox/th-${c.id}` }, also: null,
       // After every escalation (which waited ≥ 0), the soonest to close first.

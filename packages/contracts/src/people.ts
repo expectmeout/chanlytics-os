@@ -26,6 +26,7 @@ import {
   writtenChannelOf,
   messageAt,
   messageText,
+  messageWords,
   shortTime,
   type CallDto,
   type ConversationDto,
@@ -1301,7 +1302,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
         m.sender === "customer" ? "customer" : m.sender === "human" ? "you" : m.sender === "ai" ? "receptionist" : "system";
       const who = kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
       const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : undefined;
-      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...(sub ? { sub } : {}), link: { label: "Open the thread", to: `inbox/th-${c.id}` } });
+      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageWords(m), ...(sub ? { sub } : {}), link: { label: "Open the thread", to: `inbox/th-${c.id}` } });
     }
   }
 

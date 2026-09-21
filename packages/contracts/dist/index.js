@@ -1634,6 +1634,9 @@ function splitQuotedReply(body) {
   if (!text || !quoted) return { text: body, quoted: null };
   return { text, quoted };
 }
+function messageWords(m) {
+  return m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
+}
 function messageText(m) {
   if (m.type === "call_summary" && m.body) {
     return m.body.replace(CALL_NOTE_PREFIX, "").trim();
@@ -1779,7 +1782,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     else timeline.splice(idx, 0, entry);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 6e4)) : void 0;
-  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageText(lastInbound), quoted: lastInbound.type === "text" } : null;
+  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageWords(lastInbound), quoted: lastInbound.type === "text" } : null;
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
   return {
     id: `th-${dto.id}`,
@@ -1825,7 +1828,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
     // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
-    preview: last ? messageText(last).slice(0, 110) : "",
+    preview: last ? messageWords(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
@@ -1891,7 +1894,6 @@ function clipAtWord(text, max) {
 function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
-  const said = (m) => m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
     // The row's own channel, not an assumption. Every bubble on this surface
@@ -1901,7 +1903,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     // column since I1 (toInboxThreadVM); these two view models had drifted.
     channel: m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel),
     at: bubbleTime(messageAt(m), tz, now),
-    text: said(m),
+    text: messageWords(m),
     ...mediaVM(m) ? { media: mediaVM(m) } : {},
     ...m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) } : {},
     ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
@@ -1938,11 +1940,11 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     outcome,
-    snippet: last ? said(last).slice(0, 110) : "",
+    snippet: last ? messageWords(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
     ts: last ? new Date(messageAt(last)).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     summary: {
-      headline: lastInbound ? said(lastInbound).slice(0, 110) : "No customer messages yet.",
+      headline: lastInbound ? messageWords(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
         `${chat.length} message${chat.length === 1 ? "" : "s"}${callNotes ? ` \xB7 ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""}${dto.messages[0] ? ` \xB7 started ${shortTime(messageAt(dto.messages[0]), tz, now)}` : ""}`,
         lastWordLine(needsHuman, last, lastAuthor)
@@ -4251,7 +4253,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       const kind = m.sender === "customer" ? "customer" : m.sender === "human" ? "you" : m.sender === "ai" ? "receptionist" : "system";
       const who = kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
       const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : void 0;
-      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...sub ? { sub } : {}, link: { label: "Open the thread", to: `inbox/th-${c.id}` } });
+      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageWords(m), ...sub ? { sub } : {}, link: { label: "Open the thread", to: `inbox/th-${c.id}` } });
     }
   }
   for (const k of d.calls) {
@@ -4987,7 +4989,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       warn: waitedMs > 30 * 6e4,
       since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
-      quote: lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "",
+      quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
       who: conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : e.reason === "callback" ? "Unknown caller" : "Unknown",
       closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null
     };
@@ -5261,7 +5263,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       initials: initialsOf(who),
       channel: "WhatsApp",
       when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} \xB7 in ${formatWaited(leftMs)}`,
-      sentence: last ? clipAtWord(messageText(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.",
+      sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.",
       quoted: !!last,
       status: ["Reply window closing", "they wrote last"],
       tone: "warn",
@@ -13035,6 +13037,7 @@ export {
   messageAuthor,
   messageStatusLabel,
   messageText,
+  messageWords,
   mondayOf,
   moneyWords,
   monthLabelOf,
