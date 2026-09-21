@@ -10,10 +10,15 @@
 //
 // It is a dialog, and modal: role="dialog" with aria-modal, named by its heading and described by the line under
 // it (with an `id`; without one, named by its title). As it opens, focus moves to the sheet itself, so a screen
-// reader names it; as it closes, focus goes back to whatever opened it. Escape closes it, once, unless something in
-// it took the key first (a combobox's list closing): from inside the sheet its own handler hears the key first and
-// takes it, so a fold around it does not cancel as well; with focus outside it (a press on the wash), the window
-// hears it.
+// reader names it; as it closes, focus goes back to whatever opened it. Tab and Shift+Tab walk its own controls and
+// wrap round, as the Calendar's appointment does (calendar-real.jsx crTrapTab): aria-modal tells a screen reader
+// that nothing outside the sheet is there, so focus that left it would be lost. Escape closes it, once, unless
+// something in it took the key first (a combobox's list closing): from inside the sheet its own handler hears the
+// key first and takes it, so a fold around it does not cancel as well; with focus outside it (a press on the wash),
+// the window hears it.
+//
+// So anything a sheet needs lives inside it. An Undo for a row taken out of the list goes inline, where the row
+// was, never in a toast: a toast is drawn outside the sheet, where Tab cannot reach it.
 //
 // It is drawn in the app's root (.app-root) rather than where the page put it. There, People's row keys hold still
 // while it is open, as they do for the phone's lists sheet and for any dialog in .app-root (PL_OVERLAY,
@@ -21,6 +26,19 @@
 // column, and animates itself in with a transform that would pin a fixed sheet to the pane.
 
 const { useRef: useSheetRef, useEffect: useSheetEffect, useCallback: useSheetCallback } = React;
+
+// The controls Tab walks, as crTrapTab counts them.
+const REC_SHEET_FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const recSheetTrapTab = (e, box) => {
+  if (!box || !box.querySelectorAll) return;
+  const els = Array.from(box.querySelectorAll(REC_SHEET_FOCUSABLE));
+  if (!els.length) { e.preventDefault(); return; }
+  const first = els[0];
+  const last = els[els.length - 1];
+  const at = document.activeElement;
+  if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+};
 
 const RecordSheet = ({ id = null, title, sub = null, onClose, tools = null, foot = null, closeLabel = "Close", children = null }) => {
   const closeRef = useSheetRef(onClose);
@@ -63,7 +81,7 @@ const RecordSheet = ({ id = null, title, sub = null, onClose, tools = null, foot
         aria-label={titleId ? undefined : typeof title === "string" ? title : undefined}
         aria-describedby={subId}
         tabIndex={-1}
-        onKeyDown={onEscape}
+        onKeyDown={(e) => { if (e.key === "Tab") recSheetTrapTab(e, e.currentTarget); else onEscape(e); }}
         data-testid={id ? `rec-sheet-${id}` : undefined}
       >
         <header className="rec-sheet-head">

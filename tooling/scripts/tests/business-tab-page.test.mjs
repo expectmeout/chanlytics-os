@@ -504,6 +504,31 @@ test("Escape closes a sheet, once, unless something in it took the key", () => {
   assert.equal(closed.length, 2, "a key a combobox inside already took is not the sheet's");
 });
 
+test("Tab stays inside a sheet, and wraps round both ways", () => {
+  const sheet = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet"));
+  const focused = [];
+  const [first, middle, last] = ["first", "middle", "last"].map((name) => ({ name, focus: () => focused.push(name) }));
+  // What the sheet's own controls would be, in the order a browser tabs through them.
+  const box = { querySelectorAll: () => [first, middle, last] };
+  const doc = globalThis.document;
+  const was = doc.activeElement;
+  const tabFrom = (at, shiftKey) => {
+    doc.activeElement = at;
+    const e = { key: "Tab", shiftKey, currentTarget: box, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+    sheet.props.onKeyDown(e);
+    return e.defaultPrevented;
+  };
+  try {
+    assert.equal(tabFrom(last, false), true, "Tab from the last control goes round to the first");
+    assert.equal(tabFrom(first, true), true, "Shift+Tab from the first goes round to the last");
+    assert.equal(tabFrom(box, true), true, "and from the sheet itself, where focus lands as it opens, to the last too");
+    assert.equal(tabFrom(middle, false), false, "between the ends, the browser moves focus as ever");
+  } finally {
+    doc.activeElement = was;
+  }
+  assert.deepEqual(focused, ["first", "last", "last"]);
+});
+
 test("a sheet takes focus as it opens, gives it back to what opened it, and opens inside the app", () => {
   const focused = [];
   const opener = { focus: () => focused.push("opener") };
