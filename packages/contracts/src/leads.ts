@@ -1075,7 +1075,10 @@ export function leadSearchWords(s: { asked: string; asked_on: string; plan?: Lea
   // Release A spells an exclusion `exclusions[]: { key, text, origin }` and a criterion
   // `criteria[]: { key, text, standard, required }` (lead-search.ts, LeadSearchPlanSchema):
   // what is left out is the exclusions list, and its words are `text`.
-  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter(Boolean);
+  // Said once: an exclusion the owner's own words already name ("…, leaving out Starbucks and other chains") is not
+  // said again after them. One Claude added ("chain stores like Barnes & Noble") still is.
+  const asked = s.asked.toLowerCase();
+  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter((t) => t && !asked.includes(t.toLowerCase()));
   const leaving = left.length ? ` Leaving out ${left.join(" and ")}.` : "";
   return { askedLine: `You asked on ${day}: “${s.asked}”.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
 }

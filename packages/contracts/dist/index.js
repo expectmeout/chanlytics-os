@@ -12614,7 +12614,8 @@ var LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
 function leadSearchWords(s, tz) {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
   const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
-  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter(Boolean);
+  const asked = s.asked.toLowerCase();
+  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter((t) => t && !asked.includes(t.toLowerCase()));
   const leaving = left.length ? ` Leaving out ${left.join(" and ")}.` : "";
   return { askedLine: `You asked on ${day}: \u201C${s.asked}\u201D.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
 }
