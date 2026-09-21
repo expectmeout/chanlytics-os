@@ -35,7 +35,6 @@ import { fakeDb } from "./_fake-db.mjs";
 // credentials are set per case, only where a request must reach the carrier.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.LINES_DRY_RUN = "1";
-process.env.BLOB_SHADOW = "off";
 process.env.RETELL_API_KEY = "retell-key-for-this-file";
 process.env.RETELL_FN_SECRET = "fn-secret-for-this-file";
 process.env.DASHBOARD_ORIGIN = "https://dash.test";

@@ -56,8 +56,8 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
   // cache, with only the wire replaced. PostgREST's two calls are answered as
   // PostgREST answers them.
   // No credentials, no client: what the door answers on a deployment whose
-  // Supabase env is not set. (It used to withhold PG_WRITES, which no longer
-  // decides anything — the client is keyed on the credentials alone.)
+  // Supabase env is not set. The client is keyed on the credentials alone;
+  // there is no flag on it to withhold.
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   const dark = await GET();
@@ -74,7 +74,6 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
     if (u.endsWith("/rest/v1/rpc/jobs_backlog")) return json(0);
     throw new Error(`the health door asked the database something it never did before: ${u}`);
   };
-  process.env.PG_WRITES = "on";
   process.env.SUPABASE_URL = "http://127.0.0.1:1";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
   try {
@@ -95,7 +94,6 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
     assert.equal(calls.length, 2, "cached: a noisy pinger is not a load on the database");
   } finally {
     globalThis.fetch = realFetch;
-    delete process.env.PG_WRITES;
     delete process.env.SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   }

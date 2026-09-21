@@ -1,4 +1,4 @@
-import { eligibleForPlaybook, localDate, nextOpenMoment, parseParamSpecs, planRun, triggerOf, visitFactsFor, type PersonRowVM, type PlaybookTrigger, type RunPlan } from "@chanlytics/contracts";
+import { localDate, nextOpenMoment, parseParamSpecs, planRun, playbookRunReach, triggerOf, visitFactsFor, type PersonRowVM, type PlaybookTrigger, type RunPlan, type RunReach } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import type { RunOutcome, RunPlaybookCommand, RunPlaybookPorts } from "./ports";
 
@@ -62,13 +62,18 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // A visit playbook without a calendar has nothing to read: off, and the run says so.
   if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") return off("no_calendar");
 
-  // Who the run reaches, with the number's daily limit as a ceiling.
-  let eligible = eligibleForPlaybook(
+  // Who the run reaches, with the number's daily limit as a ceiling -- and who
+  // it leaves out, and why, counted as it goes (playbookRunReach): the run
+  // keeps the counts, so the sheet it is approved from can say "186 of 312,
+  // 94 never said yes" instead of only the rules that made its list.
+  const drawn = playbookRunReach(
     ctx.people,
     { trigger: p.trigger as PlaybookTrigger, cap_per_run: p.cap_per_run, gap_days: p.gap_days, cadence_days: p.cadence_days },
     { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny },
     now.getTime(),
   );
+  let eligible = drawn.eligible;
+  const reach: RunReach = { ...drawn.reach };
   // The number's own daily limit is the one ceiling a reminder meets; the
   // people past it are named in the run's record, never dropped in silence.
   let dropped = 0;
@@ -76,8 +81,10 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     const keep = Math.max(0, Math.floor(ctx.health.limitPerDay));
     dropped = eligible.length - keep;
     eligible = eligible.slice(0, keep);
+    reach.overLimit = dropped;
+    reach.will = eligible.length;
   }
-  if (eligible.length === 0) { await record({ mode, eligible: 0, ...(dropped ? { dropped } : {}) }); return { outcome: "empty", eligible: 0, mode }; }
+  if (eligible.length === 0) { await record({ mode, eligible: 0, reach, ...(dropped ? { dropped } : {}) }); return { outcome: "empty", eligible: 0, mode }; }
 
   const specs = parseParamSpecs(p.params);
   // A visit run keeps each person's words on their row — the visit's time
@@ -97,7 +104,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       template_name: p.template_name,
       template_language: p.template_language,
       params: specs,
-      audience: { kind: "playbook", id: p.id, label: p.name },
+      // The run's own audience: the playbook, and who its moment named and left out.
+      audience: { kind: "playbook", id: p.id, label: p.name, reach },
       state: plan.state,
       scheduled_for: (open ? open.at : now).toISOString(),
       recipient_count: n,
@@ -120,7 +128,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do.`,
     );
   }
-  await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state, ...(movedFrom ? { moved_from: movedFrom } : {}) });
+  await record({ mode, eligible: n, reach, broadcast_id: made.id, state: plan.state, ...(movedFrom ? { moved_from: movedFrom } : {}) });
   // A sent run says when it really goes, so the person who asked is not told "now" over a run moved to nine.
   return open
     ? { outcome: "sent", broadcast_id: made.id, eligible: n, mode, state: plan.state, scheduled_for: open.at.toISOString(), moved_from: movedFrom }

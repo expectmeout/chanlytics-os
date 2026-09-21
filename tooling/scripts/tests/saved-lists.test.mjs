@@ -57,7 +57,8 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
 
 test("the page: the rail's Saved section is real, a name typed there is the only thing typed, a person joins from their profile", () => {
   const p = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(p.includes('data-testid="saved-lists"') && p.includes('data-testid="new-list"') && p.includes('data-testid="new-list-name"'));
+  // The Saved section itself is the rail kit's (RailSection), drawn and pressed in people-honest, not read here.
+  assert.ok(p.includes('data-testid="new-list"') && p.includes('data-testid="new-list-name"'));
   assert.ok(!p.includes("Saved lists need a segments table (Tier 2)"), "the demo-only block is gone");
   assert.ok(p.includes("if (savedId) {") && p.includes('data-testid="saved-filter"'), "a saved list filters the table like a computed one");
   assert.ok(p.includes('question={`Delete “${list.name}”?`} detail="The people stay."'), "deleting a list is asked once, through the one Confirm, in words that say what stays");

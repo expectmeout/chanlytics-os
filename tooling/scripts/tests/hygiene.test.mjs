@@ -69,15 +69,16 @@ test("F51: a cross-site GET of the workspaces reads and writes nothing", () => {
   assert.ok(route.includes('from "@/server/request-guards"'));
 });
 
-test("F15: the list route ships each turn's start, not every word's timing, and the viewers read either", () => {
+test("F15: the list route ships each turn's start and end, not every word's timing, and the viewers read either", () => {
   const stripped = stripWordTimings([
     { role: "agent", content: "hi", words: [{ word: "hi", start: 0.4, end: 0.6 }] },
     { role: "user", content: "when?", words: [{ word: "when", start: 27.2, end: 27.5 }, { word: "?", start: 27.5, end: 27.6 }] },
     { role: "injected", content: "owner text" },
   ]);
+  // Where each line ends as well as where it starts: the thread plays a call from a line and lights the one being said.
   assert.deepEqual(stripped, [
-    { role: "agent", content: "hi", start: 0.4 },
-    { role: "user", content: "when?", start: 27.2 },
+    { role: "agent", content: "hi", start: 0.4, end: 0.6 },
+    { role: "user", content: "when?", start: 27.2, end: 27.6 },
     { role: "injected", content: "owner text" },
   ]);
   assert.equal(stripWordTimings(null), null);

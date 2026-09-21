@@ -15,13 +15,13 @@
  * in the same words.
  */
 import { notify, recordNotification } from "./notify.js";
-import { emitEvent } from "./workspace/db.js";
-import { formatPhoneDisplay, lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./workspace/contracts.js";
-import { runLineSaga, type LineRow } from "./workspace/channels.js";
+import { emitEvent } from "./packages/db.js";
+import { formatPhoneDisplay, lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./packages/contracts.js";
+import { runLineSaga, type LineRow } from "./packages/channels.js";
 import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js";
 import type { ResumedBy } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 
 /**
  * A line stopped: tell the workspace's bell, the platform's mailbox and the ledger.

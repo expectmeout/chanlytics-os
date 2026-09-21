@@ -8,6 +8,9 @@
 //
 //   <RecordSheet id="services" title="…" sub="…" onClose={close} tools={<search/>} foot={<save/>}>…rows…</RecordSheet>
 //
+// `className` is a page's own class beside the kit's (a wider sheet, a body of its own), and `testid` names the sheet
+// when the page's tests know it by another name than `rec-sheet-<id>`.
+//
 // It is a dialog, and modal: role="dialog" with aria-modal, named by its heading and described by the line under
 // it (with an `id`; without one, named by its title). As it opens, focus moves to the sheet itself, so a screen
 // reader names it; as it closes, focus goes back to whatever opened it. Tab and Shift+Tab walk its own controls and
@@ -27,7 +30,7 @@
 
 const { useRef: useSheetRef, useEffect: useSheetEffect, useCallback: useSheetCallback } = React;
 
-const RecordSheet = ({ id = null, title, sub = null, onClose, tools = null, foot = null, closeLabel = "Close", children = null }) => {
+const RecordSheet = ({ id = null, title, sub = null, onClose, tools = null, foot = null, closeLabel = "Close", className = "", testid = null, children = null }) => {
   const closeRef = useSheetRef(onClose);
   closeRef.current = onClose;
   const opener = useSheetRef(null);
@@ -63,7 +66,7 @@ const RecordSheet = ({ id = null, title, sub = null, onClose, tools = null, foot
       <div className="rec-sheet-backdrop" aria-hidden="true" onMouseDown={(e) => e.preventDefault()} />
       <section
         ref={place}
-        className="rec-sheet"
+        className={`rec-sheet${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal={true}
         aria-labelledby={titleId}
@@ -71,7 +74,7 @@ const RecordSheet = ({ id = null, title, sub = null, onClose, tools = null, foot
         aria-describedby={subId}
         tabIndex={-1}
         onKeyDown={(e) => { if (e.key === "Tab") window.trapTab(e, e.currentTarget); else onEscape(e); }}
-        data-testid={id ? `rec-sheet-${id}` : undefined}
+        data-testid={testid || (id ? `rec-sheet-${id}` : undefined)}
       >
         <header className="rec-sheet-head">
           <div className="rec-sheet-heading">

@@ -1,5 +1,5 @@
 /**
- * Workspace indirection: the edge imports the BUILT package by relative path
+ * Package indirection: the edge imports the BUILT workspace package by relative path
  * so Vercel's function bundler traces real files — pnpm workspace symlinks
  * never survive into the lambda. dist/ is committed; rebuild via
  * `pnpm --filter "./packages/*" build`. Third-party deps (supabase-js) stay

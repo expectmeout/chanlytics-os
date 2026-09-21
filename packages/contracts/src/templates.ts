@@ -10,15 +10,14 @@
  */
 import { clockDate } from "./clock";
 import { agoWords } from "./time";
+import { WHATSAPP_LANGUAGES } from "./template-languages";
 
-export const TEMPLATE_LANGUAGES: readonly { id: string; label: string }[] = [
-  { id: "en_US", label: "English (US)" },
-  { id: "en", label: "English" },
-  { id: "es", label: "Spanish" },
-  { id: "es_MX", label: "Spanish (Mexico)" },
-  { id: "es_ES", label: "Spanish (Spain)" },
-  { id: "pt_BR", label: "Portuguese (Brazil)" },
-];
+/**
+ * The languages a template may be written in: every one WhatsApp takes
+ * (template-languages.ts). It was six, so a business writing to its customers
+ * in French or Vietnamese was told to "pick a language from the list".
+ */
+export const TEMPLATE_LANGUAGES: readonly { id: string; label: string }[] = WHATSAPP_LANGUAGES;
 
 export const TEMPLATE_CATEGORIES = ["marketing", "utility"] as const;
 export type TemplateCategoryChoice = (typeof TEMPLATE_CATEGORIES)[number];
@@ -164,6 +163,19 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   booking_link: "The booking link",
   visit_when: "Their visit's time",
   visit_service: "Their visit's service",
+};
+
+/**
+ * Where a filled slot's words come from, beside the words themselves in a
+ * composer: the example says what one person reads, this says what every
+ * person's is.
+ */
+export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string> = {
+  first_name: "Each person's own — “there” when none is on file",
+  business_name: "From Settings › Business",
+  booking_link: "From Settings › Business",
+  visit_when: "Each visit's own, from the calendar",
+  visit_service: "Each visit's own, from the calendar",
 };
 
 /**

@@ -154,6 +154,43 @@ test("a caller with no WhatsApp thread has one Call back: on the line that needs
   assert.ok(find(headOf(out), byTestId("ix-call-back")), "from the header");
 });
 
+test("REGRESSION: a call back is offered once whoever looks, its to-do said once, and the reply box says nothing technical beneath it", () => {
+  const caller = chat({ last_wa_inbound_at: null, last_message_at: ago(30), messages: [call("k1", 30)] });
+  const callback = { id: "e2", reason: "callback", details: "Call Rosa back about the bridal trial", state: "open", created_at: ago(29) };
+  const callBacks = (tree) => findAll(tree, (n) => (n.type === "a" || n.type === "button") && textOf(n).includes("Call back"));
+  const kept = globalThis.window.canDo;
+  try {
+    // A teammate who may not take the thread: the band's Call back takes it, and the reply box added one that dialled.
+    globalThis.window.canDo = (verb) => verb !== "approve";
+    assert.equal(callBacks(paneOf(vmOf(caller, callback))).length, 1, "REGRESSION: two Call backs, one taking the thread, one dialling");
+  } finally {
+    globalThis.window.canDo = kept;
+  }
+  const needsYou = paneOf(vmOf(caller, callback));
+  assert.equal(callBacks(needsYou).length, 1);
+  // The to-do is the band's sentence, and not said again beneath it.
+  const band = find(needsYou, byTestId("ix-th-status"));
+  assert.equal(find(band, byTestId("ix-take-ask")), undefined, "REGRESSION: \"From the call\" beneath the same words");
+  assert.match(textOf(band), /Call Rosa back about the bridal trial/);
+  assert.ok(!textOf(band).includes("couldn't finish it"), "the call is right above: the band says what to do");
+  // The reply box, while the templates are read and with none it can send: nothing technical beneath the band's call.
+  const kept2 = globalThis.window.__TEMPLATES;
+  try {
+    for (const read of [undefined, []]) {
+      globalThis.window.__TEMPLATES = read;
+      const text = textOf(paneOf(vmOf(caller, callback)));
+      for (const gone of ["Checking which templates are approved", "No approved message can go", "No approved template yet"]) {
+        assert.ok(!text.includes(gone), `REGRESSION: "${gone}" beneath the band's Call back (${JSON.stringify(read)})`);
+      }
+    }
+  } finally {
+    globalThis.window.__TEMPLATES = kept2;
+  }
+  // Taken over, the to-do is still said once.
+  const yours = paneOf(vmOf(chat({ last_wa_inbound_at: null, last_message_at: ago(30), messages: [call("k1", 30)], assignee_user_id: "u-me", assignee_is_me: true }), callback));
+  assert.equal(find(find(yours, byTestId("ix-th-status")), byTestId("ix-take-ask")), undefined);
+});
+
 test("on a phone, Back is the arrow alone: the top bar says Inbox over it, and '← Inbox' said it again", () => {
   const back = find(paneOf(vmOf(chat(), asked()), { onBack() {} }), byTestId("ix-back"));
   assert.deepEqual([textOf(back).trim(), back.props["aria-label"]], ["←", "Back to the list"]);

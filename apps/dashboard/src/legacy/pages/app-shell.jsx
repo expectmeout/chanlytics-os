@@ -531,25 +531,22 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     pane = true;
     content = <LiveMonitorPage initialCallId={param || null} />;
   } else if (page === "conversations") {
-    // Only the three channels are filters; anything else is a row's id, a chat's (its conversation's)
-    // or a call's (cv-). The shell passed cv- ids alone, so a profile linking a chat opened the first
-    // conversation in the list.
-    const chLabel = { phone: "Calls", chats: "Chats", mail: "Email" }[param];
-    const isCvId = !!param && !chLabel;
-    const cvWho = isCvId && (((window.CONVERSATIONS_DATA || {}).CONVERSATIONS || []).find(c => c.id === param) || {}).who;
+    // A tab or a row's id, a chat's (its conversation's) or a call's (cv-), by the page's one rule
+    // (conversations.jsx cvRoute). The shell passed cv- ids alone, so a profile linking a chat opened the first
+    // conversation in the list; then it knew only the mockup's three tabs, so a real workspace's WhatsApp and Email
+    // opened a conversation called "whatsapp" that nobody could find. The crumb says a tab in its chip's words.
+    const cvData = window.CONVERSATIONS_DATA || {};
+    const cv = window.CV_ROUTE(param);
+    const cvTab = cv.channel !== "all" && (cvData.CV_CHANNELS || []).find((t) => t.id === cv.channel);
+    const cvWho = cv.id && ((cvData.CONVERSATIONS || []).find(c => c.id === cv.id) || {}).who;
     activeNav = { phone: "calls", chats: "chats", mail: "email" }[param] || "conversations";
     crumbs = cvWho
       ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, cvWho]
-      : chLabel
-        ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, chLabel]
+      : cvTab
+        ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, cvTab.label]
         : [{ label: "Inbox", to: "inbox" }, "Conversations"];
     pane = true;
-    content = (
-      <ConversationsPage
-        channel={["phone", "chats", "mail"].includes(param) ? param : "all"}
-        initialId={isCvId ? param : null}
-      />
-    );
+    content = <ConversationsPage channel={cv.channel} initialId={cv.id} />;
   } else if (page === "pipeline") {
     activeNav = "pipeline";
     crumbs = ["People", "Deal board"];

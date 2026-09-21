@@ -3,6 +3,8 @@
  *
  * - A broadcast's composer could pick a visit's time a broadcast does not have, a visit playbook's composer held a
  *   value its select had no option for, and a run's detail printed "visit_when" (the wiring audit's C6, C24).
+ * - Every slot of a broadcast took any source, so a starter's first name could be set to the booking link and a
+ *   broadcast greeted everyone "Hi your booking link"; Send it again kept a run's sources as they were.
  * - Deleting a message a running playbook sends went through, and its runs skipped from then on (C8).
  * - A failed broadcast read "· failed" with its reason on file (C12); a send in flight was prose with no bar, an
  *   Approve could be pressed twice, and "N queued" counted runs waiting for a person (C14).
@@ -16,7 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 
-const { toBroadcastVM, stateOf, numberHealth, POLICY_CLASS_WORDS } = contracts;
+const { toBroadcastVM, stateOf, numberHealth } = contracts;
 const TID = "t-studio";
 const ZONE = "America/New_York";
 const H = 3_600_000;
@@ -62,7 +64,7 @@ const playbook = (over = {}) => ({
 const playbooksSurface = (over = {}) => ({
   rows: [playbook()], templates: [],
   triggers: [{ id: "quiet_30", label: "Quiet 30 days", hint: "anyone quiet for a month", cls: "reengage", list: "quiet_30", kind: "list", candidates: 4, held: 0 }],
-  classWords: POLICY_CLASS_WORDS, timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
+  timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio", bookingLink: false, fetchedAt: NOW, ...over,
 });
 
@@ -141,6 +143,7 @@ Object.assign(globalThis.window, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
+await import("../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
@@ -168,6 +171,8 @@ const textOf = (n) => {
   return textOf(n.props?.children);
 };
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
+/** A language chip in its two parts: the letters of the language in view, and "+1" for the rest ("" for none). */
+const chipSays = (chip) => [textOf(find(chip, (n) => n.props?.className === "lp-words")).trim(), textOf(find(chip, (n) => n.props?.className === "lp-more")).trim()];
 const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
 const fresh = () => { cells = []; seq = 0; went.length = 0; for (const k of Object.keys(listeners)) delete listeners[k]; };
@@ -231,16 +236,36 @@ const visitTemplate = () => {
     },
   };
 };
+/** A starter as WhatsApp holds it once approved: the library's words and slots. */
+const starterTemplate = (name) => {
+  const S = globalThis.window.__starters;
+  const s = S.byName(name);
+  const t = S.text(s, "en_US");
+  return templateRow({ id: `tpl-${name}`, name, category: s.category, purpose: s.category === "utility" ? "conversational" : "marketing",
+    body_preview: t.body, variables: t.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })) });
+};
+/** Each slot as the composer lists it: what fills it, and what else it offers (nothing, when it has no choice). */
+const slotsOf = (tree) => all(tree, (n) => n.props?.["data-testid"] === "bc-var").map((f) => {
+  const sel = find(f, (n) => n.props?.["data-testid"] === "bc-var-source");
+  return { kind: f.props["data-kind"], offers: sel ? all(sel, (n) => n.type === "option").map((o) => o.props.value) : [] };
+});
 
 /* ------------------------------ a slot's words ------------------------------ */
 
 test("REGRESSION (C6): a broadcast offers no visit's words, and a run's values say what fills them -- a broadcast could name a visit it does not have, and the detail printed visit_when", async () => {
   const { row, slots } = visitTemplate();
   assert.ok(slots.some((s) => s.kind.startsWith("visit_")), "the fixture is the starter that names a visit");
-  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [row], number: healthyNumber });
+  // Beside it, a message written elsewhere: each of its slots a guess, so each may take any source a broadcast has.
+  const own = templateRow({ id: "tpl-own", name: "autumn_offer", purpose: "marketing", body_preview: "Hi {{1}}, {{2}} {{3}}.",
+    variables: [{ position: 1, label: "Name", example: "Dani" }, { position: 2, label: "The offer", example: "20% off" }, { position: 3, label: "When", example: "tomorrow at 2" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [row, own], number: healthyNumber });
   let tree = writing({ initialSegment: null, initialRun: null });
+  // The visit reminder is a visit playbook's: a broadcast has no visit to fill its time and service with, so it is
+  // not offered. It was, with those two slots typed once for everyone.
+  const chips = all(tree, (n) => n.props?.["data-testid"] === "bc-template");
+  assert.deepEqual(chips.map((c) => textOf(c).toLowerCase().includes("autumn")), [true], `REGRESSION: ${chips.map(textOf).join(" | ")}`);
   const selects = all(tree, (n) => n.props?.["data-testid"] === "bc-var-source");
-  assert.equal(selects.length, slots.length);
+  assert.equal(selects.length, own.variables.length);
   for (const sel of selects) {
     const offered = all(sel, (n) => n.type === "option").map((o) => o.props.value);
     assert.ok(!offered.some((k) => k.startsWith("visit_")), `REGRESSION: a broadcast offered ${offered.join(", ")}`);
@@ -256,16 +281,63 @@ test("REGRESSION (C6): a broadcast offers no visit's words, and a run's values s
   assert.equal(textOf(values), "Values: their visit's time · their first name", "REGRESSION: visit_when");
 });
 
-test("REGRESSION (C6): a visit playbook's composer offers its visit's words -- the starter's slot held a value its select had no option for", () => {
+test("REGRESSION (C6): a visit playbook's composer fills its visit's words -- the starter's slot held a value its select had no option for", () => {
   const { row, slots } = visitTemplate();
   const tree = composerOf(playbooksSurface({
     rows: [], templates: [row], calendar: "ok",
     triggers: [{ id: "visit_tomorrow", label: "Visit reminder", hint: "The day before an appointment on the calendar", cls: "booking", list: null, kind: "visit", candidates: 2, held: 0 }],
   }));
-  const selects = all(tree, (n) => n.props?.["data-testid"] === "pb-var-source");
-  assert.deepEqual(selects.map((s) => s.props.value), slots.map((s) => (s.kind === "booking_link" ? "text" : s.kind)), "the starter's own slots, a link the workspace lacks typed");
-  for (const sel of selects) assert.ok(find(sel, (n) => n.type === "option" && n.props.value === sel.props.value), `REGRESSION: ${sel.props.value} had no option`);
-  assert.equal(textOf(find(tree, (n) => n.type === "option" && n.props.value === "visit_when")), "Their visit's time");
+  // The sheet draws what it is given, so a walk of the page meets each slot twice: once is one slot.
+  const fills = [...new Map(all(tree, (n) => n.props?.["data-testid"] === "pb-fill").map((f) => [f.props.key, f])).values()];
+  assert.deepEqual(fills.map((f) => f.props["data-kind"]), slots.map((s) => (s.kind === "booking_link" ? "text" : s.kind)), "the starter's own slots, a link the workspace lacks typed");
+  for (const f of fills) {
+    const sel = find(f, (n) => n.props?.["data-testid"] === "pb-fill-source");
+    if (sel) assert.ok(find(sel, (n) => n.type === "option" && n.props.value === f.props["data-kind"]), `REGRESSION: ${f.props["data-kind"]} had no option`);
+  }
+  assert.ok(textOf(fills[slots.findIndex((s) => s.kind === "visit_when")]).includes("Their visit's time"));
+});
+
+test("REGRESSION: a starter's first name is each person's own on a broadcast and offers no other source -- it could be set to the booking link, and a broadcast greeted everyone 'Hi your booking link'", async () => {
+  const sent = [];
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [starterTemplate("winback_offer")], number: healthyNumber, bookingLink: true });
+  globalThis.window.__broadcasts.send = async (body) => { sent.push(body); return { ok: true, data: { id: "b-new", name: "Win-back", recipient_count: 2, scheduled_for: new Date().toISOString(), moved_from: null } }; };
+  let tree = writing({ initialSegment: null, initialRun: null });
+  assert.deepEqual(slotsOf(tree), [
+    { kind: "first_name", offers: [] },
+    { kind: "business_name", offers: ["business_name", "text"] },
+    { kind: "booking_link", offers: ["booking_link", "text"] },
+  ], "a first name has no choice; the business name and the link may be typed over, and nothing else");
+  const first = all(tree, (n) => n.props?.["data-testid"] === "bc-var")[0];
+  assert.ok(textOf(first).includes("Their first name") && textOf(first).includes("“there” when none is on file"), `the words, and what a person with no name on file reads: ${textOf(first)}`);
+  assert.equal(byTestId(tree, "bc-var-input"), null, "nothing to type on a starter that knows every slot");
+
+  // Typed over, the business name starts from it; what goes out greets each person by their own name.
+  find(all(tree, (n) => n.props?.["data-testid"] === "bc-var")[1], (n) => n.props?.["data-testid"] === "bc-var-source").props.onChange({ target: { value: "text" } });
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(byTestId(tree, "bc-var-input").props.value, "Northside Studio");
+  press(byTestId(tree, "bc-send"));
+  await press(byTestId(again({ initialSegment: null, initialRun: null }), "bc-send-yes"));
+  assert.deepEqual(sent.at(-1).params, [{ kind: "first_name" }, "Northside Studio", { kind: "booking_link" }]);
+});
+
+test("REGRESSION: Send it again puts right a slot a run filled with what it cannot take -- the composer took a run's sources as they were", async () => {
+  // Sent by hand with the old free choice: the first name filled by the booking link, the business name typed, and a link the workspace has since removed.
+  const wrong = dto({ id: "b-wrong", name: "Win-back by hand", playbook_id: null, run_for: null, template_id: "tpl-winback_offer", template_name: "winback_offer",
+    audience: { kind: "saved", id: "s1", label: "Regulars" }, params: [{ kind: "booking_link" }, { kind: "text", value: "Northside" }, { kind: "booking_link" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [starterTemplate("winback_offer")], number: healthyNumber, rows: [toBroadcastVM(wrong, ZONE)] });
+  answers.set("b-wrong", [{ ok: true, data: detailOf(wrong) }]);
+  const props = { initialSegment: null, initialRun: "b-wrong" };
+  page(props);
+  await settle();
+  press(byTestId(again(props), "bc-again"));
+  again({ initialSegment: null, initialRun: null });
+  const tree = again({ initialSegment: null, initialRun: null });
+  assert.deepEqual(slotsOf(tree), [
+    { kind: "first_name", offers: [] },
+    { kind: "text", offers: ["business_name", "text"] },
+    { kind: "text", offers: [] },
+  ], "each person's own name; the words it said, where words may go; a link with none on file can only be typed");
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "bc-var-input").map((x) => x.props.value), ["Northside", ""]);
 });
 
 /* ------------------------------ a broadcast's state ------------------------------ */
@@ -308,7 +380,7 @@ test("an opened run is sent again from its own head: the send screen, filled wit
   assert.ok(textOf(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && String(n.props.className).includes("active"))).startsWith("Regulars"), "its list");
   assert.ok(find(tree, (n) => n.props?.["data-testid"] === "bc-template" && n.props["aria-pressed"] === true && textOf(n).toLowerCase().includes("autumn")), "its template, not the one the screen opens on");
   assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "bc-var-source").map((x) => x.props.value), ["first_name", "text"], "its values, by what fills them");
-  assert.equal(all(byTestId(tree, "bc-vars"), (n) => n.type === "input")[1].props.value, "20% off colour", "and the words it said");
+  assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "20% off colour", "and the words it said");
 
   // A playbook's run is sent again by its playbook, and a template WhatsApp no longer approves cannot go at all.
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
@@ -389,6 +461,31 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     delete globalThis.window.__broadcasts.approve;
     delete globalThis.window.__broadcasts.cancel;
   }
+});
+
+test("a run that kept who it left out opens as the board's card: of how many, the grey and the amber, a line per reason, and the door to getting their yes", async () => {
+  const today = globalThis.window.__clock.dayKey(Date.now());
+  const offer = { id: "tpl-offer", channel: "whatsapp", name: "monthly_offer", language: "en_US", meta_status: "approved", category: "marketing", purpose: "marketing", body_preview: "Hi {{1}}, a free gloss with any cut.", variables: [] };
+  const reach = { pool: 312, will: 186, noNumber: 0, stopped: 0, noYes: 94, heardThis: 0, heardAny: 32, overCap: 0, overLimit: 0 };
+  const waiting = dto({ id: "b-kept", name: "The month's offer", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(-H), counts: quiet, recipient_count: 186,
+    playbook_id: "pb-offer", run_for: today, template_id: "tpl-offer", template_name: "monthly_offer", params: [{ kind: "first_name" }], audience: { kind: "playbook", id: "pb-offer", label: "The month's offer", reach } });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], rows: [toBroadcastVM(waiting, ZONE)] });
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ rows: [playbook({ id: "pb-offer", name: "The month's offer", trigger: "everyone_monthly", policy_class: "campaign", cap_per_run: 250, cadence_days: 30 })] });
+  answers.set("b-kept", [{ ok: true, data: detailOf(waiting, [person({ state: "queued", sent_at: null, message_status: null, delivered_at: null })]) }]);
+  const props = { initialSegment: null, initialRun: "b-kept" };
+  page(props);
+  await settle();
+  const tree = again(props);
+  const card = byTestId(byTestId(tree, "bc-sheet"), "bc-sheet-reach");
+  assert.equal(textOf(byTestId(card, "bc-sheet-pool")), "312", "out of everyone its moment named");
+  assert.deepEqual(all(byTestId(card, "bc-sheet-why"), (n) => n.type === "li").map((li) => textOf(li)), ["94 never said yes to offersGet their yes", "32 heard from a playbook this week"]);
+  // The bar is the whole list: green reaches, amber waits, and the grey is the rest.
+  const parts = all(card, (n) => /^bc-sheet-bar-/.test(String(n.props?.className || ""))).map((n) => [n.props.className, n.props.style ? n.props.style.width : null]);
+  assert.deepEqual(parts, [["bc-sheet-bar-will", "59.6%"], ["bc-sheet-bar-held", "10.3%"], ["bc-sheet-bar-rest", null]]);
+  assert.equal(textOf(card).includes("each said yes to offers"), false, "the counts stand where the rules stood");
+  // Of every reason, the one an owner can change opens where it is changed.
+  press(byTestId(card, "bc-sheet-door"));
+  assert.equal(went.at(-1), "broadcasts/get-yes");
 });
 
 test("Broadcasts is one ledger: the runs waiting on you said at the head, a band bar whose legend filters the runs, the week ahead, and the composer its own screen", () => {
@@ -572,24 +669,40 @@ test("A message is a row you scan, and the words open under it: what it is, ever
   assert.ok(textOf(byTestId(row, "template-users")).includes("Win-back"), "and what sends it, closed");
   assert.equal(byTestId(row, "template-open-body"), null, "the whole message is not drawn until it is asked for");
 
-  // A message the workspace wrote has a slot per language it exists in: nobody
-  // can "add Spanish" to words nobody has written.
-  assert.deepEqual(all(row, (n) => n.props?.["data-testid"] === "template-lang").map((sl) => textOf(sl).trim()), ["EN"]);
+  // ONE language control per message, where a slot per language stood ("EN ES"
+  // on every row): the language in view, its state drawn, and no "+1" for a
+  // message that exists in one language.
+  const chips = all(row, (n) => n.props?.["data-testid"] === "template-lang");
+  assert.equal(chips.length, 1);
+  assert.equal(textOf(chips[0]).trim(), "EN");
+  assert.equal(chips[0].props["data-tone"], "ok", "its state, drawn");
 
-  // A STARTER has a slot per language the workspace answers in, including the one
-  // it is missing -- a language that did not exist was simply absent before, which
-  // is the hole the toolbar's arithmetic ("Add the 3 in English") was describing.
+  // A STARTER's chip opens its languages in groups: the one WhatsApp holds, the
+  // one the library has written and the workspace never added -- a language that
+  // did not exist was simply absent before, which is the hole the toolbar's
+  // arithmetic ("Add the 3 in English") was describing -- and every other
+  // language WhatsApp takes.
   tree = messages({ __TEMPLATES_ALL: [en, templateRow({ id: "t-w", name: "winback_offer", language: "en_US", meta_status: "approved" })] });
-  const starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
-  const slots = all(starter, (n) => n.props?.["data-testid"] === "template-lang");
-  assert.deepEqual(slots.map((sl) => textOf(sl).trim()), ["EN", "ES"]);
-  assert.deepEqual(slots.map((sl) => sl.props["data-tone"]), ["ok", "none"], "approved, and one WhatsApp has never seen");
+  let starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
+  const chip = byTestId(starter, "template-lang");
+  assert.equal(textOf(chip).trim(), "EN", "Spanish is not on file, so there is nothing more to count");
+  press(chip);
+  tree = messagesAgain();
+  starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
+  const options = all(starter, (n) => n.props?.["data-testid"] === "template-lang-option");
+  const group = (g) => options.filter((o) => o.props["data-group"] === g).map((o) => o.props["data-lang"]);
+  assert.deepEqual(group("on"), ["en_US"]);
+  assert.deepEqual(group("ready"), ["es"], "the library's Spanish, never added");
+  assert.equal(group("add").length, globalThis.window.__starters.allLanguages.length - 2, "and every other language WhatsApp takes");
+  assert.equal(options.find((o) => o.props["aria-selected"]).props["data-lang"], "en_US", "the one in view is ticked");
 
-  // Pressing the empty one puts that language in view and opens the message,
-  // where the words WhatsApp would review are, and the Add beside them.
-  press(slots[1]);
+  // Picking the library's Spanish puts it in view and opens the message, where
+  // the words WhatsApp would review are, and the Add beside them.
+  press(options.find((o) => o.props["data-lang"] === "es"));
   tree = messagesAgain();
   const open = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
+  assert.deepEqual(chipSays(byTestId(open, "template-lang")), ["ES", "+1"], "the chip says the language in view, and that English is on file too");
+  assert.equal(byTestId(open, "template-lang").props["data-tone"], "none", "which WhatsApp has never seen");
   assert.ok(byTestId(open, "template-open-body"), "the message opens on the language that was pressed");
   assert.ok(textOf(open).includes("Not on WhatsApp in Spanish yet"), textOf(open));
   assert.ok(byTestId(open, "starter-add"), "and the Add for that language is beside its words");
@@ -600,6 +713,211 @@ test("A message is a row you scan, and the words open under it: what it is, ever
   tree = messagesAgain();
   assert.equal(byTestId(all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0], "template-open-body"), null, "the one that was open is closed");
   assert.ok(byTestId(byTestId(tree, "custom-row"), "template-open-body"), "and the one that was pressed is open");
+});
+
+/* -------------------------- a message in one more language -------------------------- */
+
+/** The written-here offer, in English, with its first name slot filed as the create path files it. */
+const offerEn = (over = {}) => templateRow({
+  id: "t-en", name: "offer", language: "en_US", meta_status: "approved", category: "marketing",
+  body_preview: "Hi {{1}}, 20% off any service this week.", variables: [{ position: 1, label: "First name", example: "Dani" }], footer: "Reply STOP to opt out", ...over,
+});
+/** The chip's options in a row, and one of them by its code. */
+const optionsIn = (row) => all(row, (n) => n.props?.["data-testid"] === "template-lang-option");
+const optionOf = (row, lang) => optionsIn(row).find((o) => o.props["data-lang"] === lang);
+
+test("A language nobody has written is picked from the one chip and written in the row it opened: the same message, drafted from its own words, sent when the owner says", async () => {
+  const drafts = [];
+  const made = [];
+  const keep = globalThis.window.__templates;
+  globalThis.window.__templates = {
+    ...keep,
+    draft: async (b) => {
+      drafts.push(b);
+      return { ok: true, data: { draft: { name: "offer", body: "Oi {{1}}, 20% de desconto em qualquer serviço esta semana.", footer: "Responda STOP para sair", examples: ["Dani"], variables: [{ position: 1, label: "First name" }], warnings: [], category: "marketing", language: "pt_BR", button: null, from: "en_US" } } };
+    },
+    create: async (b) => { made.push(b); return { ok: true, data: { id: "t-pt", name: b.name, language: b.language, meta_status: "pending" } }; },
+  };
+  toasts.length = 0;
+  try {
+    let tree = messages({ __TEMPLATES_ALL: [offerEn()] });
+    press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+    tree = messagesAgain();
+    // Every language WhatsApp takes, under "Translate into", for a message written here.
+    const pt = optionOf(byTestId(tree, "custom-row"), "pt_BR");
+    assert.equal(pt.props["data-group"], "add");
+    press(pt);
+    tree = messagesAgain();
+    let row = byTestId(tree, "custom-row");
+    // Picked, it opens the row on the new language and starts writing it at once.
+    assert.equal(byTestId(row, "tpl-composer").props["data-mode"], "translate");
+    assert.ok(byTestId(row, "tpl-translating"), "the shape of the words while the assistant writes");
+    assert.deepEqual(drafts, [{ language: "pt_BR", translate: { id: "t-en" } }], "written FROM the English on file, once");
+    assert.deepEqual(chipSays(byTestId(row, "template-lang")), ["PT", "+1"]);
+    assert.equal(byTestId(row, "template-lang").props["data-tone"], "none", "a language WhatsApp has never seen");
+    assert.ok(textOf(row).includes("“Hi {first name}, 20% off any service this week.”"), "the row still quotes the message while its new language is written");
+
+    await settle();
+    tree = messagesAgain();
+    row = byTestId(tree, "custom-row");
+    assert.equal(drafts.length, 1, "drawn again, it does not ask again");
+    assert.equal(byTestId(row, "tpl-body").props.value, "Oi {{1}}, 20% de desconto em qualquer serviço esta semana.", "the words, to read and change");
+    assert.equal(byTestId(row, "tpl-name"), null, "the name is the message's own: nothing to type");
+    assert.ok(textOf(byTestId(row, "tpl-composer")).includes("Written from the English (US) words"), textOf(byTestId(row, "tpl-composer")));
+    assert.ok(byTestId(row, "tpl-preview"), "and the message as the customer will read it");
+
+    await press(byTestId(row, "tpl-submit"));
+    assert.deepEqual(made, [{ name: "offer", language: "pt_BR", category: "marketing", body: "Oi {{1}}, 20% de desconto em qualquer serviço esta semana.", footer: "Responda STOP para sair", examples: ["Dani"], labels: ["First name"], button: null }], "the same name, in one more language");
+    tree = messagesAgain();
+    row = byTestId(tree, "custom-row");
+    assert.ok(byTestId(row, "template-new-sent"), "it says it went, rather than offering the words to send twice");
+    assert.equal(byTestId(row, "tpl-composer"), null);
+    assert.ok(textOf(toasts.at(-1).msg).includes("in Portuguese (Brazil) went to WhatsApp"), textOf(toasts.at(-1).msg));
+
+    // With the next read the row is on file, in review, and the chip draws it so.
+    Object.assign(globalThis.window, { __TEMPLATES_ALL: [offerEn(), offerEn({ id: "t-pt", language: "pt_BR", meta_status: "pending", body_preview: made[0].body })] });
+    tree = messagesAgain();
+    row = byTestId(tree, "custom-row");
+    assert.equal(byTestId(row, "template-lang").props["data-tone"], "info");
+    assert.equal(textOf(byTestId(row, "template-status")).trim(), "Portuguese (Brazil) in review");
+  } finally {
+    globalThis.window.__templates = keep;
+  }
+});
+
+test("Cancel goes back to the language that was in view; a heading, or a role that may not add one, keeps the other languages out of the list and says why", async () => {
+  const keep = globalThis.window.__templates;
+  globalThis.window.__templates = { ...keep, draft: async () => ({ ok: false, message: "The assistant is not available right now. Try again in a moment." }) };
+  try {
+    let tree = messages({ __TEMPLATES_ALL: [offerEn()] });
+    press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+    tree = messagesAgain();
+    press(optionOf(byTestId(tree, "custom-row"), "fr"));
+    messagesAgain();
+    await settle();
+    tree = messagesAgain();
+    let row = byTestId(tree, "custom-row");
+    // A draft that could not be written says why, and offers another try -- not empty boxes.
+    assert.ok(textOf(byTestId(row, "tpl-translate-failed")).includes("not available right now"));
+    assert.ok(byTestId(row, "tpl-translate-again"));
+    // Another new language picked from there, and Cancel still goes back to the
+    // English -- never to the French that was only being drafted.
+    press(byTestId(row, "template-lang"));
+    tree = messagesAgain();
+    press(optionOf(byTestId(tree, "custom-row"), "de"));
+    tree = messagesAgain();
+    row = byTestId(tree, "custom-row");
+    assert.deepEqual(chipSays(byTestId(row, "template-lang")), ["DE", "+1"]);
+    press(byTestId(row, "tpl-cancel"));
+    tree = messagesAgain();
+    row = byTestId(tree, "custom-row");
+    assert.deepEqual(chipSays(byTestId(row, "template-lang")), ["EN", ""], "back on English, and nothing more on file");
+    assert.equal(byTestId(row, "tpl-composer"), null);
+    assert.ok(byTestId(row, "message-preview"), "the English, as the customer reads it");
+  } finally {
+    globalThis.window.__templates = keep;
+  }
+
+  // A starter in a language its library never wrote is written like any other
+  // message -- never the library's English passed off under a Portuguese heading --
+  // from the row on file, or from the library's English when nothing is on file.
+  // (The library's LAST starter: the test's React keys every hook by one global
+  // order, so a composer opening in an earlier row would shift the rows under it.)
+  const asked = [];
+  const last = globalThis.window.__starters.list.at(-1);
+  globalThis.window.__templates = { ...keep, draft: async (b) => { asked.push(b); return { ok: false, message: "no" }; } };
+  try {
+    const starterIn = (list) => {
+      let t = messages({ __TEMPLATES_ALL: list });
+      press(byTestId(all(t, (n) => n.props?.["data-testid"] === "starter-row").at(-1), "template-lang"));
+      t = messagesAgain();
+      press(optionOf(all(t, (n) => n.props?.["data-testid"] === "starter-row").at(-1), "pt_BR"));
+      t = messagesAgain();
+      return all(t, (n) => n.props?.["data-testid"] === "starter-row").at(-1);
+    };
+    let s = starterIn([templateRow({ id: "t-s", name: last.name, language: "en_US", meta_status: "approved", category: last.category })]);
+    assert.equal(byTestId(s, "tpl-composer").props["data-mode"], "translate");
+    assert.equal(byTestId(s, "starter-add"), null, "nothing to add as it is: the library has no Portuguese");
+    assert.ok(!textOf(s).includes("the words WhatsApp would review"), "and no English passed off as Portuguese");
+    s = starterIn([]);
+    assert.equal(byTestId(s, "tpl-composer").props["data-mode"], "translate");
+    assert.deepEqual(asked, [{ language: "pt_BR", translate: { id: "t-s" } }, { language: "pt_BR", translate: { starter: last.key, from: "en_US" } }]);
+  } finally {
+    globalThis.window.__templates = keep;
+  }
+
+  // A language that stops being on file -- deleted, or gone with a sync -- is not a
+  // request to write it again: the row falls back to one it has, and nothing is drafted.
+  const drafted = [];
+  globalThis.window.__templates = { ...keep, draft: async (b) => { drafted.push(b); return { ok: false, message: "no" }; } };
+  try {
+    const pt = offerEn({ id: "t-pt", language: "pt_BR", body_preview: "Oi {{1}}, 20% de desconto esta semana." });
+    let t = messages({ __TEMPLATES_ALL: [offerEn(), pt] });
+    press(byTestId(byTestId(t, "custom-row"), "template-lang"));
+    t = messagesAgain();
+    press(optionOf(byTestId(t, "custom-row"), "pt_BR"));
+    t = messagesAgain();
+    assert.deepEqual(chipSays(byTestId(byTestId(t, "custom-row"), "template-lang")), ["PT", "+1"]);
+    Object.assign(globalThis.window, { __TEMPLATES_ALL: [offerEn()] });
+    t = messagesAgain();
+    const r = byTestId(t, "custom-row");
+    assert.deepEqual(chipSays(byTestId(r, "template-lang")), ["EN", ""], "back on the language it has");
+    assert.equal(byTestId(r, "tpl-composer"), null);
+    assert.deepEqual(drafted, [], "and the assistant was never asked");
+  } finally {
+    globalThis.window.__templates = keep;
+  }
+
+  // A heading would not come with it: no language to translate into, and the reason where they would be.
+  let tree = messages({ __TEMPLATES_ALL: [offerEn({ header: "Fall news" })] });
+  press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+  tree = messagesAgain();
+  let row = byTestId(tree, "custom-row");
+  assert.deepEqual([...new Set(optionsIn(row).map((o) => o.props["data-group"]))], ["on"]);
+  assert.ok(textOf(byTestId(row, "template-lang-note")).includes("it has a heading"), textOf(byTestId(row, "template-lang-note")));
+
+  // Someone who may not add a template sees the languages WhatsApp holds, and why there are no more.
+  const canDo = globalThis.window.canDo;
+  globalThis.window.canDo = () => false;
+  try {
+    tree = messages({ __TEMPLATES_ALL: [offerEn()] });
+    press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+    tree = messagesAgain();
+    row = byTestId(tree, "custom-row");
+    assert.deepEqual([...new Set(optionsIn(row).map((o) => o.props["data-group"]))], ["on"]);
+    assert.equal(textOf(byTestId(row, "template-lang-note")).trim(), "Only an owner or operator can add a language.");
+  } finally {
+    globalThis.window.canDo = canDo;
+  }
+});
+
+test("A new template may be written in any language WhatsApp takes, found by typing it -- the composer offered six", async () => {
+  const drafts = [];
+  const keep = globalThis.window.__templates;
+  globalThis.window.__templates = { ...keep, draft: async (b) => { drafts.push(b); return { ok: false, message: "no" }; } };
+  try {
+    fresh();
+    const draw = () => { seq = 0; return globalThis.window.TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} }); };
+    let tree = draw();
+    const field = byTestId(tree, "tpl-language");
+    assert.equal(textOf(find(field, (n) => n.props?.className === "lp-words")).trim(), "English (US)", "the language in words, as the fields beside it are");
+    press(field);
+    tree = draw();
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "tpl-language-option").length, globalThis.window.__starters.allLanguages.length);
+    byTestId(tree, "tpl-language-search").props.onChange({ target: { value: "fran" } });
+    tree = draw();
+    const found = all(tree, (n) => n.props?.["data-testid"] === "tpl-language-option").map((o) => o.props["data-lang"]);
+    assert.deepEqual(found, ["fr", "fr_BE", "fr_CA", "fr_CI", "fr_MA", "fr_CH"], "French by its own name, every place WhatsApp files it");
+    press(all(tree, (n) => n.props?.["data-testid"] === "tpl-language-option")[0]);
+    tree = draw();
+    assert.equal(textOf(find(byTestId(tree, "tpl-language"), (n) => n.props?.className === "lp-words")).trim(), "French");
+    byTestId(tree, "tpl-brief").props.onChange({ target: { value: "Twenty percent off colour this week" } });
+    tree = draw();
+    await press(byTestId(tree, "tpl-draft"));
+    assert.equal(drafts[0].language, "fr", "the draft is asked for in French");
+  } finally {
+    globalThis.window.__templates = keep;
+  }
 });
 
 test("A message says whether it may be sent to everyone, on the row: marketing is a rule about who it can reach, not a label", () => {
@@ -858,20 +1176,27 @@ test("One chip per message, its languages inside it -- the starter set in two dr
   const titles = chips.map((c) => textOf(c).trim());
   assert.equal(new Set(titles).size, titles.length, `REGRESSION: two chips read alike -- ${titles.join(" | ")}`);
 
-  // Each chip carries its languages, in words, as its own buttons.
+  // Each chip carries ONE language control -- the language it would go in -- where
+  // a toggle spelled out every language of every message: "English | Spanish".
   const langs = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang");
-  assert.equal(langs.length, starters.length * 2);
-  assert.deepEqual([...new Set(langs.map((l) => textOf(l).trim()))].sort(), ["English", "Spanish"]);
-  // A group with one language shows no toggle at all.
+  assert.equal(langs.length, starters.length);
+  assert.deepEqual([...new Set(langs.map((l) => textOf(l).trim()))], ["EN"], "the letters of the language each would go in");
+  // A group with one language shows no language control at all.
   globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [rows[rows.length - 1]], number: healthyNumber });
   assert.equal(all(writing({ initialSegment: null, initialRun: null }), (n) => n.props?.["data-testid"] === "bc-template-lang").length, 0);
 
   // Picking a language picks THAT row, and the armed send names it.
   globalThis.window.__BROADCASTS = broadcastsSurface({ templates: rows, number: healthyNumber });
   tree = writing({ initialSegment: null, initialRun: null });
-  const spanish = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang").find((n) => textOf(n).trim() === "Spanish");
-  press(spanish);
+  press(all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang")[0]);
   tree = again({ initialSegment: null, initialRun: null });
+  const offered = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang-option");
+  const words = (o) => textOf(find(o, (n) => n.props?.className === "lp-opt-label")).trim();
+  assert.deepEqual(offered.map(words), ["English", "Spanish"], "every language the message is approved in, in words -- and nothing it is not");
+  assert.ok(textOf(offered[1]).includes("Español"), "each in its own words too, where they differ");
+  press(offered.find((n) => words(n) === "Spanish"));
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(textOf(byTestId(find(tree, (n) => String(n.props?.className || "").includes("tpl-chip active")), "bc-template-lang")).trim(), "ES", "the picked chip says the language it goes in");
   press(byTestId(tree, "bc-send"));
   tree = again({ initialSegment: null, initialRun: null });
   assert.ok(textOf(byTestId(tree, "bc-send-confirm")).includes("(Spanish)"), textOf(byTestId(tree, "bc-send-confirm")));
@@ -881,9 +1206,11 @@ test("One chip per message, its languages inside it -- the starter set in two dr
   const opened = (list) => {
     globalThis.window.__BROADCASTS = broadcastsSurface({ templates: list, number: healthyNumber });
     const t = writing({ initialSegment: null, initialRun: null });
-    const on = all(t, (n) => n.props?.["data-testid"] === "bc-template-lang").find((n) => String(n.props.className).includes("on"));
-    return on ? textOf(on).trim() : null;
+    const chip = find(t, (n) => String(n.props?.className || "").includes("tpl-chip active"));
+    const on = chip ? byTestId(chip, "bc-template-lang") : null;
+    return on ? `${textOf(byTestId(chip, "bc-template")).trim()} ${textOf(on).trim()}` : null;
   };
+  assert.ok(opened(rows), "the composer opens on a message with its language");
   assert.equal(opened(rows), opened(rows.slice().reverse()), "the picker opens on the same language either way");
 });
 
@@ -924,20 +1251,26 @@ test("A message says its state once, and a refusal is a line rather than a hover
     templateRow({ id: "t-en", name: "offer", language: "en_US", meta_status: "approved" }),
     templateRow({ id: "t-es", name: "offer", language: "es", meta_status: "pending" }),
   ] });
-  // Scoped to the workspace's own message: every starter on the page now has a
-  // slot per language too -- an empty one for a language it is missing -- so the
-  // count across the page is every message's languages, not this message's.
-  const langs = all(byTestId(tree, "custom-row"), (n) => n.props?.["data-testid"] === "template-lang");
-  assert.equal(langs.length, 2);
-  for (const l of langs) assert.ok(!/approved|review/i.test(textOf(l)), `a language slot says a language, not a state: ${textOf(l)}`);
-  // Each slot DRAWS its own language's state, so the row is legible at a glance.
-  assert.deepEqual(langs.map((l) => l.props["data-tone"]), ["ok", "info"]);
+  // One chip for both: the language in view, its state DRAWN, and "+1" for the
+  // other -- a language, not a state, in its words.
+  let chip = byTestId(byTestId(tree, "custom-row"), "template-lang");
+  assert.deepEqual(chipSays(chip), ["EN", "+1"]);
+  assert.ok(!/approved|review/i.test(textOf(chip)), `the chip says a language, not a state: ${textOf(chip)}`);
+  assert.equal(chip.props["data-tone"], "ok");
+  // Opened, each language WhatsApp holds says its state in words at its right.
+  press(chip);
+  tree = messagesAgain();
+  const held = all(byTestId(tree, "custom-row"), (n) => n.props?.["data-testid"] === "template-lang-option" && n.props["data-group"] === "on");
+  assert.deepEqual(held.map((o) => [o.props["data-lang"], textOf(o).includes("Approved") ? "Approved" : textOf(o).includes("In review") ? "In review" : "?"]), [["en_US", "Approved"], ["es", "In review"]]);
   // Words once per MESSAGE, beside the title, for the language that is not simply
   // approved -- whichever language is in view. It was the state of the language in
   // view, so a message half in review read as fine until Spanish was pressed.
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review", "the language that is not approved, in words, beside the title");
-  press(langs[1]);
+  press(held[1]);
   tree = messagesAgain();
+  chip = byTestId(byTestId(tree, "custom-row"), "template-lang");
+  assert.deepEqual(chipSays(chip), ["ES", "+1"], "Spanish in view, English the one more");
+  assert.equal(chip.props["data-tone"], "info", "drawn in review");
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review", "and the same words with the other language in view");
   // A message whose every language is approved has nothing to say: a green
   // "Approved" on every row is the state said twice, beside the slot that drew it.
@@ -1013,8 +1346,11 @@ test("A template this product cannot send is not offered, and its card says why"
   globalThis.window.dispatchEvent({ type: "playbooks:new" });
   seq = 0;
   const pb = globalThis.window.OutboundPage({});
-  assert.equal(all(pb, (n) => n.props?.["data-testid"] === "pb-template").length, 1);
-  assert.ok(textOf(byTestId(pb, "pb-blocked")).includes("a picture for a heading"));
+  press(byTestId(pb, "pb-template"));
+  seq = 0;
+  const list = globalThis.window.OutboundPage({});
+  assert.deepEqual([...new Set(all(list, (n) => n.props?.["data-testid"] === "pb-template-option").map((o) => o.props["data-lang"]))], ["offer"], "its list offers what can go on the wire");
+  assert.ok(textOf(byTestId(list, "pb-template-note")).includes("a picture for a heading"), "and says, under it, why the rest is not there");
 
   // And the library says why rather than leaving it looking available.
   const card = messages({ __TEMPLATES_ALL: [picture] });

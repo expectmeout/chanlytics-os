@@ -11,10 +11,10 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapCategory, mapStatus } from "./meta-templates.js";
-import type { Database, Json } from "./workspace/db.js";
-import { emitEvent } from "./workspace/db.js";
+import type { Database, Json } from "./packages/db.js";
+import { emitEvent } from "./packages/db.js";
 import { notify, type NotifyTarget } from "./notify.js";
-import { parseTenantConfig, WABA_FIELDS as WABA_FIELD_LIST, type NotificationsConfig, type ServerNotificationKind, type WabaEventKind } from "./workspace/contracts.js";
+import { parseTenantConfig, WABA_FIELDS as WABA_FIELD_LIST, type NotificationsConfig, type ServerNotificationKind, type WabaEventKind } from "./packages/contracts.js";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function notificationsFor(db: SupabaseClient<Database>, tenantId: string): Promise<NotificationsConfig | null> {

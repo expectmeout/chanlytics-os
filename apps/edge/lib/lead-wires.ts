@@ -12,8 +12,8 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { createHmac } from "node:crypto";
-import { apifyClient, leadJudge, LEAD_JUDGE_DEFAULT_MODEL, type ApifyClient, type LeadJudge, type LeadJudgeClient } from "./workspace/channels.js";
-import { JUDGE_TIMEOUT_MS } from "./workspace/core.js";
+import { apifyClient, leadJudge, LEAD_JUDGE_DEFAULT_MODEL, type ApifyClient, type LeadJudge, type LeadJudgeClient } from "./packages/channels.js";
+import { JUDGE_TIMEOUT_MS } from "./packages/core.js";
 
 const DEFAULT_ORIGIN = "https://chanlytics-messaging.vercel.app";
 

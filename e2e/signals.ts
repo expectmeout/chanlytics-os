@@ -165,8 +165,10 @@ export async function expectStripEnding(page: Page, words: string): Promise<void
 export async function expectPeekSeenVersusRead(page: Page): Promise<void> {
   const peek = page.getByTestId("lead-peek");
   await expect(peek).toBeVisible();
-  await expect(peek.getByTestId("peek-checks-seen")).toContainText("Seen");
-  await expect(peek.getByTestId("peek-checks-read")).toContainText("Claude's read");
+  // The two groups are the evidence bar's card (#770), told apart by a hairline and by their marks rather than by
+  // headings; the card is in the page whether or not it is showing.
+  await expect(peek.getByTestId("peek-checks-seen")).toBeAttached();
+  await expect(peek.getByTestId("peek-checks-read")).toBeAttached();
   expect(
     await peek.getByTestId("peek-checks-read").locator(".pk-ck-check").count(),
     "a check Claude read wears the mark of one the product saw",

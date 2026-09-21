@@ -41,16 +41,34 @@ const MASTER = { sid: "ACplatformmasteraccountforthisfile", token: "platform-mas
 // present, so a text taken for the environment's number would show; the
 // platform's mailbox is configured, so what is not mailed below is not mailed
 // by decision, never for want of an address.
-process.env.BLOB_SHADOW = "off";
 process.env.TWILIO_ACCOUNT_SID = MASTER.sid;
 process.env.TWILIO_AUTH_TOKEN = MASTER.token;
 process.env.WHATSAPP_PHONE_ID = "109990000000002";
 process.env.WHATSAPP_ACCESS_TOKEN = "the-environments-own-whatsapp-token";
 Object.assign(process.env, MAIL);
 for (const k of [
-  "ANTHROPIC_API_KEY", "WHATSAPP_TEST_ALLOWLIST", "PG_READS", "PG_DEDUPE", "BLOB_READ_WRITE_TOKEN",
+  "ANTHROPIC_API_KEY", "WHATSAPP_TEST_ALLOWLIST",
   "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "LINES_DRY_RUN", "VERCEL_ENV",
 ]) delete process.env[k];
+
+// The disaster-recovery fallback is CONFIGURATION now, not source: the edge
+// reads it from the environment once, at module load (lib/tenant-fallback.ts).
+// Set here, before the import below, so these cases run the real path — a
+// deployment that has been given the env-default workspace's profile, exactly
+// as production holds it. Unset, the module answers with its neutral default,
+// which states no business fact (dr-fallback.test.mjs covers that).
+process.env.DR_FALLBACK_BRAIN_JSON = JSON.stringify({
+  business_name: "Riverside Studio",
+  booking_link: "https://booking.example/riverside",
+  system_prompt: "You are the assistant for Riverside Studio, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
+  fallbacks: {
+    greeting: "Thanks for writing to Riverside Studio. Book anytime at https://booking.example/riverside, or reply here with any question.",
+    error: "Thanks for writing to Riverside Studio! A member of the team will reply here soon.",
+    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
+  },
+});
+process.env.DR_FALLBACK_ESCALATION_EMAILS = "owner@riverside.example";
+process.env.DR_FALLBACK_FROM = "Riverside Studio <hello@platform.test>";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -181,7 +199,7 @@ function world() {
   };
 }
 
-const blank = () => ({ history: [], seen: [], pausedUntil: 0, replies: [] });
+const blank = () => ({ history: [], pausedUntil: 0, replies: [], repliedBefore: false });
 
 /**
  * The receptionist's world, handed in through setInboundPorts and recording
@@ -196,7 +214,6 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
   const seen = { runtimes: [], ingested: [], sent: [], escalations: [], alerts: [], whatsappWires: [], allowlistSkips: 0, processed: 0 };
   setInboundPorts({
     db: pg,
-    store: { get: async () => blank(), save: async () => true, backend: () => "memory" },
     runtime: async (_db, routed) => {
       seen.runtimes.push(routed);
       return {
@@ -257,7 +274,7 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
       return async () => { throw new Error("a text must not be answered on WhatsApp"); };
     },
     brain: async () => { throw new Error("the model must not be reached in this test"); },
-    env: { pgReads: false, pgDedupe: false, allowlist, modelKey: undefined },
+    env: { allowlist, modelKey: undefined },
   });
   return seen;
 }

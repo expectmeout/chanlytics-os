@@ -449,7 +449,7 @@ const PublishedNumberRow = ({ fact, flash }) => {
           </div>
         )}
         {!own || !voiceLine ? (
-          <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={lineShown || "+1 646 932 5775"} inputMode="tel" autoComplete="tel" aria-label="The number to publish" data-testid="set-pub-input" />
+          <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={lineShown || "+1 212 555 0143"} inputMode="tel" autoComplete="tel" aria-label="The number to publish" data-testid="set-pub-input" />
         ) : null}
         <div className="set-ident-note">
           {own && voiceLine
@@ -508,7 +508,7 @@ const HandoffRow = ({ fact, flash }) => {
     <div className="cl-prof-attr set-row-editing" data-testid="fact-transfers-a-caller-to">
       <span className="cl-prof-attr-key">Transfers a caller to</span>
       <span className="cl-prof-attr-val set-pub-inline">
-        <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="+1 646 932 5775" inputMode="tel" autoComplete="tel" aria-label="Transfer number" data-testid="set-handoff-input" />
+        <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="+1 212 555 0143" inputMode="tel" autoComplete="tel" aria-label="Transfer number" data-testid="set-handoff-input" />
         <div className="set-ident-note">
           A line a person answers, with the country code. Empty and the phone receptionist takes a message instead of transferring — which is better than a number nobody picks up.
         </div>

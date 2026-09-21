@@ -26,7 +26,6 @@ import { at, knock, answer, wire, withEnv, refusedAtTheDoor, vault } from "./_cr
 // Each test file is its own process, so this is the whole environment. The
 // mailer and the platform mailbox are configured: what is NOT mailed below is
 // not mailed by decision, not for want of an address.
-process.env.BLOB_SHADOW = "off";
 process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";

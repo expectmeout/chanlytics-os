@@ -1,21 +1,20 @@
 /**
- * Gate 1b: the bot's working memory, read from Postgres.
+ * The receptionist's working memory, read from Postgres — the only place it
+ * lives.
  *
- * Until now the receptionist's memory lived in Vercel Blob and Postgres was a
- * write-only shadow — which meant every surface we built read a MIRROR of the
- * truth, and the two had to be kept in step by hand. Three of our worst bugs
- * came from that gap (an operator take-over clobbered by a webhook writing a
- * stale whole-object, archived threads swallowing new messages, a reply
- * scheduled before its mirror write).
- *
- * This returns the same four things the Blob blob did, so the caller's logic is
- * untouched — only the source moves:
+ * It used to live in Vercel Blob with Postgres as a write-only shadow, which
+ * meant every surface we built read a MIRROR of the truth and the two had to
+ * be kept in step by hand. Three of our worst bugs came from that gap (an
+ * operator take-over clobbered by a webhook writing a stale whole-object,
+ * archived threads swallowing new messages, a reply scheduled before its
+ * mirror write). The rows the dashboard reads and writes ARE the memory now:
  *   history      last turns fed to the model
  *   pausedUntil  a human is handling this thread
  *   replies      bot sends in the last 24h (rate cap)
- *   seen         retry dedupe — NOT needed here: ingest_inbound's is_new is an
- *                atomic gate on a unique index, which is strictly stronger than
- *                a 40-entry array that two concurrent lambdas could both miss.
+ * Retry dedupe is not here and needs nothing here: ingest_inbound's is_new is
+ * an atomic gate on a unique index, which is strictly stronger than the
+ * 40-entry array the store kept, and which two concurrent lambdas could both
+ * miss.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../database.types";
@@ -29,7 +28,6 @@ export interface ThreadTurn {
 
 export interface PgThreadState {
   history: ThreadTurn[];
-  seen: string[];
   pausedUntil: number;
   replies: number[];
   /**
@@ -53,13 +51,13 @@ const DELIVERED = ["sent", "delivered", "read"];
 const DAY_MS = 24 * 3600 * 1000;
 
 /**
- * Blob-era voice notes, imported by the backfill as ordinary assistant turns.
+ * Voice notes moved in from before the database, as ordinary assistant turns.
  * Every one of them is now ALSO a native call_summary row written by the Retell
  * webhook, so leaving both in would show the model each call twice — in two
  * different formats — and it would reasonably conclude the customer phoned
  * twice as often as they did. The native row is canonical; this is the copy.
  */
-const BLOB_CALL_NOTE = /^\[voice call note /;
+const IMPORTED_CALL_NOTE = /^\[voice call note /;
 
 const isBackfill = (m: { meta?: unknown }): boolean =>
   !!m.meta && typeof m.meta === "object" &&
@@ -80,9 +78,9 @@ const effectiveAt = (m: { channel_ts: string | null; created_at: string }): numb
  *
  * Extracted so the WhatsApp receptionist and the voice agent cannot end up
  * with different ideas of what was said. They used to: the bot read these rows
- * from Postgres while the voice agent read a six-turn slice out of the Blob
- * mirror, so the same customer got a different — and thinner — account of
- * themselves depending on which number they used.
+ * from Postgres while the voice agent read a six-turn slice out of the store
+ * that has since been retired, so the same customer got a different — and
+ * thinner — account of themselves depending on which number they used.
  *
  * Four rules live here and nowhere else:
  *   - a blank body carries nothing to reason over
@@ -107,7 +105,7 @@ export function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[]
     const body = (m.body ?? "").trim();
     if (!body) return false;
     if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
-    if (isBackfill(m) && BLOB_CALL_NOTE.test(body)) return false;
+    if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
     return true;
   });
   kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
@@ -166,8 +164,6 @@ export async function readThreadState(
   return {
     history,
     repliedBefore,
-
-    seen: [],
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it
@@ -214,9 +210,9 @@ const EMPTY_LEAD: LeadContext = {
  * The WhatsApp receptionist and the voice agent are meant to be the same
  * receptionist — a customer who phoned yesterday and texts today should not
  * have to start again. They were not: the bot read this conversation from
- * Postgres while the voice agent read a six-turn slice out of the Blob mirror,
- * a store we are actively retiring. Same person, two different accounts of
- * them, and only one of the two kept up to date.
+ * Postgres while the voice agent read a six-turn slice out of a mirror that
+ * has since been retired. Same person, two different accounts of them, and
+ * only one of the two kept up to date.
  *
  * READ-ONLY on purpose. A context lookup must never create a contact or a
  * conversation: an inbound call that is never answered, or a wrong number,

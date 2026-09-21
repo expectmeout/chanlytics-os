@@ -54,7 +54,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   assert.ok(DECISION_VERBS.includes("export") && DECISION_SUBJECTS.includes("workspace"), "the ledger names an export of the workspace");
 });
 
-const TONED_KINDS = 43;
+const TONED_KINDS = 42;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.

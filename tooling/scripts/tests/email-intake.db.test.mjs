@@ -62,7 +62,7 @@ test("the ledger holds one intake per received email per mailbox: a replayed web
   assert.equal(await job("mb-1", "rcv-2"), "scheduled");
   const { count } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("kind", "email_ingest").in("tenant_id", [tenantId, otherId]);
   assert.equal(count, 3);
-  const { error: otherKind } = await db.from("jobs").insert([1, 2].map(() => ({ tenant_id: tenantId, kind: "blob_thread_erase", due_at: new Date(Date.now() + 86_400_000).toISOString(), payload: { mailbox_id: "mb-1", received_id: "rcv-1" } })));
+  const { error: otherKind } = await db.from("jobs").insert([1, 2].map(() => ({ tenant_id: tenantId, kind: "line_provision", due_at: new Date(Date.now() + 86_400_000).toISOString(), payload: { mailbox_id: "mb-1", received_id: "rcv-1" } })));
   assert.equal(otherKind, null, "the rule is email_ingest's alone");
 });
 

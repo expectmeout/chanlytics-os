@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 
 /**
@@ -116,28 +116,37 @@ test.describe("Phone shell on a real workspace", () => {
    * page column is 283px, and .main-scroll is overflow-x: hidden -- so "Send
    * now" sat 208px past the right edge with no scrollbar to reach it. A case
    * that only looks for the button would have passed the whole time.
+   *
+   * The page opens on the ledger now, and the send is its own screen behind New
+   * broadcast (#758), so both are measured: the ledger, with its act on the
+   * first screen, then the send. Links too, since the ledger's "Print a desk
+   * sign" and "Download QR" are links drawn as buttons.
    */
   test("Campaigns: every control on Broadcasts is inside the screen, and the page opens on the work", async ({ page }) => {
     await page.goto("/#/broadcasts");
     await page.waitForLoadState("networkidle");
-    const composer = page.getByTestId("bc-composer");
-    await expect(composer).toBeVisible();
+    const real = page.getByTestId("broadcasts-real");
+    await expect(real).toBeVisible();
     const width = page.viewportSize()?.width ?? 390;
-    for (const el of await composer.getByRole("button").all()) {
-      const box = await el.boundingBox();
-      if (!box) continue;
-      expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(width + 1);
-    }
-    // Nothing scrolls sideways: the row wraps rather than being clipped.
-    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
-    // The work first: one line of numbers, and no page title under a top bar
-    // that already says Broadcasts.
-    await expect(page.getByTestId("bc-standing")).toBeVisible();
+    const insideTheScreen = async (screen: Locator) => {
+      for (const el of await screen.getByRole("button").or(screen.getByRole("link")).all()) {
+        const box = await el.boundingBox();
+        if (!box) continue;
+        expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(width + 1);
+      }
+      // Nothing scrolls sideways: the row wraps rather than being clipped.
+      const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
+    };
+    // The work first: New broadcast whole on the first screen, and not the
+    // seeded page's title block (.ct-h2) under a top bar that already says Broadcasts.
+    await expect(real.getByTestId("bc-new")).toBeInViewport({ ratio: 1 });
     await expect(page.locator(".ct-h2")).toHaveCount(0);
-    const line = await page.getByTestId("bc-standing").boundingBox();
-    const first = await composer.boundingBox();
-    expect(line && first && first.y - line.y < 120, "the composer follows the line, not a header block").toBe(true);
+    await insideTheScreen(real);
+    await real.getByTestId("bc-new").click();
+    const composer = real.getByTestId("bc-composer");
+    await expect(composer).toBeVisible();
+    await insideTheScreen(composer);
   });
 
   /**
@@ -172,6 +181,8 @@ test.describe("Phone shell on a real workspace", () => {
   test("Campaigns: Send now asks before it sends", async ({ page }) => {
     await page.goto("/#/broadcasts");
     await page.waitForLoadState("networkidle");
+    // The send is its own screen, behind New broadcast.
+    await page.getByTestId("bc-new").click();
     const send = page.getByTestId("bc-send");
     test.skip(!(await send.isEnabled().catch(() => false)), "nothing approved to send in this workspace");
     await send.click();

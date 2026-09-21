@@ -57,7 +57,7 @@ after(async () => {
 
 async function insertJob(patch = {}) {
   const { data, error } = await db.from("jobs")
-    .insert({ tenant_id: tenantId, kind: "blob_thread_erase", due_at: ago(60), payload: {}, ...patch })
+    .insert({ tenant_id: tenantId, kind: "line_provision", due_at: ago(60), payload: {}, ...patch })
     .select("id")
     .single();
   assert.equal(error, null, error?.message);

@@ -3,8 +3,8 @@
  * GET = Meta verification handshake. POST = signature-validated event receiver.
  *
  * Production engine: inbound message -> guardrailed Claude brain -> reply,
- * with per-thread dedupe, history, human-pause (coexistence echoes), rate caps,
- * staleness guard, and escalation alerts via Resend.
+ * with history, human-pause (coexistence echoes), rate caps, staleness guard,
+ * and escalation alerts via Resend.
  *
  * Shape: this file is the webhook — verification, the signature, routing by
  * phone number id, statuses and echoes. The message path is
@@ -13,44 +13,31 @@
  * lib/whatsapp/steps.ts.
  *
  * Contract (frozen during Meta App Review): process-then-200 in-invocation
- * under maxDuration 60; Meta retries + dedupe make replays safe. The HTTP
- * surface is unchanged by Gate 1b — only where memory is read from moves.
+ * under maxDuration 60; Meta retries + dedupe make replays safe.
  *
- * Postgres writes: additive, fail-safe, batched — the PgSink no-ops when
- * unconfigured (no Supabase credentials) so the frozen Blob/send order never
- * depends on PG. wa_replied logs carry ingest_ms/post_ms (blueprint latency
- * budget). PG_WRITES used to gate the client and no longer does: see lib/pg.ts.
- *
- * GATE 1b (PG_READS=on): Postgres becomes the SOURCE of the bot's memory —
- * history, pause, and rate cap all come from the same rows the dashboard reads
- * and writes, which retires the Blob mirror and the class of drift bugs that
- * came with it. Reversible by an env flip (no redeploy); Blob keeps being
- * written underneath, which is what makes the rollback safe. A Postgres read
- * failure falls back to Blob rather than giving the bot amnesia. PG_READS
- * implies PG dedupe: PG-sourced memory has no `seen` list, and ingest_inbound's
- * atomic is_new claim is a stronger gate than that array ever was.
- *
- * RETIRED STORE (BLOB_SHADOW=off): Blob is neither read nor written. Postgres
- * is the only memory; a Postgres miss has nowhere to fall back to, so the
- * thread is handed to a human (state_unavailable) rather than answered from an
- * invented empty history. Under it, PG_READS=off is no longer a rollback.
+ * THE MEMORY IS POSTGRES, and there is no other. History, the pause and the
+ * rate cap are the same rows the dashboard reads and writes, and the dedupe
+ * is ingest_inbound's atomic is_new claim — a unique index two concurrent
+ * lambdas cannot both miss. A read that cannot be made has nowhere to fall
+ * back to, so the thread is handed to a human (state_unavailable) rather than
+ * answered from an invented empty history. The PgSink no-ops when Postgres is
+ * unconfigured, so the frozen send order holds with no database at all; what
+ * does not hold is the receptionist answering, which is the point.
+ * wa_replied logs carry ingest_ms/post_ms (blueprint latency budget).
  *
  * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, WHATSAPP_ACCESS_TOKEN,
  *      WHATSAPP_PHONE_ID, WHATSAPP_TEST_ALLOWLIST (optional, comma list),
  *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
- *      BLOB_READ_WRITE_TOKEN, SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY,
- *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS),
- *      BLOB_SHADOW ('off' retires Blob; Postgres is the only memory).
+ *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 import crypto from "node:crypto";
-import { phoneTail } from "../lib/workspace/contracts.js";
+import { phoneTail } from "../lib/packages/contracts.js";
 import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/waba-events.js";
-import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import type { WaChangeValue } from "../lib/workspace/channels.js";
-import { resolveChannelDetailed, recordStatusByExternalId, recordEchoAndPause, emitEvent } from "../lib/workspace/db.js";
-import type { Json, RoutedChannel } from "../lib/workspace/db.js";
+import type { WaChangeValue } from "../lib/packages/channels.js";
+import { resolveChannelDetailed, recordStatusByExternalId, recordEchoAndPause, emitEvent } from "../lib/packages/db.js";
+import type { Json, RoutedChannel } from "../lib/packages/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { pgSafe, IngestFailed } from "../lib/whatsapp/persist.js";
@@ -199,19 +186,9 @@ export async function POST(request: Request): Promise<Response> {
             for (const echo of v.message_echoes || []) {
               const to = echo.to;
               if (to) {
-                // Same isolation rule: the echo belongs to the tenant whose
-                // channel it arrived on, not to a global phone-number bucket.
-                if (storeBackend() !== "off") {
-                  const echoNs = threadNamespace(tenantId);
-                  const t = await getThread(echoNs, to);
-                  t.pausedUntil = Date.now() + echoPauseMs;
-                  // A refused save means the Blob pause did NOT land, so the bot
-                  // could answer over the human who just replied. Postgres below
-                  // still records it, which under PG_READS=on is the source of
-                  // truth — but this must not pass silently. Retired, there is
-                  // no mirror to land: the Postgres row is the memory.
-                  if (!(await saveThread(echoNs, to, t))) console.error("echo_pause_not_persisted", phoneTail(to));
-                }
+                // The Postgres row IS the pause: the conversation the echo
+                // arrived on, in the tenant whose channel carried it, never a
+                // global phone-number bucket.
                 if (db && tenantId) {
                   await pgSafe("echo", () =>
                     recordEchoAndPause(db, {

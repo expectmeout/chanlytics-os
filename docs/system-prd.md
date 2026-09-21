@@ -32,7 +32,7 @@ A system reference in PRD form: every system and subsystem of Chanlytics OS, the
 
 ## S-01 · Product and scope
 
-Chanlytics OS is a multi-tenant AI receptionist for appointment businesses — salons first. Customers text a business's WhatsApp number, phone its voice line or text its SMS line; the receptionist answers within seconds, says what is open, sends the booking link, and hands anything it should not decide to a person. The owner works from a dashboard that shows what the receptionist did, lets them take over, and runs campaigns to the people who said yes.
+Chanlytics OS is a multi-tenant, omnichannel AI receptionist and lead engine for any business that turns a conversation into a booked appointment: local or online, a salon or a lender. Customers write on WhatsApp, text the business's number, phone its line or email it; the receptionist answers within seconds, says what is open, sends the booking link, and hands anything it should not decide to a person. A team works from a dashboard that shows what the receptionist did, takes a thread over and hands it back, finds new leads with the finder, and runs campaigns to the people who said yes. The first workspace was a salon and the code still uses it as the worked example; it is not the market.
 
 It is live: real businesses, real customers, real numbers. Four workspaces are in production (launch-readiness plan, 9 September 2026), three of them on a direct billing arrangement.
 
@@ -102,7 +102,7 @@ flowchart LR
 | Database | `supabase/` | Supabase: Postgres 15+, Auth, Realtime, Storage, Vault, pg_cron, pg_net | — | All state, with RLS on every table |
 | Packages | `packages/contracts`, `core`, `db`, `channels`, `jobs` | bundled into both apps | — | Pure rules and view models; the use cases behind ports; repositories; provider adapters; the jobs ledger |
 
-The two apps deploy independently from `main`, so a change both must agree on ships in a shape that works in either order. `packages/*/dist` is committed and the edge imports it by relative path (`apps/edge/lib/workspace/*.ts` re-export `../../../../packages/<pkg>/dist/index.js`), because Vercel's function bundler does not follow pnpm's workspace symlinks. CI fails when the committed `dist` differs from a fresh build, and the dashboard is built on every pull request the way Vercel builds it.
+The two apps deploy independently from `main`, so a change both must agree on ships in a shape that works in either order. `packages/*/dist` is committed and the edge imports it by relative path (`apps/edge/lib/packages/*.ts` re-export `../../../../packages/<pkg>/dist/index.js`), because Vercel's function bundler does not follow pnpm's workspace symlinks. CI fails when the committed `dist` differs from a fresh build, and the dashboard is built on every pull request the way Vercel builds it.
 
 **What a deployment may do** is decided once (`server/deployment.ts`): production reaches the real providers; a preview or a laptop reaches them only when `EDGE_PROVIDERS=live` says its `EDGE_URL` points at an edge holding sandbox keys, and otherwise every such call — buying a number, filing a registration, connecting WhatsApp, syncing templates, Checkout, a word into a live call, the model — answers "not here". An unset `VERCEL_ENV` is a laptop, never production.
 
@@ -117,7 +117,6 @@ The two apps deploy independently from `main`, so a change both must agree on sh
 | Stripe | Checkout, customer portal, subscriptions, invoices, webhooks | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` |
 | Google | Sign in with Google (OAuth, PKCE); Places API (New) for the public listing; Business Profile (OAuth) for reviews and replies | The Supabase provider for sign-in; Places key and OAuth client in env; refresh tokens in Vault (`google-creds-<workspace>`) |
 | Resend | Every email a person receives from the system, and the platform's pages | `RESEND_API_KEY` (the hosted Supabase project sends through it too, which lifted the two-an-hour ceiling) |
-| Vercel Blob | The receptionist's pre-Postgres thread memory, now a shadow copy | `BLOB_READ_WRITE_TOKEN`; retired by `BLOB_SHADOW=off` |
 
 Every provider is reached from the edge and nowhere else. QStash, the job clock before #320, is gone entirely: the responder that answered its last retries and the `QSTASH_*` variables were removed on 16 September, since no QStash account exists to retry anything.
 
@@ -295,27 +294,26 @@ The gates, in the order they run. Each stop reports through the sink, and tells 
 | 1 | The sender is a short code | Recorded; `ingest.unreachable_sender`; never answered |
 | 2 | The pilot allowlist (the environment's own number only) | Recorded; `ingest.allowlist_skip` |
 | 3 | `ingest_inbound` — persist first | — the message is now on record (or the webhook answers 503) |
-| 4 | Read memory (Postgres; Blob only while shadowed) | — |
-| 5 | A duplicate delivery (`is_new` false) | Skipped, before anything below |
-| 6 | This person's own receptionist mode | Changes the mode in force |
-| 7 | Memory unreadable from every source | Escalation `state_unavailable` |
-| 8 | Consent: this message is STOP, or an opt-out on record, or a cached one when Postgres is down | No reply; on the STOP itself, escalation `opt_out`. The carriers' opt-out words belong to the carriers' channel: a texting line honours them; WhatsApp keeps its own list |
-| 9 | An SMS line the carriers have not approved | Escalation `carriers` |
-| 10 | A reaction or a system notice | Recorded; nothing was asked |
-| 11 | A location or a contact card | Escalation `non_text`, without an apology |
-| 12 | A photo, when `features.vision` is on | Fetched and shown to the model |
-| 13 | Anything else that is not words | Acknowledged when the mode may speak; escalation `non_text`; thread paused |
-| 14 | More than two hours late | Escalation `stale` (ten minutes to two hours late is answered, and logged) |
-| 15 | The thread is paused for a person | Added to history; no reply. The pause is for the machine: a queued draft yields only to a person's words |
-| 16 | Twenty automatic replies on this thread today (the owner's dial) | Escalation `rate_cap` |
-| 17 | The workspace's day of model tokens is spent (`budget.ts`, from `usage.llm_tokens`) | Escalation `budget` |
-| 18 | The workspace is paused (billing) | Escalation `paused` |
-| 19 | Reply mode `ask` or `never`, or no persona | Escalation `policy_block`, or `person_hold` for a hold set on this person |
-| 20 | No model key at all | A degraded state a person can see: escalation, and the platform paged — never a canned receptionist |
-| 21 | The brain composes | On error: the persona's fallback words and escalation `brain_error` |
-| 22 | Layer two | A price in the draft blocks it; a booking or pricing question under "ask me first" escalates `policy_ask` |
-| 23 | The hold plan | Veto window, or confidence below `min_confidence`: written as a `queued` draft with an `outbound_send` job (`draft-queue.ts`, the one writer, shared with steer) |
-| 24 | Send now | Outbound row written `sent` only when the provider accepted it, and `usage.llm_tokens`; on a handoff, pause + escalation + an alert whose email tells the truth; on a failed send, escalation `send_failed` |
+| 4 | A duplicate delivery (`is_new` false) | Skipped, before anything below |
+| 5 | This person's own receptionist mode | Changes the mode in force |
+| 6 | Memory (Postgres): a thread it cannot produce | Escalation `state_unavailable`, nothing answered |
+| 7 | Consent: this message is STOP, or an opt-out on record | No reply; on the STOP itself, escalation `opt_out`. The carriers' opt-out words belong to the carriers' channel: a texting line honours them; WhatsApp keeps its own list |
+| 8 | An SMS line the carriers have not approved | Escalation `carriers` |
+| 9 | A reaction or a system notice | Recorded; nothing was asked |
+| 10 | A location or a contact card | Escalation `non_text`, without an apology |
+| 11 | A photo, when `features.vision` is on | Fetched and shown to the model |
+| 12 | Anything else that is not words | Acknowledged when the mode may speak; escalation `non_text`; thread paused |
+| 13 | More than two hours late | Escalation `stale` (ten minutes to two hours late is answered, and logged) |
+| 14 | The thread is paused for a person | Added to history; no reply. The pause is for the machine: a queued draft yields only to a person's words |
+| 15 | Twenty automatic replies on this thread today (the owner's dial) | Escalation `rate_cap` |
+| 16 | The workspace's day of model tokens is spent (`budget.ts`, from `usage.llm_tokens`) | Escalation `budget` |
+| 17 | The workspace is paused (billing) | Escalation `paused` |
+| 18 | Reply mode `ask` or `never`, or no persona | Escalation `policy_block`, or `person_hold` for a hold set on this person |
+| 19 | No model key at all | A degraded state a person can see: escalation, and the platform paged — never a canned receptionist |
+| 20 | The brain composes | On error: the persona's fallback words and escalation `brain_error` |
+| 21 | Layer two | A price in the draft blocks it; a booking or pricing question under "ask me first" escalates `policy_ask` |
+| 22 | The hold plan | Veto window, or confidence below `min_confidence`: written as a `queued` draft with an `outbound_send` job (`draft-queue.ts`, the one writer, shared with steer) |
+| 23 | Send now | Outbound row written `sent` only when the provider accepted it, and `usage.llm_tokens`; on a handoff, pause + escalation + an alert whose email tells the truth; on a failed send, escalation `send_failed` |
 
 A veto-window draft that cannot be queued is sent at once and recorded (`vetoFallback`): an un-vetoed reply beats silence. A low-confidence hold that cannot be queued sends nothing: the floor is the owner's policy, so the thread is a person's for the pause window and the owner is told what the customer said (#577). The brain's plain retry, taken when the schema is refused, carries a record at confidence 0 so the dial still holds it (#577). At the wire, a draft on a thread a person has taken over is refused (`human_has_it`), the take-over's withdrawal kept for the case it failed (#577).
 
@@ -325,18 +323,9 @@ A veto-window draft that cannot be queued is sent at once and recorded (`vetoFal
 
 `lib/brain.ts` calls `claude-opus-5` with a structured output schema (`contracts/brain.ts`): the reply, the customer's intent, whether a person should take over and why, a confidence, the facts it leaned on, and the language. If the API refuses the schema, the same request runs unstructured and is read the old way; the words go out either way. The system prompt comes from `resolveSystemPrompt` — the workspace's structured profile, composed by the same function that fills the phone agent's facts — plus the clock and closures in the business's timezone, the open times from its calendar, and what is known about this person (`readLeadContext` and their visits). **The prompt preview is the prompt**: the Business pane shows it composed on the server with every input the edge has (`server/prompt-preview.ts`), and the instructions box holds the prompt it came from, once.
 
-### 5.4 Memory, and the levers on it
+### 5.4 Memory
 
-Postgres is the receptionist's memory: `packages/db/repositories/thread.ts` returns the history, the pause and today's replies. The Blob object per thread is the pre-Postgres copy.
-
-| Edge variable | Effect |
-|---|---|
-| `PG_WRITES=on` | Postgres writes on; anything else is a silent no-op |
-| `PG_READS=on` | Postgres is the memory; a Postgres miss falls back to Blob |
-| `PG_DEDUPE=on` | Postgres dedupe without `PG_READS` (implied by it) |
-| `BLOB_SHADOW=off` | Blob neither read nor written; a Postgres miss hands the thread to a person |
-
-A flag reaches the running deployment only after a redeploy. `GET /api/diag` reports the live `memory` and `store`.
+Postgres is the receptionist's only memory: `packages/db/repositories/thread.ts` returns the history, the pause and today's replies, and `ingest_inbound`'s atomic `is_new` claim is the dedupe. There is no flag on it and no second copy to fall back to — a thread Postgres cannot produce is handed to a person (`state_unavailable`) rather than answered from an invented empty history. It used to be a Vercel Blob object per thread: Postgres was first written beside it (`PG_WRITES`), then made the memory (`PG_READS`) with Blob kept as a shadow; the flags and the store are gone (00151). `GET /api/diag` reports `memory`.
 
 ### 5.5 Credentials, and connecting a number
 
@@ -395,10 +384,10 @@ sequenceDiagram
 
 1. **Arrives.** `/api/retell-inbound` runs `planCallStart` — a function apart from the wire, tested every way it can fall short — which resolves the workspace from the agent and returns the dynamic variables: the business facts (from the same profile the WhatsApp receptionist reads), the caller's cross-channel context, the greeting and the handoff number. No workspace, no context: a caller treated as new beats a caller read someone else's conversation.
 2. **During.** With `transcript_updated` on, each turn refreshes the `calls` row's transcript and heartbeat, and the Live page shows calls under the heartbeat rule, with what the caller wanted and the line it rang. **A standing rule broken out loud** — a price the guardrails forbid — is caught on the transcript, corrected in the call by an injected turn, and put in front of the owner as an escalation. Three controls, each a ledger verb through the per-call token: **whisper** (`POST /api/v1/calls/:id/whisper` → `/api/admin/whisper` → `update-live-call`; the words are framed as context the receptionist works in when it fits, never a script, never past its guardrails, `contracts/whisper.ts`); **hand over** (`/hand-over` → `/api/admin/hand-over`: the agent is told the owner is picking up and transfers the caller to the business's own line with `transfer_to_staff`, the line riding as an override for a call that began before there was one); **end** (`/end` → `/api/admin/stop-call`, ledger `end_call`, 00118). Listening in and speaking from a browser microphone are what the provider's dashboard offers and its API does not, so Live does not offer them.
-3. **Ends, and is analyzed.** `/api/retell-webhook` verifies the signature with the badged key, its only credential (the agent's `webhook_url` carries no `?key=`; a key left on an older agent is drift the converger patches away), and calls `ingest_call`: forward-only by rank (registered < ongoing < ended, error or not connected — an older event is `skipped`), idempotent per `retell_call_id`, metering voice seconds once. Then: a `call_summary` note in the caller's one thread; the recording copied into the private `media` bucket (bounded, at most three attempts); the post-call email, claimed once; keep-your-number verification; and, when the analysis says `callback_needed`, an escalation `callback` with the thread paused. A caller who rang and hung up within fifteen seconds is not lost: they have a name, a row and a door on Today.
-4. **Reconciled.** `/api/cron/calls` asks Retell every five minutes about calls still marked ongoing — it never infers from elapsed time — retries recording copies still pending, and removes audio past its ninety days (`contracts/retention.ts`).
+3. **Ends, and is analyzed.** `/api/retell-webhook` verifies the signature with the badged key, its only credential (the agent's `webhook_url` carries no `?key=`; a key left on an older agent is drift the converger patches away), and calls `ingest_call`: forward-only by rank (registered < ongoing < ended, error or not connected — an older event is `skipped`), idempotent per `retell_call_id`, metering voice seconds once. Then: a `call_summary` note in the caller's one thread; the recording copied into the private `media` bucket (bounded, at most three attempts, and typed as the audio its first bytes say it is: the provider's CDN calls a WAV `binary/octet-stream`, which a browser will not play); the post-call email, claimed once; keep-your-number verification; and, when the analysis says `callback_needed`, an escalation `callback` with the thread paused. A caller who rang and hung up within fifteen seconds is not lost: they have a name, a row and a door on Today.
+4. **Reconciled.** `/api/cron/calls` asks Retell every five minutes about calls still marked ongoing — it never infers from elapsed time — retries recording copies still pending (a provider with no link to give counts as a try, so such a copy ends failed instead of processing for ever), and removes audio past its ninety days (`contracts/retention.ts`). pg_cron wakes it only when the calls table owes it one of these, audio past its days included (00148), and a purged recording is final: neither a re-ingest nor a late delivery copies it back. A purge that fails answers 500 once the other legs have run, and since 00149 that answer is judged like any other sweep's, so the ninety days are watched as well as promised.
 
-A recording reaches a browser only through `/api/v1/calls/:id/recording`, as a five-minute signed URL. The provider's unsigned URL is never stored on a row, because `calls` is in the realtime publication and every column reaches every member's browser.
+A recording reaches a browser only through `/api/v1/calls/:id/recording`, which answers every request with a redirect to a link signed for five minutes, so the player's seeks and a long listen always meet a fresh one. The provider's unsigned URL is never stored on a row, because `calls` is in the realtime publication and every column reaches every member's browser.
 
 > **Δ2 · Closed (17 September)** PR #479 merged: an empty Retell function secret opens none of the three doors (the tool calls, the call start, the availability tool), each probed from outside and refusing with 401. The call webhook's `?key=` fallback followed in PR #573, in the order the door's own comment prescribed: the badged key was set, 142 of 143 deliveries then verified by signature, both live agents were converged onto a bare `webhook_url` (dry run, then apply and publish; the salon's line went v6 → v7), and only then did the door stop reading a key. Probed from outside after the deploy: an unsigned delivery and one carrying `?key=` alike refuse with 401.
 
@@ -455,7 +444,7 @@ stateDiagram-v2
   fired --> failed: lease expired, speaks to a person: give up
 ```
 
-**The ledger.** `jobs` carries five kinds — `outbound_send`, `broadcast_send`, `blob_thread_erase`, `line_provision`, `email_ingest` — through `scheduled → fired → done | failed`, or `scheduled → canceled`. The `jobs_guard` trigger refuses every other transition inside the database. Scheduling is one insert (`scheduleJob`, service role only); `cancelJobsFor` withdraws them. An approval of an ask-mode run moves its send to the next open moment, and the row says so (00119).
+**The ledger.** `jobs` carries seven kinds — `outbound_send`, `broadcast_send`, `line_provision`, `email_ingest` and the lead finder's three — through `scheduled → fired → done | failed`, or `scheduled → canceled`. The `jobs_guard` trigger refuses every other transition inside the database. Scheduling is one insert (`scheduleJob`, service role only); `cancelJobsFor` withdraws them. An approval of an ask-mode run moves its send to the next open moment, and the row says so (00119).
 
 **The heartbeat.** pg_cron's `jobs-tick` runs every ten seconds; `trigger_jobs_tick()` checks for due rows and only then posts to the edge through `pg_net` with the sweep key. `/api/jobs/tick` binds the database and each job's own workspace credentials into ports and hands them to `runTick` (`packages/jobs/src/tick.ts`, tested against fakes):
 
@@ -470,7 +459,6 @@ stateDiagram-v2
 |---|---|---|
 | `outbound_send` | message, conversation, phone, body or template | core `sendQueued`: still `queued`? Otherwise nothing to do → consent read through the conversation; an unreadable row **throws** (fail closed, and the owner hears) → opted out: canceled, `message.send_blocked` → the channel's sender (WhatsApp strips the "+"; SMS goes through the line) → marked `sent` only if the provider accepted it and the row is still `queued`; a cancel that raced the send is recorded as `message.send_raced_cancel`; `message.sent` names the real sender. A provider refusing with 401 or 403 — credentials, not content — pages the platform. On failure: `failed`, escalation `send_failed`, an alert |
 | `broadcast_send` | broadcast | core `sendBroadcastBatch`: only `scheduled` or `sending` → a paused workspace fails it → the template must still be approved, and its category decides which consent → up to 25 people, 300 ms apart, each re-checked (erased, no phone, `mayMessageFor(…, { proactive: true })`, a person has the thread) → values resolved per person → sent as the template and recorded in their thread → more left: schedule the next batch; none: close, record, tell the workspace. One read per batch; a send says what it is |
-| `blob_thread_erase` | contact, namespace, thread keys | core `eraseBlobThread`: deletes the Blob copies; on success, scrubs the phone digits from every job payload for that contact and records the erase on the ledger (actor `system`) |
 | `line_provision` | line | core `provisionLine` over the edge's ports (S-07): a fresh buy, a person's retry, or a worker that died; receipts per step |
 | `email_ingest` | mailbox, the provider's id for one received email | core `ingestEmail` over the edge's ports (00127, 00135: one live job per received email per mailbox, by a unique index a failed job does not count; a throw is tried again after five minutes, then thirty): fetch it → drop our own email coming back, and one received before its sender asked to be forgotten → read what it claims to be → a delivery report is not a conversation; an automatic reply is kept and nobody is paged → kept through `ingest_inbound` with the provider's id as the replay key → the thread flagged `email_review`, the workspace told once per hold → marked handled LAST, so a run that died after the row was stored finishes it on the next try. On an `outbound_send` whose row is an email, the job carries `to_email` and the row the request it leaves as, frozen when it was queued |
 
@@ -502,7 +490,7 @@ Every clock in the product is a pg_cron job, and **every clock is registered as 
 | `jobs-tick` | every 10 s | edge `/api/jobs/tick`, only when a job is due | The ledger's heartbeat (S-08) |
 | `expire-stale-pauses` | every 10 s | SQL | Pause expiry |
 | `wake-stale-snoozes` | every 10 s | SQL | Snooze expiry |
-| `call-reconcile` | every 5 min | edge `/api/cron/calls` | Close calls the webhook never ended; retry recording copies; remove audio past retention |
+| `call-reconcile` | every 5 min | edge `/api/cron/calls`, only when the calls table owes it work | Close calls the webhook never ended; retry recording copies; remove audio past retention |
 | `deadman-sweep` | every 10 min | edge `/api/cron/deadman` | An escalation nobody picked up: found in SQL (`deadman_candidates()`), alerted by the edge, once (`deadman_alerted_at`); a workspace with nobody on file to tell pages the platform; and two more questions each tick (`lib/unfinished.ts`, #578): a customer's message older than three minutes with no handled stamp is flagged for a person with their words, and a queued reply older than ten minutes with no scheduled or fired job is failed and flagged |
 | `lines-sweep` | :08 :23 :38 :53 | edge `/api/cron/lines` | Resume line sagas that were cut off |
 | `playbooks-sweep` | hourly at :05 | edge `/api/cron/playbooks` | Run the playbooks whose hour it is (S-14) |
@@ -513,7 +501,7 @@ Every clock in the product is a pg_cron job, and **every clock is registered as 
 | `events-partition-precreate` | the 25th, 12:00 | SQL | Next months' `events` partitions (a default partition catches the rest) |
 | `purge-*` | nightly, 04:13–04:41 | SQL | Rate-limit hits (two hours old); cron history (a day for the ten-second jobs, fourteen otherwise); the events ledger's **evidence** kinds after thirty days (00115 — the record kinds are kept); Ask threads and notifications after 90 days |
 
-**How a sweep is watched.** pg_cron marks a run "succeeded" the moment `net.http_post` is *enqueued*, whatever the edge then answers. So each trigger records its pg_net request id in `sweep_status` (`request_sweep()`, 00086), and `sweep_health()` joins those ids to the responses pg_net actually received; the SQL-only sweeps are judged on their runs. `/api/cron/health` — offset to :13 and :43 so it never judges a request seconds old — decides when to shout (`chooseSweepAlerts`, with suppression) and reaches a person through `notify()`; `/api/health` is the same judgement read from outside, with no key.
+**How a sweep is watched.** pg_cron marks a run "succeeded" the moment `net.http_post` is *enqueued*, whatever the edge then answers. So each trigger records its pg_net request id in `sweep_status` (`request_sweep()`, 00086), and `sweep_health()` joins those ids to the responses pg_net actually received; the SQL-only sweeps are judged on their runs. The calls sweep asks only when there is work, so it has no silence to break: each ask is judged for the hour after it, and pg_net waits 65 s, past the edge's own 60, so a slow tick that finished never reads as a timeout (00149). `/api/cron/health` — offset to :13 and :43 so it never judges a request seconds old — decides when to shout (`chooseSweepAlerts`, with suppression) and reaches a person through `notify()`; `/api/health` is the same judgement read from outside, with no key.
 
 **Fair sweeps.** Sweeps that visit every workspace (`sweep-rotation.ts`: the calendar and the playbooks, as the Google sweep already did) take the least recently served first, capped per tick, and record what they could not reach; three ticks in a row with a backlog answer 503, because the queue is growing faster than it drains (`note_sweep_backlog`, 00089).
 
@@ -541,9 +529,9 @@ On a local or CI database, `supabase/seed.sql` removes the production edge addre
 
 ### 10.1 Core, and a committing verb
 
-The rules a route or a job runs live in **`packages/core`**, as use cases behind ports; the route and the job handler are adapters. Three groups: **conversations** (reply, cancel-send, take over, hand back, snooze, wake, resolve, archive), **messages** (the queued send, the broadcast batch, the thread erasure, line provisioning — and `deliver`, the one sender both apps use) and **campaigns** (create, approve and cancel a broadcast; assemble an audience; a playbook's run and its check; template values). Every branch is run by a test calling the use case with fakes; the source-reading pins that held the routes' text were deleted with each extraction. What stays on the edge is the WhatsApp handler itself, over its ports object.
+The rules a route or a job runs live in **`packages/core`**, as use cases behind ports; the route and the job handler are adapters. Four groups: **conversations** (reply, cancel-send, take over, hand back, snooze, wake, resolve, archive), **messages** (the queued send, the broadcast batch, email intake, line provisioning — and `deliver`, the one sender both apps use), **campaigns** (create, approve and cancel a broadcast; assemble an audience; a playbook's run and its check; template values) and **leads** (the finder's runner, its judge, the cleaning of what an actor returns, and a round's endings). Every branch is run by a test calling the use case with fakes; the source-reading pins that held the routes' text were deleted with each extraction. What stays on the edge is the WhatsApp handler itself, over its ports object.
 
-Every verb is **a decision row plus a change to its subject**, both on the session client so RLS enforces them (`server/verbs.ts`). Side effects that need the service role — scheduling a job, the Blob pause mirror, calling the edge — go through `server/service.ts`. The ledger's verbs are a closed set: approve, edit, decline, snooze, wake, take_over, hand_back, resolve, archive, reply, cancel_send, pause_agent, resume_agent, invite, revoke_invite, change_role, remove_member, erase, whisper, connect_channel, consent_change, send_broadcast, cancel_broadcast, start_playbook, pause_playbook, reply_review, workspace, export, end_call. Every event kind declared is written and every kind written is declared (`EVENT_KINDS`, held by a test).
+Every verb is **a decision row plus a change to its subject**, both on the session client so RLS enforces them (`server/verbs.ts`). Side effects that need the service role — scheduling a job, removing a Storage object, calling the edge — go through `server/service.ts`. The ledger's verbs are a closed set: approve, edit, decline, snooze, wake, take_over, hand_back, resolve, archive, reply, cancel_send, pause_agent, resume_agent, invite, revoke_invite, change_role, remove_member, erase, whisper, connect_channel, consent_change, send_broadcast, cancel_broadcast, start_playbook, pause_playbook, reply_review, workspace, export, end_call. Every event kind declared is written and every kind written is declared (`EVENT_KINDS`, held by a test).
 
 ### 10.2 A reply, and its honest undo
 
@@ -572,12 +560,11 @@ The other thread verbs: **take over** pauses the receptionist and claims the thr
 
 1. The keys are read while the rows still exist (reads only; a failed read is a retry with nothing to undo).
 2. The block (#581, held for migration 00124): `erasing_since` on the row, so the wire refuses the person from that moment, and `erased_phone_hash` (sha256 of the tenant id and the number, tenant-keyed, no column grant), so the calendar import and a call that began before the request leave the person erased instead of making them again. A new message or a new call from the number is the person coming back.
-3. The Blob job is queued — its key is the phone digits, which cannot be recomputed after the tombstone.
-4. Storage objects go next; a Storage failure stops there, with the person blocked, not live.
-5. `erase_contact` tombstones the person (every identifier removed, the id kept so the ledger still resolves; no answer about offers survives, 00101) and deletes their messages, calls, identities, policies and events in one transaction.
-6. Ask turns that mention them are scrubbed for every member.
+3. Storage objects go next; a Storage failure stops there, with the person blocked, not live.
+4. `erase_contact` tombstones the person (every identifier removed, the id kept so the ledger still resolves; no answer about offers survives, 00101) and deletes their messages, calls, identities, policies and events in one transaction.
+5. Ask turns that mention them are scrubbed for every member.
 
-The ledger records `erase` twice: the owner's decision, and the system finishing the Blob leg. The other half of the privacy promise is access, and every export leaves a ledger row too (00114): a thread or a call as a text file (members), everyone as a CSV (owner), and **everything** — people, conversations with their messages, calls with their transcripts, and the consent history with who recorded each answer and how — as one JSON file written a section at a time (`export-bundle.ts`, owner). Recordings are not in it: audio is removed on its own schedule. **How long the product keeps what** is stated once (`contracts/retention.ts`) and enforced where stated: call recordings 90 days, the events ledger's evidence kinds 30, Ask threads 90, the bell 90, cron history 14; the privacy page reads the same file.
+The ledger records the owner's `erase` decision, and a second row for a leg that finished after the rows were gone. The other half of the privacy promise is access, and every export leaves a ledger row too (00114): a thread or a call as a text file (members), everyone as a CSV (owner), and **everything** — people, conversations with their messages, calls with their transcripts, and the consent history with who recorded each answer and how — as one JSON file written a section at a time (`export-bundle.ts`, owner). Recordings are not in it: audio is removed on its own schedule. **How long the product keeps what** is stated once (`contracts/retention.ts`) and enforced where stated: call recordings 90 days, the events ledger's evidence kinds 30, Ask threads 90, the bell 90, cron history 14; the privacy page reads the same file.
 
 ## S-11 · The UI and the legacy bridge
 
@@ -712,7 +699,7 @@ A per-person row (`subject_type 'contact'`) overrides the workspace's reply mode
 
 `apps/edge/lib/tenant-runtime.ts` is the one door between the runtime and the control plane: the persona, notifications, calendar and features; the policy matrix; the workspace's WhatsApp credentials from Vault; its timezone; whether billing has paused it; and the facts the platform knows. One batched read, cached per function instance and checked against `runtime_stamp()` on every message, so a setting saved in the dashboard reaches the next message.
 
-The posture rules (`lib/reply-posture.ts`): absence configures — no persona means the receptionist never speaks — and errors fall back: only the environment's own number may use its baked profile (`tenant-fallback.ts`), and only when the control plane cannot be read. `refresh-dr-fallback.mjs` regenerates that profile from the live config, and a test holds the two byte-identical.
+The posture rules (`lib/reply-posture.ts`): absence configures — no persona means the receptionist never speaks — and errors fall back: only the environment's own number may use the disaster-recovery profile (`tenant-fallback.ts`), and only when the control plane cannot be read. That profile is configuration, not source: it is read once at load from `DR_FALLBACK_BRAIN_JSON` (and its two notification variables) through the same parser a stored row goes through, and a neutral profile that names no business stands in when the variable is absent or invalid. `refresh-dr-fallback.mjs` prints the values from the stored row, and the control-plane test holds the row and the variable identical wherever the variable is set.
 
 ## S-14 · Consent, broadcasts and playbooks
 
@@ -750,7 +737,7 @@ A standing rule that sends one approved template to people who newly qualify.
 | Visit reminder | The day before an appointment on the calendar | booking |
 | After the visit | The day after a visit, with nothing booked next | reengage |
 
-A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch tested) is a broadcast: the trigger's people who said yes, minus anyone this playbook reached within its gap (90 days by default), minus anyone any playbook reached this week, longest-unheard first, up to the cap (25 by default); one run per local day, at the playbook's hour (between 9 and 20). The class's mode decides what the run does: **auto** sends now, **veto** schedules it half an hour out with a Stop, **ask** leaves it waiting as `pending_approval` on Today and on Playbooks — and an approval moves the send to the next open moment (00119) — **never** does nothing. A person who presses Run now has decided: it sends unless the class is never. A visit run keeps the visit's own words ("tomorrow at 2:00 PM", the service) on each recipient row. A playbook's card says what it sends, and a run has a page of its own. A visit run is different in three ways (#580): it reminds everyone with a visit, the cap being a fatigue limit for offers (the number's own daily limit is the one ceiling left, and the run's record says when it cut); its words are relative to the moment the send goes, so a run asked for at eleven at night and moved to nine says "today"; and a day's run approved on a later day is refused, and the next sweep reads the calendar again.
+A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch tested) is a broadcast: the trigger's people who said yes, minus anyone this playbook reached within its gap (90 days by default), minus anyone any playbook reached this week, longest-unheard first, up to the cap (25 by default); one run per local day, at the playbook's hour (between 9 and 20). The class's mode decides what the run does: **auto** sends now, **veto** schedules it half an hour out with a Stop, **ask** leaves it waiting as `pending_approval` on Today and on Playbooks — and an approval moves the send to the next open moment (00119) — **never** does nothing. A person who presses Run now has decided: it sends unless the class is never. A visit run keeps the visit's own words ("tomorrow at 2:00 PM", the service) on each recipient row. A playbook's card says what it sends, and a run has a page of its own. A playbook is made and changed in one sheet beside the page: its moment and who that reaches today, its message as a customer reads it, and its clock as one sentence. Each slot takes only what keeps the message true (contracts `slotChoices`): a starter's first name is each person's own and a visit's time each visit's, the business name and the booking link may be typed over, a slot on a template written elsewhere may take any source (its guess first), and a message with a slot the moment cannot fill is not offered on it. A playbook stored with a slot filled by something it cannot take says so on its card, and the next change puts it right. A visit run is different in three ways (#580): it reminds everyone with a visit, the cap being a fatigue limit for offers (the number's own daily limit is the one ceiling left, and the run's record says when it cut); its words are relative to the moment the send goes, so a run asked for at eleven at night and moved to nine says "today"; and a day's run approved on a later day is refused, and the next sweep reads the calendar again.
 
 ## S-15 · Calendar and availability
 
@@ -851,7 +838,7 @@ Every table has RLS. Writers: **E** the edge (service role), **S** the dashboard
 
 Beside the tables: the private `media` bucket (inbound attachments and call recordings, served only as five-minute signed URLs, audio removed at ninety days); Vault (`cron_sweep_key`, `edge_base_url`, and every per-workspace credential); and the realtime publication (conversations, messages, escalations, decisions, calls, notifications, lines, tenant_channels, capability_activations, business_records, the Google tables, billing_accounts).
 
-**The read functions** are `SECURITY INVOKER`, so RLS scopes every inner select to the caller: `metrics_summary` (Today), `report_series` and `campaign_series` (Reports, two periods in one call), `first_replies` (one definition of who answered and how fast, timed from when the reply actually left), `people_list` (People — a query, a limit and an offset, 00112). They share the evidence rules: a row imported without a provider timestamp sits on no calendar day and never proves a person is new, and a canceled or failed send never counts as sent. `people_list` also says where each person came from (00138), in this order: the door that added them (its `contact.added` event: calendar, lead, anything else by hand); else a history moved in from before the database (the receptionist's Blob-era WhatsApp threads, `meta.backfill`), by how it began — a call's note is a call, anything else its wire, and imported only when it names no known wire; else their first connected call, which wins a tie, or the wire of their first message; else nothing. People come back latest contact first, then the newest added, then by id: people alike in both come back the same way every time, so a tie never makes a page read by offset repeat a person or skip one.
+**The read functions** are `SECURITY INVOKER`, so RLS scopes every inner select to the caller: `metrics_summary` (Today), `report_series` and `campaign_series` (Reports, two periods in one call), `first_replies` (one definition of who answered and how fast, timed from when the reply actually left), `people_list` (People — a query, a limit and an offset, 00112). They share the evidence rules: a row imported without a provider timestamp sits on no calendar day and never proves a person is new, and a canceled or failed send never counts as sent. `people_list` also says where each person came from (00138), in this order: the door that added them (its `contact.added` event: calendar, lead, anything else by hand); else a history moved in from before the database (the receptionist's pre-Postgres WhatsApp threads, `meta.backfill`), by how it began — a call's note is a call, anything else its wire, and imported only when it names no known wire; else their first connected call, which wins a tie, or the wire of their first message; else nothing. People come back latest contact first, then the newest added, then by id: people alike in both come back the same way every time, so a tie never makes a page read by offset repeat a person or skip one.
 
 **Closed sets** are text with a CHECK, never native enums. `gen-schema-sets.mjs` regenerates `schema-sets.generated.ts` from a database built from every migration, `check-db-types.mjs` guards the generated types, and the compiler holds each hand-kept copy to it.
 
@@ -896,8 +883,6 @@ Beside the tables: the private `media` bucket (inbound attachments and call reco
 | Stop one queued reply | The cancel window in the Inbox, or `messages.status = 'canceled'` while it is still `queued` |
 | Hold one customer for a person | People → the person → Receptionist → Ask me first, or Never |
 | Cap or pause the receptionist for a workspace | Settings › Autonomy: the replies per day, the pause length, the day's tokens |
-| Roll memory back to Blob | `PG_READS=off`, redeploy, and confirm `/api/diag` reads `blob` — not available once `BLOB_SHADOW=off` |
-| Retire Blob | `BLOB_SHADOW=off`, redeploy |
 | Let a preview reach the providers | `EDGE_PROVIDERS=live` with `EDGE_URL` at an edge holding sandbox keys; `LINES_DRY_RUN=1` for fake lines |
 | Roll the edge's credential | Set `EDGE_CALL_SECRET` on both projects, in either order; drop `DIAG_KEY` when every caller carries a token |
 | Close the front door, or queue it | `SIGNUP_CODE` (invite code), or the waitlist posture |
@@ -908,7 +893,7 @@ A Vercel variable reaches a running deployment only after a redeploy.
 
 ### 23.2 Scripts
 
-Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `optout-probe.mjs`, `refresh-dr-fallback.mjs`, `voice-converge.mjs`, `run-backfill.mjs` (the history import), `seed-memberships.mjs` and `e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen-schema-sets.mjs`, `gen-route-types.mjs`, `check-db-types.mjs`, `check-dist.mjs`, `db-paths-changed.mjs`, `golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs`, `eval-judge.mjs` and `serve-legacy.mjs`.
+Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `optout-probe.mjs`, `voice-converge.mjs`, `seed-memberships.mjs` and `e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen-schema-sets.mjs`, `gen-route-types.mjs`, `check-db-types.mjs`, `check-dist.mjs`, `db-paths-changed.mjs`, `golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs`, `eval-judge.mjs` and `serve-legacy.mjs`.
 
 ### 23.3 Secrets
 
@@ -976,7 +961,8 @@ Names only; values live in each Vercel project.
 | Edge | WhatsApp | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_ID`, `META_APP_SECRET`, `META_APP_ID`, `META_ES_CONFIG_ID`, `WHATSAPP_TEST_ALLOWLIST` |
 | | Voice and lines | `RETELL_API_KEY`, `RETELL_WEBHOOK_KEY`, `RETELL_FN_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PRIMARY_PROFILE_SID`, `LINES_DRY_RUN` |
 | | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM`, `EMAIL_DOMAIN`, `RESEND_WEBHOOK_SECRET` |
-| | Memory | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PG_WRITES`, `PG_READS`, `PG_DEDUPE`, `BLOB_SHADOW`, `BLOB_READ_WRITE_TOKEN` |
+| | Memory | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+| | Disaster recovery | `DR_FALLBACK_BRAIN_JSON`, `DR_FALLBACK_ESCALATION_EMAILS`, `DR_FALLBACK_FROM` |
 | | Google | `GOOGLE_PLACES_API_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `GOOGLE_OAUTH_AUDIENCE` |
 | | Billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `BILLING_TRIAL_DAYS`, `DASHBOARD_ORIGIN` |
 | | Operations | `DIAG_KEY`, `EDGE_CALL_SECRET`, `EDGE_ORIGIN` |

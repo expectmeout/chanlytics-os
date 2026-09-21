@@ -12,7 +12,7 @@ import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { playbooksDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/sweep-rotation.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
-import { localDate, runDueNow, type PlaybookDto } from "../../lib/workspace/contracts.js";
+import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 
 export const config = { maxDuration: 60 };
 

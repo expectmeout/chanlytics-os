@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseTenantConfig, type JobKind, type JobNews } from "@chanlytics/contracts";
 import { classifyReceived, emailPlainText, isEmailRequest, messageIdsIn, type ReceivedEmail } from "@chanlytics/channels";
-import { deliver, eraseBlobThread, ingestEmail, provisionLine, type EmailIngestPorts, type IncomingEmail, sendBroadcastBatch, sendQueued, templatePurpose, type EraseThreadCommand, type SendQueuedCommand, type Wire } from "@chanlytics/core";
+import { deliver, ingestEmail, provisionLine, type EmailIngestPorts, type IncomingEmail, sendBroadcastBatch, sendQueued, templatePurpose, type SendQueuedCommand, type Wire } from "@chanlytics/core";
 import { ingestInboundEmail, mailboxById, markProcessed, resolveOutboundTarget, sentEmailWithMessageId, stampMailboxReceived, type Database, type Json } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 
@@ -29,23 +29,16 @@ export interface JobContext {
    */
   page?: (key: string, subject: string, body: string) => Promise<unknown>;
   /**
-   * Delete one customer's stored Blob thread.
-   *
-   * INJECTED, not imported. The store is apps/edge/lib/store.ts because the
-   * edge is the runtime that holds BLOB_READ_WRITE_TOKEN, and a package must
-   * not reach into an app.
-   */
-  eraseThread: (namespace: string, threadId: string) => Promise<boolean>;
-  /**
-   * Run a line's provisioning saga, or resume it. INJECTED like eraseThread:
-   * the provider and the receptionist's credentials live on the edge. The
-   * saga reads its own receipts, so a second run repeats nothing. Optional
-   * so a test context need not supply one; a job of this kind in a runtime
-   * without it fails loudly rather than guessing.
+   * Run a line's provisioning saga, or resume it. INJECTED, not imported:
+   * the provider and the receptionist's credentials live on the edge, and a
+   * package must not reach into an app. The saga reads its own receipts, so a
+   * second run repeats nothing. Optional so a test context need not supply
+   * one; a job of this kind in a runtime without it fails loudly rather than
+   * guessing.
    */
   provisionLine?: (lineId: string, by: "owner" | "support" | "sweep") => Promise<{ ok: boolean; step?: string; error?: string; did?: string }>;
   /**
-   * Email's intake, as the edge holds it. INJECTED like the two above: the
+   * Email's intake, as the edge holds it. INJECTED like the one above: the
    * provider's key and the deployment's mail domain live on the edge, and so
    * does the read of who asked to be forgotten. Optional so a test context
    * need not supply one; an email_ingest job in a runtime without it fails
@@ -63,7 +56,7 @@ export interface JobContext {
   };
   /**
    * The lead finder's pipeline (00140), as the edge holds it. INJECTED like
-   * the three above: the provider's token, the judge's client and the
+   * the two above: the provider's token, the judge's client and the
    * webhook base live on the edge (release A2 binds them). Optional so a
    * test context need not supply one; a lead job in a runtime without it
    * fails loudly rather than guessing. Each takes the claimed job whole and
@@ -153,37 +146,6 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       ...(ctx.page ? { page: ctx.page } : {}),
     },
     { tenantId: job.tenant_id, payload: job.payload as SendQueuedCommand["payload"] },
-  );
-}
-/** blob_thread_erase: core's eraseBlobThread, over the store the edge injects. payload: { contact_id, namespace, thread_ids } */
-async function blobThreadErase(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  await eraseBlobThread(
-    {
-      eraseThread: ctx.eraseThread,
-      // A scrub that failed silently is the worst of both: the ledger row above
-      // says the erasure is done while the payload still holds the digits we
-      // were asked to erase, in a table whose rows are never deleted. It throws,
-      // so the job fails and the unscrubbed payload — the only handle that can
-      // retry this leg — is tried again.
-      scrub: async (tenantId, by, scrubbed) => {
-        const q = ctx.db.from("jobs").update({ payload: scrubbed });
-        must("blob_thread_erase: the erased number is still on the job", "contactId" in by
-          ? await q.eq("tenant_id", tenantId).eq("kind", "blob_thread_erase").eq("payload->>contact_id", by.contactId)
-          : await q.eq("id", by.jobId));
-      },
-      // actor_type 'system' with a null actor_user_id is what decisions_check
-      // requires; the service role is not subject to RLS here. An erasure whose
-      // ledger row was refused is an erasure nobody can prove, so it throws too.
-      recordErased: async (tenantId, contactId, threads, jobId) => {
-        const [decided, evented] = await Promise.all([
-          ctx.db.from("decisions").insert({ tenant_id: tenantId, subject_type: "contact", subject_id: contactId, verb: "erase", actor_type: "system", payload: { leg: "blob", threads, job_id: jobId } }),
-          ctx.db.from("events").insert({ tenant_id: tenantId, kind: "contact.blob_erased", category: "contact", subject_type: "contact", subject_id: contactId, data: { threads } }),
-        ]);
-        must("blob_thread_erase: the erasure is not on the decisions ledger", decided);
-        must("blob_thread_erase: the erasure is not in the events", evented);
-      },
-    },
-    { tenantId: job.tenant_id, jobId: job.id, payload: job.payload as EraseThreadCommand["payload"] },
   );
 }
 // Flagging a thread for a person lives in escalate.ts, where the ledger's settle reaches it without loading the core.
@@ -387,7 +349,6 @@ async function leadCheck(ctx: JobContext, job: ClaimedJob): Promise<void> {
 const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
-  blob_thread_erase: blobThreadErase,
   line_provision: lineProvision,
   email_ingest: emailIngest,
   lead_round_start: leadRoundStart,

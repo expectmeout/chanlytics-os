@@ -65,7 +65,7 @@ await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
 globalThis.ThreadPane = globalThis.window.ThreadPane;
 // The call's card, which Conversations draws for a call no thread holds.
-globalThis.CallCard = globalThis.window.CallCard;
+globalThis.ThreadCall = globalThis.window.ThreadCall;
 await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 const RealInboxThread = globalThis.window.InboxThread;
 globalThis.InboxThread = RealInboxThread;
@@ -307,7 +307,8 @@ test("a call still going is a line that says so, its clock running from its star
   try {
     listed([{ ...toCallVM(call, ZONE, NOW), live: true, outcome: "live", ts: NOW.getTime() - 83_000 }]);
     const live = find(conversations(), byTestId("cv-call-live"));
-    assert.match(textOf(live), /On the phone now · 1:23/);
+    const part = (cls) => textOf(find(live, (n) => String(n.props?.className || "").split(" ").includes(cls)));
+    assert.deepEqual([part("tl-call-kind"), part("tl-call-length")], ["On the phone now", "1:23"]);
     find(live, (n) => n.type === "button" && textOf(n).includes("Open Live")).props.onClick();
     assert.equal(went.at(-1), "live");
   } finally {

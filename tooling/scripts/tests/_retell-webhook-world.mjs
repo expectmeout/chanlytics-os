@@ -1,13 +1,15 @@
 /**
- * The voice webhook's harness -- the knock, the wire and the world -- shared by
- * the files that RUN apps/edge/api/retell-webhook.ts: retell-webhook-door
- * (the store retired, as production runs) and retell-webhook-store-on (the
- * store live, in memory). One handler, two environments, one set of helpers,
- * because the store reads its flag at import and a process gets one import.
+ * The voice webhook's harness -- the knock, the wire and the world -- for the
+ * file that RUNS apps/edge/api/retell-webhook.ts: retell-webhook-door.
  *
- * ORDER MATTERS. Set process.env first, then `await openDoor()`: it imports the
- * handler -- and through it the store, whose flags are read once -- so the
- * environment at that moment is the one the whole file runs under.
+ * It was shared by two files, because the receptionist's memory was a Vercel
+ * Blob store whose flag was read once per process, and the handler's note to
+ * the caller's thread had to be proved under both settings. The store is gone
+ * and the call_summary row IS the note, so there is one environment now.
+ *
+ * ORDER STILL MATTERS. Set process.env first, then `await openDoor()`: it
+ * imports the handler, which reads its keys at import, so the environment at
+ * that moment is the one the whole file runs under.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -153,13 +155,11 @@ export const DUPLICATE = (index) => ({ message: `duplicate key value violates un
 
 /**
  * Import the handler under the environment the caller has set, and hand back
- * the helpers that need it: the knock (which calls its POST), the world
- * (which hands the database to `setPg`), and the store module itself, so a
- * file can read a thread back the way the handler wrote it.
+ * the helpers that need it: the knock (which calls its POST) and the world
+ * (which hands the database to `setPg`).
  */
 export async function openDoor() {
   const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-  const store = await import(at("apps/edge/lib/store.ts"));
   const hook = await import(at("apps/edge/api/retell-webhook.ts"));
 
   function knock(raw, { signature = null, key = undefined } = {}) {
@@ -227,5 +227,5 @@ export async function openDoor() {
     };
   }
 
-  return { setPg, store, hook, knock, deliver, world };
+  return { setPg, hook, knock, deliver, world };
 }

@@ -3,6 +3,12 @@
    ==================================================================== */
 
 .clients {
+  /* People fills the shell's row, as the Inbox does. In that flex row the grid was only as wide as its content: a
+     search's "left out" table stopped 62px short of the pane at 1280 and the review bench 77px short at 1920. The
+     bench's cards are a container now (they fold by their own width, leads.css), and a container counts as empty
+     when its content is measured, which would have left the bench 215px short. */
+  flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   grid-template-columns: var(--rail-nav) minmax(0, 1fr);
   height: 100%;
@@ -15,10 +21,13 @@
    LEFT RAIL — Smart lists & saved segments
    ==================================================================== */
 
-/* A menu in the rail opens inside it, leftward from its trigger: the rail scrolls, so whatever crosses its edge is
-   cut off, and a search's menu opening rightward showed 51px of 194. It is at most as wide as the rail leaves it
-   beside the trigger, and its words wrap. */
-.cl-rail .more-menu { min-width: 0; width: max-content; max-width: 196px; }
+/* The rail scrolls, so it cuts off whatever crosses its edge: a search's menu opening rightward showed 51px of 194,
+   and held inside the rail (196px) its words broke onto three to six lines. So a menu here escapes the rail
+   (MoreMenu `escape`), and an item's meta, a sentence saying what the item will do, is its second line under the
+   label (past the 16px icon and its 11px gap) rather than a column squeezed beside it. */
+.cl-rail .more-item:has(> .more-item-meta) { flex-wrap: wrap; row-gap: 1px; }
+.cl-rail .more-item > .more-item-meta { flex-basis: 100%; }
+.cl-rail .more-item > .icon ~ .more-item-meta { padding-left: 27px; }
 .cl-rail {
   display: flex;
   flex-direction: column;
@@ -115,14 +124,34 @@
 .cl-rail-row.smart.active::before { opacity: 1; }
 .cl-rail-row .glyph { color: var(--ink-faint); flex-shrink: 0; }
 .cl-rail-row .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A count is read, so it takes the dim ink: --ink-faint is 2.1 to 2.7:1 in both themes (Leads' counts were dim,
+   People's faint, in one rail). */
 .cl-rail-row .count {
   font-size: 10.5px;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 .cl-rail-row.smart .count { color: var(--accent); font-weight: 500; }
 .cl-rail-row.active .count { color: var(--ink); }
+
+/* A row with acts of its own (RailRow `menu`: a search's …) is its pick and its acts side by side. The pick fills the
+   row and carries its padding, so a press anywhere on the row but the acts picks it; the acts sit inside its right
+   edge, shown on hover, on focus, open or picked, and always on a touch screen, which has no hover to show them. */
+.cl-rail-row.has-acts { padding: 0 4px 0 0; gap: 2px; flex-wrap: wrap; }
+.cl-rail-pick {
+  flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 8px; padding: 5px 4px 5px 8px;
+  border: 0; border-radius: inherit; background: none; font: inherit; line-height: normal; color: inherit; text-align: left;
+  cursor: pointer; /* line-height as a button row's own, which `font: inherit` would take from the page */
+}
+.cl-rail-row.has-acts > .more-wrap { flex: none; }
+.cl-rail-row.has-acts > .more-wrap > button { opacity: 0; }
+.cl-rail-row.has-acts:hover > .more-wrap > button,
+.cl-rail-row.has-acts.active > .more-wrap > button,
+.cl-rail-row.has-acts > .more-wrap > button:focus-visible,
+.cl-rail-row.has-acts > .more-wrap > button[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .cl-rail-row.has-acts > .more-wrap > button { opacity: 1; } }
+.cl-rail-row.has-acts > .confirm { flex-basis: 100%; margin: 2px 8px 6px; }
 
 .cl-rail-foot {
   margin-top: auto;
@@ -1826,6 +1855,11 @@
 @media (max-width: 900px) {
   /* Cards: the table and its body become blocks so each row's grid takes the full width; the shrink columns give up their 1%. */
   .cl-table, .cl-table tbody { display: block; width: 100%; }
+  /* And no wider, in People and Leads alike. mobile.css keeps the mockup's 760px floor on every .cl-table from 900px
+     down, and the seeded tables still scroll sideways under it. A card's wrap did too, from 721px to 803px (36px at
+     768px), and up to about 790px the card's last cell, a person's state or a lead's Call, ended past the wrap's
+     visible edge (26px at 768px). */
+  .cl-table.pl-table { min-width: 0; }
   .cl-table thead { display: none; }
   .cl-table tbody tr { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "sel name state" "sel last visits" "sel offers offers"; column-gap: 8px; row-gap: 2px; padding: 8px 10px; width: 100%; box-sizing: border-box; }
   .cl-table td, .cl-table td.shrink { display: block; width: auto; min-width: 0; padding: 0; border: none; white-space: normal; }
@@ -1907,7 +1941,6 @@
    strip above it was the only place a phone could see it. */
 @media (max-width: 720px) {
   .cl-table-wrap.pl-table-wrap { overflow-x: visible; margin: 0 16px; }
-  .cl-table.pl-table { min-width: 0; }
   .pl-table thead { display: none; }
   .pl-table tbody tr {
     display: grid;
@@ -1952,6 +1985,9 @@
 .pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
 .pl-standing-reached { font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .pl-standing { padding: 12px 16px 0; } }
+/* And one under it while more people follow, "N of M loaded" and Show more: in the table's gutter, as the line above. */
+.pl-more { padding: 8px 28px 16px; }
+@media (max-width: 900px) { .pl-more { padding: 8px 16px 16px; } }
 /* --attn-row was set on the People strip's own container, which is gone; every
    page that still draws these rows (Today's queue, Setup, the back office) sets
    it itself or lets the row size to its content, as it already did. */

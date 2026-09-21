@@ -18,7 +18,7 @@
 import { notify, type NotifyPorts } from "./notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
 import type { pg } from "./pg.js";
-import type { JobNews, JobNewsKind } from "./workspace/contracts.js";
+import type { JobNews, JobNewsKind } from "./packages/contracts.js";
 
 export interface AlertableJob {
   tenant_id: string;

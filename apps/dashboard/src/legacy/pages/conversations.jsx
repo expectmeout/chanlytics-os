@@ -1,4 +1,4 @@
-/* global React, Icon, MoreMenu, CONVERSATIONS_DATA, EmptyState, FailedRead, ThreadPane, CallCard */
+/* global React, Icon, MoreMenu, CONVERSATIONS_DATA, EmptyState, FailedRead, ThreadPane, ThreadCall */
 // Chanlytics — Conversations
 // The raw communication layer: every call, chat, and email, newest first. A row opens the one thread (thread-pane.jsx)
 // -- a call opens its thread at the call -- and a call no thread holds opens alone, in the thread's own frame.
@@ -22,6 +22,18 @@ const inChannel = (c, id) => id === "all" || (CV_TAB_KEYS[id] || [id]).includes(
 // publishes its waiting row: a tab that lists the wrong rows is not something
 // reading this file tells you.
 window.CV_IN_CHANNEL = inChannel;
+
+// ONE rule for the word after "conversations/", which the shell asks: a tab either kind of workspace draws -- a wire a
+// row can be on, in the view model's words (CV_ICON's keys; a real workspace draws one tab per wire, surface-data.ts
+// conversationTabs), or one of the mockup's grouped tabs -- or else a row's id, a conversation's or a call's (cv-).
+// The shell knew only the mockup's three tabs, so on a real workspace WhatsApp and Email were read as the ids of
+// conversations nobody could find: the list stayed on All, and the pane said the conversation wasn't shown.
+const cvOwn = (map, key) => Object.prototype.hasOwnProperty.call(map, key);
+const cvRoute = (word) => {
+  if (!word || word === "all") return { channel: "all", id: null };
+  return cvOwn(CV_ICON, word) || cvOwn(CV_TAB_KEYS, word) ? { channel: word, id: null } : { channel: "all", id: word };
+};
+window.CV_ROUTE = cvRoute;
 
 // The row's outcome as the one pill draws it. The words a page knows better
 // stay here (which channel answered, what you chose); the tones are the map's,
@@ -80,7 +92,7 @@ const CvRow = ({ c, active, onSelect }) => {
 };
 
 // ---------- A call no thread holds ----------
-// In the thread's own frame: its header, and the call as a thread draws it (CallCard). A caller who withheld their
+// In the thread's own frame: its header, and the call as a thread draws it (ThreadCall). A caller who withheld their
 // number, a call older than the threads the Inbox shows, a call still going. One still going is a line that says so and
 // opens Live, where it can be heard and steered; its clock is the wall clock since it started, never a seed's.
 const cvClock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
@@ -118,20 +130,23 @@ const CallPane = ({ c, onBack = null }) => {
         <div className="ix-timeline">
           {live ? (
             <div className="tl-call inbound live" data-testid="cv-call-live">
-              <div className="tl-call-card">
-                <div className="tl-call-head">
-                  <span className="live-dot" aria-hidden="true" />
-                  <span className="tl-call-kind">On the phone now{secs != null && <span className="tl-call-length tabular"> · {cvClock(secs)}</span>}</span>
-                </div>
-                <div className="tl-call-acts">
-                  <button type="button" className="btn btn-sm ix-state-go" onClick={() => window.CHANLY.nav("live")}>
-                    <Icon name="phone" size={12} /> Open Live
-                  </button>
-                </div>
+              <div className="tl-call-mark">
+                <span className="live-dot" aria-hidden="true" />
+                <span className="tl-call-words">
+                  <span className="tl-call-what">
+                    <span className="tl-call-kind">On the phone now</span>
+                    {secs != null && <span className="tl-call-length tabular">{cvClock(secs)}</span>}
+                  </span>
+                </span>
+              </div>
+              <div className="tl-call-live-acts">
+                <button type="button" className="btn btn-sm ix-state-go" onClick={() => window.CHANLY.nav("live")}>
+                  <Icon name="phone" size={12} /> Open Live
+                </button>
               </div>
             </div>
           ) : (
-            <CallCard call={c} at={c.at} />
+            <ThreadCall call={c} at={c.at} open />
           )}
         </div>
       </div>
@@ -220,7 +235,10 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
             {CV_CHANNELS.map(ch => (
               <button
                 key={ch.id}
+                type="button"
                 className={`fleet-filter-chip ${channel === ch.id ? "active" : ""}`}
+                aria-pressed={channel === ch.id}
+                data-testid={`cv-tab-${ch.id}`}
                 onClick={() => window.CHANLY.nav(ch.id === "all" ? "conversations" : `conversations/${ch.id}`)}
               >
                 {ch.label}

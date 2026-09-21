@@ -39,9 +39,8 @@ const MAIL = { RESEND_API_KEY: "re_test_only", LEAD_TO: "ops@platform.test", LEA
 // so what is not mailed below is not mailed by decision, never for want of an
 // address; and the only database is the one handed in.
 process.env.RETELL_FN_SECRET = SECRET;
-process.env.BLOB_SHADOW = "off";
 Object.assign(process.env, MAIL);
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_PHONE_ID", "WHATSAPP_ACCESS_TOKEN", "BLOB_READ_WRITE_TOKEN"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_PHONE_ID", "WHATSAPP_ACCESS_TOKEN"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;

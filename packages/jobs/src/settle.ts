@@ -291,9 +291,7 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     }
   }
 
-  // blob_thread_erase leaves nothing behind that says it is still going: the
-  // stored copy either went or did not, and the erasure's own retry handle is
-  // the job's unscrubbed payload (see rescheduleBlobErase in the dashboard).
+  // Every other kind leaves nothing behind that says it is still going.
   return [];
 }
 

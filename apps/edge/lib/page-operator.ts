@@ -18,7 +18,7 @@
  * channel is at least visible from the one door that does not depend on it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 import { post, platformFrom, platformTo } from "./notify.js";
 
 export const PAGE_WINDOW_MS = 6 * 3600_000;

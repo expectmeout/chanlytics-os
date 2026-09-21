@@ -14,8 +14,8 @@
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { updateLiveCall } from "../../lib/workspace/channels.js";
-import { frameWhisper } from "../../lib/workspace/contracts.js";
+import { updateLiveCall } from "../../lib/packages/channels.js";
+import { frameWhisper } from "../../lib/packages/contracts.js";
 
 /** One answer's worth. A whisper is worked into the next thing said. */
 const MAX_CHARS = 500;

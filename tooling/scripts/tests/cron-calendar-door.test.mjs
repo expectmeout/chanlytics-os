@@ -23,7 +23,6 @@ import { at, knock, answer, wire, refusedAtTheDoor, vault } from "./_cron-doors-
 
 // The mailer and the platform mailbox are configured on purpose: what is not
 // mailed below is not mailed by decision, not for want of an address.
-process.env.BLOB_SHADOW = "off";
 process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";

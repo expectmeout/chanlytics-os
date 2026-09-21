@@ -7,9 +7,9 @@ import { apiGet } from "./workspace";
  *
  * The route renders the real page, not the Coming Soon card or the mockup's
  * six invented campaigns: the cards are the workspace's playbooks with what
- * their runs earned, the composer offers the four triggers with the count
- * of people on each list who said yes, and the templates are the approved
- * ones the workspace holds (or the honest line). Nothing is made here — the
+ * their runs earned, the composer offers the six moments with who each
+ * reaches today, and the messages are the approved ones the workspace holds
+ * that fit the moment (or the honest line). Nothing is made here — the
  * workspace keeps no test playbook.
  */
 const INVENTED = ["Birthday offer", "Recovery Agent", "Review Bot", "Referral thank-you", "Attributed", "Spring couples"];
@@ -42,24 +42,30 @@ test.describe("Playbooks on a real workspace", () => {
     const text = await real.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
 
-    // The composer: the four triggers, each with a count; the approved
-    // templates or the honest line; the clock in the business's zone.
-    // Cancelled — nothing is saved.
+    // The composer, in a sheet beside the page: the six moments behind its
+    // moment, each with who it reaches today; the approved messages that fit
+    // it, or the honest line; the clock in the business's zone, and the
+    // rules every run keeps. Cancelled — nothing is saved.
     await page.getByTestId("pb-new").click();
-    const composer = real.getByTestId("pb-composer");
+    const composer = page.getByTestId("pb-composer");
     await expect(composer).toBeVisible();
-    await expect(composer.getByTestId("pb-trigger")).toHaveCount(6);
-    await expect(composer.getByTestId("pb-trigger").first()).toContainText("Win-back");
-    await expect(composer.getByTestId("pb-trigger-hint")).toContainText("Settings › Autonomy");
+    await composer.getByTestId("pb-moment").click();
+    await expect(page.getByTestId("pb-moment-pop")).toBeVisible();
+    await expect(page.getByTestId("pb-moment-option")).toHaveCount(6);
+    await expect(page.getByTestId("pb-moment-option").first()).toContainText("Win-back");
+    // Escape closes the list, and only the list.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("pb-moment-pop")).toHaveCount(0);
+    await expect(composer).toBeVisible();
+    await expect(composer.getByTestId("pb-guard")).toBeVisible();
     if (approved.length === 0) {
       await expect(composer.getByTestId("pb-no-template")).toBeVisible();
     } else {
-      await expect(composer.getByTestId("pb-template")).toHaveCount(approved.length);
-      await expect(composer.getByTestId("pb-preview")).toBeVisible();
+      await expect(composer.getByTestId("pb-message")).toBeVisible();
     }
     await expect(composer.getByTestId("pb-hour")).toBeVisible();
     await composer.getByTestId("pb-cancel").click();
-    await expect(real.getByTestId("pb-composer")).toHaveCount(0);
+    await expect(page.getByTestId("pb-composer")).toHaveCount(0);
   });
 
   test("the Campaigns tab is Playbooks, and Today shows a run only when one is waiting", async ({ page }) => {
@@ -126,9 +132,12 @@ test.describe("Playbooks on a real workspace", () => {
    * Templates and carried none, so on those two tabs it sat flush against the
    * sidebar while everything below it was inset 28px -- and Broadcasts, whose
    * line is inside .bc-page, was inset correctly. Geometry, so it is measured.
+   * Broadcasts is not: since #758 its line ends its band's legend, at the right,
+   * and the composer it sat above is a screen of its own, so the line has no
+   * page edge to share and the check could only skip it.
    */
   test("Campaigns: the standing line shares its page edge with the work below it", async ({ page }) => {
-    for (const [route, line] of [["outbound", "pb-standing"], ["broadcasts", "bc-standing"], ["messages", "messages-standing"]] as const) {
+    for (const [route, line] of [["outbound", "pb-standing"], ["messages", "messages-standing"]] as const) {
       await page.goto(`/#/${route}`);
       await page.waitForLoadState("networkidle");
       const standing = page.getByTestId(line);
@@ -142,7 +151,7 @@ test.describe("Playbooks on a real workspace", () => {
         return Math.round(r.getBoundingClientRect().left);
       });
       if (inkLeft === null) continue;
-      const below = page.locator(".rp-body > *, .bc-composer").first();
+      const below = page.locator(".rp-body > *").first();
       if ((await below.count()) === 0) continue;
       const box = await below.boundingBox();
       expect(box && Math.abs(Math.round(box.x) - inkLeft) <= 1, `${route}: the line starts at ${inkLeft} and the work below it at ${Math.round(box?.x ?? -1)}`).toBe(true);

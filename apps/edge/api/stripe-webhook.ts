@@ -15,7 +15,7 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { logger } from "../lib/log.js";
 import { applySubscription, forgetCustomer, forgetEvent, keepEvent, notePayment, noteTrialEnding, stripe, subscriptionFacts, tenantOf } from "../lib/billing.js";
-import { receptionistOn } from "../lib/workspace/contracts.js";
+import { receptionistOn } from "../lib/packages/contracts.js";
 
 export const config = { maxDuration: 30 };
 

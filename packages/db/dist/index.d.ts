@@ -4930,8 +4930,8 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
 
 /**
  * Ingestion repositories — the edge's write surface (service-role client).
- * ingest_inbound is the atomic concurrency gate (RPC); everything else is
- * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
+ * ingest_inbound is the atomic concurrency gate (RPC) and the receptionist's
+ * dedupe; everything else is plain row work.
  */
 
 type Db$6 = SupabaseClient<Database>;
@@ -5052,8 +5052,8 @@ declare function countSentToday(db: Db$6, p: {
 declare function recordStatusByExternalId(db: Db$6, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
- *  messaged yet) must still record the message and the pause, or PG diverges
- *  from the Blob pause forever. */
+ *  messaged yet) must still record the message and the pause, or the
+ *  receptionist answers over the person who just replied. */
 declare function recordEchoAndPause(db: Db$6, p: {
     tenantId: string;
     customerPhoneDigits: string;
@@ -5062,12 +5062,13 @@ declare function recordEchoAndPause(db: Db$6, p: {
     pausedUntilIso: string;
 }): Promise<void>;
 /**
- * Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation).
+ * The AI-side pause (non-text / escalation): the receptionist steps out of
+ * this thread until the given moment.
  *
  * Returns whether the pause actually landed, and the caller must care.
  *
- * This used to discard the result entirely, which under PG_READS makes it the
- * quietest way to break the product: `paused_until` on this row IS the answer
+ * This used to discard the result entirely, which is the quietest way to
+ * break the product: `paused_until` on this row IS the answer
  * to "may I speak?", so a transient PostgREST failure here means the bot opens
  * an escalation, emails staff, and then keeps answering the thread it just
  * handed to a human. supabase-js does not throw, so the surrounding try/catch
@@ -5301,23 +5302,22 @@ declare function recordCallNote(db: Db$4, p: {
 declare function claimCallNotification(db: Db$4, tenantId: string, callId: string): Promise<boolean>;
 
 /**
- * Gate 1b: the bot's working memory, read from Postgres.
+ * The receptionist's working memory, read from Postgres — the only place it
+ * lives.
  *
- * Until now the receptionist's memory lived in Vercel Blob and Postgres was a
- * write-only shadow — which meant every surface we built read a MIRROR of the
- * truth, and the two had to be kept in step by hand. Three of our worst bugs
- * came from that gap (an operator take-over clobbered by a webhook writing a
- * stale whole-object, archived threads swallowing new messages, a reply
- * scheduled before its mirror write).
- *
- * This returns the same four things the Blob blob did, so the caller's logic is
- * untouched — only the source moves:
+ * It used to live in Vercel Blob with Postgres as a write-only shadow, which
+ * meant every surface we built read a MIRROR of the truth and the two had to
+ * be kept in step by hand. Three of our worst bugs came from that gap (an
+ * operator take-over clobbered by a webhook writing a stale whole-object,
+ * archived threads swallowing new messages, a reply scheduled before its
+ * mirror write). The rows the dashboard reads and writes ARE the memory now:
  *   history      last turns fed to the model
  *   pausedUntil  a human is handling this thread
  *   replies      bot sends in the last 24h (rate cap)
- *   seen         retry dedupe — NOT needed here: ingest_inbound's is_new is an
- *                atomic gate on a unique index, which is strictly stronger than
- *                a 40-entry array that two concurrent lambdas could both miss.
+ * Retry dedupe is not here and needs nothing here: ingest_inbound's is_new is
+ * an atomic gate on a unique index, which is strictly stronger than the
+ * 40-entry array the store kept, and which two concurrent lambdas could both
+ * miss.
  */
 
 type Db$3 = SupabaseClient<Database>;
@@ -5327,7 +5327,6 @@ interface ThreadTurn {
 }
 interface PgThreadState {
     history: ThreadTurn[];
-    seen: string[];
     pausedUntil: number;
     replies: number[];
     /**
@@ -5347,9 +5346,9 @@ interface PgThreadState {
  *
  * Extracted so the WhatsApp receptionist and the voice agent cannot end up
  * with different ideas of what was said. They used to: the bot read these rows
- * from Postgres while the voice agent read a six-turn slice out of the Blob
- * mirror, so the same customer got a different — and thinner — account of
- * themselves depending on which number they used.
+ * from Postgres while the voice agent read a six-turn slice out of the store
+ * that has since been retired, so the same customer got a different — and
+ * thinner — account of themselves depending on which number they used.
  *
  * Four rules live here and nowhere else:
  *   - a blank body carries nothing to reason over
@@ -5393,9 +5392,9 @@ interface LeadContext {
  * The WhatsApp receptionist and the voice agent are meant to be the same
  * receptionist — a customer who phoned yesterday and texts today should not
  * have to start again. They were not: the bot read this conversation from
- * Postgres while the voice agent read a six-turn slice out of the Blob mirror,
- * a store we are actively retiring. Same person, two different accounts of
- * them, and only one of the two kept up to date.
+ * Postgres while the voice agent read a six-turn slice out of a mirror that
+ * has since been retired. Same person, two different accounts of them, and
+ * only one of the two kept up to date.
  *
  * READ-ONLY on purpose. A context lookup must never create a contact or a
  * conversation: an inbound call that is never answered, or a wrong number,

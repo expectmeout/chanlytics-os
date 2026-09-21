@@ -123,7 +123,8 @@ test("the door: idempotent, one language at a time, synced in when the number's 
 
 test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {
   const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
-  for (const id of ["starters", "starter-add", "starter-add-all", "template-lang", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  for (const id of ["starters", "starter-add", "starter-add-all", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  assert.ok(s.includes('testid="template-lang"'), "one language control per message, the picker's");
   assert.ok(s.includes('data-testid={g.starter ? "starter-row" : "custom-row"}'), "one card per message: the starters, then what the workspace wrote");
   assert.ok(s.includes('const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"), "Meta's sample is never shown");
   assert.ok(s.includes("<window.MessagePreview") && s.includes("header={row ? row.header : null}") && s.includes("buttons={row ? row.buttons : null}"), "the card is the WHOLE message as the customer sees it: its heading and its buttons too");
@@ -135,14 +136,14 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"'));
-  assert.ok(b.includes("const srcOf = (i) => ((sources[tplId] || defaults)[i] || \"text\");"), "a starter's slots come filled in");
+  assert.ok(b.includes("const srcOf = (i) => { const c = choices[i] || BC_TEXT; const s = (sources[tplId] || BC_NONE)[i]; return c.includes(s) ? s : c[0]; };"), "a starter's slots come filled in, each with what it may take");
   assert.ok(b.includes("<window.MessagePreview") && b.includes('data-testid="bc-preview"'), "the preview is the message as the customer sees it");
   assert.ok(b.includes("<window.PreviewStepper"), "and it walks the real people the count is a length of, not an example");
   assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");
   const p = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
   assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
-  assert.ok(p.includes("window.__starters.forTrigger(trigger)") && p.includes("if (starterRow) setTplId(starterRow.id);"), "the trigger's starter is picked for you");
-  assert.ok(p.includes("<window.TemplateChips") && p.includes("<window.MessagePreview"));
+  assert.ok(p.includes("window.__starters.forTrigger(trigger)") && p.includes("const tpl = picked ? usable.find((t) => t.id === tplId) || null : rowIn(starterGroup, null);"), "the trigger's starter is picked for you");
+  assert.ok(p.includes("<window.CmPicker") && p.includes("<window.MessagePreview"));
   const t = readCode("apps/dashboard/src/legacy/pages/templates-real.jsx");
   assert.ok(t.includes('data-testid="tpl-start-from"') && t.includes("window.starterWords = starterWords;") && !t.includes("WaBubble"));
   const css = readCode("apps/dashboard/src/legacy/styles/components.css");

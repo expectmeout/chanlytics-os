@@ -131,12 +131,12 @@ await check("POST /api/retell-fn short number gets graceful spoken fallback", as
 
 // --- diag ---
 if (DIAG) {
-  await check("GET /api/diag with x-diag-key reports store + env", async () => {
+  await check("GET /api/diag with x-diag-key reports the memory + env", async () => {
     const r = await get("/api/diag", { "x-diag-key": DIAG });
     assert(r.status === 200, `status ${r.status}`);
     const j = await r.json();
-    assert(typeof j.store === "string" && j.env, "diag shape wrong");
-    console.log(`      diag: store=${j.store} env=${JSON.stringify(j.env)} waTokenCheck=${JSON.stringify(j.waTokenCheck)}`);
+    assert(j.memory === "postgres" && j.env, "diag shape wrong");
+    console.log(`      diag: memory=${j.memory} env=${JSON.stringify(j.env)} waTokenCheck=${JSON.stringify(j.waTokenCheck)}`);
   });
 }
 await check("GET /api/diag wrong key is 403", async () => {

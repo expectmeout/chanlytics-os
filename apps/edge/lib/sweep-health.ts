@@ -64,7 +64,7 @@ export function chooseSweepAlerts(
 /** What each sweep failing COSTS, in the terms the owner cares about. */
 const CONSEQUENCE: Record<string, string> = {
   deadman: "a customer handed to a human is no longer flagged when nobody picks it up; a message the handler never finished with, and a queued reply with no job, are no longer found",
-  calls: "a call whose 'ended' webhook was lost stays 'ongoing' forever, and metrics count it",
+  calls: "a call whose 'ended' webhook was lost stays 'ongoing' forever, and metrics count it; recordings still at the provider are not copied, a call with no analysis gets no line in its thread, and call audio is kept past the ninety days the privacy page states",
   health: "this check itself is not running, so nothing else on this list can be trusted",
   jobs: "no queued reply, broadcast batch or erasure runs; replies wait as 'Sending…' until it is back",
   lines: "a phone line whose set-up was cut off stays 'setting up' until somebody presses Retry",

@@ -13,7 +13,9 @@
  * whether a call is still up, so we ask it rather than inferring.
  *
  * Called by pg_cron via pg_net (migration 00020), same shape and same Vault
- * secret as the deadman sweep. Idempotent by construction: it re-ingests
+ * secret as the deadman sweep. Since 00149 the request is recorded, so this
+ * answer is judged by sweep_health(): anything but a 2xx inside 65 s is a
+ * sweep that is not working. Idempotent by construction: it re-ingests
  * whatever Retell reports, and ingest_call is an upsert — a lost or duplicated
  * request finds the same candidates next tick.
  *
@@ -25,8 +27,8 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
-import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/workspace/channels.js";
-import { ingestCall, recordCallNote, linkCallMessage } from "../../lib/workspace/db.js";
+import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/packages/channels.js";
+import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from "../../lib/packages/db.js";
 import { copyRecording, purgeExpiredRecordings, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
 
 /** Only look at rows that have had time to settle — a call that started
@@ -140,7 +142,8 @@ export async function POST(request: Request): Promise<Response> {
   // ---- recordings that did not finish copying inside the webhook's budget ----
   // Same settle rule: the row's own updated_at moved on the last attempt, so
   // waiting five minutes IS the back-off. After RECORDING_MAX_ATTEMPTS the
-  // copy is marked failed by copyRecording and stops being a candidate.
+  // copy is marked failed (by copyRecording, or below when the provider has
+  // no link to give) and stops being a candidate.
   const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0 };
   const { data: pendingRec, error: recErr } = await db
     .from("calls")
@@ -162,6 +165,15 @@ export async function POST(request: Request): Promise<Response> {
     const url = fresh?.recording_url ?? null;
     if (!url) {
       L.warn("calls_sweep_recording_no_url", { call: row.retell_call_id });
+      // No link to copy from is a try like any other: counted, so a recording
+      // the provider never hands over ends "couldn't be saved" after
+      // RECORDING_MAX_ATTEMPTS. Skipped and unwritten, it said "still
+      // processing" for ever, and with its updated_at never moving it stood
+      // first in line on every run.
+      const attempt = (rec.attempts ?? 0) + 1;
+      const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
+      await setCallRecording(db, row.tenant_id, row.id, { fetch_state: exhausted ? "failed" : "pending", attempts: attempt, error: "provider_no_url" });
+      recordings[exhausted ? "failed" : "retry"]++;
       continue;
     }
     const outcome = await copyRecording(db, {
@@ -214,5 +226,11 @@ export async function POST(request: Request): Promise<Response> {
     candidates: stale?.length ?? 0, closed, still_live: stillLive, unknown,
     recordings: JSON.stringify(recordings), notes: JSON.stringify(notes), purge: JSON.stringify(purge),
   });
-  return json(200, { ok: true, candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes, purge });
+  const counts = { candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes };
+  // A purge that failed is the privacy page's ninety days not being kept, so
+  // once the other legs have had their turn the answer says so: pg_net records
+  // it and sweep_health() judges it (00149). The purge goes first, inside the
+  // 200 characters of the answer that the platform's mail quotes.
+  if (purge.error) return json(500, { ok: false, error: "purge_failed", purge, ...counts });
+  return json(200, { ok: true, ...counts, purge });
 }

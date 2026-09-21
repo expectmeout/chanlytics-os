@@ -62,7 +62,7 @@ if (typeof window !== "undefined") {
   // second copy in a page is one edit away from the surface claiming a
   // provenance the resolver never gave it.
   window.__FACT_WORDS = SOURCE_WORDS;
-  // "(646) 932-5775" and "+16469325775" are one number. The editor compares the
+  // "(646) 555-0175" and "+16465550175" are one number. The editor compares the
   // typed value against the provisioned line as you type, and a page that
   // rolled its own comparison would accuse a workspace of a conflict for
   // writing its own number in a friendly format.

@@ -181,7 +181,6 @@ var EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -293,9 +292,9 @@ var DECISION_VERBS = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -422,6 +421,7 @@ var RETENTION_DAYS = {
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
 var RECORDING_NOTE = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
@@ -575,7 +575,7 @@ var BusinessProfileSchema = z3.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z3.string().regex(E164, "E.164, like +16469325775").optional(),
+  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
   website: z3.string().url().max(500).optional(),
   notes: z3.array(NoteSchema).max(10).optional(),
   booking_rules: BookingRulesSchema.optional(),
@@ -886,6 +886,127 @@ var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
   z4.object({ op: z4.literal("add_note"), title: z4.string().min(1).max(80), text: z4.string().min(1).max(1200) }),
   z4.object({ op: z4.literal("add_service"), name: z4.string().min(1).max(80), duration_min: z4.number().int().min(1).max(1440).optional() })
 ]);
+var L = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES = [
+  L("af", "Afrikaans", null, "Afrikaans"),
+  L("sq", "Albanian", null, "Shqip"),
+  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L("ca", "Catalan", null, "Catal\xE0"),
+  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L("hr", "Croatian", null, "Hrvatski"),
+  L("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L("da", "Danish", null, "Dansk"),
+  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L("nl", "Dutch", null, "Nederlands"),
+  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L("en", "English", null, "English"),
+  L("en_AU", "English", "Australia", "English"),
+  L("en_CA", "English", "Canada", "English"),
+  L("en_GH", "English", "Ghana", "English"),
+  L("en_IN", "English", "India", "English"),
+  L("en_IE", "English", "Ireland", "English"),
+  L("en_JM", "English", "Jamaica", "English"),
+  L("en_MY", "English", "Malaysia", "English"),
+  L("en_NZ", "English", "New Zealand", "English"),
+  L("en_QA", "English", "Qatar", "English"),
+  L("en_SG", "English", "Singapore", "English"),
+  L("en_ZA", "English", "South Africa", "English"),
+  L("en_AE", "English", "UAE", "English"),
+  L("en_UG", "English", "Uganda", "English"),
+  L("en_GB", "English", "UK", "English"),
+  L("en_US", "English", "US", "English"),
+  L("et", "Estonian", null, "Eesti"),
+  L("fil", "Filipino", null, "Filipino"),
+  L("fi", "Finnish", null, "Suomi"),
+  L("fr", "French", null, "Fran\xE7ais"),
+  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L("de", "German", null, "Deutsch"),
+  L("de_AT", "German", "Austria", "Deutsch"),
+  L("de_CH", "German", "Switzerland", "Deutsch"),
+  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L("ha", "Hausa", null, "Hausa"),
+  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L("hu", "Hungarian", null, "Magyar"),
+  L("id", "Indonesian", null, "Bahasa Indonesia"),
+  L("ga", "Irish", null, "Gaeilge"),
+  L("it", "Italian", null, "Italiano"),
+  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L("lv", "Latvian", null, "Latvie\u0161u"),
+  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L("ms", "Malay", null, "Bahasa Melayu"),
+  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L("pl", "Polish", null, "Polski"),
+  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L("sk", "Slovak", null, "Sloven\u010Dina"),
+  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L("es", "Spanish", null, "Espa\xF1ol"),
+  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L("sw", "Swahili", null, "Kiswahili"),
+  L("sv", "Swedish", null, "Svenska"),
+  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L("uz", "Uzbek", null, "O\u02BBzbek"),
+  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -1159,6 +1280,9 @@ var LEAD_WORDS = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -6339,7 +6463,6 @@ var EVENT_KINDS2 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -6451,9 +6574,9 @@ var DECISION_VERBS2 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -6581,6 +6704,7 @@ var RETENTION_DAYS2 = {
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
 var RECORDING_NOTE2 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS2} days`
@@ -6734,7 +6858,7 @@ var BusinessProfileSchema2 = z32.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z32.string().regex(E1642, "E.164, like +16469325775").optional(),
+  handoff_number: z32.string().regex(E1642, "E.164, like +12125550143").optional(),
   website: z32.string().url().max(500).optional(),
   notes: z32.array(NoteSchema2).max(10).optional(),
   booking_rules: BookingRulesSchema2.optional(),
@@ -7033,6 +7157,127 @@ var AskSettingsChangeSchema2 = z42.discriminatedUnion("op", [
   z42.object({ op: z42.literal("add_note"), title: z42.string().min(1).max(80), text: z42.string().min(1).max(1200) }),
   z42.object({ op: z42.literal("add_service"), name: z42.string().min(1).max(80), duration_min: z42.number().int().min(1).max(1440).optional() })
 ]);
+var L2 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES2 = [
+  L2("af", "Afrikaans", null, "Afrikaans"),
+  L2("sq", "Albanian", null, "Shqip"),
+  L2("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L2("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L2("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L2("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L2("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L2("ca", "Catalan", null, "Catal\xE0"),
+  L2("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L2("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L2("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L2("hr", "Croatian", null, "Hrvatski"),
+  L2("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L2("da", "Danish", null, "Dansk"),
+  L2("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L2("nl", "Dutch", null, "Nederlands"),
+  L2("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L2("en", "English", null, "English"),
+  L2("en_AU", "English", "Australia", "English"),
+  L2("en_CA", "English", "Canada", "English"),
+  L2("en_GH", "English", "Ghana", "English"),
+  L2("en_IN", "English", "India", "English"),
+  L2("en_IE", "English", "Ireland", "English"),
+  L2("en_JM", "English", "Jamaica", "English"),
+  L2("en_MY", "English", "Malaysia", "English"),
+  L2("en_NZ", "English", "New Zealand", "English"),
+  L2("en_QA", "English", "Qatar", "English"),
+  L2("en_SG", "English", "Singapore", "English"),
+  L2("en_ZA", "English", "South Africa", "English"),
+  L2("en_AE", "English", "UAE", "English"),
+  L2("en_UG", "English", "Uganda", "English"),
+  L2("en_GB", "English", "UK", "English"),
+  L2("en_US", "English", "US", "English"),
+  L2("et", "Estonian", null, "Eesti"),
+  L2("fil", "Filipino", null, "Filipino"),
+  L2("fi", "Finnish", null, "Suomi"),
+  L2("fr", "French", null, "Fran\xE7ais"),
+  L2("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L2("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L2("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L2("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L2("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L2("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L2("de", "German", null, "Deutsch"),
+  L2("de_AT", "German", "Austria", "Deutsch"),
+  L2("de_CH", "German", "Switzerland", "Deutsch"),
+  L2("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L2("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L2("ha", "Hausa", null, "Hausa"),
+  L2("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L2("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L2("hu", "Hungarian", null, "Magyar"),
+  L2("id", "Indonesian", null, "Bahasa Indonesia"),
+  L2("ga", "Irish", null, "Gaeilge"),
+  L2("it", "Italian", null, "Italiano"),
+  L2("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L2("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L2("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L2("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L2("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L2("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L2("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L2("lv", "Latvian", null, "Latvie\u0161u"),
+  L2("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L2("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L2("ms", "Malay", null, "Bahasa Melayu"),
+  L2("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L2("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L2("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L2("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L2("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L2("pl", "Polish", null, "Polski"),
+  L2("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L2("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L2("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L2("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L2("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L2("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L2("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L2("sk", "Slovak", null, "Sloven\u010Dina"),
+  L2("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L2("es", "Spanish", null, "Espa\xF1ol"),
+  L2("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L2("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L2("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L2("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L2("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L2("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L2("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L2("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L2("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L2("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L2("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L2("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L2("sw", "Swahili", null, "Kiswahili"),
+  L2("sv", "Swedish", null, "Svenska"),
+  L2("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L2("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L2("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L2("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L2("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L2("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L2("uz", "Uzbek", null, "O\u02BBzbek"),
+  L2("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L2("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK2 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -7306,6 +7551,9 @@ var LEAD_WORDS2 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -8574,7 +8822,6 @@ var EVENT_KINDS3 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -8686,9 +8933,9 @@ var DECISION_VERBS3 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -8816,6 +9063,7 @@ var RETENTION_DAYS3 = {
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
 var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
 var RECORDING_NOTE3 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS3} days`
@@ -8969,7 +9217,7 @@ var BusinessProfileSchema3 = z33.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z33.string().regex(E1643, "E.164, like +16469325775").optional(),
+  handoff_number: z33.string().regex(E1643, "E.164, like +12125550143").optional(),
   website: z33.string().url().max(500).optional(),
   notes: z33.array(NoteSchema3).max(10).optional(),
   booking_rules: BookingRulesSchema3.optional(),
@@ -9268,6 +9516,127 @@ var AskSettingsChangeSchema3 = z43.discriminatedUnion("op", [
   z43.object({ op: z43.literal("add_note"), title: z43.string().min(1).max(80), text: z43.string().min(1).max(1200) }),
   z43.object({ op: z43.literal("add_service"), name: z43.string().min(1).max(80), duration_min: z43.number().int().min(1).max(1440).optional() })
 ]);
+var L3 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES3 = [
+  L3("af", "Afrikaans", null, "Afrikaans"),
+  L3("sq", "Albanian", null, "Shqip"),
+  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L3("ca", "Catalan", null, "Catal\xE0"),
+  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L3("hr", "Croatian", null, "Hrvatski"),
+  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L3("da", "Danish", null, "Dansk"),
+  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L3("nl", "Dutch", null, "Nederlands"),
+  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L3("en", "English", null, "English"),
+  L3("en_AU", "English", "Australia", "English"),
+  L3("en_CA", "English", "Canada", "English"),
+  L3("en_GH", "English", "Ghana", "English"),
+  L3("en_IN", "English", "India", "English"),
+  L3("en_IE", "English", "Ireland", "English"),
+  L3("en_JM", "English", "Jamaica", "English"),
+  L3("en_MY", "English", "Malaysia", "English"),
+  L3("en_NZ", "English", "New Zealand", "English"),
+  L3("en_QA", "English", "Qatar", "English"),
+  L3("en_SG", "English", "Singapore", "English"),
+  L3("en_ZA", "English", "South Africa", "English"),
+  L3("en_AE", "English", "UAE", "English"),
+  L3("en_UG", "English", "Uganda", "English"),
+  L3("en_GB", "English", "UK", "English"),
+  L3("en_US", "English", "US", "English"),
+  L3("et", "Estonian", null, "Eesti"),
+  L3("fil", "Filipino", null, "Filipino"),
+  L3("fi", "Finnish", null, "Suomi"),
+  L3("fr", "French", null, "Fran\xE7ais"),
+  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L3("de", "German", null, "Deutsch"),
+  L3("de_AT", "German", "Austria", "Deutsch"),
+  L3("de_CH", "German", "Switzerland", "Deutsch"),
+  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L3("ha", "Hausa", null, "Hausa"),
+  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L3("hu", "Hungarian", null, "Magyar"),
+  L3("id", "Indonesian", null, "Bahasa Indonesia"),
+  L3("ga", "Irish", null, "Gaeilge"),
+  L3("it", "Italian", null, "Italiano"),
+  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L3("lv", "Latvian", null, "Latvie\u0161u"),
+  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L3("ms", "Malay", null, "Bahasa Melayu"),
+  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L3("pl", "Polish", null, "Polski"),
+  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L3("sk", "Slovak", null, "Sloven\u010Dina"),
+  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L3("es", "Spanish", null, "Espa\xF1ol"),
+  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L3("sw", "Swahili", null, "Kiswahili"),
+  L3("sv", "Swedish", null, "Svenska"),
+  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L3("uz", "Uzbek", null, "O\u02BBzbek"),
+  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L3("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -9541,6 +9910,9 @@ var LEAD_WORDS3 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -9837,7 +10209,6 @@ var EVENT_KINDS22 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -9949,9 +10320,9 @@ var DECISION_VERBS22 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -10092,6 +10463,7 @@ var RETENTION_DAYS22 = {
 var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
 var RECORDING_PURGED_WORDS22 = `Recording removed after ${RECORDING_RETENTION_DAYS22} days; the transcript is kept`;
 var RECORDING_NOTE22 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS22} days`
@@ -10245,7 +10617,7 @@ var BusinessProfileSchema22 = z322.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z322.string().regex(E16422, "E.164, like +16469325775").optional(),
+  handoff_number: z322.string().regex(E16422, "E.164, like +12125550143").optional(),
   website: z322.string().url().max(500).optional(),
   notes: z322.array(NoteSchema22).max(10).optional(),
   booking_rules: BookingRulesSchema22.optional(),
@@ -10544,16 +10916,127 @@ var AskSettingsChangeSchema22 = z422.discriminatedUnion("op", [
   z422.object({ op: z422.literal("add_note"), title: z422.string().min(1).max(80), text: z422.string().min(1).max(1200) }),
   z422.object({ op: z422.literal("add_service"), name: z422.string().min(1).max(80), duration_min: z422.number().int().min(1).max(1440).optional() })
 ]);
-var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES22 = { ...FIRST22, label: "Nombre" };
-var BUSINESS_ES22 = { ...BUSINESS22, label: "Nombre del negocio" };
-var LINK_ES22 = { ...LINK22, label: "Enlace de reservas" };
-var WHEN32 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE22 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
+var L22 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES22 = [
+  L22("af", "Afrikaans", null, "Afrikaans"),
+  L22("sq", "Albanian", null, "Shqip"),
+  L22("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L22("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L22("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L22("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L22("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L22("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L22("ca", "Catalan", null, "Catal\xE0"),
+  L22("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L22("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L22("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L22("hr", "Croatian", null, "Hrvatski"),
+  L22("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L22("da", "Danish", null, "Dansk"),
+  L22("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L22("nl", "Dutch", null, "Nederlands"),
+  L22("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L22("en", "English", null, "English"),
+  L22("en_AU", "English", "Australia", "English"),
+  L22("en_CA", "English", "Canada", "English"),
+  L22("en_GH", "English", "Ghana", "English"),
+  L22("en_IN", "English", "India", "English"),
+  L22("en_IE", "English", "Ireland", "English"),
+  L22("en_JM", "English", "Jamaica", "English"),
+  L22("en_MY", "English", "Malaysia", "English"),
+  L22("en_NZ", "English", "New Zealand", "English"),
+  L22("en_QA", "English", "Qatar", "English"),
+  L22("en_SG", "English", "Singapore", "English"),
+  L22("en_ZA", "English", "South Africa", "English"),
+  L22("en_AE", "English", "UAE", "English"),
+  L22("en_UG", "English", "Uganda", "English"),
+  L22("en_GB", "English", "UK", "English"),
+  L22("en_US", "English", "US", "English"),
+  L22("et", "Estonian", null, "Eesti"),
+  L22("fil", "Filipino", null, "Filipino"),
+  L22("fi", "Finnish", null, "Suomi"),
+  L22("fr", "French", null, "Fran\xE7ais"),
+  L22("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L22("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L22("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L22("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L22("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L22("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L22("de", "German", null, "Deutsch"),
+  L22("de_AT", "German", "Austria", "Deutsch"),
+  L22("de_CH", "German", "Switzerland", "Deutsch"),
+  L22("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L22("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L22("ha", "Hausa", null, "Hausa"),
+  L22("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L22("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L22("hu", "Hungarian", null, "Magyar"),
+  L22("id", "Indonesian", null, "Bahasa Indonesia"),
+  L22("ga", "Irish", null, "Gaeilge"),
+  L22("it", "Italian", null, "Italiano"),
+  L22("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L22("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L22("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L22("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L22("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L22("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L22("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L22("lv", "Latvian", null, "Latvie\u0161u"),
+  L22("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L22("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L22("ms", "Malay", null, "Bahasa Melayu"),
+  L22("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L22("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L22("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L22("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L22("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L22("pl", "Polish", null, "Polski"),
+  L22("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L22("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L22("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L22("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L22("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L22("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L22("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L22("sk", "Slovak", null, "Sloven\u010Dina"),
+  L22("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L22("es", "Spanish", null, "Espa\xF1ol"),
+  L22("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L22("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L22("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L22("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L22("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L22("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L22("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L22("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L22("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L22("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L22("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L22("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L22("sw", "Swahili", null, "Kiswahili"),
+  L22("sv", "Swedish", null, "Svenska"),
+  L22("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L22("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L22("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L22("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L22("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L22("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L22("uz", "Uzbek", null, "O\u02BBzbek"),
+  L22("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L22("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID22 = new Map(WHATSAPP_LANGUAGES22.map((l2) => [l2.id.toLowerCase(), l2]));
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
     const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
@@ -10594,6 +11077,16 @@ function resolveParams(specs, f) {
     }
   });
 }
+var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES22 = { ...FIRST22, label: "Nombre" };
+var BUSINESS_ES22 = { ...BUSINESS22, label: "Nombre del negocio" };
+var LINK_ES22 = { ...LINK22, label: "Enlace de reservas" };
+var WHEN32 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE22 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 var REPLY_WINDOW_HOURS22 = 72;
@@ -10866,6 +11359,9 @@ var LEAD_WORDS22 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -11096,7 +11592,6 @@ var EVENT_KINDS32 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -11208,9 +11703,9 @@ var DECISION_VERBS32 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -11337,6 +11832,7 @@ var RETENTION_DAYS32 = {
 var RECORDING_RETENTION_DAYS32 = RETENTION_DAYS32.call_recordings;
 var RECORDING_PURGED_WORDS32 = `Recording removed after ${RECORDING_RETENTION_DAYS32} days; the transcript is kept`;
 var RECORDING_NOTE32 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS32} days`
@@ -11490,7 +11986,7 @@ var BusinessProfileSchema32 = z332.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z332.string().regex(E16432, "E.164, like +16469325775").optional(),
+  handoff_number: z332.string().regex(E16432, "E.164, like +12125550143").optional(),
   website: z332.string().url().max(500).optional(),
   notes: z332.array(NoteSchema32).max(10).optional(),
   booking_rules: BookingRulesSchema32.optional(),
@@ -11789,6 +12285,127 @@ var AskSettingsChangeSchema32 = z432.discriminatedUnion("op", [
   z432.object({ op: z432.literal("add_note"), title: z432.string().min(1).max(80), text: z432.string().min(1).max(1200) }),
   z432.object({ op: z432.literal("add_service"), name: z432.string().min(1).max(80), duration_min: z432.number().int().min(1).max(1440).optional() })
 ]);
+var L32 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES32 = [
+  L32("af", "Afrikaans", null, "Afrikaans"),
+  L32("sq", "Albanian", null, "Shqip"),
+  L32("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L32("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L32("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L32("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L32("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L32("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L32("ca", "Catalan", null, "Catal\xE0"),
+  L32("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L32("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L32("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L32("hr", "Croatian", null, "Hrvatski"),
+  L32("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L32("da", "Danish", null, "Dansk"),
+  L32("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L32("nl", "Dutch", null, "Nederlands"),
+  L32("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L32("en", "English", null, "English"),
+  L32("en_AU", "English", "Australia", "English"),
+  L32("en_CA", "English", "Canada", "English"),
+  L32("en_GH", "English", "Ghana", "English"),
+  L32("en_IN", "English", "India", "English"),
+  L32("en_IE", "English", "Ireland", "English"),
+  L32("en_JM", "English", "Jamaica", "English"),
+  L32("en_MY", "English", "Malaysia", "English"),
+  L32("en_NZ", "English", "New Zealand", "English"),
+  L32("en_QA", "English", "Qatar", "English"),
+  L32("en_SG", "English", "Singapore", "English"),
+  L32("en_ZA", "English", "South Africa", "English"),
+  L32("en_AE", "English", "UAE", "English"),
+  L32("en_UG", "English", "Uganda", "English"),
+  L32("en_GB", "English", "UK", "English"),
+  L32("en_US", "English", "US", "English"),
+  L32("et", "Estonian", null, "Eesti"),
+  L32("fil", "Filipino", null, "Filipino"),
+  L32("fi", "Finnish", null, "Suomi"),
+  L32("fr", "French", null, "Fran\xE7ais"),
+  L32("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L32("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L32("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L32("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L32("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L32("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L32("de", "German", null, "Deutsch"),
+  L32("de_AT", "German", "Austria", "Deutsch"),
+  L32("de_CH", "German", "Switzerland", "Deutsch"),
+  L32("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L32("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L32("ha", "Hausa", null, "Hausa"),
+  L32("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L32("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L32("hu", "Hungarian", null, "Magyar"),
+  L32("id", "Indonesian", null, "Bahasa Indonesia"),
+  L32("ga", "Irish", null, "Gaeilge"),
+  L32("it", "Italian", null, "Italiano"),
+  L32("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L32("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L32("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L32("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L32("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L32("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L32("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L32("lv", "Latvian", null, "Latvie\u0161u"),
+  L32("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L32("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L32("ms", "Malay", null, "Bahasa Melayu"),
+  L32("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L32("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L32("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L32("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L32("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L32("pl", "Polish", null, "Polski"),
+  L32("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L32("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L32("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L32("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L32("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L32("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L32("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L32("sk", "Slovak", null, "Sloven\u010Dina"),
+  L32("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L32("es", "Spanish", null, "Espa\xF1ol"),
+  L32("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L32("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L32("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L32("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L32("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L32("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L32("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L32("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L32("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L32("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L32("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L32("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L32("sw", "Swahili", null, "Kiswahili"),
+  L32("sv", "Swedish", null, "Svenska"),
+  L32("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L32("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L32("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L32("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L32("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L32("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L32("uz", "Uzbek", null, "O\u02BBzbek"),
+  L32("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L32("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
 var FIRST32 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS32 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK32 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -12062,6 +12679,9 @@ var LEAD_WORDS32 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -12499,18 +13119,6 @@ async function sendQueued(ports, cmd) {
     body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`
   });
 }
-async function eraseBlobThread(ports, cmd) {
-  const p = cmd.payload;
-  if (p.scrubbed) return;
-  if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
-  const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : []).filter((t2) => typeof t2 === "string" && t2.length > 0);
-  const failed = [];
-  for (const id of ids) if (!await ports.eraseThread(p.namespace, id)) failed.push(id);
-  if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
-  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
-  const scrubbed = { contact_id: p.contact_id ?? null, namespace: p.namespace, threads: ids.length, scrubbed: true };
-  await ports.scrub(cmd.tenantId, p.contact_id ? { contactId: p.contact_id } : { jobId: cmd.jobId }, scrubbed);
-}
 async function provisionLine(ports, cmd) {
   const lineId = typeof cmd.payload.line_id === "string" ? cmd.payload.line_id : "";
   const by = cmd.payload.by === "sweep" || cmd.payload.by === "support" ? cmd.payload.by : "owner";
@@ -12781,7 +13389,6 @@ var EVENT_KINDS4 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -12893,9 +13500,9 @@ var DECISION_VERBS4 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -13022,6 +13629,7 @@ var RETENTION_DAYS4 = {
 var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
 var RECORDING_PURGED_WORDS4 = `Recording removed after ${RECORDING_RETENTION_DAYS4} days; the transcript is kept`;
 var RECORDING_NOTE4 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS4} days`
@@ -13175,7 +13783,7 @@ var BusinessProfileSchema4 = z34.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z34.string().regex(E1644, "E.164, like +16469325775").optional(),
+  handoff_number: z34.string().regex(E1644, "E.164, like +12125550143").optional(),
   website: z34.string().url().max(500).optional(),
   notes: z34.array(NoteSchema4).max(10).optional(),
   booking_rules: BookingRulesSchema4.optional(),
@@ -13474,6 +14082,127 @@ var AskSettingsChangeSchema4 = z44.discriminatedUnion("op", [
   z44.object({ op: z44.literal("add_note"), title: z44.string().min(1).max(80), text: z44.string().min(1).max(1200) }),
   z44.object({ op: z44.literal("add_service"), name: z44.string().min(1).max(80), duration_min: z44.number().int().min(1).max(1440).optional() })
 ]);
+var L4 = (id, name2, region, native) => ({
+  id,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES4 = [
+  L4("af", "Afrikaans", null, "Afrikaans"),
+  L4("sq", "Albanian", null, "Shqip"),
+  L4("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L4("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L4("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L4("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L4("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L4("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L4("ca", "Catalan", null, "Catal\xE0"),
+  L4("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L4("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L4("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L4("hr", "Croatian", null, "Hrvatski"),
+  L4("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L4("da", "Danish", null, "Dansk"),
+  L4("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L4("nl", "Dutch", null, "Nederlands"),
+  L4("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L4("en", "English", null, "English"),
+  L4("en_AU", "English", "Australia", "English"),
+  L4("en_CA", "English", "Canada", "English"),
+  L4("en_GH", "English", "Ghana", "English"),
+  L4("en_IN", "English", "India", "English"),
+  L4("en_IE", "English", "Ireland", "English"),
+  L4("en_JM", "English", "Jamaica", "English"),
+  L4("en_MY", "English", "Malaysia", "English"),
+  L4("en_NZ", "English", "New Zealand", "English"),
+  L4("en_QA", "English", "Qatar", "English"),
+  L4("en_SG", "English", "Singapore", "English"),
+  L4("en_ZA", "English", "South Africa", "English"),
+  L4("en_AE", "English", "UAE", "English"),
+  L4("en_UG", "English", "Uganda", "English"),
+  L4("en_GB", "English", "UK", "English"),
+  L4("en_US", "English", "US", "English"),
+  L4("et", "Estonian", null, "Eesti"),
+  L4("fil", "Filipino", null, "Filipino"),
+  L4("fi", "Finnish", null, "Suomi"),
+  L4("fr", "French", null, "Fran\xE7ais"),
+  L4("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L4("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L4("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L4("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L4("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L4("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L4("de", "German", null, "Deutsch"),
+  L4("de_AT", "German", "Austria", "Deutsch"),
+  L4("de_CH", "German", "Switzerland", "Deutsch"),
+  L4("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L4("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L4("ha", "Hausa", null, "Hausa"),
+  L4("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L4("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L4("hu", "Hungarian", null, "Magyar"),
+  L4("id", "Indonesian", null, "Bahasa Indonesia"),
+  L4("ga", "Irish", null, "Gaeilge"),
+  L4("it", "Italian", null, "Italiano"),
+  L4("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L4("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L4("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L4("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L4("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L4("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L4("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L4("lv", "Latvian", null, "Latvie\u0161u"),
+  L4("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L4("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L4("ms", "Malay", null, "Bahasa Melayu"),
+  L4("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L4("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L4("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L4("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L4("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L4("pl", "Polish", null, "Polski"),
+  L4("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L4("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L4("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L4("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L4("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L4("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L4("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L4("sk", "Slovak", null, "Sloven\u010Dina"),
+  L4("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L4("es", "Spanish", null, "Espa\xF1ol"),
+  L4("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L4("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L4("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L4("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L4("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L4("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L4("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L4("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L4("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L4("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L4("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L4("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L4("sw", "Swahili", null, "Kiswahili"),
+  L4("sv", "Swedish", null, "Svenska"),
+  L4("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L4("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L4("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L4("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L4("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L4("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L4("uz", "Uzbek", null, "O\u02BBzbek"),
+  L4("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L4("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
 var FIRST4 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS4 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK4 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -13747,6 +14476,9 @@ var LEAD_WORDS4 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -14148,34 +14880,6 @@ async function outboundSend(ctx, job) {
     { tenantId: job.tenant_id, payload: job.payload }
   );
 }
-async function blobThreadErase(ctx, job) {
-  await eraseBlobThread(
-    {
-      eraseThread: ctx.eraseThread,
-      // A scrub that failed silently is the worst of both: the ledger row above
-      // says the erasure is done while the payload still holds the digits we
-      // were asked to erase, in a table whose rows are never deleted. It throws,
-      // so the job fails and the unscrubbed payload — the only handle that can
-      // retry this leg — is tried again.
-      scrub: async (tenantId, by, scrubbed) => {
-        const q = ctx.db.from("jobs").update({ payload: scrubbed });
-        must("blob_thread_erase: the erased number is still on the job", "contactId" in by ? await q.eq("tenant_id", tenantId).eq("kind", "blob_thread_erase").eq("payload->>contact_id", by.contactId) : await q.eq("id", by.jobId));
-      },
-      // actor_type 'system' with a null actor_user_id is what decisions_check
-      // requires; the service role is not subject to RLS here. An erasure whose
-      // ledger row was refused is an erasure nobody can prove, so it throws too.
-      recordErased: async (tenantId, contactId, threads, jobId) => {
-        const [decided, evented] = await Promise.all([
-          ctx.db.from("decisions").insert({ tenant_id: tenantId, subject_type: "contact", subject_id: contactId, verb: "erase", actor_type: "system", payload: { leg: "blob", threads, job_id: jobId } }),
-          ctx.db.from("events").insert({ tenant_id: tenantId, kind: "contact.blob_erased", category: "contact", subject_type: "contact", subject_id: contactId, data: { threads } })
-        ]);
-        must("blob_thread_erase: the erasure is not on the decisions ledger", decided);
-        must("blob_thread_erase: the erasure is not in the events", evented);
-      }
-    },
-    { tenantId: job.tenant_id, jobId: job.id, payload: job.payload }
-  );
-}
 async function broadcastSend(ctx, job) {
   const p = job.payload;
   const db = ctx.db;
@@ -14346,7 +15050,6 @@ async function leadCheck(ctx, job) {
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
-  blob_thread_erase: blobThreadErase,
   line_provision: lineProvision,
   email_ingest: emailIngest,
   lead_round_start: leadRoundStart,

@@ -99,7 +99,7 @@ function whyNotAHandoff(raw, ownLine) {
   if (!typed) return null;
   const norm = "+" + typed.replace(/[^0-9]/g, "");
   if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm))) {
-    return "The transfer number needs the country code, like +1 646 932 5775.";
+    return "The transfer number needs the country code, like +1 212 555 0143.";
   }
   if (ownLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(ownLine)) {
     return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
@@ -214,12 +214,6 @@ var JOB_KINDS = [
   "outbound_send",
   "broadcast_send",
   /**
-   * Erase one customer's stored Blob thread. The DASHBOARD orchestrates
-   * erasure and cannot reach Blob; the EDGE holds BLOB_READ_WRITE_TOKEN and
-   * runs the ledger. This kind is the seam.
-   */
-  "blob_thread_erase",
-  /**
    * A line's provisioning saga, run under the ledger's lease and resumed by
    * the heartbeat if a worker dies (00109). The saga itself stays on the
    * edge with the provider's credentials and is injected into the tick.
@@ -269,7 +263,6 @@ var EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -428,9 +421,9 @@ var DECISION_VERBS = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -1776,13 +1769,16 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       type: "event",
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
+      // Why it was flagged, and the details that say more -- except a call back's, which are the band's own sentence (the
+      // to-do): quoted here as well, they were said a third time. Any other reason's details, the cause of a failed send,
+      // are said only here.
+      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 6e4)) : void 0;
-  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageWords(lastInbound), quoted: lastInbound.type === "text" } : null;
+  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { kind: "call", label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? lastInbound.type === "text" ? { kind: "wrote", label: "They wrote", text: messageWords(lastInbound), quoted: true } : { kind: "sent", label: "They sent", text: messageWords(lastInbound), quoted: false } : null;
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
   return {
     id: `th-${dto.id}`,
@@ -1831,7 +1827,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     preview: last ? messageWords(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
-    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
+    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
@@ -1995,6 +1991,7 @@ function spokenDuration(ms2) {
 }
 var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
 var RECORDING_NOTE = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
@@ -2030,15 +2027,28 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     );
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
-  const transcript = (dto.transcript_object ?? []).map((turn) => {
-    const start = turn.start ?? turn.words?.[0]?.start;
+  const turns = dto.transcript_object ?? [];
+  const given = turns.map((turn) => turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null);
+  const starts = given.map((s, i) => {
+    if (s != null || turns[i].role === "injected") return s;
+    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
+    const after = given.slice(i + 1).find((x) => x != null) ?? null;
+    return before != null && after != null ? (before + after) / 2 : before ?? after;
+  });
+  const transcript = turns.map((turn, i) => {
     if (turn.role === "injected") {
-      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content) };
+      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content), start: null, end: null };
     }
+    const own = given[i];
+    const start = starts[i];
+    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
+    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
     return {
-      t: typeof start === "number" ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : "\u2014",
+      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "\u2014",
       speaker: turn.role === "agent" ? "agent" : "client",
-      text: turn.content ?? ""
+      text: turn.content ?? "",
+      start,
+      end
     };
   });
   const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
@@ -2060,6 +2070,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
     transcript,
+    durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
     recordingState: recState,
     ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
     ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {},
@@ -2175,9 +2186,9 @@ function resolveFacts(typed, known) {
     // The one that matters, and the one that should usually be absent.
     //
     // The fallback is FORMATTED, not raw E.164: this value is spoken and
-    // written to customers -- "Phone: +13083368109" in a prompt becomes a
+    // written to customers -- "Phone: +13085550109" in a prompt becomes a
     // receptionist reading digits aloud -- so the provisioned line arrives as
-    // "+1 (308) 336-8109", the way a person says a number.
+    // "+1 (308) 555-0109", the way a person says a number.
     phone_display: typedOverKnown(
       trimmed(typed?.phone_display),
       voice ? formatPhoneDisplay(voice) : null,
@@ -2435,7 +2446,7 @@ var BusinessProfileSchema = z3.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z3.string().regex(E164, "E.164, like +16469325775").optional(),
+  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
   website: z3.string().url().max(500).optional(),
   notes: z3.array(NoteSchema).max(10).optional(),
   booking_rules: BookingRulesSchema.optional(),
@@ -3969,12 +3980,17 @@ function consentOf(r, tz, nowMs) {
   };
 }
 function mayReceive(r, purpose) {
-  if (!r.phone) return false;
-  return mayMessageFor(
+  return whyNotReceive(r, purpose) === null;
+}
+function whyNotReceive(r, purpose) {
+  if (!r.phone) return "no_number";
+  const said = mayMessageFor(
     { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
     purpose,
     { proactive: true }
-  ).ok;
+  );
+  if (said.ok) return null;
+  return said.reason === "opted_out" ? "stopped" : "no_yes";
 }
 function receptionistOf(r, tz, nowMs) {
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
@@ -6300,6 +6316,381 @@ function lineCredentialFailure(lastError) {
 }
 var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
 
+// src/template-languages.ts
+var L = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES = [
+  L("af", "Afrikaans", null, "Afrikaans"),
+  L("sq", "Albanian", null, "Shqip"),
+  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L("ca", "Catalan", null, "Catal\xE0"),
+  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L("hr", "Croatian", null, "Hrvatski"),
+  L("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L("da", "Danish", null, "Dansk"),
+  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L("nl", "Dutch", null, "Nederlands"),
+  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L("en", "English", null, "English"),
+  L("en_AU", "English", "Australia", "English"),
+  L("en_CA", "English", "Canada", "English"),
+  L("en_GH", "English", "Ghana", "English"),
+  L("en_IN", "English", "India", "English"),
+  L("en_IE", "English", "Ireland", "English"),
+  L("en_JM", "English", "Jamaica", "English"),
+  L("en_MY", "English", "Malaysia", "English"),
+  L("en_NZ", "English", "New Zealand", "English"),
+  L("en_QA", "English", "Qatar", "English"),
+  L("en_SG", "English", "Singapore", "English"),
+  L("en_ZA", "English", "South Africa", "English"),
+  L("en_AE", "English", "UAE", "English"),
+  L("en_UG", "English", "Uganda", "English"),
+  L("en_GB", "English", "UK", "English"),
+  L("en_US", "English", "US", "English"),
+  L("et", "Estonian", null, "Eesti"),
+  L("fil", "Filipino", null, "Filipino"),
+  L("fi", "Finnish", null, "Suomi"),
+  L("fr", "French", null, "Fran\xE7ais"),
+  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L("de", "German", null, "Deutsch"),
+  L("de_AT", "German", "Austria", "Deutsch"),
+  L("de_CH", "German", "Switzerland", "Deutsch"),
+  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L("ha", "Hausa", null, "Hausa"),
+  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L("hu", "Hungarian", null, "Magyar"),
+  L("id", "Indonesian", null, "Bahasa Indonesia"),
+  L("ga", "Irish", null, "Gaeilge"),
+  L("it", "Italian", null, "Italiano"),
+  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L("lv", "Latvian", null, "Latvie\u0161u"),
+  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L("ms", "Malay", null, "Bahasa Melayu"),
+  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L("pl", "Polish", null, "Polski"),
+  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L("sk", "Slovak", null, "Sloven\u010Dina"),
+  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L("es", "Spanish", null, "Espa\xF1ol"),
+  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L("sw", "Swahili", null, "Kiswahili"),
+  L("sv", "Swedish", null, "Svenska"),
+  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L("uz", "Uzbek", null, "O\u02BBzbek"),
+  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+var keyOf = (code2) => String(code2 ?? "").trim().replace(/-/g, "_").toLowerCase();
+function templateLanguage(code2) {
+  return BY_ID.get(keyOf(code2)) ?? null;
+}
+function languageName(code2) {
+  const known = templateLanguage(code2);
+  if (known) return known.name;
+  const base = String(code2 ?? "").split(/[-_]/)[0];
+  const Names = Intl.DisplayNames;
+  try {
+    const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : void 0;
+    return name && name !== base ? name : String(code2 ?? "");
+  } catch {
+    return String(code2 ?? "");
+  }
+}
+function languageLabel(code2) {
+  return templateLanguage(code2)?.label ?? languageName(code2);
+}
+function languageTag(code2, among = []) {
+  const [base = "", region = ""] = String(code2 ?? "").split(/[-_]/);
+  const clash = among.some((c) => keyOf(c) !== keyOf(code2) && String(c ?? "").split(/[-_]/)[0].toLowerCase() === base.toLowerCase());
+  return clash && region ? `${base.toUpperCase()}-${region.toUpperCase()}` : base.toUpperCase();
+}
+var fold = (s) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+function findLanguages(query, list2 = WHATSAPP_LANGUAGES) {
+  const q = fold(String(query ?? "").trim()).replace(/-/g, "_");
+  if (!q) return [...list2];
+  const scored = [];
+  list2.forEach((l, at2) => {
+    const code2 = l.id.toLowerCase();
+    const name = fold(l.name);
+    const label = fold(l.label);
+    const native = fold(l.native);
+    const words2 = [label, native].join(" ").split(/[\s(),’'（）]+/).filter(Boolean);
+    let score = -1;
+    if (code2 === q || code2.split("_")[0] === q) score = 0;
+    else if (name.startsWith(q) || label.startsWith(q)) score = 1;
+    else if (native.startsWith(q)) score = 2;
+    else if (words2.some((w) => w.startsWith(q))) score = 3;
+    else if (code2.startsWith(q)) score = 4;
+    else if (label.includes(q) || native.includes(q)) score = 5;
+    if (score >= 0) scored.push({ l, score, at: at2 });
+  });
+  return scored.sort((a, b) => a.score - b.score || a.at - b.at).map((x) => x.l);
+}
+
+// src/templates.ts
+var TEMPLATE_LANGUAGES = WHATSAPP_LANGUAGES;
+var TEMPLATE_CATEGORIES = ["marketing", "utility"];
+var TEMPLATE_BODY_MAX = 1024;
+var TEMPLATE_FOOTER_MAX = 60;
+var TEMPLATE_EXAMPLE_MAX = 100;
+var TEMPLATE_NAME_MAX = 60;
+var TEMPLATE_BUTTON_TEXT_MAX = 25;
+var NAME = /^[a-z0-9_]{1,512}$/;
+function templateNameOk(name) {
+  return NAME.test(name);
+}
+function slugTemplateName(raw) {
+  return String(raw ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, TEMPLATE_NAME_MAX).replace(/_+$/g, "");
+}
+function placeholdersOf(body) {
+  const set = /* @__PURE__ */ new Set();
+  for (const m of String(body ?? "").matchAll(/\{\{(\d+)\}\}/g)) set.add(Number(m[1]));
+  return [...set].sort((a, b) => a - b);
+}
+function placeholdersSequential(positions) {
+  return positions.every((n, i) => n === i + 1);
+}
+function validateTemplateDraft(d) {
+  const name = slugTemplateName(d.name);
+  if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
+  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language)) return { ok: false, error: "Pick a language from the list." };
+  if (!TEMPLATE_CATEGORIES.includes(d.category)) return { ok: false, error: "A template is marketing or utility." };
+  const body = String(d.body ?? "").replace(/\r\n/g, "\n").trim();
+  if (!body) return { ok: false, error: "Write the message." };
+  if (body.length > TEMPLATE_BODY_MAX) return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
+  const slots = placeholdersOf(body);
+  if (!placeholdersSequential(slots)) return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
+  const examples = (d.examples ?? []).map((e) => String(e ?? "").trim());
+  if (examples.length !== slots.length) return { ok: false, error: slots.length === 0 ? "This message takes no values, so it needs no examples." : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} \u2014 WhatsApp's reviewers read them.` };
+  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX)) return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
+  const footer = d.footer ? String(d.footer).trim() : "";
+  if (footer.length > TEMPLATE_FOOTER_MAX) return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
+  if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
+  let button = null;
+  if (d.button) {
+    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
+    const url = String(d.button.url ?? "").trim();
+    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
+    if (text.length > TEMPLATE_BUTTON_TEXT_MAX) return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
+    if (/\{\{/.test(text) || /\{\{/.test(url)) return { ok: false, error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send." };
+    let parsed = null;
+    try {
+      parsed = new URL(url);
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || !/^https?:$/.test(parsed.protocol)) return { ok: false, error: "The button needs a web address to open, starting with https://." };
+    button = { text, url };
+  }
+  const warnings = [];
+  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body)) warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
+  if (d.category === "marketing" && !/stop/i.test(body + " " + footer)) warnings.push("A marketing message should say how to opt out, such as \u201CReply STOP to opt out\u201D.");
+  if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
+  return { ok: true, value: { name, language: d.language, category: d.category, body, footer: footer || null, examples, button }, warnings };
+}
+function templateComponents(v) {
+  const body = { type: "BODY", text: v.body };
+  if (v.examples.length) body.example = { body_text: [v.examples] };
+  const out = [body];
+  if (v.footer) out.push({ type: "FOOTER", text: v.footer });
+  if (v.button) out.push({ type: "BUTTONS", buttons: [{ type: "URL", text: v.button.text, url: v.button.url }] });
+  return out;
+}
+var PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"];
+var PARAM_SOURCE_LABELS = {
+  text: "Type it",
+  first_name: "Their first name",
+  business_name: "The business name",
+  booking_link: "The booking link",
+  visit_when: "Their visit's time",
+  visit_service: "Their visit's service"
+};
+var PARAM_SOURCE_HINTS = {
+  first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
+  business_name: "From Settings \u203A Business",
+  booking_link: "From Settings \u203A Business",
+  visit_when: "Each visit's own, from the calendar",
+  visit_service: "Each visit's own, from the calendar"
+};
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
+  }
+  return null;
+}
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
+function paramLabel(spec) {
+  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
+}
+function playbooksStillSending(names) {
+  const quoted = names.map((n) => `\u201C${n}\u201D`);
+  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
+}
+function firstNameOf(displayName, waProfileName) {
+  const raw = (displayName || waProfileName || "").trim();
+  if (!raw || /^[+\d(]/.test(raw)) return null;
+  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  return first ? first.slice(0, 30) : null;
+}
+function resolveParams(specs, f) {
+  return specs.map((s) => {
+    switch (s.kind) {
+      case "text":
+        return s.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
+    }
+  });
+}
+function exampleParams(specs, businessName) {
+  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
+}
+var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
+function templateUsage(src) {
+  const out = {};
+  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false };
+  const asking = new Set(src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id));
+  for (const p of src.playbooks) {
+    if (!p.template_name) continue;
+    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused", waiting: asking.has(p.id), runs: p.runs ?? null });
+  }
+  const byHand = src.broadcasts.filter((b) => b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  for (const b of byHand) {
+    const u = at2(b.template_name);
+    u.broadcasts += 1;
+    if (b.name && u.recent.length < 2) u.recent.push(b.name);
+  }
+  if (src.bookingName) at2(src.bookingName).booking = true;
+  return out;
+}
+var sayList = (parts2) => parts2.length < 2 ? parts2[0] ?? "" : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function templateUseWords(use) {
+  const u = use ?? NOTHING;
+  const parts2 = [];
+  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
+  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  if (u.booking) parts2.push("the Inbox");
+  if (parts2.length === 0) return "Nothing sends it";
+  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
+  return capital(sayList(parts2));
+}
+function templateUseNote(use) {
+  const u = use ?? NOTHING;
+  if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
+  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused \u2014 nothing goes out" : u.playbooks[0].runs;
+  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : null;
+  if (u.recent.length > 0) return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
+  if (u.booking) return "what the receptionist sends to book";
+  return null;
+}
+function templateUnused(use) {
+  const u = use ?? NOTHING;
+  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}
+function templateSends(src) {
+  const out = {};
+  const nameOf = new Map(src.runs.map((r) => [r.id, r.template_name]));
+  const went = (name, at2) => {
+    const s = out[name] ??= { count: 0, lastAt: null };
+    s.count += 1;
+    const ms2 = at2 === null ? NaN : Date.parse(at2);
+    if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at2;
+  };
+  for (const r of src.recipients) {
+    const name = r.state === "sent" ? nameOf.get(r.broadcast_id) : void 0;
+    if (name) went(name, r.sent_at);
+  }
+  for (const m of src.inbox) {
+    if (m.template_name && m.external_id) went(m.template_name, m.created_at);
+  }
+  return out;
+}
+function templateSentWords(s, tz, nowMs) {
+  if (!s || s.count === 0) return { count: null, when: "Never sent" };
+  const at2 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
+  return {
+    count: s.count.toLocaleString("en-US"),
+    when: Number.isFinite(at2) ? agoWords(at2, nowMs, { date: (ms2) => clockDate(ms2, tz, nowMs) }) : null
+  };
+}
+
 // src/template-library.ts
 var STARTER_LANGUAGES = [
   { id: "en_US", label: "English" },
@@ -6649,14 +7040,7 @@ function templateTitle(name, title) {
   return words2 ? words2[0].toUpperCase() + words2.slice(1) : String(name ?? "");
 }
 function languageWords(code2) {
-  const base = String(code2 ?? "").split(/[-_]/)[0];
-  const Names = Intl.DisplayNames;
-  try {
-    const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : void 0;
-    return name && name !== base ? name : String(code2 ?? "");
-  } catch {
-    return String(code2 ?? "");
-  }
+  return languageName(code2);
 }
 function inboxTemplates(templates, to) {
   const sendable = [];
@@ -6700,6 +7084,31 @@ function defaultSlotKinds(t) {
 function defaultParamSpecs(t) {
   return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
 }
+function slotChoices(kind, o) {
+  const may = (k) => k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : true;
+  if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
+  switch (kind) {
+    case "first_name":
+      return ["first_name"];
+    case "business_name":
+      return ["business_name", "text"];
+    case "booking_link":
+      return o.bookingLink ? ["booking_link", "text"] : ["text"];
+    case "visit_when":
+    case "visit_service":
+      return o.visits ? [kind] : [];
+    default:
+      return ["text"];
+  }
+}
+function templateSlots(t, o) {
+  const known = starterByName(t.name) !== null;
+  const each = defaultSlotKinds(t).map((k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink }));
+  return each.every((c) => c.length > 0) ? each : null;
+}
+function playbookName(trigger, tpl) {
+  return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
+}
 function starterIndex(name) {
   const i = STARTER_TEMPLATES.findIndex((s) => s.name === name);
   return i === -1 ? STARTER_TEMPLATES.length : i;
@@ -6725,9 +7134,59 @@ function languageLabels(codes) {
   const out = {};
   for (const c of codes) {
     const w = languageWords(c);
-    out[c] = (seen.get(w) ?? 0) > 1 ? `${w} (${c})` : w;
+    out[c] = (seen.get(w) ?? 0) > 1 ? templateLanguage(c) ? languageLabel(c) : `${w} (${c})` : w;
   }
   return out;
+}
+var LANGUAGE_GROUP_WORDS = {
+  on: "On WhatsApp",
+  ready: "Ready to add",
+  add: "Translate into"
+};
+function messageLanguageChoices(input) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  const known = (code2) => templateLanguage(code2) ?? { id: code2, label: languageLabel(code2), name: languageName(code2), region: null, native: languageLabel(code2) };
+  for (const r of input.onFile) {
+    if (seen.has(r.language)) continue;
+    seen.add(r.language);
+    out.push({ ...known(r.language), id: r.language, group: "on", status: r.meta_status ?? "approved" });
+  }
+  for (const code2 of input.ready ?? []) {
+    if (seen.has(code2)) continue;
+    seen.add(code2);
+    out.push({ ...known(code2), id: code2, group: "ready", status: null });
+  }
+  if (input.canAdd) {
+    for (const l of WHATSAPP_LANGUAGES) {
+      if (seen.has(l.id)) continue;
+      out.push({ ...l, group: "add" });
+    }
+  }
+  return out;
+}
+function templateUntranslatable(t) {
+  if (t.blocked) return `it has ${t.blocked}`;
+  if (t.category && !/^(marketing|utility)$/i.test(t.category)) return `WhatsApp files it as ${String(t.category).toLowerCase()}`;
+  if (t.header) return "it has a heading";
+  const buttons = t.buttons ?? [];
+  if (buttons.length > 1) return "it has more than one button";
+  const b = buttons[0];
+  if (b && b.kind !== "url") return b.kind === "reply" ? "it has a reply button" : "it has a button that calls";
+  return null;
+}
+function templateLinkButton(components) {
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const x = b;
+    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
+    const text = typeof x.text === "string" ? x.text.trim() : "";
+    const url = typeof x.url === "string" ? x.url.trim() : "";
+    if (text && url) return { text, url };
+  }
+  return null;
 }
 function groupTemplates(list2) {
   const out = [];
@@ -6772,212 +7231,6 @@ function slotToWrite(t) {
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
 
-// src/templates.ts
-var TEMPLATE_LANGUAGES = [
-  { id: "en_US", label: "English (US)" },
-  { id: "en", label: "English" },
-  { id: "es", label: "Spanish" },
-  { id: "es_MX", label: "Spanish (Mexico)" },
-  { id: "es_ES", label: "Spanish (Spain)" },
-  { id: "pt_BR", label: "Portuguese (Brazil)" }
-];
-var TEMPLATE_CATEGORIES = ["marketing", "utility"];
-var TEMPLATE_BODY_MAX = 1024;
-var TEMPLATE_FOOTER_MAX = 60;
-var TEMPLATE_EXAMPLE_MAX = 100;
-var TEMPLATE_NAME_MAX = 60;
-var TEMPLATE_BUTTON_TEXT_MAX = 25;
-var NAME = /^[a-z0-9_]{1,512}$/;
-function templateNameOk(name) {
-  return NAME.test(name);
-}
-function slugTemplateName(raw) {
-  return String(raw ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, TEMPLATE_NAME_MAX).replace(/_+$/g, "");
-}
-function placeholdersOf(body) {
-  const set = /* @__PURE__ */ new Set();
-  for (const m of String(body ?? "").matchAll(/\{\{(\d+)\}\}/g)) set.add(Number(m[1]));
-  return [...set].sort((a, b) => a - b);
-}
-function placeholdersSequential(positions) {
-  return positions.every((n, i) => n === i + 1);
-}
-function validateTemplateDraft(d) {
-  const name = slugTemplateName(d.name);
-  if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
-  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language)) return { ok: false, error: "Pick a language from the list." };
-  if (!TEMPLATE_CATEGORIES.includes(d.category)) return { ok: false, error: "A template is marketing or utility." };
-  const body = String(d.body ?? "").replace(/\r\n/g, "\n").trim();
-  if (!body) return { ok: false, error: "Write the message." };
-  if (body.length > TEMPLATE_BODY_MAX) return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
-  const slots = placeholdersOf(body);
-  if (!placeholdersSequential(slots)) return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
-  const examples = (d.examples ?? []).map((e) => String(e ?? "").trim());
-  if (examples.length !== slots.length) return { ok: false, error: slots.length === 0 ? "This message takes no values, so it needs no examples." : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} \u2014 WhatsApp's reviewers read them.` };
-  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX)) return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
-  const footer = d.footer ? String(d.footer).trim() : "";
-  if (footer.length > TEMPLATE_FOOTER_MAX) return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
-  if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
-  let button = null;
-  if (d.button) {
-    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
-    const url = String(d.button.url ?? "").trim();
-    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
-    if (text.length > TEMPLATE_BUTTON_TEXT_MAX) return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
-    if (/\{\{/.test(text) || /\{\{/.test(url)) return { ok: false, error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send." };
-    let parsed = null;
-    try {
-      parsed = new URL(url);
-    } catch {
-      parsed = null;
-    }
-    if (!parsed || !/^https?:$/.test(parsed.protocol)) return { ok: false, error: "The button needs a web address to open, starting with https://." };
-    button = { text, url };
-  }
-  const warnings = [];
-  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body)) warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
-  if (d.category === "marketing" && !/stop/i.test(body + " " + footer)) warnings.push("A marketing message should say how to opt out, such as \u201CReply STOP to opt out\u201D.");
-  if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
-  return { ok: true, value: { name, language: d.language, category: d.category, body, footer: footer || null, examples, button }, warnings };
-}
-function templateComponents(v) {
-  const body = { type: "BODY", text: v.body };
-  if (v.examples.length) body.example = { body_text: [v.examples] };
-  const out = [body];
-  if (v.footer) out.push({ type: "FOOTER", text: v.footer });
-  if (v.button) out.push({ type: "BUTTONS", buttons: [{ type: "URL", text: v.button.text, url: v.button.url }] });
-  return out;
-}
-var PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"];
-var PARAM_SOURCE_LABELS = {
-  text: "Type it",
-  first_name: "Their first name",
-  business_name: "The business name",
-  booking_link: "The booking link",
-  visit_when: "Their visit's time",
-  visit_service: "Their visit's service"
-};
-function parseParamSpec(raw) {
-  if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
-    if (m) return { kind: m[1] };
-    return { kind: "text", value: raw };
-  }
-  if (raw && typeof raw === "object") {
-    const o = raw;
-    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
-  }
-  return null;
-}
-function parseParamSpecs(raw) {
-  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
-}
-function paramLabel(spec) {
-  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
-}
-function playbooksStillSending(names) {
-  const quoted = names.map((n) => `\u201C${n}\u201D`);
-  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
-  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
-}
-function firstNameOf(displayName, waProfileName) {
-  const raw = (displayName || waProfileName || "").trim();
-  if (!raw || /^[+\d(]/.test(raw)) return null;
-  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
-  return first ? first.slice(0, 30) : null;
-}
-function resolveParams(specs, f) {
-  return specs.map((s) => {
-    switch (s.kind) {
-      case "text":
-        return s.value;
-      case "first_name":
-        return f.firstName || "there";
-      case "business_name":
-        return f.businessName;
-      case "booking_link":
-        return f.bookingLink ?? "";
-      case "visit_when":
-        return f.visitWhen ?? "";
-      case "visit_service":
-        return f.visitService ?? "";
-    }
-  });
-}
-function exampleParams(specs, businessName) {
-  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
-}
-var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
-function templateUsage(src) {
-  const out = {};
-  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false };
-  const asking = new Set(src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id));
-  for (const p of src.playbooks) {
-    if (!p.template_name) continue;
-    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused", waiting: asking.has(p.id), runs: p.runs ?? null });
-  }
-  const byHand = src.broadcasts.filter((b) => b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-  for (const b of byHand) {
-    const u = at2(b.template_name);
-    u.broadcasts += 1;
-    if (b.name && u.recent.length < 2) u.recent.push(b.name);
-  }
-  if (src.bookingName) at2(src.bookingName).booking = true;
-  return out;
-}
-var sayList = (parts2) => parts2.length < 2 ? parts2[0] ?? "" : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function templateUseWords(use) {
-  const u = use ?? NOTHING;
-  const parts2 = [];
-  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
-  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
-  if (u.booking) parts2.push("the Inbox");
-  if (parts2.length === 0) return "Nothing sends it";
-  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
-  return capital(sayList(parts2));
-}
-function templateUseNote(use) {
-  const u = use ?? NOTHING;
-  if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
-  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused \u2014 nothing goes out" : u.playbooks[0].runs;
-  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : null;
-  if (u.recent.length > 0) return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
-  if (u.booking) return "what the receptionist sends to book";
-  return null;
-}
-function templateUnused(use) {
-  const u = use ?? NOTHING;
-  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
-}
-function templateSends(src) {
-  const out = {};
-  const nameOf = new Map(src.runs.map((r) => [r.id, r.template_name]));
-  const went = (name, at2) => {
-    const s = out[name] ??= { count: 0, lastAt: null };
-    s.count += 1;
-    const ms2 = at2 === null ? NaN : Date.parse(at2);
-    if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at2;
-  };
-  for (const r of src.recipients) {
-    const name = r.state === "sent" ? nameOf.get(r.broadcast_id) : void 0;
-    if (name) went(name, r.sent_at);
-  }
-  for (const m of src.inbox) {
-    if (m.template_name && m.external_id) went(m.template_name, m.created_at);
-  }
-  return out;
-}
-function templateSentWords(s, tz, nowMs) {
-  if (!s || s.count === 0) return { count: null, when: "Never sent" };
-  const at2 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
-  return {
-    count: s.count.toLocaleString("en-US"),
-    when: Number.isFinite(at2) ? agoWords(at2, nowMs, { date: (ms2) => clockDate(ms2, tz, nowMs) }) : null
-  };
-}
-
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
 var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
@@ -7001,28 +7254,21 @@ var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
-  let pool = rows;
+  return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
+}
+function audienceMembers(rows, kind, id, savedIds) {
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
-    if (!l) return [];
-    pool = rows.filter(l.test);
-  } else if (kind === "saved") {
-    if (!savedIds) return [];
-    pool = rows.filter((r) => savedIds.has(r.id));
+    return l ? rows.filter(l.test) : [];
   }
-  return pool.filter((r) => mayReceive(r, purpose));
+  if (kind === "saved") return savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
+  return rows;
 }
 function previewPerson(r, refusal) {
   return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
 }
 function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5) {
-  let pool = rows;
-  if (kind === "list") {
-    const l = PEOPLE_LISTS.find((x) => x.id === id);
-    pool = l ? rows.filter(l.test) : [];
-  } else if (kind === "saved") {
-    pool = savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
-  }
+  const pool = audienceMembers(rows, kind, id, savedIds);
   const sending = pool.filter((r) => mayReceive(r, purpose));
   const held = pool.filter((r) => !mayReceive(r, purpose));
   const named = sending.filter((r) => firstNameOf(r.givenName, r.waName) !== null);
@@ -7307,29 +7553,51 @@ function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 function eligibleForPlaybook(rows, p, touches, nowMs) {
+  return playbookRunReach(rows, p, touches, nowMs).eligible;
+}
+function playbookRunReach(rows, p, touches, nowMs) {
+  const reach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return [];
+  if (!t) return { eligible: [], reach };
   const purpose = purposeOfPlaybook(t.cls);
-  if (t.kind === "visit") {
-    const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
-    });
-    pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
-    return pool2;
+  const named = t.kind === "visit" ? rows.filter((r) => {
+    if (!r.calendarTz) return false;
+    if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
+    return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
+  }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  reach.pool = named.length;
+  const allowed = [];
+  for (const r of named) {
+    const why = whyNotReceive(r, purpose);
+    if (why === "no_number") reach.noNumber += 1;
+    else if (why === "stopped") reach.stopped += 1;
+    else if (why === "no_yes") reach.noYes += 1;
+    else allowed.push(r);
   }
-  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
+  if (t.kind === "visit") {
+    allowed.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
+    reach.will = allowed.length;
+    return { eligible: allowed, reach };
+  }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS6;
-  const picked = pool.filter((r) => {
+  const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
-    if (mine !== void 0 && nowMs - mine < gapMs) return false;
+    if (mine !== void 0 && nowMs - mine < gapMs) {
+      reach.heardThis += 1;
+      return false;
+    }
     const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) return false;
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) {
+      reach.heardAny += 1;
+      return false;
+    }
     return true;
   });
   picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
-  return picked.slice(0, Math.max(1, p.cap_per_run));
+  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
+  reach.overCap = picked.length - eligible.length;
+  reach.will = eligible.length;
+  return { eligible, reach };
 }
 function planRun(mode, now) {
   switch (mode) {
@@ -7437,6 +7705,30 @@ function visitDayWord(visit, tz, sendAt, assumed) {
     return delta > 0 ? "soon" : "recently";
   }
 }
+function poolWords(trigger) {
+  const t = triggerOf(trigger);
+  if (!t) return "";
+  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  return t.list ? "on the list" : "in People";
+}
+function reachLines(reach, p) {
+  if (!reach || !Number.isFinite(reach.pool)) return null;
+  const t = p ? triggerOf(p.trigger) : null;
+  const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
+  const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
+  const one = (n, singular, plural7) => n === 1 ? singular : plural7;
+  const reasons = [
+    { n: reach.noYes, words: `never said yes to ${offers ? "offers" : "hearing from you"}`, tone: "plain", door: { words: "Get their yes", to: GET_YES_ROUTE } },
+    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    { n: reach.heardThis, words: gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately", tone: "warn", door: null },
+    { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
+    { n: reach.noNumber, words: one(reach.noNumber, "has no number on file", "have no number on file"), tone: "plain", door: null },
+    { n: reach.overCap, words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` \u2014 ${p.cap_per_run} a run, the longest unheard first` : ""}`, tone: "plain", door: null },
+    { n: reach.overLimit, words: one(reach.overLimit, "is past what the number may start today", "are past what the number may start today"), tone: "warn", door: null }
+  ];
+  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words2, tone, door }) => ({ n, words: `${n} ${words2}`, tone, door }));
+  return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
+}
 function toApprovalVM(d, opts) {
   const b = d.broadcast;
   const will = b.recipient_count;
@@ -7474,6 +7766,7 @@ function toApprovalVM(d, opts) {
   return {
     will,
     rules,
+    of: reachLines(b.audience?.reach ?? null, opts.playbook),
     values,
     reader: reader ? reader.name : null,
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
@@ -8701,13 +8994,13 @@ function grouped(n) {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 function soleProprietorLimits() {
-  const L = SOLE_PROP_LIMITS;
+  const L2 = SOLE_PROP_LIMITS;
   return [
     `One number and one campaign: a second number cannot text on this registration.`,
-    `About ${L.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
-    `T-Mobile takes ${grouped(L.perDayTMobile)} a day from you, AT&T ${L.perMinuteAtt} a minute.`,
+    `About ${L2.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
+    `T-Mobile takes ${grouped(L2.perDayTMobile)} a day from you, AT&T ${L2.perMinuteAtt} a minute.`,
     `The carriers text a code to your own mobile and you reply from that handset \u2014 there is no code to bring back here.`,
-    `That mobile can be used on ${L.mobileUsesEver} of these registrations ever, across every provider; your email and address on ${L.emailUsesEver} each. Only the carriers can count what you have already spent.`,
+    `That mobile can be used on ${L2.mobileUsesEver} of these registrations ever, across every provider; your email and address on ${L2.emailUsesEver} each. Only the carriers can count what you have already spent.`,
     `It cannot be withdrawn once filed. If you get a tax id later, the standard registration is a new filing.`
   ];
 }
@@ -10539,6 +10832,7 @@ var WORDS = {
   "contact.email_set": "A person's email address changed",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
+  // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
   "conversation.pause_expired": "A pause ended",
@@ -11556,7 +11850,6 @@ var SCHEMA_SETS = {
   "jobs.kind": [
     "outbound_send",
     "broadcast_send",
-    "blob_thread_erase",
     "line_provision",
     "email_ingest",
     "lead_round_start",
@@ -11792,6 +12085,9 @@ var LEAD_WORDS = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -12365,7 +12661,8 @@ var LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
 function leadSearchWords(s, tz) {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
   const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
-  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter(Boolean);
+  const asked = s.asked.toLowerCase();
+  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter((t) => t && !asked.includes(t.toLowerCase()));
   const leaving = left.length ? ` Leaving out ${left.join(" and ")}.` : "";
   return { askedLine: `You asked on ${day}: \u201C${s.asked}\u201D.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
 }
@@ -13136,6 +13433,7 @@ export {
   JOB_STATES,
   JUDGE_FACT_KEYS,
   JUDGE_OUTPUT_SCHEMA,
+  LANGUAGE_GROUP_WORDS,
   LEAD_ASK_MAX_FACTOR,
   LEAD_ASK_MIN_FACTOR,
   LEAD_ASSUMED_YIELD,
@@ -13282,6 +13580,7 @@ export {
   OUTCOME_UNKNOWN,
   OWN_MESSAGE_REFUSALS,
   PARAM_SOURCES,
+  PARAM_SOURCE_HINTS,
   PARAM_SOURCE_LABELS,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN,
@@ -13414,6 +13713,7 @@ export {
   TenantConfigWriteSchema,
   WABA_FIELDS,
   WA_WINDOW_MS,
+  WHATSAPP_LANGUAGES,
   abandonedCall,
   abilityRows,
   activityTone,
@@ -13432,6 +13732,7 @@ export {
   askJump,
   askUndoOpen,
   attentionRow,
+  audienceMembers,
   audiencePreview,
   autoReplyBell,
   autoReplyCandidates,
@@ -13557,6 +13858,7 @@ export {
   feedUrlOk,
   filterOpenings,
   filterTimeline,
+  findLanguages,
   firstNameOf,
   firstWorkspaceDoor,
   fmtClock,
@@ -13623,7 +13925,10 @@ export {
   judgeSystemPrompt,
   judgeUserContent,
   knownTimezones,
+  languageLabel,
   languageLabels,
+  languageName,
+  languageTag,
   languageWords,
   lastChangedWords,
   leadAllowanceFact,
@@ -13684,6 +13989,7 @@ export {
   memberWords,
   messageAt,
   messageAuthor,
+  messageLanguageChoices,
   messageStatusLabel,
   messageText,
   messageWords,
@@ -13764,13 +14070,16 @@ export {
   platformQueue,
   platformRows,
   platformSummary,
+  playbookName,
   playbookReach,
+  playbookRunReach,
   playbooksStillSending,
   pointsDelta,
   policyAskClass,
   policyClassOfIntent,
   policyLinks,
   policyRules,
+  poolWords,
   previewHorizon,
   priceWords,
   priorOf,
@@ -13781,6 +14090,7 @@ export {
   quantile,
   questionAfterProbe,
   ratingWords,
+  reachLines,
   reachedCustomer,
   readAgoLabel,
   reasonShort,
@@ -13841,6 +14151,7 @@ export {
   shouldLandOnSetup,
   signupPosture,
   siteHost,
+  slotChoices,
   slotLabels,
   slotToWrite,
   slugTemplateName,
@@ -13876,13 +14187,17 @@ export {
   templateBlocked,
   templateComponents,
   templateFooter,
+  templateLanguage,
+  templateLinkButton,
   templateNameOk,
   templateParts,
   templatePreview,
   templatePreviewValues,
   templateSends,
   templateSentWords,
+  templateSlots,
   templateTitle,
+  templateUntranslatable,
   templateUnused,
   templateUsage,
   templateUseNote,
@@ -13965,6 +14280,7 @@ export {
   whyNotALocalPart,
   whyNotAPhone,
   whyNotAnEmail,
+  whyNotReceive,
   windowFor,
   workspaceHotkey,
   writtenChannelOf,

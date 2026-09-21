@@ -2,11 +2,18 @@
  * The WhatsApp handler, executed.
  *
  * handleInbound runs for real here: its pure gates as themselves, its world
- * (the database, the thread store, the tenant runtime, the sink, the alerts,
- * the pager, the model) as fakes handed in through ports.ts. What is
- * asserted is what a customer, an owner and the platform would see: what
- * left on the wire and labelled how, what was escalated, who was told, and
- * what the memory holds afterwards.
+ * (the database, the memory, the tenant runtime, the sink, the alerts, the
+ * pager, the model) as fakes handed in through ports.ts. What is asserted is
+ * what a customer, an owner and the platform would see: what left on the wire
+ * and labelled how, what was escalated, who was told, and what the memory
+ * holds afterwards.
+ *
+ * The memory below is modelled the way Postgres holds it, because that is the
+ * only memory there is: `ingest` records the customer's words and answers
+ * `is_new` (which IS the redelivery gate), the sink's `deliver` is what makes
+ * a reply part of the history, `pause` is what takes the receptionist out of
+ * the thread, and `thread` reads all three back. Nothing the handler mutates
+ * in hand is remembered — it reports, and the rows are the record.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,6 +21,25 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import { optInConfirmation, formatPhoneDisplay } from "@chanlytics/contracts";
+
+// The disaster-recovery fallback is CONFIGURATION now, not source: the edge
+// reads it from the environment once, at module load (lib/tenant-fallback.ts).
+// Set here, before the import below, so these cases run the real path — a
+// deployment that has been given the env-default workspace's profile, exactly
+// as production holds it. Unset, the module answers with its neutral default,
+// which states no business fact (dr-fallback.test.mjs covers that).
+process.env.DR_FALLBACK_BRAIN_JSON = JSON.stringify({
+  business_name: "Riverside Studio",
+  booking_link: "https://booking.example/riverside",
+  system_prompt: "You are the assistant for Riverside Studio, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
+  fallbacks: {
+    greeting: "Thanks for writing to Riverside Studio. Book anytime at https://booking.example/riverside, or reply here with any question.",
+    error: "Thanks for writing to Riverside Studio! A member of the team will reply here soon.",
+    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
+  },
+});
+process.env.DR_FALLBACK_ESCALATION_EMAILS = "owner@riverside.example";
+process.env.DR_FALLBACK_FROM = "Riverside Studio <hello@platform.test>";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -43,36 +69,48 @@ const ingested = (n) => ({ message_id: "m-in", conversation_id: "conv1", contact
 
 /** The handler's world, recording everything that crosses it. */
 function world(over = {}) {
-  const memory = new Map();
-  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, saved: 0, media: 0, purposes: [] };
+  // The rows, as Postgres would hold them for this one conversation.
+  const memory = { history: [], replies: [], pausedUntil: 0, repliedBefore: false };
+  const delivered = new Set();
+  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, media: 0, purposes: [] };
   const rt = over.rt ?? runtime();
+  const recordIngest = over.ingest ?? (async (_db, _tenant, n) => ingested(n));
   const ports = {
     db: () => fakeDb({}),
-    store: {
-      get: async (ns, id) => structuredClone(memory.get(`${ns}/${id}`) ?? { history: [], seen: [], pausedUntil: 0, replies: [] }),
-      save: async (ns, id, s) => { memory.set(`${ns}/${id}`, structuredClone(s)); seen.saved += 1; return true; },
-      backend: () => "memory",
-    },
     runtime: async () => rt,
     leads: { read: async () => ({ name: null }), personReplyMode: async () => null },
     calendar: { openings: async () => null, visits: async () => null },
     budget: { tokensLast24h: async () => 0 },
     persist: {
-      thread: async () => ({ history: [], seen: [], pausedUntil: 0, replies: [] }),
-      ingest: over.ingest ?? (async (_db, _tenant, n) => ingested(n)),
+      // What readThreadState returns for the conversation the ingest named,
+      // or an UNKNOWN thread when there is nothing to read it against.
+      thread: async (_db, _tenant, ing) => (ing && !over.unreadable
+        ? structuredClone({ history: memory.history, pausedUntil: memory.pausedUntil, replies: memory.replies, repliedBefore: memory.repliedBefore })
+        : { history: [], pausedUntil: -1, replies: [], unknown: true }),
+      // Persist first, with the atomic is_new claim that IS the redelivery
+      // gate. Bound per run, where the message id is known.
+      ingest: recordIngest,
       sink: (_db, _tenant, ing, _rt, channel) => ({
         on: !!ing,
         deliver: async (to, body, meta, purpose) => {
           seen.sent.push({ to, body, meta: meta ?? null, channel });
           // The port's own default, mirrored: what reaches the door is what counts.
           seen.purposes.push(purpose ?? "conversational");
-          return over.delivered ?? { outcome: "sent", messageId: "m-out", externalId: "wamid.out" };
+          const out = over.delivered ?? { outcome: "sent", messageId: "m-out", externalId: "wamid.out" };
+          // The door writes the row, and the row IS the memory: only a reply
+          // that actually left is something "we said".
+          if (out.outcome === "sent") {
+            memory.history.push({ role: "assistant", content: body });
+            memory.repliedBefore = true;
+            if (!meta?.ack) memory.replies.push(Date.now());
+          }
+          return out;
         },
         processed: async () => { seen.processed += 1; },
         allowlistSkip: async () => {},
         unreachableSender: async () => { seen.unreachable += 1; },
         vetoFallback: async () => {},
-        pause: async (iso) => { seen.pauses.push(iso); },
+        pause: async (iso) => { seen.pauses.push(iso); memory.pausedUntil = Date.parse(iso); },
         usage: async () => {},
         escalate: async (reason, details) => { seen.escalations.push({ reason, details }); return "opened"; },
         media: async () => { seen.media += 1; return over.media ?? null; },
@@ -85,10 +123,23 @@ function world(over = {}) {
     page: async (_ports, key, subject, body) => { seen.pages.push({ key, subject, body }); return "sent"; },
     sender: () => async () => ({ ok: true, wamid: "x", status: 200 }),
     brain: async () => { throw new Error("the model must not be reached in this test"); },
-    env: { pgReads: false, pgDedupe: false, allowlist: "", modelKey: undefined, ...(over.env ?? {}) },
+    env: { allowlist: "", modelKey: undefined, ...(over.env ?? {}) },
   };
-  const run = (m, extra = {}) => handleInbound(m, value, "t1", routed, !!over.isEnvDefault, false, over.carrier ?? null, { ...ports, ...extra });
-  const thread = () => memory.get(`t1/${FROM}`);
+  const run = async (m, extra = {}) => {
+    // The customer's words go on record before anything else can fail, and
+    // the message id is what a redelivery is recognised by.
+    const key = `in:${m.id}`;
+    const isNew = !delivered.has(key);
+    delivered.add(key);
+    const body = m.text?.body ?? null;
+    if (isNew && body) memory.history.push({ role: "user", content: body });
+    ports.persist.ingest = async (db, tenant, n, channel) => {
+      const rec = await recordIngest(db, tenant, n, channel);
+      return rec && { ...rec, is_new: rec.is_new === false ? false : isNew, paused_until: memory.pausedUntil ? new Date(memory.pausedUntil).toISOString() : null };
+    };
+    return handleInbound(m, value, "t1", routed, !!over.isEnvDefault, false, over.carrier ?? null, { ...ports, ...extra });
+  };
+  const thread = () => structuredClone(memory);
   return { run, seen, thread };
 }
 
@@ -110,7 +161,10 @@ test("no model key: the workspace's greeting leaves labelled a fallback, the thr
   const t = w.thread();
   assert.ok(t.pausedUntil > Date.now(), "the memory says a person has it");
   assert.deepEqual(t.history.map((h) => h.role), ["user", "assistant"]);
-  assert.equal(t.replies.length, 1);
+  // Labelled an acknowledgement, so it does not spend the cap that exists to
+  // stop loops -- the same rule that keeps three photos in a morning from
+  // silencing the receptionist for the day (reply-cap.test.mjs).
+  assert.equal(t.replies.length, 0);
 });
 
 test("a hold that cannot be written: the veto window sends now and says so; the confidence floor sends nothing and hands the thread to a person", async () => {
@@ -181,14 +235,41 @@ test("an ingest the database refuses is not swallowed: IngestFailed surfaces and
   assert.equal(w.seen.sent.length, 0, "nothing is said to a customer whose words were not kept");
 });
 
-test("STOP records the opt-out, escalates once, answers nothing, and the cache remembers", async () => {
+test("STOP records the opt-out, escalates once, answers nothing, and keeps no second copy of the answer", async () => {
   const w = world();
   await w.run(text("STOP"));
   assert.equal(w.seen.sent.length, 0);
   assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["opt_out"]);
   assert.equal(w.seen.alerts[0].reason, "opt-out");
   assert.equal(w.seen.processed, 1);
-  assert.equal(w.thread().optedOut, true, "cached, so the opt-out survives a database outage");
+  // The answer lives in `contacts.consent` and nowhere else. It used to be
+  // cached on the Blob thread as well, for the case where Postgres did not
+  // answer -- which cost a read and a write in front of every brain call and
+  // is a case that can no longer arise: a thread that cannot be read never
+  // reaches the consent gate, it goes to a person.
+  assert.equal("optedOut" in w.thread(), false, "no second copy to go stale");
+  assert.deepEqual(w.thread().history.map((h) => h.content), ["STOP"], "the words are on record; nothing was said back");
+});
+
+test("a memory that cannot be read hands the conversation to a person, and answers nothing", async () => {
+  // THE BEHAVIOUR WITH NOWHERE TO FALL BACK TO. Postgres is the only memory,
+  // so a read that did not answer leaves the receptionist not knowing whether
+  // a human has taken this thread over, what was already said, or how many
+  // replies have gone out today. Every gate below would be answering from an
+  // invented empty history -- it would greet a customer mid-conversation and
+  // talk over the person handling it. So it does not answer at all.
+  //
+  // The customer's message is already on record: the ingest runs first, and
+  // that is what makes this safe rather than a loss.
+  const w = world({ unreadable: true });
+  await w.run(text("hi, is my 3pm still on?"));
+  assert.equal(w.seen.sent.length, 0, "nothing is said from a history nobody could read");
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["state_unavailable"]);
+  assert.match(w.seen.escalations[0].details, /could not read this thread's history/);
+  assert.equal(w.seen.alerts.length, 1, "and a person is told, by name of the thread");
+  assert.equal(w.seen.alerts[0].reason, "state unavailable");
+  assert.equal(w.seen.processed, 1, "marked handled, so a redelivery does not open it twice");
+  assert.equal(w.seen.pauses.length, 0, "the receptionist did not speak, so it claims no pause");
 });
 
 test("a workspace on ask holds every message for a person and says why", async () => {

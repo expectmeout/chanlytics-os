@@ -6,9 +6,9 @@
  * update is guarded on the state it expects.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
-import { emitEvent } from "./workspace/db.js";
-import { forwardingMatch, formatPhoneDisplay, type ForwardingFacts } from "./workspace/contracts.js";
+import type { Database, Json } from "./packages/db.js";
+import { emitEvent } from "./packages/db.js";
+import { forwardingMatch, formatPhoneDisplay, type ForwardingFacts } from "./packages/contracts.js";
 import { recordNotification } from "./notify.js";
 
 export interface ForwardingCall {

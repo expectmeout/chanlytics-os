@@ -103,3 +103,21 @@ test("the mockup's grouped tab still groups, because the mockup still uses it", 
   assert.equal(inChannel(row("email"), "chats"), false);
   assert.equal(inChannel(row("phone"), "chats"), false);
 });
+
+/* -------------------------------------------------------------- the route */
+
+test("REGRESSION: every tab a workspace is given is a filter in the address, never a conversation's id", () => {
+  const route = globalThis.window.CV_ROUTE;
+  assert.ok(route, "the page publishes its one rule for the word after conversations/");
+  // The strip the bridge draws for a workspace on every wire it has. The shell knew only the mockup's three tabs, so
+  // WhatsApp and Email opened "whatsapp" and "email" as conversations nobody could find, and the list stayed on All.
+  for (const { id } of conversationTabs(true, ["whatsapp", "sms", "email"])) {
+    assert.deepEqual(route(id), { channel: id, id: null }, `"${id}" is a tab`);
+  }
+  for (const id of ["phone", "chats", "mail"]) assert.deepEqual(route(id), { channel: id, id: null }, `the mockup's "${id}"`);
+  assert.deepEqual(route(undefined), { channel: "all", id: null }, "the bare address is everything");
+  // A row's id stays an id: a conversation's, a call's, and a word only an object inherits.
+  assert.deepEqual(route("5b0c6a52-8f1e-4d7a-9c1b-2e7f3a9d4c10"), { channel: "all", id: "5b0c6a52-8f1e-4d7a-9c1b-2e7f3a9d4c10" });
+  assert.deepEqual(route("cv-4"), { channel: "all", id: "cv-4" });
+  assert.deepEqual(route("constructor"), { channel: "all", id: "constructor" });
+});

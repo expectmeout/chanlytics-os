@@ -15,7 +15,7 @@
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { stopCall } from "../../lib/workspace/channels.js";
+import { stopCall } from "../../lib/packages/channels.js";
 
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/stop-call");

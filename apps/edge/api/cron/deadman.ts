@@ -30,8 +30,8 @@ import { notify, reachesTenant } from "../../lib/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
 import { logger, errField } from "../../lib/log.js";
 import { pageOperator } from "../../lib/page-operator.js";
-import { markProcessed } from "../../lib/workspace/db.js";
-import { upsertEscalation } from "../../lib/workspace/jobs.js";
+import { markProcessed } from "../../lib/packages/db.js";
+import { upsertEscalation } from "../../lib/packages/jobs.js";
 import { sweepUnfinished } from "../../lib/unfinished.js";
 
 export const config = { maxDuration: 60 };

@@ -4,7 +4,7 @@
  * texted through the one door, deliver() in packages/core, from the sink.
  */
 import { notify, type NotifyTarget, type NotifyMessage } from "../notify.js";
-import { formatPhoneDisplay } from "../workspace/contracts.js";
+import { formatPhoneDisplay } from "../packages/contracts.js";
 
 /**
  * The text channels a thread can arrive on. Declared here rather than

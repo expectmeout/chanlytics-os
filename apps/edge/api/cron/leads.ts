@@ -13,10 +13,10 @@ import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
 import { leadWires } from "../../lib/lead-wires.js";
 import { planLeadSweep, type SweepRoundRow, type SweepRunRow } from "../../lib/lead-sweep.js";
-import { reconcileUnknownRuns, type LeadPorts, type LeadRunRow } from "../../lib/workspace/core.js";
-import { scheduleJobOnce } from "../../lib/workspace/jobs.js";
+import { reconcileUnknownRuns, type LeadPorts, type LeadRunRow } from "../../lib/packages/core.js";
+import { scheduleJobOnce } from "../../lib/packages/jobs.js";
 import { leadDb } from "../../lib/lead-db.js";
-import type { Json } from "../../lib/workspace/db.js";
+import type { Json } from "../../lib/packages/db.js";
 
 export const config = { maxDuration: 60 };
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */

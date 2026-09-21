@@ -513,8 +513,10 @@ export interface InboxThreadVM {
   /**
    * The customer's own words beside the decision: what they last wrote, quoted,
    * or what the call left behind for a call back. Null when nothing is being decided.
+   * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
+   * band does not say it again beneath; the row and its search still read `text`.
    */
-  ask: { label: string; text: string; quoted: boolean } | null;
+  ask: { kind: "call" | "wrote" | "sent"; label: string; text: string; quoted: boolean } | null;
   /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
   archived: boolean;
   /**
@@ -765,7 +767,10 @@ export function toInboxThreadVM(
       type: "event" as const,
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      body: `Flagged for a human — ${reasonLabel}${escalation.details ? ` · “${clipAtWord(escalation.details, 120)}”` : ""}`,
+      // Why it was flagged, and the details that say more -- except a call back's, which are the band's own sentence (the
+      // to-do): quoted here as well, they were said a third time. Any other reason's details, the cause of a failed send,
+      // are said only here.
+      body: `Flagged for a human — ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` · “${clipAtWord(escalation.details, 120)}”` : ""}`,
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
@@ -782,9 +787,11 @@ export function toInboxThreadVM(
   const ask: InboxThreadVM["ask"] = !escalation
     ? null
     : escalation.reason === "callback"
-      ? (escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null)
+      ? (escalation.details?.trim() ? { kind: "call" as const, label: "From the call", text: escalation.details.trim(), quoted: false } : null)
       : lastInbound
-        ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageWords(lastInbound), quoted: lastInbound.type === "text" }
+        ? lastInbound.type === "text"
+          ? { kind: "wrote" as const, label: "They wrote", text: messageWords(lastInbound), quoted: true }
+          : { kind: "sent" as const, label: "They sent", text: messageWords(lastInbound), quoted: false }
         : null;
 
   // A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1).
@@ -842,7 +849,9 @@ export function toInboxThreadVM(
     summary: claimedByOther
       ? "A teammate is answering this. The receptionist stays quiet until they hand it back."
       : escalation
-      ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
+      // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
+      // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
+      ? (escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`)
       : takenOver
         ? "You're answering this one. The receptionist stays quiet until you hand it back."
         : lastWord
@@ -1066,9 +1075,9 @@ export interface CallDto {
   outcome?: string | null;
   follow_up?: string | null;
   caller_name?: string | null;
-  /** Turns. `start` (seconds) is the turn's first word; `words` is the raw
-   *  provider shape and is stripped by the list route (F15). */
-  transcript_object: Array<{ role?: string; content?: string; start?: number; words?: Array<{ start?: number }> }> | null;
+  /** Turns. `start`/`end` (seconds) are the turn's first and last word; `words` is
+   *  the raw provider shape and is stripped by the list route (F15). */
+  transcript_object: Array<{ role?: string; content?: string; start?: number; end?: number; words?: Array<{ start?: number; end?: number }> }> | null;
   /** storage_path and provider_url are stripped server-side — audio is only
    *  reachable through the signed-URL route. */
   recording: { fetch_state?: string; mime?: string | null; bytes?: number } | null;
@@ -1158,7 +1167,11 @@ export interface CallVM {
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
-  transcript: Array<{ t: string; speaker: "agent" | "client" | "whisper"; text: string }>;
+  /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
+   *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
+  transcript: Array<{ t: string; speaker: "agent" | "client" | "whisper"; text: string; start: number | null; end: number | null }>;
+  /** The call's length in seconds: the player's track before the audio says its own. */
+  durationSec: number | null;
   recordingState: "ready" | "pending" | "failed" | "purged" | "none";
   recordingUrl?: string;
   threadId?: string;
@@ -1192,8 +1205,10 @@ export function spokenDuration(ms: number | null): string {
 
 // How the caller sounded, as the voice provider read it, where that says anything: "Neutral" and "Unknown" do not.
 const CALL_MOOD: Record<string, string> = { Positive: "Sounded positive", Negative: "Sounded negative" };
-// Why a call has no recording to play, where that is worth saying. "none" is a call that was never recorded.
+// Why a call has no recording to play. A call never recorded says so: said nothing, it looked like a player that failed
+// to draw (Emily's call, which is filler and was never a call at all).
 const RECORDING_NOTE: Partial<Record<CallVM["recordingState"], string>> = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`,
@@ -1248,16 +1263,33 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
 
-  const transcript = (dto.transcript_object ?? []).map((turn) => {
-    const start = turn.start ?? turn.words?.[0]?.start;
+  // Each line's moment in the call, in seconds: the provider's own start, or halfway between its neighbours for a line
+  // it gave none (two of the salon's 244 real lines, short replies with no words); its end, or where the next line
+  // begins. A whisper -- an injected turn, the owner's own words to the receptionist -- is not a sound in the recording,
+  // so it has no moment.
+  const turns = dto.transcript_object ?? [];
+  const given = turns.map((turn) => (turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null));
+  const starts = given.map((s, i) => {
+    if (s != null || turns[i].role === "injected") return s;
+    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
+    const after = given.slice(i + 1).find((x) => x != null) ?? null;
+    return before != null && after != null ? (before + after) / 2 : before ?? after;
+  });
+  const transcript = turns.map((turn, i) => {
     // An injected turn is a whisper: the owner's own words, shown as theirs.
     if (turn.role === "injected") {
-      return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content) };
+      return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content), start: null, end: null };
     }
+    const own = given[i];
+    const start = starts[i];
+    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
+    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
     return {
-      t: typeof start === "number" ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : "—",
+      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "—",
       speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
       text: turn.content ?? "",
+      start,
+      end,
     };
   });
 
@@ -1284,6 +1316,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
       : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
     transcript,
+    durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1000) : null,
     recordingState: recState,
     ...(recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {}),
     ...(dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {}),

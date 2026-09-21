@@ -69,8 +69,9 @@ talks about — and one bad prompt edit would affect everyone.
 **Recommendation: A, with B's mechanism inside it.** Per-tenant agents for
 isolation, but keep the business facts in `default_dynamic_variables` rather
 than baked into prompt text, so the same fields feed the WhatsApp brain profile
-and the voice agent from one place. Today those facts are duplicated —
-`tenant-fallback.ts` holds a booking link, and the Retell prompt holds it again.
+and the voice agent from one place. The disaster-recovery fallback
+(`tenant-fallback.ts`) now reads its profile from the environment and holds no
+link of its own; the Retell prompt still carries the facts a second time.
 
 ---
 

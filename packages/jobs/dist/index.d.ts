@@ -240,19 +240,12 @@ interface JobContext {
      */
     page?: (key: string, subject: string, body: string) => Promise<unknown>;
     /**
-     * Delete one customer's stored Blob thread.
-     *
-     * INJECTED, not imported. The store is apps/edge/lib/store.ts because the
-     * edge is the runtime that holds BLOB_READ_WRITE_TOKEN, and a package must
-     * not reach into an app.
-     */
-    eraseThread: (namespace: string, threadId: string) => Promise<boolean>;
-    /**
-     * Run a line's provisioning saga, or resume it. INJECTED like eraseThread:
-     * the provider and the receptionist's credentials live on the edge. The
-     * saga reads its own receipts, so a second run repeats nothing. Optional
-     * so a test context need not supply one; a job of this kind in a runtime
-     * without it fails loudly rather than guessing.
+     * Run a line's provisioning saga, or resume it. INJECTED, not imported:
+     * the provider and the receptionist's credentials live on the edge, and a
+     * package must not reach into an app. The saga reads its own receipts, so a
+     * second run repeats nothing. Optional so a test context need not supply
+     * one; a job of this kind in a runtime without it fails loudly rather than
+     * guessing.
      */
     provisionLine?: (lineId: string, by: "owner" | "support" | "sweep") => Promise<{
         ok: boolean;
@@ -261,7 +254,7 @@ interface JobContext {
         did?: string;
     }>;
     /**
-     * Email's intake, as the edge holds it. INJECTED like the two above: the
+     * Email's intake, as the edge holds it. INJECTED like the one above: the
      * provider's key and the deployment's mail domain live on the edge, and so
      * does the read of who asked to be forgotten. Optional so a test context
      * need not supply one; an email_ingest job in a runtime without it fails
@@ -279,7 +272,7 @@ interface JobContext {
     };
     /**
      * The lead finder's pipeline (00140), as the edge holds it. INJECTED like
-     * the three above: the provider's token, the judge's client and the
+     * the two above: the provider's token, the judge's client and the
      * webhook base live on the edge (release A2 binds them). Optional so a
      * test context need not supply one; a lead job in a runtime without it
      * fails loudly rather than guessing. Each takes the claimed job whole and

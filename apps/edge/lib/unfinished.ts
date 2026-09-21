@@ -30,8 +30,8 @@
  * present state, so two overlapping ticks cannot double-flag.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
-import type { EscalationOutcome } from "./workspace/jobs.js";
+import type { Database } from "./packages/db.js";
+import type { EscalationOutcome } from "./packages/jobs.js";
 import type { logger } from "./log.js";
 import type { notify as notifyFn, reachesTenant as reachesFn, NotifyTarget, NotifyMessage } from "./notify.js";
 import type { loadTenantNotifications as loadFn } from "./tenant-runtime.js";

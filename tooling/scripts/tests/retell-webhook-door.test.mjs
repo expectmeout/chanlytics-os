@@ -12,34 +12,30 @@
  * the platform; a routed call is ingested, an inbound test call marks the
  * forwarded line verified, and every delivery leaves its row. The transcript
  * rides wherever the provider put it. The note waits for the summary, the
- * recording is copied on a budget -- and never again once stored or given up
- * on -- a stale replay writes nothing, a spoken price is corrected once, a
- * call back is handed to a person on the analysis and on nothing earlier, and
- * the analysis tells the owner once -- by bell, and by mail only to a mailbox
- * that is theirs.
+ * recording is copied on a budget -- and never again once stored, given up
+ * on, or removed on schedule -- a stale replay writes nothing, a spoken
+ * price is corrected once, a call back is handed to a person on the analysis
+ * and on nothing earlier, and the analysis tells the owner once -- by bell,
+ * and by mail only to a mailbox that is theirs.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { frameGuardrail } from "@chanlytics/contracts";
+import { frameGuardrail, RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
 import { at, openDoor, wire, withEnv, sign, kind, ingests, DUPLICATE, PLATFORM, LINE, CALLER, NOW, iso } from "./_retell-webhook-world.mjs";
 
-// The store reads its flags at import and the door reads its keys at the
-// knock; each test file is its own process, so this is the whole environment.
+// The door reads its keys at import; each test file is its own process, so
+// this is the whole environment.
 // openDoor() imports the handler AFTER these lines, on purpose.
 process.env.RETELL_WEBHOOK_KEY = "badged-key-for-this-file";
 process.env.RETELL_API_KEY = "api-key-for-this-file";
 process.env.RETELL_FN_SECRET = "fn-secret-for-this-file";
-process.env.BLOB_SHADOW = "off";
-// A token, so the store WOULD be Blob were it not retired: the proof that no
-// Blob note is attempted is that nothing reaches Blob even so.
-process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_test_only";
 process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";
 // No workspace is the environment's own, and the only database is the one handed in.
 for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
-const { setPg, store, knock, deliver, world } = await openDoor();
+const { setPg, knock, deliver, world } = await openDoor();
 const { WEBHOOK_COPY_TIMEOUT_MS, SWEEP_COPY_TIMEOUT_MS, RECORDING_MAX_ATTEMPTS } = await import(at("apps/edge/lib/call-recording.ts"));
 after(() => setPg(null));
 
@@ -485,6 +481,38 @@ test("a recording the sweep gave up on is not fetched again on the webhook: the 
   }
 });
 
+test("a recording removed on schedule is not fetched again on the webhook: a late analysis still carries the provider's URL, and the audio stays out of the bucket", async () => {
+  // The guard's third half. After RECORDING_RETENTION_DAYS the calls sweep
+  // takes the audio out of the bucket and leaves a marker; ingest_call keeps
+  // that marker (00148), and the answer it gives is what this guard reads. A
+  // copy here would put the audio back, past the retention the privacy page
+  // states, and turn the marker back into "stored".
+  const w = world();
+  const db = w.open();
+  const line = wire();
+  try {
+    const id = w.callId("purged");
+    const url = `https://cdn.retell.test/recording/${id}.wav`;
+    const began = NOW - (RECORDING_RETENTION_DAYS + 1) * 86_400_000;
+    // The row as purgeExpiredRecordings leaves it (apps/edge/lib/call-recording.ts).
+    const marker = { fetch_state: "purged", purged_at: iso(NOW - 3_600_000), retention_days: RECORDING_RETENTION_DAYS, mime: "audio/wav" };
+    w.tables.calls.push({
+      id: `row_${id}`, tenant_id: w.T, retell_call_id: id, agent_id: w.AGENT, status: "ended", direction: "inbound",
+      from_e164: CALLER, to_e164: LINE, started_at: iso(began), ended_at: iso(began + 125_000), duration_ms: 125_000,
+      contact_id: null, conversation_id: null, notified_at: null, message_id: null, recording: { ...marker },
+    });
+
+    const res = await deliver("call_analyzed", w.analysed(id, { start_timestamp: began, end_timestamp: began + 125_000 }));
+    assert.deepEqual([res.status, await res.json()], [200, { ok: true }]);
+    assert.equal(ingests(db).length, 1, "the delivery reached the ingest, whose answer carries the row's recording state");
+    assert.equal(line.to(url).length, 0, "no request to the recording CDN");
+    assert.deepEqual(w.uploads, [], "nothing into the private bucket");
+    assert.deepEqual(w.tables.calls[0].recording, marker, "the call still reads as removed on schedule");
+  } finally {
+    line.restore();
+  }
+});
+
 test("callback_needed: the thread is paused for the workspace's own hours, one callback escalation opens with the to-do, the bell is about the thread, the mail says so -- and a replay refreshes rather than stacks", async () => {
   const w = world();
   w.tables.tenant_config.push({ tenant_id: w.T, config: { notifications: { escalation_emails: ["owner@harbor.test"] } } });
@@ -676,16 +704,12 @@ test("a workspace with no mailbox still gets its bell row; the platform is told 
   }
 });
 
-test("with the store retired, the call_summary row IS the note: nothing reaches Blob, even with a Blob token in the environment", async () => {
-  // HALF A PROOF, ON PURPOSE. With the flag off the store library itself
-  // answers every read "unknown" and refuses every write before any Blob call
-  // is made, so "nothing reached Blob" here is the library's doing and says
-  // nothing about the handler's own `storeBackend() !== "off"` guard: an
-  // inverted guard passes this case. The other half runs in
-  // retell-webhook-store-on.test.mjs, in a process where the store is LIVE
-  // and the note must appear in the caller's thread. The pair pins the guard;
-  // either alone does not.
-  assert.equal(store.storeBackend(), "off", "BLOB_SHADOW=off, read at import: the flag this handler runs under");
+test("the call_summary row IS the note: the call lands on the thread, and nothing else leaves the handler", async () => {
+  // The caller's cross-channel memory is this row and nothing else. The
+  // handler used to write a second copy into a Vercel Blob thread so the
+  // pre-Postgres receptionist kept its voice context; both are gone, and what
+  // leaves the handler says so -- the recording copy and the summary mail,
+  // and no third destination.
   const w = world();
   w.open();
   const line = wire();
@@ -695,7 +719,7 @@ test("with the store retired, the call_summary row IS the note: nothing reaches 
     assert.equal(w.tables.messages.filter((m) => m.type === "call_summary").length, 1);
     assert.equal(w.tables.calls[0].message_id, w.tables.messages[0].id);
     const hosts = line.calls.map((c) => new URL(c.url).host);
-    assert.deepEqual([...new Set(hosts)].sort(), ["api.resend.com", "cdn.retell.test"], "only the recording copy and the mail left the handler; nothing for Blob");
+    assert.deepEqual([...new Set(hosts)].sort(), ["api.resend.com", "cdn.retell.test"], "only the recording copy and the mail left the handler");
   } finally {
     line.restore();
   }

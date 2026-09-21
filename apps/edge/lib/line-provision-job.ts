@@ -16,7 +16,7 @@
  *   gone          released meanwhile; nothing to do
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 import { lineProviderFromEnv, rowToLine, type LineProviderChoice } from "./lines.js";
 import { provisionLine } from "./provision.js";
 import { automaticResumesOf, claimLineForResume, countAutomaticResume, MAX_AUTOMATIC_RESUMES, type ResumedBy } from "./line-resume.js";

@@ -8,17 +8,17 @@
  * message. The edge never queries the control-plane tables anywhere else, so
  * "what does the runtime consult?" has exactly one answer.
  */
-import type { CalendarConfig, FeaturesConfig } from "./workspace/contracts.js";
+import type { CalendarConfig, FeaturesConfig } from "./packages/contracts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 import {
   parseTenantConfigResult,
   type BrainConfig,
   type NotificationsConfig,
   type PolicyLimits,
   type KnownFacts,
-} from "./workspace/contracts.js";
-import type { RoutedChannel } from "./workspace/db.js";
+} from "./packages/contracts.js";
+import type { RoutedChannel } from "./packages/db.js";
 
 export interface TenantRuntime {
   tenantId: string;

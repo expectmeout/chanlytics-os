@@ -8,13 +8,13 @@
  * profile, which is what makes these businesses ours to register.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 import {
   runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
   encodeForm, brandTypeFor, refusalWords, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord, type CampaignError,
-} from "./workspace/channels.js";
-import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight, optInConfirmation, verbalOptInScript } from "./workspace/contracts.js";
-import { emitEvent } from "./workspace/db.js";
+} from "./packages/channels.js";
+import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight, optInConfirmation, verbalOptInScript } from "./packages/contracts.js";
+import { emitEvent } from "./packages/db.js";
 import { platformTo, recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount, refreshLineToken } from "./sms.js";

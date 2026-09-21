@@ -20,7 +20,6 @@ import { at, knock, answer, wire, refusedAtTheDoor, vault } from "./_cron-doors-
 // Each test file is its own process, so this is the whole environment. The
 // mailer and the platform mailbox are configured; no workspace is the
 // environment's own, so the env pair is nobody's mailbox but the platform's.
-process.env.BLOB_SHADOW = "off";
 process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";
@@ -201,9 +200,12 @@ test("both in one tick: the reachable workspace is warned and stamped, the unrea
 /* ------------------------------------------------- the unfinished */
 
 const M = 60_000;
-// The channel is load-bearing now: this sweep claims only the channels whose
-// intake runs inside the webhook, because a row a JOB is still working on is
-// in progress rather than abandoned (edge unfinished.ts INLINE_INTAKE).
+// The channel is load-bearing now: this sweep claims only the channels whose
+
+// intake runs inside the webhook, because a row a JOB is still working on is
+
+// in progress rather than abandoned (edge unfinished.ts INLINE_INTAKE).
+
 const inbound = (id, over = {}) => ({ id, tenant_id: A, conversation_id: `cv-${id}`, channel: "whatsapp", direction: "inbound", sender: "customer", body: "are you open tomorrow?", status: "received", created_at: ago(5 * M), meta: {}, ...over });
 const outbound = (id, conversation_id, over = {}) => ({ id, tenant_id: A, conversation_id, channel: "whatsapp", direction: "outbound", sender: "ai", body: "Yes, from 9.", status: "sent", created_at: ago(4 * M), meta: {}, ...over });
 

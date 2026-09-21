@@ -13,7 +13,7 @@
  * the receptionist says nothing about open times (the link still works),
  * and the failure is logged where the diagnostic can find it.
  */
-import { parseIcs, freeWindows, describeOpenings, describeVisits, feedUrlOk, feedBodyProblem, seasonHorizon, visitsOf, ownAddressesOf, type FeedItem, type Opening, type ParsedFeed } from "./workspace/contracts.js";
+import { parseIcs, freeWindows, describeOpenings, describeVisits, feedUrlOk, feedBodyProblem, seasonHorizon, visitsOf, ownAddressesOf, type FeedItem, type Opening, type ParsedFeed } from "./packages/contracts.js";
 import type { TenantRuntime } from "./tenant-runtime.js";
 
 const CACHE_MS = 5 * 60 * 1000;

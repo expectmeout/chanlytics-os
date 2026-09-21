@@ -7,9 +7,9 @@
  * come here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emitEvent, listPolicies, type Database, type Json } from "./workspace/db.js";
-import { scheduleJob } from "./workspace/jobs.js";
-import { runPlaybook as runOverPorts, type PlaybookRow, type RunBy, type RunContext, type RunOutcome } from "./workspace/core.js";
+import { emitEvent, listPolicies, type Database, type Json } from "./packages/db.js";
+import { scheduleJob } from "./packages/jobs.js";
+import { runPlaybook as runOverPorts, type PlaybookRow, type RunBy, type RunContext, type RunOutcome } from "./packages/core.js";
 import { notify } from "./notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
 import {
@@ -22,7 +22,7 @@ import {
   visitsIn,
   type PersonRowDto,
   type PersonVisitsDto,
-} from "./workspace/contracts.js";
+} from "./packages/contracts.js";
 import { feedItemsFor } from "./availability.js";
 import { readAllRows } from "./paged.js";
 

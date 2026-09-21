@@ -28,10 +28,9 @@ import { fakeDb } from "./_fake-db.mjs";
 // own process; every variable is declared in apps/edge/.env.example.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.DIAG_KEY = "diag-key-for-this-file";
-process.env.BLOB_SHADOW = "off";
 process.env.META_APP_ID = "424242424242424";
 for (const k of [
-  "PG_READS", "PG_WRITES", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "BLOB_READ_WRITE_TOKEN", "ANTHROPIC_API_KEY",
+  "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "ANTHROPIC_API_KEY",
   "WHATSAPP_ACCESS_TOKEN", "RESEND_API_KEY", "META_APP_SECRET", "RETELL_API_KEY", "META_ES_CONFIG_ID", "WHATSAPP_TEST_ALLOWLIST",
 ]) delete process.env[k];
 
@@ -119,25 +118,28 @@ test("the door: the header alone opens it -- never the query string -- and a tok
 
 /* ------------------------------ the environment --------------------------- */
 
-test("the environment report is booleans only and carries no value; the memory is named from the switches; the probe declines while the store is retired", async () => {
+test("the environment report is booleans only and carries no value; the memory is named, and there is only one", async () => {
   use();
   const secrets = { ANTHROPIC_API_KEY: "sk-ant-value-nobody-may-see", RESEND_API_KEY: "re_value_nobody_may_see", SUPABASE_URL: "https://xyz.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-role-value-nobody-may-see", META_APP_SECRET: "meta-secret-value-nobody-may-see" };
   const body = await withEnv(secrets, read);
-  assert.equal(body.store, "off", "the store is retired (BLOB_SHADOW=off)");
-  assert.equal(body.memory, "none", "with PG_READS off and the store off, the memory comes from nowhere -- and the report says so");
-  assert.deepEqual(body.probe, { skipped: "store retired; memory is Postgres" }, "diag says it plainly instead of probing");
+  // Postgres, always. It used to be read off PG_READS and BLOB_SHADOW and
+  // could answer "blob" or "none"; there is one memory now, and the only
+  // question left about it is whether the credentials below are there.
+  assert.equal(body.memory, "postgres");
+  assert.equal("store" in body, false, "there is no second store to report a backend for");
+  assert.equal("probe" in body, false, "and nothing to write a probe thread into");
   assert.deepEqual(body.env, {
-    pgReads: false, pgWrites: false, database: true, blobToken: false, anthropic: true, waToken: false,
+    database: true, anthropic: true, waToken: false,
     resend: true, metaSecret: true, retellKey: false, diagKey: true,
   });
   const printed = JSON.stringify(body);
   for (const v of Object.values(secrets)) assert.ok(!printed.includes(v), `${v} is a value; the report carries presence only`);
   assert.ok(!printed.includes(process.env.DIAG_KEY) && !printed.includes(process.env.EDGE_CALL_SECRET));
 
-  const postgres = await withEnv({ PG_READS: "on", PG_WRITES: "on" }, read);
-  assert.equal(postgres.memory, "postgres");
-  assert.equal(postgres.env.pgReads, true);
-  assert.equal(postgres.env.pgWrites, true, "retired as a switch, still reported: an operator with the old runbook will look for it");
+  // The flags that used to move it are gone, so setting them moves nothing.
+  const flipped = await withEnv({ PG_READS: "off", BLOB_SHADOW: "on", BLOB_READ_WRITE_TOKEN: "vercel_blob_rw_test_only" }, read);
+  assert.equal(flipped.memory, "postgres", "no env flip changes where the memory is read from");
+  assert.deepEqual(Object.keys(flipped.env).sort(), Object.keys(body.env).sort(), "and none of them is reported");
 });
 
 /* --------------------------------- the clocks ----------------------------- */
@@ -164,7 +166,7 @@ test("the clocks: sweep_health()'s rows are judged and shown with the backlog be
   const none = await read();
   const unavailable = { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" };
   assert.deepEqual([none.sweeps, none.pages, none.numbers, none.brain], [unavailable, unavailable, unavailable, null], "each section says so for itself; the report still answers");
-  assert.equal(none.store, "off");
+  assert.equal(none.memory, "postgres", "the memory is still named: what is missing is the credentials to read it with");
 });
 
 /* --------------------------------- the pages ------------------------------ */

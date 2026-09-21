@@ -13,10 +13,10 @@
  */
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import { resolveChannel } from "../lib/workspace/db.js";
+import { resolveChannel } from "../lib/packages/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsData } from "../lib/availability.js";
-import { describeOpenings, filterOpenings, offerFor, offerLead, policyAskClass, type ConsultRules, type ServiceLike, type ServiceOffer } from "../lib/workspace/contracts.js";
+import { describeOpenings, filterOpenings, offerFor, offerLead, policyAskClass, type ConsultRules, type ServiceLike, type ServiceOffer } from "../lib/packages/contracts.js";
 
 const CANNOT_SEE =
   "I can't see the calendar right now. Offer to send the booking link to the caller's WhatsApp — it shows the open times — or to have someone call back.";

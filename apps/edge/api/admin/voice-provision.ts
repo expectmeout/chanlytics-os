@@ -26,8 +26,8 @@ import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { edgeFnUrl } from "../../lib/lines.js";
 import { pg } from "../../lib/pg.js";
 import { recordNotification } from "../../lib/notify.js";
-import { emitEvent } from "../../lib/workspace/db.js";
-import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
+import { emitEvent } from "../../lib/packages/db.js";
+import { formatPhoneDisplay } from "../../lib/packages/contracts.js";
 import { createVoiceAgent } from "../../lib/voice-agent.js";
 import {
   planVoiceProvision,
@@ -44,7 +44,7 @@ import {
   voiceShellDrift,
   type LiveAgentSettings,
   type VoiceProvisionRequest,
-} from "../../lib/workspace/channels.js";
+} from "../../lib/packages/channels.js";
 
 interface Body {
   tenant_id?: string;

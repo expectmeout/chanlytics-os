@@ -1,5 +1,7 @@
 # The system map
 
+> **Historical.** This map was measured on 13 September 2026 and has not been re-measured since. Email became a channel and the lead finder shipped after it, so its Channels row and its "not on this list" paragraph are out of date. `docs/architecture.md` describes the system as it is; the counts below are worth re-deriving with the commands the map names, never trusting.
+
 Where this system is today, layer by layer, and what is between here and done.
 
 Measured against the tree on **13 September 2026**, first at `6a1725d` and re-measured at

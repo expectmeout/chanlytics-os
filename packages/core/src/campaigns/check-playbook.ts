@@ -1,4 +1,4 @@
-import { AppError, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, starterForTrigger, templateTitle, triggerOf, type ParamSpec, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
+import { AppError, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, playbookName, triggerOf, type ParamSpec, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
 import { templateValues } from "./template-values";
 import type { TemplateValuesPorts } from "./ports";
 
@@ -38,7 +38,7 @@ export async function checkPlaybook(ports: TemplateValuesPorts, body: Record<str
   const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: trig.kind === "visit" });
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
-    name: name || (starterForTrigger(trig.id)?.name === tpl.name ? trig.label : `${trig.label} · ${templateTitle(tpl.name, tpl.title)}`).slice(0, PLAYBOOK_NAME_MAX),
+    name: name || playbookName(trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
     template_id: tpl.id,
     template_name: tpl.name,
