@@ -832,31 +832,30 @@ test("the search box's words, the row the cursor was on and the map come back wi
 });
 
 test("REGRESSION: the list is put back only once the rows on screen are the ones the view's own words leave -- put back a draw sooner, over every row, the browser re-anchored it as the words shrank the list (500 became 122 on production)", async () => {
-  fresh();
-  const paneRef = find(draw(), (n) => String(n.props?.className || "").split(/\s+/).includes("cl-main-scroll")).props.ref;
-  const at = cells.indexOf(paneRef);
-  const heard = [];
   let drawing = 0;
   const putBack = [];
   const table = { scrollHeight: 6000, clientHeight: 600, top: 0, get scrollTop() { return this.top; }, set scrollTop(v) { this.top = v; putBack.push({ to: v, duringDraw: drawing }); } };
-  const pane = { scrollTop: 0, scrollHeight: 600, clientHeight: 600, addEventListener: (type, fn, opts) => { if (type === "scroll" && opts && opts.capture) heard.push(fn); }, removeEventListener() {}, setAttribute() {}, removeAttribute() {}, querySelector: (sel) => (sel === ".pl-table-scroll" ? table : null) };
-  const mount = () => { cells = []; cells[at] = { current: pane }; for (const k of Object.keys(listeners)) delete listeners[k]; heard.length = 0; putBack.length = 0; drawing = 1; draw(); drawing = 2; const tree = draw(); drawing = 0; return tree; };
-  let tree = mount();
+  // The shared pane (paned, below the place's tests): a scroll reaches every capture listener the pane has, as a
+  // browser delivers it. This test picked "the" listener by its place in a list, and the pane has two.
+  const { mount, scrolls } = paned(table);
+  const mounted = () => { putBack.length = 0; return mount(undefined, (n) => { drawing = n; }); };
+  const settled = () => new Promise((r) => setTimeout(r, 260));
+  let tree = mounted();
   searchBox(tree).props.onChange({ target: { value: "strength" } });
   draw();
   table.top = 500;
-  heard[0]({ target: table });
-  await new Promise((r) => setTimeout(r, 260));
-  tree = mount();
+  scrolls(table);
+  await settled();
+  tree = mounted();
   assert.equal(searchBox(tree).props.value, "strength");
   assert.deepEqual(putBack, [{ to: 500, duringDraw: 2 }], "after the draw that put the words back, not during the one that still drew every row");
   // A view with no words of its own has nothing to wait for.
   searchBox(tree).props.onChange({ target: { value: "" } });
   draw();
   table.top = 300;
-  heard[0]({ target: table });
-  await new Promise((r) => setTimeout(r, 260));
-  mount();
+  scrolls(table);
+  await settled();
+  mounted();
   assert.deepEqual(putBack, [{ to: 300, duringDraw: 1 }]);
 });
 
@@ -935,7 +934,16 @@ const paned = (table) => {
     removeAttribute: (k) => { delete attrs[k]; },
     querySelector: (sel) => (sel === ".pl-table-scroll" ? table : null),
   };
-  const mount = (props) => { cells = []; cells[at] = { current: pane }; for (const k of Object.keys(listeners)) delete listeners[k]; heard.length = 0; draw(props); return draw(props); };
+  // `onDraw` hears which draw is under way (1, 2, then 0 for none): what a test of ORDER needs, and nothing else does.
+  const mount = (props, onDraw = () => {}) => {
+    cells = []; cells[at] = { current: pane };
+    for (const k of Object.keys(listeners)) delete listeners[k];
+    heard.length = 0;
+    onDraw(1); draw(props);
+    onDraw(2); const tree = draw(props);
+    onDraw(0);
+    return tree;
+  };
   const scrolls = (target) => { for (const h of [...heard]) if (h.capture || target === pane) h.fn({ target }); };
   return { pane, heard, attrs, mount, scrolls };
 };
