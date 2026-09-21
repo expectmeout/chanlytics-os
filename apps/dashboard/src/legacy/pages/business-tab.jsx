@@ -248,6 +248,16 @@ const RecordInline = ({
     btFocusIn(el);
     return () => btFocusBack(id, el);
   }, [open, id]);
+  // An ask put focus on its "Yes, discard"; answered with "Keep editing" (or Esc), it goes while it holds focus, and
+  // focus fell to the top of the document, so Esc and Esc again left a keyboard at the page's start. Answered and
+  // still open, focus comes back to the box.
+  const asked = !!(arm || fold.asking);
+  const wasAsked = useBizRef(asked);
+  useBizEffect(() => {
+    const was = wasAsked.current;
+    wasAsked.current = asked;
+    if (open && was && !asked) btFocusIn(boxRef.current);
+  }, [open, asked]);
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); setArm(false); };

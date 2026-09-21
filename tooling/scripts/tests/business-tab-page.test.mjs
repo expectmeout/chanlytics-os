@@ -656,6 +656,35 @@ test("Cancel with changes asks first; with none it closes at once; Escape is Can
   assert.equal(sent.length, 1, "Ctrl or Cmd with Enter does");
 });
 
+test("answered with Keep editing, an ask gives focus back to the box, whichever ask it was", () => {
+  // The stub attaches no ref, so the test stands in for the element React would have put there: the box, the one
+  // thing in it Tab stops at.
+  const focused = [];
+  const box = { tabIndex: 0, disabled: false, value: "", getClientRects: () => [{}], focus: () => focused.push("box"), setSelectionRange() {} };
+  const element = { querySelectorAll: () => [box], contains: () => true };
+  let tree = drawTab();
+  openFold(tree, "website");
+  tree = redrawTab();
+  inline(tree, "website").props.ref.current = element;
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab();
+
+  // Cancel's own ask: "Yes, discard" had focus, and "Keep editing" takes the ask away.
+  cancelRow(tree, "website");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-inline-website-cancel-no"));
+  tree = redrawTab();
+  assert.deepEqual(focused, ["box"], "back in the box, not at the top of the document");
+
+  // The registry's ask, from another row's act: the same.
+  openFold(tree, "name");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-inline-website-ask-no"));
+  tree = redrawTab();
+  assert.deepEqual(focused, ["box", "box"]);
+  assert.deepEqual(openRows(tree), ["website"]);
+});
+
 test("Save stays a button focus can rest on while it saves, and a press meanwhile sends nothing more", () => {
   const sent = [];
   let accept = null;
