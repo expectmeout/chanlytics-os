@@ -186,6 +186,22 @@ test("every refusal offers the caller a way forward", () => {
   }
 });
 
+test("every refusal a caller can hear calls the booking link a WhatsApp message, never a text", () => {
+  // send_booking_link sends one thing: a WhatsApp template. retell-fn.ts
+  // delivers it on channel "whatsapp", and texting is not sold
+  // (capabilities.ts). These sentences called it a text, which it never is.
+  //
+  // Two refusals keep the word, because in neither is it this tool's message.
+  // booking_needs_a_person says a PERSON will call or text to confirm, the
+  // prompt's own sentence (contracts policyRules). sms_carries_no_promotions
+  // is the texting line's refusal, which a WhatsApp send never meets: the
+  // door refuses it on channel "sms" only (core deliver).
+  const heard = (r) => [refusalScript(r, "(646) 932-5775"), refusalScript(r, null)];
+  const whatsapp = ["opted_out", "not_opted_in", "no_marketing_consent", "paused", "human_has_it", "policy_hold", "daily_cap"];
+  assert.deepEqual(whatsapp.filter((r) => heard(r).some((said) => /\btext/i.test(said))), [], "not one calls it a text");
+  assert.deepEqual(whatsapp.filter((r) => !heard(r).every((said) => said.includes("WhatsApp"))), [], "and each says WhatsApp");
+});
+
 test("veto is not off: the booking link a caller just asked for goes out", () => {
   // Veto holds a reply the receptionist COMPOSED so a person can redirect it.
   // A template the caller requested has nothing to redirect, and refusing it

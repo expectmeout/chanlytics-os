@@ -43,7 +43,7 @@
     "eval-harness.test.mjs": 7,
     "event-kinds.test.mjs": 4,
     "exports.test.mjs": 9,
-    "facts.test.mjs": 11,
+    "facts.test.mjs": 10,
     "forwarding.test.mjs": 5,
     "google-profile.test.mjs": 13,
     "google.test.mjs": 20,

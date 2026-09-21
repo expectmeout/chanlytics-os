@@ -62,7 +62,7 @@ import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/outbou
  */
 /** Spoken when the workspace has no template approved for this. Names the real cause; never blames the caller's phone. */
 const NO_TEMPLATE =
-  "This business has not set up its booking-link text yet, so I cannot send it. Tell the caller they can book online, take their name, and say someone will follow up.";
+  "This business has not set up its booking-link WhatsApp message yet, so I cannot send it. Tell the caller they can book online, take their name, and say someone will follow up.";
 
 /** meta.source stamped on voice-initiated sends — also the key the daily cap counts. */
 const VOICE_SEND_SOURCE = "voice_booking_link";
@@ -71,7 +71,7 @@ const VOICE_SENDS_PER_DAY = 3;
 
 /** Spoken when we cannot send. Never names a fallback number we cannot verify. */
 const CANNOT_SEND =
-  "I could not send the text just now. Let the caller know they can book online, and offer to have someone follow up.";
+  "I could not send the WhatsApp message just now. Let the caller know they can book online, and offer to have someone follow up.";
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
@@ -158,7 +158,7 @@ export async function POST(request: Request): Promise<Response> {
     if (!contact) {
       log("retell_fn_refused_third_party", { tenant: routed.tenantId });
       return json(200, {
-        result: "I can only text the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.",
+        result: "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.",
       });
     }
 
@@ -312,8 +312,8 @@ export async function POST(request: Request): Promise<Response> {
       console.error("booking_link_send_failed", out.status, out.errorBody);
       return json(200, {
         result: publishedNumber
-          ? `The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}.`
-          : "The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.",
+          ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}.`
+          : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.",
       });
     }
 
