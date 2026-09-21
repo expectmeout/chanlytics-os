@@ -169,22 +169,35 @@ const CkXLabels = ({ data, x, every, height, edges = true }) => {
 
 // ---------- sizing and the keyboard ----------
 
-// The width a chart is given, measured, so it draws in real pixels; 600 until the first measure.
+// The box a chart is given, measured, so it draws in real pixels; 600 wide until the first measure. The height is
+// only wanted by a chart told to fill, and is 0 until measured, which is what `ckHeight` reads as "use the floor".
 const useChartWidth = (initial = 600) => {
   const ref = useCkRef(null);
-  const [w, setW] = useCkState(initial);
+  const [box, setBox] = useCkState({ w: initial, h: 0 });
   useCkLayout(() => {
     const el = ref.current;
     if (!el) return undefined;
-    const set = () => setW(Math.max(0, Math.round(el.getBoundingClientRect().width)));
+    const set = () => {
+      const r = el.getBoundingClientRect();
+      const w = Math.max(0, Math.round(r.width));
+      const h = Math.max(0, Math.round(r.height));
+      // The same box is the same state: a resize that changes neither redraws nothing.
+      setBox((b) => (b.w === w && b.h === h ? b : { w, h }));
+    };
     set();
     if (typeof ResizeObserver === "undefined") return undefined;
     const ro = new ResizeObserver(set);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  return [ref, w];
+  return [ref, box.w, box.h];
 };
+
+// How tall to draw: the height the page fixed, or -- with "fill" -- the room its card has left over, never under the
+// floor the page names. A row is as tall as the card with most to say, and the surplus used to fall as a hole under
+// whichever card had least; a chart that fills spends it on itself instead. Every filling chart keeps a floor, so a
+// row whose cards all fill is exactly as tall as it was before any of them did.
+const ckHeight = (height, box, floor) => (height === "fill" ? Math.max(floor, box) : height);
 
 // One tab stop per chart. Focus lands on `start` (the newest day by default), the arrows move one at a time, Home and
 // End go to the ends, Escape lets go. A point held across a period change that no longer exists reads as none. (A
@@ -386,7 +399,7 @@ const SegmentBar = ({ title, rows, config, testid, small = false }) => {
 
 Object.assign(window, {
   ckNice, ckNiceSeconds, ckSecondsLabel, ckMonotone, ckRuns, ckPolar, ckArc, ckArcLine, ckTopRound, ckAxisWidth,
-  ckFrame, ckEvery, ckPointer, ckTip, ckDescribe, ckTipSide, ckVars, ckSaveCsv,
+  ckFrame, ckEvery, ckHeight, ckPointer, ckTip, ckDescribe, ckTipSide, ckVars, ckSaveCsv,
   useChartWidth, useChartNav,
   CkYAxis, CkXLabels, ChartLegend, ChartTooltip, ChartTooltipContent, ChartLive, ChartCard, ChartTable, SegmentBar,
 });
