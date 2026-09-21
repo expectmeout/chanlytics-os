@@ -386,6 +386,35 @@ test("a fold opens, says what the receptionist will be told, and saves only itse
   assert.equal(find(draw(W.RecordFold, bookingRules({ says: "" })), (n) => classes(n).includes("rec-says")), null, "a fold that writes nothing draws no block");
 });
 
+test("a fold says what saving it writes as an inline editor does: what goes beside what comes, and the page's sentence first", () => {
+  // Hours, services, the voice, languages, notes and the hand-off reasons all count for whether the prompt is composed
+  // at all, so a fold needs the same three parts a row has, through the same RecordSays.
+  const tree = draw(W.RecordFold, bookingRules({
+    gone: "- These need a consultation before they can be booked: Extensions.", goneLabel: "It will no longer be told",
+    note: "Saved like this, the receptionist stops being given the details on this page.",
+  }));
+  const says = find(tree, (n) => n.props?.["data-testid"] === "rec-fold-says-booking_rules");
+  assert.equal(says.props.id, "rec-fold-booking_rules-says", "and a field of the page's can be described by it");
+  assert.equal(says.props["data-inline"], undefined, "a fold stacks each eyebrow over its lines");
+  const parts = all(says, (n) => classes(n).includes("rec-says-part")).map((p) => [p.props["data-part"], textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow"))), textOf(find(p, (n) => n.type === "pre"))]);
+  assert.deepEqual(parts, [
+    ["says", "Your receptionist will be told", "Booking rules:\n- At least 2 hours' notice for any appointment."],
+    ["gone", "It will no longer be told", "- These need a consultation before they can be booked: Extensions."],
+  ]);
+  assert.match(textOf(find(says, (n) => n.props?.["data-testid"] === "rec-fold-says-booking_rules-note")), /stops being given/);
+  assert.equal(find(tree, (n) => classes(n).includes("rec-foot-note")), null, "the sentence is what saving writes, never the foot's line");
+
+  // Only a sentence, or only what goes, is still something to say; nothing at all draws no block.
+  const only = (props) => find(draw(W.RecordFold, bookingRules({ says: null, ...props })), (n) => classes(n).includes("rec-says"));
+  assert.ok(only({ note: "Saved like this, the receptionist stops being given the details on this page." }));
+  assert.ok(only({ gone: "- Sunday: closed", goneLabel: "It will no longer be told" }));
+  assert.equal(only({}), null);
+
+  // The foot's own line has a name of its own, so `note` means one thing in the kit.
+  const foot = find(draw(W.RecordFold, bookingRules({ footNote: "Saves these five rules and nothing else on the page." })), (n) => classes(n).includes("rec-foot"));
+  assert.equal(textOf(find(foot, (n) => classes(n).includes("rec-foot-note"))), "Saves these five rules and nothing else on the page.");
+});
+
 test("a fold kept while closed is hidden whole, its head and its Close with it", () => {
   const foldOf = (tree) => find(tree, (n) => classes(n).includes("rec-fold"));
   const closed = foldOf(draw(W.RecordFold, bookingRules({ open: false })));

@@ -9,10 +9,14 @@
 //
 // A set of fields opens under the row that states them. Its head keeps the row's label where it was and puts the
 // page's hint where the value was; its act becomes Close. Under its fields, a fold can show what saving it will
-// write (`says`, under the page's own eyebrow, `saysLabel`), and its foot carries its own Save and Cancel. The page
-// decides what its fields are and what saving does; the kit knows none of it. Whether it is open comes from the
-// registry, through useRecordFold (below): the `open` prop stays, but a fold drawn open without the registry holds
-// no guard.
+// write, exactly as the inline editor does, through the one RecordSays: the lines it adds (`says`, under the page's
+// own eyebrow, `saysLabel`), the lines it takes away (`gone`, under `goneLabel`), and a sentence of the page's before
+// them (`note`) where the save reaches past its own lines. The fold once took only the first of the three, so a week
+// emptied of its hours, the last field a record composed from, would have said nothing of the prompt it stops
+// composing. Its foot carries its own Save and Cancel, and a line of the page's beside them (`footNote`: not `note`,
+// which is RecordSays' sentence wherever the kit says it). The page decides what its fields are and what saving does;
+// the kit knows none of it. Whether it is open comes from the registry, through useRecordFold (below): the `open` prop
+// stays, but a fold drawn open without the registry holds no guard.
 //
 //   const rules = useRecordFold("booking_rules", { dirty: changed });
 //   <RecordFold id="booking_rules" label="Booking rules" hint="…" open={rules.open} says={block} saysLabel="…"
@@ -303,13 +307,13 @@ const RecordSays = ({ id = null, testid = null, text = null, label = null, gone 
   );
 };
 
-// The foot: Save and Cancel, and beside them a line of the page's (`note`) or the keys that do the same (`keys`, which
-// record.css hides on a touch screen, where there are none). Save is busy, not disabled, while it saves: a disabled
+// The foot: Save and Cancel, and beside them a line of the page's (`footNote`) or the keys that do the same (`keys`,
+// which record.css hides on a touch screen, where there are none). Save is busy, not disabled, while it saves: a disabled
 // button lets go of focus, to the page, and a save that failed left it there. It stays a button focus can rest on, and
 // a press while it saves does nothing; so does a press on Cancel, for the reason recKeys gives.
 const RecordFoot = ({
   saveTestid, cancelTestid, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…",
-  cancelLabel = "Cancel", gate = null, note = null, keys = null,
+  cancelLabel = "Cancel", gate = null, footNote = null, keys = null,
 }) => (
   <div className="rec-foot">
     <button
@@ -332,7 +336,7 @@ const RecordFoot = ({
     >
       {cancelLabel}
     </button>
-    {note ? <span className="rec-foot-note">{note}</span> : null}
+    {footNote ? <span className="rec-foot-note">{footNote}</span> : null}
     {keys ? <span className="rec-foot-keys">{keys}</span> : null}
   </div>
 );
@@ -342,7 +346,8 @@ const RecordFoot = ({
 // `confirm` is the page's ask (its Confirm), drawn above the foot while it is open: the section's own "Discard your
 // changes?", or the registry's `asking`. Answered with "Keep editing", focus comes back into the fold (useRecFocus).
 const RecordFold = ({
-  id, label, hint = null, open = true, says = null, saysLabel = null, note = null, confirm = null,
+  id, label, hint = null, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null,
+  footNote = null, confirm = null,
   onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel", closeLabel = "Close",
   gate = null, wide = false, children = null,
 }) => {
@@ -374,7 +379,7 @@ const RecordFold = ({
       <div className="rec-fold-body">
         <div className="rec-fold-inner">
           {children}
-          <RecordSays testid={`rec-fold-says-${id}`} text={says} label={saysLabel} />
+          <RecordSays id={`rec-fold-${id}-says`} testid={`rec-fold-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} />
           {confirm}
           <RecordFoot
             saveTestid={`rec-fold-save-${id}`}
@@ -386,7 +391,7 @@ const RecordFold = ({
             savingLabel={savingLabel}
             cancelLabel={cancelLabel}
             gate={gate}
-            note={note}
+            footNote={footNote}
           />
         </div>
       </div>
