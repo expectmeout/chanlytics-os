@@ -127,7 +127,7 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
 /* ---------- A switch ---------- */
 .rec-switch { flex: none; position: relative; width: 30px; height: 18px; padding: 0; border-radius: var(--radius-full); background: var(--line-strong); transition: background var(--duration-fast) var(--ease-out); }
 .rec-switch[aria-checked="true"] { background: var(--ok); }
-.rec-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: var(--shadow-sm); transition: transform var(--duration-fast) var(--ease-out); }
+.rec-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: var(--radius-full); background: var(--knob); box-shadow: var(--knob-shadow); transition: transform var(--duration-fast) var(--ease-out); }
 .rec-switch[aria-checked="true"] .rec-knob { transform: translateX(12px); }
 
 /* ---------- A choice of a few: a radiogroup drawn as a segmented control ---------- */
