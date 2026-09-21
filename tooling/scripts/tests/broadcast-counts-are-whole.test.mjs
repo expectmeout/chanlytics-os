@@ -86,8 +86,11 @@ console.error = () => {};
 const { broadcastsOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
 console.error = realConsoleError;
 
-/** Two people over two pages of one each; the route's word on whether more than fifty broadcasts exist. */
-const wire = ({ more = false } = {}) => {
+/**
+ * Everyone the People read holds, one person a page -- two by default -- and the lists kept by hand; the route's word
+ * on whether more than fifty broadcasts exist.
+ */
+const wire = ({ more = false, people = [row({ id: "p1" }), row({ id: "p2", phone_e164: "+17865550182" })], lists = [] } = {}) => {
   const offsets = [];
   globalThis.window.fetch = async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
@@ -95,10 +98,9 @@ const wire = ({ more = false } = {}) => {
     if (u.pathname === "/api/v1/contacts") {
       const offset = Number(u.searchParams.get("offset") || 0);
       offsets.push(offset);
-      const people = offset === 0 ? [row({ id: "p1" })] : [row({ id: "p2", phone_e164: "+17865550182" })];
-      return json(200, { ok: true, data: { people, page: { q: "", offset, limit: 1, total: 2, has_more: offset === 0 }, calendar: { state: "none" } } });
+      return json(200, { ok: true, data: { people: people.slice(offset, offset + 1), page: { q: "", offset, limit: 1, total: people.length, has_more: offset + 1 < people.length }, calendar: { state: "none" } } });
     }
-    if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists: [] } });
+    if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists } });
     if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
     if (u.pathname === "/api/v1/channels") return json(200, { ok: true, data: { channels: [] } });
     if (u.pathname === "/api/v1/settings") return json(200, { ok: true, data: { config: { brain: {} }, version: 1 } });
@@ -129,4 +131,34 @@ test("the surface says where a yes is got, in contracts' one spelling -- the sen
   wire();
   await broadcastsOverride.apply();
   assert.equal(globalThis.window.__BROADCASTS.getYes, GET_YES_ROUTE);
+});
+
+test("REGRESSION: an audience says, per purpose, how many on it said yes, a number or not -- the send screen read a yes with no number as nobody having said yes", async () => {
+  wire({
+    people: [
+      row({ id: "p1" }),
+      // Wrote in by email and said yes to both there: an address, and no number.
+      row({ id: "p2", display_name: "Ana Reyes", wa_profile_name: null, phone_e164: null, email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent_source: "customer_message" }),
+      // A number, and a yes to messages only.
+      row({ id: "p3", display_name: "Luis Mora", wa_profile_name: "Luis", phone_e164: "+17865550183", marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null }),
+    ],
+    lists: [{ id: "s1", name: "Regulars", ids: ["p2", "p3"] }, { id: "s2", name: "Walk-ins", ids: ["p3"] }],
+  });
+  await broadcastsOverride.apply();
+  const { audiences } = globalThis.window.__BROADCASTS;
+  const option = (id) => audiences.find((a) => a.id === id);
+  /** For one purpose: how many the send reaches (the chip), and how many said yes to what it needs. */
+  const sizes = (a, purpose) => [a.counts[purpose], a.preview[purpose].saidYes];
+  assert.deepEqual(sizes(option(null), "marketing"), [1, 2], "Dani can be sent an offer; Ana said yes to one too, and has no number to send it to");
+  assert.deepEqual(sizes(option(null), "conversational"), [2, 3]);
+  assert.deepEqual(sizes(option("s1"), "marketing"), [0, 1], "REGRESSION: nobody on it can be sent an offer, and somebody said yes");
+  assert.deepEqual(sizes(option("s1"), "conversational"), [1, 2]);
+  assert.deepEqual(sizes(option("s2"), "marketing"), [0, 0], "nobody on it said yes to offers: the one case the door is for");
+});
+
+test("the verbs publish the words for a list whose yeses have no number to send to -- People's, from contracts (#663)", async () => {
+  const { broadcasts } = await import("../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts");
+  assert.equal(typeof broadcasts.noNumberWords, "function", "the send screen's words for it");
+  assert.equal(broadcasts.noNumberWords("“Regulars”", "marketing"), "Nobody on “Regulars” can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.");
+  assert.equal(broadcasts.noNumberWords("“Regulars”", "conversational"), "Nobody on “Regulars” can be sent a message yet — a broadcast reaches only a recorded yes with a number to send to.");
 });

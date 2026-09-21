@@ -831,6 +831,9 @@ export interface AudienceOption {
    * no first name on file and open with "Hi there", and not which two are in the
    * list but held back. The rows are already in hand here; this is the same
    * pass, keeping a few of them instead of only counting.
+   *
+   * It says how many on the list said yes, too (`saidYes`), a number or not: a
+   * count of 0 is "nobody said yes" only when that is 0 as well.
    */
   preview: Record<SendPurpose, AudiencePreview>;
   hint: string;
