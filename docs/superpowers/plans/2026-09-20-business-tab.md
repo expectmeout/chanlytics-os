@@ -939,9 +939,12 @@ Create `apps/dashboard/src/legacy/styles/record.css`. Take the exact values from
 .rec-field { display: flex; flex-direction: column; gap: 5px; }
 .rec-field-label { font-size: var(--text-sm); color: var(--ink-muted); }
 .rec-input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-raised); font-size: var(--text-base); color: var(--ink); }
-.rec-input:focus-visible { outline: none; border-color: var(--ink-faint); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* The house ring, as .set-input and .biz-input draw it: the 3px accent-soft glow read 1.2:1 and the faint border 2.5:1,
+   under WCAG 1.4.11's 3:1 (amended 21 Sep, by the Phase 2 quality review). */
+.rec-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
 .rec-input[aria-invalid="true"] { border-color: var(--danger); }
 .rec-input-group { display: flex; align-items: stretch; height: 32px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-raised); }
+.rec-input-group:focus-within { box-shadow: var(--focus-ring); border-color: var(--accent); }
 .rec-input-group .rec-input { border: none; height: 30px; }
 .rec-input-unit { display: flex; align-items: center; padding: 0 10px; border-left: 1px solid var(--line); background: var(--bg-sunken); font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-hint { font-size: var(--text-sm); color: var(--ink-faint); }
