@@ -150,7 +150,10 @@ export function standingLine(i: StandingInputs): StandingVM {
     ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.`
     : "It cannot answer anyone yet.";
 
-  const wont = has(p.services) ? "It offers a consult instead of a price." : null;
+  // Both, because the two channels do different things: chat's replacement offers a
+  // consult (layerTwo), and a call's correction offers the booking link (frameGuardrail).
+  // "A consult" alone was true on WhatsApp and not on the phone.
+  const wont = has(p.services) ? "It offers a consult or the booking link instead of a price." : null;
 
   return { can, wont, missing: gaps[0] ?? null };
 }

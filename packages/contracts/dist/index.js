@@ -10726,7 +10726,7 @@ function standingLine(i) {
   if (has2(p.services)) answers.push("what you offer");
   if (has2(i.booking_link)) answers.push("how to book");
   const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const wont = has2(p.services) ? "It offers a consult instead of a price." : null;
+  const wont = has2(p.services) ? "It offers a consult or the booking link instead of a price." : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
 var BOOLEAN_INPUTS = {

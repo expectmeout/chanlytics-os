@@ -114,12 +114,13 @@ test("the standing line names the one thing missing, and where to fix it", () =>
   assert.equal(s.missing.row, "tone");
 });
 
-test("it offers a consult instead of a price with the switch on or off, and says nothing with nothing to price", () => {
+test("it offers a consult or the link instead of a price, switch on or off, and says nothing with nothing to price", () => {
   // The switch no longer decides the clause: the detector runs either way. "By your rule" went
-  // with it -- with the switch off, there is no rule of the owner's to point at.
+  // with it -- with the switch off, there is no rule of the owner's to point at. And it names
+  // both, because chat's replacement offers a consult and a call's correction offers the link.
   for (const guardrails of [{ never_quote_prices: true }, { never_quote_prices: false }, undefined]) {
     const s = standingLine({ ...full, profile: { ...full.profile, guardrails } });
-    assert.equal(s.wont, "It offers a consult instead of a price.", JSON.stringify(guardrails));
+    assert.equal(s.wont, "It offers a consult or the booking link instead of a price.", JSON.stringify(guardrails));
   }
   assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }).wont, null);
 });

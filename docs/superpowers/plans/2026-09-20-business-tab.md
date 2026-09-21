@@ -337,7 +337,7 @@ git commit -m "A rule says how far it goes"
 
 ### Task 1.3: The standing line
 
-> **Changed by the Phase 1 review.** `wont` is "It offers a consult instead of a price." whenever there are services, whatever the price switch says (the owner's decision, Task 4.2), and `StandingInputs` no longer takes `guardrails`. Read `business-tab.ts`.
+> **Changed by the Phase 1 review.** `wont` is "It offers a consult or the booking link instead of a price." whenever there are services, whatever the price switch says (the owner's decision, Task 4.2), and `StandingInputs` no longer takes `guardrails`. Read `business-tab.ts`.
 
 Three clauses: what it can say, what it deliberately will not, and what is missing. Never a percentage — a completion meter is a number nobody can act on.
 
@@ -2169,6 +2169,32 @@ Both functions throw a `TypeError` naming any boolean input that is not a boolea
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Commit**
 
+### Task 4.1b: When Autonomy keeps the receptionist from replying, the card says so once
+
+Found by the Phase 1 fix pass, decided by the controller on 21 Sep. With the Autonomy tab's **Replies** row set to *Asks you* or *Stays quiet*, the WhatsApp receptionist composes no reply at all (`apps/edge/lib/inbound.ts` ~698), and a call's booking-link send is refused (`apps/edge/lib/outbound-gate.ts` ~123). Built as Task 4.1 stands, every chat ability on the card would still read ready — six claims, all false at once.
+
+**The decision: say it once, for the whole card, not on each row.** It is one cause with one fix, on another tab; repeating it on six rows is the page shouting the same thing six times, which the Quiet board's rule ("a refused act is absent and the page says why once") exists to stop.
+
+**Files:**
+- Modify: `packages/contracts/src/business-tab.ts` (`abilityRows` gains `replyMode: "auto" | "veto" | "ask" | "never"`; returns alongside its rows a card-level `held: { sentence: string; to: "admin/autonomy" } | null`)
+- Modify: `apps/dashboard/src/legacy/pages/business-can.jsx`
+- Test: `tooling/scripts/tests/business-tab-vm.test.mjs`, `tooling/scripts/tests/business-tab-page.test.mjs`
+
+- [ ] **Step 1: Write the failing tests**
+
+In the view model: under `ask` and `never`, every row's WhatsApp channel is not ready and `held.sentence` names the mode in the Autonomy pane's own words (`POLICY_MODE_WORDS` in contracts — never the stored `auto|veto|ask|never`, per legacy/CLAUDE.md #657); under `auto` and `veto`, `held` is null and nothing changes. The call-only abilities (transfer) are untouched by the reply mode. `replyMode` joins the boolean inputs in throwing a `TypeError` when it is missing or unknown.
+
+On the page: `held` draws once, above the rows, with one door to the Autonomy tab; the chat chips on each row draw dim; no row repeats the sentence.
+
+- [ ] **Step 2: Run them and watch them fail**
+- [ ] **Step 3: Implement.** `replyMode` comes from the reply row of `__POLICIES`. When `__POLICIES` is null the read failed: draw `FailedRead` for the card, as Task 4.1 already does, never a guessed mode.
+- [ ] **Step 4: Run them and watch them pass**
+- [ ] **Step 5: Commit**
+
+> **Not settled here, and not the card's to settle:** under Booking = *Asks you*, the phone's `check_availability` refuses to offer times while the call still starts with the openings list and chat is handed them with every message — the edge disagrees with itself. Until that is decided, the card says only what holds on both channels (the Phase 1 fix pass wrote those sentences). Raised with the owner on 21 Sep.
+>
+> **Where "texting is live" comes from:** `cannotRows({ smsLive })` reads `capabilityStatus("sms").ready`, not `.live`. `.live` needs evidence of use, which texting never records, so it can never be true; `.ready` is the state `textingWords` already tells an owner is "Texting is on".
+
 ### Task 4.2: The rules, at three strengths
 
 **Files:**
@@ -2220,7 +2246,7 @@ test("vision is an ability, not a limit, and is drawn apart", () => {
 
 The four rule rows read `ruleStrength(key)` for the chip and the sentence — never typed in the page. The checked rule renders its two `checkedOn` entries side by side. The vision toggle sits below a `.rec-rule-sep` and carries the "gives it a power" chip.
 
-The price switch does not turn the checking on or off. The owner decided on 20 Sep 2026 that a receptionist never states a price: `violatesNoPrices` (chat) and `spokenBreach` (calls) run whatever the switch says, and the switch adds or removes the one prompt line that tells it not to quote one. So the row keeps its chip and its sentence with the switch off, and the page draws no warning that switching it off lets prices through. The standing line's "It offers a consult instead of a price." follows the same decision: it is said whenever there are services, and it no longer reads the switch.
+The price switch does not turn the checking on or off. The owner decided on 20 Sep 2026 that a receptionist never states a price: `violatesNoPrices` (chat) and `spokenBreach` (calls) run whatever the switch says, and the switch adds or removes the one prompt line that tells it not to quote one. So the row keeps its chip and its sentence with the switch off, and the page draws no warning that switching it off lets prices through. The standing line's "It offers a consult or the booking link instead of a price." follows the same decision: it is said whenever there are services, and it no longer reads the switch.
 
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Run the suite, commit, open the PR**
