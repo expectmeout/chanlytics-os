@@ -132,9 +132,12 @@ test.describe("Playbooks on a real workspace", () => {
    * Templates and carried none, so on those two tabs it sat flush against the
    * sidebar while everything below it was inset 28px -- and Broadcasts, whose
    * line is inside .bc-page, was inset correctly. Geometry, so it is measured.
+   * Broadcasts is not: since #758 its line ends its band's legend, at the right,
+   * and the composer it sat above is a screen of its own, so the line has no
+   * page edge to share and the check could only skip it.
    */
   test("Campaigns: the standing line shares its page edge with the work below it", async ({ page }) => {
-    for (const [route, line] of [["outbound", "pb-standing"], ["broadcasts", "bc-standing"], ["messages", "messages-standing"]] as const) {
+    for (const [route, line] of [["outbound", "pb-standing"], ["messages", "messages-standing"]] as const) {
       await page.goto(`/#/${route}`);
       await page.waitForLoadState("networkidle");
       const standing = page.getByTestId(line);
@@ -148,7 +151,7 @@ test.describe("Playbooks on a real workspace", () => {
         return Math.round(r.getBoundingClientRect().left);
       });
       if (inkLeft === null) continue;
-      const below = page.locator(".rp-body > *, .bc-composer").first();
+      const below = page.locator(".rp-body > *").first();
       if ((await below.count()) === 0) continue;
       const box = await below.boundingBox();
       expect(box && Math.abs(Math.round(box.x) - inkLeft) <= 1, `${route}: the line starts at ${inkLeft} and the work below it at ${Math.round(box?.x ?? -1)}`).toBe(true);
