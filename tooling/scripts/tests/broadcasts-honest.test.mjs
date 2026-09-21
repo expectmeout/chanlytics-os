@@ -16,7 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 
-const { toBroadcastVM, stateOf, numberHealth, POLICY_CLASS_WORDS } = contracts;
+const { toBroadcastVM, stateOf, numberHealth } = contracts;
 const TID = "t-studio";
 const ZONE = "America/New_York";
 const H = 3_600_000;
@@ -62,7 +62,7 @@ const playbook = (over = {}) => ({
 const playbooksSurface = (over = {}) => ({
   rows: [playbook()], templates: [],
   triggers: [{ id: "quiet_30", label: "Quiet 30 days", hint: "anyone quiet for a month", cls: "reengage", list: "quiet_30", kind: "list", candidates: 4, held: 0 }],
-  classWords: POLICY_CLASS_WORDS, timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
+  timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio", bookingLink: false, fetchedAt: NOW, ...over,
 });
 
@@ -141,6 +141,7 @@ Object.assign(globalThis.window, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
+await import("../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
@@ -258,16 +259,20 @@ test("REGRESSION (C6): a broadcast offers no visit's words, and a run's values s
   assert.equal(textOf(values), "Values: their visit's time · their first name", "REGRESSION: visit_when");
 });
 
-test("REGRESSION (C6): a visit playbook's composer offers its visit's words -- the starter's slot held a value its select had no option for", () => {
+test("REGRESSION (C6): a visit playbook's composer fills its visit's words -- the starter's slot held a value its select had no option for", () => {
   const { row, slots } = visitTemplate();
   const tree = composerOf(playbooksSurface({
     rows: [], templates: [row], calendar: "ok",
     triggers: [{ id: "visit_tomorrow", label: "Visit reminder", hint: "The day before an appointment on the calendar", cls: "booking", list: null, kind: "visit", candidates: 2, held: 0 }],
   }));
-  const selects = all(tree, (n) => n.props?.["data-testid"] === "pb-var-source");
-  assert.deepEqual(selects.map((s) => s.props.value), slots.map((s) => (s.kind === "booking_link" ? "text" : s.kind)), "the starter's own slots, a link the workspace lacks typed");
-  for (const sel of selects) assert.ok(find(sel, (n) => n.type === "option" && n.props.value === sel.props.value), `REGRESSION: ${sel.props.value} had no option`);
-  assert.equal(textOf(find(tree, (n) => n.type === "option" && n.props.value === "visit_when")), "Their visit's time");
+  // The sheet draws what it is given, so a walk of the page meets each slot twice: once is one slot.
+  const fills = [...new Map(all(tree, (n) => n.props?.["data-testid"] === "pb-fill").map((f) => [f.props.key, f])).values()];
+  assert.deepEqual(fills.map((f) => f.props["data-kind"]), slots.map((s) => (s.kind === "booking_link" ? "text" : s.kind)), "the starter's own slots, a link the workspace lacks typed");
+  for (const f of fills) {
+    const sel = find(f, (n) => n.props?.["data-testid"] === "pb-fill-source");
+    if (sel) assert.ok(find(sel, (n) => n.type === "option" && n.props.value === f.props["data-kind"]), `REGRESSION: ${f.props["data-kind"]} had no option`);
+  }
+  assert.ok(textOf(fills[slots.findIndex((s) => s.kind === "visit_when")]).includes("Their visit's time"));
 });
 
 /* ------------------------------ a broadcast's state ------------------------------ */
@@ -1276,8 +1281,11 @@ test("A template this product cannot send is not offered, and its card says why"
   globalThis.window.dispatchEvent({ type: "playbooks:new" });
   seq = 0;
   const pb = globalThis.window.OutboundPage({});
-  assert.equal(all(pb, (n) => n.props?.["data-testid"] === "pb-template").length, 1);
-  assert.ok(textOf(byTestId(pb, "pb-blocked")).includes("a picture for a heading"));
+  press(byTestId(pb, "pb-template"));
+  seq = 0;
+  const list = globalThis.window.OutboundPage({});
+  assert.deepEqual([...new Set(all(list, (n) => n.props?.["data-testid"] === "pb-template-option").map((o) => o.props["data-lang"]))], ["offer"], "its list offers what can go on the wire");
+  assert.ok(textOf(byTestId(list, "pb-template-note")).includes("a picture for a heading"), "and says, under it, why the rest is not there");
 
   // And the library says why rather than leaving it looking available.
   const card = messages({ __TEMPLATES_ALL: [picture] });

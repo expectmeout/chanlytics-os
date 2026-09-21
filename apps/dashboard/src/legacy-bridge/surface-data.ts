@@ -1,4 +1,4 @@
-import { POLICY_CLASS_WORDS, STARTER_TEMPLATES, templateSentWords, templateUnused, templateUseNote, templateUseWords, type PersonRowDto, type TemplateSentWords } from "@chanlytics/contracts";
+import { STARTER_TEMPLATES, templateSentWords, templateUnused, templateUseNote, templateUseWords, type PersonRowDto, type TemplateSentWords } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
@@ -1037,8 +1037,6 @@ export interface PlaybooksSurface {
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
   triggers: PlaybookTriggerOption[];
-  /** The Autonomy rows' words, so a playbook names its row the way the matrix does. */
-  classWords: typeof POLICY_CLASS_WORDS;
   /** The approved WhatsApp templates, with their variables. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
   templates: TemplateDto[] | null;
@@ -1087,7 +1085,6 @@ export const playbooksOverride: SurfaceOverride = {
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
     const tz = pb.timezone || "America/New_York";
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
-      classWords: POLICY_CLASS_WORDS,
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
         return {

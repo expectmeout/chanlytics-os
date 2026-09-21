@@ -134,8 +134,8 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("kind: t.kind") && sd.includes('calendar: pb.calendar ?? "none"'), "the page knows which triggers need the calendar, and whether there is one -- from the route that counts the pools");
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
-  assert.ok(page.includes("pbRowLabel(trig.cls)") && page.includes('trig.kind === "visit"') && page.includes("needs the calendar connected"), "the composer says it plainly");
-  assert.ok(page.includes("one message per visit · people who asked to stop") && page.includes("the day's visits are picked from them"), "no gap and no breath are promised for a visit trigger");
+  assert.ok(page.includes("<PolicyChip cls={trig.cls} />") && page.includes('trig.kind === "visit"') && page.includes("A visit moment reads the calendar"), "the composer says it plainly");
+  assert.ok(page.includes("One message per visit. Anyone who asked to stop") && page.includes("the day's visits are picked from them"), "no gap and no breath are promised for a visit trigger");
   assert.ok(page.includes('visit_when: "tomorrow at 2:00 PM"') && page.includes('visit_service: "a consultation"'), "the preview shows the visit's words");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes('booking: modeOf("booking")') && tools.includes("withVisits(t.ctx, t.tenantId, people, t.now)"), "the assistant counts with the calendar too");

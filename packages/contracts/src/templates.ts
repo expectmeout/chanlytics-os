@@ -166,6 +166,19 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
 };
 
 /**
+ * Where a filled slot's words come from, beside the words themselves in a
+ * composer: the example says what one person reads, this says what every
+ * person's is.
+ */
+export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string> = {
+  first_name: "Each person's own — “there” when none is on file",
+  business_name: "From Settings › Business",
+  booking_link: "From Settings › Business",
+  visit_when: "Each visit's own, from the calendar",
+  visit_service: "Each visit's own, from the calendar",
+};
+
+/**
  * A slot's spec from what a route or a card was given: a plain string is
  * typed text; "@first_name" and the like are the sources; an object with a
  * kind is itself. Null means "not a spec".
