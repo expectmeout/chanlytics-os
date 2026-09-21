@@ -1461,6 +1461,12 @@ A failing step fails with the assertion the previous step wrote. A passing step 
 
 ### Task 3.1: The bridge publishes the view models
 
+> **Changed in execution (21 Sep).** The steps below are the plan as written. What shipped differs in four ways. The first is why the others follow. The edge never calls `composeSystemPrompt` on its own. It calls `resolveSystemPrompt`, which decides what composing skips. A record whose profile holds nothing it composes from (`hasProfile`) is answered with its stored prompt, and a cleared box has that prompt carried into it. The Autonomy rows become rules, and the number it gives out is the provisioned line unless one is typed. Composing the draft showed a rules-only record five rules, a notice period and a hand-off token it is never sent.
+> 1. `consequenceOf(section, next, channel)` takes the whole brain the fold's save would send, and a required channel. It parses `next` with `BrainConfigSchema` and resolves it with `resolveSystemPrompt`. The zone, the Autonomy rows and the platform's facts come from the settings read's preview, whose `PromptPreviewDto` now carries them as `inputs`. It cuts the result with the brain as `promptBlocks`' source. It is null for a draft that does not parse, with no preview (the same cases the preview is null for), and when the resolver writes no such block. An unknown fold or channel is a `TypeError` naming it.
+> 2. `FOLD_BLOCK` also maps the inline rows: the identity rows to `identity`, `consult_first` to `booking_rules`, `handoff_number` to `handoff`. Each real row no draft of the brain can show gets an explicit null with its reason. `fallbacks`, `calendar` and `vision` never reach the cached prompt. `timezone` does, but it is the workspace's, not a key of the brain.
+> 3. The helpers live in their own module, `legacy-bridge/business-tab.ts`, shaped like `today.ts` and installed beside `installToday`, not in `inbox-verbs.ts`, which is a courier. The harness gets the same object as `data/business-tab.js`, built by `serve-legacy.mjs`.
+> 4. The page's tests need a brain that parses (a `system_prompt` and `fallbacks`) and a `prompt` built with `composePromptPreview`, or every fold's block is null. Task 3.2's `settings()` below carries both.
+
 **Files:**
 - Modify: `apps/dashboard/src/legacy-bridge/inbox-verbs.ts` (which already publishes `__composedPrompt`)
 
@@ -1567,6 +1573,8 @@ Then add the fixture and the three helpers every later task reuses, after the im
 
 ```js
 import { standingLine } from "@chanlytics/contracts";
+// The settings read's own preview, built as the server builds it: a fold's draft is resolved with its inputs (Task 3.1).
+const { composePromptPreview } = await import("../../../apps/dashboard/src/server/prompt-preview.ts");
 
 /** Melany's Beauty Salon, the live tenant, as the surface hands it over. */
 const melany = {
@@ -1583,9 +1591,25 @@ const melany = {
   handoff_number: "+16469325775",
 };
 
+/** The brain as stored. It parses, as every saved one does, or consequenceOf resolves nothing from it. */
+const brainOf = (profile) => ({
+  business_name: "Melany's Beauty Salon",
+  booking_link: "https://booksy.com/en-us/1817434",
+  system_prompt: "You are the WhatsApp assistant for Melany's Beauty Salon. Answer warmly and briefly.",
+  fallbacks: { greeting: "Hi! Someone will be with you shortly.", error: "Sorry, something went wrong on our side.", non_text: "Thanks, a person will look at this." },
+  profile,
+});
+
 const settings = (profile = melany, over = {}) => ({
   version: 7,
-  config: { brain: { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/en-us/1817434", profile }, calendar: { ical_url: "https://app.chanlytics.com/api/v1/calendar/filler.ics" }, ...over },
+  config: { brain: brainOf(profile), calendar: { ical_url: "https://app.chanlytics.com/api/v1/calendar/filler.ics" }, ...over },
+  // Beside the config, the settings read hands over its preview, with the inputs it was resolved with.
+  prompt: composePromptPreview(brainOf(profile), {
+    tz: "America/New_York",
+    policy: {},
+    known: { workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" }, channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }], listing: null },
+    openings: null,
+  }),
 });
 
 const facts = (over = {}) => ({
@@ -1832,7 +1856,7 @@ test("the booking-rules fold shows what the composer will write", () => {
   const tree = drawTab({ profile: melany });
   openFold(tree, "booking_rules");
   const says = byTestId(again(() => W.BusinessTab({ flash: () => {} })), "rec-fold-says-booking_rules");
-  const block = W.__businessTab.consequenceOf("booking_rules", { brain: W.__SETTINGS.config.brain, profile: melany });
+  const block = W.__businessTab.consequenceOf("booking_rules", W.__SETTINGS.config.brain, "whatsapp");
   assert.match(textOf(says), new RegExp(block.text.split("\n")[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
