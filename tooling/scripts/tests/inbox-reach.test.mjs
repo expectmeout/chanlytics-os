@@ -104,9 +104,9 @@ const paneOf = (thread, over = {}) => { cells = []; seq = 0; return InboxThread(
 
 /* --------------------------------- the pane --------------------------------- */
 
-test("the Needs you banner keeps its words and its buttons apart: the words take the width, and the buttons wrap beneath them", () => {
-  const take = find(paneOf(vmOf(chat({ last_wa_inbound_at: null, messages: [callNote] }), callback)), hasClass("ix-take"));
-  const actions = find(take, hasClass("ix-take-actions"));
+test("the Needs you line keeps its words and its buttons apart: the words take the width, and the buttons never share their row", () => {
+  const take = find(paneOf(vmOf(chat({ last_wa_inbound_at: null, messages: [callNote] }), callback)), byTestId("ix-needs-you"));
+  const actions = find(take, hasClass("ix-state-acts"));
   assert.ok(actions, "REGRESSION: the buttons shared the words' row, and at 1024 the words were 0px wide");
   // One press dials and claims it: "I'll call them" only claimed it, over a reply box whose own Call back only
   // dialled, under a banner that said to call them back, under a sentence that said it first.
@@ -114,16 +114,18 @@ test("the Needs you banner keeps its words and its buttons apart: the words take
   assert.ok(call && String(call.props.href).startsWith("tel:"), "the call is the primary action");
   assert.equal(textOf(call).trim(), "Call back");
   assert.deepEqual(buttonsOf(actions), ["Hand back"], "and the way out, in two words");
-  assert.equal(find(find(take, hasClass("ix-take-body")), hasClass("ix-take-actions")), undefined, "beneath the words, not inside them");
+  assert.equal(find(find(take, hasClass("ix-state-says")), hasClass("ix-state-acts")), undefined, "beside the pill, never inside the words");
   assert.match(textOf(find(take, byTestId("ix-take-ask"))), /Call Rosa back to confirm the bridal trial/);
 });
 
 test("a thread you have shows what they asked, where you answer it", () => {
   const mine = vmOf(chat({ paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }), asked());
-  const owned = find(paneOf(mine), (n) => hasClass("ix-resolved")(n) && textOf(n).includes("You own this thread"));
-  assert.ok(owned);
+  const owned = find(paneOf(mine), byTestId("ix-yours"));
+  assert.ok(owned && textOf(owned).startsWith("You have it"));
   assert.equal(textOf(find(owned, byTestId("ix-take-ask"))), "They wrote“Can I move my appointment to Friday?”", "REGRESSION: the words you are answering were only in the timeline");
-  assert.ok(buttonsOf(owned).some((b) => b.startsWith("Hand back to")), "and the way to give it back");
+  let back = null;
+  walk(owned, (n) => { if (n.type === "button" && textOf(n).trim() === "Hand back") back = n; });
+  assert.ok(back && String(back.props["aria-label"]).startsWith("Hand back to"), "and the way to give it back, its whole sentence for a screen reader");
 });
 
 test("the countdown is a timer; past its deadline a real draft says it is sending, not 'Auto-sends in 0s'; a hold is said to a screen reader", () => {

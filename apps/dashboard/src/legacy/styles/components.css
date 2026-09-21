@@ -1692,32 +1692,39 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 /* ---------- MoreMenu (shared 3-dot popover) ---------- */
 .more-wrap { position: relative; display: inline-flex; }
 .more-backdrop { position: fixed; inset: 0; z-index: 240; }
+/* The one action menu (MoreMenu), wherever a … opens one: room to read each item, a label that never breaks, the
+   icons in one column, and a shadow that lifts it off the page rather than a box drawn round it. It was 194px wide at
+   12.5px, so "Receptionist for this person…" broke onto two lines, under an eyebrow in capitals. */
 .more-menu {
   position: absolute;
-  top: calc(100% + 6px);
-  min-width: 194px;
-  max-width: 260px;
-  padding: 4px;
+  top: calc(100% + 8px);
+  min-width: 232px;
+  max-width: 292px;
+  padding: 6px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  animation: route-in 140ms var(--ease-out);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.08), 0 18px 44px -12px oklch(0 0 0 / 0.36);
+  transform-origin: top right;
+  animation: more-in 150ms var(--ease-out);
 }
 .more-menu.align-right { right: 0; }
-.more-menu.align-left { left: 0; }
+.more-menu.align-left { left: 0; transform-origin: top left; }
+@keyframes more-in { from { opacity: 0; transform: scale(0.97); } }
+@media (prefers-reduced-motion: reduce) { .more-menu { animation: none; } }
 .more-header {
-  font-size: 9.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase;
-  color: var(--ink-dim); padding: 8px 10px 4px;
+  font-size: 11.5px; font-weight: 500; color: var(--ink-dim); padding: 6px 10px 4px;
 }
 .more-item {
-  display: flex; align-items: center; gap: 9px; width: 100%;
+  display: flex; align-items: center; gap: 11px; width: 100%; min-height: 34px;
   padding: 7px 10px; border: none; background: transparent;
-  border-radius: var(--radius-sm); cursor: pointer;
-  font-size: 12.5px; color: var(--ink); text-align: left;
+  border-radius: 8px; cursor: pointer;
+  font-size: 13px; color: var(--ink); text-align: left;
   transition: background 100ms;
 }
 .more-item:hover { background: var(--bg-hover); }
+.more-item:focus-visible { outline: none; background: var(--bg-hover); box-shadow: inset 0 0 0 2px var(--accent-soft); }
+.more-item .icon { width: 16px; height: 16px; }
 .more-item .icon { color: var(--ink-dim); flex-shrink: 0; }
 .more-item:hover .icon { color: var(--ink); }
 .more-item-label { flex: 1; min-width: 0; }
@@ -1727,7 +1734,10 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .more-item.danger { color: var(--danger); }
 .more-item.danger .icon { color: var(--danger); }
 .more-item.danger:hover { background: var(--danger-soft); }
-.more-divider { height: 1px; background: var(--line); margin: 4px 6px; }
+/* A short word at the item's end -- what it will do ("until tomorrow 10:00"), a count: one line, set to the right,
+   as readable as the meta line. */
+.more-item-hint { margin-left: auto; padding-left: 16px; font-size: 12px; color: var(--ink-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.more-divider { height: 1px; background: var(--line); margin: 6px 4px; }
 
 /* ---- Confirm — the one armed question (data-bits.jsx Confirm) ----
    A line where the control that armed it was, or a panel under the row when
@@ -2603,6 +2613,55 @@ button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2
 .bc-stop-line { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-muted); }
 .bc-stop-line strong { font-weight: var(--weight-medium); color: var(--ink); }
 .bc-stop-fix { font-size: var(--text-xs); color: var(--ink-dim); }
+/* ---- A run waiting on you: its sheet (the canvas's "approving from the sofa") ----
+   Its own screen at any width, one column: a back bar that says where it sits in
+   the queue, the run, who it reaches, the words, and the act alone at the foot,
+   pinned while the list of who gets it scrolls above it. */
+.bc-report.is-sheet { max-width: 560px; }
+.bc-sheet { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--bg-raised); }
+.bc-sheet-top { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.bc-sheet-back { width: 44px; height: 44px; flex: none; margin-left: -12px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-md); background: none; color: var(--ink); cursor: pointer; }
+.bc-sheet-back svg { transform: scaleX(-1); }
+.bc-sheet-back:hover { background: var(--bg-hover); }
+.bc-sheet-back:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bc-sheet-where { flex: 1 1 auto; min-width: 0; }
+.bc-sheet-k { font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); color: var(--ink); }
+.bc-sheet-pos { font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-sheet-body { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+.bc-sheet-titles { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.bc-sheet-title { margin: 0; min-width: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: 1.25; color: var(--ink); overflow-wrap: anywhere; }
+.bc-sheet-titles > .policy-chip { flex: none; }
+.bc-sheet-sub { margin-top: 3px; font-size: var(--text-xs); color: var(--ink-dim); }
+/* Who it reaches: the number it has, and the rules that made the list. */
+.bc-sheet-reach { padding: 13px 14px; border-radius: var(--radius-lg); background: var(--bg-sunken); }
+.bc-sheet-n { display: flex; align-items: baseline; gap: 6px; }
+.bc-sheet-v { font-family: var(--font-mono); font-size: 26px; font-weight: var(--weight-medium); line-height: 1.15; color: var(--ink); }
+.bc-sheet-will { font-size: var(--text-sm); color: var(--ink-dim); }
+.bc-sheet-bar { display: flex; height: 6px; margin-top: 9px; }
+.bc-sheet-bar > span { flex: 1 1 auto; border-radius: 3px; background: var(--ok); }
+.bc-sheet-rules { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; font-size: var(--text-xs); color: var(--ink-dim); }
+/* The words, as its first person reads them: what varies tinted as the preview tints it. */
+.bc-sheet-words { padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.bc-sheet-quote { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
+.bc-sheet-slot { padding: 0 3px; border-radius: var(--radius-xs); background: var(--bg-active); color: var(--ink); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.bc-sheet-reader { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-sheet-hi { color: var(--warn-ink); }
+/* The act, alone at the foot and pinned there. */
+.bc-sheet-acts { position: sticky; bottom: 0; z-index: 1; display: flex; flex-direction: column; gap: 9px; padding: 12px 16px 16px; border-radius: 0 0 var(--radius-xl) var(--radius-xl); background: var(--bg-raised); }
+.bc-sheet-people + .bc-sheet-acts { border-top: 1px solid var(--line); }
+.bc-sheet-approve { height: 50px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 0; border-radius: var(--radius-lg); background: var(--ink); color: var(--bg); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
+.bc-sheet-approve:hover { opacity: 0.92; }
+.bc-sheet-approve:disabled { opacity: 0.6; cursor: default; }
+.bc-sheet-approve:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bc-sheet-pair { display: flex; gap: 9px; }
+.bc-sheet-second { flex: 1 1 0; height: 44px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-muted); cursor: pointer; }
+.bc-sheet-second:hover { color: var(--ink); background: var(--bg-hover); }
+.bc-sheet-second:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bc-sheet-note { text-align: center; font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-sheet-expired { margin: 0; padding: 10px 12px; border-radius: var(--radius-md); background: var(--warn-soft); color: var(--warn-ink); font-size: var(--text-sm); line-height: 1.45; }
+.bc-sheet-acts .confirm { width: 100%; }
+/* Who gets it, on asking: the report's list, inside the sheet. */
+.bc-sheet-people { margin: 0 16px 4px; }
 /* A thumb's reach without a taller line (legacy.css gives a touch screen's buttons 44px): the text buttons take theirs from a box that takes no room. */
 html.legacy-on .bc-person-name,
 html.legacy-on .bc-person-door,

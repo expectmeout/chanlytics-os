@@ -539,12 +539,18 @@
     z-index: 250;
     max-width: none;
     max-height: 72vh;
-    padding: 6px 8px calc(10px + env(safe-area-inset-bottom));
-    border-radius: 16px 16px 0 0;
+    padding: 6px 10px calc(14px + env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0;
     border-bottom: 0;
+    animation: more-sheet-in 220ms var(--ease-out);
   }
-  .ix-thread-pane .more-backdrop { background: rgb(0 0 0 / 0.4); }
-  .ix-thread-pane .more-item { min-height: 48px; font-size: 14px; }
+  /* A sheet says it is one: the handle, and the thread behind it stepped back. */
+  .ix-thread-pane .more-menu::before { content: ""; display: block; width: 36px; height: 4px; margin: 4px auto 12px; border-radius: 999px; background: var(--line-strong); }
+  .ix-thread-pane .more-backdrop { background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); }
+  .ix-thread-pane .more-item { min-height: 52px; padding: 0 12px; gap: 14px; border-radius: 12px; font-size: 15px; }
+  .ix-thread-pane .more-item .icon { width: 18px; height: 18px; }
+  @keyframes more-sheet-in { from { opacity: 0; transform: translateY(28px); } }
+  @media (prefers-reduced-motion: reduce) { .ix-thread-pane .more-menu { animation: none; } }
 
   /* The row's box is the MOUSE's box — it says so, and it is aria-hidden with no tab stop. A
      phone has no hover to reveal it, so it appeared only on the open row: one of three rails

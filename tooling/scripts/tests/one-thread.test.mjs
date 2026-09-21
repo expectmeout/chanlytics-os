@@ -217,7 +217,7 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
     const tree = ThreadPane({ threadId: vm.id });
     const menu = find(tree, (n) => n.type === globalThis.MoreMenu);
     assert.ok(menu, "the thread has its menu");
-    const item = menu.props.items.find((it) => it.label === "Export");
+    const item = menu.props.items.find((it) => it.label === "Export transcript");
     assert.ok(item, "REGRESSION: Export was a button in Conversations' header only");
     item.onClick();
     const a = anchors.find((x) => x.tag === "a");

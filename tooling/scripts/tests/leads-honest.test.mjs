@@ -220,7 +220,7 @@ globalThis.window.MediaRecorder = function MediaRecorderSpy() { uploads.push("Me
 await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
 for (const k of ["LeadPeekActions", "LeadNotFitWhy", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");
-for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_SORT_KEYS", "LeadShape"]) globalThis[k] = globalThis.window[k];
+for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_SORT_KEYS", "LeadShape", "LeadSlotShape"]) globalThis[k] = globalThis.window[k];
 for (const k of ["LeadsFirstDay", "LeadSuggestion", "LeadWayCard"]) globalThis[k] = globalThis.window[k];
 
 const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };

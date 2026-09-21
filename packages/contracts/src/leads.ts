@@ -21,6 +21,7 @@ import {
 import { initialsOf } from "./viewmodels";
 import type { Tone } from "./tone";
 import { agoShort } from "./time";
+import { formatPhoneDisplay } from "./phone";
 import { clockDateYear, clockTime } from "./clock";
 
 /**
@@ -88,8 +89,6 @@ export const LEAD_LEFT_OUT_WORD = "Left out";
 export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
 /** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
 export const LEAD_UNREACHABLE_WORD = "No way to reach them";
-/** The peek's two groups of checks (P2, §0.1). Nothing read wears a plain check mark. */
-export const LEAD_CHECK_GROUP_WORDS: Record<"seen" | "read", string> = { seen: "Seen", read: "Claude's read" };
 export const LEAD_CHECK_UNSURE = "Couldn't tell";
 // LEAD_CHECK_KEYS and LeadCheckKey are 4.6's, written with the DTOs below; the
 // seven are four seen and three read. Nothing here declares them again.
@@ -686,9 +685,11 @@ export function leadDraftFooter(business: string, address: string): string {
 /* ---------------------------------------------------------------- the peek */
 
 export interface LeadPeekReach {
-  phone: { value: string; note: string; tel: string | null; wrong: boolean } | null;
+  /** `tip` is what the phone's mark says when pointed at, focused or tapped: the note, as a sentence. */
+  phone: { value: string; note: string; tip: string; tel: string | null; wrong: boolean } | null;
   /** `standard` is null beside an address that checks out: there it would be a line saying nothing (D5). */
-  email: { value: string; note: string; standard: string | null; state: LeadEmailState; word: string; address: string | null; canDraft: boolean };
+  /** `tip` is everything the mailbox's mark says: the state where the note does not restate it, the note, the standard. */
+  email: { value: string; note: string; tip: string; standard: string | null; state: LeadEmailState; word: string; address: string | null; canDraft: boolean };
   locked: { title: string; line: string };
 }
 export interface LeadPeekVM {
@@ -724,13 +725,11 @@ export interface LeadPeekVM {
   facts: { k: string; v: string }[];
   /** "Open every day · 11 AM to 10 PM": the head the week folds under; "" when the listing published no hours. */
   weekSummary: string;
-  /** "From the listing — kind, price, rated": the head the listing's facts fold under; "" when there are none. */
-  factsSummary: string;
-  /** "5 checks passed · 2 couldn't tell": the head the checks fold under. */
+  /** "5 checks passed · 2 couldn't tell": the name of the verdict's evidence bar. */
   checksSummary: string;
-  /** One mark per check, in the order they were made: the strip beside the head, so the shape of the evidence reads at a glance. */
+  /** One segment per check, in the order they were made: the verdict's evidence bar, so the shape of the evidence reads at a glance. */
   checkDots: ("yes" | "unknown" | "no")[];
-  /** "Found 3 ways, 2:02 PM · #9 for “independent bookstore”": the line the trace folds under. */
+  /** "#19 on Google Maps · Sep 20": the line the trace folds under. */
   foundSummary: string;
   /** "1.2 mi", from the search's centre; "" when the search has none. */
   distance: string;
@@ -741,7 +740,8 @@ export interface LeadPeekVM {
   notFitWord: string;
   fit: { word: string; cls: string; sentence: string };
   reach: LeadPeekReach;
-  groups: { how: "seen" | "read"; label: string; checks: { key: LeadCheckKey; label: string; answer: "yes" | "no" | "unknown"; source: string; reason: string | null }[] }[];
+  /** What was seen, then what Claude read (P2, §0.1), told apart by a hairline and by their marks: nothing read wears a plain check. */
+  groups: { how: "seen" | "read"; checks: { key: LeadCheckKey; label: string; answer: "yes" | "no" | "unknown"; source: string; reason: string | null }[] }[];
   others: { summary: string; picked: string | null; items: { email: string; why: string }[] } | null;
   found: { at: string; what: string }[];
   links: {
@@ -752,16 +752,65 @@ export interface LeadPeekVM {
   version: number;
 }
 
-/** "Open today · 9 AM to 6 PM", "Closed today", or null when the listing showed no hours. The day is the business's own (tz). */
+/**
+ * Today, as an owner about to call needs it: whether they are open NOW. "Open today · 11 AM to 5 PM" made them work
+ * it out; "Open until 5 PM" is the answer. Before opening it says when they open, after closing that they are closed,
+ * and a day the listing marks closed says so. Hours the parser cannot read keep their words, shortened. null when the
+ * listing showed no hours. The day and the clock are the business's own (tz).
+ */
 export function leadTodayLine(hours: { day: string; hours: string }[], tz: string, now: Date): string | null {
   if (!hours.length) return null;
-  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now);
-  const h = hours.find((x) => x.day.toLowerCase() === day.toLowerCase());
-  if (!h) return null;
-  return /^closed/i.test(h.hours) ? "Closed today" : `Open today · ${h.hours}`;
+  const dayOf = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const hoursOn = (d: Date) => hours.find((x) => x.day.toLowerCase() === dayOf(d))?.hours.trim() ?? null;
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);
+  const at = Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+  const clock = (hh: string, mm: string | undefined, ap: string) => `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
+  // A night that runs past midnight belongs to the day it began: at 1 AM, a bar that opened at 5 PM "to 2 AM" is open.
+  const last = hoursOn(new Date(now.getTime() - 86_400_000))?.match(CLOCK);
+  if (last && hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) && at < hourOf(last[4], last[5], last[6])) {
+    return `Open until ${clock(last[4], last[5], last[6])}`;
+  }
+  const text = hoursOn(now);
+  if (text === null) return null;
+  if (/^closed/i.test(text)) return "Closed today";
+  if (/^open 24 hours$/i.test(text)) return "Open 24 hours";
+  const m = text.match(CLOCK);
+  if (!m) return `Open today · ${leadHoursShort(text)}`;
+  const open = hourOf(m[1], m[2], m[3]);
+  let close = hourOf(m[4], m[5], m[6]);
+  if (close <= open) close += 24;
+  if (at < open) return `Opens ${clock(m[1], m[2], m[3])}`;
+  if (at < close) return `Open until ${clock(m[4], m[5], m[6])}`;
+  return "Closed now";
 }
-/** One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser cannot draw. */
-export interface LeadWeekRow { day: string; hours: string; bar: { x: number; w: number } | null; today: boolean }
+
+/**
+ * Hours as few characters as say them. "10 AM to 6 PM" is "10–6": a range that runs from morning into afternoon needs
+ * neither half said. One inside a single half says it once ("5–10 PM"), and one that runs into the night keeps both
+ * ("5 PM–2 AM"). "Open 24 hours" is "24 hours". A line the parser cannot read keeps its words.
+ */
+export function leadHoursShort(text: string): string {
+  const t = text.trim();
+  if (/^open 24 hours$/i.test(t)) return "24 hours";
+  if (/^closed/i.test(t)) return "Closed";
+  const at = (h: string, mm: string | undefined) => (mm && mm !== "00" ? `${h}:${mm}` : h);
+  const ranges = t.split(/\s*,\s*/).map((part) => {
+    const m = part.match(CLOCK);
+    if (!m) return null;
+    const a1 = m[3].toUpperCase();
+    const a2 = m[6].toUpperCase();
+    const wraps = hourOf(m[4], m[5], m[6]) <= hourOf(m[1], m[2], m[3]);
+    if (!wraps && a1 === "AM" && a2 === "PM") return `${at(m[1], m[2])}–${at(m[4], m[5])}`;
+    if (!wraps && a1 === a2) return `${at(m[1], m[2])}–${at(m[4], m[5])} ${a2}`;
+    return `${at(m[1], m[2])} ${a1}–${at(m[4], m[5])} ${a2}`;
+  });
+  return ranges.every(Boolean) ? ranges.join(", ") : t;
+}
+/**
+ * One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser
+ * cannot draw. `hours` is the listing's own words; `short` is what a surface shows ("10–6", leadHoursShort).
+ */
+export interface LeadWeekRow { day: string; hours: string; short: string; bar: { x: number; w: number } | null; today: boolean }
 
 /**
  * The week in one line, so the seven rows can fold away behind it: how many days they open, and the hours they keep
@@ -772,7 +821,7 @@ export function leadWeekSummary(week: LeadWeekRow[]): string {
   const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
   if (!open.length) return "";
   const tally = new Map<string, number>();
-  for (const d of open) tally.set(d.hours, (tally.get(d.hours) ?? 0) + 1);
+  for (const d of open) tally.set(d.short, (tally.get(d.short) ?? 0) + 1);
   let best = "";
   let most = 0;
   for (const [hours, n] of tally) if (n > most) { best = hours; most = n; }
@@ -782,11 +831,6 @@ export function leadWeekSummary(week: LeadWeekRow[]): string {
   return days;
 }
 
-/** What the listing had to say about the place, named rather than listed: "From the listing — kind, price, rated". */
-export function leadFactsSummary(facts: { k: string; v: string }[]): string {
-  if (!facts.length) return "";
-  return `${LEAD_WORDS.fromListing} — ${facts.map((f) => f.k.toLowerCase()).join(", ")}`;
-}
 const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 const hourOf = (h: string, m: string | undefined, ap: string): number => ((Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0)) + (m ? Number(m) / 60 : 0);
 /**
@@ -809,7 +853,7 @@ export function leadWeekBars(hours: { day: string; hours: string }[], tz: string
         bar = { x: Math.round((a / 24) * 1000) / 10, w: Math.round(((b - a) / 24) * 1000) / 10 };
       }
     }
-    return { day: h.day, hours: text, bar, today: h.day.toLowerCase() === today };
+    return { day: h.day, hours: text, short: leadHoursShort(text), bar, today: h.day.toLowerCase() === today };
   });
 }
 
@@ -844,6 +888,16 @@ export function leadExclusionWord(search: LeadSearchDto | null, key: string | nu
   const cr = plan?.criteria.find((c) => c.key === key);
   return cr ? cr.text : LEAD_LEFT_OUT_WORD;
 }
+/** The day something happened, as briefly as it can be said: "today", "yesterday", "Sep 20". "" when there is none. */
+function dayIn(tz: string, iso: string | null, now: Date): string {
+  if (!iso) return "";
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "";
+  const key = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  if (key(at) === key(now)) return "today";
+  if (key(at) === key(new Date(now.getTime() - 86_400_000))) return "yesterday";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at);
+}
 /** A clock time on the day it happened, and the date too once it is not today (the peek is read weeks later). */
 function clockIn(tz: string, iso: string | null, now: Date): string {
   if (!iso) return "—";
@@ -871,12 +925,20 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
   const fitCls = m.class === "qualified" ? (m.fit ?? "look") : m.class === "review" ? "review" : "out";
   const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
   const emailNote = r.email
-    ? r.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} · checked ${clockIn(tz, r.email_checked_at, now)}`
+    ? r.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} · checked ${dayIn(tz, r.email_checked_at, now) || "on finding it"}`
       : r.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking
       : r.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.`
       : LEAD_MAILBOX_WORDS[r.email_state]
     : LEAD_NO_EMAIL_LINE;
   const mailboxLabel = LEAD_MAILBOX_WORDS[r.email_state];
+  // Each note ends as a sentence, so two of them read as two. A state leads its tip only where the note does not say
+  // it already: "Unconfirmed." before "Their server accepts every address", never "Checked." before "Mailbox exists".
+  const stop = (s: string) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
+  const emailTip = [
+    ...(r.email && (r.email_state === "catch_all" || r.email_state === "unknown" || r.email_state === "invalid") ? [LEAD_EMAIL_WORDS[r.email_state]] : []),
+    emailNote,
+    ...(r.email_state === "ok" ? [] : [standard]),
+  ].map(stop).join(" ");
   const seen: LeadPeekVM["groups"][number]["checks"] = [];
   const read: LeadPeekVM["groups"][number]["checks"] = [];
   for (const c of m.checks) {
@@ -893,8 +955,8 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
   const host = r.website;
   const siteLine = host
     ? r.email_state === "none"
-      ? `Their website, ${host}: no email on the home, contact or about pages`
-      : `Their website, ${host}: an email on the contact page`
+      ? `${host} · no email on the home, contact or about pages`
+      : `${host} · an email on the contact page`
     : "No website to check";
   const term = search?.plan.terms[0] ?? null;
   // D5: the peek re-cut -- the tile, the rating apart, the checks' head, the week, and the listing's facts.
@@ -911,9 +973,6 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     r.rating === null || r.rating === undefined
       ? null
       : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US"), low: leadLowShare(r.reviews_dist ?? null) };
-  // The trace is always three lines: the listing, their site, the mailbox. The head says how many so the panel can
-  // fold it away and still say what happened.
-  const foundWays: number = 3;
   const facts: LeadPeekVM["facts"] = [
     ...(r.category ? [{ k: "Kind", v: r.category }] : []),
     ...(r.price ? [{ k: "Price", v: r.price }] : []),
@@ -932,7 +991,6 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     week,
     weekSummary: leadWeekSummary(week),
     facts,
-    factsSummary: leadFactsSummary(facts),
     checksSummary,
     checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),
@@ -952,8 +1010,9 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     reach: {
       phone: r.phone
         ? {
-            value: r.phone,
+            value: formatPhoneDisplay(r.phone) ?? r.phone,
             note: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website" : "From their Google Maps listing",
+            tip: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website." : "From their Google Maps listing.",
             tel: r.phone_wrong ? null : `tel:${r.phone}`,
             wrong: r.phone_wrong,
           }
@@ -961,6 +1020,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       email: {
         value: r.email ?? "No email on their site",
         note: emailNote,
+        tip: emailTip,
         // The standard explains a lead the mailbox did not settle. Beside an address that checks out it is a line
         // saying nothing, on every good lead: null there, so the peek reads shorter where there is nothing to say.
         standard: r.email_state === "ok" ? null : standard,
@@ -972,19 +1032,19 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       locked: { title: "Texts and WhatsApp", line: LEAD_LOCKED_LINE },
     },
     groups: [
-      { how: "seen", label: LEAD_CHECK_GROUP_WORDS.seen, checks: seen },
-      { how: "read", label: LEAD_CHECK_GROUP_WORDS.read, checks: read },
+      { how: "seen", checks: seen },
+      { how: "read", checks: read },
     ].filter((g) => g.checks.length > 0) as LeadPeekVM["groups"],
     others,
-    foundSummary: [
-      `Found ${foundWays} way${foundWays === 1 ? "" : "s"}, ${clockIn(tz, r.found_at, now)}`,
-      ...(term && r.rank ? [`#${r.rank} for “${term}”`] : []),
-    ].join(" · "),
+    // Where it was found and when, in one short line: "#19 on Google Maps · Sep 20". The three steps behind it are a
+    // few words each, and the minute each happened lives in its own hover: they happen within a minute or two of each
+    // other, so four copies of "Sep 20, 2:02 PM" said nothing the head had not.
+    foundSummary: [term && r.rank ? `#${r.rank} on Google Maps` : "On Google Maps", dayIn(tz, r.found_at, now)].filter(Boolean).join(" · "),
     found: [
-      // The rank it was found at rides the first line when the listing gave one: "#3 for “wedding planner”".
-      { at: clockIn(tz, r.found_at, now), what: term ? (r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`) : "On a Google Maps listing" },
+      { at: clockIn(tz, r.found_at, now), what: term ? (r.rank ? `Google Maps · #${r.rank} for “${term}”` : `Google Maps · searching “${term}”`) : "A Google Maps listing" },
       { at: clockIn(tz, r.found_at, now), what: siteLine },
-      { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox check: ${mailboxLabel}` },
+      // The mailbox's long sentence is the email row's to say; here it is the state's one word.
+      { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox · ${LEAD_EMAIL_WORDS[r.email_state]}` },
     ],
     links: {
       website: host ? { label: host, href: `https://${host}` } : null,

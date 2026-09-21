@@ -1,4 +1,4 @@
-/* global React, Icon, LeadShape */
+/* global React, Icon, LeadShape, LeadSlotShape */
 // The peek: one lead, beside the table (408px) or full height on a phone, and everything the owner does to it
 // without leaving the rows -- the stage, Not a fit, Keep and Exclude, Put back, a call from their own phone, and a
 // draft for their own inbox. Hookless, as the page's rules ask: every piece of state here is ClientsAReal's
@@ -82,8 +82,18 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
         <h2 className="pk-name" data-testid="peek-name">{vm.name}</h2>
         <div className="pk-sub-line">
           <span className="pk-sub" data-testid="peek-sub">{vm.sub}</span>
-          {vm.today ? <span className={`pk-today${/^Closed/.test(vm.today) ? " closed" : ""}`} data-testid="peek-today"><Icon name="clock" size={11} />{vm.today}</span> : null}
+          {vm.today ? <span className={`pk-today${/^Open\b/.test(vm.today) ? "" : " closed"}`} data-testid="peek-today"><Icon name="clock" size={11} />{vm.today}</span> : null}
         </div>
+        {/* What people say, as a line under who they are (D8). It was a card of its own, headed, for one number. */}
+        {vm.rated ? (
+          <div className="pk-rate" data-testid="peek-rated">
+            <Icon name="star" size={11} />
+            <span className="pk-rate-score">{vm.rated.score}</span>
+            <span>{`${vm.rated.count} reviews`}</span>
+            {vm.rated.low ? <span className="pk-rate-low" data-testid="peek-rated-low">{vm.rated.low}</span> : null}
+            {vm.claimedNote ? <span data-testid="peek-claimed">{vm.claimedNote}</span> : null}
+          </div>
+        ) : null}
         {vm.about ? <p className="pk-about" data-testid="peek-about">{vm.about}</p> : null}
         {vm.where ? (
           <div className="pk-where" data-testid="peek-where-block">
@@ -99,42 +109,38 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
   );
 };
 
-/** What people say (D5): the score large, the count, one bar a star, and whether anyone watches the listing. */
 /**
- * The shape of the evidence, at a glance: one mark a check, in the order they were made.
- *
- * It is ONE svg, not a row of sized spans, and that is the whole point. An empty span gets its size only from the
- * cascade, so any parent that lays out differently than the stylesheet expects -- a flex line that stretches it, a
- * rule that arrives without its width -- turns a 7px dot into a lozenge, and on production these drew at two
- * different sizes on the same line. An svg carries its geometry in its own attributes and its circles keep their
- * aspect ratio inside the viewBox, so there is nothing here for a parent to stretch.
+ * A note that was a sentence under its line (D8): now a mark you can point at, focus or tap. The mark is the line's
+ * own glyph where it has one -- the reach shapes the table's rows wear -- else a small info mark. Its words are always
+ * in the DOM and named by aria-describedby, so a screen reader hears them; a touch shows them on tap, because the
+ * mark is a button; and the tip spans its row, so a pane that scrolls never cuts it off at the side.
  */
-const LeadCheckDots = ({ dots }) => {
-  if (!dots || !dots.length) return null;
-  const R = 3.5;
-  const STEP = 10;
-  const w = dots.length * STEP - (STEP - 2 * R);
-  return (
-    <svg className="pk-dots" width={w} height={2 * R} viewBox={`0 0 ${w} ${2 * R}`} aria-hidden="true" focusable="false" data-testid="peek-check-dots">
-      {dots.map((d, i) => <circle key={`${d}-${i}`} className={`pk-dot ${d}`} cx={i * STEP + R} cy={R} r={R} />)}
-    </svg>
-  );
-};
+const PkHint = ({ id, label, mark, testid, card = false, children }) => (
+  <span className="pk-hint">
+    <button type="button" className="pk-hint-mark" aria-label={label} aria-describedby={id} data-testid={testid} onClick={(e) => e.stopPropagation()}>
+      {mark || <Icon name="info" size={12} />}
+    </button>
+    <span className={`pk-hint-tip${card ? " card" : ""}`} role="tooltip" id={id}>{children}</span>
+  </span>
+);
 
-const LeadPeekRated = ({ vm }) => {
-  const W = window.__LEAD_WORDS;
+/**
+ * The evidence as a pipeline (D8): one segment a check, in the order they were made, filled by its answer. It stands
+ * beside the verdict's word, so "Strong fit" and what it rests on read as one thing.
+ *
+ * ONE svg with its geometry in its own attributes, not a row of sized spans: an empty span takes its size only from
+ * the cascade, and on production the dots this replaces drew at two sizes on one line (#734).
+ */
+const LeadEvidenceBar = ({ dots }) => {
+  if (!dots || !dots.length) return null;
+  const SEG = 14;
+  const GAP = 3;
+  const H = 4;
+  const w = dots.length * (SEG + GAP) - GAP;
   return (
-    <div className="pk-rated" data-testid="peek-rated">
-      <div className="pk-label">{W.ratedHeading}</div>
-      {/* One line, not five bars (D7). The bars drew on every lead and said the same thing the average already said,
-          except in the one case the average hides -- so that case is the only thing left, and it is said in words. */}
-      <div className="pk-rated-head">
-        <span className="pk-rated-score">{vm.rated.score}</span>
-        <span className="pk-rated-count">{vm.rated.count} reviews</span>
-        {vm.rated.low ? <span className="pk-rated-low" data-testid="peek-rated-low">{vm.rated.low}</span> : null}
-      </div>
-      {vm.claimedNote ? <div className="pk-rated-note"><span className="pk-quiet" data-testid="peek-claimed"><Icon name="info" size={12} />{vm.claimedNote}</span></div> : null}
-    </div>
+    <svg className="pk-bar" width={w} height={H} viewBox={`0 0 ${w} ${H}`} aria-hidden="true" focusable="false" data-testid="peek-check-bar">
+      {dots.map((d, i) => <rect key={`${d}-${i}`} className={`pk-seg ${d}`} x={i * (SEG + GAP)} y={0} width={SEG} height={H} rx={2} />)}
+    </svg>
   );
 };
 
@@ -178,7 +184,7 @@ const LeadLightbox = ({ vm, onClose }) => {
                   <div key={d.day} className={`ld-lb-day${d.today ? " today" : ""}`} data-testid="lightbox-day">
                     <span className="d">{d.day.slice(0, 3)}</span>
                     <span className="ld-lb-track">{d.bar ? <span className="ld-lb-bar" style={{ left: `${d.bar.x}%`, width: `${d.bar.w}%` }} /> : null}</span>
-                    <span className="h">{d.hours}</span>
+                    <span className="h">{d.short}</span>
                   </div>
                 ))}
               </div>
@@ -334,9 +340,28 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
       <div className="pk-body">
         {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
         {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} deck={deck} /> : null}
-        {/* The verdict (D5): the fit as a word and the sentence behind it, in a card that wears the fit's tint. */}
+        {/* The verdict (D8): the fit's word with the evidence as a pipeline beside it, and one line of why. The checks
+            were a fold of their own below; their list is now what the bar says when it is pointed at or focused. */}
         <div className={`pk-verdict ${vm.fit.cls}`} data-testid="peek-verdict">
-          <p className="pk-fit" data-testid="peek-fit"><b className={vm.fit.cls}>{`${vm.fit.word}.`}</b>{` ${vm.fit.sentence}`}</p>
+          <div className="pk-verdict-head">
+            <b className={`pk-fit-word ${vm.fit.cls}`} data-testid="peek-fit-word">{vm.fit.word}</b>
+            {vm.checkDots.length ? (
+              <PkHint id={`${vm.id}-checks`} label={vm.checksSummary} mark={<LeadEvidenceBar dots={vm.checkDots} />} testid="peek-checks-summary" card>
+                {vm.groups.map((g) => (
+                  <span key={g.how} className={`pk-group pk-group-${g.how}`} data-testid={`peek-checks-${g.how}`}>
+                    {g.checks.map((c) => (
+                      <span key={c.key} className={`pk-ck ${g.how}${c.answer === "no" ? " no" : c.answer === "unknown" ? " warn" : ""}`} data-testid={`peek-check-${c.key}`}>
+                        {ldCheckMark(g.how, c.answer)}
+                        <span className="pk-ck-t">{c.label}</span>
+                        <span className="from">{c.source}</span>
+                      </span>
+                    ))}
+                  </span>
+                ))}
+              </PkHint>
+            ) : null}
+          </div>
+          <p className="pk-fit" data-testid="peek-fit">{vm.fit.sentence}</p>
         </div>
         {vm.cls === "review" ? (
           <div className="pk-decide" data-testid="peek-decide">
@@ -344,74 +369,36 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
             <button type="button" className="btn btn-ghost btn-sm" data-testid="peek-exclude" onClick={() => on.onExclude(vm.id)} {...window.gate("find", "exclude this lead")}>{W.exclude}</button>
           </div>
         ) : null}
-        <div>
-          <div className="pk-label">{W.reach}</div>
+        {/* How to reach them (D8): a line a channel -- its mark, its value, what to press. Each note that was a sentence
+            under its line is what the mark says when pointed at, focused or tapped. */}
+        <div className="pk-reach">
           {vm.reach.phone ? (
             <div className="pk-rr" data-testid="peek-phone">
               <Icon name="phone" />
-              <div>
-                <div className={`pk-rv${vm.reach.phone.wrong ? " wrong" : ""}`} data-testid="peek-phone-value">{vm.reach.phone.value}</div>
-                <div className="pk-rn">{vm.reach.phone.note}</div>
-              </div>
-              {vm.reach.phone.tel ? <button type="button" className="btn btn-sm" data-testid="peek-call" onClick={() => on.onCall(vm.id)}><Icon name="phone" size={12} />{W.call}</button> : <span />}
+              <span className={`pk-rv${vm.reach.phone.wrong ? " wrong" : ""}`} data-testid="peek-phone-value">{vm.reach.phone.value}</span>
+              <PkHint id={`${vm.id}-phone-note`} label={`Phone: ${vm.slots.phone.word}`} mark={<LeadSlotShape state={vm.slots.phone.state} />} testid="peek-phone-note">{vm.reach.phone.tip}</PkHint>
+              <span className="sp" />
+              {vm.reach.phone.tel ? <button type="button" className="btn btn-sm" data-testid="peek-call" onClick={() => on.onCall(vm.id)}><Icon name="phone" size={12} />{W.call}</button> : null}
             </div>
           ) : null}
-          <div className={`pk-rr${vm.reach.email.address ? "" : " locked"}`} data-testid="peek-email">
+          <div className={`pk-rr${vm.reach.email.address ? "" : " none"}`} data-testid="peek-email">
             <Icon name="mail" />
-            <div>
-              <div className="pk-rv">
-                <LeadShape state={vm.reach.email.state} />
-                <span data-testid="peek-email-value">{vm.reach.email.value}</span>
-                <span className="pk-rw" data-testid="peek-email-word">{vm.reach.email.word}</span>
-              </div>
-              <div className="pk-rn" data-testid="peek-email-note">{vm.reach.email.note}</div>
-              {vm.reach.email.standard ? <div className="pk-rn" data-testid="peek-email-standard">{vm.reach.email.standard}</div> : null}
-            </div>
+            <span className="pk-rv" title={vm.reach.email.address || undefined} data-testid="peek-email-value">{vm.reach.email.value}</span>
+            <PkHint id={`${vm.id}-email-note`} label={`Email: ${vm.reach.email.word}`} mark={<LeadSlotShape state={vm.slots.mailbox.state} />} testid="peek-email-note">{vm.reach.email.tip}</PkHint>
+            <span className="sp" />
             {vm.reach.email.canDraft ? (
               <span className="pk-rr-acts">
                 <button type="button" className="btn btn-sm" aria-label={W.copyAria} data-testid="peek-copy" onClick={() => on.onCopy(vm.id)}>{W.copy}</button>
                 <button type="button" className="btn btn-sm" data-testid="peek-draft" onClick={() => on.onDraft(vm.id)}><Icon name="edit" size={12} />{W.draft}</button>
               </span>
-            ) : <span />}
+            ) : null}
           </div>
           <div className="pk-rr locked" data-testid="peek-locked">
             <Icon name="chat" />
-            <div>
-              <div className="pk-rv">{vm.reach.locked.title}</div>
-              <div className="pk-rn" data-testid="peek-locked-line">{vm.reach.locked.line}</div>
-            </div>
-            <span />
+            <span className="pk-rv">{vm.reach.locked.title}</span>
+            <PkHint id={`${vm.id}-locked-note`} label={vm.reach.locked.title} testid="peek-locked-line">{vm.reach.locked.line}</PkHint>
           </div>
         </div>
-        {vm.rated ? <LeadPeekRated vm={vm} /> : null}
-        {/* The checks fold away (D5): the strip says the shape of the evidence and the head says it in words, so the
-            act at the foot is reachable without scrolling past seven rows nobody is reading twice. */}
-        <details className="pk-box" data-testid="peek-checks">
-          {/* The flex row is the span INSIDE the summary, never the summary itself: a <summary> is a disclosure
-              widget before it is a box, and where one declines `display: flex` its children stack -- which is how
-              this head shipped to production with the strip on a line of its own above the words. */}
-          <summary className="pk-box-head" data-testid="peek-checks-summary">
-            <span className="pk-box-line">
-              <LeadCheckDots dots={vm.checkDots} />
-              <span className="pk-box-sum">{vm.checksSummary}</span>
-              <Icon name="chevron-down" size={12} />
-            </span>
-          </summary>
-          {vm.groups.map((g) => (
-            <div key={g.how} className={`pk-group pk-group-${g.how}`} data-testid={`peek-checks-${g.how}`}>
-              <div className="pk-group-label">{g.label}</div>
-              <div className="pk-checks">
-                {g.checks.map((c) => (
-                  <div key={c.key} className={`pk-ck ${g.how}${c.answer === "no" ? " no" : c.answer === "unknown" ? " warn" : ""}`} data-testid={`peek-check-${c.key}`}>
-                    {ldCheckMark(g.how, c.answer)}
-                    <span className="pk-ck-t">{c.label}{c.reason ? <span className="pk-ck-why">{` — ${c.reason}`}</span> : null}</span>
-                    <span className="from">{c.source}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </details>
         {vm.others ? (
           <details className="pk-box pk-alt" data-testid="peek-others">
             <summary className="pk-box-head" data-testid="peek-others-summary">
@@ -434,14 +421,11 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
               <Icon name="chevron-down" size={12} />
             </span>
           </summary>
-          <div className="pk-tl">
-            {vm.found.map((f) => (
-              <div className="pk-tr" key={f.what}><span className="t">{f.at}</span><span>{f.what}</span></div>
-            ))}
-          </div>
+          <ol className="pk-steps">
+            {vm.found.map((f) => <li key={f.what} className="pk-step" title={f.at}>{f.what}</li>)}
+          </ol>
         </details>
-        {/* The week and what the listing said fold like everything else (D7). Both were computed for the peek and
-            read only by the expanded photo, so the panel asked the owner to open a lightbox to learn the hours. */}
+        {/* The week folds like everything else (D7), in its short hours (D8). */}
         {vm.weekSummary ? (
           <details className="pk-box" data-testid="peek-week">
             <summary className="pk-box-head" data-testid="peek-week-summary">
@@ -456,23 +440,9 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
                 <div key={d.day} className={`pk-day${d.today ? " today" : ""}`} data-testid="peek-day">
                   <span className="d">{d.day.slice(0, 3)}</span>
                   <span className="pk-day-track">{d.bar ? <span className="pk-day-bar" style={{ left: `${d.bar.x}%`, width: `${d.bar.w}%` }} /> : null}</span>
-                  <span className="h">{d.hours}</span>
+                  <span className="h">{d.short}</span>
                 </div>
               ))}
-            </div>
-          </details>
-        ) : null}
-        {vm.factsSummary ? (
-          <details className="pk-box" data-testid="peek-facts">
-            <summary className="pk-box-head" data-testid="peek-facts-summary">
-              <span className="pk-box-line">
-                <Icon name="list" size={12} />
-                <span className="pk-box-sum">{vm.factsSummary}</span>
-                <Icon name="chevron-down" size={12} />
-              </span>
-            </summary>
-            <div className="pk-facts">
-              {vm.facts.map((f) => <div key={f.k} className="pk-fact" data-testid="peek-fact"><span className="k">{f.k}</span><span className="v">{f.v}</span></div>)}
             </div>
           </details>
         ) : null}
@@ -488,14 +458,13 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
             : null))}
         </div>
       </div>
-      {/* The act never scrolls away (D5): Call when there is a number, else the draft; Copy beside it. */}
+      {/* The act never scrolls away (D5): Call when there is a number, else the draft. Copy is the email row's (D8). */}
       <div className="pk-foot pk-act" data-testid="peek-act">
         {vm.reach.phone && vm.reach.phone.tel
           ? <button type="button" className="btn btn-primary pk-act-main" data-testid="peek-act-call" onClick={() => on.onCall(vm.id)}><Icon name="phone" size={13} />{`${W.call} ${vm.reach.phone.value}`}</button>
           : vm.reach.email.canDraft
             ? <button type="button" className="btn btn-primary pk-act-main" data-testid="peek-act-draft" onClick={() => on.onDraft(vm.id)}><Icon name="edit" size={13} />{W.draft}</button>
             : <span className="pk-rn pk-act-none" data-testid="peek-act-none">Nothing to press yet: no number and no address.</span>}
-        {vm.reach.email.canDraft ? <button type="button" className="btn btn-sm" aria-label={W.copyAria} data-testid="peek-act-copy" onClick={() => on.onCopy(vm.id)}><Icon name="copy" size={12} />{W.copy}</button> : null}
       </div>
     </>
   );

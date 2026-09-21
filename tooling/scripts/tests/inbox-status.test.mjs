@@ -107,18 +107,19 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
   assert.ok(scroll < status && status < composer, `the conversation, then what it needs, then the reply box: ${rows.join(", ")}`);
   const scroller = find(pane, hasClass("ix-th-scroll"));
   assert.ok(find(scroller, hasClass("ix-timeline")), "the conversation is in the scroller");
-  for (const cls of ["ix-take", "ix-resolved", "ix-veto"]) assert.equal(find(scroller, hasClass(cls)), undefined, `REGRESSION: ${cls} scrolled away with the words`);
-  const take = find(find(pane, byTestId("ix-th-status")), hasClass("ix-take"));
+  for (const cls of ["ix-take", "ix-resolved", "ix-state", "ix-veto"]) assert.equal(find(scroller, hasClass(cls)), undefined, `REGRESSION: ${cls} scrolled away with the words`);
+  const take = find(find(pane, byTestId("ix-th-status")), byTestId("ix-needs-you"));
   assert.ok(take, "Needs you is by the reply box");
-  assert.match(textOf(take), /Needs you · waited 40m/);
+  assert.match(textOf(take), /Needs you/);
+  assert.match(textOf(take), /waiting 40m/);
 });
 
 test("every state of a real thread is said there: yours, a teammate's, snoozed, archived, and who had the last word", () => {
   const states = {
-    yours: [chat({ paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }), asked(), /You own this thread/],
-    theirs: [chat({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }), asked(), /is answering this/],
-    snoozed: [chat({ state: "snoozed", snooze_until: later, paused_until: later }), null, /Snoozed — back/],
-    archived: [chat({ state: "archived" }), null, /Archived — their request is closed/],
+    yours: [chat({ paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }), asked(), /You have it/],
+    theirs: [chat({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }), asked(), /has it/],
+    snoozed: [chat({ state: "snoozed", snooze_until: later, paused_until: later }), null, /Snoozedback /],
+    archived: [chat({ state: "archived" }), null, /ArchivedTheir request is closed/],
     lastWord: [chat({ state: "open", messages: [wrote("m1", "Open Sunday?", 30), ours("m2", "Closed Sundays.", 29)] }), null, /Answered by the receptionist/],
   };
   for (const [name, [dto, esc, words]] of Object.entries(states)) {
@@ -126,7 +127,7 @@ test("every state of a real thread is said there: yours, a teammate's, snoozed, 
     const status = find(pane, byTestId("ix-th-status"));
     assert.ok(status, `${name}: the status row`);
     assert.match(textOf(status), words, `${name}: said by the reply box`);
-    assert.equal(find(find(pane, hasClass("ix-th-scroll")), hasClass("ix-resolved")), undefined, `${name}: not over the conversation`);
+    for (const cls of ["ix-resolved", "ix-state"]) assert.equal(find(find(pane, hasClass("ix-th-scroll")), hasClass(cls)), undefined, `${name}: not over the conversation`);
   }
 });
 
@@ -140,17 +141,17 @@ test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They w
   assert.ok(!textOf(status).includes("no reply yet"));
 });
 
-test("Needs you has one signal: a dot and its wait, amber past thirty minutes -- a red flag in a red-outlined card", () => {
+test("Needs you has one signal: the pill its row wears, and its wait, amber past thirty minutes -- a red flag in a red-outlined card", () => {
   const signal = (min) => {
-    const take = find(find(paneOf(vmOf(chat(), asked(min))), byTestId("ix-th-status")), hasClass("ix-take"));
-    return { dot: !!find(take, hasClass("ix-status-dot")), flag: !!find(take, (n) => n.type === "Icon" && n.props?.name === "flag"), wait: find(take, hasClass("ix-take-wait")) };
+    const take = find(find(paneOf(vmOf(chat(), asked(min))), byTestId("ix-th-status")), byTestId("ix-needs-you"));
+    return { pill: !!find(take, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"), flag: !!find(take, (n) => n.type === "Icon" && n.props?.name === "flag"), wait: find(take, hasClass("ix-state-meta")) };
   };
   const late = signal(40);
-  assert.deepEqual([late.dot, late.flag], [true, false], "REGRESSION: a red flag");
-  assert.equal(textOf(late.wait), " · waited 40m");
+  assert.deepEqual([late.pill, late.flag], [true, false], "REGRESSION: a red flag");
+  assert.equal(textOf(late.wait), "waiting 40m");
   assert.ok(late.wait.props.className.split(" ").includes("late"), "amber past thirty minutes");
   const soon = signal(12);
-  assert.equal(textOf(soon.wait), " · waited 12m");
+  assert.equal(textOf(soon.wait), "waiting 12m");
   assert.ok(!soon.wait.props.className.split(" ").includes("late"), "and not before");
 });
 

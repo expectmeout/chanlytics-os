@@ -103,6 +103,7 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
                   {it.icon && <Icon name={it.icon} size={13} />}
                   <span className="more-item-label">{it.label}</span>
                   {it.meta && <span className="more-item-meta">{it.meta}</span>}
+                  {it.hint && <span className="more-item-hint">{it.hint}</span>}
                 </button>
               );
             })}
