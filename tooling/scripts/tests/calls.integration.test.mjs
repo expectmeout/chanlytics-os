@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { ingestCall } from "@chanlytics/db";
+import { RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -211,6 +212,26 @@ test("a recording's copy state survives re-ingest: pending keeps its attempts, f
     ok(await db.from("calls").update({ recording: { provider_url: url, fetch_state: "failed", attempts: 3 } }).eq("id", first.call_id));
     const afterFail = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }));
     assert.equal(afterFail.recording_state, "failed", "given up is given up");
+  } finally {
+    await cleanup(tenantId);
+  }
+});
+
+test("a recording removed on schedule stays removed: a re-ingest carrying the provider's URL does not reopen the copy", { skip }, async () => {
+  const tenantId = await smokeTenantId();
+  await cleanup(tenantId);
+  const id = `${PREFIX}-purged`;
+  const url = "https://example.invalid/recording.wav";
+  try {
+    const first = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }));
+    // The marker purgeExpiredRecordings leaves once the audio is out of the bucket (apps/edge/lib/call-recording.ts).
+    const purged = { fetch_state: "purged", purged_at: new Date().toISOString(), retention_days: RECORDING_RETENTION_DAYS, mime: "audio/wav" };
+    ok(await db.from("calls").update({ recording: purged }).eq("id", first.call_id));
+
+    // A late call_analyzed, or the sweep re-ingesting what the provider reports, carries the URL again.
+    const again = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 10_000, recordingUrl: url, summary: "analyzed" }));
+    assert.equal(again.recording_state, "purged", "the webhook copies whenever this answer is not final, and the copy would put the audio back in the bucket");
+    assert.deepEqual((await row(tenantId, id)).recording, purged, "the call still says its recording was removed after the retention, and when");
   } finally {
     await cleanup(tenantId);
   }

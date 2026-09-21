@@ -12,15 +12,15 @@
  * the platform; a routed call is ingested, an inbound test call marks the
  * forwarded line verified, and every delivery leaves its row. The transcript
  * rides wherever the provider put it. The note waits for the summary, the
- * recording is copied on a budget -- and never again once stored or given up
- * on -- a stale replay writes nothing, a spoken price is corrected once, a
- * call back is handed to a person on the analysis and on nothing earlier, and
- * the analysis tells the owner once -- by bell, and by mail only to a mailbox
- * that is theirs.
+ * recording is copied on a budget -- and never again once stored, given up
+ * on, or removed on schedule -- a stale replay writes nothing, a spoken
+ * price is corrected once, a call back is handed to a person on the analysis
+ * and on nothing earlier, and the analysis tells the owner once -- by bell,
+ * and by mail only to a mailbox that is theirs.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { frameGuardrail } from "@chanlytics/contracts";
+import { frameGuardrail, RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
 import { at, openDoor, wire, withEnv, sign, kind, ingests, DUPLICATE, PLATFORM, LINE, CALLER, NOW, iso } from "./_retell-webhook-world.mjs";
 
 // The store reads its flags at import and the door reads its keys at the
@@ -480,6 +480,38 @@ test("a recording the sweep gave up on is not fetched again on the webhook: the 
     assert.equal(w.tables.notifications[0].title, "Rosa phoned · 2 min");
     assert.equal(kind(w.tables, "webhook.delivery").at(-1).data.skipped, false);
     assert.deepEqual([...new Set(line.calls.map((c) => new URL(c.url).host))], ["api.resend.com"], "the mail is the only thing that left the handler");
+  } finally {
+    line.restore();
+  }
+});
+
+test("a recording removed on schedule is not fetched again on the webhook: a late analysis still carries the provider's URL, and the audio stays out of the bucket", async () => {
+  // The guard's third half. After RECORDING_RETENTION_DAYS the calls sweep
+  // takes the audio out of the bucket and leaves a marker; ingest_call keeps
+  // that marker (00148), and the answer it gives is what this guard reads. A
+  // copy here would put the audio back, past the retention the privacy page
+  // states, and turn the marker back into "stored".
+  const w = world();
+  const db = w.open();
+  const line = wire();
+  try {
+    const id = w.callId("purged");
+    const url = `https://cdn.retell.test/recording/${id}.wav`;
+    const began = NOW - (RECORDING_RETENTION_DAYS + 1) * 86_400_000;
+    // The row as purgeExpiredRecordings leaves it (apps/edge/lib/call-recording.ts).
+    const marker = { fetch_state: "purged", purged_at: iso(NOW - 3_600_000), retention_days: RECORDING_RETENTION_DAYS, mime: "audio/wav" };
+    w.tables.calls.push({
+      id: `row_${id}`, tenant_id: w.T, retell_call_id: id, agent_id: w.AGENT, status: "ended", direction: "inbound",
+      from_e164: CALLER, to_e164: LINE, started_at: iso(began), ended_at: iso(began + 125_000), duration_ms: 125_000,
+      contact_id: null, conversation_id: null, notified_at: null, message_id: null, recording: { ...marker },
+    });
+
+    const res = await deliver("call_analyzed", w.analysed(id, { start_timestamp: began, end_timestamp: began + 125_000 }));
+    assert.deepEqual([res.status, await res.json()], [200, { ok: true }]);
+    assert.equal(ingests(db).length, 1, "the delivery reached the ingest, whose answer carries the row's recording state");
+    assert.equal(line.to(url).length, 0, "no request to the recording CDN");
+    assert.deepEqual(w.uploads, [], "nothing into the private bucket");
+    assert.deepEqual(w.tables.calls[0].recording, marker, "the call still reads as removed on schedule");
   } finally {
     line.restore();
   }
