@@ -1,18 +1,34 @@
 # Chanlytics OS
 
-A multi-tenant AI receptionist. Customers text a business's WhatsApp number or
-phone its Retell voice line; an AI answers within seconds, reads the calendar,
-offers the times that are open, sends the business's booking link, and hands
-anything it should not decide to a human. The operator works from a dashboard
-that shows what the AI did and lets them take over.
+A multi-tenant, omnichannel AI receptionist and lead engine for any business
+that turns a conversation into a booked appointment: a local shop or clinic, an
+agency, a lender, an online seller. A customer writes on WhatsApp, texts the
+business's number, phones its line or emails it; the receptionist answers
+within seconds from the business's own facts, offers the times that are open,
+sends the booking link, and hands over anything it should not decide. A team
+watches it from a dashboard, takes a thread over, whispers into a live call,
+and hands it back. The finder searches for new leads on the owner's behalf.
+Playbooks and broadcasts send the routine messages around an appointment, to
+the people who said yes.
 
 It does not book. The booking tool behind the link does that, and the
 receptionist is told never to confirm a slot itself: there is no appointments
-table here, and nothing in the product can create, move or cancel one.
+table here, and nothing in the product can create, move or cancel one
+(`docs/decisions/0002-appointments-record.md` proposes the record). It never
+decides money, and it never quotes a price where the workspace forbids it; both
+are enforced in code, not in a prompt.
 
-**This is live.** One tenant (a real salon) is in production with real customers
-on a real number. Treat every change to `apps/edge` and `packages/channels` as
-something a member of the public will experience.
+**This is live.** Real businesses are in production with real customers on real
+numbers. Treat every change to `apps/edge` and `packages/channels` as something
+a member of the public will experience. The first workspace was a hair salon,
+and the code still uses it as its worked example in comments; the product is
+not for salons, and `tooling/scripts/tests/trade-neutral.test.mjs` fails a
+build that puts one trade's words in front of a customer of another.
+
+**Read next.** `docs/glossary.md` for the words (and the one rule about
+*tenant* versus *workspace*), `docs/architecture.md` for how it is put
+together, `docs/system-prd.md` for the as-built reference sheet by sheet,
+`docs/decisions/` for what is decided and not yet built.
 
 ---
 
@@ -20,14 +36,13 @@ something a member of the public will experience.
 
 | Path | What it is | Deployed as |
 |---|---|---|
-| `apps/edge` | The webhooks. 41 endpoints: WhatsApp inbound, four Retell endpoints, Stripe, inbound SMS, 8 cron sweeps, the job runner, 22 key-guarded back-office doors, diagnostics. Vanilla Vercel functions, no framework. | Vercel project `chanlytics-messaging` |
-| `apps/dashboard` | Next.js 15 operator dashboard, and the `/api/v1` app plane. | Vercel project `chanlytics-os` |
-| `packages/*` | `contracts` (view models, zod config schema, enums), `db` (Supabase repositories), `channels` (WhatsApp + Retell adapters), `jobs` (scheduling + handlers). | bundled into both apps |
-| `supabase/migrations` | The schema. Postgres, RLS everywhere, `events` partitioned monthly. | Supabase project |
+| `apps/edge` | The webhooks (WhatsApp, SMS and its statuses, four Retell doors, email, Stripe, Apify), the cron sweeps, the job runner, the key-guarded admin doors, diagnostics. Vanilla Vercel **Node** functions, no framework; not the Vercel Edge runtime, despite the name. Holds every provider key. | Vercel project `chanlytics-messaging` |
+| `apps/dashboard` | Next.js: auth, the public pages, the operator UI, and the `/api/v1` app plane. Holds no provider key. | Vercel project `chanlytics-os` |
+| `packages/*` | `contracts` (types, zod schemas, enums, view models, the prompt composer), `core` (the use cases as verbs over ports, and the one send door), `db` (Supabase repositories and generated types), `channels` (Meta, Retell, Twilio, Resend, Google, Apify adapters), `jobs` (the ledger, the tick, the handlers). | bundled into both apps |
+| `supabase/migrations` | The schema. Postgres, RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials. | Supabase project |
 
-`docs/system-map.md` is the layer-by-layer picture: what is built, what is
-deferred by decision, and what is actually between here and done. Re-derive its
-counts rather than trusting them — it says how.
+Counts change weekly, so this file carries none. `find apps/edge/api -name
+'*.ts' | wc -l` and `ls supabase/migrations | wc -l` answer the two most-asked.
 
 The two apps deploy **independently**. A change that requires both to agree
 must be shipped so that either order works — a dashboard-first deploy writing a
@@ -60,17 +75,22 @@ up" without reading why.
 
 **`packages/*/dist` is committed, and the edge imports it by relative path.**
 Vercel's vanilla-function bundler does not follow pnpm workspace symlinks into
-the lambda, so `apps/edge/lib/workspace/*.ts` re-exports
+the lambda, so `apps/edge/lib/packages/*.ts` re-exports
 `../../../../packages/<pkg>/dist/index.js`. Rebuild and commit `dist` whenever
 you change a package — CI has a drift guard that will fail otherwise. Never add
 `--sourcemap`: source maps are not byte-reproducible across platforms and the
 guard will fail on someone else's machine.
 
-**`apps/dashboard/src/legacy` is a ported HTML mockup and is deliberately not
-refactored.** ~28,000 lines of hand-written JSX across 50 pages. Surfaces are converted to real
-data one at a time by *branching inside the existing components*
-(`XReal`/`XSeed`), never by redesigning them. The seam that swaps seed data for
-real data is `src/legacy-bridge`.
+**`apps/dashboard/src/legacy` is the operator UI, and it began as a design
+mockup.** A hash-routed single-page shell of hand-written JSX, imported in a
+fixed order by `src/legacy-bridge/manifest.ts`, talking through `window`
+globals. Surfaces were made real one at a time by *branching inside the
+existing components* (`XReal`/`XSeed`), never by redesigning them; the seam
+that feeds a real surface from `/api/v1` is `src/legacy-bridge`, and
+`surface-registry.ts` there is the table that says which routes are real. The
+mockup's unbuilt surfaces (agent fleet, store, studio, tasks, content) stay in
+the tree and hidden from every real workspace, by decision. The mockup's own
+prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
 **`dynamic(ssr:false)` on the legacy app is required.** `inbox-data.jsx` does
 unguarded module-scope `window` access and throws during prerender.
@@ -80,17 +100,14 @@ mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement
 and is shown; an invented number is not. This is the rule most likely to be
 violated by accident.
 
-**`PG_READS` is the rollback lever — `PG_WRITES` is not.** Postgres is the
-bot's memory; Blob is still written underneath, which is what makes the
-`PG_READS` flip reversible. The env change needs a redeploy to take effect —
-measured, not assumed — so budget a couple of minutes, and confirm with
-`/api/diag`, which reports `memory` as `postgres` or `blob`. That is why the
-Blob path still has to be correct. `PG_WRITES` was the Slice 1 dual-write
-switch and reads as a second lever, but the edge now holds its ONLY database
-behind that gate: withholding it would not fall back to Blob, it would answer
-`no_database` from every sweep, the jobs tick, every admin door and the public
-`/api/health`. The client asks only for `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` now, so there is no lever left to pull by mistake.
+**Postgres is the receptionist's only memory, and there is no lever on it.**
+History, the pause and the rate cap are the same rows the dashboard reads and
+writes; the dedupe is `ingest_inbound`'s atomic claim. A thread Postgres
+cannot produce is handed to a person (`state_unavailable`) rather than
+answered from an invented empty history — the receptionist never guesses that
+a customer is new. The edge asks only for `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`; without them the whole platform answers
+`no_database`, and `/api/diag` reports `memory` as `postgres`.
 
 **Row Level Security is the floor, not the door.** RLS stops cross-tenant
 access. *Which member may do a thing* is decided in the route with
@@ -100,6 +117,32 @@ message runs as service role, so RLS is not even in that path.
 **A forbidden `UPDATE` does not raise.** Postgres RLS makes it match zero rows
 and return success — only `INSERT` raises. Any permission-sensitive update must
 `.select()` and count rows, or a blocked write reads as a successful one.
+
+## Conventions
+
+- **Names.** Storage says *tenant*; everything a person or the API sees says
+  *workspace*; never both in one layer. A new table carries `tenant_id`. The
+  product's nouns are People, Lists, Playbooks, Templates and Settings, and a
+  new route or API path uses them (`docs/glossary.md` lists the five old names
+  still in use). The thing that answers is the receptionist, never the bot or
+  the agent.
+- **No customer in the code.** A real business's name, number, link, address or
+  prompt is configuration, read from the database or the environment, never a
+  literal in the tree. Migrations that seeded the first workspace are history
+  and stay as they are; nothing new follows them.
+- **Commits.** An imperative subject under 72 characters that names the change;
+  the reasoning goes in the body, not the subject.
+- **Migrations.** Named for the schema change (`00148_jobs_drop_blob_thread_erase.sql`),
+  re-runnable statements, a header of a few lines saying what changed. An applied
+  migration is never edited or renamed. The lesson behind a change goes in the
+  commit body or `docs/decisions/`.
+- **Tests.** A new test executes the code it proves. A source-text assertion is
+  the last resort, and `tooling/scripts/tests/source-scan-baseline.json` may
+  only fall. Name a test for the unit it proves.
+- **Either deploy order works.** A shape both apps must agree on is compatible
+  whichever deploys first.
+- **Production scripts** are dry-run by default, write a JSONL backup first, and
+  take `--apply` to mean it.
 
 ## Testing
 
@@ -172,7 +215,5 @@ sign-up probe needs `E2E_SIGNUP_EMAIL`, a real inbox its code can reach.
 | Want to | Do |
 |---|---|
 | Silence one business's receptionist | `tenant_channels.status = 'disabled'` — inbound is then recorded as unroutable and a human is emailed |
-| Roll back to Blob memory | `PG_READS=off` in the edge project env, **then redeploy** — a Vercel env change alone does not reach a running deployment. Confirm with `/api/diag`: `memory` reads `blob`. Not available while `BLOB_SHADOW=off`. |
-| Retire Blob as a memory | `BLOB_SHADOW=off` in the edge project env, then redeploy. Confirm with `/api/diag`: `store` reads `off`, `memory` reads `postgres`, the probe says skipped. Blob is neither read nor written; a Postgres miss hands the thread to a human. Remove the variable and redeploy to bring the shadow back. |
 | Stop a queued reply | The cancel window in the UI, or `messages.status = 'canceled'` while it is still `queued` |
 | See what the system did | `events` (append-only), `decisions` (every operator verb), `escalations` (what needed a human) |
