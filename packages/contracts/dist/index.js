@@ -11753,10 +11753,11 @@ function leadReviewGroups(rows, search) {
   return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
 }
 var M_PER_DEG_LAT = 111320;
+var LEAD_MAP_MAX_SPAN_M = 8e4;
 function leadMapPlot(rows, area) {
   const placed = rows.filter((r) => !!r.point);
   const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
-  if (!anchor || !placed.length && !area?.center) return { pins: [], ring: null, spanM: 0, center: anchor };
+  if (!anchor || !placed.length && !area?.center) return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
   const perLng = M_PER_DEG_LAT * Math.cos(anchor.lat * Math.PI / 180);
   const at2 = (p) => ({ e: (p.lng - anchor.lng) * perLng, s: (anchor.lat - p.lat) * M_PER_DEG_LAT });
   const metres = placed.map((r) => at2(r.point));
@@ -11772,10 +11773,16 @@ function leadMapPlot(rows, area) {
     pins: placed.map((r, i) => ({ id: r.id, ...into(metres[i]) })),
     ring: area?.center && area.radius_m ? { ...into(at2(area.center)), r: area.radius_m / (half * 2) } : null,
     spanM,
+    tooWide: !area?.center && spanM > LEAD_MAP_MAX_SPAN_M,
     center: anchor
   };
 }
 var leadMapAcross = (spanM) => spanM ? `${milesLabel(spanM)} across` : "";
+function leadMapNote(plot, oneSearch) {
+  if (plot.tooWide) return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
+  if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
+  return oneSearch ? "Where this search's leads are. It never measured a centre, so there is no area to draw." : "Every lead these searches placed on the ground.";
+}
 var LEAD_SLOT_WORDS = { ok: "Checked", part: "Unconfirmed", none: "Nothing found", bad: "Bad", checking: "Still checking" };
 function leadSlots(r) {
   const phone = !r.phone ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false } : r.phone_wrong ? { state: "bad", value: r.phone, word: LEAD_SLOT_WORDS.bad, tip: `${r.phone} \u2014 you marked this number wrong`, copy: false } : r.phone_agrees ? { state: "ok", value: r.phone, word: LEAD_SLOT_WORDS.ok, tip: `${r.phone} \u2014 the same number on Google Maps and on their website`, copy: true } : { state: "part", value: r.phone, word: LEAD_SLOT_WORDS.part, tip: `${r.phone} \u2014 one source, their Google Maps listing`, copy: true };
@@ -12426,6 +12433,7 @@ export {
   LEAD_LOCKED_LINE,
   LEAD_LOW_SHARE_FLOOR,
   LEAD_MAILBOX_WORDS,
+  LEAD_MAP_MAX_SPAN_M,
   LEAD_MAX_PLACES,
   LEAD_MEMBER_CLASSES,
   LEAD_MONTHLY_ALLOWANCE,
@@ -12873,6 +12881,7 @@ export {
   leadLowShare,
   leadLowerFirst,
   leadMapAcross,
+  leadMapNote,
   leadMapPlot,
   leadMonth,
   leadNoCardLine,

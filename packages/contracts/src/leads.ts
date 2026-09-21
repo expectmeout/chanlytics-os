@@ -1165,6 +1165,12 @@ export interface LeadMapPlot {
   ring: { x: number; y: number; r: number } | null;
   /** How many metres the square is across, for the scale bar; 0 when there was nothing to place. */
   spanM: number;
+  /**
+   * True when these leads are not one place. Without an area to anchor on, the square is drawn from the leads
+   * themselves, so six searches in six cities produced one square four thousand miles across with every city
+   * collapsed into a dot. That is arithmetically honest and tells the owner nothing.
+   */
+  tooWide: boolean;
   /** What the square is centred on, so "widen the area" asks about the ground the owner is looking at. */
   center: { lat: number; lng: number } | null;
 }
@@ -1175,10 +1181,13 @@ const M_PER_DEG_LAT = 111_320;
  * is measured in metres from one centre and then scaled into a square, so the picture is honest at a town's size
  * without a projection, a tile or a request to anyone. A lead the source placed nowhere is simply not on it.
  */
+/** Past this, leads with no area to anchor them are not one place. Fifty miles: a city and the towns around it. */
+export const LEAD_MAP_MAX_SPAN_M = 80_000;
+
 export function leadMapPlot(rows: { id: string; point: { lat: number; lng: number } | null }[], area: LeadArea | null): LeadMapPlot {
   const placed = rows.filter((r): r is { id: string; point: { lat: number; lng: number } } => !!r.point);
   const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
-  if (!anchor || (!placed.length && !area?.center)) return { pins: [], ring: null, spanM: 0, center: anchor };
+  if (!anchor || (!placed.length && !area?.center)) return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
   const perLng = M_PER_DEG_LAT * Math.cos((anchor.lat * Math.PI) / 180);
   const at = (p: { lat: number; lng: number }) => ({ e: (p.lng - anchor.lng) * perLng, s: (anchor.lat - p.lat) * M_PER_DEG_LAT });
   const metres = placed.map((r) => at(r.point));
@@ -1196,12 +1205,26 @@ export function leadMapPlot(rows: { id: string; point: { lat: number; lng: numbe
     pins: placed.map((r, i) => ({ id: r.id, ...into(metres[i]) })),
     ring: area?.center && area.radius_m ? { ...into(at(area.center)), r: area.radius_m / (half * 2) } : null,
     spanM,
+    tooWide: !area?.center && spanM > LEAD_MAP_MAX_SPAN_M,
     center: anchor,
   };
 }
 
 /** How wide the square is, in the owner's own unit: "3.4 mi across", and nothing when there was nothing to place. */
 export const leadMapAcross = (spanM: number): string => (spanM ? `${milesLabel(spanM)} across` : "");
+
+/**
+ * What the line under the plot says. A city ask has no centre until its probe measures one, so there is often no
+ * area to draw and the picture is only where the leads are -- which is worth saying rather than implying a ring
+ * that is not there.
+ */
+export function leadMapNote(plot: LeadMapPlot, oneSearch: boolean): string {
+  if (plot.tooWide) return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
+  if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
+  return oneSearch
+    ? "Where this search's leads are. It never measured a centre, so there is no area to draw."
+    : "Every lead these searches placed on the ground.";
+}
 
 export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }
 /**
