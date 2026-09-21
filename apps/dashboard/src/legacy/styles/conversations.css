@@ -8,6 +8,12 @@
   flex: 1;
   display: grid;
   grid-template-columns: var(--rail-list) minmax(0, 1fr);
+  /* One row, the page's own height, so the list and the reading pane scroll inside it -- the rule the Inbox's grid
+     has, for the reason it has it. With no row the grid's implicit row took the height of the taller of the two:
+     .cv-rows and .cv-scroll were written to scroll and never did, and the one thread's reply box (thread-pane.jsx)
+     would sit below the fold at the end of a long conversation. */
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
   min-width: 0;
   overflow: hidden;
 }

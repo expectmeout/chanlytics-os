@@ -552,3 +552,22 @@ test("one reading of each escalation: Ask's row and the queue's row agree, and a
   const ear = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW).queue.rows.find((r) => r.kind === "call");
   assert.deepEqual([ear.callId, ear.conversationId], ["k3", null], "a call worth a listen names its call");
 });
+
+// Found on 21 September, drawing the one thread: every place that printed a customer's words read messageText(),
+// so an email's quoted chain rode along everywhere its bubble had already dropped it.
+test("an email's needs-you row quotes what they wrote, not the chain they quoted back", () => {
+  const m = metrics({
+    now: { escalations_open: 1, oldest_open_escalation_at: "2026-08-27T14:05:00Z" },
+    period: { messages_in: 1, conversations_active: 1 },
+  });
+  const esc = [{ id: "e1", conversation_id: "c1", reason: "policy_block", details: null, state: "open", created_at: "2026-08-27T14:05:00Z" }];
+  const mail = conv({
+    messages: [{
+      id: "m1", direction: "inbound", sender: "customer", type: "text", channel: "email",
+      body: "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM Foo <a@b.com> wrote: > testing back at you >",
+      media: null, meta: null, status: "received", created_at: "2026-08-27T14:00:00Z",
+    }],
+  });
+  const vm = toTodayVM(m, [mail], esc, [], NOW);
+  assert.equal(vm.needsYou.rows[0].quote, "Got it, thanks!", "REGRESSION: Today quoted the chain");
+});

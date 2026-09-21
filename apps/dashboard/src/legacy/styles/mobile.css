@@ -426,9 +426,12 @@
   /* Conversations: the same pattern */
   .conversations { grid-template-rows: minmax(0, 1fr); }
   .conversations .cv-list { border-bottom: none; }
-  .conversations .cv-viewer, .conversations > .empty-page { display: none; }
+  .conversations .cv-viewer, .conversations .ix-thread-pane, .conversations > .empty-page { display: none; }
   .conversations.phone-detail .cv-list { display: none; }
+  /* A conversation row opens the one thread (thread-pane.jsx); it takes the screen as a call's view does. So does a
+     link's notice, which the rule above would otherwise keep off a phone. */
   .conversations.phone-detail .cv-viewer { display: flex; }
+  .conversations.phone-detail .ix-thread-pane, .conversations.phone-detail > .empty-page { display: flex; }
   .cv-back { display: inline-flex; margin-right: 6px; padding-left: 6px; padding-right: 8px; }
 
   /* Live: a short list, the cockpit gets the screen, the whisper at the thumb */
@@ -484,10 +487,12 @@
   .ix-th-head-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .ix-th-id { min-width: 0; }
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .inbox .ix-th-actions { flex-wrap: nowrap; justify-content: flex-end; }
+  /* The thread's own rules sit on the thread (.ix-thread-pane), not on the page that mounts it: the one thread opens in
+     Conversations too, and a rule written as .inbox … drew it there without them -- two looks from one component. */
+  .ix-thread-pane .ix-th-actions { flex-wrap: nowrap; justify-content: flex-end; }
   /* The menu holds Snooze, Archive and the profile now: a thumb wide, where it was 26px. */
-  .inbox .ix-th-actions .btn-icon { min-width: 44px; }
-  .inbox .ix-context-strip { display: none; }
+  .ix-thread-pane .ix-th-actions .btn-icon { min-width: 44px; }
+  .ix-thread-pane .ix-context-strip { display: none; }
   /* The list on a phone shows the threads first too (I6). The buckets sit in one row of three, where a grid of two
      stacked them in two rows; the search is one input tall, with the select-all box at its head; the list's head
      shows only for a search or a pick. Together they took 251px above the first thread. Each tap target keeps its
@@ -508,26 +513,27 @@
   /* A detail view keeps its focus: SurfaceTabs already hides itself on a person's profile
      for exactly this reason. Here the thread is the detail, and Back returns to the list
      that carries them. On a desktop the list and the thread share the screen, so they stay. */
-  .main:has(.inbox.phone-thread) .stabs { display: none; }
+  .main:has(.inbox.phone-thread) .stabs,
+  .main:has(.conversations.phone-detail) .stabs { display: none; }
   /* Needs you is the tab AND the bucket under it. The count belongs to the bucket, which is
      the thing that filters by it. */
   .main:has(.inbox) .stabs-badge { display: none; }
   /* The band is where a phone decides what to do with the thread, so it keeps its words, at a
      phone's padding. (What they asked has been off a narrow pane since #550's container query.) */
-  .inbox.phone-thread .ix-take { padding: 10px 12px; column-gap: 9px; row-gap: 8px; }
+  .ix-thread-pane .ix-take { padding: 10px 12px; column-gap: 9px; row-gap: 8px; }
 
   /* One timestamp per message. The event line's repeated the bubble's, a minute apart, and
      sat centred against a four-line paragraph with the bullet orphaned beside it. */
-  .inbox .tl-event-time { display: none; }
+  .ix-thread-pane .tl-event-time { display: none; }
   /* "· Booking · 91% sure" is what wrapped the meta line into ragged columns. The tap keeps it. */
-  .inbox .tl-msg-why-full { display: none; }
-  .inbox .tl-msg-why-short { display: inline; }
+  .ix-thread-pane .tl-msg-why-full { display: none; }
+  .ix-thread-pane .tl-msg-why-short { display: inline; }
   /* 78% of 375px left a ragged column of dead space beside every bubble. */
-  .inbox .tl-msg-bubble { max-width: 88%; }
+  .ix-thread-pane .tl-msg-bubble { max-width: 88%; }
 
   /* The menu opened as a desktop popover pinned to the far top corner: over the conversation,
      and as far from the thumb as the screen allows. A sheet, using the backdrop it already draws. */
-  .inbox .more-menu {
+  .ix-thread-pane .more-menu {
     position: fixed;
     inset: auto 0 0 0;
     z-index: 250;
@@ -537,8 +543,8 @@
     border-radius: 16px 16px 0 0;
     border-bottom: 0;
   }
-  .inbox .more-backdrop { background: rgb(0 0 0 / 0.4); }
-  .inbox .more-item { min-height: 48px; font-size: 14px; }
+  .ix-thread-pane .more-backdrop { background: rgb(0 0 0 / 0.4); }
+  .ix-thread-pane .more-item { min-height: 48px; font-size: 14px; }
 
   /* The row's box is the MOUSE's box — it says so, and it is aria-hidden with no tab stop. A
      phone has no hover to reveal it, so it appeared only on the open row: one of three rails

@@ -264,6 +264,16 @@ const IxAsk = ({ ask }) => (
   </div>
 );
 
+// A file the server writes, fetched the way a link marked `download` fetches it: the menu's items are buttons.
+const ixDownload = (href) => {
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+
 // =============== HEADER ===============
 const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
@@ -340,6 +350,9 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           ...(snoozed ? [] : [{ label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") }]),
           // Archive, for the thread in front of you: it lived only in the bulk bar, behind a checkbox a phone never shows.
           ...(onArchive && !thread.archived ? [{ label: "Archive", icon: "check", onClick: onArchive, gate: window.gate("approve", "archive a conversation") }] : []),
+          // The transcript as a file, from the route that writes it. It was a button in Conversations' header only, so the
+          // thread had it in one tab and not the other.
+          ...(thread.real && thread.conversationId && window.__href ? [{ label: "Export", icon: "external", onClick: () => ixDownload(window.__href("GET conversations/[id]/export", { id: thread.conversationId })) }] : []),
           ...(window.__DEMO_MODE
             ? [{ divider: true }, { label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }]
             : thread.clientId
