@@ -121,6 +121,21 @@ const RecordFold = ({
     recFoldFocusIn(el);
     return () => recFoldFocusBack(id, el);
   }, [open, id]);
+  // A fold whose page goes away (the rail's "Yes, leave" replaces the pane) lets go of the registry: left as the open
+  // fold, its dirty check would go on answering after it had gone, and the rail would ask on every tab and the
+  // browser before every reload. Asked a moment after it goes, because React's StrictMode (on in development)
+  // unmounts and remounts every effect at once, and a fold that comes straight back is not gone. A fold closed, or
+  // given way to another, before it goes is no longer the open one, and this leaves the registry alone.
+  const mounted = useFoldRef(false);
+  const idNow = useFoldRef(id);
+  idNow.current = id;
+  useFoldEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      queueMicrotask(() => { if (!mounted.current && recFolds.open() === idNow.current) recFolds.reset(); });
+    };
+  }, []);
   const labelId = `rec-fold-${id}-label`;
   const closeId = `rec-fold-${id}-close`;
   const refused = !!(gate && gate["aria-disabled"]);

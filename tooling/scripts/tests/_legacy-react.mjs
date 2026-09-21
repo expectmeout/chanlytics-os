@@ -47,7 +47,7 @@ export function installLegacyReact(extra = {}) {
     const prev = cells.list[k];
     if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells.list[k] = { deps, cleanup: undefined };
+    cells.list[k] = { deps, cleanup: undefined, effect: true };
     cells.list[k].cleanup = fn();
   };
   globalThis.React = {
@@ -92,6 +92,26 @@ export function fresh() {
 export function again(draw) {
   cells.seq = 0;
   return draw();
+}
+
+/** The tree goes away, as React unmounts it: each effect's cleanup runs, then every hook cell is forgotten. */
+export function unmount() {
+  for (const c of cells.list) if (c && c.effect && typeof c.cleanup === "function") c.cleanup();
+  fresh();
+}
+
+/**
+ * React's StrictMode check in development, which the app runs: every effect is cleaned up and run again at once,
+ * over the same cells (refs and state survive it). Draws the tree again.
+ */
+export function remount(draw) {
+  for (const c of cells.list) {
+    if (!c || !c.effect) continue;
+    if (typeof c.cleanup === "function") c.cleanup();
+    c.cleanup = undefined;
+    c.deps = null;
+  }
+  return again(draw);
 }
 
 export const walk = (n, fn) => {

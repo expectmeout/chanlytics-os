@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, textOf, classes, press } from "./_legacy-react.mjs";
+import { installLegacyReact, fresh, again, unmount, remount, settle, all, find, textOf, classes, press } from "./_legacy-react.mjs";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
@@ -377,6 +377,40 @@ test("an ask is answered by keeping on, or by the holding fold closing, and a fo
   assert.equal(folds.open(), "notes", "a stale close from a fold that is not open does nothing");
   folds.close("notes");
   assert.equal(folds.open(), null);
+});
+
+test("a fold whose page goes away lets go: the rail stops asking, and nothing waits on an answer from it", async () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  folds.request("booking_rules", { dirty: () => true });
+  folds.request("notes", { dirty: () => false });
+  assert.deepEqual(folds.asking(), { holding: "booking_rules", wants: "notes" });
+  const drawFold = () => W.React.createElement(W.RecordFold, bookingRules());
+  fresh();
+  drawFold();
+  // React's StrictMode check (on in the app, in development) unmounts and remounts every effect at once.
+  remount(drawFold);
+  await settle();
+  assert.equal(folds.open(), "booking_rules", "a fold that comes straight back is not gone");
+  // The rail's "Yes, leave" replaces the pane, and the fold with it.
+  unmount();
+  await settle();
+  assert.equal(W.__settingsUnsaved(), false, "a fold that is gone holds nothing the rail should ask about");
+  assert.equal(folds.asking(), null);
+  assert.equal(folds.open(), null);
+});
+
+test("a fold that was closed, or gave way, before it went leaves the open one alone", async () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  folds.request("booking_rules", { dirty: () => false });
+  draw(W.RecordFold, bookingRules());
+  folds.request("hours", { dirty: () => true });
+  unmount();
+  await settle();
+  assert.equal(folds.open(), "hours", "the fold now open is not the one that went");
+  assert.equal(W.__settingsUnsaved(), true);
+  folds.reset();
 });
 
 test("the page knows when a fold holds unsaved changes", () => {
