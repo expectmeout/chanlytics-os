@@ -71,7 +71,10 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
   mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
   broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
-  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  // Running is a standing rule that is on -- healthy, ok. It is not happening
+  // right now: its RUN is, while it sends, and that is the broadcast's own
+  // "sending", which keeps the accent.
+  playbook: { running: "ok", paused: "warn", approval: "warn" },
   template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
   template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },

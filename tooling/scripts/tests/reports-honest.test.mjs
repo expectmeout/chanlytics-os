@@ -108,6 +108,7 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
+await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
@@ -165,8 +166,9 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
   assert.ok(textOf(slots[0]).includes("11 people today"), textOf(slots[0]));
   // A moment with nobody in it today is still a moment worth setting up; it says
   // so in words rather than showing a 0 that reads as broken.
-  assert.ok(textOf(slots[1]).includes("nobody today"), textOf(slots[1]));
-  assert.ok(textOf(byTestId(tree, "pb-standing")).includes("2 of 4 moments"), textOf(byTestId(tree, "pb-standing")));
+  assert.ok(/nobody today/i.test(textOf(slots[1])), textOf(slots[1]));
+  // Out of a fixed set, the number that matters is which moments are covered.
+  assert.ok(textOf(byTestId(tree, "pb-standing")).includes("two set up, two not yet"), textOf(byTestId(tree, "pb-standing")));
 
   // On a first day every moment is offered, and that is the empty state: the
   // generic "No playbook yet" card does not also appear.
@@ -176,7 +178,7 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
   slots = all(tree, (n) => n.props?.["data-testid"] === "pb-slot");
   assert.deepEqual(slots.map((s) => s.props["data-trigger"]), ["quiet_30", "new_week", "phoned_only", "visited"]);
   assert.equal(byTestId(tree, "pb-empty"), null, "the moments are the empty state");
-  assert.ok(textOf(byTestId(tree, "pb-standing")).includes("0 of 4 moments"), textOf(byTestId(tree, "pb-standing")));
+  assert.ok(textOf(byTestId(tree, "pb-standing")).includes("none set up yet"), textOf(byTestId(tree, "pb-standing")));
 
   // Pressing the third opens the composer ON that moment, not on whichever trigger is first.
   find(slots[2], (n) => n.props?.["data-testid"] === "pb-slot-start").props.onClick();
@@ -187,6 +189,51 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
   assert.deepEqual(picked.map((b) => textOf(b).trim()), ["Save our number 11"], "on the moment that was pressed");
   assert.ok(textOf(byTestId(tree, "pb-trigger-hint")).includes("anyone who only ever phoned"), textOf(byTestId(tree, "pb-trigger-hint")));
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "pb-slot").length, 0, "and the slots stand down while it is open");
+});
+
+test("A playbook is a card of the moment it does: its message and languages, who it will reach and who it holds back, when it runs next -- and it opens in place to its verbs", () => {
+  const trig = (id, label, hint, candidates, held = 0) => ({ id, label, hint, cls: "reengage", list: id, kind: "list", candidates, held });
+  globalThis.window.__PLAYBOOKS = playbooksSurface({
+    rows: [
+      playbook({ id: "pb-1", name: "Win-back", trigger: "quiet_30", candidates: 24, held: 12, totals: { runs: 18, sent: 198, delivered: 180, replied: 36, held: 0, lastRun: null, waiting: null, history: [{ id: "r1", run_for: "2026-09-19", state: "sent", sent: 12 }, { id: "r2", run_for: "2026-09-18", state: "sent", sent: 9 }] } }),
+      playbook({ id: "pb-2", name: "Save our number", trigger: "phoned_only", state: "paused", candidates: 0, held: 0, template_name: "save_our_number" }),
+      playbook({ id: "pb-3", name: "The month's offer", trigger: "everyone_monthly", candidates: 186, held: 32, totals: { runs: 9, sent: 99, delivered: 90, replied: 18, held: 0, lastRun: null, waiting: { id: "b-w", recipient_count: 186 }, history: [] } }),
+    ],
+    triggers: [
+      trig("quiet_30", "Win-back", "Nothing heard in 30 days", 24, 12),
+      trig("phoned_only", "Save our number", "Only ever phoned", 41),
+      trig("everyone_monthly", "The month's offer", "Everyone who said yes", 186, 32),
+      trig("visited", "After the visit", "The day after a visit", 6),
+    ],
+  });
+  fresh();
+  let tree = globalThis.window.OutboundPage({});
+  // The moments' own order, each with the playbook doing it or the card saying nothing is.
+  const cards = all(tree, (n) => n.props?.["data-testid"] === "pb-card" || n.props?.["data-testid"] === "pb-slot");
+  assert.deepEqual(cards.map((c) => c.props.id || `slot:${c.props["data-trigger"]}`), ["pb-pb-1", "pb-pb-2", "pb-pb-3", "slot:visited"]);
+  const [winback, saved, offer] = cards;
+  // Who it reaches, out of whom, and who it holds back -- named, not summed away.
+  assert.ok(textOf(byTestId(winback, "pb-tile-reach")).includes("24of 36 who said yes"), textOf(byTestId(winback, "pb-tile-reach")));
+  assert.ok(textOf(winback).includes("12 heard from a playbook this week"));
+  assert.ok(textOf(winback).includes("Next run tomorrow 10:00") && textOf(winback).includes("18 runs"));
+  assert.ok(String(byTestId(winback, "pb-tile-runs").props["data-tip"]).includes("198 sent, 180 delivered, 36 wrote back"), "what its runs earned is a hover away");
+  // Paused counts nobody of its own: its moment's count is how many it is not reaching.
+  assert.ok(textOf(byTestId(saved, "pb-tile-reach")).includes("0of 41 who said yes"), textOf(byTestId(saved, "pb-tile-reach")));
+  assert.ok(textOf(saved).includes("paused — nothing goes out"));
+  // A run waiting on the owner: the card says what the press does, and the press opens it where Approve is.
+  assert.ok(textOf(byTestId(offer, "pb-tile-approve")).includes("Approve it and it goes at 10:00"));
+  assert.equal(byTestId(tree, "pb-approve"), null, "a closed card carries no verbs");
+  byTestId(offer, "pb-tile-approve").props.onClick();
+  seq = 0;
+  tree = globalThis.window.OutboundPage({});
+  const opened = all(tree, (n) => n.props?.["data-testid"] === "pb-card").find((c) => c.props.id === "pb-pb-3");
+  assert.ok(classes(opened).includes("is-open"), "it opens in place, across the grid");
+  assert.ok(byTestId(opened, "pb-approve") && byTestId(opened, "pb-skip"), "with Approve and Skip in it");
+  // How the moments stand, at the right of the head, in the numbers the cards add up to.
+  const tally = textOf(byTestId(tree, "pb-standing"));
+  assert.ok(/1running/.test(tally) && /1waiting on you/.test(tally) && /1paused/.test(tally) && /1not set up/.test(tally), tally);
+  // And the three rules that shape every run, once, under the cards.
+  assert.ok(textOf(byTestId(tree, "pb-always")).includes("One a week, per person"));
 });
 
 test("REGRESSION (C13): Playbooks opened on a playbook marks its card and brings it into view, and a playbook since deleted says so", () => {

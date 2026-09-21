@@ -22,9 +22,13 @@ test("one name, one tone: a person is needed is amber wherever it is said, and t
   for (const [kind, value] of [["thread", "escalated"], ["thread", "needs_you"], ["person", "needs_you"], ["broadcast", "pending_approval"], ["playbook", "approval"], ["escalation", "open"], ["setup", "waiting_you"]]) {
     assert.equal(stateTone(kind, value), "warn", `${kind}/${value}`);
   }
-  for (const [kind, value] of [["call", "live"], ["broadcast", "sending"], ["playbook", "running"]]) {
+  for (const [kind, value] of [["call", "live"], ["broadcast", "sending"]]) {
     assert.equal(stateTone(kind, value), "accent", `${kind}/${value} is happening right now`);
   }
+  // A running playbook is a rule that is on, not something happening: it runs at
+  // its hour once a day, and while a run sends, that run is the broadcast's
+  // "sending" above. Its card wore the live accent all day long.
+  assert.equal(stateTone("playbook", "running"), "ok", "a playbook that is on is healthy, not live");
   assert.equal(stateTone("role", "owner"), "info", "an owner's badge is distinguished, not live");
   assert.equal(stateTone("tone", "accent"), "accent", "a tone a caller already holds is said as itself");
   assert.equal(stateTone("tone", "escalated"), "plain", "a standing name is not a tone");
