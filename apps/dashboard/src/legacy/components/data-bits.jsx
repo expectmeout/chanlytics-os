@@ -61,16 +61,71 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 // `gated` (a sentence) keeps the whole menu shut and says why; an item's `gate`
 // is window.gate(...)'s props, spread after its click, so a refused item stays in
 // the menu, says why when pressed, and leaves the menu open.
-const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnClass = "btn btn-ghost btn-icon btn-sm", label = null, gated = null }) => {
+// `escape` is for a menu opened inside a pane that scrolls (the People rail): see moreFit.
+
+/**
+ * Where a menu that escapes its pane hangs (MoreMenu `escape`). A pane that scrolls cuts off whatever crosses its
+ * edge, so a menu in the People rail had to fit beside its trigger: 196px, where every other menu is 232 to 292, and
+ * its words broke onto three to six lines. An escaped menu is placed against the window instead: under its trigger, on
+ * the side `align` names, above the trigger when the window has more room there, and held inside the window. Where
+ * neither side has room for all of it, it takes the room there is and scrolls (the room is its max-height). Until
+ * placed it is drawn but not shown (.placed), so it never flashes at the window's corner.
+ */
+const MORE_EDGE = 8; // kept clear of the window's edges
+const MORE_GAP = 8; // between trigger and menu, as .more-menu's own top: calc(100% + 8px)
+const moreFit = (wrap) => {
+  if (!wrap || typeof wrap.querySelector !== "function") return;
+  const btn = wrap.querySelector(":scope > button");
+  const menu = wrap.querySelector(":scope > .more-menu");
+  if (!btn || !menu || typeof btn.getBoundingClientRect !== "function" || typeof menu.getBoundingClientRect !== "function") return;
+  const t = btn.getBoundingClientRect();
+  const m = menu.getBoundingClientRect();
+  const vw = window.innerWidth || 0;
+  const vh = window.innerHeight || 0;
+  const from = menu.classList.contains("align-left") ? t.left : t.right - m.width;
+  const left = Math.max(MORE_EDGE, Math.min(from, vw - MORE_EDGE - m.width));
+  const below = vh - MORE_EDGE - (t.bottom + MORE_GAP);
+  const above = t.top - MORE_GAP - MORE_EDGE;
+  const up = below < m.height && above > below;
+  const room = Math.max(96, up ? above : below);
+  const height = Math.min(m.height, room);
+  if (room < m.height) menu.style.maxHeight = `${Math.floor(room)}px`;
+  const top = up ? Math.max(MORE_EDGE, t.top - MORE_GAP - height) : t.bottom + MORE_GAP;
+  const put = (x, y) => { menu.style.left = `${Math.round(x)}px`; menu.style.top = `${Math.round(y)}px`; };
+  put(left, top);
+  // A transformed or filtered ancestor makes itself a fixed box's containing block and moves the menu with it; that
+  // offset is taken back, so the menu lands where it was meant to whatever the page around it does.
+  const got = menu.getBoundingClientRect();
+  if (Math.round(got.left) !== Math.round(left) || Math.round(got.top) !== Math.round(top)) put(2 * left - got.left, 2 * top - got.top);
+  menu.classList.toggle("up", up);
+  menu.classList.add("placed");
+};
+
+const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnClass = "btn btn-ghost btn-icon btn-sm", label = null, gated = null, escape = false }) => {
   const [open, setOpen] = React.useState(false);
   const wrapRef = React.useRef(null);
 
   React.useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+    if (!escape) return () => window.removeEventListener("keydown", onKey);
+    // Placed against the window, an escaped menu would stay put while the page under it moved, so a scroll anywhere
+    // but inside the menu itself, or a resize, closes it rather than leave it beside the wrong row. Only a node can be
+    // inside it: a resize's target is the window, which contains() refuses with a throw.
+    const wrap = wrapRef.current;
+    moreFit(wrap);
+    const menu = wrap && typeof wrap.querySelector === "function" ? wrap.querySelector(":scope > .more-menu") : null;
+    const inside = (t) => !!(menu && t && typeof t.nodeType === "number" && typeof menu.contains === "function" && menu.contains(t));
+    const onMove = (e) => { if (!inside(e && e.target)) setOpen(false); };
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open, escape]);
 
   const run = (it) => {
     // Synchronous: fire the action, then close. Deferring the action behind a
@@ -94,7 +149,7 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
       {open && (
         <>
           <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
-          <div className={`more-menu ${align === "left" ? "align-left" : "align-right"}`} role="menu" onClick={(e) => e.stopPropagation()}>
+          <div className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}`} role="menu" onClick={(e) => e.stopPropagation()}>
             {items.map((it, i) => {
               if (it.divider) return <div key={i} className="more-divider" />;
               if (it.header) return <div key={i} className="more-header">{it.header}</div>;
@@ -210,7 +265,7 @@ const usePPToast = () => {
 };
 usePPToast._seq = 0;
 
-Object.assign(window, { Sparkline, KPI, StatStrip, StatCell, MoreMenu, usePPToast });
+Object.assign(window, { Sparkline, KPI, StatStrip, StatCell, MoreMenu, moreFit, usePPToast });
 
 // Shared hotkey hook (CLAUDE.md): suppress-while-typing is handled here.
 // matcher(e, typing) -> true means preventDefault + handler(e).

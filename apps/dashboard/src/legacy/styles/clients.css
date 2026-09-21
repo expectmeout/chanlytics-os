@@ -15,10 +15,13 @@
    LEFT RAIL — Smart lists & saved segments
    ==================================================================== */
 
-/* A menu in the rail opens inside it, leftward from its trigger: the rail scrolls, so whatever crosses its edge is
-   cut off, and a search's menu opening rightward showed 51px of 194. It is at most as wide as the rail leaves it
-   beside the trigger, and its words wrap. */
-.cl-rail .more-menu { min-width: 0; width: max-content; max-width: 196px; }
+/* The rail scrolls, so it cuts off whatever crosses its edge: a search's menu opening rightward showed 51px of 194,
+   and held inside the rail (196px) its words broke onto three to six lines. So a menu here escapes the rail
+   (MoreMenu `escape`), and an item's meta, a sentence saying what the item will do, is its second line under the
+   label (past the 16px icon and its 11px gap) rather than a column squeezed beside it. */
+.cl-rail .more-item:has(> .more-item-meta) { flex-wrap: wrap; row-gap: 1px; }
+.cl-rail .more-item > .more-item-meta { flex-basis: 100%; }
+.cl-rail .more-item > .icon ~ .more-item-meta { padding-left: 27px; }
 .cl-rail {
   display: flex;
   flex-direction: column;

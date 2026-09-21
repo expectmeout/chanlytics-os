@@ -1738,6 +1738,13 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
    as readable as the meta line. */
 .more-item-hint { margin-left: auto; padding-left: 16px; font-size: 12px; color: var(--ink-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .more-divider { height: 1px; background: var(--line); margin: 6px 4px; }
+/* A menu that escapes its pane (MoreMenu `escape`, data-bits.jsx moreFit): placed against the window, so a pane that
+   scrolls cannot cut it off and it is as wide as every other menu. Drawn unseen until placed, so it never flashes at
+   the window's corner, and it grows from the corner it hangs by. */
+.more-wrap > .more-menu.escape { position: fixed; top: 0; right: auto; bottom: auto; left: 0; }
+.more-wrap > .more-menu.escape:not(.placed) { visibility: hidden; animation: none; }
+.more-wrap > .more-menu.escape.up { transform-origin: bottom left; }
+.more-wrap > .more-menu.escape.align-right.up { transform-origin: bottom right; }
 
 /* ---- Confirm — the one armed question (data-bits.jsx Confirm) ----
    A line where the control that armed it was, or a panel under the row when
