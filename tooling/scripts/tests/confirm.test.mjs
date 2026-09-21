@@ -201,12 +201,13 @@ test("revoking an invitation asks in its own words", () => {
 /* ------------------- Broadcasts: three verbs, each armed ------------------ */
 
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
-const BroadcastOpenRow = globalThis.window.BroadcastOpenRow;
+// The run's card on the ledger, where the stop now lives.
+const BcRunCard = globalThis.window.BcRunCard;
 const broadcast = (state) => ({ id: `b-${state}`, name: "September offer", state, stateLabel: state, when: "today 10:00", audience: { label: "Everyone who said yes" }, recipient_count: 40, counts: { sent: 12, skipped: 1, failed: 0 } });
 
 test("a broadcast's stop is armed and named for what it does: Stop a send, Skip a run nobody approved, Cancel one still to come", async () => {
   fresh();
-  const draw = (state, armed) => { seq = 0; return BroadcastOpenRow({ row: broadcast(state), canSend: true, onOpen() {}, armed, onArm: (on) => calls.arm.push(on), stopping: false, approve() {}, cancel: (r) => globalThis.window.__broadcasts.cancel(r.id) }); };
+  const draw = (state, armed) => { seq = 0; return BcRunCard({ row: broadcast(state), now: Date.now(), canSend: true, onOpen() {}, armed, onArm: (on) => calls.arm.push(on), stopping: false, approve() {}, cancel: (r) => globalThis.window.__broadcasts.cancel(r.id) }); };
   for (const [state, verb, question, yes] of [
     ["sending", "Stop", "Stop September offer?", "Yes, stop it"],
     ["pending_approval", "Skip", "Skip September offer?", "Yes, skip it"],
@@ -229,7 +230,7 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
   await byTestId(draw("sending", true), "bc-stop-yes").props.onClick();
   assert.deepEqual(calls.cancel, ["b-sending"]);
   assert.ok(byTestId(draw("pending_approval", false), "bc-approve"), "unarmed, a run waiting for approval still offers Approve");
-  assert.equal(byTestId(BroadcastOpenRow({ row: broadcast("sending"), canSend: false, onOpen() {}, armed: false, onArm() {}, stopping: false, approve() {}, cancel() {} }), "bc-stop"), null, "a viewer has no stop to arm");
+  assert.equal(byTestId(BcRunCard({ row: broadcast("sending"), now: Date.now(), canSend: false, onOpen() {}, armed: false, onArm() {}, stopping: false, approve() {}, cancel() {} }), "bc-stop"), null, "a viewer has no stop to arm");
 });
 
 /* ---------------- Playbooks: the delete that was two clicks --------------- */
