@@ -13,6 +13,8 @@ import {
   standingLine,
   abilityRows,
   CANNOT_ROWS,
+  bookingHeld,
+  policyAskClass,
 } from "@chanlytics/contracts";
 
 /* ---- A fact says where it came from ---- */
@@ -134,6 +136,7 @@ test("a record with nothing says so without listing every gap", () => {
 const live = {
   voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true,
   hasBookingTemplate: true, hasHandoffNumber: true, hasEscalateWhen: true, pauseHours: 24, visionOn: false,
+  bookingHeld: false,
 };
 const idOf = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
 
@@ -148,6 +151,7 @@ test("an ability names its channels and the row it runs on", () => {
     visionOn: false,
     hasBookingTemplate: true,
     pauseHours: 24,
+    bookingHeld: false,
   });
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
@@ -167,6 +171,7 @@ test("an ability whose input is missing says which row to fill", () => {
   const rows = abilityRows({
     voiceLive: true, whatsappLive: true, hasCalendarFeed: false,
     hasBookingLink: true, hasHandoffNumber: false, hasEscalateWhen: true, visionOn: false, hasBookingTemplate: true, pauseHours: 24,
+    bookingHeld: false,
   });
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
   assert.equal(byId.open_times.ready, false);
@@ -181,12 +186,14 @@ test("nothing is ready on a channel that is not answering", () => {
   const dark = abilityRows({
     voiceLive: false, whatsappLive: false, hasCalendarFeed: true,
     hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true, hasBookingTemplate: true, pauseHours: 24,
+    bookingHeld: false,
   });
   for (const r of dark) assert.equal(r.ready, false, `${r.id} cannot be ready with nothing answering`);
   // And a phone-only workspace has no chat abilities, whatever is filled in.
   const phoneOnly = abilityRows({
     voiceLive: true, whatsappLive: false, hasCalendarFeed: true,
     hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true, hasBookingTemplate: true, pauseHours: 24,
+    bookingHeld: false,
   });
   const byId = Object.fromEntries(phoneOnly.map((r) => [r.id, r]));
   assert.equal(byId.handoff.ready, false, "there is no thread to hand over");
@@ -245,6 +252,57 @@ test("a hand-off is a pause that ends, and it says how long", () => {
   const noReasons = idOf(abilityRows({ ...live, hasEscalateWhen: false })).handoff;
   assert.equal(noReasons.ready, true, "it hands over on a request for a person with no reasons set");
   assert.match(noReasons.detail, /asks for a person or it can't help/i);
+});
+
+test("a hand-off holds off as long as the Autonomy tab says, and a day when nothing is stored", () => {
+  // pauseHours is the Autonomy reply row's pause_hours as stored, read the way that pane reads
+  // it (hardLimitsWords) and the way the edge applies it (inbound.ts: nothing, null or 0 is the
+  // 24-hour default). Nothing stored is the common case, and it read "holds off for NaN hours";
+  // null and 0 read "an hour" where the product holds a day.
+  const said = (h) => idOf(abilityRows({ ...live, pauseHours: h })).handoff.detail;
+  for (const unset of [undefined, null, 0, ""]) assert.match(said(unset), /holds off for a day,/, JSON.stringify(unset));
+  assert.match(said(4), /holds off for 4 hours,/);
+  assert.match(said(72), /holds off for 3 days,/);
+  // Every value the Autonomy pane offers (settings.jsx AUT_PAUSE: 1h, 4h, 12h, 24h, 3d).
+  const pane = { 1: "an hour", 4: "4 hours", 12: "12 hours", 24: "a day", 72: "3 days" };
+  for (const [hours, words] of Object.entries(pane)) assert.match(said(Number(hours)), new RegExp(`holds off for ${words},`), `${hours}h`);
+  for (const h of [undefined, null, 0, 1, 4, 12, 24, 72]) assert.doesNotMatch(said(h), /NaN/);
+});
+
+test("with the owner's reasons, a hand-off still happens when it can't help", () => {
+  // The composer hands over whenever the customer asks for a person or asks something the
+  // instructions do not cover, "and whenever" the owner's reasons apply. The reasons widen it.
+  assert.match(idOf(abilityRows(live)).handoff.detail, /^On your reasons, or when a customer asks for a person or it can't help, it stops answering/);
+});
+
+test("with bookings held on the Autonomy tab, the link is not ready, and the row says who holds it", () => {
+  // Booking not on auto: a chat reply has the link taken back out (steps.ts layerTwo), and
+  // the call's send is refused (outbound-gate.ts, booking_needs_a_person). The row said ready,
+  // and "sends it".
+  const held = idOf(abilityRows({ ...live, bookingHeld: true })).booking_link;
+  assert.equal(held.ready, false);
+  assert.equal(held.detail, "Your Autonomy tab holds bookings for you to confirm, so it sends no link: it tells the customer someone from the team will confirm.");
+  // Missing the link, or WhatsApp, is still said first: those are what the page can fix here.
+  assert.match(idOf(abilityRows({ ...live, bookingHeld: true, hasBookingLink: false })).booking_link.detail, /^No booking link yet/);
+  assert.match(idOf(abilityRows({ ...live, bookingHeld: true, whatsappLive: false })).booking_link.detail, /WhatsApp, which isn't connected/);
+  // The page computes the input with the predicate the edge asks (policyAskClass, retell-fn.ts):
+  // any mode but auto holds it, fail safe, and the Replies row is not the Booking row.
+  const policies = [null, {}, { booking: { mode: "auto" } }, { booking: { mode: "ask" } }, { booking: { mode: "never" } }, { booking: { mode: "veto" } }, { reply: { mode: "ask" } }, { faq: { mode: "ask" } }];
+  assert.deepEqual(policies.map(bookingHeld), [false, false, false, true, true, true, false, false]);
+  for (const p of policies) assert.equal(bookingHeld(p), policyAskClass(p, "booking") === "booking", JSON.stringify(p));
+});
+
+test("an input left out throws and says which, rather than drawing a card that lies", () => {
+  // The page that calls this is untyped JSX. An omitted boolean is undefined, which is falsy,
+  // and the card would say a line is dark or a switch is off with no error anywhere -- the
+  // stance promptBlocks already takes on its own argument.
+  const { visionOn: _v, bookingHeld: _b, ...missing } = live;
+  assert.throws(() => abilityRows(missing), (e) => e instanceof TypeError && /visionOn/.test(e.message) && /bookingHeld/.test(e.message) && !/voiceLive/.test(e.message));
+  assert.throws(() => abilityRows({ ...live, voiceLive: "yes" }), (e) => e instanceof TypeError && /voiceLive/.test(e.message));
+  assert.throws(() => abilityRows({ ...live, whatsappLive: 1 }), (e) => e instanceof TypeError && /whatsappLive/.test(e.message));
+  assert.throws(() => abilityRows(undefined), TypeError);
+  // pauseHours is not one of them: whatever is stored is read the way the Autonomy pane reads it.
+  assert.doesNotThrow(() => abilityRows({ ...live, pauseHours: undefined }));
 });
 
 test("both halves of a hand-off open the one row the page draws for them", () => {

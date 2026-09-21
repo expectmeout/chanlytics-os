@@ -14,6 +14,7 @@
  */
 
 import { GuardrailsSchema } from "./config";
+import { hardLimitsWords } from "./policy";
 
 /**
  * The guardrail keys the profile stores, read off the schema rather than copied
@@ -168,6 +169,10 @@ export function standingLine(i: StandingInputs): StandingVM {
  * them was not true: the link goes by WhatsApp and never by text, a transfer
  * happens only during opening hours and stays on the line, and a hand-off is a
  * pause that ends, not a stop.
+ *
+ * Every input is required, and the booleans are checked as it runs: the page
+ * that calls this is untyped JSX, and a boolean it left out would be read as
+ * false -- a live line drawn dark, a hold drawn as none -- with no error at all.
  */
 export interface AbilityInputs {
   voiceLive: boolean;
@@ -178,10 +183,33 @@ export interface AbilityInputs {
   hasBookingTemplate: boolean;
   hasHandoffNumber: boolean;
   hasEscalateWhen: boolean;
-  /** The Autonomy tab's pause after a hand-off, in hours. 24 unless the owner changed it. */
-  pauseHours: number;
+  /**
+   * The Autonomy reply row's `limits.pause_hours`, exactly as stored -- usually
+   * nothing, because most owners never set it. Read here the way the Autonomy pane
+   * reads it (hardLimitsWords), which is the way the edge applies it: nothing, null
+   * or 0 is the 24-hour default.
+   */
+  pauseHours: unknown;
   visionOn: boolean;
+  /**
+   * The Autonomy tab's Booking row is not on auto, so a person confirms bookings
+   * and the link is never sent: bookingHeld(policy), the edge's own question.
+   */
+  bookingHeld: boolean;
 }
+
+/** The inputs that must be true or false. Typed off AbilityInputs, so a new boolean cannot be left off. */
+const BOOLEAN_INPUTS: Record<{ [K in keyof AbilityInputs]-?: AbilityInputs[K] extends boolean ? K : never }[keyof AbilityInputs], true> = {
+  voiceLive: true,
+  whatsappLive: true,
+  hasCalendarFeed: true,
+  hasBookingLink: true,
+  hasBookingTemplate: true,
+  hasHandoffNumber: true,
+  hasEscalateWhen: true,
+  visionOn: true,
+  bookingHeld: true,
+};
 
 export interface AbilityRowVM {
   id: "answer" | "open_times" | "booking_link" | "transfer" | "handoff" | "vision";
@@ -203,6 +231,11 @@ function heldFor(pauseHours: number): string {
 }
 
 export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
+  if (!i || typeof i !== "object") throw new TypeError("abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.");
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof (i as unknown as Record<string, unknown>)[k] !== "boolean");
+  if (notBoolean.length) {
+    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: left out, each would be drawn as false.`);
+  }
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   // Nothing is ready on a channel that is not answering. An input filled against a
   // dead line is a setting, not an ability, and drawing it ready would tell an owner
@@ -214,23 +247,31 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   // So a phone-only workspace cannot send it at all, and a call cannot send it without
   // an approved template -- whatever the booking link field holds.
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
+  // What is missing on this page is said first, because it is what this page can fix.
+  // Then the Autonomy tab's hold: with Booking not on auto, a chat reply has the link taken
+  // back out (steps.ts layerTwo) and the call's send is refused (outbound-gate.ts), and on
+  // both the customer is told a member of the team will confirm.
   const bookingDetail = !i.hasBookingLink
     ? "No booking link yet, so there is nothing to send."
     : !i.whatsappLive
       ? i.voiceLive
         ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead."
         : "It goes out on WhatsApp, which isn't connected here."
-      : !i.voiceLive
-        ? "It sends it in the thread."
-        : callSendsLink
-          ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
-          : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+      : i.bookingHeld
+        ? "Your Autonomy tab holds bookings for you to confirm, so it sends no link: it tells the customer someone from the team will confirm."
+        : !i.voiceLive
+          ? "It sends it in the thread."
+          : callSendsLink
+            ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
+            : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 
   // The base triggers hold with no reasons at all -- they asked for a person, or it
   // cannot help -- so the owner's reasons widen the hand-off; they do not switch it on.
   const handoffWhen = i.hasEscalateWhen
-    ? "On your reasons, or when a customer asks for a person, it"
+    ? "On your reasons, or when a customer asks for a person or it can't help, it"
     : "When a customer asks for a person or it can't help, it";
+  // The stored pause, as the Autonomy pane and the edge read it: nothing stored is a day.
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
 
   return [
     {
@@ -259,7 +300,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       detail: bookingDetail,
       channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: i.hasBookingLink && i.whatsappLive,
+      ready: i.hasBookingLink && i.whatsappLive && !i.bookingHeld,
     },
     {
       id: "transfer",
@@ -279,7 +320,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       title: "Hand the thread to you",
       // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
       // after that the receptionist answers the next message itself, Needs you or not.
-      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${heldFor(i.pauseHours)}, then answers the customer's next message itself.`,
+      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`,
       channels: { voice: false, whatsapp: i.whatsappLive },
       runsOn: { label: "Your reasons", row: "handoff" },
       ready: i.whatsappLive,

@@ -2297,6 +2297,9 @@ function policyAskClass(policy, intent) {
   const mode = policy?.[cls]?.mode ?? "auto";
   return mode === "auto" ? null : cls;
 }
+function bookingHeld(policy) {
+  return policyAskClass(policy, "booking") === "booking";
+}
 function policyRules(policy, channel) {
   const out = [];
   const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
@@ -10700,17 +10703,34 @@ function standingLine(i) {
   const wont = has2(p.services) ? "It offers a consult instead of a price." : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
+var BOOLEAN_INPUTS = {
+  voiceLive: true,
+  whatsappLive: true,
+  hasCalendarFeed: true,
+  hasBookingLink: true,
+  hasBookingTemplate: true,
+  hasHandoffNumber: true,
+  hasEscalateWhen: true,
+  visionOn: true,
+  bookingHeld: true
+};
 function heldFor(pauseHours) {
   const hours = Math.max(1, Math.round(pauseHours));
   if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
   return hours === 1 ? "an hour" : `${hours} hours`;
 }
 function abilityRows(i) {
+  if (!i || typeof i !== "object") throw new TypeError("abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.");
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof i[k] !== "boolean");
+  if (notBoolean.length) {
+    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: left out, each would be drawn as false.`);
+  }
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   const answering = i.voiceLive || i.whatsappLive;
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
-  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  const handoffWhen = i.hasEscalateWhen ? "On your reasons, or when a customer asks for a person, it" : "When a customer asks for a person or it can't help, it";
+  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so it sends no link: it tells the customer someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const handoffWhen = i.hasEscalateWhen ? "On your reasons, or when a customer asks for a person or it can't help, it" : "When a customer asks for a person or it can't help, it";
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
   return [
     {
       id: "answer",
@@ -10736,7 +10756,7 @@ function abilityRows(i) {
       detail: bookingDetail,
       channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: i.hasBookingLink && i.whatsappLive
+      ready: i.hasBookingLink && i.whatsappLive && !i.bookingHeld
     },
     {
       id: "transfer",
@@ -10754,7 +10774,7 @@ function abilityRows(i) {
       title: "Hand the thread to you",
       // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
       // after that the receptionist answers the next message itself, Needs you or not.
-      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${heldFor(i.pauseHours)}, then answers the customer's next message itself.`,
+      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`,
       channels: { voice: false, whatsapp: i.whatsappLive },
       runsOn: { label: "Your reasons", row: "handoff" },
       ready: i.whatsappLive
@@ -13093,6 +13113,7 @@ export {
   billingDoorOpen,
   billingPill,
   bookedAfterAsk,
+  bookingHeld,
   bookingLinkAction,
   bookingTemplate,
   brainMetaOf,

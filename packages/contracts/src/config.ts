@@ -121,6 +121,23 @@ export function policyAskClass(policy: Record<string, { mode: string }> | null |
 }
 
 /**
+ * The Autonomy tab's Booking row holds the booking link back: it is not on
+ * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
+ * does in policyAskClass.
+ *
+ * The edge asks this question inline, through policyAskClass, and this must keep
+ * agreeing with every place it does: apps/edge/api/retell-fn.ts (its
+ * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
+ * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
+ * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
+ * chat reply). Stated here so the Business tab reads the rule instead of keeping a
+ * copy of it.
+ */
+export function bookingHeld(policy: Record<string, { mode: string }> | null | undefined): boolean {
+  return policyAskClass(policy, "booking") === "booking";
+}
+
+/**
  * What the Booking and FAQ rows say in the prompt, per channel. "auto" says
  * nothing — the profile already tells the receptionist how to book and what
  * it offers. "ask" hands the matter to a person, in words the customer can
