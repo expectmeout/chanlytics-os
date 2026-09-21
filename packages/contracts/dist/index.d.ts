@@ -9769,13 +9769,16 @@ interface StandingInputs {
         tone?: string | null;
         hours?: Record<string, unknown> | null;
         services?: unknown[] | null;
-        guardrails?: Partial<Record<GuardrailKey, boolean>> | null;
     } | null;
 }
 interface StandingVM {
     /** What it can answer, in one clause. */
     can: string;
-    /** What it deliberately will not do, by a rule the owner set. Null when there is none. */
+    /**
+     * What it will not do: state a price. Said whenever there are services to price,
+     * whatever the price switch says, because the detector runs either way (the owner's
+     * decision, 20 Sep 2026). Null with nothing to price.
+     */
     wont: string | null;
     /** The single most useful gap, and the row that fixes it. Null when there is none. */
     missing: {

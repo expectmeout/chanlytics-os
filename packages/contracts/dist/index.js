@@ -10654,7 +10654,12 @@ var STRENGTHS = {
     // reads the same fact twice, once in prose and once in the two boxes under it.
     // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
     // more: forty-five euros, or a pound sign, would pass it untouched.
-    sentence: "A detector reads every reply for a price in dollars or pesos. It offers a consult or the booking link instead.",
+    //
+    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
+    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
+    // call) run either way; the switch adds or removes the one prompt line that tells it
+    // not to quote one. So the sentence cannot say the switch turns the checking on.
+    sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
     checkedOn: [
       { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
       { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." }
@@ -10692,8 +10697,7 @@ function standingLine(i) {
   if (has2(p.services)) answers.push("what you offer");
   if (has2(i.booking_link)) answers.push("how to book");
   const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const quiet = p.guardrails?.never_quote_prices !== false && has2(p.services);
-  const wont = quiet ? "It offers a consult instead of a price, by your rule." : null;
+  const wont = has2(p.services) ? "It offers a consult instead of a price." : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
 function heldFor(pauseHours) {

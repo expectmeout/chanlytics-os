@@ -68,6 +68,18 @@ test("the four rules carry three different guarantees", () => {
   assert.doesNotMatch(priced.sentence, /WhatsApp|call/i);
 });
 
+test("a price is caught whatever the switch says, and the rule says so", () => {
+  // The owner's decision (20 Sep 2026): a receptionist never states a price. The detector
+  // -- violatesNoPrices on a chat reply, spokenBreach on a call -- runs whether the switch
+  // is on or off; the switch adds or removes the one prompt line that tells it not to.
+  const s = ruleStrength("never_quote_prices").sentence;
+  assert.match(s, /whether this switch is on or off/);
+  assert.match(s, /On, it is also told not to quote one\./);
+  // What the detector actually knows (policy.ts PRICE_PATTERNS): euros and pounds pass it.
+  assert.match(s, /dollars or pesos/);
+  assert.doesNotMatch(s, /WhatsApp|call/i, "the channels are checkedOn's to say");
+});
+
 /* ---- The standing line ---- */
 
 const full = {
@@ -98,6 +110,16 @@ test("the standing line names the one thing missing, and where to fix it", () =>
   const s = standingLine(noVoice);
   assert.match(s.missing.sentence, /no voice of its own/i);
   assert.equal(s.missing.row, "tone");
+});
+
+test("it offers a consult instead of a price with the switch on or off, and says nothing with nothing to price", () => {
+  // The switch no longer decides the clause: the detector runs either way. "By your rule" went
+  // with it -- with the switch off, there is no rule of the owner's to point at.
+  for (const guardrails of [{ never_quote_prices: true }, { never_quote_prices: false }, undefined]) {
+    const s = standingLine({ ...full, profile: { ...full.profile, guardrails } });
+    assert.equal(s.wont, "It offers a consult instead of a price.", JSON.stringify(guardrails));
+  }
+  assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }).wont, null);
 });
 
 test("a record with nothing says so without listing every gap", () => {

@@ -62,7 +62,13 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
     // reads the same fact twice, once in prose and once in the two boxes under it.
     // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
     // more: forty-five euros, or a pound sign, would pass it untouched.
-    sentence: "A detector reads every reply for a price in dollars or pesos. It offers a consult or the booking link instead.",
+    //
+    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
+    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
+    // call) run either way; the switch adds or removes the one prompt line that tells it
+    // not to quote one. So the sentence cannot say the switch turns the checking on.
+    sentence:
+      "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
     checkedOn: [
       { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
       { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." },
@@ -96,14 +102,17 @@ export interface StandingInputs {
     tone?: string | null;
     hours?: Record<string, unknown> | null;
     services?: unknown[] | null;
-    guardrails?: Partial<Record<GuardrailKey, boolean>> | null;
   } | null;
 }
 
 export interface StandingVM {
   /** What it can answer, in one clause. */
   can: string;
-  /** What it deliberately will not do, by a rule the owner set. Null when there is none. */
+  /**
+   * What it will not do: state a price. Said whenever there are services to price,
+   * whatever the price switch says, because the detector runs either way (the owner's
+   * decision, 20 Sep 2026). Null with nothing to price.
+   */
   wont: string | null;
   /** The single most useful gap, and the row that fixes it. Null when there is none. */
   missing: { sentence: string; row: string } | null;
@@ -140,8 +149,7 @@ export function standingLine(i: StandingInputs): StandingVM {
     ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.`
     : "It cannot answer anyone yet.";
 
-  const quiet = p.guardrails?.never_quote_prices !== false && has(p.services);
-  const wont = quiet ? "It offers a consult instead of a price, by your rule." : null;
+  const wont = has(p.services) ? "It offers a consult instead of a price." : null;
 
   return { can, wont, missing: gaps[0] ?? null };
 }
