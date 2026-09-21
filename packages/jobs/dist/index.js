@@ -1135,6 +1135,35 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var FACT_SOURCE_TONE = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
+var TONE_OF = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
+  escalation: { open: "warn", resolved: "ok" }
+};
 var LABEL_OF = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
@@ -7330,6 +7359,35 @@ var PASSWORD_WORDS2 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var FACT_SOURCE_TONE2 = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
+var TONE_OF2 = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE2, disputed: "warn" },
+  escalation: { open: "warn", resolved: "ok" }
+};
 var LABEL_OF2 = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
@@ -9613,6 +9671,35 @@ var PASSWORD_WORDS3 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var FACT_SOURCE_TONE3 = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
+var TONE_OF3 = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE3, disputed: "warn" },
+  escalation: { open: "warn", resolved: "ok" }
+};
 var LABEL_OF3 = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
@@ -10986,6 +11073,35 @@ var PASSWORD_WORDS22 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var FACT_SOURCE_TONE22 = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
+var TONE_OF22 = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE22, disputed: "warn" },
+  escalation: { open: "warn", resolved: "ok" }
+};
 var LABEL_OF22 = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
@@ -12229,6 +12345,35 @@ var PASSWORD_WORDS32 = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var FACT_SOURCE_TONE32 = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
+var TONE_OF32 = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE32, disputed: "warn" },
+  escalation: { open: "warn", resolved: "ok" }
 };
 var LABEL_OF32 = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
@@ -13962,6 +14107,35 @@ var PASSWORD_WORDS4 = {
    */
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
+};
+var FACT_SOURCE_TONE4 = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
+var TONE_OF4 = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE4, disputed: "warn" },
+  escalation: { open: "warn", resolved: "ok" }
 };
 var LABEL_OF4 = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },

@@ -13,8 +13,16 @@ test("a fact's source carries a tone and the words facts.ts already wrote", () =
   assert.equal(stateOf("fact", "workspace").tone, "plain");
   assert.equal(stateOf("fact", "absent").tone, "plain");
   assert.equal(stateOf("fact", "disputed").tone, "warn");
-  // One copy of the words: the pill reads facts.ts, it does not restate it.
-  assert.equal(stateOf("fact", "verified").label, SOURCE_WORDS.verified);
-  assert.equal(stateOf("fact", "provisioned").label, SOURCE_WORDS.provisioned);
+  // One copy of the words: the pill reads facts.ts, it does not restate it. Every
+  // source is checked, or the claim holds for two of five and nobody would know.
+  for (const source of ["verified", "provisioned", "workspace", "typed", "absent"]) {
+    assert.equal(stateOf("fact", source).label, SOURCE_WORDS[source], `${source} reads its words from facts.ts`);
+  }
   assert.equal(stateOf("fact", "disputed").label, "doesn't match");
+});
+
+test("a source nobody has registered falls back rather than throwing", () => {
+  // stateTone's contract, and the reason FACT_SOURCE_TONE is typed: a sixth
+  // FactSource would fail to compile there rather than landing here.
+  assert.deepEqual(stateOf("fact", "imported_from_somewhere"), { tone: "plain", label: "imported_from_somewhere" });
 });

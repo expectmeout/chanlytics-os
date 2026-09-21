@@ -26,7 +26,7 @@ import { PERSON_MODE_WORDS, PERSON_STATE_LABELS } from "./people";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "./setup";
 import { CALENDAR_FEED_WORDS } from "./calendar";
-import { SOURCE_WORDS } from "./facts";
+import { SOURCE_WORDS, type FactSource } from "./facts";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -51,6 +51,26 @@ export type StateKind =
   | "fact"
   | "escalation";
 
+/**
+ * The tone of each source a fact can have, typed by `FactSource` itself.
+ *
+ * Not inlined below, and the difference matters. `LABEL_OF.fact` spreads
+ * `SOURCE_WORDS`, which IS typed by `FactSource` — so a sixth source forces
+ * that map to answer and flows through automatically. `TONE_OF`'s value type
+ * is `Record<string, Tone>`, so an inlined literal here would let the new
+ * source gain a label and quietly keep no tone: a grey pill with a raw
+ * internal string on it, and a label that looks handled. The provenance this
+ * models has already drifted once in production (facts.ts), so it is the kind
+ * of set that grows.
+ */
+const FACT_SOURCE_TONE: Record<FactSource, Tone> = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain",
+};
+
 const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
@@ -67,8 +87,10 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
   // Two sources are a claim somebody else stands behind; the rest are neutral, and a
-  // disagreement is warn because a person has to settle it.
-  fact: { verified: "ok", provisioned: "ok", workspace: "plain", typed: "plain", absent: "plain", disputed: "warn" },
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
   escalation: { open: "warn", resolved: "ok" },
 };
 

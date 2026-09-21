@@ -11040,6 +11040,13 @@ var SCHEMA_SETS = {
 
 // src/tone.ts
 var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
+var FACT_SOURCE_TONE = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
 var TONE_OF = {
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
@@ -11056,8 +11063,10 @@ var TONE_OF = {
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
   // Two sources are a claim somebody else stands behind; the rest are neutral, and a
-  // disagreement is warn because a person has to settle it.
-  fact: { verified: "ok", provisioned: "ok", workspace: "plain", typed: "plain", absent: "plain", disputed: "warn" },
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
   escalation: { open: "warn", resolved: "ok" }
 };
 var LABEL_OF = {
