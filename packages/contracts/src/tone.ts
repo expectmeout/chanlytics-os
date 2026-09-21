@@ -58,7 +58,10 @@ export type StateKind =
   | "lead_stage"        // ready, contacted, talking, closed
   | "lead_fit"          // how well the lead matches what the search asked for
   | "reach"             // a mailbox's state: the Reach column, and the peek's email row
-  | "lead_call_outcome";
+  | "lead_call_outcome"
+  // The row's own state, which its left edge, its tag and its pin on the map all say. The map kept a sixth
+  // private family for exactly this, in CSS, keyed by words no tone vocabulary knows.
+  | "lead_row_state";
 
 const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
@@ -84,6 +87,9 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
   reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
   lead_call_outcome: LEAD_CALL_OUTCOME_TONES,
+  // `contacted` and `talking` are `nurture` and `converted` in the owner's words, so they take those tones.
+  // Review is the one state that wants a person. Ready and left-out are both silent, for opposite reasons.
+  lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" },
 };
 
 /** The words a pill says when the page has none better. */
@@ -107,6 +113,11 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS,
+  // `lead_row_state` is a tone and no words: the row composes its own tag (`Contacted · 2m`) in toLeadRowVM,
+  // and nothing ever asks this map for it. Words here would be a second set of the same five -- and a map
+  // whose values are read off another map (`LEAD_STAGE_WORDS.ready`) cannot be dropped by the bundler, which
+  // pulled this whole registry and its five label maps into channels, core, db and jobs: +693 lines for
+  // words nobody reads. A bare identifier is free; a property read is not.
 };
 
 /** The tone for a state, or plain for one this map has never heard of. */
@@ -123,4 +134,34 @@ export function stateLabel(kind: StateKind, value: unknown): string {
 /** Both at once: what the pill draws. */
 export function stateOf(kind: StateKind, value: unknown): { tone: Tone; label: string } {
   return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
+}
+
+/** What a pin needs to know about a lead to take a tone: its class, its fit, its row state, its two slots. */
+export interface LeadPinnable {
+  cls: string;
+  fit: string | null;
+  state: string;
+  slots: { phone: { state: string }; mailbox: { state: string } };
+}
+
+/**
+ * The tone a lead's pin wears on the map, by what the map is coloured by.
+ *
+ * The map kept a table of its own, in leads.css, keyed by `strong`/`part`/`talking` -- words no tone vocabulary
+ * knows -- so it was a sixth colour family that this file could not reach. It had already drifted: a `look` fit
+ * drew amber on a pin while this map calls it plain. And because those rules named no element, and leads.css is
+ * imported after clients.css, `.tone-ok` painted EVERY `tone-ok` in the app solid green -- a Today attention row,
+ * and the peek's own Interested chip. Both now come through here.
+ *
+ * A pin is data, so by the chart kit's rule it never wears the accent, and none of these branches can return it.
+ */
+export function leadPinTone(lead: LeadPinnable, by: "fit" | "reach" | "stage"): Tone {
+  if (by === "reach") {
+    const { phone, mailbox } = lead.slots;
+    if (phone.state === "ok" || mailbox.state === "ok") return "ok";
+    // Nothing to reach them by at all is as quiet as a lead gets; anything part-way is worth a look.
+    return phone.state === "none" && mailbox.state === "none" ? "plain" : "warn";
+  }
+  if (by === "stage") return stateTone("lead_row_state", lead.state);
+  return lead.cls === "qualified" ? stateTone("lead_fit", lead.fit ?? "look") : stateTone("lead_class", lead.cls);
 }

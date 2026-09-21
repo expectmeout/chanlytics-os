@@ -465,11 +465,16 @@ const LeadReviewBench = ({ groups, rows, groupKey, onGroup, search, month, revie
 // with the area the search asked for drawn around it. No projection of the world, no tile, and no request to
 // anybody -- the picture is made from what the search already found. (Streets would mean a tile provider, which is
 // a third-party request on every view; the seam for one is this square, and nothing above it would change.)
+// The pin's colour is contracts' (leadPinTone, tone.ts) -- the same registry the row's dot and its tag read, so
+// a pin can no longer say one thing where a row says another. It used to answer in its own words (`strong`,
+// `part`, `talking`) and leave a table in leads.css to turn them into colours, which is how a `look` fit came to
+// draw amber here and plain everywhere else. Without the bridge (the standalone mockup) every pin is plain.
 const ldPinTone = (l, by) => {
-  if (by === "reach") return l.slots.mailbox.state === "ok" || l.slots.phone.state === "ok" ? "ok" : l.slots.mailbox.state === "none" && l.slots.phone.state === "none" ? "none" : "part";
-  if (by === "stage") return l.state;
-  return l.cls === "qualified" ? l.fit || "look" : l.cls === "review" ? "review" : "out";
+  const V = window.__LEAD_VM || {};
+  return V.leadPinTone ? V.leadPinTone(l, by) : "plain";
 };
+// Left out is plain, like a long shot -- so it steps back by being quieter instead of by being another colour.
+const ldPinOut = (l) => (l.state === "out" ? " is-out" : "");
 const LEAD_MAP_BY = [{ id: "fit", label: "Fit" }, { id: "reach", label: "Reach" }, { id: "stage", label: "Stage" }];
 
 const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch }) => {
@@ -499,7 +504,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
                   <div className="n">{l.name}</div>
                   <div className="s">{l.sub}</div>
                 </div>
-                <span className={`ld-pin-dot tone-${ldPinTone(l, by)}`} aria-hidden="true" />
+                <span className={`ld-pin-dot tone-${ldPinTone(l, by)}${ldPinOut(l)}`} aria-hidden="true" />
               </div>
             );
           })}
@@ -527,7 +532,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
               <button
                 key={p.id}
                 type="button"
-                className={`ld-pin tone-${ldPinTone(l, by)}${picked === p.id ? " on" : ""}`}
+                className={`ld-pin tone-${ldPinTone(l, by)}${ldPinOut(l)}${picked === p.id ? " on" : ""}`}
                 style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
                 aria-label={`${l.name} — ${l.sub}`}
                 data-testid={`lead-pin-${p.id}`}

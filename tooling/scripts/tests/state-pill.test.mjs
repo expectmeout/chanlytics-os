@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateTone, stateLabel, stateOf, TONES, PERSON_STATE_LABELS, BROADCAST_STATE_LABELS, ROLE_WORDS, toInboxThreadVM, PLATFORM_VERDICTS, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_WORDS, LEAD_EMAIL_WORDS, LEAD_STAGE_WORDS, LEAD_LEFT_OUT_WORD } from "@chanlytics/contracts";
+import { stateTone, stateLabel, stateOf, leadPinTone, TONES, PERSON_STATE_LABELS, BROADCAST_STATE_LABELS, ROLE_WORDS, toInboxThreadVM, PLATFORM_VERDICTS, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_WORDS, LEAD_EMAIL_WORDS, LEAD_STAGE_WORDS, LEAD_LEFT_OUT_WORD } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -57,21 +57,24 @@ test("the words are the label maps contracts already keeps, and a value nobody w
 // that family drifted: a mailbox still being checked shared one grey with a server that accepts every address, a
 // bounce drew fainter than a success, and the accent -- reserved above for what is live right now -- sat on Ready,
 // the state every lead is born in. Registering the five kinds is what lets one rule decide all of it.
-test("a lead's five state families speak the same six tones, and the accent is on none of them", () => {
-  const kinds = ["lead_class", "lead_stage", "lead_fit", "reach", "lead_call_outcome"];
+test("a lead's six state families speak the same six tones, and the accent is on none of them", () => {
+  const kinds = ["lead_class", "lead_stage", "lead_fit", "reach", "lead_call_outcome", "lead_row_state"];
   const values = {
     lead_class: ["qualified", "review", "excluded"],
     lead_stage: ["ready", "nurture", "converted", "archived"],
     lead_fit: ["strong", "look", "long"],
     reach: ["none", "checking", "ok", "catch_all", "unknown", "invalid"],
     lead_call_outcome: [...LEAD_CALL_OUTCOMES],
+    lead_row_state: ["ready", "contacted", "talking", "review", "out"],
   };
   for (const kind of kinds) {
     for (const v of values[kind]) {
       const { tone, label } = stateOf(kind, v);
       assert.ok(TONES.includes(tone), `${kind}/${v} is "${tone}", which is not one of the six`);
       assert.notEqual(tone, "accent", `${kind}/${v} wears the accent, which means live right now and nothing else`);
-      assert.ok(label && label !== v, `${kind}/${v} has no words of its own`);
+      // `lead_row_state` is a tone and no words on purpose: the row composes its own tag, and a words map here
+      // would be the same five said twice -- and one read off another map is a side effect the bundler keeps.
+      if (kind !== "lead_row_state") assert.ok(label && label !== v, `${kind}/${v} has no words of its own`);
     }
   }
 
@@ -90,6 +93,44 @@ test("a lead's five state families speak the same six tones, and the accent is o
   assert.equal(stateLabel("reach", "catch_all"), LEAD_EMAIL_WORDS.catch_all);
   assert.equal(stateLabel("lead_class", "excluded"), LEAD_LEFT_OUT_WORD, "one state, one word: the page kept a second that said Excluded");
   assert.equal(stateLabel("lead_call_outcome", "wrong_number"), LEAD_CALL_OUTCOME_WORDS.wrong_number);
+  // `contacted` and `talking` ARE `nurture` and `converted`, in the owner's words, so they take one tone each.
+  assert.equal(stateTone("lead_row_state", "contacted"), stateTone("lead_stage", "nurture"));
+  assert.equal(stateTone("lead_row_state", "talking"), stateTone("lead_stage", "converted"));
+  assert.equal(stateLabel("lead_row_state", "review"), "review", "a tone-only kind hands the value back rather than keeping a second set of the five words");
+});
+
+// The map was the sixth surface with a colour family of its own -- a table in leads.css keyed by ITS words
+// (`strong`, `part`, `talking`), which no tone vocabulary knows, so this registry could not reach it. It had
+// drifted: a `look` fit drew amber on a pin and plain everywhere else. And naming no element at all, its
+// `.tone-ok` painted every `tone-ok` in the app solid green -- a Today attention row, the peek's Interested chip.
+test("a map pin takes its tone from the registry the row reads, and a pin never wears the accent", () => {
+  const lead = (over) => ({ cls: "qualified", fit: "strong", state: "ready", slots: { phone: { state: "none" }, mailbox: { state: "none" } }, ...over });
+
+  assert.equal(leadPinTone(lead({ fit: "strong" }), "fit"), "ok", "a strong fit is a good outcome, not an urgent one");
+  assert.equal(leadPinTone(lead({ fit: "look" }), "fit"), "plain", "a look drew amber on the map and plain everywhere else");
+  assert.equal(leadPinTone(lead({ fit: "long" }), "fit"), "plain");
+  assert.equal(leadPinTone(lead({ fit: null }), "fit"), "plain", "a qualified lead with no fit recorded is not a strong one");
+  assert.equal(leadPinTone(lead({ cls: "review" }), "fit"), "warn", "a lead waiting on a person says so on the map too");
+  assert.equal(leadPinTone(lead({ cls: "excluded" }), "fit"), "plain");
+
+  // One way through is enough; nothing at all is the quietest a lead gets; part-way is worth a look.
+  const reach = (phone, mailbox) => leadPinTone(lead({ slots: { phone: { state: phone }, mailbox: { state: mailbox } } }), "reach");
+  assert.deepEqual([reach("ok", "none"), reach("none", "ok"), reach("ok", "ok")], ["ok", "ok", "ok"]);
+  assert.equal(reach("none", "none"), "plain", "no phone and no mailbox is nothing to say, not a warning");
+  assert.deepEqual([reach("part", "none"), reach("none", "checking"), reach("bad", "part")], ["warn", "warn", "warn"]);
+
+  for (const [state, tone] of [["ready", "plain"], ["contacted", "info"], ["talking", "ok"], ["review", "warn"], ["out", "plain"]]) {
+    assert.equal(leadPinTone(lead({ state }), "stage"), tone, `${state} on a pin`);
+    assert.equal(stateTone("lead_row_state", state), tone, `${state}: and the same from the registry the row itself reads`);
+  }
+
+  for (const by of ["fit", "reach", "stage"]) {
+    for (const over of [{}, { cls: "review" }, { cls: "excluded" }, { state: "talking" }, { state: "review" }, { fit: "look" }]) {
+      const t = leadPinTone(lead(over), by);
+      assert.ok(TONES.includes(t), `${by}: "${t}" is not one of the six`);
+      assert.notEqual(t, "accent", `${by}: a pin is data, and data never wears the accent`);
+    }
+  }
 });
 
 test("the back office's verdicts speak the same six tones: waiting on an owner is in progress, not live", () => {
