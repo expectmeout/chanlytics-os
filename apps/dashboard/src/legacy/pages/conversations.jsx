@@ -1,4 +1,4 @@
-/* global React, Icon, MoreMenu, CONVERSATIONS_DATA, EmptyState, FailedRead, ThreadPane, CallCard */
+/* global React, Icon, MoreMenu, CONVERSATIONS_DATA, EmptyState, FailedRead, ThreadPane, ThreadCall */
 // Chanlytics — Conversations
 // The raw communication layer: every call, chat, and email, newest first. A row opens the one thread (thread-pane.jsx)
 // -- a call opens its thread at the call -- and a call no thread holds opens alone, in the thread's own frame.
@@ -92,7 +92,7 @@ const CvRow = ({ c, active, onSelect }) => {
 };
 
 // ---------- A call no thread holds ----------
-// In the thread's own frame: its header, and the call as a thread draws it (CallCard). A caller who withheld their
+// In the thread's own frame: its header, and the call as a thread draws it (ThreadCall). A caller who withheld their
 // number, a call older than the threads the Inbox shows, a call still going. One still going is a line that says so and
 // opens Live, where it can be heard and steered; its clock is the wall clock since it started, never a seed's.
 const cvClock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
@@ -130,20 +130,21 @@ const CallPane = ({ c, onBack = null }) => {
         <div className="ix-timeline">
           {live ? (
             <div className="tl-call inbound live" data-testid="cv-call-live">
-              <div className="tl-call-card">
-                <div className="tl-call-head">
-                  <span className="live-dot" aria-hidden="true" />
-                  <span className="tl-call-kind">On the phone now{secs != null && <span className="tl-call-length tabular"> · {cvClock(secs)}</span>}</span>
-                </div>
-                <div className="tl-call-acts">
-                  <button type="button" className="btn btn-sm ix-state-go" onClick={() => window.CHANLY.nav("live")}>
-                    <Icon name="phone" size={12} /> Open Live
-                  </button>
-                </div>
+              <div className="tl-call-mark">
+                <span className="live-dot" aria-hidden="true" />
+                <span className="tl-call-words">
+                  <span className="tl-call-kind">On the phone now</span>
+                  {secs != null && <span className="tl-call-length tabular">{cvClock(secs)}</span>}
+                </span>
+              </div>
+              <div className="tl-call-live-acts">
+                <button type="button" className="btn btn-sm ix-state-go" onClick={() => window.CHANLY.nav("live")}>
+                  <Icon name="phone" size={12} /> Open Live
+                </button>
               </div>
             </div>
           ) : (
-            <CallCard call={c} at={c.at} />
+            <ThreadCall call={c} at={c.at} open />
           )}
         </div>
       </div>
