@@ -29,8 +29,9 @@
 // holds unsaved changes once it is open. A clean fold gives way at once; a dirty one stays open and the registry
 // records { holding, wants } until one of three answers: discard() (throw its changes away and open the one asked
 // for), stay() (keep editing it), or close(id) from the holding fold itself (saved or cancelled; the one asked for
-// then opens). close(id) from a fold that is not the open one does nothing. reset() forgets everything.
-// subscribe(fn) hears every change.
+// then opens). close(id) from a fold that is not the open one does nothing. reset() forgets what is open and asked.
+// subscribe(fn) hears every change. drawn(id) is RecordFold's own: it counts the folds with each id on the page, and
+// when the last one with the open id goes, the registry lets go.
 
 const { useRef: useFoldRef, useEffect: useFoldEffect } = React;
 
@@ -39,6 +40,10 @@ const recFolds = (() => {
   let openDirty = null;
   let asked = null;
   const subs = new Set();
+  // How many folds with each id are on the page. Counted by id, not held by each fold, because the fold a person
+  // sees can be a new instance of the one that opened: StrictMode's check in development, a key change or a new
+  // parent unmounts one and mounts the next in the same commit.
+  const live = new Map();
   // A check that throws is taken as holding changes: asking once too often loses nothing.
   const dirty = () => {
     if (!openId || typeof openDirty !== "function") return false;
@@ -83,6 +88,17 @@ const recFolds = (() => {
     },
     reset() { become(null); },
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
+    // A fold with this id is on the page; call what this returns when it goes. When the last fold with the open id
+    // goes, the registry lets go of it, asked a moment later so a fold that comes straight back, or comes back as a
+    // new instance, is counted again first.
+    drawn(id) {
+      live.set(id, (live.get(id) || 0) + 1);
+      return () => {
+        const left = (live.get(id) || 1) - 1;
+        if (left > 0) live.set(id, left); else live.delete(id);
+        queueMicrotask(() => { if (!live.has(id) && openId === id) become(null); });
+      };
+    },
   };
 })();
 
@@ -123,19 +139,10 @@ const RecordFold = ({
   }, [open, id]);
   // A fold whose page goes away (the rail's "Yes, leave" replaces the pane) lets go of the registry: left as the open
   // fold, its dirty check would go on answering after it had gone, and the rail would ask on every tab and the
-  // browser before every reload. Asked a moment after it goes, because React's StrictMode (on in development)
-  // unmounts and remounts every effect at once, and a fold that comes straight back is not gone. A fold closed, or
-  // given way to another, before it goes is no longer the open one, and this leaves the registry alone.
-  const mounted = useFoldRef(false);
-  const idNow = useFoldRef(id);
-  idNow.current = id;
-  useFoldEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      queueMicrotask(() => { if (!mounted.current && recFolds.open() === idNow.current) recFolds.reset(); });
-    };
-  }, []);
+  // browser before every reload. The registry counts the folds on the page by id (drawn), so a fold that comes
+  // straight back (StrictMode, in development) or comes back as a new instance (a key change, a new parent) keeps
+  // hold. A fold closed, or given way to another, before it goes is no longer the open one, and leaves it alone.
+  useFoldEffect(() => recFolds.drawn(id), [id]);
   const labelId = `rec-fold-${id}-label`;
   const closeId = `rec-fold-${id}-close`;
   const refused = !!(gate && gate["aria-disabled"]);

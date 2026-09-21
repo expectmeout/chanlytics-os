@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, unmount, remount, settle, all, find, textOf, classes, press } from "./_legacy-react.mjs";
+import { installLegacyReact, again, unmount, remount, settle, all, find, textOf, classes, press } from "./_legacy-react.mjs";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
@@ -24,8 +24,11 @@ await import(`${L}/components/record-fold.jsx`);
 await import(`${L}/components/record-sheet.jsx`);
 const W = globalThis.window;
 
-/** A new tree, drawn as today-page.test.mjs draws one: the hook cells forgotten, the component created. */
-const draw = (Comp, props = {}) => { fresh(); return W.React.createElement(Comp, props); };
+/**
+ * A new tree, drawn as today-page.test.mjs draws one, over the last one unmounted as React replaces a tree: its effects
+ * clean up (a fold's hold on the registry among them), its cells are forgotten, and the component is created.
+ */
+const draw = (Comp, props = {}) => { unmount(); return W.React.createElement(Comp, props); };
 /** The same tree again, over the same hook cells, as React draws it after a state change. */
 const redraw = (Comp, props = {}) => again(() => W.React.createElement(Comp, props));
 /** Everything in a tree that a press acts on. */
@@ -379,25 +382,40 @@ test("an ask is answered by keeping on, or by the holding fold closing, and a fo
   assert.equal(folds.open(), null);
 });
 
-test("a fold whose page goes away lets go: the rail stops asking, and nothing waits on an answer from it", async () => {
+test("a fold whose page goes away lets go; one that comes straight back, or comes back new, holds on", async () => {
   const folds = W.__recordFolds;
   folds.reset();
   folds.request("booking_rules", { dirty: () => true });
   folds.request("notes", { dirty: () => false });
   assert.deepEqual(folds.asking(), { holding: "booking_rules", wants: "notes" });
   const drawFold = () => W.React.createElement(W.RecordFold, bookingRules());
-  fresh();
-  drawFold();
+  const unloadAsks = () => {
+    const ev = { type: "beforeunload", returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+    W.dispatchEvent(ev);
+    return ev.prevented;
+  };
+  draw(W.RecordFold, bookingRules());
+
   // React's StrictMode check (on in the app, in development) unmounts and remounts every effect at once.
   remount(drawFold);
   await settle();
   assert.equal(folds.open(), "booking_rules", "a fold that comes straight back is not gone");
+
+  // A key change, or a new parent: this instance goes and a new one with the same id comes, in the same commit.
+  unmount();
+  drawFold();
+  await settle();
+  assert.equal(folds.open(), "booking_rules", "the fold on the page keeps its place");
+  assert.equal(W.__settingsUnsaved(), true, "and the rail's guard");
+  assert.equal(unloadAsks(), true, "and the browser's prompt");
+
   // The rail's "Yes, leave" replaces the pane, and the fold with it.
   unmount();
   await settle();
   assert.equal(W.__settingsUnsaved(), false, "a fold that is gone holds nothing the rail should ask about");
   assert.equal(folds.asking(), null);
   assert.equal(folds.open(), null);
+  assert.equal(unloadAsks(), false);
 });
 
 test("a fold that was closed, or gave way, before it went leaves the open one alone", async () => {
@@ -475,7 +493,7 @@ test("a sheet is a dialog with a name, a close and a foot that holds still", () 
   assert.equal(closed.length, 1);
 
   const saveAll = W.React.createElement("button", { type: "button", onClick: () => {} }, "Save 33 services");
-  fresh();
+  unmount();
   // Children as React hands them, after the props: the stub's createElement sets `children` from these.
   const full = W.React.createElement(W.RecordSheet, offer({ id: "services", foot: saveAll, tools: "search" }), "row one", "row two");
   const named = find(full, (n) => classes(n).includes("rec-sheet"));

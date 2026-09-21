@@ -94,10 +94,14 @@ export function again(draw) {
   return draw();
 }
 
-/** The tree goes away, as React unmounts it: each effect's cleanup runs, then every hook cell is forgotten. */
+/**
+ * The tree goes away, as React unmounts it: each effect's cleanup runs, then its hook cells are forgotten. Window
+ * listeners are left to the cleanups that added them, as in a browser: one a registry keeps for itself stays.
+ */
 export function unmount() {
   for (const c of cells.list) if (c && c.effect && typeof c.cleanup === "function") c.cleanup();
-  fresh();
+  cells.list = [];
+  cells.seq = 0;
 }
 
 /**
