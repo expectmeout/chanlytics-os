@@ -166,7 +166,8 @@
 .pk-where { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--ink-dim); }
 .pk-where a, .pk-where span { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; }
 .pk-where a:hover { color: var(--ink); }
-.pk-where .pk-quiet { color: var(--ink-faint); }
+/* "Listing not claimed by the owner" is dim here as it is in the rating card: one note, one ink. */
+.pk-where .pk-quiet { color: var(--ink-dim); }
 .pk-x { width: 30px; height: 30px; border-radius: 8px; border: 0; background: transparent; color: var(--ink-dim); display: grid; place-items: center; cursor: pointer; flex: none; }
 .pk-x:hover { background: var(--bg-hover); color: var(--ink); }
 
@@ -523,7 +524,9 @@
 .ld-biz-cell .cl-row-fullname .ld-biz-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ld-biz-cell .ld-sub { display: block; font-size: var(--text-sm); color: var(--ink-dim); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ld-biz-cell .ld-sub.waits { color: var(--lead-part); }
-.ld-biz-cell.excluded .ld-sub { color: var(--ink-faint); }
+/* Why a lead was left out is what an owner reads to decide Put back, so it stays readable: quieter than the name, never
+   the 2.3:1 of --ink-faint. */
+.ld-biz-cell.excluded .ld-sub { color: var(--ink-dim); }
 
 /* Six states of one row: Ready is silent, so the eye is drawn to change, not to sameness. */
 .leads-scope .cl-table tbody tr.ld-row-review { box-shadow: inset 3px 0 0 var(--warn); }
@@ -591,21 +594,43 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 /* The hover vocabulary: a tip is a chip you can never click; a card is raised and stays while you are inside it.
    Both wait in the DOM, and a scrolling list shows neither. */
 .ld-hover { position: relative; }
+/* At rest a pop is out of the layout (display: none), not merely invisible. Hidden with visibility it still took its
+   space, and the last row's name card hung 134px below the table, so the table scrolled on past its end into blank
+   space. display is transitioned as a discrete value (allow-discrete), which keeps every timing it had: a tip shows
+   after 200ms and a card after 400ms, and leaving, each lingers that long and fades before it goes, so the pointer
+   can still reach a card on its way down to it. */
 .ld-tip {
   position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; max-width: 300px; width: max-content;
   padding: 6px 9px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: var(--text-xs); line-height: 1.45;
   white-space: normal; pointer-events: none; box-shadow: var(--shadow-md);
-  opacity: 0; visibility: hidden; transition: opacity var(--duration-fast) var(--ease-out) 200ms, visibility 0s linear 320ms;
+  display: none; opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out) 200ms, display 0s allow-discrete calc(200ms + var(--duration-fast));
 }
-.ld-hover:hover > .ld-tip, .ld-hover:focus-within > .ld-tip { opacity: 1; visibility: visible; transition-delay: 200ms, 0s; }
+.ld-hover:hover > .ld-tip, .ld-hover:focus-within > .ld-tip {
+  display: block; opacity: 1;
+  transition: opacity var(--duration-fast) var(--ease-out) 200ms, display 0s allow-discrete 200ms;
+}
 .ld-card {
   position: absolute; left: 0; top: calc(100% + 8px); z-index: 21; width: 320px; padding: 12px; box-sizing: border-box;
   border-radius: var(--radius-lg); background: var(--bg-raised); border: 1px solid var(--line); box-shadow: var(--shadow-lg);
   text-align: left; white-space: normal; font-size: var(--text-sm); color: var(--ink); cursor: default;
-  opacity: 0; visibility: hidden; transition: opacity 140ms var(--ease-out) 400ms, visibility 0s linear 540ms;
+  display: none; opacity: 0;
+  transition: opacity 140ms var(--ease-out) 400ms, display 0s allow-discrete 540ms;
 }
-.ld-hover:hover > .ld-card, .ld-hover:focus-within > .ld-card, .ld-card:hover { opacity: 1; visibility: visible; transition-delay: 400ms, 0s; }
-.pl-main[data-scrolling] .ld-tip, .pl-main[data-scrolling] .ld-card { opacity: 0 !important; visibility: hidden !important; transition: none !important; }
+.ld-hover:hover > .ld-card, .ld-hover:focus-within > .ld-card, .ld-card:hover {
+  display: block; opacity: 1;
+  transition: opacity 140ms var(--ease-out) 400ms, display 0s allow-discrete 400ms;
+}
+@starting-style {
+  .ld-hover:hover > .ld-tip, .ld-hover:focus-within > .ld-tip,
+  .ld-hover:hover > .ld-card, .ld-hover:focus-within > .ld-card { opacity: 0; }
+}
+/* A pop hangs below its row, and the table's pane cuts off whatever reaches past its bottom edge -- the card on the
+   last row in view lost 173px. ldPlacePop looks where the hover is as the pointer or focus arrives, and hangs the pop
+   above the row instead when that is where the room is. */
+.ld-hover.ld-up > .ld-tip { top: auto; bottom: calc(100% + 6px); }
+.ld-hover.ld-up > .ld-card { top: auto; bottom: calc(100% + 8px); }
+.pl-main[data-scrolling] .ld-tip, .pl-main[data-scrolling] .ld-card { display: none !important; transition: none !important; }
 .ld-rated-cell .ld-card, .ld-found-cell .ld-tip { left: auto; right: 0; }
 .ld-card-head { display: flex; align-items: center; gap: 10px; }
 .ld-card-titles { min-width: 0; }
@@ -661,7 +686,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-reach-cell,
   .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-rated-cell { display: none; }
   .ld-tile { width: 40px !important; height: 40px !important; }
-  .ld-card, .ld-tip { display: none; }
+  .ld-card, .ld-tip, .ld-hover:hover > .ld-card, .ld-hover:hover > .ld-tip { display: none !important; }
   .ld-values { display: none; }
 }
 
@@ -794,7 +819,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-g.on .n { color: var(--accent); }
 .ld-bench-g .l { font-size: var(--text-sm); color: var(--ink); }
 .ld-bench-g .a { grid-column: 2; font-size: var(--text-xs); color: var(--ink-dim); }
-.ld-bench-g.mailbox_waiting .a { color: var(--ink-faint); }
+.ld-bench-g.mailbox_waiting .a { color: var(--ink-dim); }
 
 .ld-bench-main { flex: 999 1 420px; min-width: 340px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden; }
 .ld-bench-head { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }

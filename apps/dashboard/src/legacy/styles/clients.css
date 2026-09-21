@@ -15,6 +15,10 @@
    LEFT RAIL — Smart lists & saved segments
    ==================================================================== */
 
+/* A menu in the rail opens inside it, leftward from its trigger: the rail scrolls, so whatever crosses its edge is
+   cut off, and a search's menu opening rightward showed 51px of 194. It is at most as wide as the rail leaves it
+   beside the trigger, and its words wrap. */
+.cl-rail .more-menu { min-width: 0; width: max-content; max-width: 196px; }
 .cl-rail {
   display: flex;
   flex-direction: column;
@@ -1871,6 +1875,11 @@
   /* A pinned cell changes colour with its row: the row fades in 80ms. */
   .pl-table .cl-sel, .pl-table .pl-pin { position: sticky; left: 0; z-index: 1; background: var(--pl-row); transition: background-color 80ms; }
   .pl-table thead th.cl-sel, .pl-table thead th.pl-pin { z-index: 3; background: var(--bg-sunken); }
+  /* A pinned cell is sticky, and sticky with a z-index is its own stacking context: whatever opens inside it -- a
+     lead's name card -- can climb only as high as the cell does, and the next row's pinned cell, at the same level,
+     later in the page and opaque, painted straight over it. The one being hovered or focused rises above its pinned
+     neighbours for as long as it is, and stays under the pinned header (3). */
+  .pl-table tbody td.pl-pin:hover, .pl-table tbody td.pl-pin:focus-within { z-index: 2; }
   /* The checkbox's column is Person's offset, 28px, by what it holds: 12px of padding, the 14px box and these 2px.
      Its width of 28px alone was squeezed to the 26px of its content, and a cell's min- and max-width are undefined in
      CSS, so neither can be what holds it. */
