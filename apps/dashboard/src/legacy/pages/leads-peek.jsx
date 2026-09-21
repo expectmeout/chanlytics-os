@@ -1,4 +1,4 @@
-/* global React, Icon, LeadShape, LeadSlotShape */
+/* global React, Icon, LeadShape, LeadSlotShape, StatePill */
 // The peek: one lead, beside the table (408px) or full height on a phone, and everything the owner does to it
 // without leaving the rows -- the stage, Not a fit, Keep and Exclude, Put back, a call from their own phone, and a
 // draft for their own inbox. Hookless, as the page's rules ask: every piece of state here is ClientsAReal's
@@ -178,20 +178,22 @@ const PkHint = ({ id, label, mark, testid, card = false, children }) => (
 
 /**
  * The evidence as a pipeline (D8): one segment a check, in the order they were made, filled by its answer. It stands
- * beside the verdict's word, so "Strong fit" and what it rests on read as one thing.
+ * beside the verdict's pill, so "Strong fit" and what it rests on read as one thing. It is a gauge of one length
+ * whatever the count (PK_BAR_W): four checks or seven, two leads' evidence compares at a glance by how much of it is
+ * filled. The segments fill in order as the peek opens, a pipeline running once (none of it for reduced motion).
  *
  * ONE svg with its geometry in its own attributes, not a row of sized spans: an empty span takes its size only from
  * the cascade, and on production the dots this replaces drew at two sizes on one line (#734).
  */
+const PK_BAR_W = 120;
+const PK_BAR_GAP = 3;
+const PK_BAR_H = 4;
 const LeadEvidenceBar = ({ dots }) => {
   if (!dots || !dots.length) return null;
-  const SEG = 14;
-  const GAP = 3;
-  const H = 4;
-  const w = dots.length * (SEG + GAP) - GAP;
+  const seg = (PK_BAR_W - PK_BAR_GAP * (dots.length - 1)) / dots.length;
   return (
-    <svg className="pk-bar" width={w} height={H} viewBox={`0 0 ${w} ${H}`} aria-hidden="true" focusable="false" data-testid="peek-check-bar">
-      {dots.map((d, i) => <rect key={`${d}-${i}`} className={`pk-seg ${d}`} x={i * (SEG + GAP)} y={0} width={SEG} height={H} rx={2} />)}
+    <svg className="pk-bar" width={PK_BAR_W} height={PK_BAR_H} viewBox={`0 0 ${PK_BAR_W} ${PK_BAR_H}`} aria-hidden="true" focusable="false" data-testid="peek-check-bar">
+      {dots.map((d, i) => <rect key={`${d}-${i}`} className={`pk-seg ${d}`} x={i * (seg + PK_BAR_GAP)} y={0} width={seg} height={PK_BAR_H} rx={2} style={{ animationDelay: `${i * 70}ms` }} />)}
     </svg>
   );
 };
@@ -392,13 +394,16 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
       <div className="pk-body" data-testid="peek-body" onScroll={pkScrolling}>
         {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
         {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} deck={deck} /> : null}
-        {/* The verdict (D8): the fit's word with the evidence as a pipeline beside it, and one line of why. The checks
-            were a fold of their own below; their list is now what the bar says when it is pointed at or focused. */}
+        {/* The verdict (D8): the fit as the pill its row wears (StatePill, the one vocabulary: Strong fit in the ok
+            tone, Needs review in the warn), the evidence as a pipeline beside it, and one line of why. No box round
+            it: the pill carries the tone, so the verdict is not an alert. The checks were a fold of their own below;
+            their list is what the bar says when it is pointed at or focused. The bar is drawn anew for each lead, so
+            its pipeline runs once per lead the peek opens on. */}
         <div className={`pk-verdict ${vm.fit.cls}`} data-testid="peek-verdict">
           <div className="pk-verdict-head">
-            <b className={`pk-fit-word ${vm.fit.cls}`} data-testid="peek-fit-word">{vm.fit.word}</b>
+            <StatePill kind={vm.cls === "qualified" ? "lead_fit" : "lead_class"} value={vm.cls === "qualified" ? vm.fit.cls : vm.cls} label={vm.fit.word} className="pk-fit-word" testid="peek-fit-word" />
             {vm.checkDots.length ? (
-              <PkHint id={`${vm.id}-checks`} label={vm.checksSummary} mark={<LeadEvidenceBar dots={vm.checkDots} />} testid="peek-checks-summary" card>
+              <PkHint id={`${vm.id}-checks`} label={vm.checksSummary} mark={<LeadEvidenceBar key={vm.id} dots={vm.checkDots} />} testid="peek-checks-summary" card>
                 {vm.groups.map((g) => (
                   <span key={g.how} className={`pk-group pk-group-${g.how}`} data-testid={`peek-checks-${g.how}`}>
                     {g.checks.map((c) => (
@@ -422,7 +427,9 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
           </div>
         ) : null}
         {/* How to reach them (D8): a line a channel -- its mark, its value, what to press. Each note that was a sentence
-            under its line is what the mark says when pointed at, focused or tapped. */}
+            under its line is what the mark says when pointed at, focused or tapped. What a line does is a quiet mark
+            named on hover (the shared data-tip), because the act that matters is pinned at the foot: Call when there
+            is a number, else Draft. So the phone's line copies the number rather than offer a second Call. */}
         <div className="pk-reach">
           {vm.reach.phone ? (
             <div className="pk-rr" data-testid="peek-phone">
@@ -430,7 +437,11 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
               <span className={`pk-rv${vm.reach.phone.wrong ? " wrong" : ""}`} data-testid="peek-phone-value">{vm.reach.phone.value}</span>
               <PkHint id={`${vm.id}-phone-note`} label={`Phone: ${vm.slots.phone.word}`} mark={<LeadSlotShape state={vm.slots.phone.state} />} testid="peek-phone-note">{vm.reach.phone.tip}</PkHint>
               <span className="sp" />
-              {vm.reach.phone.tel ? <button type="button" className="btn btn-sm" data-testid="peek-call" onClick={() => on.onCall(vm.id)}><Icon name="phone" size={12} />{W.call}</button> : null}
+              {vm.reach.phone.wrong ? null : (
+                <span className="pk-rr-acts">
+                  <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={W.copyPhoneAria} data-tip={W.copyPhoneAria} data-testid="peek-copy-phone" onClick={() => on.onCopyPhone(vm.id)}><Icon name="copy" size={13} /></button>
+                </span>
+              )}
             </div>
           ) : null}
           <div className={`pk-rr${vm.reach.email.address ? "" : " none"}`} data-testid="peek-email">
@@ -440,8 +451,8 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
             <span className="sp" />
             {vm.reach.email.canDraft ? (
               <span className="pk-rr-acts">
-                <button type="button" className="btn btn-sm" aria-label={W.copyAria} data-testid="peek-copy" onClick={() => on.onCopy(vm.id)}>{W.copy}</button>
-                <button type="button" className="btn btn-sm" data-testid="peek-draft" onClick={() => on.onDraft(vm.id)}><Icon name="edit" size={12} />{W.draft}</button>
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={W.copyAria} data-tip={W.copyAria} data-testid="peek-copy" onClick={() => on.onCopy(vm.id)}><Icon name="copy" size={13} /></button>
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={W.draftAria} data-tip={W.draftAria} data-testid="peek-draft" onClick={() => on.onDraft(vm.id)}><Icon name="edit" size={13} /></button>
               </span>
             ) : null}
           </div>
@@ -594,6 +605,7 @@ const LeadPeekActions = (p) => {
     onExclude: p.exclude,
     onPutBack: p.putBack,
     onCopy: p.copyEmail,
+    onCopyPhone: p.copyPhone,
     // The owner's own phone dials; the question waits until they are back at the tab.
     onCall: () => { armFor("call"); dial(vm.reach.phone ? vm.reach.phone.tel : null); },
     onOutcome: (outcome) => p.setArmed({ ...p.armed, outcome }),

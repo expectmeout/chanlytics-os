@@ -212,9 +212,10 @@ test.describe("Leads on a real workspace", () => {
     // tel: URL (`plDial`, Task 2). That leaves the browser, so there is no element
     // and no navigation for Playwright to read: what the nightly proves is that
     // the key reaches a lead with a number to dial, and that the peek shows it.
-    // Stored canonical, and drawn as stored (toLeadPeekVM's reach.phone.value).
-    await expect(peek.getByTestId("peek-phone-value")).toHaveText(/^\+1512555010\d$/);
-    await expect(peek.getByTestId("peek-call")).toBeEnabled();
+    // Stored canonical and dialled as stored, but drawn as the app writes numbers everywhere else (#770:
+    // toLeadPeekVM's reach.phone.value is formatPhoneDisplay's). Call is the act pinned at the peek's foot.
+    await expect(peek.getByTestId("peek-phone-value")).toHaveText(/^\+1 \(512\) 555-010\d$/);
+    await expect(peek.getByTestId("peek-act-call")).toBeEnabled();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("lead-peek")).toHaveCount(0);
     await page.keyboard.press("f");

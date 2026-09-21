@@ -11043,6 +11043,9 @@ declare const LEAD_WORDS: {
     readonly call: "Call";
     readonly copy: "Copy";
     readonly copyAria: "Copy the email";
+    /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+    readonly copyPhoneAria: "Copy the number";
+    readonly draftAria: "Draft an email";
     readonly draft: "Draft";
     readonly noWebsite: "No website listed";
     readonly instagram: "Instagram";
