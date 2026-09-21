@@ -10747,6 +10747,8 @@ var CANNOT_ROWS = [
     soon: true
   }
 ];
+
+// src/prompt-blocks.ts
 var PLATFORM_LABEL = "Chanlytics' own instructions";
 var PLATFORM_NOTE = "Written by Chanlytics for every workspace, not by you.";
 var BLOCK_MARKS = [

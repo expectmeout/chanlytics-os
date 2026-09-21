@@ -9650,6 +9650,9 @@ declare function registrationPreflight(f: PreflightFacts): PreflightProblem[];
  * than in the page, for the reason Today and Reports already hold to: a
  * sentence written in JSX cannot be tested, and the same sentence written
  * twice is one that will be edited once.
+ *
+ * The prompt view, which cuts what the receptionist reads into the blocks that
+ * wrote it, is `prompt-blocks.ts`.
  */
 /**
  * The guardrail keys the profile stores, read off the schema rather than copied
@@ -9775,6 +9778,15 @@ interface CannotRowVM {
  * page that holds the switches is the difference between a limit and a bug.
  */
 declare const CANNOT_ROWS: readonly CannotRowVM[];
+
+/**
+ * The Business tab's prompt view: the composed prompt, cut into the blocks that
+ * wrote it.
+ *
+ * Apart from `business-tab.ts`, which holds the tab's sentence tables, because
+ * this is a different kind of code: it reads what `config.ts` writes, and has to
+ * keep reading it the way the composer writes it.
+ */
 /**
  * The composed prompt, cut into the blocks that wrote it.
  *
