@@ -148,6 +148,47 @@ const fresh = () => { cells = []; seq = 0; went.length = 0; for (const k of Obje
 
 /* ------------------------------ doors ------------------------------ */
 
+test("Playbooks shows every moment, not only the ones somebody made: an empty one says what it would do and who it would reach, and opens the composer on itself", () => {
+  const trig = (id, label, hint, candidates) => ({ id, label, hint, cls: "reengage", list: id, kind: "list", candidates, held: 0 });
+  const moments = () => [
+    trig("quiet_30", "Win-back", "anyone quiet for a month", 4),
+    trig("new_week", "Welcome", "anyone new this week", 6),
+    trig("phoned_only", "Save our number", "anyone who only ever phoned", 11),
+    trig("visited", "After the visit", "the day after a visit", 0),
+  ];
+  // Two playbooks are made -- for quiet_30 and new_week -- so two moments are left.
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ triggers: moments() });
+  fresh();
+  let tree = globalThis.window.OutboundPage({});
+  let slots = all(tree, (n) => n.props?.["data-testid"] === "pb-slot");
+  assert.deepEqual(slots.map((s) => s.props["data-trigger"]), ["phoned_only", "visited"], "a moment a playbook already covers is not offered again");
+  assert.ok(textOf(slots[0]).includes("11 people today"), textOf(slots[0]));
+  // A moment with nobody in it today is still a moment worth setting up; it says
+  // so in words rather than showing a 0 that reads as broken.
+  assert.ok(textOf(slots[1]).includes("nobody today"), textOf(slots[1]));
+  assert.ok(textOf(byTestId(tree, "pb-standing")).includes("2 of 4 moments"), textOf(byTestId(tree, "pb-standing")));
+
+  // On a first day every moment is offered, and that is the empty state: the
+  // generic "No playbook yet" card does not also appear.
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ triggers: moments(), rows: [] });
+  fresh();
+  tree = globalThis.window.OutboundPage({});
+  slots = all(tree, (n) => n.props?.["data-testid"] === "pb-slot");
+  assert.deepEqual(slots.map((s) => s.props["data-trigger"]), ["quiet_30", "new_week", "phoned_only", "visited"]);
+  assert.equal(byTestId(tree, "pb-empty"), null, "the moments are the empty state");
+  assert.ok(textOf(byTestId(tree, "pb-standing")).includes("0 of 4 moments"), textOf(byTestId(tree, "pb-standing")));
+
+  // Pressing the third opens the composer ON that moment, not on whichever trigger is first.
+  find(slots[2], (n) => n.props?.["data-testid"] === "pb-slot-start").props.onClick();
+  seq = 0;
+  tree = globalThis.window.OutboundPage({});
+  assert.ok(byTestId(tree, "pb-composer"), "the composer opens");
+  const picked = all(tree, (n) => n.props?.["data-testid"] === "pb-trigger").filter((b) => classes(b).includes("active"));
+  assert.deepEqual(picked.map((b) => textOf(b).trim()), ["Save our number 11"], "on the moment that was pressed");
+  assert.ok(textOf(byTestId(tree, "pb-trigger-hint")).includes("anyone who only ever phoned"), textOf(byTestId(tree, "pb-trigger-hint")));
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "pb-slot").length, 0, "and the slots stand down while it is open");
+});
+
 test("REGRESSION (C13): Playbooks opened on a playbook marks its card and brings it into view, and a playbook since deleted says so", () => {
   globalThis.window.__PLAYBOOKS = playbooksSurface();
   const scrolled = [];

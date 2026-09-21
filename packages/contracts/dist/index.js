@@ -1623,6 +1623,17 @@ function mediaVM(m) {
     available: m.media.fetch_state === "stored"
   };
 }
+var QUOTE_BLOCK = /^[ \t]*(?:(?:-{2,}[ \t]*Original Message[ \t]*-{2,})|(?:_{5,})|(?:>[ \t]?))/m;
+var QUOTE_ATTRIBUTION = /\bOn\b[\s\S]{0,240}?\bwrote:[ \t]*(?=\r?\n|>)/;
+function splitQuotedReply(body) {
+  const cuts = [QUOTE_ATTRIBUTION.exec(body), QUOTE_BLOCK.exec(body)].filter((m) => m !== null).map((m) => m.index);
+  if (cuts.length === 0) return { text: body, quoted: null };
+  const cut = Math.min(...cuts);
+  const text = body.slice(0, cut).trim();
+  const quoted = body.slice(cut).trim();
+  if (!text || !quoted) return { text: body, quoted: null };
+  return { text, quoted };
+}
 function messageText(m) {
   if (m.type === "call_summary" && m.body) {
     return m.body.replace(CALL_NOTE_PREFIX, "").trim();
@@ -1717,6 +1728,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
+    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
     return {
       type: "msg",
       from: m.sender === "customer" ? "client" : "agent",
@@ -1725,7 +1737,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       ...subject ? { subject } : {},
       ...leftOut ? { leftOut } : {},
       at: bubbleTime(messageAt(m), tz, now),
-      body: messageText(m),
+      body: said ? said.text : messageText(m),
+      ...said && said.quoted ? { quoted: said.quoted } : {},
       ...media ? { media } : {},
       ...why ? { why } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
@@ -6834,6 +6847,34 @@ function resolveParams(specs, f) {
 function exampleParams(specs, businessName) {
   return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
 }
+var NOTHING = { playbooks: [], broadcasts: 0, booking: false };
+function templateUsage(src) {
+  const out = {};
+  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, booking: false };
+  for (const p of src.playbooks) {
+    if (!p.template_name) continue;
+    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused" });
+  }
+  for (const b of src.broadcasts) {
+    if (!b.template_name || b.playbook_id) continue;
+    at2(b.template_name).broadcasts += 1;
+  }
+  if (src.bookingName) at2(src.bookingName).booking = true;
+  return out;
+}
+function templateUseWords(use) {
+  const u = use ?? NOTHING;
+  const parts2 = [];
+  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
+  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  if (u.booking) parts2.push("the Inbox");
+  if (parts2.length === 0) return "Nothing sends it";
+  return parts2.length < 2 ? parts2[0] : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function templateUnused(use) {
+  const u = use ?? NOTHING;
+  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}
 
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
@@ -11601,7 +11642,7 @@ function toLeadPeekVM(r, search, tz, now) {
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), logo: r.logo_url ?? null },
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null, logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
     week,
@@ -11615,7 +11656,6 @@ function toLeadPeekVM(r, search, tz, now) {
     about: r.about ?? null,
     where: leadWhere(r),
     today: leadTodayLine(r.hours ?? [], tz, now),
-    image: r.image_url ?? null,
     claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,
@@ -11895,7 +11935,6 @@ function toLeadRowVM(r, tz, now, search = null) {
       email: r.email ? { address: r.email, state: r.email_state, word: LEAD_EMAIL_WORDS[r.email_state] } : null,
       phone: r.phone ? { number: r.phone, agrees: r.phone_agrees } : null
     },
-    image: r.image_url ?? null,
     reasons: m.reasons ?? [],
     why: m.reason,
     rating,
@@ -13128,6 +13167,7 @@ export {
   spanLabel,
   spanUnits,
   speedOf,
+  splitQuotedReply,
   spokenBreach,
   spokenBreachDetails,
   spokenDuration,
@@ -13156,6 +13196,9 @@ export {
   templatePreview,
   templatePreviewValues,
   templateTitle,
+  templateUnused,
+  templateUsage,
+  templateUseWords,
   tenantStatusFor,
   textingTermsMetadata,
   textingTermsVM,

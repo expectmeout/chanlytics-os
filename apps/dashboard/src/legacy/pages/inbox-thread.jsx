@@ -586,6 +586,74 @@ const ConfidenceMeter = ({ level }) => {
 };
 
 // =============== TIMELINE ENTRY ===============
+// A link in a message is a link. The body is plain text — the customer's words or the
+// receptionist's — so it is split on the address and rendered as nodes, never as HTML. The
+// address is clipped by CSS (.tl-msg-link), so the whole of it stays selectable and copyable:
+// a booking URL took five lines of a bubble and could not be tapped.
+const URL_IN_TEXT = /\bhttps?:\/\/[^\s<>()[\]{}"']+[^\s<>()[\]{}"'.,;:!?]/gi;
+const Linked = ({ text }) => {
+  const s = text == null ? "" : String(text);
+  if (!s) return null;
+  const out = [];
+  let last = 0;
+  for (const m of s.matchAll(URL_IN_TEXT)) {
+    if (m.index > last) out.push(s.slice(last, m.index));
+    out.push(<a key={m.index} className="tl-msg-link" href={m[0]} target="_blank" rel="noopener noreferrer nofollow" title={m[0]}>{m[0]}</a>);
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) out.push(s.slice(last));
+  return <>{out}</>;
+};
+
+// What an email quoted back at us is kept, not shown: "Got it, thanks!" arrived as six lines of
+// "On Thu, Sep 17, 2026 at 10:44 PM … wrote: >". The split is the viewmodel's (splitQuotedReply),
+// so Conversations draws the same messages the same way.
+const TlMsgBody = ({ text, quoted }) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <Linked text={text} />
+      {quoted && (
+        <>
+          <button type="button" className="tl-msg-quote-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)} data-testid="tl-msg-quote-toggle">
+            {open ? "Hide quoted text" : "Show quoted text"}
+          </button>
+          {open && <div className="tl-msg-quote" data-testid="tl-msg-quote">{quoted}</div>}
+        </>
+      )}
+    </>
+  );
+};
+
+// Why it said that: the intent and how sure it was. It rode the meta line as two more spans,
+// which is what wrapped that line into columns on a phone — and its reason sat in a title
+// attribute no touch screen can open. A tap now, with the facts it used. The button belongs to
+// the meta line; the panel is that line's sibling, because the line does not wrap.
+const TlWhyButton = ({ why, open, onToggle }) => (
+  <button
+    type="button"
+    className="tl-msg-why"
+    aria-expanded={open}
+    aria-label={`Why the receptionist said this — ${why.summary}`}
+    onClick={onToggle}
+    data-testid="tl-msg-why"
+  >
+    <span className="tl-msg-why-full">· {why.summary}</span>
+    <span className="tl-msg-why-short">Why</span>
+  </button>
+);
+
+const TlWhyPanel = ({ why }) => {
+  const facts = why.facts && why.facts.length ? why.facts : null;
+  return (
+    <div className="tl-msg-why-panel" data-testid="tl-msg-why-panel">
+      <div className="tl-msg-why-sum">{why.summary}</div>
+      {why.reason && <div className="tl-msg-why-reason">{why.reason}</div>}
+      {facts && <div className="tl-msg-why-facts">Used: {facts.join(" · ")}</div>}
+    </div>
+  );
+};
+
 const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
 
@@ -618,6 +686,13 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
     );
   }
 
+  return <TlMsgEntry entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} channelIcon={channelIcon} />;
+};
+
+// The message branch, with the hooks its two disclosures need. It is its own component so those
+// hooks are not behind the event and agent-thinking returns above.
+const TlMsgEntry = ({ entry, thread, channelLabels, lines, channelIcon }) => {
+  const [whyOpen, setWhyOpen] = React.useState(false);
   const isClient = entry.from === "client";
   // A held draft is a message the customer has NOT seen. Rendered as an
   // ordinary agent bubble it reads as already-sent, and an operator would
@@ -641,7 +716,7 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
         )}
         {/* An email says what it is about before it says it. */}
         {entry.subject && <div className="tl-msg-subject" data-testid="tl-msg-subject">{entry.subject}</div>}
-        <div className="tl-msg-body">{entry.body}</div>
+        <div className="tl-msg-body"><TlMsgBody text={entry.body} quoted={entry.quoted} /></div>
         {entry.media && <TlMedia media={entry.media} />}
         {/* An email's files are not kept, and its words only up to a bound: the bubble says so, or "see attached" reads as the whole of it. */}
         {entry.leftOut && <div className="tl-msg-note" data-testid="tl-msg-left-out"><Icon name="info" size={11} /> {entry.leftOut}</div>}
@@ -649,14 +724,17 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
         {!isClient && (!lines || lines.by || held || entry.reachedCustomer === false) && (
           <div className="tl-msg-by">
             {entry.byYou ? (
-              <span>
-                by {entry.byWords || (entry.via ? (entry.via.kind === "playbook" ? `the ${entry.via.name} playbook` : `a broadcast (${entry.via.name})`) : "you")} · {entry.at}
+              <>
+                {/* The time is over the bubble already (.tl-msg-meta); it was printed twice
+                    within forty pixels. What gives way when the line is short is the author —
+                    never what became of the message. */}
+                <span className="tl-msg-author">by {entry.byWords || (entry.via ? (entry.via.kind === "playbook" ? `the ${entry.via.name} playbook` : `a broadcast (${entry.via.name})`) : "you")}</span>
                 {/* One vocabulary, computed in the viewmodel. This ternary was
                     the only place these words existed, so the Conversations
                     pane — which shows the same messages — said nothing at all
                     and rendered a canceled reply as a delivered one. */}
-                {entry.statusLabel ? ` · ${entry.statusLabel}` : ""}
-              </span>
+                {entry.statusLabel ? <span> · {entry.statusLabel}</span> : null}
+              </>
             ) : (
               <>
                 {/* Per-bubble when the viewmodel supplies it: a phone call
@@ -664,14 +742,9 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
                     one's. Seeded threads carry no per-entry agent and keep the
                     thread-level identity they have always used. */}
                 <span className="agent-avatar" style={{ width: 12, height: 12, fontSize: 7 }}>{entry.agentGlyph || thread.agent.glyph}</span>
-                <span>by {entry.agentName || thread.agent.name}</span>
-                {/* Why it said that, when the row remembers: the intent and
-                    how sure it was; the reason and the facts on hover. */}
-                {entry.why && (
-                  <span className="tl-msg-why" title={[entry.why.reason, entry.why.facts.length ? `Used: ${entry.why.facts.join(" · ")}` : ""].filter(Boolean).join("\n")}>
-                    · {entry.why.summary}
-                  </span>
-                )}
+                <span className="tl-msg-author">by {entry.agentName || thread.agent.name}</span>
+                {/* Why it said that, when the row remembers: a tap, not a hover. */}
+                {entry.why && <TlWhyButton why={entry.why} open={whyOpen} onToggle={() => setWhyOpen((v) => !v)} />}
                 {/* What became of it, as the team's bubbles say: "Didn't send", "Canceled before sending", "Read". */}
                 {!held && entry.statusLabel ? <span> · {entry.statusLabel}</span> : null}
                 {held && <span className="tl-held-tag">Not sent yet</span>}
@@ -679,6 +752,7 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
             )}
           </div>
         )}
+        {entry.why && whyOpen && <TlWhyPanel why={entry.why} />}
       </div>
     </div>
   );

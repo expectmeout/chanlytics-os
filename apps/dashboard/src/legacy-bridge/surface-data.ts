@@ -1,4 +1,4 @@
-import { POLICY_CLASS_WORDS, type PersonRowDto } from "@chanlytics/contracts";
+import { POLICY_CLASS_WORDS, templateUnused, templateUseWords, type PersonRowDto } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
@@ -498,7 +498,7 @@ export interface WorkspaceSettings {
 
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
-  globals: ["__SETTINGS", "__FACTS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS", "__TEMPLATES_ALL"],
+  globals: ["__SETTINGS", "__FACTS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS", "__TEMPLATES_ALL", "__TEMPLATE_USE"],
   events: ["surface:settings"],
   apply: async () => {
     const [cfg, team, pol, ch, tpl] = await Promise.all([
@@ -521,6 +521,7 @@ export const settingsOverride: SurfaceOverride = {
       __POLICIES?: PoliciesSurface | null;
       __CHANNELS?: ChannelVM[] | null;
       __TEMPLATES_ALL?: TemplateDto[] | null;
+      __TEMPLATE_USE?: Record<string, { words: string; unused: boolean; playbook: string | null }> | null;
     };
     // `broken` is its own state, not an empty config: the pane closes its
     // forms on it, because a save from a form that read {} would replace the
@@ -543,9 +544,21 @@ export const settingsOverride: SurfaceOverride = {
     }
     if (tpl instanceof Error) {
       w.__TEMPLATES_ALL = null;
+      w.__TEMPLATE_USE = null;
       console.error("settings_templates_fetch_failed", tpl.message);
     } else {
       w.__TEMPLATES_ALL = (tpl.templates ?? []).filter((t) => t.channel === "whatsapp");
+      // What sends each of them, as the sentence the card draws. Keyed by NAME:
+      // a template is one message in several languages, and the thing that sends
+      // it names the message. Every name gets an entry, so a name MISSING from
+      // the map means the usage was not read -- never "nothing sends it".
+      const used = tpl.usedBy ?? {};
+      w.__TEMPLATE_USE = Object.fromEntries(
+        [...new Set((w.__TEMPLATES_ALL ?? []).map((t) => t.name))].map((name) => {
+          const u = used[name] ?? { playbooks: [], broadcasts: 0, booking: false };
+          return [name, { words: templateUseWords(u), unused: templateUnused(u), playbook: u.playbooks.length === 1 ? u.playbooks[0]!.id : null }];
+        }),
+      );
     }
     if (pol instanceof Error) {
       w.__POLICIES = null;
