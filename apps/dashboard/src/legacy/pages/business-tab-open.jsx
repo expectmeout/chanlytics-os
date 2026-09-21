@@ -1,0 +1,680 @@
+/* global React, Icon */
+// Chanlytics — Settings › Business: When you're open.
+//
+// The second card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.3; the canvas's Record and
+// Group-Open boards): the week as a ribbon and one sentence, the zone with the local time beside it, the days the week
+// does not apply to, and the calendar the receptionist reads, saying what its last read found. Four rows, each edited
+// where it is stated: the week and the closed days fold open under their rows, the zone is one value edited in its row,
+// and the calendar's fold holds its one box. It replaces three sections of the form this page retires (BusinessEditor,
+// settings.jsx: "When you are open", "Days you are closed", "Calendar it may look at") and its TimezoneRow, and what
+// those learned came with them, comments and all.
+//
+// The page composes and never derives. The two sentences here with a number in them are contracts' (openWeekWords,
+// closuresAheadWords, through window.__businessTab); the week's summary is the composer's own run-collapsing
+// (window.__hoursLines, as the old card's hoursSummary calls it, never a second implementation); the zone's words are
+// contracts' (window.__tz); what the calendar's last read found is the Calendar page's own view model
+// (window.__CALENDAR, contracts toCalendarVM). What a fold opens with, refuses and writes is business-tab-folds.jsx's,
+// and the gesture every fold shares is BtFold (business-tab.jsx), read from window as each card draws.
+//
+// Loaded after business-tab-folds.jsx and before business-tab.jsx (both load lists). Its top-level names are
+// bto-prefixed, and no pattern in it holds an object rest, for the reasons business-tab-save.jsx gives. And the rule of
+// the tests' stub React holds here as it does on the page (business-tab.jsx's header): every component that holds a
+// hook is drawn on every render, so the rows that come and go inside a fold (a day's shifts, the closed days) are
+// drawn hookless, as plain boxes wearing the kit's class, and the one menu is always drawn.
+
+const { useState: useBtoState, useEffect: useBtoEffect, useRef: useBtoRef } = React;
+
+/* ------------------------------------ the week ------------------------------------ */
+
+// The days of the week in the schema's order, as the fold names them: the switch says the whole name, the row the short.
+const BTO_DAYS = [["mon", "Monday", "Mon"], ["tue", "Tuesday", "Tue"], ["wed", "Wednesday", "Wed"], ["thu", "Thursday", "Thu"], ["fri", "Friday", "Fri"], ["sat", "Saturday", "Sat"], ["sun", "Sunday", "Sun"]];
+const BTO_SHORT = Object.fromEntries(BTO_DAYS.map(([d, , short]) => [d, short]));
+const BTO_LONG = Object.fromEntries(BTO_DAYS.map(([d, long]) => [d, long]));
+const BTO_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"];
+
+// The one scale the week is drawn on, in minutes from midnight: 6 AM to 10 PM, the canvas's axis. A bar's place comes
+// from its times and this, never from a typed percentage; the axis labels are read off the same two numbers.
+const BTO_SCALE = { from: 6 * 60, to: 22 * 60 };
+const BTO_AXIS = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+  const h = (BTO_SCALE.from + f * (BTO_SCALE.to - BTO_SCALE.from)) / 60;
+  return `${((h + 11) % 12) + 1} ${h >= 12 ? "PM" : "AM"}`;
+});
+// The least a bar is drawn at, in hundredths of the scale: a stretch wholly outside it (a bar open from 11 PM) clamps to
+// the edge, and still has to be seen there, or a day that is open would look shut.
+const BTO_SLIVER = 2;
+
+const btoClock = (hhmm) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm == null ? "" : hhmm).trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+/**
+ * A day's open stretches as bars on the scale: { left, width } in hundredths of it. Only a stretch with both its times,
+ * closing after it opens, is one; a break is simply the next bar on the same row. Times outside the scale clamp to its
+ * edge, so nothing is drawn past the track, and the day still reads in full in the sentence under the ribbon.
+ */
+const btoBars = (shifts) => (shifts || []).flatMap((s) => {
+  const o = btoClock(s.open);
+  const c = btoClock(s.close);
+  if (o == null || c == null || c <= o) return [];
+  const span = BTO_SCALE.to - BTO_SCALE.from;
+  const at = (t) => ((Math.min(BTO_SCALE.to, Math.max(BTO_SCALE.from, t)) - BTO_SCALE.from) / span) * 100;
+  const width = Math.max(BTO_SLIVER, at(c) - at(o));
+  return [{ left: Math.min(at(o), 100 - width), width }];
+});
+
+/** The bars of one day, on a track. A closed day has no bar at all: shut, and looks it. */
+const BtoTrack = ({ day }) => (
+  <span className="bt-week-track" data-open={day.isOpen ? "true" : "false"}>
+    {day.isOpen ? btoBars(day.shifts).map((b, i) => (
+      <span key={i} className="rec-ribbon-bar" style={{ left: `${b.left}%`, width: `${b.width}%` }} />
+    )) : null}
+  </span>
+);
+
+/**
+ * The week at a glance, at rest: seven days, each its bars on the one scale, before any grid. It is a picture of the
+ * sentence under it and says nothing the sentence does not, so a screen reader is given the sentence alone.
+ */
+const BtoRibbon = ({ week }) => (
+  <span className="bt-ribbon" data-testid="rec-hours-ribbon" aria-hidden="true">
+    {BTO_DAYS.map(([d, , short]) => (
+      <span key={d} className="rec-ribbon-day" data-day={d} data-open={week[d].isOpen ? "true" : "false"}>
+        <BtoTrack day={week[d]} />
+        <span className="bt-ribbon-name">{short}</span>
+      </span>
+    ))}
+  </span>
+);
+
+/**
+ * The owner's own summary of their hours: the composer's run-collapsing (contracts hoursLines, published by the bridge
+ * as window.__hoursLines), joined as the old card's hoursSummary joins it (settings.jsx, a wrapper over the same
+ * function, which stays where it is until that card goes). Never a second implementation: its comment says why two
+ * copies of "which days share the same hours" is how the card and the receptionist start disagreeing, on the one screen
+ * an owner glances at to check. The words are the Calendar's too (C3), so this row and the Calendar's bar say one thing.
+ */
+const btoHoursLine = (hours) => {
+  if (!hours || !window.__hoursLines) return null;
+  return window.__hoursLines(hours).join(" · ") || null;
+};
+
+/** The same shifts, in the same order? Used to tell a no-op from a loss. */
+const btoSameShifts = (a, b) =>
+  a.isOpen === b.isOpen &&
+  a.shifts.length === b.shifts.length &&
+  a.shifts.every((s, i) => s.open === b.shifts[i].open && s.close === b.shifts[i].close);
+
+/**
+ * The week on one scale (the canvas's Group-Open): a day is a switch, its bars, and its times as boxes. Hookless but
+ * for the one menu, which is always drawn: a day's shifts come and go.
+ */
+const BtoWeek = ({ draft: week, update, undo, problems, readOnly, flash }) => {
+  const max = ((window.__configLimits || {}).maxIntervalsPerDay) || 4;
+  const setDay = (d, patch) => update((h) => ({ ...h, [d]: { ...h[d], ...patch } }), [`hours-${d}`]);
+  const setShift = (d, n, k, v) =>
+    update((h) => ({
+      ...h,
+      [d]: { ...h[d], shifts: h[d].shifts.map((s, j) => (j === n ? { ...s, [k]: v } : s)) },
+    }), [`hours-${d}`]);
+  /**
+   * Toggling a day closed KEEPS its shifts.
+   *
+   * The switch sits about ten pixels from the times. Dropping the shifts on
+   * the way through would mean an accidental tap costs an owner four times and
+   * the decision about lunch, with the day switch offering no undo — and
+   * reopening the day would present empty boxes as if nothing had been there.
+   * The save is what decides a closed day stores nothing.
+   */
+  const toggleDay = (d) => setDay(d, { isOpen: !week[d].isOpen, shifts: week[d].shifts.length ? week[d].shifts : [{ open: "", close: "" }] });
+  const addShift = (d) =>
+    update((h) => (h[d].shifts.length >= max ? h : { ...h, [d]: { ...h[d], shifts: [...h[d].shifts, { open: "", close: "" }] } }), [`hours-${d}`]);
+  const removeShift = (d, n) => {
+    const gone = week[d].shifts[n];
+    update((h) => ({ ...h, [d]: { ...h[d], shifts: h[d].shifts.filter((_, j) => j !== n) } }), [`hours-${d}`]);
+    flash({
+      msg: <>Removed the {BTO_SHORT[d]} shift{gone.open ? <> at <b>{gone.open}</b></> : null}</>,
+      undo: undo((h) => ({
+        ...h,
+        [d]: { ...h[d], shifts: [...h[d].shifts.slice(0, n), gone, ...h[d].shifts.slice(n)] },
+      })),
+    });
+  };
+
+  // Most businesses keep one set of weekday hours. Typing the same two times
+  // five more times is the kind of chore that makes people leave the field
+  // blank, and blank hours are what the receptionist cannot answer with.
+  /**
+   * Copy one day's hours onto others — and SAY what that did.
+   *
+   * This is where the salon lost its Sundays: a whole-day replace across seven
+   * days, from a link sitting inches from two other links, with a toast that
+   * counted successes. The button still does what it says, because "make the
+   * week look like Monday" is the thing people want. What changed is that the
+   * surprising part is named — days that were CLOSED and are now open, and
+   * days whose own hours (a lunch break, a late Thursday) were replaced — and
+   * that the whole grid can be put back in one click.
+   */
+  const applyToAll = (from, days) => {
+    const src = week[from];
+    if (!src.isOpen || readOnly) return;
+    const opened = days.filter((d) => !week[d].isOpen);
+    const replaced = days.filter((d) => week[d].isOpen && !btoSameShifts(week[d], src));
+    const before = {};
+    BTO_DAYS.forEach(([d]) => { before[d] = { isOpen: week[d].isOpen, shifts: week[d].shifts.map((s) => ({ ...s })) }; });
+    update((h) => {
+      const next = { ...h };
+      days.forEach((d) => { next[d] = { isOpen: true, shifts: src.shifts.map((s) => ({ ...s })) }; });
+      return next;
+    });
+    const names = (list) => list.map((d) => BTO_SHORT[d]).join(", ");
+    const notes = [];
+    if (opened.length) notes.push(<><b>{names(opened)}</b> {opened.length === 1 ? "was" : "were"} closed and {opened.length === 1 ? "is" : "are"} now open</>);
+    if (replaced.length) notes.push(<>replaced different hours on <b>{names(replaced)}</b></>);
+    flash({
+      msg: notes.length
+        ? <>Copied {BTO_SHORT[from]}&apos;s hours — {notes.map((n, i) => <React.Fragment key={i}>{i ? ", and " : ""}{n}</React.Fragment>)}</>
+        : <>Copied {BTO_SHORT[from]}&apos;s hours — nothing else changed</>,
+      undo: undo(() => before),
+    });
+  };
+
+  // One menu, where the form had two links inches from each other on Monday's row alone. It copies the first day that
+  // is open, which is Monday for nearly everyone and the one day there is to copy for a business shut on Mondays: to
+  // every day and to the weekdays, as the two links did, and to each other day by its name.
+  const from = (BTO_DAYS.find(([d]) => week[d].isOpen) || [null])[0];
+  const others = (list) => list.filter((d) => d !== from);
+  const copies = from ? [
+    { label: "Every day", onClick: () => applyToAll(from, others(BTO_DAYS.map(([d]) => d))) },
+    { label: "Weekdays", onClick: () => applyToAll(from, others(BTO_WEEKDAYS)) },
+    { divider: true },
+  ].concat(others(BTO_DAYS.map(([d]) => d)).map((d) => ({ label: BTO_LONG[d], onClick: () => applyToAll(from, [d]) }))) : [];
+
+  return (
+    <div className="bt-week" data-testid="rec-hours-week">
+      <div className="bt-week-row bt-week-axis" aria-hidden="true">
+        <span className="bt-week-day" />
+        <span className="bt-week-ticks">{BTO_AXIS.map((t) => <span key={t}>{t}</span>)}</span>
+        <span className="bt-week-times" />
+        <span className="bt-week-more" />
+      </div>
+      {BTO_DAYS.map(([d, long, short]) => {
+        const day = week[d];
+        const bad = problems[`hours-${d}`] || null;
+        const problemId = `bt-hours-${d}-problem`;
+        const kept = !day.isOpen && day.shifts.some((s) => s.open || s.close);
+        return (
+          <div key={d} className="bt-week-row" data-testid={`rec-hours-day-${d}`} data-open={day.isOpen ? "true" : "false"}>
+            <span className="bt-week-day">
+              <window.RecordSwitch on={day.isOpen} onChange={() => toggleDay(d)} label={long} readOnly={readOnly} testid={`rec-hours-switch-${d}`} />
+              <span className="bt-week-name">{short}</span>
+            </span>
+            <BtoTrack day={day} />
+            <span className="bt-week-times">
+              {day.isOpen ? (
+                <>
+                  {day.shifts.map((sh, n) => (
+                    <span key={n} className="bt-week-shift">
+                      <input
+                        className="rec-input bt-time" type="time" value={sh.open} readOnly={readOnly || undefined}
+                        aria-label={n === 0 ? `${long} opens` : `${long} shift ${n + 1} opens`}
+                        aria-invalid={bad ? true : undefined} aria-describedby={bad ? problemId : undefined}
+                        onChange={(e) => setShift(d, n, "open", e.target.value)}
+                      />
+                      <span className="bt-week-to">to</span>
+                      <input
+                        className="rec-input bt-time" type="time" value={sh.close} readOnly={readOnly || undefined}
+                        aria-label={n === 0 ? `${long} closes` : `${long} shift ${n + 1} closes`}
+                        aria-invalid={bad ? true : undefined} aria-describedby={bad ? problemId : undefined}
+                        onChange={(e) => setShift(d, n, "close", e.target.value)}
+                      />
+                      {/* The first shift has no remove control: the switch on
+                          the left already means "closed", and two ways to say
+                          the same thing is how one of them gets misread. */}
+                      {n > 0 ? (
+                        <button
+                          type="button" className="btn btn-ghost btn-icon btn-sm"
+                          aria-label={`Remove ${long} shift ${n + 1}`}
+                          onClick={() => removeShift(d, n)}
+                          data-testid={`rec-hours-remove-${d}-${n}`}
+                        ><Icon name="x" size={11} /></button>
+                      ) : null}
+                    </span>
+                  ))}
+                </>
+              ) : (
+                <span className="bt-week-closed">{kept ? "Closed — times kept" : "Closed"}</span>
+              )}
+            </span>
+            <span className="bt-week-more">
+              {/* The write schema refuses more than this, so the fold must not offer it (window.__configLimits,
+                  published by the bridge from contracts MAX_INTERVALS_PER_DAY). */}
+              {day.isOpen && day.shifts.length < max ? (
+                <button type="button" className="bt-week-break" onClick={() => addShift(d)} aria-label={`Add a break to ${long}`} data-testid={`rec-hours-add-${d}`}>
+                  <Icon name="plus" size={10} /> break
+                </button>
+              ) : null}
+            </span>
+            <window.FieldError id={problemId} message={bad} testid={`rec-hours-problem-${d}`} />
+          </div>
+        );
+      })}
+      <div className="bt-week-copy">
+        {/* Escape closes the menu and nothing else: the fold's own Escape is Cancel, and with the menu open over it one
+            key would have closed the menu and asked to discard the week. The fold leaves a key alone once something
+            inside took it (record-fold.jsx recKeys). */}
+        <div
+          className="bt-week-copy-menu"
+          hidden={from ? undefined : true}
+          onKeyDown={(e) => {
+            const up = e.key === "Escape" && e.currentTarget && e.currentTarget.querySelector && e.currentTarget.querySelector('[aria-expanded="true"]');
+            if (up) e.preventDefault();
+          }}
+          data-testid="rec-hours-copy"
+        >
+          <window.MoreMenu
+            items={copies}
+            label={`Copy ${from ? BTO_LONG[from] : "a day"} to…`}
+            title="Copy one day's hours onto others"
+            btnClass="btn btn-sm"
+            align="left"
+            escape
+            gated={readOnly ? "Saving — nothing can be copied until this is saved." : null}
+          />
+        </div>
+        <span className="bt-fold-note">Names every day it opens or overwrites, and puts the whole week back in one press.</span>
+      </div>
+    </div>
+  );
+};
+
+/* ------------------------------------ the zone ------------------------------------ */
+
+/**
+ * The workspace's timezone, edited in the row that states it: the old card's TimezoneRow, with the kit's combobox where
+ * it had a select of 418 options (spec §6). Its words are contracts' (window.__tz): the zone, and the local time there
+ * now, which is this row's consequence -- it draws no "It will say". The zone is in the prompt, but it is the
+ * workspace's, saved through its own route (window.__workspace.setTimezone, PATCH workspaces) and never through the
+ * settings saver, so no draft of it can be resolved as the edge resolves one (the bridge's FOLD_BLOCK says so). Once it
+ * is saved the settings surface is read again (refresh-map.ts), so the hours fold's hint and block name the new zone.
+ *
+ * It holds the registry as every row does: one editor open on the page, Cancel with a change asks first, and while its
+ * save is out the box takes no typing and what is asked of it waits.
+ */
+const BtoZone = ({ canEdit, gate, flash }) => {
+  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
+  const current = (ws && ws.timezone) || window.DEFAULT_TIMEZONE || "America/New_York";
+  const T = window.__tz || {};
+  const [pick, setPick] = useBtoState(null);
+  const [busy, setBusy] = useBtoState(false);
+  const [arm, setArm] = useBtoState(false);
+  const live = useBtoRef({ pick: null, current, open: false, busy: false });
+  const fold = window.useRecordFold("timezone", {
+    dirty: () => { const l = live.current; return l.open && l.pick != null && l.pick !== l.current; },
+    saving: () => live.current.busy,
+  });
+  // Only where there is a door to save it through: the standalone mockup has none.
+  const open = fold.open && canEdit && !!window.__workspace;
+  live.current.current = current;
+  live.current.open = open;
+  const reset = () => { live.current.pick = null; setPick(null); setArm(false); };
+  useBtoEffect(() => { if (!open) reset(); }, [open]);
+
+  const now = open && pick != null ? pick : current;
+  const dirty = open && now !== current;
+  const words = T.words ? T.words(current) : { line: current };
+  const zones = open && T.known ? T.known() : [];
+  const device = T.device ? T.device() : null;
+  const refused = !!(gate && gate["aria-disabled"]);
+  const choose = (z) => { if (live.current.busy) return; live.current.pick = z; setPick(z); if (arm) setArm(false); };
+  const close = () => { reset(); fold.close(); };
+  const cancel = () => {
+    if (busy) return;
+    if (dirty) { setArm(true); return; }
+    close();
+  };
+  const save = async () => {
+    if (busy || !open || refused) return;
+    // Nothing to write is nothing to send: the old row's Save was dead until the zone changed.
+    if (!dirty) { close(); return; }
+    if (arm) setArm(false);
+    live.current.busy = true;
+    setBusy(true);
+    let r;
+    try {
+      r = await window.__workspace.setTimezone(now);
+    } catch (e) {
+      r = { ok: false, tz: "", message: (e && e.message) || "" };
+    }
+    live.current.busy = false;
+    setBusy(false);
+    if (r.ok) close();
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Your day is measured in <b>{T.city ? T.city(r.tz) : r.tz}</b> now.</> : <>{r.message || "That didn't go through."}</> });
+  };
+
+  return (
+    <>
+      {open ? null : (
+        <window.RecordRow
+          id="timezone"
+          label="Timezone"
+          value={words.line}
+          act={canEdit && window.__workspace ? { label: "Change", onClick: () => fold.request(), gate } : null}
+        />
+      )}
+      <window.RecordInline
+        id="timezone"
+        label="Timezone"
+        open={open}
+        confirm={fold.asking ? (
+          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={() => { reset(); fold.discard(); }} onNo={fold.stay} testid="rec-inline-timezone-ask" />
+        ) : arm ? (
+          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={close} onNo={() => setArm(false)} testid="rec-inline-timezone-cancel" />
+        ) : null}
+        onSave={save}
+        onCancel={cancel}
+        saving={busy}
+        gate={gate}
+      >
+        <window.RecordCombobox
+          id="bt-timezone"
+          label="Timezone"
+          value={now}
+          options={zones.map((z) => ({ value: z, label: z.replace(/_/g, " ") }))}
+          onChange={choose}
+          placeholder="Search for a city"
+          readOnly={busy}
+          testid="rec-inline-timezone-zones"
+        />
+        <span className="bt-inline-note" data-testid="rec-inline-timezone-note">
+          {(T.words ? T.words(now) : { line: now }).line}
+          {device && device !== now ? (
+            <> · <button type="button" className="bt-link" onClick={() => choose(device)} data-testid="rec-inline-timezone-device">Use this device&rsquo;s ({T.city ? T.city(device) : device})</button></>
+          ) : null}
+        </span>
+      </window.RecordInline>
+    </>
+  );
+};
+
+/* ------------------------------------ the days the week does not apply to ------------------------------------ */
+
+/** The closed days, as rows of from, until and why. Hookless: its rows come and go. */
+const BtoClosures = ({ draft: rows, update, undo, problems, readOnly, flash }) => {
+  // The same cap the write schema enforces (contracts MAX_CLOSURES), so the fold
+  // stops at the number the save would refuse, instead of refusing at Save.
+  const max = ((window.__configLimits || {}).maxClosures) || 60;
+  const keysOf = (i) => [`closure-${i}-date`, `closure-${i}-until`, `closure-${i}-note`, "closures"];
+  const setClosure = (i, k, v) => update((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)), keysOf(i));
+  /**
+   * Removing one closure is undoable, because it is a date somebody typed.
+   *
+   * Every other destructive control in this file offers an undo; a bulk
+   * "clear past dates" button would not have, and does not exist — the
+   * composer already stops stating a date once it has gone by, so there is
+   * nothing an owner has to tidy and nothing for them to delete by accident.
+   */
+  const removeClosure = (i) => {
+    const gone = rows[i];
+    // Every sentence is asked again at Save: the rows after this one have moved up a place, and so have their keys.
+    update((l) => l.filter((_, j) => j !== i));
+    flash({
+      msg: <>Removed {gone.date ? <b>{gone.date}</b> : "the closure"}{gone.note ? ` — ${gone.note}` : ""}</>,
+      undo: undo((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
+    });
+  };
+  const add = () => update((l) => (l.length >= max ? l : [...l, { date: "", note: "" }]), ["closures"]);
+  const said = (key) => problems[key] || null;
+  return (
+    <div className="bt-closures" data-testid="rec-closures-rows">
+      {rows.length > 0 ? (
+        <div className="bt-closure bt-closure-head" aria-hidden="true">
+          <span>From</span><span>Until (optional)</span><span>Why</span><span />
+        </div>
+      ) : null}
+      {rows.map((c, i) => {
+        const bad = { date: said(`closure-${i}-date`), until: said(`closure-${i}-until`), note: said(`closure-${i}-note`) };
+        const idOf = (k) => `bt-closure-${i}-${k}-problem`;
+        const wired = (k) => ({ "aria-invalid": bad[k] ? true : undefined, "aria-describedby": bad[k] ? idOf(k) : undefined, readOnly: readOnly || undefined });
+        return (
+          <div key={i} className="bt-closure" data-testid={`rec-closure-${i}`}>
+            {/* type=date, so 31 November cannot be typed at all — the class of
+                bug where a stored non-date names the wrong day downstream. */}
+            <input
+              className="rec-input" type="date" value={c.date || ""}
+              aria-label="Closed from" onChange={(e) => setClosure(i, "date", e.target.value)} {...wired("date")}
+            />
+            <input
+              className="rec-input" type="date" value={c.until || ""} min={c.date || undefined}
+              aria-label="Closed until" onChange={(e) => setClosure(i, "until", e.target.value)} {...wired("until")}
+            />
+            <input
+              className="rec-input" value={c.note || ""} placeholder="Christmas"
+              aria-label="Reason" onChange={(e) => setClosure(i, "note", e.target.value)} {...wired("note")}
+            />
+            <button
+              type="button" className="btn btn-ghost btn-icon btn-sm"
+              aria-label={`Remove closure ${c.date || ""}`}
+              onClick={() => removeClosure(i)}
+              data-testid={`rec-closure-remove-${i}`}
+            ><Icon name="x" size={12} /></button>
+            {["date", "until", "note"].map((k) => <window.FieldError key={k} id={idOf(k)} message={bad[k]} testid={`rec-closure-${i}-${k}-problem`} />)}
+          </div>
+        );
+      })}
+      {rows.length < max ? (
+        <button type="button" className="btn btn-sm bt-fold-add" onClick={add} aria-disabled={readOnly || undefined} data-testid="rec-closures-add">
+          <Icon name="plus" size={12} /> Add a closed day
+        </button>
+      ) : (
+        <p className="bt-fold-note" data-testid="rec-closures-cap">That is the most closures the receptionist keeps ({max}). Dates that have passed can go.</p>
+      )}
+      <window.FieldError id="bt-closures-problem" message={said("closures")} testid="rec-closures-problem" />
+      {/* The one case this cannot express, said plainly rather than left for
+          an owner to discover by picking the only option and turning away an
+          afternoon of bookings. */}
+      <p className="bt-fold-note">
+        Closing early rather than all day? Leave it out of this list and set that
+        day&apos;s hours above instead. Dates that have passed stop being mentioned
+        on their own — there is nothing to tidy up.
+      </p>
+    </div>
+  );
+};
+
+/* ------------------------------------ the calendar it reads ------------------------------------ */
+
+// How long a read of the Calendar surface may be stated as it stands. Its words are written when it is read ("read 4m
+// ago" is counted from that moment, contracts toCalendarVM), so on a tab open since the morning they would be the
+// morning's. Older than this, the row says nothing of a read, asks for a new one, and says what that finds.
+const BTO_READ_FRESH_MS = 2 * 60 * 1000;
+
+/**
+ * The address as the row states it: where it points, never the whole of it. A private feed's address is a long secret
+ * (…/ical/<account>/private-<key>/basic.ics), and the row is read over a shoulder. A non-owner's arrives masked by the
+ * server, which is no address to take apart: it is shown as it arrives.
+ */
+const btoShortFeed = (url) => {
+  const raw = String(url || "").trim();
+  if (!raw || raw.includes("…")) return raw;
+  try {
+    const u = new URL(raw.replace(/^webcal:/i, "https:"));
+    const parts = u.pathname.split("/").filter(Boolean);
+    const path = parts.length > 2 ? `/…/${parts[parts.length - 1]}` : u.pathname.replace(/\/$/, "");
+    return `${u.host}${path}`;
+  } catch {
+    return raw;
+  }
+};
+
+/**
+ * What the calendar's last read found, in the words the Calendar page says it in: the same pill (contracts
+ * CALENDAR_FEED_WORDS, through StatePill's `calendar` kind) and the same line (toCalendarVM's feed.detail: where it was
+ * read from, when, how many events; feed.problem when it could not be). The form had a "Check the address" button for
+ * this; a row that can say it needs no button (spec §4.3).
+ *
+ * Only a read this tab HAS is stated, and only while it is fresh: the Calendar surface is read as the app boots on
+ * every route, so it is here, but its "read 4m ago" is counted from the moment IT was read. Stale or missing, the row
+ * says nothing of a read and asks for one as it mounts (window.__calendar.refresh, which reads the route's few
+ * minutes' cache, never the calendar itself), and says what that finds when it lands (surface:calendar). A read that
+ * failed says so where its line would be.
+ */
+const BtoFeedRead = ({ stored }) => {
+  const [, setTick] = useBtoState(0);
+  useBtoEffect(() => {
+    const bump = () => setTick((n) => n + 1);
+    window.addEventListener("surface:calendar", bump);
+    return () => window.removeEventListener("surface:calendar", bump);
+  }, []);
+  const C = window.__CALENDAR || null;
+  const fresh = !!(C && typeof C.fetchedAt === "number" && Date.now() - C.fetchedAt < BTO_READ_FRESH_MS);
+  useBtoEffect(() => {
+    if (!stored || fresh || !window.__calendar || typeof window.__calendar.refresh !== "function") return;
+    Promise.resolve(window.__calendar.refresh()).catch(() => {});
+  }, [stored, fresh]);
+  if (!stored) return null;
+  if (!C && window.__surfaceFailed && window.__surfaceFailed("calendar")) {
+    return <window.FailedRead kind="line" what="what its last read found" surface="calendar" testid="rec-calendar-unread" />;
+  }
+  const feed = fresh && C.vm ? C.vm.feed : null;
+  // Nothing read, or a read from before this address was saved: nothing is said of one.
+  if (!feed || feed.state === "none") return null;
+  return (
+    <span className="bt-feed" data-testid="rec-calendar-read" data-state={feed.health}>
+      <window.StatePill kind="calendar" value={feed.health} testid="rec-calendar-state" />
+      {feed.detail ? <span className="bt-feed-detail">{feed.detail}</span> : null}
+      {feed.state !== "ok" || feed.stale ? (
+        <span className="bt-feed-problem">{feed.problem || "The address is saved; check it here if this keeps happening."}</span>
+      ) : null}
+    </span>
+  );
+};
+
+/** The calendar's one box, with the old form's note under it about what the address is. */
+const BtoFeedBox = ({ draft, update, problems, readOnly, stored }) => (
+  <>
+    <window.RecordField
+      id="bt-calendar"
+      label="Calendar feed address"
+      value={draft}
+      onChange={(v) => update(() => v, ["ical_url"])}
+      problem={problems.ical_url || null}
+      placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
+      inputMode="url"
+      autoComplete="off"
+      spellCheck={false}
+      readOnly={readOnly || undefined}
+    />
+    <p className="bt-fold-note">
+      The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
+      It is only ever read. Nothing is booked from here; the booking link does that, whichever tool is behind it.
+    </p>
+    {/* Only an owner is sent the address whole (the settings route masks it for everyone else), and a masked address
+        edited in part would be saved as written. */}
+    {String(stored || "").includes("…") ? (
+      <p className="bt-fold-note" data-testid="rec-calendar-masked">Only an owner sees this address whole. Leave it as it is to keep it, or paste a new one over it.</p>
+    ) : null}
+    {stored ? (
+      <p className="bt-fold-note">
+        <button type="button" className="bt-link" onClick={() => window.CHANLY.nav("calendar")} data-testid="rec-calendar-open">Open Calendar</button>
+      </p>
+    ) : null}
+  </>
+);
+
+/* ------------------------------------ the card ------------------------------------ */
+
+/**
+ * When you're open (spec §4.3): four rows, in the order a customer's question meets them -- the week, whose clock it is
+ * on, the days it does not apply to, and the calendar that says which of its times are taken.
+ *
+ * `brain` and `config` are the settings read's, which the rows state; what a fold opens with and saves onto is the
+ * saver's base, which BtFold asks for itself.
+ */
+const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver }) => {
+  const S = window.__businessTabSave;
+  const tab = window.__businessTab || {};
+  const Fold = window.BtFold;
+  const profile = brain.profile || {};
+  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
+  const wsZone = (ws && ws.timezone) || window.DEFAULT_TIMEZONE || "America/New_York";
+  // The zone the receptionist states the times in is the one the settings read resolved the prompt with; the
+  // workspace's own until that is read.
+  const toldIn = (prompt && prompt.tz) || wsZone;
+  const gate = (thing) => window.gate("settings", `change ${thing}`);
+  const shared = { canEdit, flash, saver };
+
+  // The week as the fold reads a stored one (draftOf: both shapes a day may be stored in, as the composer unions them),
+  // so the ribbon and the fold never read a day two ways.
+  const week = S.draftOf("hours", { brain });
+  const hoursLine = btoHoursLine(profile.hours);
+  const ahead = tab.closuresAheadWords ? tab.closuresAheadWords(profile.closures, wsZone, new Date()) : { count: 0, line: null };
+  const feed = (config && config.calendar && config.calendar.ical_url) || "";
+
+  return (
+    <section className="rec-card" data-testid="rec-card-open" aria-labelledby="bt-open-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="bt-open-title">When you&apos;re open</h2>
+        <span className="rec-card-sub">{tab.openWeekWords ? tab.openWeekWords(profile.hours, wsZone) : null}</span>
+      </div>
+
+      <Fold
+        {...shared}
+        id="hours"
+        label="Hours"
+        hint={`All times ${toldIn}, as the receptionist states them.`}
+        wide
+        saveLabel="Save the week"
+        gate={gate("your hours")}
+        row={{
+          value: hoursLine ? (
+            <span className="bt-hours">
+              <BtoRibbon week={week} />
+              <span className="bt-hours-line" data-testid="rec-hours-line">{hoursLine}</span>
+            </span>
+          ) : null,
+          // What the old card said of a week nobody has typed.
+          empty: "Not set — the receptionist cannot state your hours",
+          act: hoursLine ? "Change" : "Add them",
+          name: hoursLine ? "Change your opening hours" : "Add them: your opening hours",
+        }}
+        body={(f) => <BtoWeek {...f} flash={flash} />}
+      />
+
+      <BtoZone canEdit={canEdit} gate={gate("the timezone")} flash={flash} />
+
+      <Fold
+        {...shared}
+        id="closures"
+        label="Days you're closed"
+        hint="Holidays and one-off closures."
+        gate={gate("the days you are closed")}
+        row={{
+          value: ahead.line,
+          empty: "None ahead",
+          name: ahead.line ? "Change the days you are closed" : "Add one: a day you are closed",
+        }}
+        body={(f) => <BtoClosures {...f} flash={flash} />}
+      />
+
+      <Fold
+        {...shared}
+        id="calendar"
+        label="Calendar it reads"
+        hint="Read-only, so it can say which times are open before sending the link."
+        channel={null}
+        gate={gate("the calendar it reads")}
+        row={{
+          value: feed ? <span className="bt-feed-address">{btoShortFeed(feed)}</span> : null,
+          empty: "Not connected",
+          hint: feed ? null : "Read-only, so it can say which times are open before sending the link.",
+          children: <BtoFeedRead stored={!!feed} />,
+          name: feed ? "Change the calendar it reads" : "Add one: a calendar for it to read",
+        }}
+        body={(f) => <BtoFeedBox {...f} stored={feed} />}
+      />
+    </section>
+  );
+};
+
+Object.assign(window, { BtOpenCard });

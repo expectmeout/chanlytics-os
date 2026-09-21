@@ -13,6 +13,8 @@ import assert from "node:assert/strict";
 import {
   stateOf, standingLine, roleGate, formatPhoneDisplay, whyNotAPhone, whyNotAHandoff, samePhone, handoffE164,
   resolveFacts, factConflicts, newReceptionistDefaults, PROFILE_CROSSING_WORDS, hasProfile,
+  hoursLines, openWeekWords, closuresAheadWords, toCalendarVM, zoneDayKey, CALENDAR_FEED_WORDS,
+  timezoneWords, timezoneCity, knownTimezones, DEFAULT_TIMEZONE, MAX_INTERVALS_PER_DAY, MAX_CLOSURES,
 } from "@chanlytics/contracts";
 import { installLegacyReact, again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
@@ -37,6 +39,12 @@ Object.assign(globalThis, {
   __lastChanged: () => "",
   // What a new receptionist starts with, which a rename writes again under the new name (inbox-verbs.ts).
   __receptionistDefaults: newReceptionistDefaults,
+  // When you're open: the composer's own run-collapsing and the caps the write schema keeps (inbox-verbs.ts), and the
+  // zone's words (identity.ts). This device is in Chicago.
+  __hoursLines: hoursLines,
+  __configLimits: { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES },
+  __tz: { words: timezoneWords, city: timezoneCity, known: knownTimezones, device: () => "America/Chicago" },
+  DEFAULT_TIMEZONE,
 });
 await import(`${L}/components/data-bits.jsx`);
 await import(`${L}/components/record-row.jsx`);
@@ -46,6 +54,7 @@ await import(`${L}/components/record-sheet.jsx`);
 // What the tab's saves write and the one saver they go through, before the page, as both load lists have them.
 await import(`${L}/pages/business-tab-save.jsx`);
 await import(`${L}/pages/business-tab-folds.jsx`);
+await import(`${L}/pages/business-tab-open.jsx`);
 await import(`${L}/pages/business-tab.jsx`);
 const W = globalThis.window;
 // The tab's helpers, from the module the app installs: the standing line, and what each row will tell the receptionist.
@@ -84,11 +93,11 @@ const brainOf = (profile, over = {}) => ({
 /** What the platform knows: the voice line it provisioned, and the workspace. */
 const KNOWN = { workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" }, channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }], listing: null };
 
-const settings = (profile = melany, over = {}, brain = {}) => ({
+const settings = (profile = melany, over = {}, brain = {}, zone = "America/New_York") => ({
   version: 7,
   config: { brain: brainOf(profile, brain), calendar: { ical_url: "https://app.chanlytics.com/api/v1/calendar/filler.ics" }, ...over },
   // Beside the config, the settings read hands over its preview, with the inputs it was resolved with.
-  prompt: composePromptPreview(brainOf(profile, brain), { tz: "America/New_York", policy: {}, known: KNOWN, openings: null }),
+  prompt: composePromptPreview(brainOf(profile, brain), { tz: zone, policy: {}, known: { ...KNOWN, workspace: { ...KNOWN.workspace, timezone: zone } }, openings: null }),
 });
 
 const facts = (over = {}) => ({
@@ -112,17 +121,18 @@ const facts = (over = {}) => ({
  * test is not this page's. The tab's one saver is reset too: it outlives every page drawn in the tab, and a save the
  * last test left out, or its answer, is not this record's. `brain` changes the stored brain beside its profile; `facts`
  * replaces resolved facts, and `resolved` resolves them all from the brain the way the settings read does (contracts
- * resolveFacts).
+ * resolveFacts). `config` replaces parts of the config beside the brain (the calendar's address), and `zone` is the
+ * workspace's, which the settings read resolved the preview in.
  */
-const drawTab = ({ profile = melany, conflicts = [], flash = () => {}, brain = {}, facts: known = {}, resolved = null } = {}) => {
-  W.__SETTINGS = settings(profile, {}, brain);
+const drawTab = ({ profile = melany, conflicts = [], flash = () => {}, brain = {}, facts: known = {}, resolved = null, config = {}, zone = "America/New_York" } = {}) => {
+  W.__SETTINGS = settings(profile, config, brain, zone);
   if (resolved) {
     const f = resolveFacts(W.__SETTINGS.config.brain, resolved);
     W.__FACTS = { facts: f, conflicts: factConflicts(f) };
   } else {
     W.__FACTS = facts({ conflicts, facts: known });
   }
-  W.__WORKSPACES = [{ id: "t-melany", name: "Melany's Beauty Salon", timezone: "America/New_York" }];
+  W.__WORKSPACES = [{ id: "t-melany", name: "Melany's Beauty Salon", timezone: zone }];
   W.__ACTIVE_WORKSPACE = "t-melany";
   unmount();
   W.__recordFolds.reset();
@@ -1410,4 +1420,826 @@ test("the standing line's door opens the row it names, and that row asks before 
   assert.equal(heard(toTone), standingLine(W.__SETTINGS.config.brain).missing.sentence);
   press(toTone);
   assert.equal(W.__recordFolds.open(), "tone");
+});
+
+/* ------------------------------------ When you're open ------------------------------------ */
+
+/** A fold, drawn whether it is open or not; closed, it is hidden. */
+const foldOf = (tree, id) => byTestId(tree, `rec-fold-${id}`);
+const openFolds = (tree) => all(tree, (n) => /^rec-fold-[a-z_]+$/.test(n.props?.["data-testid"] || "") && !n.props.hidden).map((n) => n.props["data-testid"].slice("rec-fold-".length));
+const saveFoldOf = (tree, id) => press(byTestId(tree, `rec-fold-save-${id}`));
+const cancelFoldOf = (tree, id) => press(byTestId(tree, `rec-fold-cancel-${id}`));
+/** A box by the name a screen reader hears, and typing into it the way a person does. */
+const labelled = (tree, label) => find(tree, (n) => (n.type === "input" || n.type === "textarea") && n.props["aria-label"] === label);
+const typeAt = (tree, label, text) => labelled(tree, label).props.onChange({ target: { value: text } });
+const barsOf = (node) => all(node, (n) => classes(n).includes("rec-ribbon-bar"));
+const dayOf = (tree, d) => byTestId(tree, `rec-hours-day-${d}`);
+/** The week's one menu: open it, then press the copy it names. */
+const copyTo = (tree, flash, words) => {
+  press(find(byTestId(tree, "rec-hours-copy"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu"));
+  const opened = redrawTab(flash);
+  press(find(byTestId(opened, "rec-hours-copy"), (n) => n.props?.role === "menuitem" && textOf(n) === words));
+  return redrawTab(flash);
+};
+/** The card's summary is the composer's own run-collapsing, joined. Never a second implementation. */
+const summaryOf = (hours) => hoursLines(hours).join(" · ");
+const written = (config) => structuredClone(config);
+
+test("When you're open draws four rows in the spec's order, under a line contracts wrote", () => {
+  const card = byTestId(drawTab(), "rec-card-open");
+  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), ["Hours", "Timezone", "Days you're closed", "Calendar it reads"]);
+  assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "When you're open");
+  assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-sub"))), openWeekWords(melany.hours, "America/New_York"));
+  assert.equal(openWeekWords(melany.hours, "America/New_York"), "Six days a week, in New York time", "the canvas's line, from contracts");
+  // Beside Who you are, on the one page.
+  assert.deepEqual(all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]), ["rec-card-who", "rec-card-open"]);
+});
+
+test("the ribbon draws the week, and a closed day carries no bar", () => {
+  const ribbon = byTestId(drawTab({ profile: melany }), "rec-hours-ribbon");
+  const days = all(ribbon, (n) => classes(n).includes("rec-ribbon-day"));
+  assert.equal(days.length, 7);
+  assert.deepEqual(days.map((d) => d.props["data-day"]), ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+  const sunday = days[6];
+  assert.equal(find(sunday, (n) => classes(n).includes("rec-ribbon-bar")), null, "Sunday is shut, and looks it");
+  assert.deepEqual(days.map((d) => barsOf(d).length), [1, 1, 1, 1, 1, 1, 0]);
+  // A picture of the sentence under it: a screen reader is given the sentence alone.
+  assert.equal(ribbon.props["aria-hidden"], "true");
+});
+
+test("a bar's place comes from its times on the one 6 AM to 10 PM scale: a break is a second bar, and a time outside the scale clamps", () => {
+  const place = (bar) => [parseFloat(bar.props.style.left), parseFloat(bar.props.style.width)];
+  const days = (tree) => all(byTestId(tree, "rec-hours-ribbon"), (n) => classes(n).includes("rec-ribbon-day"));
+  // 9:30 is three and a half hours into a sixteen-hour scale, and 6 PM twelve: the canvas's 21.875% and 53.125%.
+  assert.deepEqual(place(barsOf(days(drawTab())[0])[0]), [21.875, 53.125]);
+  assert.deepEqual(place(barsOf(days(drawTab())[4])[0]), [21.875, 59.375], "Friday closes an hour later, and is an hour longer");
+  const odd = {
+    ...melany.hours,
+    tue: { intervals: [{ open: "09:30", close: "13:30" }, { open: "14:00", close: "18:00" }] },
+    wed: { open: "05:00", close: "23:30" },
+    thu: { open: "22:30", close: "23:30" },
+  };
+  const tree = drawTab({ profile: { ...melany, hours: odd } });
+  assert.deepEqual(barsOf(days(tree)[1]).map(place), [[21.875, 25], [50, 25]], "a lunch break is the gap between two bars on the same row");
+  assert.deepEqual(place(barsOf(days(tree)[2])[0]), [0, 100], "open before six and after ten: clamped to the scale's edges");
+  const late = place(barsOf(days(tree)[3])[0]);
+  assert.ok(late[1] > 0 && late[0] + late[1] === 100, "wholly outside the scale, it is still a sliver at the edge: a day that is open never looks shut");
+  // And the day still reads in full in the sentence under the ribbon, whatever the ribbon could draw of it.
+  assert.equal(textOf(byTestId(tree, "rec-hours-line")), summaryOf(odd));
+  assert.match(summaryOf(odd), /5 AM – 11:30 PM/);
+});
+
+test("the summary sentence is the one the composer wrote", () => {
+  const row = byTestId(drawTab({ profile: melany }), "rec-row-hours");
+  assert.match(textOf(row), new RegExp(escape(summaryOf(melany.hours))));
+  assert.equal(textOf(byTestId(row, "rec-hours-line")), summaryOf(melany.hours), "word for word, joined as hoursSummary joins them");
+});
+
+test("with no hours stored, the row is empty in the old card's words, and its act adds them", () => {
+  const tree = drawTab({ profile: without(melany, "hours") });
+  const row = byTestId(tree, "rec-row-hours");
+  assert.equal(row.props["data-empty"], "true");
+  assert.match(textOf(row), /Not set — the receptionist cannot state your hours/);
+  assert.equal(byTestId(tree, "rec-hours-ribbon"), null, "no week to draw");
+  const act = byTestId(tree, "rec-row-act-hours");
+  assert.equal(textOf(act), "Add them");
+  assert.ok(act.props["aria-label"].startsWith("Add them"), "a person who says the words on it reaches it");
+  assert.equal(textOf(find(byTestId(tree, "rec-card-open"), (n) => classes(n).includes("rec-card-sub"))), "Times are in New York time");
+});
+
+test("the hours fold is the week on one scale: a switch, the bars and the times for each day, in the zone the receptionist states them in", () => {
+  let tree = drawTab();
+  assert.deepEqual(openFolds(tree), []);
+  assert.equal(foldOf(tree, "hours").props.hidden, true, "drawn, and hidden until it is asked for");
+  openFold(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), ["hours"]);
+  assert.equal(byTestId(tree, "rec-row-hours"), null, "in the row's place");
+  const fold = foldOf(tree, "hours");
+  assert.equal(fold.props["data-wide"], "true", "its own grid names each day");
+  assert.equal(textOf(find(fold, (n) => classes(n).includes("rec-fold-hint"))), "All times America/New_York, as the receptionist states them.");
+  assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Save the week");
+  assert.deepEqual(all(fold, (n) => n.props?.role === "switch").map((s) => [s.props["aria-label"], s.props["aria-checked"]]), [
+    ["Monday", true], ["Tuesday", true], ["Wednesday", true], ["Thursday", true], ["Friday", true], ["Saturday", true], ["Sunday", false],
+  ]);
+  assert.deepEqual([labelled(fold, "Monday opens").props.value, labelled(fold, "Monday closes").props.value, labelled(fold, "Monday opens").props.type], ["09:30", "18:00", "time"]);
+  assert.deepEqual(["mon", "sun"].map((d) => barsOf(dayOf(tree, d)).length), [1, 0], "the bars beside the boxes that draw them");
+  assert.match(textOf(dayOf(tree, "sun")), /Closed/);
+  assert.equal(labelled(fold, "Sunday opens"), null, "a closed day offers no boxes");
+  // The zone is the one the settings read resolved the prompt in.
+  tree = drawTab({ zone: "America/Chicago" });
+  assert.equal(textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-fold-hint"))), "All times America/Chicago, as the receptionist states them.");
+});
+
+test("an hours save sends the stored config with the week changed, and everything else as it was", () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  const stored = written(W.__SETTINGS.config);
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab(flash);
+  assert.equal(labelled(tree, "Monday closes").props.value, "17:00");
+  assert.equal(W.__settingsUnsaved(), true, "the rail and the browser ask before the week is thrown away");
+  saveFoldOf(tree, "hours");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].version, 7);
+  assert.deepEqual(sent[0].config, { ...stored, brain: { ...stored.brain, profile: { ...stored.brain.profile, hours: { ...melany.hours, mon: { open: "09:30", close: "17:00" } } } } });
+  assert.equal(textOf(flashes.at(-1).msg), "Saved — the receptionist picks it up within a minute");
+  assert.deepEqual(openFolds(redrawTab(flash)), [], "accepted, the fold closes");
+});
+
+test("an unchanged fold's Save sends nothing and closes it, and Cancel with changes asks first", () => {
+  const sent = saving();
+  let tree = drawTab();
+  for (const id of ["hours", "closures", "calendar"]) {
+    openFold(tree, id);
+    tree = redrawTab();
+    assert.deepEqual(openFolds(tree), [id]);
+    saveFoldOf(tree, id);
+    tree = redrawTab();
+    assert.deepEqual(openFolds(tree), [], `${id}: nothing to write is nothing to send`);
+  }
+  assert.equal(sent.length, 0);
+  // A change typed and typed back is no change either.
+  openFold(tree, "hours");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "18:00");
+  tree = redrawTab();
+  saveFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual([sent.length, openFolds(tree)], [0, []]);
+
+  openFold(tree, "hours");
+  tree = redrawTab();
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), [], "nothing changed, nothing asked");
+  openFold(tree, "hours");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), ["hours"], "not thrown away yet");
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard your changes\?/);
+  press(byTestId(tree, "rec-fold-hours-cancel-yes"));
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), []);
+  openFold(tree, "hours");
+  tree = redrawTab();
+  assert.equal(labelled(tree, "Monday closes").props.value, "18:00", "and it opens on what is stored");
+});
+
+test("a closed day keeps its shifts until Save, which is what decides a closed day stores nothing", () => {
+  const sent = saving();
+  let tree = drawTab();
+  const stored = written(W.__SETTINGS.config);
+  openFold(tree, "hours");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-hours-switch-sat"));
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-hours-switch-sat").props["aria-checked"], false);
+  assert.match(textOf(dayOf(tree, "sat")), /Closed — times kept/);
+  assert.equal(barsOf(dayOf(tree, "sat")).length, 0, "shut, and looks it");
+  // An accidental tap costs nothing: the times are there when the day opens again.
+  press(byTestId(tree, "rec-hours-switch-sat"));
+  tree = redrawTab();
+  assert.deepEqual([labelled(tree, "Saturday opens").props.value, labelled(tree, "Saturday closes").props.value], ["09:30", "19:00"]);
+  press(byTestId(tree, "rec-hours-switch-sat"));
+  tree = redrawTab();
+  saveFoldOf(tree, "hours");
+  assert.deepEqual(sent[0].config, { ...stored, brain: { ...stored.brain, profile: { ...stored.brain.profile, hours: { ...melany.hours, sat: {} } } } });
+  // A day that never had times opens with one empty shift to type into.
+  tree = drawTab();
+  openFold(tree, "hours");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-hours-switch-sun"));
+  tree = redrawTab();
+  assert.deepEqual([labelled(tree, "Sunday opens").props.value, labelled(tree, "Sunday closes").props.value], ["", ""]);
+});
+
+test("a shift typed half-way is said under its day, and overlapping shifts in the schema's words, and neither is sent", () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  // Sunday opened and half typed: the save would drop the shift and store Sunday as closed, which changes nothing, so
+  // a week that "holds no changes" must still be refused rather than closed as if saved.
+  press(byTestId(tree, "rec-hours-switch-sun"));
+  tree = redrawTab(flash);
+  typeAt(tree, "Sunday opens", "10:00");
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  assert.deepEqual([sent.length, flashes.length], [0, 0], "nothing sent, and nothing said in a toast");
+  assert.deepEqual(openFolds(tree), ["hours"], "the fold stays open with what was typed");
+  const said = byTestId(tree, "rec-hours-problem-sun");
+  assert.equal(textOf(said), "Sunday needs both an opening and a closing time, or neither.");
+  assert.ok(find(dayOf(tree, "sun"), (k) => k === said), "under its own day");
+  const box = labelled(tree, "Sunday opens");
+  assert.deepEqual([box.props["aria-invalid"], box.props["aria-describedby"]], [true, said.props.id], "and its boxes are described by it");
+  assert.equal(byTestId(tree, "rec-hours-problem-mon"), null);
+  assert.equal(byTestId(tree, "rec-fold-says-hours"), null, "a draft the page refuses is never told to the receptionist");
+  // Typing in that day takes its sentence away.
+  typeAt(tree, "Sunday closes", "14:00");
+  tree = redrawTab(flash);
+  assert.equal(byTestId(tree, "rec-hours-problem-sun"), null);
+  assert.ok(byTestId(tree, "rec-fold-says-hours"));
+
+  // Two shifts that overlap: no one box is wrong, so only the save's own schema can say it, under their day.
+  press(byTestId(tree, "rec-hours-add-mon"));
+  tree = redrawTab(flash);
+  typeAt(tree, "Monday shift 2 opens", "12:00");
+  tree = redrawTab(flash);
+  typeAt(tree, "Monday shift 2 closes", "20:00");
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  assert.equal(textOf(byTestId(tree, "rec-hours-problem-mon")), "Monday: two shifts overlap.");
+  assert.deepEqual([sent.length, openFolds(tree)], [0, ["hours"]]);
+});
+
+test("a day takes shifts up to the cap the save's schema keeps, and a removed shift comes back where it was", () => {
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  for (let n = 2; n <= MAX_INTERVALS_PER_DAY; n += 1) {
+    assert.ok(byTestId(tree, "rec-hours-add-mon"), `a shift ${n} may be added`);
+    press(byTestId(tree, "rec-hours-add-mon"));
+    tree = redrawTab(flash);
+    typeAt(tree, `Monday shift ${n} opens`, `1${n}:00`);
+    tree = redrawTab(flash);
+  }
+  assert.equal(byTestId(tree, "rec-hours-add-mon"), null, "at the cap, no more is offered: the save would refuse it");
+  assert.ok(byTestId(tree, "rec-hours-add-tue"), "each day has its own");
+  assert.equal(byTestId(tree, "rec-hours-remove-mon-0"), null, "the first shift has no remove: the switch already means closed");
+  const opens = () => all(dayOf(tree, "mon"), (n) => n.type === "input" && /opens$/.test(n.props["aria-label"])).map((n) => n.props.value);
+  assert.deepEqual(opens(), ["09:30", "12:00", "13:00", "14:00"]);
+  press(byTestId(tree, "rec-hours-remove-mon-1"));
+  tree = redrawTab(flash);
+  assert.deepEqual(opens(), ["09:30", "13:00", "14:00"]);
+  assert.match(textOf(flashes.at(-1).msg), /Removed the Mon shift at 12:00/);
+  flashes.at(-1).undo();
+  tree = redrawTab(flash);
+  assert.deepEqual(opens(), ["09:30", "12:00", "13:00", "14:00"], "back at its index, not at the end");
+});
+
+test("copying a day says what it opened and what it overwrote, and puts it all back", () => {
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  // ONE menu, named for the day it copies, where the form had two links inches apart on Monday's row.
+  const trigger = find(byTestId(tree, "rec-hours-copy"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu");
+  assert.match(textOf(trigger), /^Copy Monday to…/);
+  assert.equal(all(tree, (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").length, 1);
+  tree = copyTo(tree, flash, "Every day");
+
+  const said = flashes.at(-1);
+  assert.match(textOf({ props: { children: said.msg } }), /Sun/, "the day that was closed is named");
+  assert.match(textOf({ props: { children: said.msg } }), /Fri|Sat/, "and the days whose own hours went");
+  assert.equal(textOf({ props: { children: said.msg } }), "Copied Mon's hours — Sun was closed and is now open, and replaced different hours on Fri, Sat");
+  assert.equal(typeof said.undo, "function", "the whole grid goes back in one press");
+  assert.equal(barsOf(dayOf(tree, "sun")).length, 1, "Sunday is open, as Monday is");
+  assert.deepEqual([labelled(tree, "Sunday closes").props.value, labelled(tree, "Friday closes").props.value], ["18:00", "18:00"]);
+
+  said.undo();
+  tree = redrawTab(flash);
+  assert.equal(barsOf(dayOf(tree, "sun")).length, 0, "Sunday is shut again");
+  assert.equal(byTestId(tree, "rec-hours-switch-sun").props["aria-checked"], false);
+  assert.equal(labelled(tree, "Friday closes").props.value, "19:00", "and Friday has its own hours back");
+
+  // To the weekdays, as the old link copied; and to one day by its name. Nothing surprising, nothing named.
+  tree = copyTo(tree, flash, "Weekdays");
+  assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Copied Mon's hours — replaced different hours on Fri");
+  assert.equal(labelled(tree, "Saturday closes").props.value, "19:00", "Saturday is no weekday");
+  tree = copyTo(tree, flash, "Tuesday");
+  assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Copied Mon's hours — nothing else changed");
+
+  // A business shut on Mondays copies the first day it is open.
+  tree = drawTab({ flash, profile: { ...melany, hours: { ...melany.hours, mon: {} } } });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  assert.match(textOf(find(byTestId(tree, "rec-hours-copy"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu")), /^Copy Tuesday to…/);
+  // An Undo pressed after the fold has closed puts nothing back: the draft it would go into went with the fold.
+  tree = copyTo(tree, flash, "Every day");
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  press(byTestId(tree, "rec-fold-hours-cancel-yes"));
+  tree = redrawTab(flash);
+  flashes.at(-1).undo();
+  tree = redrawTab(flash);
+  assert.deepEqual([openFolds(tree), W.__settingsUnsaved()], [[], false]);
+});
+
+test("the hours fold says what the receptionist will be told as the draft stands, what goes, and when a week is the last thing a record composes from", () => {
+  let tree = drawTab();
+  const stored = W.__SETTINGS.config.brain;
+  openFold(tree, "hours");
+  tree = redrawTab();
+  let says = byTestId(tree, "rec-fold-says-hours");
+  assert.deepEqual(partsOf(says), [["Your receptionist will be told", composed("hours", stored).join("\n")]], "unchanged: the block as it stands, under the canvas's eyebrow");
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  says = byTestId(tree, "rec-fold-says-hours");
+  const next = { ...stored, profile: { ...melany, hours: { ...melany.hours, mon: { open: "09:30", close: "17:00" } } } };
+  const goes = composed("hours", stored).filter((l) => !composed("hours", next).includes(l));
+  assert.equal(goes.length, 1);
+  assert.deepEqual(partsOf(says), [["Your receptionist will be told", composed("hours", next).join("\n")], ["It will no longer be told", goes[0]]]);
+  assert.match(textOf(says), /17:00/, "it follows the draft");
+
+  // Every day closed, on a record that still composes: the block goes whole, line by line.
+  for (const d of ["mon", "tue", "wed", "thu", "fri", "sat"]) { press(byTestId(tree, `rec-hours-switch-${d}`)); tree = redrawTab(); }
+  assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-hours")), [["It will no longer be told", composed("hours", stored).join("\n")]]);
+  assert.equal(byTestId(tree, "rec-fold-says-hours-note"), null, "the address and the rest still compose: no line crossed");
+
+  // The week is the last field this record composes from: closing it hands the receptionist its stored prompt.
+  const sent = saving();
+  const sparse = { hours: { mon: { open: "09:30", close: "18:00" } }, handoff_number: "+16465550100", guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true } };
+  assert.deepEqual([hasProfile(sparse), hasProfile(without(sparse, "hours"))], [true, false]);
+  tree = drawTab({ profile: sparse, resolved: KNOWN });
+  openFold(tree, "hours");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-hours-switch-mon"));
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-fold-says-hours-note")), PROFILE_CROSSING_WORDS.stops);
+  saveFoldOf(tree, "hours");
+  assert.equal(sent.length, 1, "not a refusal: the save still goes");
+  assert.equal("hours" in sent[0].config.brain.profile, false);
+});
+
+test("the standing line's hours door opens the fold, and the fold asks before its changes go like any other", () => {
+  let tree = drawTab({ profile: without(melany, "hours") });
+  const gap = standingLine(W.__SETTINGS.config.brain).missing;
+  assert.equal(gap.row, "hours");
+  const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
+  const heard = door.props["aria-labelledby"].split(" ").map((id) => find(tree, (n) => n.props?.id === id)).filter(Boolean).map(textOf).join(" ");
+  assert.equal(heard, `${gap.sentence} Add them Hours`, "the sentence, then the act of the row it opens");
+  press(door);
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), ["hours"]);
+  press(byTestId(tree, "rec-hours-switch-mon"));
+  tree = redrawTab();
+  typeAt(tree, "Monday opens", "09:00");
+  tree = redrawTab();
+  // A shift with one of its two times is nothing the save would write, so it is no change yet (holdsChanges).
+  assert.equal(W.__settingsUnsaved(), false);
+  typeAt(tree, "Monday closes", "17:00");
+  // Asked at once, before the page has drawn again: the keystroke is already what the registry reads.
+  assert.equal(W.__settingsUnsaved(), true, "the rail asks before the pane goes");
+  const unload = { type: "beforeunload", prevented: false, preventDefault() { this.prevented = true; } };
+  W.dispatchEvent(unload);
+  assert.equal(unload.prevented, true, "the browser asks before the tab closes");
+  openFold(tree, "website");
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), openRows(tree)], [["hours"], []], "another row's act does not throw the week away");
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-ask-confirm")), /Discard your changes\?/);
+  press(byTestId(tree, "rec-fold-hours-ask-no"));
+  tree = redrawTab();
+  assert.equal(labelled(tree, "Monday opens").props.value, "09:00", "keep editing keeps what was typed");
+  openFold(tree, "website");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-fold-hours-ask-yes"));
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), openRows(tree)], [[], ["website"]], "discarded, the row asked for opens");
+});
+
+test("while the week saves its boxes and switches take nothing, and what is asked of it waits for the save's answer", () => {
+  const sent = [];
+  W.__saveSettings = (config, version, accepted) => new Promise(() => { sent.push({ config: structuredClone(config), accept: () => accepted({ config: structuredClone(config), version: version + 1 }) }); });
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  assert.deepEqual([foldOf(tree, "hours").props["aria-busy"], textOf(byTestId(tree, "rec-fold-save-hours"))], [true, "Saving…"]);
+  assert.deepEqual([labelled(tree, "Monday closes").props.readOnly, byTestId(tree, "rec-hours-switch-mon").props["aria-disabled"]], [true, true]);
+  typeAt(tree, "Monday closes", "16:00");
+  press(byTestId(tree, "rec-hours-switch-tue"));
+  press(byTestId(tree, "rec-hours-add-mon"));
+  tree = redrawTab(flash);
+  assert.deepEqual([labelled(tree, "Monday closes").props.value, byTestId(tree, "rec-hours-switch-tue").props["aria-checked"], labelled(tree, "Monday shift 2 opens")], ["17:00", true, null], "nothing typed or pressed under Saving… is held, to be dropped when it lands");
+  assert.equal(find(byTestId(tree, "rec-hours-copy"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").props["aria-disabled"], true);
+  // The fold's own dirty test reads CLEAN now (the saver's base holds the save as if taken), and it still does not give
+  // way: the ask waits, undrawn, and the save's answer opens the row that was asked for.
+  openFold(tree, "website");
+  tree = redrawTab(flash);
+  assert.deepEqual([openFolds(tree), openRows(tree), byTestId(tree, "rec-fold-hours-ask-confirm")], [["hours"], [], null]);
+  press(byTestId(tree, "rec-fold-close-hours"));
+  tree = redrawTab(flash);
+  assert.deepEqual(openFolds(tree), ["hours"], "Close is Cancel, and nothing cancels a save that is out");
+  sent[0].accept();
+  tree = redrawTab(flash);
+  assert.deepEqual([openFolds(tree), openRows(tree)], [[], ["website"]]);
+  assert.equal(sent[0].config.brain.profile.hours.mon.close, "17:00");
+});
+
+/* ---- the zone ---- */
+
+test("the timezone row says the zone and the time there, and saves through the workspace's own door, never the settings save", async () => {
+  const sent = saving();
+  const asked = [];
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  W.__workspace = { setTimezone: async (tz) => { asked.push(tz); W.__WORKSPACES = W.__WORKSPACES.map((t) => ({ ...t, timezone: tz })); return { ok: true, tz, message: "" }; } };
+  try {
+    let tree = drawTab({ flash });
+    const row = byTestId(tree, "rec-row-timezone");
+    assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-value"))), timezoneWords("America/New_York").line, "contracts' words: the zone, and the local time there now");
+    openFold(tree, "timezone");
+    tree = redrawTab(flash);
+    assert.deepEqual(openRows(tree), ["timezone"]);
+    // The kit's combobox over every zone the runtime knows, where the old row had a select of 418 options.
+    const box = () => find(inline(tree, "timezone"), (n) => n.props?.role === "combobox");
+    assert.equal(box().props.value, "America/New York");
+    box().props.onKeyDown({ key: "ArrowDown", preventDefault() {} });
+    tree = redrawTab(flash);
+    assert.equal(all(inline(tree, "timezone"), (n) => n.props?.role === "option").length, knownTimezones().length);
+    box().props.onChange({ target: { value: "denver" } });
+    tree = redrawTab(flash);
+    const options = all(inline(tree, "timezone"), (n) => n.props?.role === "option");
+    assert.deepEqual(options.map(textOf), ["America/Denver"]);
+    press(options[0]);
+    tree = redrawTab(flash);
+    assert.equal(box().props.value, "America/Denver");
+    assert.match(textOf(byTestId(tree, "rec-inline-timezone-note")), new RegExp(escape(timezoneWords("America/Denver").line)), "its consequence is the local time beside it");
+    assert.equal(W.__settingsUnsaved(), true);
+    // This device's zone, in one press.
+    const device = byTestId(tree, "rec-inline-timezone-device");
+    assert.equal(textOf(device), "Use this device’s (Chicago)");
+    press(device);
+    tree = redrawTab(flash);
+    assert.equal(box().props.value, "America/Chicago");
+    assert.equal(byTestId(tree, "rec-inline-timezone-device"), null, "already chosen, no longer offered");
+    // No prompt block of its own: the zone is the workspace's, and no draft of the brain holds it.
+    assert.equal(byTestId(tree, "rec-inline-says-timezone"), null);
+    assert.equal(find(inline(tree, "timezone"), (n) => classes(n).includes("rec-says")), null, "it draws no It will say");
+
+    saveRow(tree, "timezone");
+    tree = redrawTab(flash);
+    assert.deepEqual([byTestId(tree, "rec-inline-save-timezone").props["aria-busy"], box().props.readOnly], [true, true], "busy, and its box takes nothing meanwhile");
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual(asked, ["America/Chicago"]);
+    assert.equal(sent.length, 0, "the settings save is never sent: the zone is the workspace's");
+    assert.deepEqual(openRows(tree), [], "taken, the editor closes");
+    assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Your day is measured in Chicago now.", "the old row's words");
+    assert.equal(textOf(find(byTestId(tree, "rec-row-timezone"), (n) => classes(n).includes("rec-row-value"))), timezoneWords("America/Chicago").line);
+
+    // Unchanged, Save sends nothing; refused, the owner is told in the server's words and the editor stays.
+    openFold(tree, "timezone");
+    tree = redrawTab(flash);
+    saveRow(tree, "timezone");
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual([asked.length, openRows(tree)], [1, []]);
+    W.__workspace.setTimezone = async () => ({ ok: false, tz: "", message: "Only the owner can change the timezone." });
+    openFold(tree, "timezone");
+    tree = redrawTab(flash);
+    press(byTestId(tree, "rec-inline-timezone-device") || { props: { onClick() {} } });
+    box().props.onChange({ target: { value: "denver" } });
+    tree = redrawTab(flash);
+    press(all(inline(tree, "timezone"), (n) => n.props?.role === "option")[0]);
+    tree = redrawTab(flash);
+    saveRow(tree, "timezone");
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual([flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })], ["danger", "Only the owner can change the timezone."]);
+    assert.deepEqual(openRows(tree), ["timezone"]);
+    // Cancel with a change asks first.
+    cancelRow(tree, "timezone");
+    tree = redrawTab(flash);
+    assert.match(textOf(byTestId(tree, "rec-inline-timezone-cancel-confirm")), /Discard your changes\?/);
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+/* ---- the days the week does not apply to ---- */
+
+const XMAS = { date: "2099-12-24", until: "2099-12-26", note: "Christmas" };
+const NEW_YEAR = { date: "2100-01-01", note: "New Year's Day" };
+
+test("the closed days ahead are counted on the business's own day, and none ahead says so with its act", () => {
+  // At any instant it is a later date on Kiritimati (UTC+14) than on Pago Pago (UTC-11). A closure on Pago Pago's today
+  // is still ahead there, and already past on Kiritimati, whatever zone this machine is in.
+  const now = Date.now();
+  const earlier = zoneDayKey(now, "Pacific/Pago_Pago");
+  assert.ok(zoneDayKey(now, "Pacific/Kiritimati") > earlier);
+  const profile = { ...melany, closures: [{ date: earlier, note: "Stocktake" }] };
+  let row = byTestId(drawTab({ profile, zone: "Pacific/Pago_Pago" }), "rec-row-closures");
+  assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-value"))), closuresAheadWords(profile.closures, "Pacific/Pago_Pago", new Date(now)).line);
+  assert.match(textOf(row), /^Days you're closed1 ahead · /);
+  row = byTestId(drawTab({ profile, zone: "Pacific/Kiritimati" }), "rec-row-closures");
+  assert.equal(row.props["data-empty"], "true", "the same closure, already past where the business is");
+  assert.match(textOf(row), /None ahead/);
+
+  // Melany keeps none: the canvas's empty row.
+  const tree = drawTab();
+  assert.match(textOf(byTestId(tree, "rec-row-closures")), /None ahead/);
+  assert.equal(textOf(byTestId(tree, "rec-row-act-closures")), "Add one");
+  // Two ahead, the next one named as the Calendar's own list names it.
+  assert.match(textOf(byTestId(drawTab({ profile: { ...melany, closures: [NEW_YEAR, XMAS] } }), "rec-row-closures")), /2 ahead · next Dec 24 – 26 · Christmas/);
+});
+
+test("the closures fold adds, edits and removes a closed day, puts a removed one back where it was, and saves only the closures", () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash, profile: { ...melany, closures: [XMAS, NEW_YEAR] } });
+  const stored = written(W.__SETTINGS.config);
+  openFold(tree, "closures");
+  tree = redrawTab(flash);
+  assert.deepEqual(openFolds(tree), ["closures"]);
+  const rows = () => all(foldOf(tree, "closures"), (n) => /^rec-closure-\d+$/.test(n.props?.["data-testid"] || ""));
+  const dates = () => rows().map((r) => all(r, (n) => n.type === "input").map((n) => n.props.value));
+  assert.deepEqual(dates(), [["2099-12-24", "2099-12-26", "Christmas"], ["2100-01-01", "", "New Year's Day"]]);
+  // Native date boxes on purpose: 31 November cannot be typed at all.
+  assert.deepEqual(all(rows()[0], (n) => n.type === "input").map((n) => n.props.type), ["date", "date", undefined]);
+  assert.match(textOf(foldOf(tree, "closures")), /Closing early rather than all day\? Leave it out of this list and set that day's hours above instead\./, "the old form's note, for the one case this cannot express");
+  assert.match(textOf(byTestId(tree, "rec-fold-says-closures")), /Christmas/, "the closures block, as it stands");
+
+  press(byTestId(tree, "rec-closures-add"));
+  tree = redrawTab(flash);
+  const third = rows()[2];
+  all(third, (n) => n.type === "input")[0].props.onChange({ target: { value: "2100-07-04" } });
+  tree = redrawTab(flash);
+  all(rows()[2], (n) => n.type === "input")[2].props.onChange({ target: { value: "Independence Day" } });
+  tree = redrawTab(flash);
+  assert.match(textOf(byTestId(tree, "rec-fold-says-closures")), /Independence Day/, "what it will be told follows the draft");
+
+  press(byTestId(tree, "rec-closure-remove-0"));
+  tree = redrawTab(flash);
+  assert.deepEqual(dates().map((d) => d[0]), ["2100-01-01", "2100-07-04"]);
+  assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Removed 2099-12-24 — Christmas");
+  flashes.at(-1).undo();
+  tree = redrawTab(flash);
+  assert.deepEqual(dates().map((d) => d[0]), ["2099-12-24", "2100-01-01", "2100-07-04"], "back at its index");
+
+  press(byTestId(tree, "rec-closure-remove-1"));
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "closures");
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0].config, { ...stored, brain: { ...stored.brain, profile: { ...stored.brain.profile, closures: [XMAS, { date: "2100-07-04", note: "Independence Day" }] } } });
+  assert.equal(textOf(flashes.at(-1).msg), "Saved — the receptionist picks it up within a minute");
+});
+
+test("what stops a closures save is said under its own box, and at the cap the fold says so and offers no more", () => {
+  const sent = saving();
+  let tree = drawTab({ profile: { ...melany, closures: [XMAS] } });
+  openFold(tree, "closures");
+  tree = redrawTab();
+  const boxes = () => all(byTestId(tree, "rec-closure-0"), (n) => n.type === "input");
+  boxes()[2].props.onChange({ target: { value: "x".repeat(201) } });
+  tree = redrawTab();
+  saveFoldOf(tree, "closures");
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-closure-0-note-problem")), /At most 200 characters — this is 201\./);
+  assert.deepEqual([boxes()[2].props["aria-invalid"], boxes()[0].props["aria-invalid"]], [true, undefined], "under the box it is about, and no other");
+  // Only the schema can judge these two, and each lands under its own box.
+  boxes()[2].props.onChange({ target: { value: "Christmas" } });
+  tree = redrawTab();
+  boxes()[1].props.onChange({ target: { value: "2099-12-20" } });
+  tree = redrawTab();
+  saveFoldOf(tree, "closures");
+  tree = redrawTab();
+  assert.ok(textOf(byTestId(tree, "rec-closure-0-until-problem")), "an until before its date is the schema's to refuse, under Until");
+  assert.equal(byTestId(tree, "rec-closure-0-note-problem"), null);
+  assert.equal(sent.length, 0);
+
+  // The cap, from the bridge's published limit: the old sentence, and no Add.
+  const many = Array.from({ length: MAX_CLOSURES }, (_, i) => ({ date: `2099-${String(1 + (i % 12)).padStart(2, "0")}-${String(1 + Math.floor(i / 12)).padStart(2, "0")}` }));
+  tree = drawTab({ profile: { ...melany, closures: many } });
+  openFold(tree, "closures");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-closures-add"), null);
+  assert.equal(textOf(byTestId(tree, "rec-closures-cap")), `That is the most closures the receptionist keeps (${MAX_CLOSURES}). Dates that have passed can go.`);
+  press(byTestId(tree, "rec-closure-remove-0"));
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-closures-add"), "one fewer, and one may be added again");
+});
+
+/* ---- the calendar it reads ---- */
+
+/** The Calendar surface as the bridge publishes it: contracts' own view model of the route's answer, read just now. */
+const calendarRead = (feed, agoMs = 0) => {
+  const today = zoneDayKey(Date.now(), "America/New_York");
+  const dto = { timezone: "America/New_York", from: today, to: today, feed, hours: melany.hours, closures: [], rules: null, services: [], booking_link: null, next_opening: null, days: [{ key: today, items: [], windows: [] }] };
+  return { vm: toCalendarVM(dto, new Date()), fetchedAt: Date.now() - agoMs };
+};
+const readOk = (over = {}) => ({ present: true, source: "Google Calendar", state: "ok", read_at: new Date(Date.now() - 4 * 60000).toISOString(), checked_at: new Date(Date.now() - 4 * 60000).toISOString(), events: 12, recurring_expanded: 0, skipped_recurring: 0, reason: null, status: null, problem: null, stale: false, dropped: 0, ...over });
+
+test("the calendar row states its last read, and there is no button for it", () => {
+  W.__CALENDAR = calendarRead(readOk());
+  try {
+    const tree = drawTab({ profile: melany });
+    const row = byTestId(tree, "rec-row-calendar");
+    assert.match(textOf(row), /read/i);
+    assert.equal(find(row, (n) => /Check the address/i.test(textOf(n))), null, "a row that can say it needs no button");
+    // The Calendar page's own pill and line, word for word: where it was read from, when, and how many events.
+    const read = byTestId(row, "rec-calendar-read");
+    assert.equal(textOf(byTestId(read, "rec-calendar-state")), CALENDAR_FEED_WORDS.ok);
+    assert.match(textOf(read), new RegExp(escape(W.__CALENDAR.vm.feed.detail)));
+    assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
+    // The address is where it points, never the whole of it, and only an act opens its box.
+    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-address"))), "app.chanlytics.com/…/filler.ics");
+    assert.deepEqual(all(row, (n) => n.type === "button").map((b) => b.props["data-testid"]), ["rec-row-act-calendar"]);
+  } finally {
+    delete W.__CALENDAR;
+  }
+});
+
+test("a calendar that could not be read says so in the Calendar page's words; with no read, or a stale one, the row says nothing of one and asks", () => {
+  const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
+  try {
+    // The last read failed: the pill, the reason as the owner can act on it, and when it was tried.
+    W.__CALENDAR = calendarRead(readOk({ state: "unavailable", read_at: null, events: 0, reason: "http", status: 404, problem: "The calendar answered 404: the address no longer points at a calendar." }));
+    let row = byTestId(drawTab(), "rec-row-calendar");
+    assert.equal(textOf(byTestId(row, "rec-calendar-state")), CALENDAR_FEED_WORDS.unavailable);
+    assert.match(textOf(row), /The calendar answered 404: the address no longer points at a calendar\./);
+    assert.match(textOf(row), /tried 4m ago/);
+    assert.doesNotMatch(textOf(row), /\d+ events?/, "no count is claimed of a calendar that was not read");
+    // A last good read, shown as that.
+    W.__CALENDAR = calendarRead(readOk({ stale: true, reason: "unreachable", problem: "The calendar could not be reached." }));
+    row = byTestId(drawTab(), "rec-row-calendar");
+    assert.equal(textOf(byTestId(row, "rec-calendar-state")), CALENDAR_FEED_WORDS.stale);
+    assert.match(textOf(row), /The calendar could not be reached\./);
+
+    // No read in this tab: nothing is invented. The address is still stated.
+    delete W.__CALENDAR;
+    const asked = [];
+    W.__calendar = { refresh: () => { asked.push("refresh"); return Promise.resolve(true); } };
+    let tree = drawTab();
+    row = byTestId(tree, "rec-row-calendar");
+    assert.equal(byTestId(row, "rec-calendar-read"), null);
+    assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-val"))), "app.chanlytics.com/…/filler.ics", "REGRESSION guard: the address, and never a read it does not have");
+    assert.deepEqual(asked, ["refresh"], "it asks for one as it mounts");
+    // A read from long before this page was opened is the morning's words ("read 4m ago", counted from then): not
+    // stated, and asked for again; stated when it lands.
+    W.__CALENDAR = calendarRead(readOk(), 10 * 60000);
+    tree = drawTab();
+    assert.equal(byTestId(tree, "rec-calendar-read"), null);
+    assert.equal(asked.length, 2);
+    W.__CALENDAR = calendarRead(readOk({ events: 3 }));
+    W.dispatchEvent({ type: "surface:calendar" });
+    tree = redrawTab();
+    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /3 events/);
+    assert.equal(asked.length, 2, "fresh, it is not asked for again");
+    // The surface itself could not be read: said where the line would be, with the one Retry.
+    delete W.__CALENDAR;
+    W.__surfaceFailed = (key) => key === "calendar";
+    row = byTestId(drawTab(), "rec-row-calendar");
+    assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what its last read found/);
+  } finally {
+    delete W.__CALENDAR;
+    if (was.calendar) W.__calendar = was.calendar; else delete W.__calendar;
+    if (was.failed) W.__surfaceFailed = was.failed; else delete W.__surfaceFailed;
+  }
+});
+
+test("with no feed the calendar row is empty and says what the address is for; its fold holds the one box, checked under it, and saves only the address", () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  W.__CALENDAR = calendarRead(readOk());
+  try {
+    let tree = drawTab({ flash, config: { calendar: undefined } });
+    const stored = written(W.__SETTINGS.config);
+    const row = byTestId(tree, "rec-row-calendar");
+    assert.equal(row.props["data-empty"], "true");
+    assert.match(textOf(row), /Not connected/);
+    assert.match(textOf(row), /Read-only, so it can say which times are open before sending the link\./, "the old form's sentence for what the address is");
+    assert.equal(byTestId(row, "rec-calendar-read"), null, "and no read is stated of a calendar that is not connected");
+    assert.equal(textOf(byTestId(tree, "rec-row-act-calendar")), "Add one");
+    openFold(tree, "calendar");
+    tree = redrawTab(flash);
+    const fold = foldOf(tree, "calendar");
+    assert.match(textOf(fold), /The private iCal address of the calendar your appointments land in/);
+    assert.match(textOf(fold), /It is only ever read\. Nothing is booked from here; the booking link does that, whichever tool is behind it\./);
+    assert.equal(byTestId(tree, "rec-calendar-open"), null, "no door to a calendar that is not connected");
+    assert.equal(find(fold, (n) => classes(n).includes("rec-says")), null, "the address is in no draft of the brain: it draws no block");
+    const box = () => find(foldOf(tree, "calendar"), (n) => classes(n).includes("rec-input"));
+    box().props.onChange({ target: { value: "calendar.google.com/basic.ics" } });
+    tree = redrawTab(flash);
+    saveFoldOf(tree, "calendar");
+    tree = redrawTab(flash);
+    assert.equal(box().props["aria-invalid"], true);
+    assert.match(textOf(foldOf(tree, "calendar")), /The calendar feed needs to be a full address, starting with https:\/\/ or webcal:\/\//);
+    assert.equal(sent.length, 0);
+    box().props.onChange({ target: { value: "  https://calendar.google.com/calendar/ical/melany/private-abc/basic.ics  " } });
+    tree = redrawTab(flash);
+    assert.equal(box().props["aria-invalid"], undefined, "typing again takes the sentence away");
+    saveFoldOf(tree, "calendar");
+    assert.deepEqual(sent[0].config, { ...without(stored, "calendar"), calendar: { ical_url: "https://calendar.google.com/calendar/ical/melany/private-abc/basic.ics" } });
+
+    // A feed is stored: the fold keeps the door to the Calendar, and an emptied box disconnects it.
+    tree = drawTab({ flash });
+    const held = written(W.__SETTINGS.config);
+    openFold(tree, "calendar");
+    tree = redrawTab(flash);
+    went.length = 0;
+    press(byTestId(tree, "rec-calendar-open"));
+    assert.deepEqual(went, ["calendar"]);
+    box().props.onChange({ target: { value: "" } });
+    tree = redrawTab(flash);
+    saveFoldOf(tree, "calendar");
+    assert.deepEqual(sent[1].config, without(held, "calendar"));
+
+    // Anyone but the owner is sent the address masked: shown as it arrives, said to be hidden, and an untouched fold
+    // sends nothing, so the mask is never saved over the address.
+    tree = drawTab({ flash, config: { calendar: { ical_url: "https://calendar.google.c…ic.ics" } } });
+    assert.equal(textOf(find(byTestId(tree, "rec-row-calendar"), (n) => classes(n).includes("bt-feed-address"))), "https://calendar.google.c…ic.ics");
+    openFold(tree, "calendar");
+    tree = redrawTab(flash);
+    assert.match(textOf(byTestId(tree, "rec-calendar-masked")), /Only an owner sees this address whole/);
+    saveFoldOf(tree, "calendar");
+    tree = redrawTab(flash);
+    assert.deepEqual([sent.length, openFolds(tree)], [2, []]);
+  } finally {
+    delete W.__CALENDAR;
+  }
+});
+
+test("a viewer reads when the business is open and is offered no act on any of it", () => {
+  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+  W.__workspace = { setTimezone: async () => ({ ok: true, tz: "America/Chicago", message: "" }) };
+  W.__CALENDAR = calendarRead(readOk());
+  try {
+    const tree = drawTab({ profile: { ...melany, closures: [XMAS] } });
+    const card = byTestId(tree, "rec-card-open");
+    assert.deepEqual(all(card, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || "")), [], "no row offers a change");
+    assert.match(textOf(card), new RegExp(escape(summaryOf(melany.hours))));
+    assert.match(textOf(card), /1 ahead · Dec 24 – 26 · Christmas/);
+    assert.match(textOf(card), /12 events/, "and everything is there to read");
+    // Nothing opens an editor for it, whatever asks.
+    for (const id of ["hours", "timezone", "closures", "calendar"]) {
+      W.__recordFolds.request(id);
+      const again = redrawTab();
+      assert.deepEqual([openFolds(again), openRows(again)], [[], []], id);
+      W.__recordFolds.reset();
+    }
+  } finally {
+    delete W.ST_STORE;
+    delete W.__workspace;
+    delete W.__CALENDAR;
+  }
+});
+
+test("each act of When you're open is gated as a change to the settings, and named for what it acts on", () => {
+  const asked = [];
+  const was = W.gate;
+  W.gate = (perm, doing) => { asked.push([perm, doing]); return {}; };
+  W.__workspace = { setTimezone: async () => ({ ok: true, tz: "", message: "" }) };
+  try {
+    const tree = drawTab();
+    const mine = asked.filter(([, doing]) => /hours|timezone|closed|calendar/.test(doing));
+    assert.deepEqual(mine, [["settings", "change your hours"], ["settings", "change the timezone"], ["settings", "change the days you are closed"], ["settings", "change the calendar it reads"]]);
+    const heard = (row) => {
+      const act = byTestId(tree, `rec-row-act-${row}`);
+      return act.props["aria-label"] || act.props["aria-labelledby"].split(" ").map((id) => textOf(find(tree, (n) => n.props?.id === id))).join(" ");
+    };
+    assert.deepEqual(["hours", "timezone", "closures", "calendar"].map(heard), ["Change your opening hours", "Change Timezone", "Add one: a day you are closed", "Change the calendar it reads"]);
+  } finally {
+    W.gate = was;
+    delete W.__workspace;
+  }
+});
+
+test("a refusal that is not the fold's to fix is said once in the fold, and never stops a fold that has nothing to write from closing", () => {
+  // A stored closure on a date that is not on the calendar: the save's schema refuses the whole brain for it, whichever
+  // fold is saving.
+  const sent = saving();
+  let tree = drawTab({ profile: { ...melany, closures: [{ date: "2099-02-31", note: "Not a day" }] } });
+  openFold(tree, "hours");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "18:00");
+  tree = redrawTab();
+  saveFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual([sent.length, openFolds(tree)], [0, []], "typed and typed back: nothing to write, so nothing of the record is judged");
+  openFold(tree, "hours");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  saveFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual([sent.length, openFolds(tree)], [0, ["hours"]]);
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-elsewhere")), /^Something else in your settings stops this save — /, "said where the owner is looking, naming where it is");
+  assert.equal(byTestId(tree, "rec-hours-problem-mon"), null, "and under no day, since no day is wrong");
 });
