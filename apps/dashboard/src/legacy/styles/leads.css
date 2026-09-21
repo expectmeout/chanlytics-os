@@ -843,7 +843,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-t .count { font-family: var(--font-mono); font-size: var(--text-base); color: var(--ink-dim); }
 .ld-bench-why { margin: 5px 0 0; font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.5; max-width: 66ch; }
 .ld-bench-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
-.ld-bench-cards { display: flex; flex-direction: column; }
+/* A container: the cards fold by their own width (the rule after the card's), never the window's. */
+.ld-bench-cards { display: flex; flex-direction: column; container-type: inline-size; }
 .ld-bench-card { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
 .ld-bench-card:last-child { border-bottom: 0; }
 .ld-bench-card:hover { background: var(--bg-hover); }
@@ -854,6 +855,20 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-card .r { display: flex; align-items: center; gap: 14px; }
 .ld-bench-card-acts { display: inline-flex; gap: 2px; opacity: 0; }
 .ld-bench-card:hover .ld-bench-card-acts, .ld-bench-card:focus-within .ld-bench-card-acts { opacity: 1; }
+/* After the card's rules, so it wins by order. A card too narrow for its words and its values side by side puts the
+   values under the words. The values' `auto` column is as wide as its unbroken number and address (313-379px on
+   production's cards), and at 1280 the sidebar, the rail and the pile leave a card 484px, so the name had 9-75px: a
+   word a line. At 800px the words still keep 248px beside a number, a 30-letter address and the acts. Folded, the
+   number and the address take a line each when they must, an address longer than its line gives way at its end, and
+   Keep and Exclude hold the right edge. */
+@container (max-width: 800px) {
+  .ld-bench-card { grid-template-columns: 40px minmax(0, 1fr); }
+  .ld-bench-card .r { grid-column: 2; flex-wrap: wrap; gap: 6px 14px; }
+  .ld-bench-card .ld-slots { flex-wrap: wrap; row-gap: 6px; }
+  .ld-bench-card .ld-slots, .ld-bench-card .ld-slot, .ld-bench-card .ld-slot-btn { min-width: 0; }
+  .ld-bench-card .ld-slot-value { overflow: hidden; text-overflow: ellipsis; }
+  .ld-bench-card-acts { margin-left: auto; }
+}
 
 .ld-bench-side { flex: 1 1 260px; min-width: 240px; display: flex; flex-direction: column; gap: 16px; }
 .ld-bench-block { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; }
@@ -874,7 +889,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-bench-g { flex: none; border: 1px solid var(--line); border-radius: var(--radius-full); padding: 7px 12px; grid-template-columns: auto auto; align-items: center; }
   .ld-bench-g .a { display: none; }
   .ld-bench-card-acts { opacity: 1; }
-  .ld-bench-card .r { flex-direction: column; align-items: flex-end; gap: 6px; }
 }
 
 /* --------------------------- one lead at a time, on a phone (D5) -- */
