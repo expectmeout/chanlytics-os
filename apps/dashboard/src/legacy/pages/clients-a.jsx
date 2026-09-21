@@ -1839,15 +1839,23 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
-  // D5: a list that is moving shows no hover: the scroller carries data-scrolling while it scrolls, and the tips and
-  // cards hide under it (leads.css). One listener for the page's life, taken down with it.
+  // D5: a list that is moving shows no hover: the pane carries data-scrolling while the list scrolls, and the tips and
+  // cards hide under it (leads.css). Heard on the pane in the capture phase: a scroll does not bubble, and on a desktop
+  // the box that scrolls is the table's own, inside the pane, so the pane's own scroll never came and the cards stayed
+  // up over a moving list. Only the list's box counts (ldScroller): a menu scrolling inside the pane is not the list
+  // moving. One listener for the page's life, taken down with it.
   React.useEffect(() => {
     const el = scrollRef.current;
     if (!el || !el.addEventListener) return undefined;
     let t = null;
-    const on = () => { el.setAttribute("data-scrolling", "1"); if (t) clearTimeout(t); t = setTimeout(() => el.removeAttribute("data-scrolling"), 160); };
-    el.addEventListener("scroll", on, { passive: true });
-    return () => { el.removeEventListener("scroll", on); if (t) clearTimeout(t); };
+    const on = (e) => {
+      if (!e || !e.target || e.target !== ldScroller(el)) return;
+      el.setAttribute("data-scrolling", "1");
+      if (t) clearTimeout(t);
+      t = setTimeout(() => el.removeAttribute("data-scrolling"), 160);
+    };
+    el.addEventListener("scroll", on, { passive: true, capture: true });
+    return () => { el.removeEventListener("scroll", on, { capture: true }); if (t) clearTimeout(t); };
   }, [onLeads]);
 
   const onSort = (key) => {
