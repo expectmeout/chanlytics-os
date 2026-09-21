@@ -82,7 +82,7 @@ test("the media route: member of the named workspace, stored only, a redirect th
   assert.ok(route.includes("new Response(null, { status: 302, headers: { location: url } })"), "not Response.redirect(): its headers are immutable");
 });
 
-test("the thread draws the attachment, in both viewers, from one component", () => {
+test("the thread draws the attachment from one component, wherever it opens", () => {
   const bits = readRaw("apps/dashboard/src/legacy/components/data-bits.jsx");
   assert.ok(bits.includes("window.TlMedia = TlMedia;"));
   assert.ok(bits.includes("if (!media || !window.__href) return null;"), "nothing without the bridge");
@@ -90,7 +90,6 @@ test("the thread draws the attachment, in both viewers, from one component", () 
   assert.ok(bits.includes('<audio className="tl-media tl-media-audio" controls preload="none" src={src} />'), "a voice note can be played");
   assert.ok(bits.includes("Attachment couldn't be saved."), "a failed fetch says so instead of a broken image");
   assert.ok(readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("{entry.media && <TlMedia media={entry.media} />}"));
-  assert.ok(readRaw("apps/dashboard/src/legacy/pages/conversations.jsx").includes("{m.media && <TlMedia media={m.media} />}"));
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/components.css").includes(".tl-media img {"));
 });
 

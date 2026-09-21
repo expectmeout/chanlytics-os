@@ -131,7 +131,7 @@ test.describe("Ask on a real workspace", () => {
     await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
   });
 
-  test("opening a call from the palette lands on the call with its transcript pane", async ({ page }) => {
+  test("opening a call from the palette lands on the call, in its thread", async ({ page }) => {
     test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(150_000);
     await page.goto("/#/today");
@@ -143,7 +143,8 @@ test.describe("Ask on a real workspace", () => {
     // The answer lands and the app goes there by itself; the palette closes.
     await page.waitForURL(/#\/conversations\/cv-/, { timeout: 120_000 });
     await expect(page.getByTestId("ask-real")).toBeHidden();
-    await expect(page.locator(".cv-transcript, .cv-playback").first()).toBeVisible({ timeout: 20_000 });
+    // A call is drawn as its card: in its thread, opened there, or alone in the thread's frame (calls-in-the-thread).
+    await expect(page.getByTestId("tl-call").first()).toBeVisible({ timeout: 20_000 });
     await page.screenshot({ path: "test-results/ask-clickthrough.png" });
     // ⌘K brings the conversation back where it was.
     await page.keyboard.press("Control+k");

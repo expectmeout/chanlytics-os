@@ -158,7 +158,7 @@ import { personName } from "./person-name";
 import { isOptedOutContact } from "./consent";
 import { replyWindow, isLiveCall } from "./policy";
 import { callOutcomeOf, callOutcomeWords, tidyCallSummary } from "./call-words";
-import { RECORDING_PURGED_WORDS } from "./retention";
+import { RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS } from "./retention";
 
 /**
  * Who answers a thread on each wire, as the chip under a row names it.
@@ -615,6 +615,7 @@ export interface InboxThreadVM {
         statusLabel?: string;
         /** False when these words never reached the customer: the page dashes them, as Conversations does. */
         reachedCustomer?: boolean;
+        /** The message's own id, on every bubble: a call's note finds its call by it, and a link opens the thread there. */
         messageId?: string;
         /** Written but NOT sent — sitting out its veto window. */
         pending?: true;
@@ -716,6 +717,7 @@ export function toInboxThreadVM(
     const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
     return {
       type: "msg" as const,
+      messageId: m.id,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
       // An email's subject line, above its words.
@@ -744,7 +746,6 @@ export function toInboxThreadVM(
       ...(m.sender !== "customer" && m.status
         ? {
             status: m.status,
-            messageId: m.id,
             // The words themselves live in messageStatusLabel, so this pane and
             // the Conversations pane cannot describe the same message
             // differently — which is exactly what they were doing.
@@ -1161,6 +1162,17 @@ export interface CallVM {
   recordingState: "ready" | "pending" | "failed" | "purged" | "none";
   recordingUrl?: string;
   threadId?: string;
+  /** The note this call left on its thread (a call_summary message): the thread draws the call there. */
+  messageId?: string;
+  direction: "inbound" | "outbound";
+  /** It never connected. */
+  missed: boolean;
+  /** What the call was about: what the caller wanted, in the analysis's plain words, or the provider's first sentence.
+   *  Null when it never connected or nothing was said about it -- never a sentence saying there is no sentence. */
+  about: string | null;
+  /** How it went, a few words each: how the caller sounded, how it ended, why there is no recording to play. The call
+   *  card's one quiet line. */
+  facts: string[];
 }
 
 function mmss(ms: number | null | undefined): string | undefined {
@@ -1177,6 +1189,15 @@ export function spokenDuration(ms: number | null): string {
   const sec = total % 60;
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
 }
+
+// How the caller sounded, as the voice provider read it, where that says anything: "Neutral" and "Unknown" do not.
+const CALL_MOOD: Record<string, string> = { Positive: "Sounded positive", Negative: "Sounded negative" };
+// Why a call has no recording to play, where that is worth saying. "none" is a call that was never recorded.
+const RECORDING_NOTE: Partial<Record<CallVM["recordingState"], string>> = {
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`,
+};
 
 export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -1199,9 +1220,8 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const bullets: string[] = [
     `${dto.direction === "inbound" ? "Inbound" : "Outbound"} · ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`,
   ];
-  if (dto.disconnection_reason) {
-    bullets.push(`Ended: ${DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ")}`);
-  }
+  const ending = dto.disconnection_reason ? (DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ")) : null;
+  if (ending) bullets.push(`Ended: ${ending}`);
   if (dto.sentiment) {
     bullets.push(`Caller sentiment: ${dto.sentiment} — the voice provider's own read`);
   }
@@ -1267,5 +1287,12 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     recordingState: recState,
     ...(recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {}),
     ...(dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {}),
+    // The call's facts as facts, for the thread's call card: they were only inside the bullets' sentences.
+    ...(dto.message_id ? { messageId: dto.message_id } : {}),
+    direction: dto.direction === "outbound" ? "outbound" : "inbound",
+    missed,
+    // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
+    about: missed ? null : wanted || firstSentence || null,
+    facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? undefined : RECORDING_NOTE[recState]].filter((f): f is string => !!f),
   };
 }

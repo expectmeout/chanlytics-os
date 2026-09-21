@@ -1050,6 +1050,125 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
   overflow-wrap: anywhere;
 }
 
+/* A call, where it happened in the thread (inbox-thread.jsx CallCard). A card, not a bubble -- it is neither side's
+   words -- raised a step off the page, on the side it came from. Its note was a dashed bubble reading "Phone · call
+   note", and the call itself was a second screen in Conversations. */
+.tl-call { display: flex; }
+.tl-call.inbound { justify-content: flex-start; }
+.tl-call.outbound { justify-content: flex-end; }
+.tl-call-card {
+  width: min(88%, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 11px 14px 12px;
+  border-radius: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  container-type: inline-size;
+}
+.tl-call-head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; line-height: 1.3; }
+.tl-call-glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ink) 7%, transparent);
+  color: var(--ink-muted);
+}
+.tl-call-kind { min-width: 0; font-weight: 550; color: var(--ink); white-space: nowrap; }
+.tl-call-length { font-weight: 400; color: var(--ink-dim); }
+/* --ink-dim, not the bubbles' --ink-faint: faint reads at 2.1-2.7:1, and this is the only time the card says. */
+.tl-call-at { margin-left: auto; flex: none; font-size: 11px; color: var(--ink-dim); }
+.tl-call-about { font-size: 13px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+/* How it went: one quiet line, never a list of eight facts. */
+.tl-call-facts { margin-top: -3px; font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
+/* A narrow card -- any phone -- gives the time its own line under the words, past the glyph: sharing one, the words
+   broke instead, "Inbound" over "call · 3:10". The longest head, "Outbound call · 12:34" beside "Sep 20 · 12:56 PM",
+   is 258px. After the rules it overrides, which win a tie of specificity. */
+@container (max-width: 260px) {
+  .tl-call-head { flex-wrap: wrap; row-gap: 2px; }
+  .tl-call-at { flex: 0 0 calc(100% - 30px); margin-left: 30px; }
+}
+
+/* The recording: a soft round Play, a hairline of progress, the clock. There is no Play without a recording. */
+.tl-call-player { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+.tl-call-play {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ink) 8%, transparent);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.tl-call-play:hover { background: color-mix(in oklab, var(--ink) 14%, transparent); }
+.tl-call-play:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.tl-call-play:disabled { opacity: 0.6; cursor: default; }
+.tl-call-track { flex: 1 1 auto; min-width: 40px; height: 3px; border-radius: 999px; background: color-mix(in oklab, var(--ink) 10%, transparent); overflow: hidden; }
+.tl-call-fill { height: 100%; border-radius: inherit; background: var(--ink-muted); transition: width 250ms linear; }
+.tl-call-clock { flex: none; font-size: 11px; color: var(--ink-dim); }
+.tl-call-failed { font-size: 11.5px; line-height: 1.4; color: var(--warn-ink); }
+
+/* The transcript, on a tap: who said it over what they said, the caller's words in full ink. */
+.tl-call-open {
+  position: relative;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.tl-call-open:hover { color: var(--ink); }
+.tl-call-open:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
+.tl-call-open .icon { transition: transform var(--duration-fast) var(--ease-out); }
+.tl-call-open[aria-expanded="true"] .icon { transform: rotate(180deg); }
+/* A thumb's reach without a thumb's height: a touch screen's buttons are 44px tall (legacy.css). */
+html.legacy-on .tl-call-open, html.legacy-on .tl-call-play { min-height: 0; }
+.tl-call-open::after { content: ""; position: absolute; inset: -12px -8px; }
+.tl-call-play::after { content: ""; position: absolute; inset: -7px; border-radius: 999px; }
+.tl-call-lines { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+.tl-call-line { display: flex; flex-direction: column; gap: 1px; font-size: 12.5px; line-height: 1.5; }
+.tl-call-who { font-size: 11px; font-weight: 600; color: var(--ink-dim); }
+.tl-call-said { color: var(--ink); overflow-wrap: anywhere; }
+.tl-call-line.agent .tl-call-said { color: var(--ink-muted); }
+.tl-call-line.whisper .tl-call-said { color: var(--ink-muted); font-style: italic; }
+.tl-call-file {
+  align-self: flex-start;
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
+}
+.tl-call-file:hover { color: var(--ink); }
+.tl-call-acts { display: flex; gap: 8px; margin-top: 4px; }
+
+/* Opened at the call, from Conversations: a moment's ring says which card it is. */
+.tl-call.focus .tl-call-card { animation: tl-call-here 2.4s var(--ease-out) 0.2s both; }
+@keyframes tl-call-here {
+  from { box-shadow: 0 0 0 3px color-mix(in oklab, var(--ink) 16%, transparent), var(--shadow-sm); }
+  to { box-shadow: 0 0 0 0 transparent, var(--shadow-sm); }
+}
+@media (prefers-reduced-motion: reduce) { .tl-call.focus .tl-call-card { animation: none; } }
+
 /* System events */
 /* The bullet belongs beside the first line, not halfway down a four-line paragraph. */
 .tl-event {

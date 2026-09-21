@@ -1734,6 +1734,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
     return {
       type: "msg",
+      messageId: m.id,
       from: m.sender === "customer" ? "client" : "agent",
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
       // An email's subject line, above its words.
@@ -1758,7 +1759,6 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       ...m.meta?.source === "broadcast" ? { via: m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") } } : {},
       ...m.sender !== "customer" && m.status ? {
         status: m.status,
-        messageId: m.id,
         // The words themselves live in messageStatusLabel, so this pane and
         // the Conversations pane cannot describe the same message
         // differently — which is exactly what they were doing.
@@ -1993,6 +1993,12 @@ function spokenDuration(ms2) {
   const sec = total % 60;
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
 }
+var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
+var RECORDING_NOTE = {
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
+};
 function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
@@ -2008,9 +2014,8 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const bullets = [
     `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
   ];
-  if (dto.disconnection_reason) {
-    bullets.push(`Ended: ${DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ")}`);
-  }
+  const ending = dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null;
+  if (ending) bullets.push(`Ended: ${ending}`);
   if (dto.sentiment) {
     bullets.push(`Caller sentiment: ${dto.sentiment} \u2014 the voice provider's own read`);
   }
@@ -2057,7 +2062,14 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     transcript,
     recordingState: recState,
     ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
-    ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {}
+    ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {},
+    // The call's facts as facts, for the thread's call card: they were only inside the bullets' sentences.
+    ...dto.message_id ? { messageId: dto.message_id } : {},
+    direction: dto.direction === "outbound" ? "outbound" : "inbound",
+    missed,
+    // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
+    about: missed ? null : wanted || firstSentence || null,
+    facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter((f) => !!f)
   };
 }
 

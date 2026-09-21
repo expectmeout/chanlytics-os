@@ -170,8 +170,6 @@
   /* ---------- Conversations ---------- */
   .conversations { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
   .cv-list { border-right: none; border-bottom: 1px solid var(--line); }
-  .cv-head { padding: 12px 16px; flex-wrap: wrap; }
-  .cv-scroll { padding: 12px 16px 24px; }
 
   /* ---------- Live monitor ---------- */
   .lm-body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 36vh) minmax(0, 1fr); }
@@ -410,7 +408,7 @@
    cockpit gets the screen. Desktop is untouched: these controls exist in
    the markup always and are shown only here.
    ==================================================================== */
-.ix-back, .cv-back { display: none; }
+.ix-back { display: none; }
 .phone-tabs { display: none; }
 
 @media (max-width: 720px) {
@@ -426,13 +424,11 @@
   /* Conversations: the same pattern */
   .conversations { grid-template-rows: minmax(0, 1fr); }
   .conversations .cv-list { border-bottom: none; }
-  .conversations .cv-viewer, .conversations .ix-thread-pane, .conversations > .empty-page { display: none; }
+  .conversations .ix-thread-pane, .conversations > .empty-page { display: none; }
   .conversations.phone-detail .cv-list { display: none; }
-  /* A conversation row opens the one thread (thread-pane.jsx); it takes the screen as a call's view does. So does a
-     link's notice, which the rule above would otherwise keep off a phone. */
-  .conversations.phone-detail .cv-viewer { display: flex; }
+  /* A row opens the one thread (thread-pane.jsx) -- a call at its card, or alone in the thread's frame -- and it takes
+     the screen. So does a link's notice, which the rule above would otherwise keep off a phone. */
   .conversations.phone-detail .ix-thread-pane, .conversations.phone-detail > .empty-page { display: flex; }
-  .cv-back { display: inline-flex; margin-right: 6px; padding-left: 6px; padding-right: 8px; }
 
   /* Live: a short list, the cockpit gets the screen, the whisper at the thumb */
   .lm-body { grid-template-rows: minmax(0, 26vh) minmax(0, 1fr); }

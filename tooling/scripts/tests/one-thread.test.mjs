@@ -64,6 +64,8 @@ globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
 globalThis.ThreadPane = globalThis.window.ThreadPane;
+// The call's card, which Conversations draws for a call no thread holds.
+globalThis.CallCard = globalThis.window.CallCard;
 await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 const RealInboxThread = globalThis.window.InboxThread;
 globalThis.InboxThread = RealInboxThread;
@@ -269,12 +271,48 @@ test("a conversation row opens the one thread: the pane beside the list is the I
   assert.equal(find(tree, (n) => n.props?.className === "cv-summary"), undefined, "REGRESSION: the card that repeated the latest message");
 });
 
-test("a call row is a call record, and keeps its own view until calls are drawn in the same frame", () => {
+test("a call opens its thread, at the call -- not a viewer of its own", () => {
+  fresh(); releasePane();
+  const note = { id: "e7", direction: "inbound", sender: "system", type: "call_summary", body: "Inbound call · 3 min — Wants to book a bridal trial", media: null, meta: {}, status: "received", channel: "voice", created_at: at(30), channel_ts: at(30) };
+  listed([toCallVM({ ...call, conversation_id: "c7", message_id: "e7" }, ZONE, NOW)], [toInboxThreadVM(convo({ id: "c7", messages: [...convo().messages, note] }), null, ZONE, NOW)]);
+  const tree = conversations();
+  const pane = find(tree, (n) => n.type === ThreadPane);
+  assert.ok(pane, "REGRESSION: a call opened a viewer of its own");
+  assert.deepEqual([pane.props.threadId, pane.props.focusMessageId], ["th-c7", "e7"], "its thread, opened at its note");
+  const card = find(tree, byTestId("tl-call"));
+  assert.equal(card.props["data-mid"], "e7", "the pane finds the card by the note's id");
+  assert.ok(card.props.className.split(" ").includes("focus"), "and the card it opened at says so");
+  assert.equal(find(tree, (n) => n.props?.className === "cv-viewer"), undefined);
+});
+
+test("a call no thread holds opens alone, in the thread's own frame: its header, its card, and a menu of only what acts", () => {
   fresh(); releasePane();
   listed([toCallVM(call, ZONE, NOW)]);
-  const tree = conversations();
-  assert.ok(find(tree, (n) => n.props?.className === "cv-viewer"), "the call's recording and transcript view");
-  assert.equal(find(tree, (n) => n.type === globalThis.InboxThread), undefined);
+  const alone = find(conversations(), byTestId("cv-call-pane"));
+  assert.ok(alone && alone.props.className.split(" ").includes("ix-thread-pane"), "the thread's frame, which a phone gives the screen as it gives a thread");
+  assert.equal(textOf(find(alone, (n) => n.props?.className === "ix-th-meta")), "Phone");
+  assert.match(textOf(find(alone, byTestId("tl-call"))), /Wants to book a bridal trial/);
+  assert.ok(find(alone, byTestId("ix-back")), "and the phone's Back");
+  const menu = find(alone, (n) => n.type === globalThis.MoreMenu);
+  assert.deepEqual(menu.props.items.map((it) => it.label), ["Open profile"], "REGRESSION: the call header's Export and Assign did nothing outside a demo");
+  // Its thread is older than the page the Inbox read, so holds no note of it: the call still opens, alone.
+  listed([toCallVM({ ...call, conversation_id: "c-old", message_id: "e-old" }, ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
+  assert.ok(find(conversations(), byTestId("cv-call-pane")), "REGRESSION: 'Opening this conversation…' for a thread that was never going to be read");
+});
+
+test("a call still going is a line that says so, its clock running from its start, and it opens Live", () => {
+  fresh(); releasePane();
+  const realNow = Date.now;
+  Date.now = () => NOW.getTime();
+  try {
+    listed([{ ...toCallVM(call, ZONE, NOW), live: true, outcome: "live", ts: NOW.getTime() - 83_000 }]);
+    const live = find(conversations(), byTestId("cv-call-live"));
+    assert.match(textOf(live), /On the phone now · 1:23/);
+    find(live, (n) => n.type === "button" && textOf(n).includes("Open Live")).props.onClick();
+    assert.equal(went.at(-1), "live");
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test("a link to a conversation not in view says so where it would have opened, and opens nobody else's", () => {

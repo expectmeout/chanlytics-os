@@ -191,9 +191,8 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
 });
 
 test("the pages link to the routes, and only where the bridge can name the workspace", () => {
-  const conv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
-  assert.ok(conv.includes("{!window.__DEMO_MODE && window.__href && ("));
-  assert.ok(conv.includes('href={isCall ? window.__href("GET calls/[id]/export", { id: c.callId }) : window.__href("GET conversations/[id]/export", { id: c.id })}'));
+  // A conversation's file is in its thread's menu (one-thread.test.mjs), a call's under its transcript
+  // (calls-in-the-thread.test.mjs): both run there, off a demo and only with the bridge.
   const people = readRaw("apps/dashboard/src/legacy/pages/clients-a.jsx");
   assert.ok(people.includes('href={window.__href("GET contacts/export")}'));
   assert.ok(people.includes('window.canDo && !window.canDo("export")'), "a non-owner sees a disabled button that says why, not a refusal");

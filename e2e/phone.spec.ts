@@ -98,14 +98,14 @@ test.describe("Phone shell on a real workspace", () => {
     await page.goto("/#/conversations");
     await page.waitForLoadState("networkidle");
     await expect(page.locator(".cv-list")).toBeVisible();
-    // The reading pane is the one thread for a chat or an email (thread-pane.jsx), the call's own view for a call.
-    const reading = page.locator(".conversations .cv-viewer, .conversations .ix-thread-pane");
+    // The reading pane is the one thread (thread-pane.jsx) -- a call opens at its card -- or a call alone in its frame.
+    const reading = page.locator(".conversations .ix-thread-pane");
     await expect(reading).toBeHidden();
     const row = page.locator(".cv-row").first();
     test.skip((await row.count()) === 0, "no conversations in this workspace");
     await row.click();
     await expect(reading).toBeVisible();
-    const back = page.getByTestId("cv-back").or(page.getByTestId("ix-back"));
+    const back = page.getByTestId("ix-back");
     await expect(back).toBeVisible();
     await back.click();
     await expect(page.locator(".cv-list")).toBeVisible();

@@ -151,7 +151,7 @@ const textOf = (n) => {
 };
 const paneOf = (thread) => { cells = []; seq = 0; return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } }); };
 
-test("the pane: a quiet thread says its last word once, in its tone; the reply that didn't send says so; a call note is a note", () => {
+test("the pane: a quiet thread says its last word once, in its tone; the reply that didn't send says so; a call is a call", () => {
   const tree = paneOf(vmOf(quiet([callNote("m0", 60), wrote("m1", "Can I book at 3?", 30), ours("m2", "ai", "3pm works, booked!", 29, "failed")])));
   const word = find(tree, byTestId("ix-last-word"));
   assert.ok(word, "the quiet thread's one line");
@@ -164,9 +164,9 @@ test("the pane: a quiet thread says its last word once, in its tone; the reply t
   const failed = bubbles.find((b) => textOf(b).includes("3pm works"));
   assert.ok(hasClass("undelivered")(failed), "REGRESSION: drawn as a reply the customer read");
   assert.match(textOf(failed), /Didn't send/);
-  const note = bubbles.find((b) => textOf(b).includes("bridal trial"));
-  assert.ok(hasClass("note")(note), "REGRESSION: a call note was drawn as words the receptionist sent");
-  assert.match(textOf(note), /Phone · call note/);
+  // A call is drawn as the call, where it happened (calls-in-the-thread.test.mjs) -- never as a bubble of words.
+  assert.equal(bubbles.find((b) => textOf(b).includes("bridal trial")), undefined, "REGRESSION: a call note was drawn as words the receptionist sent");
+  assert.match(textOf(find(tree, byTestId("tl-call"))), /^Inbound call · 3 min.*asked about a bridal trial$/);
 
   const answered = find(paneOf(vmOf(quiet([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29, "read")]))), byTestId("ix-last-word"));
   assert.equal(textOf(answered), "Answered by the receptionist — no one asked for you.");

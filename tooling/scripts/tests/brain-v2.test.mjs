@@ -132,5 +132,5 @@ test("the dial reaches the policy row through the route and the pane", () => {
   const thread = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
   assert.ok(thread.includes("· {why.summary}"), "the summary the dial drives, now inside the button that opens the reason");
   assert.ok(thread.includes('"Not sure enough to send alone · "'));
-  assert.ok(readRaw("apps/dashboard/src/legacy/pages/conversations.jsx").includes("· {m.why.summary}"));
+  // Conversations draws the one thread, this button included (one-thread.test.mjs).
 });

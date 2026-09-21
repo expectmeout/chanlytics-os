@@ -1921,7 +1921,6 @@ button.pol-chip{cursor:pointer}
 button.pol-chip:not(.pill-warn){background:var(--bg-sunken);color:var(--ink-dim);border:1px solid var(--line)}
 button.pol-chip:hover{border-color:var(--accent);color:var(--accent)}
 button.pol-chip.pill-warn{border:1px solid transparent}
-.cv-summary-eyebrow .pol-chip{margin-left:auto}
 
 .tb-pres-dot.away{background:var(--warn)}
 
