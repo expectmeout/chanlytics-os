@@ -493,6 +493,8 @@ test("the Leads rail picks one row at a time, as People's does: a list leaves an
   const row = find(draw(), (n) => n.type === "div" && typeof n.props?.className === "string" && n.props.className.split(" ").includes("ld-search-row"));
   assert.ok(row && row.props.className.split(" ").includes("has-acts"), "the row carries its acts beside its pick");
   assert.equal(all(byTestId(row, `leads-search-${SEARCH_A}`), (n) => n.type === "button").length, 1, "the pick holds no other button");
+  // A name cut off at the rail's width is read whole on hover, with when it was asked: the shared tip (data-tip).
+  assert.match(byTestId(row, `leads-search-${SEARCH_A}`).props["data-tip"], /^You asked on Sep 18: “.+”\.$/);
 });
 
 test("the People | Leads switch is a tablist in both scopes, and picking the other one navigates to it", () => {
@@ -813,7 +815,7 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
 
 /* --------------------------------- a search, kept --------------------------------- */
 
-const menuOf = (name) => menus.find((m) => m.title === `What ${name} asked for`);
+const menuOf = (name) => menus.find((m) => m.title === `More for ${name}`);
 
 test("a kept search's menu says what was asked and when, and offers Rename, Find new ones, Search again, Export and Remove", async () => {
   fresh();
@@ -1045,11 +1047,11 @@ test("the search menu removes the untouched leads and credits the month, named f
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   // Not on the strip: an "Undo" beside "the 61 found are yours" read as deleting what was just paid for.
   assert.ok(!strips.at(-1).vm.actions.some((a) => a.id === "undo"), "the strip carries the ending and its next step, never a control that removes leads");
-  const menu = menus.find((m) => m.title === `What ${done.name} asked for`);
+  const menu = menus.find((m) => m.title === `More for ${done.name}`);
   const item = menu.items.find((i) => i.label === "Remove the ones you haven't touched");
   assert.ok(item, "the menu names what it removes");
   assert.match(item.meta, /given back this month/);
-  const waitingMenu = menus.find((m) => m.title === `What ${waiting.name} asked for`);
+  const waitingMenu = menus.find((m) => m.title === `More for ${waiting.name}`);
   assert.ok(!waitingMenu.items.some((i) => i.label === "Remove the ones you haven't touched"), "a round still running has nothing to remove yet");
   item.onClick();
   await settle();
@@ -1262,7 +1264,7 @@ test("a pop hangs above its row when the room is there, every hover asks where i
 
   // A search's menu escapes the rail it lives in (MoreMenu `escape`, placed against the window by moreFit): held
   // inside the rail it was 196px and broke its words onto three to six lines. It opens rightward, over the table.
-  const menu = menus.find((m) => /^What .+ asked for$/.test(m.title || ""));
+  const menu = menus.find((m) => /^More for .+$/.test(m.title || ""));
   assert.ok(menu, "a kept search has its menu");
   assert.equal(menu.escape, true, "it escapes the rail, so the rail's edge cannot cut it off or squeeze it");
   assert.equal(menu.align, "left", "hung from its trigger's left edge, so it opens over the table");

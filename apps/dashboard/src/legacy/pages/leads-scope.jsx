@@ -259,7 +259,9 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
     // opens rightward over the table at a menu's full width.
     escape
     align="left"
-    title={`What ${s.name} asked for`}
+    // Its name is what it holds, for a screen reader and on hover: "What independent bookstores asked for" read as
+    // if the bookstores had asked. What the search asked for is the row's own tip (LeadsRailRows).
+    title={`More for ${s.name}`}
     btnClass="btn btn-ghost btn-icon btn-sm ld-search-more"
     items={[
       { header: words.askedLine },
@@ -298,6 +300,8 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
           count={s.count}
           active={searchId === s.id}
           onPick={() => onPickSearch(s.id)}
+          // Most names are cut off at the rail's width; the row names the whole ask, and when, on hover (the shared tip).
+          tip={wordsFor(s.id).askedLine || null}
           testid={`leads-search-${s.id}`}
           mark={s.mark === "live" ? <span className="live-dot" aria-hidden="true" /> : s.mark === "question" ? <span className="rail-q" title="This search needs you">?</span> : null}
           menu={<LeadSearchMenu s={s} words={wordsFor(s.id)} canFind={canFind} onRename={onRename} onMore={onMore} onAgain={onAgain} onRemove={onRemoveAsk} onUndo={onUndo} exportHref={hrefFor(s)} />}
