@@ -86,6 +86,21 @@ const btSame = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.str
 const btTrimmed = (d) => String(d == null ? "" : d).trim();
 
 /**
+ * A job's patch, applied to a config: the config it would send, with the config it was applied to left exactly as it
+ * was. The one place a patch is run, by the saver as it sends and by a row working out what it will say, so the two
+ * never apply one patch two ways.
+ *
+ * On a copy all the way down (structuredClone). A patch was handed shallow copies, so one that changed a nested object
+ * in place (p.booking_rules.lead_hours = 5) changed the config it was about to be compared with as well: the saver
+ * found nothing to send, the row closed as if saved, and the settings read showed a value no server held.
+ */
+const btPatched = (config, job) => {
+  const copy = structuredClone(config);
+  const brain = copy.brain || {};
+  return { ...copy, brain: job.change(brain, { ...(brain.profile || {}) }) };
+};
+
+/**
  * One saver for the browser tab, so saves made close together go one at a time, and each builds on the one before.
  *
  * PUT /settings is a versioned compare-and-swap of the whole config (useFieldSave says why), and the settings re-read
@@ -130,8 +145,8 @@ const btSaver = () => {
     // No door to save through, or nothing read to save onto: nothing goes, and nothing waits on a save that never lands.
     if (!from || typeof window.__saveSettings !== "function") { onChange(); next(); return; }
     const cfg = from.config;
-    const brain = cfg.brain || {};
-    const patched = { ...cfg, brain: job.change({ ...brain }, { ...(brain.profile || {}) }) };
+    // Compared with the config as it was: the patch ran on a copy (btPatched).
+    const patched = btPatched(cfg, job);
     if (btSame(patched, cfg)) { if (job.done) job.done(); onChange(); next(); return; }
     out = job;
     onChange();
@@ -288,14 +303,16 @@ const BT_PATCH_OF = {
   handoff_number: btPatchProfile("handoff_number"),
 };
 
-// window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), subscribe(fn), reset() }), the
-// two helpers a row's draft is judged by (`same`, `trimmed`), whether a brain's prompt is the product's own lines under
-// its stored name (`isBaseline`), and each row's STORED_AS, CHECK_OF and PATCH_OF by its id. Task 3.6 adds the folds'.
+// window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), subscribe(fn), reset() }), how a
+// job's patch is applied (`patched`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a brain's
+// prompt is the product's own lines under its stored name (`isBaseline`), and each row's STORED_AS, CHECK_OF and
+// PATCH_OF by its id. Task 3.6 adds the folds'.
 Object.assign(window, {
   phoneShown: btPhoneShown,
   useFieldSave: useBtFieldSave,
   __businessTabSave: {
     saver: btTabSaver,
+    patched: btPatched,
     same: btSame,
     trimmed: btTrimmed,
     isBaseline: btIsBaseline,

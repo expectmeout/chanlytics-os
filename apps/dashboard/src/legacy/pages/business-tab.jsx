@@ -144,7 +144,9 @@ const BtRow = ({
   let says = null;
   const tab = window.__businessTab;
   if (dirty && !check(now) && tab) {
-    const next = commit(now).change({ ...brain }, { ...(brain.profile || {}) });
+    // Applied as the saver applies it (patched), on a copy: a patch that edits a nested object in place leaves the
+    // stored brain it is compared with as it was.
+    const next = S.patched({ brain }, { change: commit(now).change }).brain;
     const crossing = tab.profileCrossing ? tab.profileCrossing(next) : null;
     const added = [];
     const removed = [];

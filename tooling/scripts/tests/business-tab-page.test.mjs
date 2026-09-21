@@ -833,6 +833,29 @@ test("a save made while another is out waits its turn, and its row says it is sa
   assert.equal(sent[2].config.brain.profile.address, google);
 });
 
+test("a patch that edits a nested object in place is still sent, and the settings read keeps what the server holds", () => {
+  // Task 3.2's review. A patch was handed shallow copies, so one that changed a nested object in place
+  // (p.booking_rules.lead_hours = 5) changed the config it was compared with too: the saver found nothing to send, the
+  // row closed as if saved, and the settings read showed a value no server held.
+  const sent = saving();
+  const flashes = [];
+  drawTab();
+  const stored = structuredClone(W.__SETTINGS.config);
+  const inPlace = (b, p) => { p.booking_rules.lead_hours = 5; b.profile = p; return b; };
+  let closed = 0;
+  W.__businessTabSave.saver.save({ row: "booking_rules", change: inPlace, said: "Saved", done: () => { closed += 1; }, flash: (f) => flashes.push(f) });
+  assert.equal(sent.length, 1, "sent, where it once compared equal to what it changed and nothing went");
+  const rules = { ...stored.brain.profile.booking_rules, lead_hours: 5 };
+  assert.deepEqual(sent[0].config, { ...stored, brain: { ...stored.brain, profile: { ...stored.brain.profile, booking_rules: rules } } });
+  assert.deepEqual(W.__SETTINGS.config, stored, "and the read is what the server held, not the unsaved value");
+  assert.deepEqual([closed, flashes.map((f) => f.tone || "ok")], [1, ["ok"]]);
+
+  // What a row will say is worked out on the same copy (patched), so its preview leaves the read alone too.
+  const next = W.__businessTabSave.patched(W.__SETTINGS.config, { change: inPlace });
+  assert.equal(next.brain.profile.booking_rules.lead_hours, 5);
+  assert.deepEqual(W.__SETTINGS.config, stored, "the config a patch is applied to is never the one it changes");
+});
+
 test("a page drawn again finds the tab's one saver: the answer to the last save, and a save still waiting its turn", () => {
   // Task 3.2's review (its Minor 7). Each page held a saver of its own, so leaving the tab and coming back before the
   // settings read brought a save back drew a new page with a new saver on the old read: the next save went out on
