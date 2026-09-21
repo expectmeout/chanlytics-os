@@ -645,8 +645,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-card-count { font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-bar-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) 40px; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-dim); margin-top: 3px; }
 .ld-bar-row .n { text-align: right; }
-.ld-bar { display: block; height: 5px; border-radius: 3px; background: var(--bg-active); overflow: hidden; }
-.ld-bar span { display: block; height: 100%; border-radius: 3px; background: var(--warn); }
+/* One star's track, named through its row: .ld-bar alone is also the phone's bar (the switch, search and Find), and
+   this rule, later and unconditional, drew that bar as a 5px track with all four clipped out of sight. */
+.ld-bar-row .ld-bar { display: block; height: 5px; border-radius: 3px; background: var(--bg-active); overflow: hidden; }
+.ld-bar-row .ld-bar span { display: block; height: 100%; border-radius: 3px; background: var(--warn); }
 
 /* The band: the search's whole shape in one line, which is also the tabs; the fit split only when the fits differ. */
 .ld-band { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 6px var(--gutter-page) 0; flex: none; }

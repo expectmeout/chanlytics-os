@@ -232,6 +232,10 @@ test.describe("Leads on a real workspace", () => {
     await expect(bar).toBeVisible();
     await expect(bar.getByTestId("leads-phone-search")).toBeVisible();
     await expect(bar.getByTestId("leads-phone-find")).toBeVisible();
+    // Whole, not only there: the bar once drew 18px tall with all four clipped inside it (the rated card's star
+    // track shared its class), and a clipped control still has a box, so it still passed as visible.
+    await expect(bar.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
+    await expect(bar.getByTestId("leads-phone-find")).toBeInViewport({ ratio: 1 });
     // Nothing above the rows but the bar and the strip: no stat cards, no
     // controls row, no rail (feedback_mobile_work_first).
     await expect(page.locator(".cl-rail")).toBeHidden();
