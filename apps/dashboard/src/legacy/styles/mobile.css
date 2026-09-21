@@ -499,6 +499,57 @@
   .inbox .ix-list-head { min-height: 40px; padding: 0 12px; }
   .inbox .ix-search-row .ix-checkall { width: 44px; min-height: 44px; margin: 0 -15px; }
   html.legacy-on .inbox .ix-checkall input { min-height: 0; }
+
+  /* ---- The thread is the screen ------------------------------------------------------
+     Measured on production at 375x812: 52px of top bar, 48px of section tabs and 69px of
+     thread header above; 85-115px of status band, 68px of reply box and 58px of tab bar
+     below. The conversation — the only reason the screen exists — had 432px of 812. */
+
+  /* A detail view keeps its focus: SurfaceTabs already hides itself on a person's profile
+     for exactly this reason. Here the thread is the detail, and Back returns to the list
+     that carries them. On a desktop the list and the thread share the screen, so they stay. */
+  .main:has(.inbox.phone-thread) .stabs { display: none; }
+  /* Needs you is the tab AND the bucket under it. The count belongs to the bucket, which is
+     the thing that filters by it. */
+  .main:has(.inbox) .stabs-badge { display: none; }
+  /* The band said in prose what the event line above it had just said, and IxAsk printed the
+     customer's own message a third time — two inches under its own bubble. */
+  .inbox.phone-thread .ix-take { padding: 10px 12px; column-gap: 9px; row-gap: 8px; }
+  .inbox.phone-thread .ix-take-ask { display: none; }
+
+  /* One timestamp per message. The event line's repeated the bubble's, a minute apart, and
+     sat centred against a four-line paragraph with the bullet orphaned beside it. */
+  .inbox .tl-event-time { display: none; }
+  /* "· Booking · 91% sure" is what wrapped the meta line into ragged columns. The tap keeps it. */
+  .inbox .tl-msg-why-full { display: none; }
+  .inbox .tl-msg-why-short { display: inline; }
+  /* 78% of 375px left a ragged column of dead space beside every bubble. */
+  .inbox .tl-msg-bubble { max-width: 88%; }
+
+  /* The menu opened as a desktop popover pinned to the far top corner: over the conversation,
+     and as far from the thumb as the screen allows. A sheet, using the backdrop it already draws. */
+  .inbox .more-menu {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 250;
+    max-width: none;
+    max-height: 72vh;
+    padding: 6px 8px calc(10px + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    border-bottom: 0;
+  }
+  .inbox .more-backdrop { background: rgb(0 0 0 / 0.4); }
+  .inbox .more-item { min-height: 48px; font-size: 14px; }
+
+  /* The row's box is the MOUSE's box — it says so, and it is aria-hidden with no tab stop. A
+     phone has no hover to reveal it, so it appeared only on the open row: one of three rails
+     (the unread dot, that box, the avatar) fighting for the same edge. It comes back the moment
+     the select-all starts a pick, so nothing bulk is out of reach. */
+  .inbox .ix-list:not(.picking) .ix-thread { grid-template-columns: 32px 1fr; }
+  .inbox .ix-list:not(.picking) .ix-thread-check { display: none; }
+  /* A teammate's address is an address: it took the name's room and then clipped itself. */
+  .inbox .ix-thread-who { min-width: 0; }
+  .inbox .ix-name-pill { max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* The drawer is never a rail: on a phone the sidebar shows everything. */
