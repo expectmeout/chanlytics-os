@@ -472,7 +472,7 @@ const ldPinTone = (l, by) => {
 };
 const LEAD_MAP_BY = [{ id: "fit", label: "Fit" }, { id: "reach", label: "Reach" }, { id: "stage", label: "Stage" }];
 
-const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind }) => {
+const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch }) => {
   const V = window.__LEAD_VM || {};
   const byId = new Map(rows.map((l) => [l.id, l]));
   const near = [...plot.pins].sort((a, b) => Math.hypot(a.x - 0.5, a.y - 0.5) - Math.hypot(b.x - 0.5, b.y - 0.5));
@@ -507,6 +507,11 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
       </div>
 
       <div className="ld-map-main">
+        {plot.tooWide ? (
+          <div className="ld-map-plot ld-map-wide" data-testid="lead-map-toowide">
+            <span className="ld-map-wide-line">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>
+          </div>
+        ) : (
         <div className="ld-map-plot" data-testid="lead-map-plot">
           {plot.ring ? (
             <span
@@ -546,10 +551,11 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
           ) : null}
           <span className="ld-map-scale" data-testid="lead-map-scale">{V.leadMapAcross ? V.leadMapAcross(plot.spanM) : ""}</span>
         </div>
+        )}
         <div className="ld-map-foot">
-          {/* A city ask has no centre until its probe measures one, so there is often no area to draw. The line
-              under the plot says which picture this is, rather than claiming a ring that is not there. */}
-          <span className="ld-map-note" data-testid="lead-map-note">{plot.ring ? "The area this search asked for, and every lead it placed inside it." : "Every lead these searches placed on the ground."}</span>
+          {/* Which picture this is, in contracts' words: the area asked for, or only where the leads are, or --
+              across searches in different cities -- that these were never one place at all. */}
+          <span className="ld-map-note" data-testid="lead-map-note">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>
           <span className="sp" />
           {nearby.map((a) => (
             <button key={a.label} type="button" className="ld-band-fit" onClick={() => onNearby(a)} data-testid={`map-nearby-${a.zip || a.label}`}>{a.label}</button>
@@ -782,6 +788,7 @@ const LeadsScope = (p) => {
               <LeadMap
                 rows={p.rows}
                 plot={p.plot}
+                oneSearch={!!p.view.searchId}
                 by={p.mapBy}
                 onBy={p.onMapBy}
                 picked={p.mapPick}

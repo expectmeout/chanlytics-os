@@ -16,7 +16,7 @@ import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
-  LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars, leadMapPlot,
+  LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars, leadMapPlot, leadMapNote,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
 import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LeadSearchPlanSchema } from "../../../packages/contracts/src/lead-search.ts";
@@ -463,5 +463,24 @@ test("D5: the map plots every lead the door placed, and the area the search aske
   assert.deepEqual([loose.pins.length, loose.center], [2, { lat: 30.2672, lng: -97.7431 }]);
   // One lead alone is a place, not a pinpoint; nothing placed at all is no plot.
   assert.equal(leadMapPlot([at("a", 30.2672, -97.7431)], null).spanM, 1120);
-  assert.deepEqual(leadMapPlot([{ id: "d", point: null }], null), { pins: [], ring: null, spanM: 0, center: null });
+  assert.deepEqual(leadMapPlot([{ id: "d", point: null }], null), { pins: [], ring: null, spanM: 0, tooWide: false, center: null });
+
+  // Six searches in six cities are not one place. Without an area to anchor the square it is drawn from the leads
+  // themselves, and on production that made one square four thousand miles across with every city as a dot.
+  const far = [
+    { id: "pdx", point: { lat: 45.52, lng: -122.68 } },
+    { id: "mia", point: { lat: 25.77, lng: -80.19 } },
+  ];
+  const wide = leadMapPlot(far, null);
+  assert.equal(wide.tooWide, true, "arithmetically honest and useless: say so instead of drawing it");
+  assert.match(leadMapNote(wide, false), /^These leads are spread too far apart/);
+  // One city is one place, area or no area.
+  const close = leadMapPlot([{ id: "a", point: { lat: 45.52, lng: -122.68 } }, { id: "b", point: { lat: 45.54, lng: -122.62 } }], null);
+  assert.equal(close.tooWide, false);
+  assert.equal(leadMapNote(close, true), "Where this search's leads are. It never measured a centre, so there is no area to draw.", "a city ask has no centre until its probe measures one");
+  assert.equal(leadMapNote(close, false), "Every lead these searches placed on the ground.");
+  // An area always anchors the square, however wide the search asked to look.
+  const anchored = leadMapPlot(far, { kind: "city", label: "Portland, OR", state: "OR", center: { lat: 45.52, lng: -122.68 }, radius_m: 25_000, query: "Portland, OR" });
+  assert.equal(anchored.tooWide, false, "the area is the anchor, so the square means something");
+  assert.equal(leadMapNote(anchored, true), "The area this search asked for, and every lead it placed inside it.");
 });
