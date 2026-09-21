@@ -83,11 +83,13 @@ test("a disputed fact wears warn and offers the other answer", () => {
   assert.equal(kept.length, 1, "and keeping yours is a press too");
 });
 
-test("something wrong is on its row at full strength: a disagreement, or a sentence the page names", () => {
+test("something wrong is on its row at full strength: a serious disagreement, or a sentence the page names", () => {
   const rowOf = (tree) => find(tree, (n) => classes(n).includes("rec-row"));
   assert.equal(rowOf(draw(W.RecordRow, { label: "Website", value: "melanys.com" })).props["data-state"], undefined, "nothing wrong, no state");
-  const disputed = { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", onUse: () => {} };
-  assert.equal(rowOf(draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Avenue", source: "typed", disputed })).props["data-state"], "warn", "a disagreement is a person's to settle");
+  // Severity is factConflicts' (contracts facts.ts), and it is about the customer: the published number that does not
+  // reach the receptionist is serious; an address written two ways is minor.
+  const serious = { value: "+1 (308) 336-8109", source: "provisioned", severity: "serious", onUse: () => {} };
+  assert.equal(rowOf(draw(W.RecordRow, { label: "Tells customers to call", value: "+1 (646) 932-5775", source: "typed", disputed: serious })).props["data-state"], "warn", "a serious disagreement is a person's to settle, and the row says so");
 
   const sentence = "Without a booking link it has nowhere to send anyone who asks to book.";
   const tree = draw(W.RecordRow, { id: "booking_link", label: "Booking link", value: null, empty: "Not set", wrong: sentence, act: { label: "Add one", onClick: () => {} } });
@@ -96,6 +98,18 @@ test("something wrong is on its row at full strength: a disagreement, or a sente
   assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-wrong"))), sentence, "in the page's own words");
   const act = find(tree, (n) => classes(n).includes("rec-row-act"));
   assert.equal(textOf(byId(tree, act.props["aria-describedby"])), sentence, "and the act that fixes it is described by it");
+});
+
+test("a minor disagreement keeps its pill and its line, and leaves the row as it is", () => {
+  const minor = { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", severity: "minor", onUse: () => {} };
+  const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Avenue", source: "typed", disputed: minor, act: { label: "Change", onClick: () => {} } });
+  const row = find(tree, (n) => classes(n).includes("rec-row"));
+  assert.ok(find(row, (n) => classes(n).includes("pill-warn")), "the warn pill, at full strength");
+  assert.match(textOf(find(row, (n) => classes(n).includes("rec-row-dispute"))), /2581 Pitkin Ave, Brooklyn, NY 11208, USA/, "and the line with the other answer");
+  // What draws an act at rest in record.css is the row's warn state or its being empty; this row has neither, so its
+  // act waits to be approached like any other.
+  assert.equal(row.props["data-state"], undefined, "no warn wash on the row");
+  assert.equal(row.props["data-empty"], "false");
 });
 
 test("an act says which row it acts on, and a gate's refusal replaces its press", () => {

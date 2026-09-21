@@ -8,21 +8,25 @@
 //   <RecordRow id="website" label="Website" value="melanys.com" source="typed"
 //              act={{ label: "Change", onClick, gate: window.gate("settings", "change the website") }} />
 //
-// - A `value` of null, "" or false is an empty row: it says `empty` in the faint ink and carries data-empty="true",
+// - A `value` of null, "" or false is an empty row: it says `empty` in the dim ink and carries data-empty="true",
 //   and record.css never lets its act go latent, because there is no value to point at.
 // - `source` is a FactSource, drawn as the one pill in the `fact` kind (contracts tone.ts): its tone and its words
 //   are contracts', never this file's. `sourceLabel` overrides the words where the page has better ones.
-// - `disputed` { value, source, onUse, onKeep?, useLabel?, keepLabel?, sentence?, gate? } is a second answer that
-//   disagrees with this one. The row's chip becomes the kind's `disputed` (warn: a person settles it), and a line
-//   under the value carries the other answer, with its own source's pill and a press to take it instead.
+// - `disputed` { value, source, severity?, onUse, onKeep?, useLabel?, keepLabel?, sentence?, gate? } is a second
+//   answer that disagrees with this one. The row's chip becomes the kind's `disputed` (warn: a person settles it), and
+//   a line under the value carries the other answer, with its own source's pill and a press to take it instead.
+//   `severity` is "serious" or "minor", passed straight from contracts' FactConflict.
 // - `act` { label, onClick, gate?, testid? } is the row's one act. `gate` is window.gate(...)'s props, spread AFTER
 //   the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is named
 //   by its words and the row's label together ("Change Website"), and the two carry data-testid rec-row-act-<id>
 //   and rec-row-<id>. The act's data-rec-act is where a fold that closes (record-fold.jsx) gives focus back.
 // - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips).
 // - Something wrong is on the row at full strength, hover or not: data-state="warn", which record.css draws as the warn
-//   wash with the key in the warn ink and the act always drawn. A disagreement is one; `wrong` is any other, a sentence
-//   the page writes (a fact that is missing and needed), drawn under the value and describing the act that fixes it.
+//   wash with the key in the warn ink and the act always drawn. A serious disagreement is one (facts.ts: "Severity is
+//   about the CUSTOMER", so the published number that never reaches the receptionist); `wrong` is any other, a sentence
+//   the page writes (a fact that is missing and needed), drawn under the value and describing the act that fixes it. A
+//   minor disagreement keeps its warn pill and its line at full strength and leaves the row as it is, its act waiting
+//   to be approached like any other: Group-Who washes only the phone conflict, not the address written two ways.
 
 // Taking the other answer, by where it came from. A source's words (contracts SOURCE_WORDS: "from Google") are a
 // pill's, not a verb's object, and contracts keeps no possessive form of them; `useLabel` wins wherever these read
@@ -80,7 +84,7 @@ const RecordRow = ({
     <div
       className={`rec-row${tall ? " rec-row-top" : ""}`}
       data-empty={isEmpty ? "true" : "false"}
-      data-state={disputed || wrong ? "warn" : undefined}
+      data-state={wrong || (disputed && disputed.severity === "serious") ? "warn" : undefined}
       data-testid={testid || (id ? `rec-row-${id}` : undefined)}
     >
       <span className="rec-row-key" id={keyId}>{label}</span>
