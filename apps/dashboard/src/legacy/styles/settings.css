@@ -21,15 +21,13 @@
   --set-row-y: 14px;
   --set-lead: 36px;
   --set-lead-gap: 14px;
-  /* The surface's second voice -- the sentence under every label, a card's sub,
-     a fact's name -- measured 4.31 on a card and 3.95 on the rail. Text wants
-     4.5. Held here rather than in the token, so no other surface moves. */
-  --ink-dim: oklch(0.545 0.008 260);
+  /* The second voice (the sentence under every label, a card sub, a fact name)
+     is the token --ink-dim, which #761 made 4.5:1 on every surface: what this
+     block once held for Settings alone, and more weakly. */
   /* Settings is a page of numbers: counts, money, dates, phone numbers, the
      five dials whose options sit side by side in one bar. They line up. */
   font-variant-numeric: tabular-nums;
 }
-[data-theme="dark"] .settings { --ink-dim: oklch(0.62 0.008 260); }
 
 /* A card is named by a heading now, and a section of the business form by one
    under it. The element brings the browser's own margin and scale with it; the
