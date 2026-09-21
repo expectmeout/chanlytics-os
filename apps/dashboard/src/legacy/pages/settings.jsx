@@ -131,13 +131,17 @@ const SET_TAB = (id) =>
   || SET_TABS_UNLISTED.find((t) => t.id === id)
   || SET_TABS[0];
 
-// ...rest carries the aria-labelledby SetRow hands down; without forwarding it
+// rest carries the aria-labelledby SetRow hands down; without forwarding it
 // the switch is announced with no name at all.
-const SetToggle = ({ on, onChange, ...rest }) => (
-  <button className={`set-switch ${on ? "on" : ""}`} role="switch" aria-checked={on} onClick={() => onChange(!on)} {...rest}>
-    <span className="set-knob" />
-  </button>
-);
+const SetToggle = (props) => {
+  const { on, onChange } = props;
+  const rest = window.propsWithout(props, ["on", "onChange"]);
+  return (
+    <button className={`set-switch ${on ? "on" : ""}`} role="switch" aria-checked={on} onClick={() => onChange(!on)} {...rest}>
+      <span className="set-knob" />
+    </button>
+  );
+};
 
 /**
  * A settings row: what it is on the left, the control on the right.
@@ -178,13 +182,14 @@ const SetRow = ({ label, hint, note, children }) => {
   );
 };
 
-const SetSeg = ({ value, options, onChange, ...rest }) => {
+const SetSeg = (props) => {
   // role=group so the label SetRow supplies has something to name; the buttons
   // inside stay plain buttons, which is what they already were. `gate` is
   // window.gate(...)'s props, on every option -- a dial a role may not turn says
   // why when pressed, where it used to take the press and show the server's
   // refusal -- and it stays off the group, which gets everything else it is given.
-  const { gate = null, ...group } = rest;
+  const { value, options, onChange, gate = null } = props;
+  const group = window.propsWithout(props, ["value", "options", "onChange", "gate"]);
   return (
     <div className="cl-tabs" role="group" {...group}>
       {options.map(o => (
@@ -282,7 +287,9 @@ const stInitials = (n) => n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpp
 // page titled Workspace whose first card was the business -- while the account
 // menu's own "Your name" item navigated there. It is the first row of Profile
 // now, which is where the menu points and where a person looks.
-const YourName = ({ flash, ...rest }) => {
+const YourName = (props) => {
+  const { flash } = props;
+  const rest = window.propsWithout(props, ["flash"]);
   const me = window.__ME || {};
   const [name, setName] = React.useState(me.display_name || "");
   const [busy, setBusy] = React.useState(false);

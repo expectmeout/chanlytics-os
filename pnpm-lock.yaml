@@ -13,6 +13,9 @@ importers:
 
   .:
     devDependencies:
+      '@babel/standalone':
+        specifier: 7.29.0
+        version: 7.29.0
       '@eslint/js':
         specifier: ^9.17.0
         version: 9.39.5
@@ -317,6 +320,10 @@ packages:
 
   '@babel/runtime@7.29.7':
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/standalone@7.29.0':
+    resolution: {integrity: sha512-ZbVDXDodISaxYugID/OCXRv6kMnADgTnHqNtSm2oBq4vHI81uFkbxXtdlSlguYe3BB4HiFwZ5kxa1kjrLMOuWg==}
     engines: {node: '>=6.9.0'}
 
   '@babel/template@7.29.7':
@@ -2018,6 +2025,8 @@ snapshots:
       '@babel/types': 7.29.8
 
   '@babel/runtime@7.29.7': {}
+
+  '@babel/standalone@7.29.0': {}
 
   '@babel/template@7.29.7':
     dependencies:

@@ -194,6 +194,18 @@ test("the peek names the business, its sub-line, the fit as a sentence and the s
   assert.deepEqual(all(stage, (n) => n.props?.role === "radio").map((n) => [textOf(n), n.props["aria-checked"]]), [["Ready", true], ["Contacted", false], ["Talking", false]]);
 });
 
+test("the peek hands its panes its acts and nothing else: vm, mode, armed, draft, busy and deck stay its own", () => {
+  // Every prop but those six is an act the panes call by name. In the standalone harness an object rest's excluded
+  // keys are a `var _excluded` all files share, and settings.jsx's was the one in force: the panes were handed the six
+  // with the acts (legacy-harness.test.mjs). So the peek takes them with window.propsWithout, and this holds the list.
+  reset();
+  const { p } = page();
+  const acts = globalThis.LeadPeekActions(p);
+  const tree = globalThis.LeadPeek({ vm: p.vm, mode: "info", armed: null, draft: null, busy: true, deck: { at: 2, of: 5, onPrev() {}, onNext() {} }, ...acts });
+  const pane = find(tree, (n) => n.props?.on);
+  assert.deepEqual(Object.keys(pane.props.on).sort(), Object.keys(acts).sort());
+});
+
 test("How you can reach them: the phone with its sources and Call, the email with its state in words and Copy and Draft, and texts and WhatsApp locked with the reason", async () => {
   reset();
   const { tree, acts } = page().draw();

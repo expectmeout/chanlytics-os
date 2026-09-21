@@ -526,7 +526,9 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
  * One lead, beside the rows. role="dialog" with .pl-peek, which PL_OVERLAY names apart (the page's own overlay), so
  * J and K keep walking the rows behind it and Esc reaches the page's one listener.
  */
-const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false, deck = null, ...on }) => {
+const LeadPeek = (props) => {
+  const { vm, mode = "info", armed = null, draft = null, busy = false, deck = null } = props;
+  const on = window.propsWithout(props, ["vm", "mode", "armed", "draft", "busy", "deck"]);
   if (!vm) return null;
   // A swipe is the deck's two buttons under a thumb (D5): 80px of travel, and only across, so a scroll is never
   // a move. Nothing is kept between draws -- the start is a property of the element the browser hands back.

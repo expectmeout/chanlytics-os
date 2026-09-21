@@ -248,6 +248,19 @@ const trapTab = (e, box) => {
 };
 Object.assign(window, { trapTab, tabStops: tabStopsIn });
 
+// An object rest, spelled out: propsWithout(props, ["on", "onChange"]) is the
+// `rest` of `const { on, onChange, ...rest } = props`. The standalone harness
+// (Chanlytics.html) compiles each file with in-browser Babel and runs them all
+// in ONE scope, and Babel keeps an object rest's excluded keys in a top-level
+// `var _excluded`: the file loaded last decides what every other file's rest
+// leaves out. legacy-harness.test.mjs compiles both lists and fails on it.
+const propsWithout = (props, keys) => {
+  const rest = {};
+  for (const k of Object.keys(props)) if (!keys.includes(k)) rest[k] = props[k];
+  return rest;
+};
+Object.assign(window, { propsWithout });
+
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------
 // gate(action, doing?) spreads onto a committing control's opening tag AFTER its
 // handlers. Allowed -> {}. Denied -> the control stays on the page and in the tab

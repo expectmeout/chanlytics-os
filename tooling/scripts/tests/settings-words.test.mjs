@@ -392,3 +392,56 @@ test("REGRESSION (C3): the Business card says the hours in the Calendar's clock,
   assert.equal(textOf(byTestId(tree, "cal-check")).trim(), "Check the address", "REGRESSION: 'Check the link', the booking link's word");
   assert.ok(buttonSaying(tree, "Open Calendar"), "the page by its name, as Connections and Today say it");
 });
+
+test("a settings control is named by the row it sits in: what the row hands it lands on its element, and what the control takes for itself does not", () => {
+  // SetRow mints an id for its label and hands it to its control as aria-labelledby. The switch, the choice of a few
+  // and the name box each take their own props and give the rest to their element -- spelled out with
+  // window.propsWithout, because in the standalone harness an object rest's excluded keys are a `var _excluded` every
+  // file shares, and one loaded later put the switch's `on` and `onChange` on its <button> (legacy-harness.test.mjs).
+  // This stub draws a component when it is created, before the row clones it; the row's clone is drawn here, as React
+  // draws it.
+  workspace();
+  const wasGate = globalThis.window.gate;
+  Object.assign(globalThis.window, {
+    __POLICIES: [],
+    __setPolicy: async () => ({ ok: true }),
+    POLICY: { ...globalThis.window.POLICY, MODES: ["Auto", "Veto", "Ask", "Never"], ROWS: [{ id: "reply", cls: "reply", label: "Replies to customers", note: "", locked: false, modes: ["Auto", "Veto", "Ask"], mode: "Auto", hints: {}, limits: { reply_delay_ms: 30000, pause_hours: 48 } }] },
+    // A gate that can be told apart from nothing, so where it lands shows.
+    gate: () => ({ "data-gated": "" }),
+  });
+  try {
+    const controls = (tab, name) => all(settings(tab), (n) => n.type?.name === "SetRow").flatMap((row) => {
+      const label = find(row.rendered, (n) => n.props?.className === "set-row-label").props.id;
+      return all(row.rendered, (n) => n.type?.name === name).map((clone) => ({ label, drawn: clone.type(clone.props) }));
+    });
+
+    // The switches are the mockup's Notifications, drawn where no workspace's settings were read.
+    workspace({ __SETTINGS: undefined });
+    const switches = controls("notifications", "SetToggle");
+    workspace();
+    assert.equal(switches.length, 6, "the six switches on Notifications");
+    for (const { label, drawn } of switches) {
+      assert.equal(drawn.props.role, "switch");
+      assert.equal(drawn.props["aria-labelledby"], label, "a switch is announced by its row's words");
+      assert.ok(!("on" in drawn.props) && !("onChange" in drawn.props), "and its button never carries on or onChange");
+    }
+
+    const [name] = controls("profile", "YourName");
+    const box = find(name.drawn, (n) => n.type === "input");
+    assert.equal(box.props["aria-labelledby"], name.label, "the name box is announced as Your name");
+    assert.ok(!("flash" in box.props), "and never carries flash");
+
+    const choices = controls("autonomy", "SetSeg");
+    assert.equal(choices.length, 5, "the hold window, the confidence, the budget, the reply cap and the pause");
+    for (const { label, drawn } of choices) {
+      assert.equal(drawn.props.role, "group");
+      assert.equal(drawn.props["aria-labelledby"], label, "a choice is announced by its row's words");
+      for (const own of ["value", "options", "onChange", "gate", "data-gated"]) assert.ok(!(own in drawn.props), `the group never carries ${own}`);
+      const options = all(drawn, (n) => n.type === "button");
+      assert.ok(options.length && options.every((b) => "data-gated" in b.props), "the gate is on every option instead");
+    }
+    assert.deepEqual(choices.map(({ drawn }) => drawn.props["data-testid"]).filter(Boolean), ["aut-reply-cap", "aut-pause"], "a test id handed to a choice lands on its group");
+  } finally {
+    globalThis.window.gate = wasGate;
+  }
+});

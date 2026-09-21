@@ -21,7 +21,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import {
   identityWords, memberWords, personInitials,
@@ -80,6 +82,71 @@ test("every script the harness loads is cache-busted", () => {
     .map((m) => m[1])
     .filter((s) => !s.includes("?v="));
   assert.deepEqual(bare, [], `no ?v= on: ${bare.join(", ")}`);
+});
+
+const require = createRequire(import.meta.url);
+
+/** The harness's compiler: the <script> tag that loads @babel/standalone, by version and by SRI hash. */
+const BABEL_TAG = html.match(/<script[^>]*\bsrc="[^"]*\/@babel\/standalone@([^/"]+)\/babel\.min\.js"[^>]*\bintegrity="([^"]+)"/);
+
+/**
+ * How the harness compiles a `<script type="text/babel" src>`: @babel/standalone's own defaults for a tag with no
+ * data-presets or data-plugins (buildBabelOptions, in its transformScriptTags), which is every tag in both lists.
+ * Its inline source map is left out; a comment declares nothing.
+ */
+const HARNESS_BABEL = {
+  presets: ["react", "env"],
+  plugins: ["transform-class-properties", "transform-object-rest-spread", "transform-flow-strip-types"],
+};
+
+/** Every name a compiled classic script declares at its top level, with the text that gives it its value. */
+const topLevel = (Babel, code) =>
+  Babel.packages.parser.parse(code, { sourceType: "script" }).program.body.flatMap((node) => {
+    if (node.type === "FunctionDeclaration") return [[node.id.name, code.slice(node.start, node.end)]];
+    if (node.type !== "VariableDeclaration") return [];
+    return node.declarations.filter((d) => d.id.type === "Identifier").map((d) => [d.id.name, code.slice(d.start, d.end)]);
+  });
+
+test("the harness's Babel is the one these tests compile with, byte for byte", () => {
+  // Chanlytics.html pins @babel/standalone by version and by SRI hash, and package.json pins the copy the next test
+  // compiles with. Held to one hash, "compiled the way the harness compiles it" stays true when either moves, so the
+  // two move together, by hand (dependabot leaves this one alone).
+  assert.ok(BABEL_TAG, "Chanlytics.html loads @babel/standalone with an integrity hash");
+  const [, version, integrity] = BABEL_TAG;
+  const ours = fs.readFileSync(require.resolve("@babel/standalone/babel.min.js"));
+  assert.equal(
+    `sha384-${crypto.createHash("sha384").update(ours).digest("base64")}`,
+    integrity,
+    `Chanlytics.html loads @babel/standalone@${version}; package.json has ${require("@babel/standalone/package.json").version}`,
+  );
+});
+
+test("a name Babel adds to one file means the same in every file, because the harness runs them all in one scope", () => {
+  // The bridge bundles each file as a module of its own. The harness compiles each in the browser and runs it as a
+  // classic script, so every file's top-level `var` lands in ONE scope and the file loaded last is the one they all
+  // read. Babel adds top-level names of its own, every one starting `_`: its helpers, the same text in every file,
+  // and values that are one file's -- an object rest's excluded keys become `var _excluded = ["on", "onChange"]`.
+  // With an `_excluded` in two files, the later one decided what the earlier one's rest left out: LeadPeek handed its
+  // panes its six data props along with its handlers, and one object rest loaded after settings.jsx put SetToggle's
+  // `on` and `onChange` on its <button> (a record-kit field put its id, label and unit on its <input>).
+  const Babel = require("@babel/standalone/babel.min.js");
+  const said = (file, text) => `${file}: ${text.replace(/\s+/g, " ").slice(0, 120)}`;
+  const first = new Map();
+  const clashes = [];
+  for (const file of new Set([...harness, ...manifest])) {
+    const { code } = Babel.transform(readRaw(`${LEGACY}/${file}`), { ...HARNESS_BABEL, filename: file });
+    for (const [name, text] of topLevel(Babel, code)) {
+      if (!name.startsWith("_")) continue;
+      const was = first.get(name);
+      if (!was) first.set(name, { file, text });
+      else if (was.text !== text) clashes.push(`${said(was.file, was.text)} · ${said(file, text)}`);
+    }
+  }
+  assert.deepEqual(
+    clashes,
+    [],
+    "the harness keeps the value of the file loaded last. An object rest ({ a, ...rest }) compiles to `_excluded`: take the rest with window.propsWithout(props, [\"a\"]) (components/data-bits.jsx) instead",
+  );
 });
 
 /** The stub file is plain JS in an IIFE, so it runs against any object. */

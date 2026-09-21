@@ -24,6 +24,11 @@ updates:
       # does (#401 was that bump, closed).
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # @babel/standalone is the compiler Chanlytics.html loads from unpkg,
+      # pinned there by version and SRI hash; legacy-harness.test.mjs compiles
+      # the mockup with this copy and holds the two to one hash. It moves when
+      # that <script> tag does, by hand, or every weekly group would go red.
+      - dependency-name: "@babel/standalone"
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]

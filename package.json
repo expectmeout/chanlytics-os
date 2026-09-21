@@ -18,6 +18,7 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "@babel/standalone": "7.29.0",
     "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.63.0",
     "esbuild": "0.28.2",

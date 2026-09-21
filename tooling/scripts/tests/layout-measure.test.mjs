@@ -115,9 +115,8 @@ test("a settings control is named by the row it sits in", () => {
     settings.includes('!kid.props["aria-label"] && !kid.props["aria-labelledby"]'),
     "a control that brings its own name keeps it",
   );
-  // The controls have to forward it or the name never lands on the element.
-  assert.ok(/const SetToggle = \(\{ on, onChange, \.\.\.rest \}\)/.test(settings), "SetToggle forwards it");
-  assert.ok(/const SetSeg = \(\{ value, options, onChange, \.\.\.rest \}\)/.test(settings), "SetSeg forwards it");
+  // The controls have to forward it or the name never lands on the element:
+  // settings-words.test.mjs draws each row's control and reads it off the element.
 });
 
 test("the loading skeleton stands where the surface will stand", () => {
