@@ -85,10 +85,12 @@ test("whose words these are is decided once, wherever they are stored", () => {
   for (const [what, b, kind] of cases) if (kind !== "none") assert.equal(whoseWords(b).text, ownWordsOf(b), what);
 });
 
-test("the instructions box opens as it always did, except on the baseline stored as the owner's own", () => {
-  // instructionsDraft, re-expressed through whoseWords. Each row: what the box opened with
-  // before, and what it opens with now. They differ only where the owner's own field holds
-  // the product's baseline: it opened there as the owner's text, which no owner wrote.
+test("the instructions box opens exactly as it does on main, because the live form reads it", () => {
+  // instructionsDraft opens the box of the Settings form that is live today, and this phase
+  // changes nothing live. Each row: what the box opened with before this branch, and what it
+  // opens with now -- identical in every row. An earlier pass on this branch made the baseline
+  // in the owner's box open EMPTY, and the next Save deleted it; that case waits for Phase 3
+  // (plan Task 3.8), where the save is rewritten with it.
   const EMPTY = { text: "", carried: false };
   const hours = profile.hours;
   const rows = [
@@ -105,15 +107,15 @@ test("the instructions box opens as it always did, except on the baseline stored
     ["the baseline as the prompt, with none", { ...brain, system_prompt: BASELINE }, EMPTY, EMPTY],
     ["the baseline under an earlier name, as the prompt", { ...brain, system_prompt: BASELINE_EARLIER_NAME }, EMPTY, EMPTY],
     ["a prompt of spaces", { ...brain, system_prompt: "   ", profile: { hours } }, EMPTY, EMPTY],
-    ["the baseline in the owner's box", { ...brain, system_prompt: OLD, profile: { hours, extra_instructions: BASELINE } }, { text: BASELINE, carried: false }, EMPTY],
-    ["the baseline under an earlier name in the owner's box", { ...brain, system_prompt: BASELINE, profile: { hours, extra_instructions: BASELINE_EARLIER_NAME } }, { text: BASELINE_EARLIER_NAME, carried: false }, EMPTY],
+    ["the baseline in the owner's box", { ...brain, system_prompt: OLD, profile: { hours, extra_instructions: BASELINE } }, { text: BASELINE, carried: false }, { text: BASELINE, carried: false }],
+    ["the baseline under an earlier name in the owner's box", { ...brain, system_prompt: BASELINE, profile: { hours, extra_instructions: BASELINE_EARLIER_NAME } }, { text: BASELINE_EARLIER_NAME, carried: false }, { text: BASELINE_EARLIER_NAME, carried: false }],
   ];
   const moved = [];
   for (const [what, b, before, now] of rows) {
     assert.deepEqual(instructionsDraft(b), now, what);
     if (JSON.stringify(before) !== JSON.stringify(now)) moved.push(what);
   }
-  assert.deepEqual(moved, ["the baseline in the owner's box", "the baseline under an earlier name in the owner's box"], "only the baseline in the box moves");
+  assert.deepEqual(moved, [], "nothing the live form opens with moves in this phase");
 });
 
 test("the box and the prompt view agree on whose words these are", () => {
@@ -127,7 +129,8 @@ test("the box and the prompt view agree on whose words these are", () => {
     ["an empty profile", { ...brain, system_prompt: OLD, profile: {} }],
     ["the baseline as the prompt", { ...brain, system_prompt: BASELINE, profile: { hours } }],
     ["the baseline with no fields", { ...brain, system_prompt: BASELINE }],
-    ["the baseline in the owner's box", { ...brain, system_prompt: OLD, profile: { hours, extra_instructions: BASELINE } }],
+    // Not "the baseline in the owner's box": the one case they knowingly disagree on until
+    // Phase 3. It is pinned on its own below, so reconciling it has to change that test too.
     ["nothing at all", { ...brain, system_prompt: "", profile: { hours } }],
   ];
   for (const [what, b] of shapes) {
@@ -141,12 +144,6 @@ test("the box and the prompt view agree on whose words these are", () => {
         assert.equal(Boolean(mine.note), box.carried, `${channel}, ${what}: and both say, or neither says, that they were carried in`);
       }
     }
-  }
-  // The shape they disagreed on: the box opened the baseline as the owner's own.
-  const boxed = shapes.find(([what]) => what === "the baseline in the owner's box")[1];
-  for (const channel of ["whatsapp", "voice"]) {
-    const blocks = promptBlocks(resolveSystemPrompt(boxed, channel, tz), channel, boxed);
-    assert.ok(blocks.some((x) => x.row === "platform" && x.text.includes(BASELINE)), `${channel}: it is the platform's`);
   }
 });
 
@@ -539,4 +536,40 @@ test("a caller has to say what the prompt was composed from", () => {
   // they were carried, and a caller cutting the resolved prompt would pass the wrong ones.
   assert.throws(() => promptBlocks(text, "whatsapp", own), TypeError);
   assert.doesNotThrow(() => promptBlocks(text, "whatsapp", null), "null says there is nothing to look for");
+});
+
+test("the box and the prompt view disagree on one case, knowingly, until Phase 3", () => {
+  // The baseline a save before S4 copied into the owner's own field. The prompt view calls it
+  // the platform's, which is true. The box, which the live form opens, shows it as it always
+  // has: making it open empty let the next Save delete it. Phase 3 (plan Task 3.8) reconciles
+  // them in the same change that rewrites that save -- and has to change this test to do it.
+  const b = { ...brain, system_prompt: OLD, profile: { hours: profile.hours, extra_instructions: BASELINE } };
+  assert.deepEqual(instructionsDraft(b), { text: BASELINE, carried: false }, "the box, unchanged from main");
+  assert.equal(whoseWords(b).kind, "baseline", "the view, accurate");
+  for (const channel of ["whatsapp", "voice"]) {
+    const blocks = promptBlocks(resolveSystemPrompt(b, channel, tz, NOW, ASK), channel, b);
+    assert.ok(!blocks.some((x) => x.row === "extra_instructions"), `${channel}: not charged to the owner's row`);
+    assert.ok(blocks.some((x) => x.row === "platform" && x.text.includes(BASELINE)), `${channel}: it is the platform's`);
+  }
+});
+
+test("an owner's own words where the business's name goes are theirs, not the platform's", () => {
+  // The loose baseline test reads only the opening and the closing. An owner who typed their
+  // own sentences into the name slot wrote those words; reading them as the product's would
+  // have disowned them in the view -- and, through the box, let a Save delete them.
+  const opening = BASELINE.slice(0, BASELINE.indexOf(brain.business_name));
+  const closing = BASELINE.slice(BASELINE.indexOf(brain.business_name) + brain.business_name.length);
+  const typed = `${opening}${brain.business_name}, a family salon in East New York since 1998. We never book walk-ins after 5pm.${closing}`;
+  const b = { ...brain, system_prompt: OLD, profile: { hours: profile.hours, extra_instructions: typed } };
+  assert.equal(whoseWords(b).kind, "own");
+  for (const channel of ["whatsapp", "voice"]) {
+    const mine = promptBlocks(resolveSystemPrompt(b, channel, tz, NOW, ASK), channel, b).find((x) => x.row === "extra_instructions");
+    assert.ok(mine, `${channel}: charged to the owner's row`);
+    assert.match(mine.text, /family salon in East New York since 1998/);
+  }
+  // A multi-line name slot is not a name either.
+  const twoLines = `${opening}${brain.business_name}\nWe close early on Fridays.${closing}`;
+  assert.equal(whoseWords({ ...b, profile: { ...b.profile, extra_instructions: twoLines } }).kind, "own");
+  // And the true baseline in that field is still the platform's, under any plain name.
+  assert.equal(whoseWords({ ...b, profile: { ...b.profile, extra_instructions: BASELINE_EARLIER_NAME } }).kind, "baseline");
 });

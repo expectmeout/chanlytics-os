@@ -237,7 +237,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   if (!i || typeof i !== "object") throw new TypeError("abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.");
   const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof (i as unknown as Record<string, unknown>)[k] !== "boolean");
   if (notBoolean.length) {
-    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: left out, each would be drawn as false.`);
+    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`);
   }
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   // Nothing is ready on a channel that is not answering. An input filled against a
@@ -255,9 +255,10 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   // bookings held on the Autonomy tab, "then the link" would not be true.
   const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
   // What is missing on this page is said first, because it is what this page can fix.
-  // Then the Autonomy tab's hold: with Booking not on auto, a chat reply has the link taken
-  // back out (steps.ts layerTwo) and the call's send is refused (outbound-gate.ts), and on
-  // both the customer is told a member of the team will confirm.
+  // Then the Autonomy tab's hold: with Booking not on auto, a call's send is refused
+  // (outbound-gate.ts), and a chat reply CLASSED AS A BOOKING has the link taken back out
+  // (steps.ts layerTwo) -- a price or services reply still carries it, which is why the
+  // sentence says "when someone asks to book" and not "it sends no link".
   const bookingDetail = !i.hasBookingLink
     ? "No booking link yet, so there is nothing to send."
     : !i.whatsappLive
@@ -265,7 +266,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
         ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead."
         : "It goes out on WhatsApp, which isn't connected here."
       : i.bookingHeld
-        ? "Your Autonomy tab holds bookings for you to confirm, so it sends no link: it tells the customer someone from the team will confirm."
+        ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm."
         : !i.voiceLive
           ? "It sends it in the thread."
           : callSendsLink
@@ -296,13 +297,13 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
       // With bookings held, check_availability offers a caller no times (retell-availability.ts),
       // while the call still starts with the openings (call-start.ts) and chat is still handed
-      // them, so this says only what holds on both: it has them, and no link follows.
+      // them, so this says only what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed
         ? linkGoes
           ? "No calendar to read, so it does not guess at open times — it sends the link instead."
           : "No calendar to read, so it does not guess at open times."
         : i.bookingHeld
-          ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so no link follows."
+          ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows."
           : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },

@@ -6226,8 +6226,8 @@ declare function policyAskClass(policy: Record<string, {
  * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
  * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
  * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
- * chat reply). Stated here so the Business tab reads the rule instead of keeping a
- * copy of it.
+ * chat reply classed as a booking -- a price or services reply still carries it).
+ * Stated here so the Business tab reads the rule instead of keeping a copy of it.
  */
 declare function bookingHeld(policy: Record<string, {
     mode: string;
@@ -6507,15 +6507,22 @@ declare function isBaselinePrompt(text: string): boolean;
  * The owner's own instructions when they have written some. Otherwise the
  * prompt a profile carries in their place, shown so nothing the receptionist
  * follows is out of sight and marked `carried` so the form can say where it
- * came from -- unless it is the product's baseline, which no owner wrote,
- * wherever it is stored: a save before S4 copied it into the owner's own field,
- * and the box opened it there as their text. A save then keeps what the box
- * holds as the owner's and puts the baseline back as the prompt: the text is
- * stored once, and an emptied box stays empty instead of filling itself again
- * from the copy left behind.
+ * came from -- unless it is the product's baseline, which no owner wrote. A
+ * save then keeps what the box holds as the owner's and puts the baseline back
+ * as the prompt: the text is stored once, and an emptied box stays empty
+ * instead of filling itself again from the copy left behind.
  *
- * Whose words these are is whoseWords', the one decision the prompt view reads
- * too, so the box and the view cannot disagree about it.
+ * DELIBERATELY NOT whoseWords, for now. This opens the box of the Settings form
+ * that is live today, and the Business redesign's first phase promised to
+ * change nothing live. An attempt to route this through whoseWords did change
+ * it: the baseline stored in the owner's own field (a save before S4 put it
+ * there) began opening an EMPTY box, and the next Save deleted it -- and a
+ * workspace whose only composed field was that copy fell from a composed prompt
+ * to the bare baseline, losing its hand-off and every rule line. So the two
+ * disagree on exactly that one case, knowingly: the prompt view calls it the
+ * platform's, which is true, and the box opens it as it always has. They are
+ * reconciled in the redesign's Phase 3 (plan Task 3.8), where the save that
+ * would have lost it is rewritten in the same change.
  */
 declare function instructionsDraft(brain: {
     system_prompt?: string | null;
@@ -6910,14 +6917,18 @@ type WhoseWords = {
  * Whose words the receptionist is given in the owner's place, decided once.
  *
  * The words are ownWordsOf's, the resolver's own rule. This says whose they are,
- * which the Business form's instructions box (instructionsDraft) and its prompt
- * view (promptBlocks) used to decide apart -- and did not agree on: a workspace
- * saved before S4 keeps the product's baseline in the owner's own field, and the
- * box opened it as the owner's text while the prompt view called it the
- * platform's. Both ask here now.
+ * for the prompt view (promptBlocks). The instructions box (instructionsDraft)
+ * does not ask here yet: it opens the Settings form that is live today, and on
+ * one case -- the baseline stored in the owner's own field by a save before S4
+ * -- asking here would change what it opens with. That case is reconciled in
+ * the redesign's Phase 3 (plan Task 3.8); see instructionsDraft.
  *
- *   baseline  the product's own opening lines (isBaselinePrompt), wherever they
- *             are stored. No owner wrote them.
+ *   baseline  the product's own opening lines. In the stored prompt that is
+ *             isBaselinePrompt, which reads only the opening and the closing:
+ *             only the product writes that prompt. In the OWNER'S field it is
+ *             stricter (isBaselineInOwnersField), because there an owner may
+ *             have typed their own sentences where the business's name goes,
+ *             and calling those the platform's would disown words they wrote.
  *   own       what the owner wrote into the profile's own field.
  *   carried   the profile composes, but its own field is blank, so the stored
  *             prompt stands in: the resolver carries it into the owner's place.

@@ -2497,16 +2497,10 @@ function isBaselinePrompt(text) {
   return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 function instructionsDraft(brain) {
-  const words2 = whoseWords(brain);
-  switch (words2.kind) {
-    case "own":
-      return { text: words2.text, carried: false };
-    case "carried":
-    case "prompt":
-      return { text: words2.text, carried: true };
-    default:
-      return { text: "", carried: false };
-  }
+  const own = brain?.profile?.extra_instructions ?? "";
+  if (own.trim()) return { text: own, carried: false };
+  const prompt = brain?.system_prompt ?? "";
+  return prompt.trim() && !isBaselinePrompt(prompt) ? { text: prompt, carried: true } : { text: "", carried: false };
 }
 var NotificationsConfigSchema = z3.object({
   escalation_emails: z3.array(z3.string().email()).min(1).max(10),
@@ -2939,9 +2933,15 @@ function ownWordsOf(brain) {
 function whoseWords(brain) {
   const text = ownWordsOf(brain);
   if (!text?.trim()) return { kind: "none", text: null };
-  if (isBaselinePrompt(text)) return { kind: "baseline", text };
-  if (brain?.profile?.extra_instructions?.trim()) return { kind: "own", text };
+  if (brain?.profile?.extra_instructions?.trim()) return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
+  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
   return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
+}
+function isBaselineInOwnersField(text) {
+  const t = text.trim();
+  if (!isBaselinePrompt(t)) return false;
+  const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
+  return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
 }
 var FALLBACK_DETAILS = ["business", "booking link", "phone"];
 var FALLBACK_DEFAULTS = {
@@ -10749,13 +10749,13 @@ function abilityRows(i) {
   if (!i || typeof i !== "object") throw new TypeError("abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.");
   const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof i[k] !== "boolean");
   if (notBoolean.length) {
-    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: left out, each would be drawn as false.`);
+    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`);
   }
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   const answering = i.voiceLive || i.whatsappLive;
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
   const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
-  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so it sends no link: it tells the customer someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
   const handoffWhen = i.hasEscalateWhen ? "On your reasons, or when a customer asks for a person or it can't help, it" : "When a customer asks for a person or it can't help, it";
   const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
   return [
@@ -10774,8 +10774,8 @@ function abilityRows(i) {
       // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
       // With bookings held, check_availability offers a caller no times (retell-availability.ts),
       // while the call still starts with the openings (call-start.ts) and chat is still handed
-      // them, so this says only what holds on both: it has them, and no link follows.
-      detail: !i.hasCalendarFeed ? linkGoes ? "No calendar to read, so it does not guess at open times \u2014 it sends the link instead." : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
+      // them, so this says only what holds on both: it has them, and a request to book gets no link.
+      detail: !i.hasCalendarFeed ? linkGoes ? "No calendar to read, so it does not guess at open times \u2014 it sends the link instead." : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed

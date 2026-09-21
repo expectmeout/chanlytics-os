@@ -225,9 +225,9 @@ test("with a calendar, the link follows the times only where it can go", () => {
   // A phone-only workspace offers times on a call, and has no way to send the link after them.
   assert.match(idOf(abilityRows({ ...live, whatsappLive: false })).open_times.detail, /It offers up to three that fit\.$/);
   // With bookings held, the call's tool offers no times (retell-availability.ts) while the call
-  // starts with the openings (call-start.ts) and chat is handed them; no link follows on either.
+  // starts with the openings (call-start.ts) and chat is handed them; a request to book gets no link on either.
   const held = idOf(abilityRows({ ...live, bookingHeld: true })).open_times;
-  assert.equal(held.detail, "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so no link follows.");
+  assert.equal(held.detail, "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows.");
 });
 
 test("on WhatsApp alone, the link goes in the thread", () => {
@@ -311,7 +311,7 @@ test("with bookings held on the Autonomy tab, the link is not ready, and the row
   // and "sends it".
   const held = idOf(abilityRows({ ...live, bookingHeld: true })).booking_link;
   assert.equal(held.ready, false);
-  assert.equal(held.detail, "Your Autonomy tab holds bookings for you to confirm, so it sends no link: it tells the customer someone from the team will confirm.");
+  assert.equal(held.detail, "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.");
   // Missing the link, or WhatsApp, is still said first: those are what the page can fix here.
   assert.match(idOf(abilityRows({ ...live, bookingHeld: true, hasBookingLink: false })).booking_link.detail, /^No booking link yet/);
   assert.match(idOf(abilityRows({ ...live, bookingHeld: true, whatsappLive: false })).booking_link.detail, /WhatsApp, which isn't connected/);

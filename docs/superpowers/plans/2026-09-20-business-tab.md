@@ -2071,9 +2071,35 @@ EOF
 )"
 ```
 
+### Task 3.8: The box and the prompt view agree on the baseline in the owner's field
+
+Deferred here from Phase 1 on 21 Sep, because it changes what the live form does and Phase 1 promised to change nothing live. Land it in the same PR as Task 3.7, which rewrites the save.
+
+**The case.** A save before S4 copied the product's baseline prompt into the owner's own field (`profile.extra_instructions`). The prompt view (`whoseWords`, `promptBlocks`) calls it the platform's, which is true. The box (`instructionsDraft`) opens it as the owner's text, as it always has. A Phase 1 fix pass routed the box through `whoseWords` and made it open empty, and review found two ways that goes wrong on the old save:
+
+1. **Deletion.** The old save writes `extra_instructions: extra.trim() || undefined`, so an empty box deletes the field. With the loose baseline test that briefly shipped, an owner's own sentences typed where the business's name goes were deleted the same way. `whoseWords` now tests the owner's field strictly (`isBaselineInOwnersField`), so that is closed. The baseline itself would still be deleted.
+2. **A prompt that falls back.** A workspace whose only composed field is that copy loses `hasProfile` once the field is deleted, and `resolveSystemPrompt` hands back the bare baseline. In review's simulation it fell from 1,878 characters to 239: no `[[HUMAN]]` hand-off and no rule lines.
+
+**The fix.** Route `instructionsDraft` through `whoseWords` (one rule, as Phase 1 intended). **And** make the new "In your own words" fold's save (Task 3.6's helper) handle `kind: "baseline"` in the owner's field without either failure:
+- opening the box empty is right, since no owner wrote it;
+- saving the box empty must not flip `hasProfile` off where it was on. Either keep the field until the owner writes their own, or move the baseline back to `system_prompt` in the same write, so the resolver still composes. Prove it with the Task 3.6 patch harness and a before/after `resolveSystemPrompt` comparison on a record whose only composed field is that copy.
+
+**Tests.** The Phase 1 pins must flip when this lands, and they're written to:
+- `prompt-blocks.test.mjs` "the instructions box opens exactly as it does on main" loses its baseline-in-the-box rows' "unchanged" status;
+- "the box and the prompt view disagree on one case, knowingly, until Phase 3" becomes an agreement.
+
+Change both deliberately. Neither may be deleted.
+
+> **Before starting, worth one production query (the owner runs it, per the house rule on production):** how many workspaces store baseline-shaped text in `profile.extra_instructions`, and how many of those compose nothing else? If the answer is none, this task shrinks to the one-rule change.
+
 ---
 
 ## Phase 4 — What it can do (PR 4: "The page says what it can do, and what it cannot")
+
+> **Carried from the Phase 1 re-review (21 Sep); each first renders in this phase.** All are about wording that is true on one channel and imprecise on the other, and each needs a test that fails on the current wording.
+> - **M-1, the standing line on a call.** "It offers a consult or the booking link instead of a price" is exact in chat, where the swap happens before anyone reads the reply. On a call the correction comes after the figure has been heard (`policy.ts` header). With the switch off, nothing tells the phone agent not to read out a service's price note (`config.ts`, the Services block). And with Autonomy's FAQ row on ask, a price question gets a callback promise instead (`policyRules`). Say what holds on both channels, or name the difference once.
+> - **M-2, a workspace whose fields compose nothing.** Then none of the four rule switches reaches the prompt (`resolveSystemPrompt`'s no-profile branch returns the stored prompt plus Autonomy's rules only). The rules group should say so once. The prompt view's no-fields note already says the equivalent on the same page, so the two must agree.
+> - **M-3, "it sends the link instead" and ", then the link".** `linkGoes` (`business-tab.ts`) ignores `callSendsLink`. On a workspace on both lines with no approved booking-link template, the call cannot send it. Limit those clauses to chat when the call can't.
 
 ### Task 4.1: The abilities card
 
@@ -2171,7 +2197,7 @@ Both functions throw a `TypeError` naming any boolean input that is not a boolea
 
 ### Task 4.1b: When Autonomy keeps the receptionist from replying, the card says so once
 
-Found by the Phase 1 fix pass, decided by the controller on 21 Sep. With the Autonomy tab's **Replies** row set to *Asks you* or *Stays quiet*, the WhatsApp receptionist composes no reply at all (`apps/edge/lib/inbound.ts` ~698), and a call's booking-link send is refused (`apps/edge/lib/outbound-gate.ts` ~123). Built as Task 4.1 stands, every chat ability on the card would still read ready — six claims, all false at once.
+Found by the Phase 1 fix pass, decided by the controller on 21 Sep. With the Autonomy tab's **Replies** row set to *Asks you* or *Stays quiet*, the WhatsApp receptionist composes no reply at all (`apps/edge/lib/whatsapp/inbound.ts` ~698), and a call's booking-link send is refused (`apps/edge/lib/outbound-gate.ts` ~123). Built as Task 4.1 stands, every chat ability on the card would still read ready — six claims, all false at once.
 
 **The decision: say it once, for the whole card, not on each row.** It is one cause with one fix, on another tab; repeating it on six rows is the page shouting the same thing six times, which the Quiet board's rule ("a refused act is absent and the page says why once") exists to stop.
 
@@ -2279,6 +2305,8 @@ EOF
 ---
 
 ## Phase 5 — The prompt sheet (PR 5: "The prompt is a table of contents")
+
+> **Carried from the Phase 1 re-review (21 Sep): M-5, a false block from inside a note.** This predates Phase 1's fixes. A note whose second line happens to open like the heading of a section the record *doesn't* have (e.g. "Services" on a record with no services) gets a block of its own, charged to that row. Review reproduced it. The fix: accept an opening only on a line that follows a blank line, because `composeSystemPrompt` always writes `\n${heading}`. Pin it with the note-continuation case, and check it against the full-sequence tests from Phase 1 item C.
 
 ### Task 5.1: The anchored prompt
 
