@@ -127,20 +127,42 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   // Who a run reaches: the people on the list who said yes and have not heard
   // from a playbook this week. Paused, nobody -- and the bar says so. Waiting on
   // the owner, the run it holds.
-  const will = paused ? 0 : waiting ? (waiting.recipient_count ?? p.candidates) : p.candidates;
-  // Out of everyone on the moment's list who said yes. A paused playbook counts
-  // nobody of its own, so its moment's count says how many it is not reaching.
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
-  const pool = Math.max(will, p.candidates + p.held, trig ? (trig.candidates || 0) + (trig.held || 0) : 0);
+  // Everyone its moment names -- the list, everyone in People, the day's visits
+  // -- as the server counts them with the runner's own rules. The bar is the
+  // whole of them: green reaches, amber waits, and the grey is who no run
+  // reaches whatever the week (never said yes, asked to stop, no number). It
+  // counted only who said yes, so the people who never did were in no number
+  // on the page, and they are the one part an owner can change.
+  const named = p.named || (trig && trig.named) || null;
+  // Past the cap the rest go next time; a reminder is owed to every visit, uncapped (eligibleForPlaybook).
+  const capped = !paused && !waiting && !(trig && trig.kind === "visit") ? Math.max(0, p.candidates - p.cap_per_run) : 0;
+  const will = paused ? 0 : waiting ? (waiting.recipient_count ?? p.candidates) : named ? p.candidates - capped : p.candidates;
+  // Out of everyone on the moment's list who said yes, when the server did not
+  // say who it names. A paused playbook counts nobody of its own, so its
+  // moment's count says how many it is not reaching.
+  const reachable = Math.max(p.candidates + p.held, trig ? (trig.candidates || 0) + (trig.held || 0) : 0);
+  const pool = Math.max(will, named ? named.pool : reachable);
+  // Paused, everyone it could reach waits on the pause: the amber is all of them.
+  const held = paused ? reachable : p.held;
   // The language its runs go out in: ONE, whatever others the message has -- a
   // run sends `template_language` to everyone on it (run-playbook.ts), so a
   // language the message lacks holds nobody back and is not a reason here.
   const sends = langs.find((l) => l.id === p.template_language) || { id: p.template_language, label: pbLangWords(p.template_language), status: null };
-  const reasons = [
-    paused && { t: "paused — nothing goes out", tone: "warn" },
-    !paused && p.held > 0 && { t: `${p.held} heard from a playbook this week`, tone: "warn" },
-    !paused && !waiting && p.candidates > p.cap_per_run && { t: `up to ${p.cap_per_run} a run — the rest go next time`, tone: "plain" },
-  ].filter(Boolean);
+  // Why the rest are not reached, in the approval sheet's words (contracts
+  // reachLines), the most first -- and "Get their yes" on the one an owner can
+  // change. Three at most: a card is a glance, and the rest open with it.
+  const lines = named && window.__reachLines
+    ? window.__reachLines({ pool: named.pool, will, noNumber: named.noNumber, stopped: named.stopped, noYes: named.noYes, heardThis: 0, heardAny: paused ? 0 : p.held, overCap: capped, overLimit: 0 }, p).lines.map((l) => ({ t: l.words, tone: l.tone, door: l.door }))
+    : null;
+  const reasons = (lines
+    ? [paused && { t: "paused — nothing goes out", tone: "warn" }, ...lines]
+    : [
+      paused && { t: "paused — nothing goes out", tone: "warn" },
+      !paused && p.held > 0 && { t: `${p.held} heard from a playbook this week`, tone: "warn" },
+      !paused && !waiting && p.candidates > p.cap_per_run && { t: `up to ${p.cap_per_run} a run — the rest go next time`, tone: "plain" },
+    ]).filter(Boolean).slice(0, 3);
+  const of = named && window.__poolWords ? window.__poolWords(p.trigger) : "who said yes";
   const hour = `${String(p.run_hour).padStart(2, "0")}:00`;
   const spark = (p.totals.history || PB_NONE).slice(0, 6).reverse().map((h) => h.sent || 0);
   return (
@@ -166,7 +188,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
               <span>{pbShort(sends.id)}</span>
             </span>
           </div>
-          <window.CmReach will={will} pool={pool} of="who said yes" held={paused ? pool : p.held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
+          <window.CmReach will={will} pool={pool} of={of} held={held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
           <div className="pb-tile-foot">
             {/* A run waiting on the owner: the line says what the press does, and
                 the press opens the card where Approve and Skip are. */}

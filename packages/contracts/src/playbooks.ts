@@ -426,6 +426,17 @@ export interface ApprovalVM {
 }
 
 /**
+ * What "of 312" counts on a playbook's card, in its moment's own words: the
+ * trigger's list, everyone in People, or the day's visits.
+ */
+export function poolWords(trigger: string): string {
+  const t = triggerOf(trigger);
+  if (!t) return "";
+  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  return t.list ? "on the list" : "in People";
+}
+
+/**
  * A run's reach, as the sheet says it: out of everyone its moment named, who
  * waits only for time (the bar's amber), and a line for each reason anyone was
  * left out, the most first. "Never said yes" carries the door to getting that
