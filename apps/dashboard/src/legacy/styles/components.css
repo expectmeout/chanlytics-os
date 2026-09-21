@@ -1403,11 +1403,10 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 /* ---------- Campaigns: Outbound ---------- */
 .ob-card { display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
 /* Playbooks borrows the Reports shell, which is full-bleed because Reports has
-   panes. This is a COLUMN OF CARDS, so it takes a measure like every other one
-   (the rule in legacy/CLAUDE.md): the message is a fixed 268px and the sentence
-   beside it stops at 68ch, so past this width the card only grows emptier --
-   at 1440 there were 470 pixels of nothing to the right of every sentence. */
-.pb-page .cm-standing, .pb-page .rp-body { max-width: var(--measure-page); }
+   panes. It takes a measure like every other page (the rule in legacy/CLAUDE.md):
+   it was a column of cards and took --measure-page; it is a grid of six now,
+   three across, and a multi-column grid takes --measure-wide. */
+.pb-page .rp-body { max-width: var(--measure-wide); }
 /* A run waiting on a person. It was a 2px accent stripe down the left edge --
    the one decorative use of the token reserved for live agent state, and the
    shape every admin UI reaches for. A tint and a border say it without it. */
@@ -2054,21 +2053,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* The schedule box's note, in amber when the time cannot be scheduled: passed, or past the ceiling. */
 .bc-when-note-warn { color: var(--warn); }
 
-/* Broadcasts: the number's health, and one broadcast's people. */
+/* Broadcasts: the number's health. */
 .bc-number { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-faint); margin: 0 0 8px; }
 .bc-number-warn { color: var(--warn); }
 .bc-number-danger { color: var(--danger); }
-.bc-detail {
-  margin: 6px 0 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-}
-.bc-detail .ct-sec-head { margin-bottom: 4px; }
-.bc-detail-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 8px; }
-.bc-person { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
-.bc-person .dim { color: var(--ink-faint); }
 .bc-hist-row.clickable { cursor: pointer; }
 .bc-hist-row.is-open { background: var(--bg); }
 
@@ -2263,113 +2251,506 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .cl-bucket-link.danger { color: var(--danger); }
 .int-soon-list { font-style: normal; line-height: 1.6; }
 .int-soon-list b { color: var(--ink); font-weight: 500; }
-/* The starter gap sits above the messages it is about, as one sentence and one
-   press -- not as two toolbar buttons whose labels were a remainder. */
-.msg-intro { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: 0 0 10px; }
-.msg-intro .rp2-foot { flex: 1 1 380px; min-width: 0; }
+/* ---- Campaigns, as the canvas draws it ----
+   Every Campaigns page opens on a headline and one line under it, with the page's
+   own act at the right -- the canvas's head, on the real tokens. Where the canvas
+   spent its faintest grey on words, the words take --ink-dim, the grey that keeps
+   4.5:1 (#749); --ink-faint is a placeholder's grey. */
+.rp-body.cm-page { padding: 26px 28px 40px; gap: 14px; }
+/* Templates is a table that needs more than a column, so it takes --measure-page
+   (legacy/CLAUDE.md): on a wide monitor the rows stop growing emptier. */
+.tpl-page .rp-body { max-width: var(--measure-page); }
+.cm-head { display: flex; align-items: flex-end; gap: 18px; }
+.cm-head-text { flex: 1 1 auto; min-width: 0; }
+.cm-head-title { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: 1.1; color: var(--ink); }
+.cm-head-sub { margin-top: 5px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; font-size: var(--text-sm); color: var(--ink-dim); }
+.cm-head-dot { color: var(--ink-faint); }
+.cm-head-n { font-weight: 400; color: var(--ink); }
+.cm-head-ok { color: var(--ok-ink); }
+.cm-head-info { color: var(--info-ink); }
+.cm-head-right { flex: none; display: flex; align-items: center; gap: 10px; }
+.cm-flag { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border-radius: var(--radius-full); font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; }
+.cm-flag-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: currentColor; }
+.cm-flag[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
+.cm-flag[data-tone="warn"] .cm-flag-dot { background: var(--warn); }
+.cm-flag[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
+.cm-flag[data-tone="danger"] .cm-flag-dot { background: var(--danger); }
+/* The search box beside the head's act: the same height as the act, quiet until used. */
+.cm-search { display: inline-flex; align-items: center; gap: 7px; width: 180px; height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-faint); }
+.cm-search:focus-within { border-color: var(--line-strong); box-shadow: var(--focus-ring); }
+.cm-search input { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; padding: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink); }
+.cm-search input::placeholder { color: var(--ink-dim); }
+.cm-search input::-webkit-search-cancel-button { cursor: pointer; }
+/* A notice between the head and the list: a bold sentence, what it costs, one act. */
+.cm-banner { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.cm-banner[data-tone="warn"] { border-color: var(--warn-soft); }
+.cm-banner > .icon { flex: none; width: 15px; height: 15px; color: var(--ink-dim); }
+.cm-banner[data-tone="warn"] > .icon { color: var(--warn-ink); }
+.cm-banner-text { flex: 1 1 auto; min-width: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
+.cm-banner-text strong { font-weight: var(--weight-semibold); color: var(--ink); }
+.cm-banner > .btn { flex: none; height: 28px; padding: 0 12px; }
+.cm-banner > .btn:not(.btn-primary) { border-color: var(--line-strong); color: var(--ink-muted); }
+/* The Campaigns tabs: counted, and underlined in ink. The accent is the live
+   agent's colour, and a tab is where you are, not something happening. */
+.stabs.stabs-campaigns { gap: 4px; padding: 14px 28px 0; }
+.stabs-campaigns .stabs-tab { height: 34px; box-sizing: border-box; padding: 0 12px; gap: 7px; font-size: var(--text-sm); font-weight: 400; color: var(--ink-muted); }
+.stabs-campaigns .stabs-tab:hover { color: var(--ink); }
+.stabs-campaigns .stabs-tab.active { color: var(--ink); font-weight: var(--weight-semibold); border-bottom-color: var(--ink); }
+.stabs-campaigns .stabs-badge { min-width: 0; padding: 1px 6px; line-height: 1.35; font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 400; color: var(--ink-dim); background: var(--bg-active); }
+.stabs-campaigns .stabs-badge[data-tone="warn"] { color: var(--warn-ink); background: var(--warn-soft); }
+@media (max-width: 720px) {
+  .rp-body.cm-page { padding: 16px 16px 32px; }
+  .cm-head { flex-wrap: wrap; align-items: flex-start; row-gap: 12px; }
+  .cm-head-right { flex: 1 1 100%; }
+  .cm-search { flex: 1 1 auto; width: auto; }
+  .stabs.stabs-campaigns { padding: 8px 16px 0; }
+  /* A notice's sentence keeps the width, and its act goes under it. */
+  .cm-banner { flex-wrap: wrap; align-items: flex-start; }
+  .cm-banner-text { flex: 1 1 calc(100% - 27px); }
+  .cm-banner > .btn { margin-left: 27px; }
+  /* The list's foot: the fold, then how long WhatsApp takes, each on a line. */
+  .msg-foot { flex-wrap: wrap; row-gap: 4px; padding: 10px 14px; }
+  .msg-foot-note { margin-left: 0; text-align: left; }
+}
 
-/* Being in step with WhatsApp is a state, so it is drawn as one: a dot, when it
-   last looked, and a press to look again. It sits among the acts because it is
-   still an act, but it never shouts like one. */
-.tpl-fresh { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-xs); color: var(--ink-dim); cursor: pointer; }
-.tpl-fresh:hover:not(:disabled) { background: var(--bg-hover); color: var(--ink-muted); }
+/* Being in step with WhatsApp is a state, so it is drawn as one, on the head's
+   line: a dot, when it last looked, and a press to look again. */
+.tpl-fresh { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 0 0 1px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); cursor: pointer; }
+.tpl-fresh:hover:not(:disabled) { color: var(--ink-muted); }
 .tpl-fresh:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .tpl-fresh:disabled { cursor: default; }
-.tpl-fresh .icon { color: var(--ink-faint); }
+.tpl-fresh-age { color: var(--ink-dim); opacity: .8; }
+.tpl-fresh-again { width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--ink-faint); }
+.tpl-fresh:hover:not(:disabled) .tpl-fresh-again { background: var(--bg-hover); color: var(--ink-muted); }
 .tpl-fresh.is-busy .icon { animation: tpl-fresh-spin 1.1s linear infinite; }
 .tpl-fresh-dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--ok); flex: none; }
 .tpl-fresh-dot.never { background: var(--ink-faint); }
 .tpl-fresh.is-busy .tpl-fresh-dot { background: var(--info); }
 @keyframes tpl-fresh-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .tpl-fresh.is-busy .icon { animation: none; } }
+
+/* One language drawn: its colour is the vocabulary's, and absence is a dashed ring. */
+.cm-lang-glyph { flex: none; color: var(--ink-faint); }
+.cm-lang-glyph[data-tone="ok"] { color: var(--ok-ink); }
+.cm-lang-glyph[data-tone="info"] { color: var(--info-ink); }
+.cm-lang-glyph[data-tone="warn"] { color: var(--warn-ink); }
+.cm-lang-glyph[data-tone="danger"] { color: var(--danger-ink); }
+/* Who a run will reach: the number, of how many, a bar of the two, and a line per reason. */
+.cm-reach { min-width: 0; }
+.cm-reach-n { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.cm-reach-will { font-family: var(--font-mono); font-size: var(--text-lg); font-weight: var(--weight-medium); color: var(--ink); }
+.cm-reach-of { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+.cm-reach-bar { display: flex; gap: 2px; height: 5px; margin-top: 6px; }
+.cm-reach-bar > span { display: block; height: 100%; }
+.cm-reach-bar > span:first-child { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
+.cm-reach-bar-will { background: var(--ok); }
+.cm-reach-bar-held { background: var(--warn); }
+.cm-reach-bar-rest { flex: 1 1 auto; background: var(--line-strong); border-radius: 0 3px 3px 0; }
+.cm-reach-why { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.cm-reach-why li { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.cm-reach-dot { width: 5px; height: 5px; border-radius: 50%; flex: none; background: var(--line-strong); }
+.cm-reach-dot[data-tone="warn"] { background: var(--warn); }
+.cm-reach-sm .cm-reach-will { font-size: var(--text-base); }
+.cm-reach-sm .cm-reach-bar { height: 4px; margin-top: 5px; }
+.cm-reach-sm .cm-reach-why { margin-top: 4px; }
+/* The last few runs as bars: a shape, not a chart. */
+.cm-spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 15px; }
+.cm-spark-bar { width: 5px; border-radius: 1px; background: var(--line-strong); }
+
+/* ---- Playbooks: six moments, not a list ----
+   The canvas's grid: a card per moment, three across, the empty ones dashed. A
+   card says what starts it and its state, the message and its languages, who it
+   will actually reach and who it holds back, and when it runs next beside the
+   shape of its last runs. Pressed, it opens across the grid into its detail. */
+.rp-body.pb-body { gap: 16px; container-type: inline-size; }
+.pb-tally { display: flex; gap: 14px; }
+.pb-tally-cell { display: flex; flex-direction: column; align-items: flex-end; }
+.pb-tally-n { font-family: var(--font-mono); font-size: var(--text-xl); font-weight: var(--weight-medium); line-height: 1.3; color: var(--ink); }
+.pb-tally-n[data-tone="ok"] { color: var(--ok-ink); }
+.pb-tally-n[data-tone="warn"] { color: var(--warn-ink); }
+.pb-tally-n[data-tone="plain"] { color: var(--ink-dim); }
+.pb-tally-k { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+.pb-standing-warn { color: var(--warn-ink); }
+.pb-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.pb-tile { box-sizing: border-box; min-width: 0; display: flex; flex-direction: column; gap: 11px; padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.pb-tile.is-warn { border-color: var(--warn-soft); }
+.pb-tile.is-empty { border-style: dashed; background: var(--bg-sunken); }
+.pb-tile.is-open { grid-column: 1 / -1; }
+/* Where a link landed: marked, in ink -- the accent is the live agent's. */
+.pb-tile.is-focus { box-shadow: 0 0 0 2px var(--line-strong); }
+.pb-tile-head { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; }
+button.pb-tile-head { cursor: pointer; }
+button.pb-tile-head:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-md); }
+.pb-tile-mark { width: 30px; height: 30px; flex: none; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-active); color: var(--ink-muted); }
+.pb-tile-mark[data-tone="ok"] { background: var(--ok-soft); color: var(--ok-ink); }
+.pb-tile-mark[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
+.pb-tile-titles { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pb-tile-name { font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-tile-hint { font-size: var(--text-xs); color: var(--ink-dim); }
+.pb-tile-head > .pill { flex: none; }
+.pb-tile-head > .pill:not([data-tone]) { background: var(--bg-active); border-color: transparent; }
+/* The message it sends and its languages, on a sunken strip. */
+.pb-tile-tpl { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 8px 10px; border-radius: var(--radius-md); background: var(--bg-sunken); }
+.pb-tile-tpl-name { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-tile-lang { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--ink-dim); }
+.pb-tile-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding-top: 9px; border-top: 1px solid var(--line); }
+.pb-tile-next { min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-tile-next.is-warn { color: var(--warn-ink); }
+button.pb-tile-next { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); cursor: pointer; }
+button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2px; }
+.pb-tile-spacer { flex: 1 1 auto; }
+.pb-tile-runs { flex: none; font-size: var(--text-xs); color: var(--ink-dim); }
+/* A moment nothing is doing: what it is for, who it would reach, one press. */
+.pb-tile-empty { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+.pb-tile-blurb { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-dim); }
+.pb-tile-setup { align-self: flex-start; border-color: var(--line-strong); color: var(--ink-muted); }
+/* Open, the card's detail sits under its head: what it sends, its runs, its verbs. */
+.pb-tile .ob-card-detail { display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
+.ob-head-bare { justify-content: flex-start; }
+/* The three rules that quietly shape every run. */
+.pb-rules { display: flex; align-items: center; gap: 22px; padding: 13px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.pb-rules-k { flex: none; font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.pb-rule { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 9px; }
+.pb-rule > .icon { flex: none; color: var(--ink-faint); }
+.pb-rule b { display: block; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); }
+.pb-rule span { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
+/* The grid follows the pane, not the window (#735): three across where three fit,
+   two, then one; the rules stack under their heading. */
+@container (max-width: 980px) {
+  .pb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 640px) {
+  .pb-grid { grid-template-columns: minmax(0, 1fr); }
+  .pb-rules { flex-direction: column; align-items: flex-start; gap: 10px; }
+}
+
+/* ---- Broadcasts: the one ledger ----
+   The canvas's page: a headline with the runs waiting on you at its right; every
+   run on one band bar whose legend filters the list; the week ahead inside the
+   sending hours; and the runs as cards that open in place. The composer is its
+   own screen, opened by New broadcast. */
+.bc-page { padding-top: 26px; gap: 0; }
+.bc-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* The band bar: the runs by state on one bar, and a legend that is a filter. */
+.bc-band { padding: 11px 15px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-sunken); }
+.bc-band-bar { display: flex; gap: 3px; height: 6px; }
+.bc-band-bar > span { min-width: 6px; background: var(--line-strong); }
+.bc-band-bar > span:first-child { border-radius: 3px 1px 1px 3px; }
+.bc-band-bar > span:last-child { border-radius: 1px 3px 3px 1px; }
+.bc-band-bar > span:only-child { border-radius: 3px; }
+.bc-band-bar > [data-tone="warn"] { background: var(--warn); }
+.bc-band-bar > [data-tone="info"] { background: var(--info); }
+.bc-band-bar > [data-tone="accent"] { background: var(--accent); }
+.bc-band-bar > [data-tone="ok"] { background: var(--ok); }
+.bc-band-bar > [data-tone="danger"] { background: var(--danger); }
+.bc-band-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 20px; margin-top: 10px; }
+.bc-band-part { display: inline-flex; align-items: baseline; gap: 6px; padding: 0 0 4px; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-muted); cursor: pointer; }
+.bc-band-part.on { border-bottom-color: var(--ink); }
+.bc-band-part:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
+.bc-band-n { font-family: var(--font-mono); font-size: var(--text-md); font-weight: var(--weight-medium); }
+.bc-band-part[data-tone="warn"] { color: var(--warn-ink); }
+.bc-band-part[data-tone="info"] { color: var(--info-ink); }
+.bc-band-part[data-tone="accent"] { color: var(--accent-ink); }
+.bc-band-part[data-tone="danger"] { color: var(--danger-ink); }
+.bc-band-spacer { flex: 1 1 auto; }
+/* What went out, at the right of the legend: the standing line, as a caption. */
+.bc-band .cm-standing { padding: 0; font-size: var(--text-xs); color: var(--ink-dim); gap: 0 5px; }
+.bc-band .cm-standing-lead { font-size: var(--text-xs); color: var(--ink-dim); }
+/* The week ahead, inside the sending hours. */
+.bc-week { padding: 13px 15px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.bc-week-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 11px; }
+.bc-week-k { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.bc-week-note { font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-week-axis,
+.bc-week-row { display: flex; align-items: center; gap: 10px; }
+.bc-week-day { width: 52px; flex: none; font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-week-row.is-today .bc-week-day { color: var(--ink); font-weight: var(--weight-semibold); }
+.bc-week-hours { flex: 1 1 auto; display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-dim); }
+.bc-week-say { width: 96px; flex: none; text-align: right; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-week-row { margin-top: 3px; }
+.bc-week-axis + .bc-week-row { margin-top: 6px; }
+.bc-week-track { position: relative; flex: 1 1 auto; height: 16px; border-radius: var(--radius-xs); background: var(--bg-sunken); }
+.bc-week-run { position: absolute; top: 2px; height: 12px; min-width: 8px; box-sizing: border-box; border-radius: 3px; border: 1px solid var(--line-strong); background: var(--bg-active); }
+.bc-week-run[data-tone="warn"] { background: var(--warn-soft); border-color: var(--warn); }
+.bc-week-run[data-tone="info"] { background: var(--info-soft); border-color: var(--info); }
+.bc-week-run[data-tone="accent"] { background: var(--accent-soft); border-color: var(--accent); }
+.bc-week-run[data-tone="ok"] { background: var(--ok-soft); border-color: var(--ok); }
+.bc-week-run[data-tone="danger"] { background: var(--danger-soft); border-color: var(--danger); }
+.bc-week-run.is-projected { border-style: dashed; }
+.bc-week-now { position: absolute; top: -2px; width: 1.5px; height: 20px; background: var(--accent); }
+/* A run, as a card. The waiting one carries the urgency edge (legacy/CLAUDE.md). */
+.bc-runs { display: flex; flex-direction: column; gap: 8px; }
+.bc-run { border: 1px solid var(--line); border-left: 3px solid transparent; border-radius: var(--radius-lg); background: var(--bg-raised); }
+.bc-run.is-urgent { border-left-color: var(--accent); }
+.bc-run-line { display: flex; align-items: center; gap: 14px; padding: 12px 14px; }
+.bc-run-mark { width: 34px; height: 34px; flex: none; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-active); color: var(--ink-muted); }
+.bc-run-mark[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
+.bc-run-mark[data-tone="accent"] { background: var(--accent-soft); color: var(--accent-ink); }
+.bc-run-what { flex: 1 1 auto; min-width: 0; }
+.bc-run-titles { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bc-run-name { min-width: 0; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-run-name:hover { text-decoration: underline; text-underline-offset: 2px; }
+.bc-run-titles > .pill, .bc-run-titles > .policy-chip { flex: none; }
+.bc-run-sub { margin-top: 3px; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-run-link { padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.bc-run-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.bc-run-reach { width: 210px; flex: none; }
+.bc-run-reach .cm-reach-why li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.bc-run-reach .cm-reach-dot { display: none; }
+.bc-run-acts { flex: none; display: flex; align-items: center; gap: 7px; }
+.bc-run-acts .btn { height: 28px; padding: 0 11px; border-radius: var(--radius-md); font-size: var(--text-sm); }
+.bc-run-soon { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--radius-md); padding: 4px 9px; }
+.bc-runs-more { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); cursor: pointer; }
+.bc-runs-more:hover { color: var(--ink); }
+/* Get their yes: the one way onto a broadcast, as a card of its own under the runs. */
+.ct-section.bc-optin { padding: 13px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); display: flex; flex-direction: column; gap: 10px; }
+.bc-yes-head { display: flex; align-items: baseline; gap: 10px; }
+.bc-yes-k { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.bc-yes-note { font-size: var(--text-xs); color: var(--ink-dim); }
+/* The send, its own screen: three cards -- who, what, when -- and the act at the foot. */
+.bc-composer.bc-send { padding: 0; border: 0; background: none; gap: 16px; }
+.bc-send .bc-cols { gap: 20px; align-items: stretch; }
+.bc-send .bc-col { flex: 1 1 280px; gap: 12px; padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.bc-send .bc-col-what { flex: 1.35 1 380px; }
+.bc-send .bc-col-label { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); }
+.bc-col-sub { margin-left: 9px; font-weight: 400; letter-spacing: normal; text-transform: none; color: var(--ink-dim); }
+.bc-send .bc-foot { position: sticky; bottom: 0; z-index: 2; margin: 0 calc(-1 * var(--gutter-page)); padding: 14px var(--gutter-page); border-top: 1px solid var(--line); background: var(--bg-raised); }
+.bc-send .bc-actions .btn { height: 36px; padding: 0 15px; border-radius: var(--radius-md); }
+.bc-send .bc-send-later { border-color: var(--line-strong); color: var(--ink-muted); }
+.bc-send .bc-send-now { padding: 0 17px; font-size: var(--text-base); gap: 8px; }
+/* ---- A run, opened: its report (the canvas's After board) ----
+   Its own screen, as the send is: the run's name and state as the headline, the
+   five figures Reports draws scoped to this run, everyone it touched beside what
+   came back, and -- for a run that stopped -- why, and what to do next. */
+/* A report is a multi-column grid, so the page takes the measure one takes (legacy/CLAUDE.md). */
+.bc-page.is-report { max-width: var(--measure-wide); }
+.bc-report { display: flex; flex-direction: column; gap: 16px; min-width: 0; container-type: inline-size; }
+.bc-report-wait { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cm-head-line { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cm-head-line > .cm-head-title { min-width: 0; overflow-wrap: anywhere; }
+.cm-head-line > .pill { flex: none; }
+.bc-report-tpl { font-size: var(--text-xs); }
+.bc-report .cm-head-right { flex-wrap: wrap; justify-content: flex-end; }
+.bc-report .cm-head-right .btn { height: 30px; padding: 0 12px; border-radius: var(--radius-md); font-size: var(--text-sm); }
+.bc-report .cm-head-right .btn:not(.btn-primary):not(.danger):not(.btn-ghost) { border-color: var(--line); color: var(--ink-muted); }
+.bc-report-values { margin-top: -8px; font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-report-values .cl-prof-aut-hint { margin: 0; font-size: inherit; font-style: normal; color: inherit; }
+/* The five figures: a label, the number with its share, when it came, and one line. */
+.bc-figs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.bc-fig { display: flex; flex-direction: column; min-width: 0; padding: 13px 15px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.bc-fig[data-tone="warn"] { border-color: var(--warn-soft); }
+.bc-fig-k { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.bc-fig-n { display: flex; align-items: baseline; gap: 8px; margin-top: 7px; }
+.bc-fig-v { font-family: var(--font-mono); font-size: 26px; font-weight: var(--weight-medium); line-height: 1.15; letter-spacing: var(--tracking-tight); color: var(--ink); }
+.bc-fig[data-tone="ok"] .bc-fig-v { color: var(--ok-ink); }
+.bc-fig[data-tone="warn"] .bc-fig-v { color: var(--warn-ink); }
+.bc-fig-pct { font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-fig-bars { display: flex; align-items: flex-end; gap: 2px; height: 20px; margin-top: 9px; }
+.bc-fig-bars > span { flex: 1 1 0; border-radius: 1px; background: var(--line-strong); }
+.bc-fig[data-tone="ok"] .bc-fig-bars > span { background: var(--ok); }
+.bc-fig[data-tone="warn"] .bc-fig-bars > span { background: var(--warn); }
+.bc-fig-sub { margin-top: 7px; font-size: var(--text-xs); color: var(--ink-dim); }
+/* Everyone it touched, beside what came back. */
+.bc-report-body { display: grid; grid-template-columns: minmax(0, 660px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.bc-touched { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden; }
+.bc-touched-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 11px 15px; border-bottom: 1px solid var(--line); }
+.bc-card-title { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
+.bc-touched-filters { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px; }
+.bc-touched-filter { height: 24px; padding: 0 9px; border: 0; border-radius: var(--radius-full); background: transparent; font: inherit; font-size: var(--text-xs); color: var(--ink-dim); cursor: pointer; }
+.bc-touched-filter:hover { color: var(--ink); }
+.bc-touched-filter.on { background: var(--bg-active); color: var(--ink); }
+.bc-touched-filter:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bc-person { display: flex; align-items: center; gap: 12px; height: 50px; box-sizing: border-box; padding: 0 15px; border-bottom: 1px solid var(--line); background: var(--bg-raised); }
+.bc-person:last-child { border-bottom: 0; }
+.bc-person.is-attn { background: var(--bg-hover); }
+.bc-person-mark { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: var(--radius-full); background: var(--bg-active); color: var(--ink-muted); font-size: 9.5px; font-weight: var(--weight-medium); }
+.bc-person-name { width: 148px; flex: none; margin: -12px 0; padding: 12px 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.bc-person-name:hover { text-decoration: underline; text-underline-offset: 2px; }
+.bc-person.is-held .bc-person-name { color: var(--ink-dim); }
+.bc-person-pill { flex: none; padding: 2px 8px; border-radius: var(--radius-full); background: var(--bg-active); color: var(--ink-muted); font-size: var(--text-xs); white-space: nowrap; }
+.bc-person-pill[data-tone="ok"] { background: var(--ok-soft); color: var(--ok-ink); }
+.bc-person-pill[data-tone="info"] { background: var(--info-soft); color: var(--info-ink); }
+.bc-person-pill[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
+.bc-person-pill[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
+.bc-person-words { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-person-door { flex: none; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); white-space: nowrap; cursor: pointer; }
+.bc-person-door:hover { text-decoration: underline; text-underline-offset: 2px; }
+.bc-person-at { width: 52px; flex: none; margin-left: auto; text-align: right; font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-touched-none { padding: 18px 15px; font-size: var(--text-sm); color: var(--ink-dim); }
+/* The aside: why it stopped, and what came back. */
+/* Beside a long list, what came back stays in view. */
+.bc-report-aside { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.bc-card { display: flex; flex-direction: column; min-width: 0; padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.bc-card-lede { margin: 6px 0 12px; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
+.bc-back-list { display: flex; flex-direction: column; gap: 7px; }
+.bc-back-row { display: flex; align-items: flex-start; gap: 10px; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.bc-back-row:disabled { cursor: default; }
+.bc-back-row:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
+.bc-back-row > .bc-person-mark { width: 22px; height: 22px; font-size: 9px; }
+.bc-back-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bc-back-quote { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-muted); overflow-wrap: anywhere; }
+.bc-back-row:not(:disabled):hover .bc-back-quote { color: var(--ink); }
+.bc-back-outcome { font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-back-outcome[data-tone="ok"] { color: var(--ok-ink); }
+.bc-back-outcome[data-tone="warn"] { color: var(--warn-ink); }
+.bc-back-none { margin: 0; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
+.bc-back-all { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); cursor: pointer; }
+.bc-back-all:hover { text-decoration: underline; text-underline-offset: 2px; }
+.bc-stop-box { display: flex; align-items: flex-start; gap: 9px; margin-top: 11px; padding: 9px 11px; border-radius: var(--radius-md); background: var(--bg-sunken); }
+.bc-stop-dot { width: 6px; height: 6px; flex: none; margin-top: 5px; border-radius: 50%; background: var(--danger); }
+.bc-stop-box[data-tone="warn"] .bc-stop-dot { background: var(--warn); }
+.bc-stop-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bc-stop-line { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-muted); }
+.bc-stop-line strong { font-weight: var(--weight-medium); color: var(--ink); }
+.bc-stop-fix { font-size: var(--text-xs); color: var(--ink-dim); }
+/* A thumb's reach without a taller line (legacy.css gives a touch screen's buttons 44px): the text buttons take theirs from a box that takes no room. */
+html.legacy-on .bc-person-name,
+html.legacy-on .bc-person-door,
+html.legacy-on .bc-touched-filter,
+html.legacy-on .bc-back-all,
+html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
+.bc-person-door::after,
+.bc-back-all::after,
+.bc-report .bc-run-link::after { content: ""; position: absolute; inset: -14px -8px; }
+.bc-touched-filter::after { content: ""; position: absolute; inset: -10px -2px; }
+/* A narrower pane: what came back first, and everyone under it. */
+@container (max-width: 980px) {
+  .bc-report-body { grid-template-columns: minmax(0, 1fr); }
+  .bc-report-aside { position: static; order: -1; }
+}
+@container (max-width: 760px) {
+  .bc-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bc-fig:first-child { grid-column: 1 / -1; }
+}
+/* A phone: a person's line is two -- who and how it went, then the words and the door. */
+@container (max-width: 560px) {
+  .bc-person { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; grid-template-areas: "mark name pill at" "mark words words door"; column-gap: 10px; row-gap: 3px; height: auto; padding: 10px 15px; }
+  .bc-person-mark { grid-area: mark; align-self: start; }
+  .bc-person-name { grid-area: name; width: auto; }
+  .bc-person-pill { grid-area: pill; }
+  .bc-person-at { grid-area: at; width: auto; }
+  .bc-person-words { grid-area: words; white-space: normal; }
+  .bc-person-door { grid-area: door; }
+  .bc-touched-filters { margin-left: 0; }
+}
+@media (max-width: 720px) {
+  .bc-page { padding-top: 16px; }
+  .bc-run-line { flex-wrap: wrap; row-gap: 10px; }
+  .bc-run-what { flex: 1 1 calc(100% - 48px); }
+  .bc-run-reach { width: auto; flex: 1 1 100%; padding-left: 48px; }
+  .bc-run-acts { flex: 1 1 100%; padding-left: 48px; flex-wrap: wrap; }
+  .bc-week-say { width: 64px; }
+}
+
 /* ---- The messages are a list, not a wall of chat ----
-   They were cards, one per message, each carrying the whole bubble: at sixteen
-   messages that is about three thousand pixels of WhatsApp you cannot compare,
-   and the four things you actually scan for -- what it is, whether each language
-   is approved, what sends it -- were spread over three lines of every card. They
-   are a row now, with the columns named once above them, and the WHOLE message
-   opens under the row it belongs to, one at a time. */
+   A row per message with the columns named once above them -- the mark's column,
+   the message, its languages, what sends it, what went out -- and the WHOLE
+   message opens under the row it belongs to, one at a time. */
 .msg-list { container-type: inline-size; }
 .msg-list-head,
-.msg-row-line { display: grid; grid-template-columns: minmax(0, 1fr) 104px 196px 92px; gap: 14px; align-items: center; }
-.msg-list-head { padding: 0 14px 6px; border-bottom: 1px solid var(--line); font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
+.msg-row-line { display: grid; grid-template-columns: 34px minmax(0, 1fr) 104px 196px 92px; column-gap: 14px; align-items: center; }
+.msg-list-head { padding: 0 14px 6px; border-bottom: 1px solid var(--line); font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
 /* The hidden fold has rows and no heading, so the first of them draws the hairline the heading would have. */
 .msg-list > .msg-row:first-child { border-top: 1px solid var(--line); }
 .msg-row { border-bottom: 1px solid var(--line); background: var(--bg-raised); }
 .msg-row:hover { background: var(--bg-hover); }
+/* Something sends it and a language of it is missing or not approved: a customer
+   is getting nothing. The row is the hover's grey, standing still. */
+.msg-row.is-attn { background: var(--bg-hover); }
 .msg-row.is-open { background: var(--bg-sunken); }
 .msg-row.is-hidden { opacity: .7; }
-.msg-row-line { padding: 0 14px; min-height: 58px; }
-/* The press that opens a row covers the mark and the words. It is a button, so
-   a keyboard reaches it; the languages and what sends it are their own. */
-.msg-row-what { display: flex; align-items: center; gap: 12px; min-width: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; padding: 8px 0; cursor: pointer; }
+.msg-row-line { padding: 0 14px; min-height: 62px; }
+/* The press that opens a row covers the mark and the words, across the first two
+   columns, so its mark sits in the mark's column and its words under "The message". */
+.msg-row-what { grid-column: span 2; display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 14px; align-items: center; min-width: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; padding: 10px 0; cursor: pointer; }
 /* Marketing or utility, as a mark: a rule about who a message may reach, not a
    label to read. Amber is the constraint, not a warning about this message. */
-.msg-row-mark { flex: none; width: 28px; height: 28px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--bg-active); color: var(--ink-muted); }
+.msg-row-mark { width: 28px; height: 28px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--bg-active); color: var(--ink-muted); }
 .msg-row-mark[data-kind="offer"] { background: var(--warn-soft); color: var(--warn-ink); }
 .msg-row-said { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .msg-row-titles { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .msg-row-title { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.msg-row-name { flex: none; font-size: var(--text-xs); color: var(--ink-faint); }
+.msg-row.is-dim .msg-row-title { color: var(--ink-dim); }
+.msg-row-name { flex: none; font-size: var(--text-xs); color: var(--ink-dim); }
+.msg-tag { flex: none; font-size: var(--text-xs); line-height: 1.45; padding: 1px 7px; border-radius: var(--radius-full); background: var(--bg-active); color: var(--ink-dim); white-space: nowrap; }
+.msg-tag[data-tone="info"] { background: var(--info-soft); color: var(--info-ink); }
+.msg-tag[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
+.msg-tag[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
 .msg-row-words { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.msg-row-langs { display: flex; align-items: center; gap: 6px; }
-.msg-row-use { min-width: 0; font-size: var(--text-xs); }
-.msg-row-use > * { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-row-langs { display: flex; align-items: center; gap: 4px; margin-left: -5px; }
+.msg-row-use { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: var(--text-xs); }
+.msg-use-link { max-width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--ink); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-use-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.msg-use-note { max-width: 100%; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Nothing sends it: said plainly, in the caption grey, with an empty ring where
+   a thing that sends it would be. The row's dimmed title says the rest. */
+.msg-use-none { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-dim); white-space: nowrap; }
+.msg-use-ring { width: 5px; height: 5px; border-radius: 50%; border: 1px solid var(--ink-faint); flex: none; }
 /* What left, and when the latest did: counts to compare down the column, so
-   right-aligned in even figures, the heading over them too. The when is a
-   caption, in the caption ink (--ink-dim is the one kept at 4.5:1). */
+   right-aligned in even figures, the heading over them too. */
 .msg-list-head-sent { text-align: right; }
 .msg-row-sent { min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; text-align: right; }
 .msg-row-sent-n { font-family: var(--font-mono); font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.msg-row-sent-n.is-none { color: var(--ink-faint); }
 .msg-row-sent-when,
 .msg-row-sent-never { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+/* Under a dash, in the case its neighbours' "today" and "2d ago" are in. */
+.msg-row-sent-never { text-transform: lowercase; }
 /* "sent" beside the count is for whoever cannot see the heading: a screen reader
    (the heading is aria-hidden) and a stacked row (the heading is gone). */
 .msg-row-sent-unit { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .msg-row-sent-dot { display: none; }
 /* A language, as a slot: the glyph is that language's state and the two letters
    are the language. Every colour is the one the state vocabulary gives it
-   (tone.ts), so a template in review is the same blue here as anywhere. */
+   (tone.ts), so a template in review is the same blue here as anywhere. The slot
+   in view is marked only while its message is open. */
 .msg-slot { display: inline-flex; align-items: center; gap: 5px; padding: 3px 5px; border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer; color: var(--ink-faint); }
-.msg-slot[data-tone="ok"] { color: var(--ok); }
-.msg-slot[data-tone="info"] { color: var(--info); }
-.msg-slot[data-tone="warn"] { color: var(--warn); }
-.msg-slot[data-tone="danger"] { color: var(--danger); }
+.msg-slot svg { width: 13px; height: 13px; }
+.msg-slot[data-tone="ok"] { color: var(--ok-ink); }
+.msg-slot[data-tone="info"] { color: var(--info-ink); }
+.msg-slot[data-tone="warn"] { color: var(--warn-ink); }
+.msg-slot[data-tone="danger"] { color: var(--danger-ink); }
 .msg-slot-k { font-size: var(--text-xs); color: var(--ink-dim); }
-.msg-slot[data-tone="none"] .msg-slot-k { color: var(--ink-faint); }
 .msg-slot:hover { background: var(--bg-active); }
 .msg-slot.on { background: var(--bg-active); }
 .msg-slot.on .msg-slot-k { color: var(--ink); font-weight: var(--weight-medium); }
 /* A refusal is the row's own line, under it and in line with its words. */
-.msg-row > .bc-excl-hint { margin: 0 14px 10px 54px; }
-/* The message itself, under the row it belongs to and indented past the mark,
-   so the words line up with the words. */
-.msg-row-open { padding: 0 14px 14px 54px; display: flex; flex-direction: column; gap: 10px; }
+.msg-row > .bc-excl-hint { margin: 0 14px 10px 62px; }
+/* The message itself, under the row it belongs to and in line with its words. */
+.msg-row-open { padding: 0 14px 14px 62px; display: flex; flex-direction: column; gap: 10px; }
 .msg-row-open .mp-frame { max-width: none; }
 .msg-row-open .mp-bubble { max-width: 300px; }
 .msg-card-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-dim); margin-top: auto; }
 .msg-card-meta { min-width: 0; }
-/* Nothing sends it: the one answer on this row that asks for something to be done. */
-.msg-card-meta.is-unused { color: var(--warn-ink); }
 .msg-card-spacer { flex: 1; }
 .msg-card-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11.5px; padding-top: 6px; border-top: 1px solid var(--line); }
-.msg-fold { display: grid; gap: 12px; }
-.msg-fold-toggle { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: inline-flex; align-items: center; gap: 6px; padding: 0; }
+/* The foot of the list: the fold of what is kept out of the composers, and how
+   long WhatsApp takes to read a new message. */
+.msg-foot { display: flex; align-items: center; gap: 9px; min-height: 42px; padding: 0 14px; margin-top: -14px; border-bottom: 1px solid transparent; }
+.msg-foot-note { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); text-align: right; }
+.msg-fold-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); cursor: pointer; }
+.msg-fold-toggle:hover { color: var(--ink-muted); }
+.msg-list-hidden { margin-top: -14px; }
 /* The list sits beside the sidebar, so what decides whether the columns fit is
    the LIST's width and never the window's (#735). Under that, a row stacks: the
    words keep the whole width and the languages, what sends it and what went out
    fall under them -- the last as one line, "412 sent · 2d ago", with no heading
-   left above it to say what the number is. It was 620px with three columns; the
-   Sent column and its gap are 106px more, taken from the words, so the row
-   stacks 106px sooner and the words never get less room than they had. */
-@container (max-width: 726px) {
+   left above it to say what the number is. The mark's column and its gap are
+   48px the words never had, so the row stacks 48px sooner than it did (#751). */
+@container (max-width: 774px) {
   .msg-list-head { display: none; }
-  .msg-row-line { grid-template-columns: minmax(0, 1fr); gap: 0; padding-bottom: 10px; }
-  .msg-row-langs { padding-left: 40px; }
-  .msg-row-use { padding-left: 40px; }
-  .msg-row-sent { padding-left: 40px; flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
+  .msg-list-head + .msg-row { border-top: 1px solid var(--line); }
+  .msg-row-line { grid-template-columns: 34px minmax(0, 1fr); row-gap: 4px; padding-bottom: 12px; }
+  .msg-row-langs, .msg-row-use, .msg-row-sent { grid-column: 2; }
+  /* The title keeps its line; the name WhatsApp knows it by and a pill go under it. */
+  .msg-row-titles { flex-wrap: wrap; row-gap: 2px; }
+  .msg-row-title { flex: 1 1 100%; }
+  .msg-row-langs { margin-left: -5px; }
+  .msg-row-sent { flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
   .msg-row-sent-unit { position: static; width: auto; height: auto; overflow: visible; clip-path: none; font-family: var(--font-sans); font-size: var(--text-xs); color: var(--ink-dim); }
   .msg-row-sent-dot { display: inline; color: var(--ink-faint); }
+  .msg-row-sent-n.is-none { display: none; }
+  .msg-row-sent-never { text-transform: none; }
   .msg-row-open { padding-left: 14px; }
   .msg-row > .bc-excl-hint { margin-left: 14px; }
 }
