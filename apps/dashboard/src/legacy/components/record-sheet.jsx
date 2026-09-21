@@ -17,8 +17,9 @@
 // key first and takes it, so a fold around it does not cancel as well; with focus somewhere outside it, the window
 // hears it.
 //
-// So anything a sheet needs lives inside it. An Undo for a row taken out of the list goes inline, where the row
-// was, never in a toast: a toast is drawn outside the sheet, where Tab cannot reach it.
+// So anything a sheet needs must be reachable inside it, because Tab stays there. A row taken out of the list leaves
+// an inline Undo where it was. The toast is still the house's undo (legacy CLAUDE.md) and may echo it, but it is
+// drawn outside the sheet, where Tab cannot reach it, so it is never the only way back.
 //
 // It is drawn in the app's root (.app-root) rather than where the page put it. There, People's row keys hold still
 // while it is open, as they do for the phone's lists sheet and for any dialog in .app-root (PL_OVERLAY,

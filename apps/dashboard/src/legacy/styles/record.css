@@ -88,8 +88,8 @@
 /* ---------- A sheet: a list you scroll, beside the page ---------- */
 /* Over the shell as well as the page: the phone's tab bar (120) and drawer (220) sit above anything at a page's level,
    and a sheet's Save is at its foot, where the tab bar is. The shortcuts sheet's layer (components.css), under the
-   toasts (450), so a toast still says what happened; anything to press in answer lives inside the sheet, where Tab
-   stays (record-sheet.jsx). */
+   toasts (450), so a toast, the house's undo, is seen over a sheet. What a sheet needs is reachable inside it, where
+   Tab stays, and a toast may echo it (record-sheet.jsx). */
 .rec-sheet-backdrop { position: fixed; inset: 0; z-index: 400; max-width: none; background: oklch(from var(--bg) l c h / 0.6); }
 .rec-sheet { position: fixed; top: 0; right: 0; bottom: 0; z-index: 401; width: min(540px, 92vw); max-width: none; display: flex; flex-direction: column; background: var(--bg-raised); border-left: 1px solid var(--line-strong); box-shadow: var(--shadow-lg); }
 /* Focus lands on the sheet itself as it opens, so a screen reader names it; the ring belongs to the controls in it. */
