@@ -130,7 +130,8 @@ const btTried = (config, job) => {
     if (!patched || typeof patched !== "object") throw new Error("A save's patch handed back no config.");
     return { patched };
   } catch (failed) {
-    if (window.console) window.console.error(failed);
+    // A patch's own refusal is an answer, not a fault: base() meets it on every draw while the job waits.
+    if (window.console && typeof failed.said !== "string") window.console.error(failed);
     return { failed };
   }
 };
@@ -388,10 +389,12 @@ const BT_PATCH_OF = {
 // how a job's patch is applied (`patched`) and how one refuses the config it would go on (`refusal`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
 // brain's prompt is the product's own lines under its stored name (`isBaseline`), each row's STORED_AS, CHECK_OF and
 // PATCH_OF by its id. business-tab-folds.jsx adds each fold's paths, keys and helpers to it as it loads.
+// Added to the object when there is one already, never put in its place: under hot reload this file runs again and
+// business-tab-folds.jsx does not, and a new object left every fold helper undefined until a full reload.
 Object.assign(window, {
   phoneShown: btPhoneShown,
   useFieldSave: useBtFieldSave,
-  __businessTabSave: {
+  __businessTabSave: Object.assign(window.__businessTabSave || {}, {
     saver: btTabSaver,
     patched: btPatched,
     refusal: btRefusal,
@@ -401,5 +404,5 @@ Object.assign(window, {
     STORED_AS: BT_STORED_AS,
     CHECK_OF: BT_CHECK_OF,
     PATCH_OF: BT_PATCH_OF,
-  },
+  }),
 });

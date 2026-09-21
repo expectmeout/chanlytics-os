@@ -802,3 +802,69 @@ test("a refusal that is not this fold's to fix is said once, as elsewhere, namin
   W.__businessTab = undefined;
   try { assert.deepEqual(S.schemaProblems("tone", bad, "Bright."), {}); } finally { W.__businessTab = tab; }
 });
+
+/* ------------------------------------ the re-review's refinements ------------------------------------ */
+
+test("a draft with nothing left to write is never refused: the owner's own earlier save, or a colleague's identical one, changed it", async () => {
+  // A colleague saved exactly what this draft holds. Nothing to write, so nothing to refuse: the fold closes.
+  read(STORED);
+  let sent = door();
+  const opened = S.draftOf("tone", S.saver.base());
+  const theirs = structuredClone(STORED);
+  theirs.brain.profile.tone = "Bright.";
+  W.__SETTINGS = { config: theirs, version: 8 };
+  const a = said();
+  let closed = 0;
+  S.saver.save(S.foldJob("tone", "Bright.", { opened, said: "Saved", done: () => { closed += 1; }, flash: a.flash }));
+  await settle();
+  assert.deepEqual([sent.length, closed, a.toasts.length], [0, 1, 0], "REGRESSION guard: refused as changed after it opened, though nothing of theirs would have been lost");
+
+  // A fold that stays open after its own save is taken, and saves the same draft again with the draft it first opened with.
+  read(STORED);
+  sent = door();
+  const first = S.draftOf("tone", S.saver.base());
+  const b = said();
+  S.saver.save(S.foldJob("tone", "Bright.", { opened: first, said: "Saved", flash: b.flash }));
+  sent[0].accept();
+  await settle();
+  S.saver.save(S.foldJob("tone", "Bright.", { opened: first, said: "Saved", flash: b.flash }));
+  await settle();
+  assert.equal(sent.length, 1, "the second has nothing to write");
+  assert.deepEqual(b.toasts.map((t) => t.tone), [undefined], "and is not told its own save was somebody else's");
+});
+
+test("a service's minutes are digits or refused, as a booking rule's are, and an empty or zero box is no duration", () => {
+  const services = [{ name: "Cut", duration_min: "1.5" }, { name: "Colour", duration_min: "45min" }, { name: "Blowout", duration_min: " 45 " }, { name: "Consult", duration_min: "" }, { name: "Walk-in", duration_min: "0" }];
+  assert.deepEqual(S.problemsOf("services", services), {
+    "service-0-duration_min": "Minutes are a whole number, like 45.",
+    "service-1-duration_min": "Minutes are a whole number, like 45.",
+  });
+  const written = S.saveFold("services", stored(), services.slice(2)).brain.profile.services;
+  assert.deepEqual(written, [{ name: "Blowout", duration_min: 45 }, { name: "Consult" }, { name: "Walk-in" }]);
+});
+
+test("the sentence for a shift typed half-way is the save's own, held to it", () => {
+  const half = S.draftOf("hours", taken());
+  half.tue = { isOpen: true, shifts: [{ open: "09:00", close: "" }] };
+  const brain = taken().brain;
+  brain.profile.hours = { ...brain.profile.hours, tue: { open: "09:00" } };
+  const schemas = W.__businessTab.saveIssues({ brain }).map((i) => i.message);
+  assert.deepEqual(schemas, [S.problemsOf("hours", half)["hours-tue"]], "one sentence, in two places: this holds them together");
+});
+
+test("saveProblems is the one question a fold asks before it saves: the page's own sentence wins, and the schema's raw wording never reaches the owner", () => {
+  const services = S.draftOf("services", taken());
+  services[0] = { ...services[0], name: "x".repeat(81) };
+  const found = S.saveProblems("services", taken(), services);
+  assert.deepEqual(Object.keys(found), ["service-0-name"]);
+  assert.equal(found["service-0-name"], S.problemsOf("services", services)["service-0-name"], "REGRESSION guard: merged the other way, the owner read zod's \"Too big: expected string...\"");
+  // Nothing of the page's own to say, and the schema's is its own sentence: said as the schema says it.
+  const week = S.draftOf("hours", taken());
+  week.mon = { isOpen: true, shifts: [{ open: "09:00", close: "13:00" }, { open: "12:00", close: "18:00" }] };
+  assert.deepEqual(S.saveProblems("hours", taken(), week), { "hours-mon": "Monday: two shifts overlap." });
+  // A refusal in the schema's default wording is said in the page's words instead.
+  const feed = S.saveProblems("calendar", taken(), `https://calendar.example.com/${"a".repeat(2100)}.ics`);
+  assert.deepEqual(Object.keys(feed), ["ical_url"]);
+  assert.doesNotMatch(feed.ical_url, /Too big|Invalid|expected/);
+  assert.deepEqual(S.saveProblems("tone", taken(), "Bright."), {});
+});

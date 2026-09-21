@@ -70,7 +70,8 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  * date that is not on the calendar, an address the receptionist may not read -- stays the schema's to say, and
  * schemaProblems(fold, base, draft) puts its sentence under the same field keys, plus closure-<i>-date and
  * closure-<i>-until, and `elsewhere` for a refusal in a part of the settings that is not this fold's to fix. A fold's
- * Save asks problemsOf first, then schemaProblems, and sends only when both are {}.
+ * Save asks saveProblems(fold, base, draft), which is both with the page's own sentence winning, and sends only when it
+ * is {}.
  */
 
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
@@ -122,6 +123,12 @@ const BT_LIMITS = {
   ruleNotes: 10, ruleNote: 200,
   notes: 10, noteTitle: 80, noteText: 1200,
   closureNote: 200,
+};
+// A service's minutes as its box holds them: a whole number, 0 for an empty box, NaN for anything else.
+const btMinutes = (v) => {
+  const typed = btfTrimmed(v);
+  if (typed === "") return 0;
+  return /^[0-9]+$/.test(typed) ? parseInt(typed, 10) : NaN;
 };
 const BT_DAY_NAMES = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
 const btCount = (n) => n.toLocaleString("en-US");
@@ -290,8 +297,10 @@ const BT_WRITE = {
   services: (next, draft) => {
     const services = (draft || []).filter((x) => btfTrimmed(x.name)).map((x) => {
       const o = { name: btfTrimmed(x.name) };
-      const d = parseInt(x.duration_min, 10);
-      if (Number.isFinite(d) && d > 0) o.duration_min = d;
+      // Digits, as a booking rule's number is (btRuleNumber says what parseInt made of "1.5"); an empty box or a zero
+      // is no duration, as it always was, and anything else problemsOf refuses first.
+      const d = btMinutes(x.duration_min);
+      if (d > 0) o.duration_min = d;
       if (btfTrimmed(x.price_note)) o.price_note = btfTrimmed(x.price_note);
       return o;
     });
@@ -390,9 +399,10 @@ const BT_PROBLEMS_OF = {
     const n = btfTrimmed(draft).length;
     return n > BT_LIMITS.tone ? { tone: `At most ${btCount(BT_LIMITS.tone)} characters — this is ${btCount(n)}.` } : {};
   },
-  // A shift with one of its two times is said under its day, in the words the save's own rule has for it (contracts
-  // hoursProblems): written as it stood it was dropped, and a day with no other shift was saved as closed. A shift with
-  // neither is a row nobody filled in, and is dropped as it always was.
+  // A shift with one of its two times is said under its day, in the words the save's own rule has for a day stated
+  // half-way (contracts config.ts checkDay; business-tab-folds.test.mjs holds the two sentences together): written as
+  // it stood it was dropped, and a day with no other shift was saved as closed. A shift with neither is a row nobody
+  // filled in, and is dropped as it always was.
   hours: (draft) => {
     const found = {};
     BT_DAYS.forEach((d) => {
@@ -420,8 +430,9 @@ const BT_PROBLEMS_OF = {
     rows.forEach((x, i) => {
       const name = btfTrimmed(x.name).length;
       if (name > BT_LIMITS.serviceName) found[`service-${i}-name`] = `At most ${btCount(BT_LIMITS.serviceName)} characters — this is ${btCount(name)}.`;
-      const minutes = parseInt(x.duration_min, 10);
-      if (Number.isFinite(minutes) && minutes > BT_LIMITS.serviceMinutes) found[`service-${i}-duration_min`] = `At most ${btCount(BT_LIMITS.serviceMinutes)} minutes, a whole day.`;
+      const minutes = btMinutes(x.duration_min);
+      if (Number.isNaN(minutes)) found[`service-${i}-duration_min`] = "Minutes are a whole number, like 45.";
+      else if (minutes > BT_LIMITS.serviceMinutes) found[`service-${i}-duration_min`] = `At most ${btCount(BT_LIMITS.serviceMinutes)} minutes, a whole day.`;
       const price = btfTrimmed(x.price_note).length;
       if (price > BT_LIMITS.servicePrice) found[`service-${i}-price_note`] = `At most ${btCount(BT_LIMITS.servicePrice)} characters — this is ${btCount(price)}.`;
     });
@@ -503,6 +514,13 @@ const btProblemsOf = (fold, draft) => {
   return Object.prototype.hasOwnProperty.call(BT_PROBLEMS_OF, fold) ? BT_PROBLEMS_OF[fold](draft) : {};
 };
 
+// The schema's sentence, as the owner reads it. Its own rules write sentences ("Monday: two shifts overlap."); where a
+// refusal is only a type's default ("Too big: expected...", "Invalid string: must match pattern..."), which problemsOf
+// should have said first and did not foresee, the owner is told that much in the page's words, never the pattern.
+const btSchemaWords = (message) => (/^(Too big|Too small|Invalid|Unrecognized|Expected|Required)/i.test(String(message))
+  ? "This can't be saved as it is written. Check it, and try again."
+  : String(message));
+
 // Which row of the draft each WRITTEN row came from: saveFold drops the rows nobody filled in before it writes, so the
 // save's schema counts from a list the owner is not looking at.
 const BT_WRITTEN_ROWS = {
@@ -546,13 +564,21 @@ const btSchemaProblems = (fold, base, draft) => {
   const found = {};
   issues.forEach((issue) => {
     const key = btFieldOf(fold, issue.path, draft);
-    if (key) { if (!found[key]) found[key] = issue.message; return; }
+    if (key) { if (!found[key]) found[key] = btSchemaWords(issue.message); return; }
     if (found.elsewhere) return;
     const where = issue.path.filter((p) => typeof p === "string").slice(-2).join(".");
-    found.elsewhere = `Something else in your settings stops this save — ${where ? `${where}: ` : ""}${issue.message}`;
+    found.elsewhere = `Something else in your settings stops this save — ${where ? `${where}: ` : ""}${btSchemaWords(issue.message)}`;
   });
   return found;
 };
+
+/**
+ * The one question a fold asks before it saves: { fieldKey: sentence }, and nothing is sent unless it is {}. The
+ * page's own sentence wins under a field both would speak of: problemsOf says a name of 81 characters in the page's
+ * words, where the schema says "Too big: expected string to have <=80 characters". Asked as two maps and merged by
+ * each fold, one merged the other way round would have shown the owner that.
+ */
+const btSaveProblems = (fold, base, draft) => Object.assign({}, btSchemaProblems(fold, base, draft), btProblemsOf(fold, draft));
 
 /** Whether a fold's draft holds changes: what it would write onto `base` is not what the draft it would open with writes. */
 const btHoldsChanges = (fold, base, draft) => !btfSame(btSaveFold(fold, base, draft), btSaveFold(fold, base, btDraftOf(fold, base)));
@@ -571,6 +597,10 @@ const BT_FOLD_MOVED = "Not saved — this changed after you opened it. Close it 
  * and a sheet of thirty-three rows held open is where it happens. Another fold's part changing is no refusal: this
  * one's draft never held it, and saveFold keeps it. And a draft that holds no changes hands the config back as it was,
  * so the saver sends nothing (holdsChanges says why "the config would change" is the wrong test).
+ *
+ * A fold that stays open after its save is taken (a sheet, saved row by row) takes `opened` again as its `done` runs,
+ * from the saver's base, or its next save with something new in it is refused as changed by its own last one; and it
+ * takes no second press while saver.pending(fold).
  */
 const btFoldJob = (fold, draft, job) => {
   btFoldNamed(fold);
@@ -582,14 +612,17 @@ const btFoldJob = (fold, draft, job) => {
     done: j.done,
     flash: j.flash,
     patch: (config) => {
+      // Nothing to write first: a draft the config already holds is refused nothing, whoever wrote it there -- a
+      // colleague who saved the same words, or this fold's own save a moment ago, which changed its part too.
+      if (!btHoldsChanges(fold, config, draft)) return config;
       if (!btfSame(btDraftOf(fold, config), j.opened)) throw window.__businessTabSave.refusal(BT_FOLD_MOVED);
-      return btHoldsChanges(fold, config, draft) ? btSaveFold(fold, config, draft) : config;
+      return btSaveFold(fold, config, draft);
     },
   };
 };
 
 // Added to window.__businessTabSave, the object business-tab-save.jsx published: each fold's paths and keys (PATHS_OF,
-// KEYS_OF), its helpers (draftOf, problemsOf, schemaProblems, saveFold, holdsChanges, foldJob), and how much of each thing the save
+// KEYS_OF), its helpers (draftOf, saveProblems and its two halves, saveFold, holdsChanges, foldJob), and how much of each thing the save
 // takes (LIMITS, and RULES: each booking rule's key, least, most and sentence).
 if (!window.__businessTabSave) throw new Error("business-tab-folds.jsx loads after business-tab-save.jsx: window.__businessTabSave is not there.");
 Object.assign(window.__businessTabSave, {
@@ -598,6 +631,7 @@ Object.assign(window.__businessTabSave, {
   draftOf: btDraftOf,
   problemsOf: btProblemsOf,
   schemaProblems: btSchemaProblems,
+  saveProblems: btSaveProblems,
   saveFold: btSaveFold,
   holdsChanges: btHoldsChanges,
   foldJob: btFoldJob,
