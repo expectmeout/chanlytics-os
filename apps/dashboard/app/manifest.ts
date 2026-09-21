@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 /**
  * The installable shell.
  *
- * An owner runs this from the salon floor, on a phone. A home-screen icon
+ * An owner runs this from the shop floor or between calls, on a phone. A home-screen icon
  * that opens full-screen is the difference between "the app" and "that tab
  * I had open". Served without a session (middleware lists it as public): it
  * names the product and its icons, nothing else.

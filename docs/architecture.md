@@ -1,0 +1,227 @@
+# Architecture
+
+How Chanlytics OS is put together, for someone reading the repository for the
+first time. `docs/glossary.md` has the words; `docs/system-prd.md` is the
+as-built reference, sheet by sheet; `docs/decisions/` holds the designs that
+are decided and not yet built. Where this page and the code disagree, the code
+is right and this page is stale.
+
+## What it is
+
+An omnichannel AI receptionist and lead engine for any business that turns a
+conversation into a booked appointment. A customer writes on WhatsApp, texts
+the business's number, phones its line or emails it; the receptionist answers
+within seconds from the business's own facts, offers the times that are open,
+sends the booking link, and hands over anything it should not decide. A team
+watches it from a dashboard, takes a thread over, whispers into a live call,
+and hands it back. The finder searches for new leads on the owner's behalf and
+judges each one against what they asked for. Playbooks and broadcasts send the
+routine messages around an appointment, to people who said yes.
+
+Three things it never does, enforced in code rather than in a prompt: it never
+decides money, it never quotes a price where the workspace forbids it, and it
+never books. `docs/system-prd.md` S-01 is the charter.
+
+## The deployables
+
+```mermaid
+flowchart LR
+  subgraph People
+    C[Customers]
+    O[Owner and team]
+  end
+  subgraph Providers
+    META[Meta WhatsApp]
+    RET[Retell voice]
+    TWI[Twilio SMS and numbers]
+    RES[Resend email]
+    APF[Apify actors]
+  end
+  subgraph Edge["apps/edge — Vercel project chanlytics-messaging"]
+    WH[Provider webhooks]
+    TICK[Job runner]
+    CRON[Sweeps]
+    ADM[Admin doors]
+  end
+  subgraph DB["Supabase"]
+    PG[(Postgres + RLS)]
+    PGC[pg_cron + pg_net]
+    V[Vault]
+    RT[Realtime]
+  end
+  subgraph Dash["apps/dashboard — Vercel project chanlytics-os"]
+    UI[Operator UI]
+    API["/api/v1"]
+  end
+  C --> META & RET & TWI & RES
+  META & RET & TWI & RES & APF -->|signed webhooks| WH
+  WH -->|service role| PG
+  PGC -->|x-cron-key| TICK & CRON
+  TICK -->|sends| META & TWI & RES
+  O --> UI -->|session cookie| API -->|RLS session client| PG
+  API -->|x-edge-token| ADM
+  ADM --> RET & TWI & META & APF
+  RT -->|row changes, one workspace| UI
+```
+
+| Path | What it is | Deployed as |
+|---|---|---|
+| `apps/edge` | The webhooks, the sweeps, the job runner, the key-guarded admin doors, diagnostics. Vanilla Vercel Node functions, no framework. Holds every provider key and the service role. | Vercel project `chanlytics-messaging` |
+| `apps/dashboard` | Next.js: auth, the public pages, the operator UI, and the `/api/v1` app plane. Holds no provider key. | Vercel project `chanlytics-os`, `app.chanlytics.com` |
+| `packages/*` | `contracts`, `core`, `db`, `channels`, `jobs`. Bundled into both apps. | with each app |
+| `supabase/` | The schema, replayed from zero in CI. RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials. | Supabase project |
+
+The two apps deploy independently from `main`. A change both must agree on
+ships in a shape that works whichever deploys first.
+
+`packages/*/dist` is committed and the edge imports it by relative path through
+`apps/edge/lib/packages/*.ts`, because Vercel's function bundler does not
+follow pnpm workspace symlinks. Rebuild `dist` whenever a package changes; CI
+fails on drift.
+
+## The four doors
+
+Every request proves who is knocking before anything is read.
+
+1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature, Twilio's signature with the line's own token, Svix headers (Resend), Stripe's signature, Apify's webhook secret. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
+2. **Browser to dashboard.** A Supabase session cookie verified with `getUser()` on every request; same origin required for every write.
+3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key.
+4. **Database to edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`, read from Vault on both sides.
+
+And one door with no key: `GET /api/health` answers 200 or 503 so a pinger outside the failure domain can page a person.
+
+## A message in
+
+Each channel has a door on the edge that verifies the wire, and a plan
+function that decides what to do with what arrived, run over a database in
+memory by a test.
+
+| Channel | Door | Decides | Then |
+|---|---|---|---|
+| WhatsApp | `apps/edge/api/whatsapp.ts` | `apps/edge/lib/whatsapp/steps.ts` | `apps/edge/lib/whatsapp/inbound.ts`: persist, read the posture, ask the brain, deliver or hold |
+| SMS | `apps/edge/api/inbound-sms.ts` | `apps/edge/lib/sms-ingress.ts` | The same handler, with the carrier's consent words and the texting rules |
+| Voice | `apps/edge/api/retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`, `retell-webhook.ts` | `apps/edge/lib/call-start.ts` | The call runs at the provider from the same business facts; the webhook writes the call into the thread |
+| Email | `apps/edge/api/resend-webhook.ts` | `apps/edge/lib/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
+
+The receptionist itself: `apps/edge/lib/tenant-runtime.ts` reads the
+workspace's config through one door; `packages/contracts/src/config.ts`
+composes the system prompt from the business's facts; `apps/edge/lib/brain.ts`
+asks the model and reads a structured answer (`packages/contracts/src/brain.ts`);
+`apps/edge/lib/reply-posture.ts` is the truth table of whether it may speak at
+all; the Autonomy matrix and the confidence dial decide whether the answer goes
+now, waits in a veto window, or waits for a person.
+
+The inbound path is WhatsApp-shaped today and SMS rides it by conversion. The
+channel-neutral pipeline that replaces it is `docs/decisions/0001-channel-neutral-inbound.md`.
+
+## A message out
+
+Everything leaves through one door: `packages/core/src/deliver.ts`. It names
+the send's purpose (conversational or marketing) and kind (reply, draft,
+broadcast, system, answer), re-reads the person's consent, the thread's pause
+and the workspace's status at the wire, and refuses rather than guesses when a
+wire is missing. A workspace's wires are bound by the edge from that
+workspace's own credentials; the environment's keys never send for another
+business.
+
+A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jobs`, a lease, a heartbeat, `settle`), `apps/edge/api/jobs/tick.ts` runs it, and `packages/jobs/src/handlers.ts` maps each kind to a core verb. Every clock is a timestamp on a row that a sweep acts on, and every sweep is registered in `sweep_status` and judged by `/api/cron/health`.
+
+## The packages, and the direction of dependency
+
+```
+contracts  <-  core  <-  jobs
+    ^          ^
+    |          |
+   db       channels
+```
+
+| Package | Holds | Rule |
+|---|---|---|
+| `contracts` | Types, zod schemas, the closed sets generated from the database (`schema-sets.generated.ts`), the view models every page reads, the prompt composer, the words the UI says | Pure. No client, no framework, no environment. It is larger than its name: view models and prompt composition live here today |
+| `core` | The use cases as verbs over ports: `conversations` (reply, take over, hand back, snooze, wake, resolve, archive), `campaigns` (assemble a run, create a broadcast, run a playbook, approve, cancel), `messages` (send, broadcast batch, email intake, line provisioning), `leads` (the finder's runner, judge, cleaning, endings), and `deliver` | A verb takes a `ports` object and a command and returns an outcome. No database client, framework, provider or environment inside a verb. The adapters live at the doors |
+| `db` | Supabase repositories, the generated database types, realtime | The one place a table name is typed |
+| `channels` | Provider adapters: Meta (WhatsApp, templates, Embedded Signup), Retell (calls, agents, the prompt shell), Twilio (lines, SMS, A2P), Resend (email), Google (Places, Business Profile, OAuth), Apify (actors), the lead judge, the edge token | Owns each provider's wire format. Knows nothing about threads |
+| `jobs` | The ledger, the tick, the handlers, escalation on failure | Handlers build ports from the job's context and call core |
+
+## The app plane
+
+`apps/dashboard/app/api/v1`: every handler is declared with `route()`
+(`apps/dashboard/src/server/route.ts`) and says five things: which workspace
+it acts on, who may call it, which rate bucket it spends, whether it may spend
+the platform's money, and the schema its input must pass. One pipeline
+enforces them in a fixed order, so a viewer is refused before a token is spent.
+`route-policy.json` pins every route's declaration; a change there is a change
+to who may do what. `apps/dashboard/src/client/routes.generated.ts` is the
+typed client, regenerated from the same declarations.
+
+## Tenancy
+
+Row Level Security is the floor: it stops cross-tenant access on every table.
+The role check in the route is the door: it decides which member may do a
+thing. Both are needed, because the job that delivers a message runs as
+service role and RLS is not in that path. Privileged writes go through
+`SECURITY DEFINER` functions with a pinned search path, each the one audited
+place its privilege exists. A forbidden UPDATE does not raise under RLS; it
+matches zero rows and reports success, so every permission-sensitive update
+selects and counts.
+
+## The shell
+
+`apps/dashboard/src/legacy` is the operator UI: a single-page React shell,
+hash-routed under `/w/<slug>`, its files imported in a fixed order by
+`src/legacy-bridge/manifest.ts`, talking through `window` globals. It began as
+a design mockup and was made real one surface at a time. Two things keep that
+honest:
+
+- `src/legacy-bridge/surface-registry.ts` classifies every route as `real` or
+  `demo`. A demo surface renders the "not in this release" card outside a
+  declared demo session, and a test fails CI if the shell declares a route the
+  table does not classify.
+- `src/legacy-bridge/surface-data.ts` is the seam that feeds a real surface
+  from `/api/v1`, and nothing a real surface draws may state a fact the
+  database cannot support. A zero is a measurement and is shown; an invented
+  number is not.
+
+The unbuilt surfaces (agent fleet, store, studio, tasks, content) stay in the
+tree, hidden from every real workspace, by decision. The shell's route names
+and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
+
+## Where to look
+
+| To change | Look in |
+|---|---|
+| What the receptionist says | `packages/contracts/src/config.ts` (the composer), `apps/edge/lib/brain.ts`, the Business tab in Settings |
+| Whether it speaks at all | `apps/edge/lib/reply-posture.ts`, `policies` and `packages/contracts/src/policy.ts` |
+| Who may be messaged | `packages/contracts/src/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts` |
+| A new channel | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `deliver.ts` |
+| A new operator verb | A core verb in `packages/core/src/conversations`, a route under `/api/v1/conversations/[id]`, a row in `route-policy.json`, the shell's `inbox-verbs.ts` |
+| A new job kind | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change |
+| A new sweep | A cron door, a `sweep_status` registration, the pg_cron schedule |
+| Billing | `apps/edge/lib/billing.ts`, `apps/edge/api/stripe-webhook.ts` |
+| The lead finder | `packages/core/src/leads`, `apps/edge/lib/lead-*.ts`, `apps/dashboard/src/server/leads.ts`, migration `00140` |
+| Ask | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask.ts` |
+| The calendar | `apps/dashboard/src/server/calendar.ts`, `packages/contracts/src/availability.ts`, `apps/edge/api/cron/calendar.ts` |
+| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `apps/edge/lib/lines.ts`, `a2p.ts` |
+| Email | `packages/channels/src/email*.ts`, `apps/edge/lib/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts` |
+| Voice | `packages/channels/src/voice-*.ts`, the four `retell-*` doors |
+
+## Tests
+
+`corepack pnpm test` runs the node suite under `tsx`, so a test imports the
+app's own TypeScript and executes it: route handlers against a database in
+memory, edge doors over a ports object, core verbs over fakes. Database and
+integration tests skip without credentials, and `REQUIRE_SERVICE_CREDENTIALS=1`
+turns a skip into a failure where a run is meant to be signed in. A share of
+the suite still asserts on source text rather than behaviour;
+`tooling/scripts/tests/source-scan-baseline.json` is the ratchet that may only
+fall. Playwright specs in `e2e/` run nightly against production in the suite's
+own workspace.
+
+## What is decided and not yet built
+
+`docs/decisions/` holds the designs. The three that change the shape of the
+system: a channel-neutral inbound pipeline, an appointment as a first-class
+record, and assignment for a team. Smaller and known: the shell's hash routes
+and the five route names, `contracts` carrying view models that belong to the
+dashboard, and tests living in one directory rather than beside the code they
+prove.
