@@ -985,66 +985,22 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
-var FACT_SOURCE_TONE = {
-  verified: "ok",
-  provisioned: "ok",
-  workspace: "plain",
-  typed: "plain",
-  absent: "plain"
-};
-var TONE_OF = {
-  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
-  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
-  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
-  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
-  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
-  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
-  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
-  playbook: { running: "accent", paused: "warn", approval: "warn" },
-  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
-  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
-  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
-  role: { owner: "info", operator: "plain", viewer: "plain" },
-  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
-  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
-  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
-  // disagreement is warn because a person has to settle it. `disputed` is not a
-  // FactSource -- it is what the caller passes when a typed value and a verified one
-  // disagree, and only the page knows that.
-  fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
-  escalation: { open: "warn", resolved: "ok" }
-};
-var LABEL_OF = {
-  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
-  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
-  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
-  person: PERSON_STATE_LABELS,
-  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
-  mode: PERSON_MODE_WORDS,
-  broadcast: BROADCAST_STATE_LABELS,
-  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
-  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
-  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
-  setup: SETUP_STATE_WORDS,
-  role: ROLE_WORDS,
-  calendar: CALENDAR_FEED_WORDS,
-  // facts.ts already wrote these words for the row; a second copy is one that would drift.
-  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
-  escalation: { open: "Open", resolved: "Resolved" }
-};
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_STAGE_WORDS = { ready: "Ready", nurture: "Contacted", converted: "Talking", archived: "Closed" };
 var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_FIT_WORDS = { strong: "Strong fit", look: "Worth a look", long: "Long shot" };
+var LEAD_EMAIL_WORDS = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
 var LEAD_CALL_OUTCOME_TONES = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
@@ -1056,6 +1012,9 @@ var LEAD_NOT_A_FIT_WORDS = {
   other: "Something else"
 };
 var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+var LEAD_REVIEW_WORD = "Needs review";
+var LEAD_LEFT_OUT_WORD = "Left out";
+var LEAD_CLASS_WORDS = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
 var LEAD_SENT_QUESTION = "Did you send it?";
 var LEAD_CALL_QUESTION = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
@@ -1189,6 +1148,66 @@ var LeadSuggestAnswerSchema = z7.object({
   items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var FACT_SOURCE_TONE = {
+  verified: "ok",
+  provisioned: "ok",
+  workspace: "plain",
+  typed: "plain",
+  absent: "plain"
+};
+var TONE_OF = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
+  // Two sources are a claim somebody else stands behind; the rest are neutral, and a
+  // disagreement is warn because a person has to settle it. `disputed` is not a
+  // FactSource -- it is what the caller passes when a typed value and a verified one
+  // disagree, and only the page knows that.
+  fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
+  escalation: { open: "warn", resolved: "ok" },
+  // Ready is the silent default every lead starts in, so it is plain: the eye should be drawn to what has moved.
+  lead_class: { qualified: "plain", review: "warn", excluded: "plain" },
+  lead_stage: { ready: "plain", nurture: "info", converted: "ok", archived: "plain" },
+  // A strong fit is a good outcome, not an urgent one. Only the accent means "right now".
+  lead_fit: { strong: "ok", look: "plain", long: "plain" },
+  // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
+  reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
+  lead_call_outcome: LEAD_CALL_OUTCOME_TONES
+};
+var LABEL_OF = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  person: PERSON_STATE_LABELS,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_WORDS,
+  broadcast: BROADCAST_STATE_LABELS,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  setup: SETUP_STATE_WORDS,
+  role: ROLE_WORDS,
+  calendar: CALENDAR_FEED_WORDS,
+  // facts.ts already wrote these words for the row; a second copy is one that would drift.
+  fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
+  escalation: { open: "Open", resolved: "Resolved" },
+  lead_class: LEAD_CLASS_WORDS,
+  lead_stage: LEAD_STAGE_WORDS,
+  lead_fit: LEAD_FIT_WORDS,
+  reach: LEAD_EMAIL_WORDS,
+  lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
+};
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",

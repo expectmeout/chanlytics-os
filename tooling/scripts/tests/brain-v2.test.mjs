@@ -130,7 +130,7 @@ test("the dial reaches the policy row through the route and the pane", () => {
   assert.ok(pane.includes('label="Send on its own only when it\'s sure"'));
   assert.ok(pane.includes("put(reply, undefined, { minConfidence: c[1] })"));
   const thread = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-  assert.ok(thread.includes("· {entry.why.summary}"));
+  assert.ok(thread.includes("· {why.summary}"), "the summary the dial drives, now inside the button that opens the reason");
   assert.ok(thread.includes('"Not sure enough to send alone · "'));
   assert.ok(readRaw("apps/dashboard/src/legacy/pages/conversations.jsx").includes("· {m.why.summary}"));
 });

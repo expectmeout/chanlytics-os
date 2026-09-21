@@ -354,6 +354,37 @@ export function mediaVM(m: MessageDto): MediaVM | null {
   };
 }
 
+/* An email replies by quoting the whole of what it answers. "Got it, thanks!" arrived as six
+   lines of "On Thu, Sep 17, 2026 at 10:44 PM Melany's Beauty Salon <…> wrote: > testing back at
+   you >", and the thread drew every one of them. The chain is kept — an operator may need to see
+   what the customer was answering — but it is not what the bubble says.
+
+   Only the shapes a mail client actually writes are cut, each anchored to the START of a line:
+   an attribution line ending in "wrote:", Outlook's divider, and a run of "> " quotes. Anything
+   else is left alone, because a false positive silently hides a customer's words. */
+/* A divider, or a run of ">" quotes, each at the start of its own line. */
+const QUOTE_BLOCK = /^[ \t]*(?:(?:-{2,}[ \t]*Original Message[ \t]*-{2,})|(?:_{5,})|(?:>[ \t]?))/m;
+/* "On <date> <someone> wrote:", which the wire does NOT always put on its own line. The body this
+   was written against arrived flattened — "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM
+   Melany's Beauty Salon <…> wrote: > testing back at you >", all one line — so it is not anchored
+   to a line start. Instead the attribution only counts when a quote actually follows it: a newline
+   or a ">". "On Tuesday my friend wrote: yes" is a customer's sentence, and stays one. */
+const QUOTE_ATTRIBUTION = /\bOn\b[\s\S]{0,240}?\bwrote:[ \t]*(?=\r?\n|>)/;
+
+/** An email's own words, and the chain it quoted back at us. `quoted` is null when there is none. */
+export function splitQuotedReply(body: string): { text: string; quoted: string | null } {
+  const cuts = [QUOTE_ATTRIBUTION.exec(body), QUOTE_BLOCK.exec(body)]
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => m.index);
+  if (cuts.length === 0) return { text: body, quoted: null };
+  const cut = Math.min(...cuts);
+  const text = body.slice(0, cut).trim();
+  const quoted = body.slice(cut).trim();
+  // A reply that is ONLY the quote keeps its words: better a long bubble than an empty one.
+  if (!text || !quoted) return { text: body, quoted: null };
+  return { text, quoted };
+}
+
 export function messageText(m: MessageDto): string {
   if (m.type === "call_summary" && m.body) {
     // the body already names itself ("Inbound call · 3 min — …"); the legacy
@@ -559,6 +590,8 @@ export interface InboxThreadVM {
         body: string;
         /** An email's subject line; absent on every other wire. */
         subject?: string;
+        /** The chain an email quoted back at us, when it did: kept, and shown on a tap. */
+        quoted?: string;
         /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */
         leftOut?: string;
         /** The attachment, when the message is one. */
@@ -672,6 +705,8 @@ export function toInboxThreadVM(
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
+    // Only an email quotes; a WhatsApp message that happens to start a line with ">" is words.
+    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
     return {
       type: "msg" as const,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
@@ -680,7 +715,8 @@ export function toInboxThreadVM(
       ...(subject ? { subject } : {}),
       ...(leftOut ? { leftOut } : {}),
       at: bubbleTime(messageAt(m), tz, now),
-      body: messageText(m),
+      body: said ? said.text : messageText(m),
+      ...(said && said.quoted ? { quoted: said.quoted } : {}),
       ...(media ? { media } : {}),
       ...(why ? { why } : {}),
       // Who said it, per BUBBLE. The thread carries one agent identity, and the

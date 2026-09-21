@@ -87,6 +87,10 @@ const ReviewReply = ({ r, mode }) => {
 // gained day by day (the count is the tiles'; the card draws its days, with their table), and the latest reviews with
 // their words: the five Google shows first, and said so. Nothing linked: an honest card that leads to Setup. Nothing
 // at all when this deployment cannot look listings up.
+//
+// Both cards take the whole row, one above the other. Beside each other, a list of five reviews set the row's height
+// and a period of days that gained one rating apiece was stretched to match it, which is a picture of nothing. A run
+// of days wants width; the reviews want a readable measure, which reports.css gives them in columns.
 const RP_GAINED = { gained: { label: "Ratings gained", color: "var(--chart-1)" } };
 const GoogleSection = ({ days }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -114,7 +118,7 @@ const GoogleSection = ({ days }) => {
     <RptSection title="Google reviews" meta={`${L.name} · ${L.checked.charAt(0).toLowerCase()}${L.checked.slice(1)}`}>
       <div className="rp2-tiles rp2-strip-google four" data-testid="google-tiles">{vm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
       <div className="rpt-grid">
-        <ChartCard className="rpt-span-5" title="Ratings gained, day by day" testid="chart-google-gained" config={RP_GAINED}
+        <ChartCard className="rpt-span-12" title="Ratings gained, day by day" testid="chart-google-gained" config={RP_GAINED}
           takeaway={vm.gained.total === null ? "Needs a second day of reading." : null}
           twin={{ data: vm.gained.points, keys: ["gained"], first: "Day" }}>
           {vm.gained.points.length && vm.gained.total !== null ? (
@@ -123,7 +127,7 @@ const GoogleSection = ({ days }) => {
               describe={(d) => `${d.label}: ${d.gained} ${d.gained === 1 ? "rating" : "ratings"} gained`} />
           ) : <EmptyState kind="line" title="The count is read once a day; the first difference shows after the second read." />}
         </ChartCard>
-        <ChartCard className="rpt-span-7" title="Latest reviews" testid="chart-google-latest" table={vm.table}
+        <ChartCard className="rpt-span-12" title="Latest reviews" testid="chart-google-latest" table={vm.table}
           takeaway={vm.latest.length ? (vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source) : null}>
           {vm.latest.length ? (
             <div className="rp2-reviews">
@@ -142,6 +146,15 @@ const GoogleSection = ({ days }) => {
               ))}
             </div>
           ) : <EmptyState kind="line" title="Google shows no written reviews for this listing yet." />}
+          {/* The card shows what Google hands back, which is never the whole listing: the rest are on Google, and the
+              listing's own address is the one place that has all of them. Google's `maps_uri`, as Setup links it. */}
+          {L.mapsUri && (
+            <p className="rp2-reviews-more">
+              <a className="cl-bucket-link" href={L.mapsUri} target="_blank" rel="noreferrer" data-testid="google-open-listing">
+                Read every review on Google<Icon name="external" size={12} />
+              </a>
+            </p>
+          )}
         </ChartCard>
       </div>
     </RptSection>

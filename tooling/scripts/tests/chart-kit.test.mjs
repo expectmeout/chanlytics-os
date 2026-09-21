@@ -13,7 +13,7 @@ import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes,
 installLegacyReact();
 for (const f of ["core", "bar", "line", "pie", "radar", "radial", "heat"]) await import(`../../../apps/dashboard/src/legacy/components/chart-${f}.jsx`);
 // The kit's classic scripts publish on window, which is globalThis here, as the app's next script reads them.
-const { ckNice, ckNiceSeconds, ckSecondsLabel, ckMonotone, ckRuns, ckArc, ckEvery, ckTip, ckDescribe, ckTipSide, CkXLabels, ChartCard, ChartLegend, ChartTooltip, BarChart, BarList, LineChart, PieChart, RadarChart, RadialChart, HeatStrip, SegmentBar } = globalThis;
+const { ckNice, ckNiceSeconds, ckSecondsLabel, ckMonotone, ckRuns, ckArc, ckEvery, ckHeight, ckTip, ckDescribe, ckTipSide, CkXLabels, ChartCard, ChartLegend, ChartTooltip, BarChart, BarList, LineChart, PieChart, RadarChart, RadialChart, HeatStrip, SegmentBar } = globalThis;
 
 const ANSWERED = { ai: { label: "Receptionist", color: "var(--chart-1)" }, you: { label: "You", color: "var(--chart-1-soft)" }, none: { label: "Unanswered", color: "var(--warn)", icon: "alert" } };
 const DAYS2 = [{ day: "2026-09-03", label: "Sep 3", short: "3", ai: 3, you: 1, none: 0 }, { day: "2026-09-04", label: "Sep 4", short: "4", ai: 2, you: 0, none: 1 }];
@@ -209,6 +209,38 @@ test("columns: one a day, stacked bottom-up with a 2px gap of card, only the top
   assert.ok(Math.abs(marks[0].props.y - 2 - youBottom) < 0.01, `a 2px gap between receptionist and you: ${marks[0].props.y} vs ${youBottom}`);
   assert.ok(marks[0].props.width <= 24);
   assert.ok(typeof plotOf(tree).props.onPointerMove === "function" && typeof plotOf(tree).props.onPointerDown === "function", "a finger reads a day as a mouse does");
+});
+
+test("a chart told to fill takes the room its card has left, and never less than its floor", () => {
+  // A row is as tall as the card with most to say. A chart given a number keeps it; a chart given "fill" spends the
+  // surplus on itself, so the card has no hole under it -- and keeps a floor, so a row whose cards all fill is
+  // exactly as tall as it was before any of them did.
+  assert.equal(ckHeight(150, 400, 128), 150, "a number is the height, whatever the room");
+  assert.equal(ckHeight("fill", 400, 128), 400, "the room, when there is room");
+  assert.equal(ckHeight("fill", 0, 128), 128, "the floor, before the first measure");
+  assert.equal(ckHeight("fill", 90, 128), 128, "and the floor when the room is less than it");
+  // Drawn: the plot says it fills, carries the floor as its minimum, and the svg is painted over the box (charts.css
+  // takes it out of the flow) so the box's height never comes from the svg.
+  const filled = plotOf(BarChart({ data: DAYS2, keys: ["ai"], config: ANSWERED, height: "fill", floor: 128 }));
+  assert.ok(classes(filled).includes("fill"));
+  assert.deepEqual(filled.props.style, { minHeight: 128 });
+  assert.equal(find(filled, (n) => n.type === "svg").props.height, 128, "the floor until the box is measured");
+  const fixed = plotOf(BarChart({ data: DAYS2, keys: ["ai"], config: ANSWERED, height: 150 }));
+  assert.ok(!classes(fixed).includes("fill"));
+  assert.deepEqual(fixed.props.style, { height: 150 }, "a fixed chart still sets its own height and nothing else");
+  // The line reads the same prop the same way.
+  const line = plotOf(LineChart({ data: WEEK, keys: [{ key: "total" }], config: PERIODS, height: "fill", floor: 176 }));
+  assert.deepEqual(line.props.style, { minHeight: 176 });
+});
+
+test("a donut told to fill is sized from its width, never from the height it is the cause of", () => {
+  // Height would chase itself -- the ring is what makes the box tall -- so the ring takes a share of the width, held
+  // between its floor and its ceiling. At the 600px the kit assumes before it measures, the ceiling is what caps it.
+  const ring = (props) => find(PieChart({ data: [{ key: "whatsapp", value: 3 }, { key: "voice", value: 1 }], config: CHANNELS, ...props }), (n) => classes(n).includes("ck-pie-figure")).props.style;
+  assert.deepEqual(ring({ size: "fill", floor: 138, ceiling: 208 }), { width: 208, height: 208 }, "600 * 0.45 is over the ceiling");
+  assert.deepEqual(ring({ size: "fill", floor: 138, ceiling: 500 }), { width: 270, height: 270 }, "under it, the share of the width");
+  assert.deepEqual(ring({ size: "fill", floor: 320, ceiling: 500 }), { width: 320, height: 320 }, "never under the floor");
+  assert.deepEqual(ring({ size: 138 }), { width: 138, height: 138 }, "a number is the size");
 });
 
 test("a bar list: label and value on one line, the bar under them sized against the largest, a row with a door is a button", () => {

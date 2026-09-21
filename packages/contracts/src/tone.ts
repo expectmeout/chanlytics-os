@@ -27,6 +27,10 @@ import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "./setup";
 import { CALENDAR_FEED_WORDS } from "./calendar";
 import { SOURCE_WORDS, type FactSource } from "./facts";
+import {
+  LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CLASS_WORDS,
+  LEAD_EMAIL_WORDS, LEAD_FIT_WORDS, LEAD_STAGE_WORDS,
+} from "./leads";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -49,7 +53,15 @@ export type StateKind =
   | "calendar"    // the calendar feed the receptionist reads: the Calendar's pill, Connections and Setup (C3)
   /** Where a fact came from: the chip beside a value on the Business tab. */
   | "fact"
-  | "escalation";
+  | "escalation"
+  // Leads. The scope had registered none of these and grew a private colour family instead, which drifted in five
+  // places: a mailbox still being checked read as "nothing there", a bounce drew fainter than a success, and the
+  // accent -- which this file reserves for what is live right now -- sat on Ready, the state every lead starts in.
+  | "lead_class"        // qualified, needs review, left out
+  | "lead_stage"        // ready, contacted, talking, closed
+  | "lead_fit"          // how well the lead matches what the search asked for
+  | "reach"             // a mailbox's state: the Reach column, and the peek's email row
+  | "lead_call_outcome";
 
 /**
  * The tone of each source a fact can have, typed by `FactSource` itself.
@@ -92,6 +104,14 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   // disagree, and only the page knows that.
   fact: { ...FACT_SOURCE_TONE, disputed: "warn" },
   escalation: { open: "warn", resolved: "ok" },
+  // Ready is the silent default every lead starts in, so it is plain: the eye should be drawn to what has moved.
+  lead_class: { qualified: "plain", review: "warn", excluded: "plain" },
+  lead_stage: { ready: "plain", nurture: "info", converted: "ok", archived: "plain" },
+  // A strong fit is a good outcome, not an urgent one. Only the accent means "right now".
+  lead_fit: { strong: "ok", look: "plain", long: "plain" },
+  // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
+  reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
+  lead_call_outcome: LEAD_CALL_OUTCOME_TONES,
 };
 
 /** The words a pill says when the page has none better. */
@@ -112,6 +132,11 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   // facts.ts already wrote these words for the row; a second copy is one that would drift.
   fact: { ...SOURCE_WORDS, disputed: "doesn't match" },
   escalation: { open: "Open", resolved: "Resolved" },
+  lead_class: LEAD_CLASS_WORDS,
+  lead_stage: LEAD_STAGE_WORDS,
+  lead_fit: LEAD_FIT_WORDS,
+  reach: LEAD_EMAIL_WORDS,
+  lead_call_outcome: LEAD_CALL_OUTCOME_WORDS,
 };
 
 /** The tone for a state, or plain for one this map has never heard of. */

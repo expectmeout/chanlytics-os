@@ -80,7 +80,45 @@ const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.b
 // the route checks it — a template chosen, every slot filled — so an
 // enabled Save is a Save that succeeds unless the server knows something
 // newer (a template no longer approved, a booking link gone).
-const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
+/**
+ * A moment nobody is using.
+ *
+ * PLAYBOOK_TRIGGERS is a CLOSED set of six -- win-back, welcome, save our
+ * number, the month's offer, the visit reminder, after the visit -- and the
+ * page drew only the ones somebody had made. A list that can be any length
+ * cannot say "you are using four of six": the two nobody had set up were
+ * simply absent, and the surest way to get more out of Campaigns was the one
+ * thing it never mentioned.
+ *
+ * The count is the surface's own for that trigger, so the card says who it
+ * would reach TODAY rather than promising anything.
+ */
+const PlaybookSlot = ({ t, onStart }) => (
+  <section className="fl-card ob-card ob-slot" data-testid="pb-slot" data-trigger={t.id}>
+    <div className="ob-head">
+      <div className="ob-titles">
+        <span className="ob-name">{t.label}</span>
+      </div>
+      <span className="ob-slot-state">Not set up</span>
+    </div>
+    <p className="ob-sentence ob-sentence-dim" data-testid="pb-slot-who">
+      {t.hint}
+      {t.candidates > 0 ? ` — ${pbPeople(t.candidates)} today` : " — nobody today"}
+    </p>
+    <div className="ob-actions">
+      <button
+        className="btn btn-sm"
+        onClick={() => onStart(t.id)}
+        data-testid="pb-slot-start"
+        {...window.gate("approve", "start a playbook")}
+      >
+        Set it up
+      </button>
+    </div>
+  </section>
+);
+
+const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCancel }) => {
   // Null: the templates read failed -- its own state, never "no template yet".
   const templatesRead = data.templates !== null;
   // As on Broadcasts: a template this product cannot put on the wire is not
@@ -92,7 +130,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const triggers = data.triggers || PB_NONE;
   // What fills a slot, in the composers' words (contracts PARAM_SOURCE_LABELS); a visit's are offered for a visit trigger only (below).
   const SRC = (window.__starters && window.__starters.sources) || { text: "Type it" };
-  const [trigger, setTrigger] = React.useState(editing ? editing.trigger : (triggers[0] ? triggers[0].id : "quiet_30"));
+  const [trigger, setTrigger] = React.useState(editing ? editing.trigger : initialTrigger || (triggers[0] ? triggers[0].id : "quiet_30"));
   const [tplId, setTplId] = React.useState(() => {
     if (editing) return editing.template_id;
     const d = window.__starters ? window.__starters.defaultFor(templates, trigger) : templates[0];
@@ -461,8 +499,11 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
   const [filter, setFilter] = React.useState("all");
   const [composing, setComposing] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
+  // The moment an empty slot was pressed for, so the composer opens on it rather
+  // than on whichever trigger happens to be first.
+  const [slot, setSlot] = React.useState(null);
   React.useEffect(() => {
-    const open = () => { setEditing(null); setComposing(true); };
+    const open = () => { setEditing(null); setSlot(null); setComposing(true); };
     window.addEventListener("playbooks:new", open);
     return () => window.removeEventListener("playbooks:new", open);
   }, []);
@@ -476,12 +517,18 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
 
   const rows = data.rows || PB_NONE;
   const visible = filter === "all" ? rows : rows.filter((p) => pbStatus(p) === filter);
+  // The six moments, and which of them nothing is doing. A filter is about the
+  // playbooks that exist, so it hides the empty slots rather than showing six
+  // cards that match none of it.
+  const triggers = data.triggers || PB_NONE;
+  const usedTriggers = new Set(rows.map((p) => p.trigger));
+  const unused = filter === "all" ? triggers.filter((t) => !usedTriggers.has(t.id)) : PB_NONE;
   const running = rows.filter((p) => p.state === "running").length;
   const waiting = rows.filter((p) => p.totals.waiting).length;
   const sent = rows.reduce((a, p) => a + p.totals.sent, 0);
   const replied = rows.reduce((a, p) => a + p.totals.replied, 0);
   const reachesNobody = rows.filter((p) => pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting }) === "nobody").length;
-  const closeComposer = () => { setComposing(false); setEditing(null); };
+  const closeComposer = () => { setComposing(false); setEditing(null); setSlot(null); };
 
   return (
     <div className="reports pb-page" data-testid="playbooks-real">
@@ -494,7 +541,11 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
           the one in force clears it, as the People line's does. */}
       <div className="cm-standing" data-testid="pb-standing">
         <span className="cm-standing-lead" data-tip="Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.">
-          {rows.length === 0 ? "No playbook yet" : `${rows.length} ${rows.length === 1 ? "playbook" : "playbooks"}`}
+          {/* Out of a fixed six: the line said "3 playbooks" where the number that
+              matters is which of the moments are covered. */}
+          {triggers.length > 0
+            ? `${rows.length} of ${triggers.length} moments`
+            : rows.length === 0 ? "No playbook yet" : `${rows.length} ${rows.length === 1 ? "playbook" : "playbooks"}`}
         </span>
         {PB_FILTERS.filter((f) => f.id !== "all").map((f) => {
           const n = rows.filter((p) => pbStatus(p) === f.id).length;
@@ -544,9 +595,10 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
         )}
         {(composing || editing) && (
           <PlaybookComposer
-            key={editing ? editing.id : "new"}
+            key={editing ? editing.id : slot || "new"}
             data={data}
             editing={editing}
+            initialTrigger={slot}
             onCancel={closeComposer}
             onDone={(d, changed) => {
               closeComposer();
@@ -557,7 +609,14 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
         {visible.map((p) => (
           <PlaybookCard key={p.id} p={p} canAct={canAct} flash={flash} focus={p.id === initialPlaybook} onEdit={(x) => { setComposing(false); setEditing(x); }} />
         ))}
-        {rows.length === 0 && !composing && (
+        {/* The moments nothing is doing, after the ones something is. On a first
+            day that is all six, each naming what it would do and who it would
+            reach — which is a better empty state than one card describing four
+            of them in prose, and the reason the generic one is gone. */}
+        {!composing && !editing && unused.map((t) => (
+          <PlaybookSlot key={t.id} t={t} onStart={(id) => { setEditing(null); setSlot(id); setComposing(true); }} />
+        ))}
+        {rows.length === 0 && unused.length === 0 && !composing && (
           <EmptyState
             kind="card"
             glyph="bolt"
