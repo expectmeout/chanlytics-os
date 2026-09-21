@@ -557,6 +557,34 @@ test("a page holds its fold through useRecordFold: open, close and the ask come 
   folds.reset();
 });
 
+test("a fold whose id is falsy is still a fold, and one listener that throws does not silence the rest", () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  folds.request(0, { dirty: () => true });
+  assert.equal(folds.open(), 0);
+  assert.equal(W.__settingsUnsaved(), true, "an open fold with the id 0 holds changes like any other");
+  assert.equal(folds.request("notes", { dirty: () => false }), false, "and is asked about before it gives way");
+
+  folds.reset();
+  const heard = [];
+  const reported = [];
+  const was = console.error;
+  console.error = (err) => reported.push(err && err.message);
+  const stopA = folds.subscribe(() => { throw new Error("a page's listener broke"); });
+  const stopB = folds.subscribe(() => heard.push(folds.open()));
+  try {
+    folds.request("hours", { dirty: () => false });
+  } finally {
+    console.error = was;
+    stopA();
+    stopB();
+  }
+  assert.deepEqual(heard, ["hours"], "the next listener still hears it");
+  assert.deepEqual(reported, ["a page's listener broke"], "and the one that broke is reported, not swallowed");
+  assert.equal(folds.open(), "hours", "the change itself stands");
+  folds.reset();
+});
+
 test("the page knows when a fold holds unsaved changes", () => {
   W.__recordFolds.reset();
   W.__recordFolds.request("hours", { dirty: () => true });

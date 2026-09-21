@@ -32,9 +32,10 @@
 // holds unsaved changes once it is open. A clean fold gives way at once; a dirty one stays open and the registry
 // records { holding, wants } until one of three answers: discard() (throw its changes away and open the one asked
 // for), stay() (keep editing it), or close(id) from the holding fold itself (saved or cancelled; the one asked for
-// then opens). close(id) from a fold that is not the open one does nothing. reset() forgets what is open and asked.
-// subscribe(fn) hears every change. drawn(id) is RecordFold's own: it counts the folds with each id on the page, and
-// when the last one with the open id goes, the registry lets go.
+// then opens). close(id) from a fold that is not the open one does nothing. subscribe(fn) hears every change. A page
+// reaches all of this through useRecordFold rather than by hand.
+// Two are not for pages: drawn(id) is RecordFold's own (it counts the folds with each id on the page, and when the
+// last one with the open id goes, the registry lets go), and reset() is for tests (it forgets what is open and asked).
 
 const { useRef: useFoldRef, useEffect: useFoldEffect, useState: useFoldState } = React;
 
@@ -47,18 +48,22 @@ const recFolds = (() => {
   // sees can be a new instance of the one that opened: StrictMode's check in development, a key change or a new
   // parent unmounts one and mounts the next in the same commit.
   const live = new Map();
-  // A check that throws is taken as holding changes: asking once too often loses nothing.
+  // "Nothing open" is null, never merely falsy: a fold may be called 0 or "". A check that throws is taken as holding
+  // changes: asking once too often loses nothing.
   const dirty = () => {
-    if (!openId || typeof openDirty !== "function") return false;
+    if (openId == null || typeof openDirty !== "function") return false;
     try { return !!openDirty(); } catch { return true; }
   };
   // The browser asks before the tab closes over a dirty fold. The listener is on only while a fold is open, as
   // BusinessEditor's was only while it held changes, and it asks the fold at the moment the tab closes.
   const hold = (e) => { if (!dirty()) return; e.preventDefault(); e.returnValue = ""; };
+  // Each listener hears every change, whatever another does: one that throws is reported and the rest still hear.
   const tell = () => {
     window.removeEventListener("beforeunload", hold);
-    if (openId) window.addEventListener("beforeunload", hold);
-    for (const fn of [...subs]) fn();
+    if (openId != null) window.addEventListener("beforeunload", hold);
+    for (const fn of [...subs]) {
+      try { fn(); } catch (err) { if (window.console) window.console.error(err); }
+    }
   };
   const become = (id, check) => {
     openId = id == null ? null : id;
@@ -77,7 +82,7 @@ const recFolds = (() => {
         tell();
         return true;
       }
-      if (!openId || !dirty()) { become(id, check); return true; }
+      if (openId == null || !dirty()) { become(id, check); return true; }
       asked = { holding: openId, wants: id, check };
       tell();
       return false;
@@ -89,11 +94,12 @@ const recFolds = (() => {
       if (asked) become(asked.wants, asked.check);
       else become(null);
     },
+    // For tests: forget what is open and what is asked. The folds counted on the page stay counted; they are the page's.
     reset() { become(null); },
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
-    // A fold with this id is on the page; call what this returns when it goes. When the last fold with the open id
-    // goes, the registry lets go of it, asked a moment later so a fold that comes straight back, or comes back as a
-    // new instance, is counted again first.
+    // RecordFold's own, not a page's: a fold with this id is on the page; call what this returns when it goes. When
+    // the last fold with the open id goes, the registry lets go of it, asked a moment later so a fold that comes
+    // straight back, or comes back as a new instance, is counted again first.
     drawn(id) {
       live.set(id, (live.get(id) || 0) + 1);
       return () => {
