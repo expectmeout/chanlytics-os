@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, memberWords, toInboxThreadVM } from "@chanlytics/contracts";
+import { stateOf, memberWords, toInboxThreadVM, toConversationVM, toCallVM } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
 
@@ -63,6 +63,8 @@ await import("../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
 globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
+globalThis.ThreadPane = globalThis.window.ThreadPane;
+await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 const RealInboxThread = globalThis.window.InboxThread;
 globalThis.InboxThread = RealInboxThread;
 const { ThreadPane } = globalThis.window;
@@ -226,4 +228,61 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
     globalThis.document.createElement = realCreate;
     delete globalThis.window.__href;
   }
+});
+
+/* ------------------------------ Conversations ------------------------------ */
+
+const { ConversationsPage } = globalThis.window;
+const textOf = (n) => {
+  if (n == null || typeof n === "boolean") return "";
+  if (typeof n === "string" || typeof n === "number") return String(n);
+  if (Array.isArray(n)) return n.map(textOf).join("");
+  return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
+};
+// Conversations lists a row; the Inbox's read holds the same conversation as a thread -- one GET conversations page.
+const listed = (rows, threads = []) => {
+  globalThis.window.CONVERSATIONS_DATA = { CONVERSATIONS: rows, CV_CHANNELS: [{ id: "all", label: "All" }], CALLS_READ: true };
+  globalThis.window.INBOX_DATA = { THREADS: threads, CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+};
+const conversations = (props = {}) => { seq = 0; return ConversationsPage({ channel: "all", initialId: null, ...props }); };
+// A call as the calls route returns it: a call record, with no recording stored yet.
+const call = {
+  id: "k7", retell_call_id: "r-k7", direction: "inbound", call_type: "phone_call", status: "ended",
+  from_e164: "+19175550106", from_raw: null, to_e164: "+13083368109",
+  started_at: at(30), ended_at: at(27), duration_ms: 190_000,
+  disconnection_reason: "agent_hangup", sentiment: "Positive", call_successful: true, in_voicemail: false,
+  summary: "The caller asked about a bridal trial.", transcript_object: null, recording: null,
+  conversation_id: null, contact_id: "c7", message_id: null,
+  contact: { display_name: "Emily Chen", wa_profile_name: null, phone_e164: "+19175550106" },
+  wanted: "Wants to book a bridal trial", outcome: null, follow_up: null, caller_name: "Emily",
+};
+
+test("a conversation row opens the one thread: the pane beside the list is the Inbox's thread, not a second viewer", () => {
+  fresh(); releasePane();
+  listed([toConversationVM(convo(), ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
+  const tree = conversations();
+  const thread = find(tree, (n) => n.type === globalThis.InboxThread);
+  assert.ok(thread, "REGRESSION: Conversations drew its own viewer for a chat");
+  assert.equal(thread.props.thread.id, "th-c1", "the row's own thread");
+  assert.equal(typeof thread.props.onSend, "function", "with the reply box's verb -- the thread can be answered here");
+  assert.equal(find(tree, (n) => n.type === "button" && textOf(n).includes("View thread in Inbox")), undefined, "REGRESSION: a door to a second screen for the same conversation");
+  assert.equal(find(tree, (n) => n.props?.className === "cv-summary"), undefined, "REGRESSION: the card that repeated the latest message");
+});
+
+test("a call row is a call record, and keeps its own view until calls are drawn in the same frame", () => {
+  fresh(); releasePane();
+  listed([toCallVM(call, ZONE, NOW)]);
+  const tree = conversations();
+  assert.ok(find(tree, (n) => n.props?.className === "cv-viewer"), "the call's recording and transcript view");
+  assert.equal(find(tree, (n) => n.type === globalThis.InboxThread), undefined);
+});
+
+test("a link to a conversation not in view says so where it would have opened, and opens nobody else's", () => {
+  fresh(); releasePane();
+  listed([toConversationVM(convo(), ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
+  const tree = conversations({ initialId: "c-gone" });
+  const missing = find(tree, byTestId("cv-missing-thread"));
+  assert.ok(missing, "the reading pane says the conversation isn't here");
+  assert.match(textOf(missing), /isn't among the newest shown here/);
+  assert.equal(find(tree, (n) => n.type === globalThis.InboxThread), undefined, "REGRESSION: another customer's reply box opened in its place");
 });

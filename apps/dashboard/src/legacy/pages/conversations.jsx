@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, CONVERSATIONS_DATA, TlMedia, EmptyState, FailedRead */
+/* global React, Icon, StatStrip, StatCell, CONVERSATIONS_DATA, TlMedia, EmptyState, FailedRead, ThreadPane */
 // Chanlytics — Conversations
 // The raw communication layer: every call, chat, and email. Calls carry
 // transcripts + agent summaries; the live call streams at the top.
@@ -451,6 +451,12 @@ const CvViewer = ({ c, onBack = null, notice = null }) => {
   );
 };
 
+// A conversation row is the one thread (thread-pane.jsx): the same header, bubbles and verbs as the Inbox, beside the
+// list -- where CvViewer drew it a second way, and could only send you to the Inbox to answer. A call row is a call
+// record, its recording and its transcript, and keeps its own view until the calls are drawn in the same frame. So do
+// the mockup's seeded rows: their threads act only inside the Inbox page's demo state.
+const cvOneThread = (c) => !!c && !window.__DEMO_MODE && !c.callId && !!c.threadId;
+
 // ---------- Page ----------
 const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = window.CONVERSATIONS_DATA;
@@ -540,12 +546,33 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
       {/* A link's notice sits in the reading pane: as a child of this
           two-column grid it took the second cell and pushed the pane under
           the list. */}
-      {selected ? (
-        <CvViewer
-          c={selected}
-          onBack={() => setPhoneOpen(false)}
-          notice={requestedMissing ? `That conversation isn't among the newest ${CONVERSATIONS.length} shown here — open the person in People to find it.` : null}
+      {requestedMissing && !window.__DEMO_MODE ? (
+        // A link to a conversation not in view: said where it would have opened, and nobody else's opened in its
+        // place. The first row used to open beside the notice -- read-only then; with the one thread it would be
+        // another customer's reply box. The Inbox already says it this way.
+        <EmptyState
+          kind="page"
+          glyph="chat"
+          title="That conversation isn't among the newest shown here"
+          body={`Conversations shows the newest ${CONVERSATIONS.length}. Open the person in People to find this one — no other conversation opens in its place.`}
+          action={{ label: "Open People", to: "clients" }}
+          testid="cv-missing-thread"
         />
+      ) : selected ? (
+        cvOneThread(selected) ? (
+          <ThreadPane
+            key={selected.threadId}
+            threadId={selected.threadId}
+            onBack={() => setPhoneOpen(false)}
+            onOpenClient={(id) => window.CHANLY.nav(window.CHANLY.R.client(id))}
+          />
+        ) : (
+          <CvViewer
+            c={selected}
+            onBack={() => setPhoneOpen(false)}
+            notice={requestedMissing ? `That conversation isn't among the newest ${CONVERSATIONS.length} shown here — open the person in People to find it.` : null}
+          />
+        )
       ) : CONVERSATIONS.length === 0 ? (
         <EmptyState kind="page" glyph="chat" title="Nothing to read yet" body="Every WhatsApp chat and phone call with a customer lands here, with what was said." action={{ label: "Open Setup", to: "admin/setup" }} testid="cv-none-pane" />
       ) : (
