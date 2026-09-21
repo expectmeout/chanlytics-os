@@ -197,7 +197,7 @@ import {
   type BookingReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, REPLY_WINDOW_WORDS, OFFERS_OPT_IN_PHRASES, audiencePreview, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type AudiencePreview, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, GET_YES_ROUTE, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, REPLY_WINDOW_WORDS, OFFERS_OPT_IN_PHRASES, audiencePreview, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type AudiencePreview, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -866,6 +866,9 @@ export interface BroadcastsSurface {
    *  opens WhatsApp with it ready, and the QR of that link. Null link without
    *  a number. */
   optIn: { phrase: string; phraseEs: string; link: string | null; qrPath: string | null; pageUrl: string | null };
+  /** Where that yes is got in this product (contracts GET_YES_ROUTE): the ledger's card, which the send screen's
+   *  "nobody has said yes" is a door to. */
+  getYes: string;
   /** The business's own words for the slots that name it, and whether a booking link is on file. */
   businessName: string;
   bookingLink: boolean;
@@ -967,6 +970,7 @@ export const broadcastsOverride: SurfaceOverride = {
         // they ask how this business gets permission to text.
         pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,
       },
+      getYes: GET_YES_ROUTE,
       fetchedAt: now.getTime(),
     };
   },

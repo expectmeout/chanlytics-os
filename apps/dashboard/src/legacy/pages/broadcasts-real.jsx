@@ -817,13 +817,26 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
   }, [openId]);
   // broadcasts/get-yes: the section that answers "nobody has said yes to
-  // offers", brought into view -- it sits under the composer, where a person
-  // sent here to find the QR would otherwise have to scroll for it.
-  React.useEffect(() => {
-    if (!initialYes || typeof document === "undefined") return;
-    const el = document.getElementById("bc-optin");
+  // offers", brought into view -- it sits on the ledger under the runs, where a
+  // person sent here to find the QR would otherwise have to scroll for it.
+  const showYes = () => {
+    const el = typeof document !== "undefined" && document.getElementById ? document.getElementById("bc-optin") : null;
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
-  }, [initialYes]);
+  };
+  React.useEffect(() => { if (initialYes) showYes(); }, [initialYes]);
+  // The send screen's own door to it: the ledger drawn in the send's place, then
+  // the section brought into view the same way. Counted, so that every press
+  // lands, whether or not the address changes -- a send written from
+  // broadcasts/get-yes keeps its address.
+  const [yesAsked, setYesAsked] = React.useState(0);
+  React.useEffect(() => { if (yesAsked) showYes(); }, [yesAsked]);
+  const toYes = () => { setWriting(false); setYesAsked((n) => n + 1); window.CHANLY.nav(data.getYes); };
+  // That door, in the sentence that says nobody has the yes: drawn when the
+  // ledger draws the card, which takes a number to put in the QR. The sentence
+  // pointed at "the phrase and QR below", and nothing is below the send.
+  const yesDoor = data.optIn && data.optIn.link && data.getYes
+    ? <>, or <button type="button" className="bc-nobody-door" onClick={toYes} data-testid="bc-nobody-door">get their yes with the phrase and the QR</button></>
+    : null;
   // The row whose stop is armed, and the one whose stop is on its way.
   const [armId, setArmId] = React.useState(null);
   const [stopping, setStopping] = React.useState(null);
@@ -1133,8 +1146,8 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             {canSend && active && activeCount === 0 && (
               <div className="bc-excl-hint" data-testid="bc-nobody">
                 {purpose === "marketing"
-                  ? <>Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and QR below.</>
-                  : <>Nobody on “{active.label}” has said yes to messages yet. Record it on their profile, or get their yes with the phrase and QR below.</>}
+                  ? <>Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile{yesDoor}.</>
+                  : <>Nobody on “{active.label}” has said yes to messages yet. Record it on their profile{yesDoor}.</>}
               </div>
             )}
           </div>

@@ -2746,9 +2746,10 @@ button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2
 .bc-sheet-why { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .bc-sheet-why li { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
 .bc-sheet-why .cm-reach-dot { width: 6px; height: 6px; }
-.bc-sheet-door { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line-strong); cursor: pointer; }
-.bc-sheet-door:hover { text-decoration-color: currentColor; }
-.bc-sheet-door:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
+/* The door to getting their yes, here and in the send screen's sentence that says nobody has it (bc-nobody). */
+.bc-sheet-door, .bc-nobody-door { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line-strong); cursor: pointer; }
+.bc-sheet-door:hover, .bc-nobody-door:hover { text-decoration-color: currentColor; }
+.bc-sheet-door:focus-visible, .bc-nobody-door:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 /* The words, as its first person reads them: what varies tinted as the preview tints it. */
 .bc-sheet-words { padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
 .bc-sheet-quote { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
@@ -2776,10 +2777,12 @@ html.legacy-on .bc-person-name,
 html.legacy-on .bc-person-door,
 html.legacy-on .bc-touched-filter,
 html.legacy-on .bc-back-all,
-html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
+html.legacy-on .bc-report .bc-run-link,
+html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 .bc-person-door::after,
 .bc-back-all::after,
-.bc-report .bc-run-link::after { content: ""; position: absolute; inset: -14px -8px; }
+.bc-report .bc-run-link::after,
+.bc-nobody-door::after { content: ""; position: absolute; inset: -14px -8px; }
 .bc-touched-filter::after { content: ""; position: absolute; inset: -10px -2px; }
 /* A narrower pane: what came back first, and everyone under it. */
 @container (max-width: 980px) {

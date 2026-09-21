@@ -51,7 +51,7 @@ const broadcastsSurface = (over = {}) => ({
     { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 1, conversational: 1 } },
   ],
   templates: [], rows: [toBroadcastVM(dto(), ZONE)], more: false, heldReasons: contracts.HELD_REASONS,
-  chunk: contracts.BROADCAST_CHUNK, number: null, optIn: null, listsRead: true, scheduleMaxDays: 30, businessName: "Northside Studio", bookingLink: false, ...over,
+  chunk: contracts.BROADCAST_CHUNK, number: null, optIn: null, getYes: contracts.GET_YES_ROUTE, listsRead: true, scheduleMaxDays: 30, businessName: "Northside Studio", bookingLink: false, ...over,
 });
 const playbook = (over = {}) => ({
   id: "pb-1", name: "Win-back", trigger: "quiet_30", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US",
@@ -534,6 +534,89 @@ test("Broadcasts is one ledger: the runs waiting on you said at the head, a band
   tree = page({ initialSegment: "s1", initialRun: null });
   assert.ok(byTestId(tree, "bc-composer"), "People's 'broadcast to this list' lands on the composer");
   globalThis.window.__PLAYBOOKS = undefined;
+});
+
+test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR -- it said 'the phrase and QR below', and since the send became its own screen nothing is below it", () => {
+  const optIn = { phrase: "YES OFFERS", phraseEs: "SI OFERTAS", link: "https://wa.me/13055550100?text=YES%20OFFERS", qrPath: "/api/v1/consent/qr", pageUrl: null };
+  const nobody = [
+    { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 0, conversational: 0 } },
+    { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 0, conversational: 0 } },
+  ];
+  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
+  const note = templateRow({ id: "tpl-note", name: "hours_note", category: "utility", purpose: "conversational" });
+  const scrolled = [];
+  const keep = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === "bc-optin" ? { scrollIntoView: () => scrolled.push(id) } : null);
+  try {
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], audiences: nobody, number: healthyNumber, optIn });
+    const props = { initialSegment: null, initialRun: null };
+    let tree = writing(props);
+    const line = byTestId(tree, "bc-nobody");
+    assert.equal(textOf(line), "Nobody on “Everyone who said yes” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and the QR.", "REGRESSION: '…with the phrase and QR below'");
+    const door = byTestId(line, "bc-nobody-door");
+    assert.equal(textOf(door), "get their yes with the phrase and the QR", "the way to their yes is the door, in the sentence that names it");
+    assert.deepEqual(scrolled, [], "nothing moves before it is pressed");
+
+    // Pressed: the send screen closes onto the ledger, which is where the card is, and the QR is brought into view.
+    press(door);
+    assert.equal(went.at(-1), contracts.GET_YES_ROUTE, "where every other 'nobody has said yes' goes (#663)");
+    tree = again(props);
+    assert.equal(byTestId(tree, "bc-composer"), null, "REGRESSION: navigating while the send screen was up kept it up, and the card undrawn");
+    assert.ok(byTestId(tree, "bc-optin"), "the ledger, with the card the door is for");
+    assert.deepEqual(scrolled, ["bc-optin"], "and the QR brought into view");
+    // Then the shell follows the address it went to, broadcasts/get-yes, which names no list: the send stays shut.
+    tree = again({ ...props, initialYes: true });
+    assert.equal(byTestId(tree, "bc-composer"), null);
+    assert.ok(byTestId(tree, "bc-optin"));
+
+    // Opened from People on a list ("Broadcast to this list"): the door leaves that list's send screen too.
+    tree = page({ initialSegment: "s1", initialRun: null });
+    assert.ok(textOf(byTestId(tree, "bc-nobody")).startsWith("Nobody on “Regulars”"), textOf(byTestId(tree, "bc-nobody")));
+    press(byTestId(tree, "bc-nobody-door"));
+    tree = again({ initialSegment: "s1", initialRun: null });
+    assert.equal(byTestId(tree, "bc-composer"), null);
+    tree = again({ initialSegment: null, initialRun: null, initialYes: true });
+    assert.equal(byTestId(tree, "bc-composer"), null, "the address it lands on does not reopen the list's send");
+    assert.ok(byTestId(tree, "bc-optin"));
+
+    // Written from broadcasts/get-yes itself, where the address does not change when the door is pressed: the door
+    // brings the QR into view on its own, rather than leaving the ledger wherever the send screen was scrolled to.
+    scrolled.length = 0;
+    const yes = { initialSegment: null, initialRun: null, initialYes: true };
+    tree = page(yes);
+    assert.deepEqual(scrolled, ["bc-optin"], "the landing, as #663 made it");
+    press(byTestId(tree, "bc-new"));
+    tree = again(yes);
+    press(byTestId(tree, "bc-nobody-door"));
+    tree = again(yes);
+    assert.equal(byTestId(tree, "bc-composer"), null);
+    assert.deepEqual(scrolled, ["bc-optin", "bc-optin"], "REGRESSION: with no change of address, nothing brought it into view");
+    // And again, on the same page: every press lands, not only the first.
+    press(byTestId(tree, "bc-new"));
+    tree = again(yes);
+    press(byTestId(tree, "bc-nobody-door"));
+    tree = again(yes);
+    assert.deepEqual(scrolled, ["bc-optin", "bc-optin", "bc-optin"], "a second press lands too");
+
+    // A message for everyone who said yes to messages says so, and has the same door.
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [note], audiences: nobody, number: healthyNumber, optIn });
+    tree = writing(props);
+    assert.equal(textOf(byTestId(tree, "bc-nobody")), "Nobody on “Everyone who said yes” has said yes to messages yet. Record it on their profile, or get their yes with the phrase and the QR.");
+    assert.ok(byTestId(byTestId(tree, "bc-nobody"), "bc-nobody-door"));
+
+    // No number, no QR: no door to a card the ledger does not draw, and no sentence about it.
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], audiences: nobody, number: healthyNumber, optIn: { ...optIn, link: null, qrPath: null } });
+    tree = writing(props);
+    assert.equal(textOf(byTestId(tree, "bc-nobody")), "Nobody on “Everyone who said yes” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile.");
+    assert.equal(byTestId(tree, "bc-nobody-door"), null);
+    // A surface cached before the page knew where the card is: the sentence ends at the profile until it is read again.
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], audiences: nobody, number: healthyNumber, optIn, getYes: undefined });
+    tree = writing(props);
+    assert.equal(byTestId(tree, "bc-nobody-door"), null, "never a door to #/undefined");
+    assert.ok(textOf(byTestId(tree, "bc-nobody")).endsWith("on their profile."));
+  } finally {
+    globalThis.document.getElementById = keep;
+  }
 });
 
 test("REGRESSION (C14): a send in flight draws its progress, Approve says it is approving and cannot approve twice, and Scheduled counts by state -- 'N queued' counted runs waiting for you", async () => {
