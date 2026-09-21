@@ -43,6 +43,12 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "wave":     return <svg {...props}><path d="M2 8h2l1-3 2 6 2-4 1.5 2H14"/></svg>;
     case "video":    return <svg {...props}><rect x="2" y="4" width="9" height="8" rx="1"/><path d="M11 7l3-2v6l-3-2z"/></svg>;
     case "tag":      return <svg {...props}><path d="M2.5 8.5l6-6h5v5l-6 6-5-5z"/><circle cx="10.5" cy="5.5" r="0.7" fill="currentColor"/></svg>;
+    // A gift: an offer, where a template is marketing and reaches only people who said yes to offers.
+    case "gift":     return <svg {...props}><path d="M2.5 6h11v2.5h-11z"/><path d="M3.5 8.5v5h9v-5"/><path d="M8 6v7.5"/><path d="M8 6H5.8a1.5 1.5 0 110-3C7.4 3 8 6 8 6zM8 6h2.2a1.5 1.5 0 100-3C8.6 3 8 6 8 6z"/></svg>;
+    // A standing run: a playbook's, which comes round again.
+    case "repeat":   return <svg {...props}><path d="M11.5 1.5l2 2-2 2"/><path d="M2.5 7.5v-1a3 3 0 013-3h8"/><path d="M4.5 14.5l-2-2 2-2"/><path d="M13.5 8.5v1a3 3 0 01-3 3h-8"/></svg>;
+    // A send: a broadcast, once.
+    case "send":     return <svg {...props}><path d="M14 2L7.5 8.5"/><path d="M14 2l-4.5 12-2-5.5-5.5-2z"/></svg>;
     case "money":    return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M8 5v6M6 9c0 1 .9 1.5 2 1.5s2-.5 2-1.3-.9-1.2-2-1.4-2-.5-2-1.3.9-1.5 2-1.5 2 .5 2 1.5"/></svg>;
     case "trending-up": return <svg {...props}><path d="M2 12l4-4 3 3 5-5"/><path d="M9.5 6h4v4"/></svg>;
     case "chevron-up":  return <svg {...props}><path d="M4 10l4-4 4 4"/></svg>;
@@ -53,6 +59,8 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "pause":    return <svg {...props}><rect x="4.5" y="3" width="2.5" height="10" fill="currentColor"/><rect x="9" y="3" width="2.5" height="10" fill="currentColor"/></svg>;
     case "alert":    return <svg {...props}><path d="M8 2L1.5 13h13L8 2z"/><path d="M8 6.5v3M8 11.5v.5"/></svg>;
     case "info":     return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5.25v.5"/></svg>;
+    // A notice that asks for something: the info glyph turned over.
+    case "notice":   return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.5M8 10.75v.5"/></svg>;
     case "error":    return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M6 6l4 4M10 6l-4 4"/></svg>;
     case "headphones": return <svg {...props}><path d="M2 9v3a1 1 0 001 1h1.5v-5H3a1 1 0 00-1 1zM14 9v3a1 1 0 01-1 1h-1.5v-5H13a1 1 0 011 1z"/><path d="M2 9a6 6 0 0112 0"/></svg>;
     case "eye":      return <svg {...props}><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>;

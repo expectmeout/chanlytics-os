@@ -69,16 +69,28 @@ const ST_GROUPS = {
   },
 };
 
+// What each Campaigns tab says is behind it, from the surface that page reads:
+// the playbooks running, the runs waiting on the owner, the templates on file.
+// A surface not read yet says nothing, never a 0 -- a tab visited first reads its
+// own, and the others fill in as they are read. Only the runs waiting on you are
+// a warning; the other two are counts.
+const ST_COUNTS = {
+  outbound: { tone: "plain", n: () => (window.__PLAYBOOKS && window.__PLAYBOOKS.rows ? window.__PLAYBOOKS.rows.filter((p) => p.state === "running").length : 0) },
+  broadcasts: { tone: "warn", n: () => (window.__BROADCASTS && window.__BROADCASTS.rows ? window.__BROADCASTS.rows.filter((r) => r.state === "pending_approval").length : 0) },
+  messages: { tone: "plain", n: () => (Array.isArray(window.__TEMPLATES_ALL) ? window.__TEMPLATES_ALL.filter((t) => !t.hidden_at && t.name !== "hello_world").length : 0) },
+};
+
 const SurfaceTabs = ({ page, param, onNavigate }) => {
   const [, stBump] = React.useReducer(n => n + 1, 0);
   React.useEffect(() => {
     // inbox:counts too: the Needs-you tab carries the badge, and the count moves
     // when Today publishes the real one or a decision lands.
-    const evs = ["live:ended", "surface:live", "inbox:counts", "inbox:decisions", "leads:verdict"];
+    // The Campaigns surfaces too: each tab's count is read off them.
+    const evs = ["live:ended", "surface:live", "inbox:counts", "inbox:decisions", "leads:verdict", "surface:playbooks", "surface:broadcasts", "surface:settings"];
     evs.forEach(e => window.addEventListener(e, stBump));
     return () => evs.forEach(e => window.removeEventListener(e, stBump));
   }, []);
-  const group = Object.values(ST_GROUPS).find(g => g.match.includes(page));
+  const [groupKey, group] = Object.entries(ST_GROUPS).find(([, g]) => g.match.includes(page)) || [null, null];
   if (!group) return null;
   const tabs = group.tabs.filter(t => !t.demoOnly || window.__DEMO_MODE);
   if (tabs.length < 2) return null;
@@ -86,15 +98,16 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
   // People, and the tabs vanished on the last two (the wiring audit's N24).
   if (page === "clients" && param && !/^(seg|list|state):/.test(param)) return null;
   return (
-    <nav className="stabs" aria-label="Section views">
+    <nav className={`stabs stabs-${groupKey}`} aria-label="Section views">
       {tabs.map(t => {
-        const badge = t.badge ? t.badge() : null;
+        const count = groupKey === "campaigns" ? ST_COUNTS[t.id] : null;
+        const badge = t.badge ? t.badge() : count ? count.n() || null : null;
         const pulse = t.pulse ? t.pulse() : false;
         return (
           <button key={t.id} className={`stabs-tab ${page === t.id ? "active" : ""}`} data-tip={t.tip || null} data-tip-side="bottom" onClick={() => onNavigate(t.to)}>
             {t.label}
             {pulse && <span className="live-dot" style={{ width: 5, height: 5 }} />}
-            {badge ? <span className="stabs-badge tabular">{badge}</span> : null}
+            {badge ? <span className="stabs-badge tabular" data-tone={count ? count.tone : "accent"}>{badge}</span> : null}
           </button>
         );
       })}

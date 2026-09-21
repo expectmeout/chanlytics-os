@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, bookingTemplate, templateBlocked, templateComponents, templateParts, templateSends, templateUsage, validateTemplateDraft } from "@chanlytics/contracts";
+import { AppError, bookingTemplate, runsWords, templateBlocked, templateComponents, templateParts, templateSends, templateUsage, validateTemplateDraft } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate } from "@/server/service";
@@ -83,12 +83,15 @@ export const GET = read({
     // and never wired up -- and this list was the one place that could not say so.
     if (!all) return { templates };
     const [pb, runs, recipients, inbox] = await Promise.all([
-      ctx.supabase.from("playbooks").select("id, name, template_name, state").eq("tenant_id", tenantId),
+      // Its clock, for the line under what sends it ("runs daily at 10:00").
+      ctx.supabase.from("playbooks").select("id, name, template_name, state, trigger, run_hour, cadence_days").eq("tenant_id", tenantId),
       // Every run, a page at a time: a daily playbook alone passes a thousand of
       // them in three years, and a run cut off the end sent messages nobody is
       // credited with.
       everyRow("broadcasts", (from, to) =>
-        ctx.supabase.from("broadcasts").select("id, template_name, playbook_id").eq("tenant_id", tenantId).order("id").range(from, to)),
+        // A run's state says whether its playbook is waiting on the owner; a name and a
+        // date let a message people send by hand name the latest two.
+        ctx.supabase.from("broadcasts").select("id, template_name, playbook_id, name, state, created_at").eq("tenant_id", tenantId).order("id").range(from, to)),
       // What LEFT, person by person. A broadcast's `recipient_count` is the
       // audience it was scheduled for; the wire holds people back from it and a
       // run can stop part-way, and Reports › Campaigns counts "Messages sent"
@@ -107,7 +110,7 @@ export const GET = read({
     ]);
     if (pb.error) throw new Error(pb.error.message);
     const usedBy = templateUsage({
-      playbooks: pb.data ?? [],
+      playbooks: (pb.data ?? []).map((p) => ({ ...p, runs: runsWords(p) })),
       broadcasts: runs,
       bookingName: bookingTemplate(templates)?.name ?? null,
     });

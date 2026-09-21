@@ -220,6 +220,17 @@ export function scheduleLine(p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_
   return `Daily ${at} · up to ${p.cap_per_run} · once per person, again after ${p.gap_days} days`;
 }
 
+/**
+ * A playbook's clock in the fewest words -- "runs daily at 10:00", "runs every
+ * 30 days at 10:00" -- for a line under something that names it, where
+ * `scheduleLine`'s cap and gap would be a sentence too many.
+ */
+// The trigger is compared, never narrowed, so a row read from the table (a plain string) will do.
+export function runsWords(p: { trigger: string; run_hour: number; cadence_days: number }): string {
+  const at = `${two(p.run_hour)}:00`;
+  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at}` : `runs daily at ${at}`;
+}
+
 /** "today 10:00", "today, within the hour" or "tomorrow 10:00", by the business's clock; "paused" when it is. */
 export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">, tz: string, now: Date): string {
   if (p.state !== "running") return "paused";

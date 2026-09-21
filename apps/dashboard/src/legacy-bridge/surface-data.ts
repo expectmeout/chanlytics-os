@@ -1,4 +1,4 @@
-import { POLICY_CLASS_WORDS, templateSentWords, templateUnused, templateUseWords, type PersonRowDto, type TemplateSentWords } from "@chanlytics/contracts";
+import { POLICY_CLASS_WORDS, STARTER_TEMPLATES, templateSentWords, templateUnused, templateUseNote, templateUseWords, type PersonRowDto, type TemplateSentWords } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
@@ -525,7 +525,7 @@ export const settingsOverride: SurfaceOverride = {
       __POLICIES?: PoliciesSurface | null;
       __CHANNELS?: ChannelVM[] | null;
       __TEMPLATES_ALL?: TemplateDto[] | null;
-      __TEMPLATE_USE?: Record<string, { words: string; unused: boolean; playbook: string | null }> | null;
+      __TEMPLATE_USE?: Record<string, { words: string; note: string | null; unused: boolean; playbook: string | null; running: boolean }> | null;
       __TEMPLATE_SENT?: Record<string, TemplateSentWords> | null;
     };
     // `broken` is its own state, not an empty config: the pane closes its
@@ -555,15 +555,19 @@ export const settingsOverride: SurfaceOverride = {
     } else {
       w.__TEMPLATES_ALL = (tpl.templates ?? []).filter((t) => t.channel === "whatsapp");
       const names = [...new Set(w.__TEMPLATES_ALL.map((t) => t.name))];
+      // The usage covers every starter too, added or not: a starter nobody added
+      // is still a row on the page, and "nothing sends it" is a reading about it,
+      // not a gap in the map.
+      const useNames = [...new Set([...names, ...STARTER_TEMPLATES.map((st) => st.name)])];
       // What sends each of them, as the sentence the card draws. Keyed by NAME:
       // a template is one message in several languages, and the thing that sends
       // it names the message. Every name gets an entry, so a name MISSING from
       // the map means the usage was not read -- never "nothing sends it".
       const used = tpl.usedBy ?? {};
       w.__TEMPLATE_USE = Object.fromEntries(
-        names.map((name) => {
-          const u = used[name] ?? { playbooks: [], broadcasts: 0, booking: false };
-          return [name, { words: templateUseWords(u), unused: templateUnused(u), playbook: u.playbooks.length === 1 ? u.playbooks[0]!.id : null }];
+        useNames.map((name) => {
+          const u = used[name] ?? { playbooks: [], broadcasts: 0, recent: [], booking: false };
+          return [name, { words: templateUseWords(u), note: templateUseNote(u), unused: templateUnused(u), playbook: u.playbooks.length === 1 ? u.playbooks[0]!.id : null, running: u.playbooks.some((p) => !p.paused) }];
         }),
       );
       // How many of each went out and when the latest did, as the Sent column
