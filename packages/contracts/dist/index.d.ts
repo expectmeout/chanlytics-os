@@ -9684,23 +9684,38 @@ declare const CANNOT_ROWS: readonly CannotRowVM[];
  * The composed prompt, cut into the blocks that wrote it.
  *
  * The preview was one 4,000-character <pre> behind a Show toggle. Every block
- * in it came from one row upstairs, and naming the row turns a dump into a map
- * back into the page — which is also the only way an owner can see that
- * services and their own words are more than half of everything it reads.
+ * in it came from somewhere, and naming where turns a dump into a map back into
+ * the page — which is also the only way an owner can see that services and
+ * their own words are more than half of everything it reads.
  *
- * Cut on the headings the composer itself writes, so this cannot drift from it:
- * a heading that composeSystemPrompt stops emitting simply stops appearing here.
+ * Three kinds of text, and each has to land in the right place:
+ *
+ *   - Text a row wrote, under a heading the composer emits: hours, services,
+ *     the hand-off. Cut on those headings, read off `composeSystemPrompt`, so a
+ *     heading it stops emitting simply stops appearing here.
+ *   - The owner's own words, which have no reliable heading -- the composer
+ *     frames them only when there is something above to disagree with. Found by
+ *     their literal text instead, and fenced off FIRST: they are often a prompt
+ *     written before the form existed, restating the hours and services under
+ *     headings of their own, and a cut on headings would count that old prose as
+ *     the Hours and Services rows.
+ *   - Text Chanlytics writes for every workspace: the call's tool mechanics, the
+ *     medium line, the open-times line. Named as the platform's, so it is never
+ *     folded into a row the owner can edit. With nothing else present it used to
+ *     land in "Who you are" and grow it twelvefold.
  */
 interface PromptBlockVM {
-    /** The row on the page that wrote it. */
+    /** Where it came from: a row on the page, the owner's own words, or the platform. */
     row: string;
     label: string;
+    /** For display: the block's text, trimmed. */
     text: string;
+    /** Its exact share of the prompt, separators included, so the blocks sum to the whole. */
     chars: number;
     /** A caveat worth saying beside the block. */
     note?: string;
 }
-declare function promptBlocks(text: string, _channel: "whatsapp" | "voice"): PromptBlockVM[];
+declare function promptBlocks(text: string, channel: "whatsapp" | "voice", ownWords?: string | null): PromptBlockVM[];
 
 /**
  * Which registration a business is on, and what that path costs it.

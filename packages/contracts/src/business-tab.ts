@@ -267,33 +267,53 @@ export const CANNOT_ROWS: readonly CannotRowVM[] = [
   },
 ];
 
+
 /**
  * The composed prompt, cut into the blocks that wrote it.
  *
  * The preview was one 4,000-character <pre> behind a Show toggle. Every block
- * in it came from one row upstairs, and naming the row turns a dump into a map
- * back into the page — which is also the only way an owner can see that
- * services and their own words are more than half of everything it reads.
+ * in it came from somewhere, and naming where turns a dump into a map back into
+ * the page — which is also the only way an owner can see that services and
+ * their own words are more than half of everything it reads.
  *
- * Cut on the headings the composer itself writes, so this cannot drift from it:
- * a heading that composeSystemPrompt stops emitting simply stops appearing here.
+ * Three kinds of text, and each has to land in the right place:
+ *
+ *   - Text a row wrote, under a heading the composer emits: hours, services,
+ *     the hand-off. Cut on those headings, read off `composeSystemPrompt`, so a
+ *     heading it stops emitting simply stops appearing here.
+ *   - The owner's own words, which have no reliable heading -- the composer
+ *     frames them only when there is something above to disagree with. Found by
+ *     their literal text instead, and fenced off FIRST: they are often a prompt
+ *     written before the form existed, restating the hours and services under
+ *     headings of their own, and a cut on headings would count that old prose as
+ *     the Hours and Services rows.
+ *   - Text Chanlytics writes for every workspace: the call's tool mechanics, the
+ *     medium line, the open-times line. Named as the platform's, so it is never
+ *     folded into a row the owner can edit. With nothing else present it used to
+ *     land in "Who you are" and grow it twelvefold.
  */
 export interface PromptBlockVM {
-  /** The row on the page that wrote it. */
+  /** Where it came from: a row on the page, the owner's own words, or the platform. */
   row: string;
   label: string;
+  /** For display: the block's text, trimmed. */
   text: string;
+  /** Its exact share of the prompt, separators included, so the blocks sum to the whole. */
   chars: number;
   /** A caveat worth saying beside the block. */
   note?: string;
 }
 
+type BlockMark = { row: string; label: string; startsWith: string; channel?: "whatsapp" | "voice"; note?: string };
+
+const PLATFORM_NOTE = "Written by Chanlytics, the same on every workspace. Not yours to edit.";
+
 /**
  * Read off `composeSystemPrompt`, not guessed. Each `startsWith` is the exact
- * heading that function emits; a heading it stops emitting simply stops
- * appearing here, which is the point of cutting on them.
+ * opening that function writes; a mark with a channel matches only on that
+ * channel's prompt, so a coincidence on the other one cannot split a block.
  */
-const BLOCK_MARKS: { row: string; label: string; startsWith: string; note?: string }[] = [
+const BLOCK_MARKS: readonly BlockMark[] = [
   { row: "hours", label: "When you're open", startsWith: "Opening hours" },
   { row: "closures", label: "Days you're closed", startsWith: "Closed on these dates" },
   { row: "services", label: "Services", startsWith: "Services:" },
@@ -303,32 +323,108 @@ const BLOCK_MARKS: { row: string; label: string; startsWith: string; note?: stri
     row: "escalate_when",
     label: "Hand-off",
     startsWith: "Handing the conversation to a person:",
-    note: "WhatsApp only — on a call the agent has its own transfer, so this block is absent.",
+    channel: "whatsapp",
+    note: "WhatsApp only — on a call the agent transfers to your number instead, and that is the call's own hand-off.",
   },
+  {
+    row: "handoff_number",
+    label: "Hand-off",
+    startsWith: "Handing the caller to a person:",
+    channel: "voice",
+    note: "Phone only — on WhatsApp the receptionist hands the thread to you instead.",
+  },
+  { row: "platform", label: "Chanlytics' own instructions", startsWith: "Open times: use check_availability", channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: "Chanlytics' own instructions", startsWith: "You are speaking aloud.", channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: "Chanlytics' own instructions", startsWith: "Keep replies short enough to read on a phone.", channel: "whatsapp", note: PLATFORM_NOTE },
+  { row: "platform", label: "Chanlytics' own instructions", startsWith: "If open times are listed after these instructions", note: PLATFORM_NOTE },
   { row: "guardrails", label: "Rules it always keeps", startsWith: "Rules you must follow:" },
 ];
 
-export function promptBlocks(text: string, _channel: "whatsapp" | "voice"): PromptBlockVM[] {
+/** The line the composer puts above the owner's words, when it writes one. */
+const OWN_WORDS_FRAMES = ["Further instructions from the business.", "Some of it was written for text conversations"];
+
+const OWN_WORDS: BlockMark = { row: "extra_instructions", label: "In your own words", startsWith: "" };
+
+/**
+ * Where the owner's own words sit, as a line range, or null.
+ *
+ * Found line-aligned: the composer pushes the trimmed text on lines of its own,
+ * so a match must start and end on a line boundary. That is what stops a short
+ * phrase matching inside a rule. Searched from the end, because the owner's
+ * words follow every row's block and only the platform's fixed text and the
+ * rules come after them.
+ */
+function ownWordsSpan(lines: readonly string[], ownWords: string | null | undefined): { from: number; to: number } | null {
+  const want = (ownWords ?? "").trim().split("\n");
+  if (!want[0]) return null;
+  for (let i = lines.length - want.length; i >= 0; i--) {
+    if (!want.every((w, k) => lines[i + k] === w)) continue;
+    // The composer's framing line comes with them when it sits directly above.
+    const framed = i > 0 && OWN_WORDS_FRAMES.some((f) => lines[i - 1].startsWith(f));
+    return { from: framed ? i - 1 : i, to: i + want.length };
+  }
+  return null;
+}
+
+export function promptBlocks(text: string, channel: "whatsapp" | "voice", ownWords?: string | null): PromptBlockVM[] {
   const lines = text.split("\n");
-  const starts: { at: number; mark: (typeof BLOCK_MARKS)[number] }[] = [];
+  const own = ownWordsSpan(lines, ownWords);
+  const insideOwn = (n: number) => !!own && n >= own.from && n < own.to;
+  const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
+
+  // Every place a block starts: each opening the composer wrote, once each and
+  // never inside the owner's words, and the owner's words themselves.
+  const starts: { at: number; mark: BlockMark }[] = [];
+  const seen = new Set<string>();
   lines.forEach((line, n) => {
-    const mark = BLOCK_MARKS.find((m) => line.trim().startsWith(m.startsWith));
-    if (mark && !starts.some((s) => s.mark.row === mark.row)) starts.push({ at: n, mark });
+    if (insideOwn(n)) return;
+    const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
+    if (!mark || seen.has(mark.startsWith)) return;
+    seen.add(mark.startsWith);
+    starts.push({ at: n, mark });
   });
+  if (own) starts.push({ at: own.from, mark: OWN_WORDS });
   starts.sort((a, b) => a.at - b.at);
 
-  const out: PromptBlockVM[] = [];
-  // Everything before the first marked heading is who you are: the opening
-  // sentence, the tone, the languages, the address, the phone and the link.
+  // Contiguous line ranges, in the order the receptionist reads them. Everything
+  // before the first start is who you are: the opening sentence, the tone, the
+  // languages, the address, the phone and the link, none of which has a heading.
+  const segments: { from: number; to: number; mark: BlockMark | null }[] = [];
   const first = starts[0]?.at ?? lines.length;
-  const head = lines.slice(0, first).join("\n").trim();
-  if (head) out.push({ row: "identity", label: "Who you are", text: head, chars: head.length });
+  if (first > 0) segments.push({ from: 0, to: first, mark: null });
+  starts.forEach((s, n) => segments.push({ from: s.at, to: starts[n + 1]?.at ?? lines.length, mark: s.mark }));
+  const ranges = segments.filter((s) => s.from < s.to);
 
-  starts.forEach((s, n) => {
-    const end = starts[n + 1]?.at ?? lines.length;
-    const body = lines.slice(s.at, end).join("\n").trim();
-    if (!body) return;
-    out.push({ row: s.mark.row, label: s.mark.label, text: body, chars: body.length, ...(s.mark.note ? { note: s.mark.note } : {}) });
+  const out: PromptBlockVM[] = [];
+  let carry = 0;
+  ranges.forEach((seg, n) => {
+    const body = lines.slice(seg.from, seg.to).join("\n");
+    // The newline joining this range to the next is this range's, so the shares
+    // sum to the prompt exactly and no bar quietly drops a character.
+    const chars = body.length + (n < ranges.length - 1 ? 1 : 0);
+    const row = seg.mark?.row ?? "identity";
+    const prev = out[out.length - 1];
+    if (!body.trim()) {
+      // Blank lines give their characters to a neighbour rather than drawing an empty block.
+      if (prev) prev.chars += chars;
+      else carry += chars;
+      return;
+    }
+    // A row that runs on across two ranges is one block: the platform's medium line
+    // and its open-times line sit side by side.
+    if (prev && prev.row === row) {
+      prev.text = `${prev.text}\n${body.trim()}`;
+      prev.chars += chars;
+      return;
+    }
+    out.push({
+      row,
+      label: seg.mark?.label ?? "Who you are",
+      text: body.trim(),
+      chars: chars + carry,
+      ...(seg.mark?.note ? { note: seg.mark.note } : {}),
+    });
+    carry = 0;
   });
   return out;
 }

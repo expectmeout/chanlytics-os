@@ -10678,6 +10678,7 @@ var CANNOT_ROWS = [
     soon: true
   }
 ];
+var PLATFORM_NOTE = "Written by Chanlytics, the same on every workspace. Not yours to edit.";
 var BLOCK_MARKS = [
   { row: "hours", label: "When you're open", startsWith: "Opening hours" },
   { row: "closures", label: "Days you're closed", startsWith: "Closed on these dates" },
@@ -10688,27 +10689,81 @@ var BLOCK_MARKS = [
     row: "escalate_when",
     label: "Hand-off",
     startsWith: "Handing the conversation to a person:",
-    note: "WhatsApp only \u2014 on a call the agent has its own transfer, so this block is absent."
+    channel: "whatsapp",
+    note: "WhatsApp only \u2014 on a call the agent transfers to your number instead, and that is the call's own hand-off."
   },
+  {
+    row: "handoff_number",
+    label: "Hand-off",
+    startsWith: "Handing the caller to a person:",
+    channel: "voice",
+    note: "Phone only \u2014 on WhatsApp the receptionist hands the thread to you instead."
+  },
+  { row: "platform", label: "Chanlytics' own instructions", startsWith: "Open times: use check_availability", channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: "Chanlytics' own instructions", startsWith: "You are speaking aloud.", channel: "voice", note: PLATFORM_NOTE },
+  { row: "platform", label: "Chanlytics' own instructions", startsWith: "Keep replies short enough to read on a phone.", channel: "whatsapp", note: PLATFORM_NOTE },
+  { row: "platform", label: "Chanlytics' own instructions", startsWith: "If open times are listed after these instructions", note: PLATFORM_NOTE },
   { row: "guardrails", label: "Rules it always keeps", startsWith: "Rules you must follow:" }
 ];
-function promptBlocks(text, _channel) {
+var OWN_WORDS_FRAMES = ["Further instructions from the business.", "Some of it was written for text conversations"];
+var OWN_WORDS = { row: "extra_instructions", label: "In your own words", startsWith: "" };
+function ownWordsSpan(lines, ownWords) {
+  const want = (ownWords ?? "").trim().split("\n");
+  if (!want[0]) return null;
+  for (let i = lines.length - want.length; i >= 0; i--) {
+    if (!want.every((w, k) => lines[i + k] === w)) continue;
+    const framed = i > 0 && OWN_WORDS_FRAMES.some((f) => lines[i - 1].startsWith(f));
+    return { from: framed ? i - 1 : i, to: i + want.length };
+  }
+  return null;
+}
+function promptBlocks(text, channel, ownWords) {
   const lines = text.split("\n");
+  const own = ownWordsSpan(lines, ownWords);
+  const insideOwn = (n) => !!own && n >= own.from && n < own.to;
+  const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
   const starts = [];
+  const seen = /* @__PURE__ */ new Set();
   lines.forEach((line, n) => {
-    const mark = BLOCK_MARKS.find((m) => line.trim().startsWith(m.startsWith));
-    if (mark && !starts.some((s) => s.mark.row === mark.row)) starts.push({ at: n, mark });
+    if (insideOwn(n)) return;
+    const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
+    if (!mark || seen.has(mark.startsWith)) return;
+    seen.add(mark.startsWith);
+    starts.push({ at: n, mark });
   });
+  if (own) starts.push({ at: own.from, mark: OWN_WORDS });
   starts.sort((a, b) => a.at - b.at);
-  const out = [];
+  const segments = [];
   const first = starts[0]?.at ?? lines.length;
-  const head = lines.slice(0, first).join("\n").trim();
-  if (head) out.push({ row: "identity", label: "Who you are", text: head, chars: head.length });
-  starts.forEach((s, n) => {
-    const end = starts[n + 1]?.at ?? lines.length;
-    const body = lines.slice(s.at, end).join("\n").trim();
-    if (!body) return;
-    out.push({ row: s.mark.row, label: s.mark.label, text: body, chars: body.length, ...s.mark.note ? { note: s.mark.note } : {} });
+  if (first > 0) segments.push({ from: 0, to: first, mark: null });
+  starts.forEach((s, n) => segments.push({ from: s.at, to: starts[n + 1]?.at ?? lines.length, mark: s.mark }));
+  const ranges = segments.filter((s) => s.from < s.to);
+  const out = [];
+  let carry = 0;
+  ranges.forEach((seg, n) => {
+    const body = lines.slice(seg.from, seg.to).join("\n");
+    const chars = body.length + (n < ranges.length - 1 ? 1 : 0);
+    const row2 = seg.mark?.row ?? "identity";
+    const prev = out[out.length - 1];
+    if (!body.trim()) {
+      if (prev) prev.chars += chars;
+      else carry += chars;
+      return;
+    }
+    if (prev && prev.row === row2) {
+      prev.text = `${prev.text}
+${body.trim()}`;
+      prev.chars += chars;
+      return;
+    }
+    out.push({
+      row: row2,
+      label: seg.mark?.label ?? "Who you are",
+      text: body.trim(),
+      chars: chars + carry,
+      ...seg.mark?.note ? { note: seg.mark.note } : {}
+    });
+    carry = 0;
   });
   return out;
 }

@@ -195,3 +195,83 @@ test("the hand-off block is WhatsApp's alone", () => {
   assert.ok(!voice.some((b) => b.row === "escalate_when"), "the phone has its own transfer, so the block is absent");
   assert.match(wa.find((b) => b.row === "escalate_when").note ?? "", /WhatsApp only/i);
 });
+
+test("the call's hand-off is its own block, under its own heading", () => {
+  // composeSystemPrompt writes a different heading on voice -- "Handing the caller
+  // to a person:" -- driven by the transfer number, not by escalate_when. Missed, it
+  // was folded silently into whatever block came before it.
+  const withLine = { ...profile, handoff_number: "+16469325775" };
+  const voice = promptBlocks(composeSystemPrompt(brain, withLine, "voice", "America/New_York"), "voice");
+  const h = voice.find((b) => b.row === "handoff_number");
+  assert.ok(h, "the call's hand-off has a block");
+  assert.match(h.text, /transfer_to_staff/);
+  assert.match(h.note ?? "", /Phone only/i);
+  for (const b of voice) if (b.row !== "handoff_number") assert.doesNotMatch(b.text, /Handing the caller to a person/, `${b.row} does not swallow it`);
+});
+
+const own = "Never discuss competitors.\nA first name is all the personal data you need.";
+
+test("the owner's own words are one block, on both channels", () => {
+  // Pushed as `\n${text}`, sometimes under a header and sometimes not, so a cut on
+  // headings alone folded them into whatever came before. They are the reason this
+  // view exists: an owner has to be able to see their own words, and their size.
+  const withOwn = { ...profile, extra_instructions: own };
+  for (const channel of ["whatsapp", "voice"]) {
+    const text = composeSystemPrompt(brain, withOwn, channel, "America/New_York");
+    const blocks = promptBlocks(text, channel, withOwn.extra_instructions);
+    const mine = blocks.filter((b) => b.row === "extra_instructions");
+    assert.equal(mine.length, 1, `${channel}: one block for the owner's words`);
+    assert.match(mine[0].text, /Never discuss competitors\./);
+    assert.match(mine[0].text, /A first name is all/);
+    for (const b of blocks) {
+      if (b.row !== "extra_instructions") assert.doesNotMatch(b.text, /Never discuss competitors/, `${channel}: ${b.row} does not claim them`);
+    }
+  }
+});
+
+test("a prompt carried over from before the form is not mistaken for the rows it restates", () => {
+  // Melany's owner text is exactly this: a prompt written before the form existed,
+  // restating the hours and services under headings of its own. A cut on headings
+  // would count the owner's old prose as the Hours and Services rows.
+  const carried = { ...profile, extra_instructions: "You are the WhatsApp assistant.\nServices: balayage, cuts.\nOpening hours: 9 to 6." };
+  const text = composeSystemPrompt(brain, carried, "whatsapp", "America/New_York");
+  const blocks = promptBlocks(text, "whatsapp", carried.extra_instructions);
+  const services = blocks.filter((b) => b.row === "services");
+  assert.equal(services.length, 1, "the real services block, once");
+  assert.doesNotMatch(services[0].text, /balayage, cuts/, "the owner's old line is not the services row");
+  const hours = blocks.filter((b) => b.row === "hours");
+  assert.equal(hours.length, 1);
+  assert.doesNotMatch(hours[0].text, /9 to 6/);
+  assert.match(blocks.find((b) => b.row === "extra_instructions").text, /Services: balayage, cuts\./);
+});
+
+test("text no row wrote is named as the platform's, and never folded into a row", () => {
+  // The call's tool mechanics, the medium line and the open-times line are written
+  // by Chanlytics for every workspace. With nothing else present, they used to land
+  // in "Who you are" and grow it from 108 characters to 1,366 the owner never typed.
+  const text = composeSystemPrompt(brain, {}, "voice", "America/New_York");
+  const blocks = promptBlocks(text, "voice", null);
+  const identity = blocks.find((b) => b.row === "identity");
+  assert.doesNotMatch(identity.text, /check_availability|send_booking_link|end_call/, "the tools are not who you are");
+  assert.doesNotMatch(identity.text, /speaking aloud/);
+  const platform = blocks.filter((b) => b.row === "platform");
+  assert.ok(platform.some((b) => /check_availability/.test(b.text)), "the tools are the platform's");
+  assert.ok(platform.some((b) => /speaking aloud/.test(b.text)));
+  for (const b of platform) assert.match(b.note ?? "", /every workspace/i);
+});
+
+test("every character belongs to exactly one block", () => {
+  // The page draws a bar per block to show where the characters go. A bar that
+  // quietly drops the separators is a small copy of the invisibility this exists to fix.
+  const cases = [profile, { ...profile, extra_instructions: own }, { ...profile, handoff_number: "+16469325775" }, {}];
+  for (const channel of ["whatsapp", "voice"]) {
+    for (const p of cases) {
+      const text = composeSystemPrompt(brain, p, channel, "America/New_York");
+      const blocks = promptBlocks(text, channel, p.extra_instructions ?? null);
+      assert.equal(blocks.reduce((n, b) => n + b.chars, 0), text.length, `${channel}: the bars add up to the prompt`);
+      for (const b of blocks) assert.ok(b.text.trim().length > 0, `${channel}: ${b.row} is not empty`);
+      // Adjacent blocks from the same row are one block.
+      for (let n = 1; n < blocks.length; n++) assert.notEqual(blocks[n].row, blocks[n - 1].row, `${channel}: ${blocks[n].row} is not split in two`);
+    }
+  }
+});
