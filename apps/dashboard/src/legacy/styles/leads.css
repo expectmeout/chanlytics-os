@@ -108,7 +108,7 @@
    stacking of these is in the 900px block at the foot of this file. */
 
 .lf-strip {
-  position: relative; margin: 12px 28px 0; display: flex; align-items: center; gap: 10px;
+  position: relative; margin: 12px var(--gutter-page) 0; display: flex; align-items: center; gap: 10px;
   padding: 0 6px 0 14px; height: 42px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--bg-raised); font-size: 12.5px; overflow: hidden; flex: none;
   animation: lf-in 200ms var(--ease-out) backwards;
@@ -434,6 +434,13 @@
 .ld-bar { display: none; }
 
 @media (max-width: 900px) {
+  /* One gutter for the pane, owned by the scope. The bar, the strip, the band, the chips, the bench, the map and the
+     first day read --gutter-page, and at this width the pane's is People's 16px (the cards' wrap, the standing line
+     and the controls row, clients.css and mobile.css). At the page's 28px those rows stood 12px further in than the
+     cards under them, and the bar's search, the one control in it that flexes, paid for both sides: 40px wide on a
+     touch phone at 375. */
+  .leads-scope { --gutter-page: 16px; }
+
   /* One bar replaces the rail and the controls row. The rail is already
      display: none at this width (mobile.css) and the Leads scope draws
      neither of them here; the rule stands for a window dragged past the band
