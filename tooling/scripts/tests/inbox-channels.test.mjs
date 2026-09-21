@@ -26,7 +26,11 @@ test("a caller with no WhatsApp thread: phone is the channel, no reply window, t
   const vm = toInboxThreadVM(conv(), callback, ZONE, NOW);
   assert.deepEqual([vm.channels, vm.primaryChannel, vm.hasChat, vm.phone], [["phone"], "phone", false, "+19175550106"]);
   assert.equal(vm.whoMeta, "Phone · +1 (917) 555-0106");
-  assert.equal(vm.summary, "They phoned and the receptionist couldn't finish it.", "the sentence says why; the button says what to do about it");
+  // The to-do is the band's one sentence: it said "They phoned and the receptionist couldn't finish it." beneath the call
+  // it describes, over "From the call: <the to-do>", and the flag in the timeline quoted the to-do a third time.
+  assert.equal(vm.summary, "Call Emily back to confirm the bridal trial on Oct 3", "REGRESSION: the call back's to-do was said three times");
+  assert.equal(toInboxThreadVM(conv(), { ...callback, details: null }, ZONE, NOW).summary, "They phoned and the receptionist couldn't finish it.", "no to-do: the reason's sentence");
+  assert.equal(vm.timeline.find((e) => e.type === "event").body, "Flagged for a human — Needs a call back — the phone receptionist could not finish it", "the flag says why, not the to-do again");
   assert.equal(vm.waited, "56m");
 });
 

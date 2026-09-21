@@ -832,8 +832,11 @@ interface InboxThreadVM {
     /**
      * The customer's own words beside the decision: what they last wrote, quoted,
      * or what the call left behind for a call back. Null when nothing is being decided.
+     * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
+     * band does not say it again beneath; the row and its search still read `text`.
      */
     ask: {
+        kind: "call" | "wrote" | "sent";
         label: string;
         text: string;
         quoted: boolean;

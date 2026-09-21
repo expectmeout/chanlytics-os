@@ -513,8 +513,10 @@ export interface InboxThreadVM {
   /**
    * The customer's own words beside the decision: what they last wrote, quoted,
    * or what the call left behind for a call back. Null when nothing is being decided.
+   * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
+   * band does not say it again beneath; the row and its search still read `text`.
    */
-  ask: { label: string; text: string; quoted: boolean } | null;
+  ask: { kind: "call" | "wrote" | "sent"; label: string; text: string; quoted: boolean } | null;
   /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
   archived: boolean;
   /**
@@ -765,7 +767,9 @@ export function toInboxThreadVM(
       type: "event" as const,
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      body: `Flagged for a human — ${reasonLabel}${escalation.details ? ` · “${clipAtWord(escalation.details, 120)}”` : ""}`,
+      // Why it was flagged, not what to do: the open escalation's details are the band's sentence, and quoting them here
+      // said a call back's to-do a third time.
+      body: `Flagged for a human — ${reasonLabel}`,
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
@@ -782,9 +786,11 @@ export function toInboxThreadVM(
   const ask: InboxThreadVM["ask"] = !escalation
     ? null
     : escalation.reason === "callback"
-      ? (escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null)
+      ? (escalation.details?.trim() ? { kind: "call" as const, label: "From the call", text: escalation.details.trim(), quoted: false } : null)
       : lastInbound
-        ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageWords(lastInbound), quoted: lastInbound.type === "text" }
+        ? lastInbound.type === "text"
+          ? { kind: "wrote" as const, label: "They wrote", text: messageWords(lastInbound), quoted: true }
+          : { kind: "sent" as const, label: "They sent", text: messageWords(lastInbound), quoted: false }
         : null;
 
   // A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1).
@@ -842,7 +848,9 @@ export function toInboxThreadVM(
     summary: claimedByOther
       ? "A teammate is answering this. The receptionist stays quiet until they hand it back."
       : escalation
-      ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
+      // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
+      // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
+      ? (escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`)
       : takenOver
         ? "You're answering this one. The receptionist stays quiet until you hand it back."
         : lastWord

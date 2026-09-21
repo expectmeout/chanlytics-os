@@ -56,11 +56,12 @@ test("a thread a teammate is answering is theirs: not Needs you, no unread dot, 
 });
 
 test("the customer's own words ride with the decision: what they last wrote, quoted; what the call left, as noted; nothing when nothing is being decided", () => {
-  assert.deepEqual(toInboxThreadVM(conv(), asked(), ZONE, NOW).ask, { label: "They wrote", text: "Can I move my appointment to Friday?", quoted: true });
+  assert.deepEqual(toInboxThreadVM(conv(), asked(), ZONE, NOW).ask, { kind: "wrote", label: "They wrote", text: "Can I move my appointment to Friday?", quoted: true });
   const later = conv({ messages: [wrote("m1", "Can I move my appointment to Friday?", 40), wrote("m2", "Or Saturday morning works too", 5)] });
   assert.equal(toInboxThreadVM(later, asked(), ZONE, NOW).ask.text, "Or Saturday morning works too", "the last thing they said, which is what they are waiting on");
   const call = toInboxThreadVM(conv({ last_wa_inbound_at: null, messages: [callNote] }), callback, ZONE, NOW);
-  assert.deepEqual(call.ask, { label: "From the call", text: "Call Rosa back to confirm the bridal trial on Oct 3", quoted: false });
+  // "call": the band says it as its sentence (the call is above it), so it is not said again beneath (calls you can follow).
+  assert.deepEqual(call.ask, { kind: "call", label: "From the call", text: "Call Rosa back to confirm the bridal trial on Oct 3", quoted: false });
   assert.equal(toInboxThreadVM(conv(), null, ZONE, NOW).ask, null, "no decision, nothing to put beside one");
 });
 

@@ -81,14 +81,13 @@ test("every message of ours carries what became of it, the receptionist's as muc
   assert.deepEqual([note.channel, note.from], ["phone", "agent"]);
 });
 
-test("the flag's details are said whole, or cut at a word with an ellipsis -- never mid-word inside their quotes", () => {
-  const flag = (details) => vmOf(quiet([callNote("m1", 60)], { state: "needs_human", last_wa_inbound_at: null }), asked({ reason: "callback", details })).timeline.find((e) => e.type === "event").body;
-  assert.equal(flag("Call Emily back"), "Flagged for a human — Needs a call back — the phone receptionist could not finish it · “Call Emily back”");
+test("the flag says why it was flagged; the to-do is said once, whole, as the band's sentence", () => {
+  const vm = (details) => vmOf(quiet([callNote("m1", 60)], { state: "needs_human", last_wa_inbound_at: null }), asked({ reason: "callback", details }));
   const long = "Call Emily back to confirm the bridal trial on October 3 — she needs a quote for three people and asked to speak with Melany directly";
-  const cut = flag(long);
-  assert.match(cut, /…”$/, "REGRESSION: cut at 120 characters, mid-word, with nothing to say so");
-  const kept = cut.slice(cut.indexOf("“") + 1, -2);
-  assert.ok(long.startsWith(kept) && long[kept.length] === " ", `cut after a whole word: "${kept}"`);
+  const flag = vm(long).timeline.find((e) => e.type === "event").body;
+  // It quoted the to-do (cut at 120 characters), under the band that said it again beside "From the call".
+  assert.equal(flag, "Flagged for a human — Needs a call back — the phone receptionist could not finish it", "REGRESSION: the flag quoted the to-do a third time");
+  assert.equal(vm(long).summary, long, "said whole, where it is acted on");
 });
 
 /* ------------------------------ the pane, drawn ------------------------------ */
