@@ -2576,3 +2576,43 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     if (was.failed) W.__surfaceFailed = was.failed; else delete W.__surfaceFailed;
   }
 });
+
+test("nothing a fold works out as it draws can take the page down: a draft its helpers throw on draws no block, and Save says so and sends nothing", () => {
+  // The quality review's probe. BtFold works out what it will say DURING RENDER, and the folds' helpers throw on a draft
+  // they were not written for (btWhole's TypeError for a switch left out, which the rules fold of Task 3.5 can meet
+  // through one slip in its body). In the app a throw while drawing is the shell's error boundary's: the whole of
+  // Settings is replaced. The fold loses its block; the page stays.
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const logged = [];
+  const was = console.error;
+  console.error = (...args) => logged.push(args);
+  try {
+    drawTab();
+    unmount();
+    let handed = null;
+    const draw = () => W.React.createElement(W.BtFold, {
+      id: "guardrails", label: "Rules it always keeps", saver: W.__businessTabSave.saver, canEdit: true, flash,
+      row: { value: "Four rules" }, body: (f) => { handed = f; return null; },
+    });
+    let tree = draw();
+    press(byTestId(tree, "rec-row-act-guardrails"));
+    tree = again(draw);
+    assert.equal(handed.open, true);
+    assert.ok(byTestId(tree, "rec-fold-says-guardrails"), "a whole draft says what it will tell the receptionist");
+    // A body's slip: it writes the one switch it changed and drops the rest.
+    handed.update(() => ({ never_quote_prices: false }));
+    assert.doesNotThrow(() => { tree = again(draw); }, "REGRESSION: the page's render threw btWhole's TypeError");
+    assert.equal(byTestId(tree, "rec-fold-says-guardrails"), null, "nothing can be said of a draft the helpers cannot read");
+    assert.equal(foldOf(tree, "guardrails").props.hidden, undefined, "and the fold is still open, with what was done to it");
+    assert.ok(logged.some((args) => args.some((a) => a instanceof TypeError)), "the fault is reported, not swallowed");
+    // Save cannot check or write it either: said in the danger tone, nothing sent, the fold left open.
+    assert.doesNotThrow(() => saveFoldOf(tree, "guardrails"));
+    tree = again(draw);
+    assert.deepEqual([sent.length, flashes.at(-1).tone, foldOf(tree, "guardrails").props.hidden], [0, "danger", undefined]);
+    assert.match(textOf({ props: { children: flashes.at(-1).msg } }), /^Not saved/);
+  } finally {
+    console.error = was;
+  }
+});

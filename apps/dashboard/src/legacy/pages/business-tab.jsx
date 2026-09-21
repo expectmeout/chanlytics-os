@@ -35,6 +35,24 @@ const BT_SAVED = "Saved — the receptionist picks it up within a minute";
 const btNoCheck = () => null;
 
 /**
+ * Something a row or a fold works out AS IT DRAWS, tried: its answer, or `otherwise` when it throws, with the fault
+ * reported. The page is untyped, the helpers it asks (business-tab-folds.jsx, the bridge) throw on a draft they were not
+ * written for (a switch a body left out, a bridge function the standalone mockup lacks), and a throw while drawing is
+ * the shell's error boundary's: the whole of Settings replaced by "something went wrong", over one fold's footer. What
+ * cannot be worked out is not drawn; the page stays, and what was typed with it.
+ */
+const btWorkedOut = (what, fn, otherwise = null) => {
+  try {
+    return fn();
+  } catch (err) {
+    if (window.console) window.console.error(`Settings › Business could not work out ${what}.`, err);
+    return otherwise;
+  }
+};
+// What a Save says when its own checks could not run: nothing was sent, and the editor stays open with what was typed.
+const BT_UNCHECKED = "Not saved — this could not be checked, so nothing was sent. Try again, and tell us if it keeps happening.";
+
+/**
  * One of this page's rows: at rest a RecordRow, and while it is edited the kit's inline editor (RecordInline,
  * record-fold.jsx), which holds the gesture itself -- its focus, its keys, what saving writes and its foot. What is the
  * page's is here: the draft, what stops a save, the save through the tab's one saver, what the receptionist will be
@@ -142,9 +160,9 @@ const BtRow = ({
   if (dirty && !check(now)) {
     // Both brains are the saver's: the one this row's save will go on (its base), and that one with this row's patch
     // applied as the saver will apply it (patched), on a copy, so a patch that edits a nested object in place leaves
-    // the base as it was.
+    // the base as it was. Tried, since it is worked out as the row draws (btWorkedOut).
     const on = base && base.brain ? base : { brain };
-    const will = S.willSay({ was: on.brain, next: S.patched(on, { change: commit(now).change }).brain, sections: section || id, channel });
+    const will = btWorkedOut(`what the ${id} row will say`, () => S.willSay({ was: on.brain, next: S.patched(on, { change: commit(now).change }).brain, sections: section || id, channel }));
     if (will && (will.added || will.removed || will.note)) says = { note: will.note, says: will.added, gone: will.removed };
   }
 
@@ -283,16 +301,20 @@ const BtFold = ({
     return !!(l.open && l.draft != null && !S.same(l.draft, l.opened));
   };
   const fold = window.useRecordFold(id, { dirty: holds, saving: () => !!(saver && saver.pending(id)) });
+  // The draft as what is stored opens it, which the body is drawn with while the fold is closed. Tried, like everything
+  // else here that is worked out as the fold draws (btWorkedOut): a fold whose part of the record cannot be read has no
+  // editor and offers no act, and its row still says what it says.
+  const stored = btWorkedOut(`the draft the ${id} fold opens with`, () => ({ draft: S.draftOf(id, base || {}) }));
   // A role that may not change the business never has an editor, whatever asked for one; nor does a page with nothing
   // read to save onto.
-  const open = fold.open && canEdit && !!base;
+  const open = fold.open && canEdit && !!base && !!stored;
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; live.current.opened = null; setDraft(null); setProblems(null); setArm(false); };
   useBizEffect(() => { if (!open) reset(); }, [open]);
-  if (open && live.current.opened == null) { live.current.opened = S.draftOf(id, base); live.current.opening += 1; }
+  if (open && live.current.opened == null) { live.current.opened = stored.draft; live.current.opening += 1; }
   live.current.open = open;
-  const now = open ? (draft != null ? draft : live.current.opened) : S.draftOf(id, base || {});
+  const now = open ? (draft != null ? draft : live.current.opened) : (stored ? stored.draft : null);
   const dirty = open && draft != null && !S.same(draft, live.current.opened);
   const found = problems || {};
 
@@ -331,19 +353,27 @@ const BtFold = ({
   const submit = () => {
     if (busy || !open || refused) return;
     if (draft == null) { close(); return; }
-    const own = S.problemsOf(id, draft);
-    if (Object.keys(own).length) { setProblems(own); return; }
-    if (!S.holdsChanges(id, base, draft)) { close(); return; }
-    const all = S.saveProblems(id, base, draft);
-    if (Object.keys(all).length) { setProblems(all); return; }
+    // The checks are the helpers', and a draft they throw on is one they cannot judge: said, in the danger tone, and
+    // nothing sent. `judged` is what to do next; null is a check that could not run.
+    const judged = btWorkedOut(`whether the ${id} fold may be saved`, () => {
+      const own = S.problemsOf(id, draft);
+      if (Object.keys(own).length) return { problems: own };
+      if (!S.holdsChanges(id, base, draft)) return { nothing: true };
+      const all = S.saveProblems(id, base, draft);
+      if (Object.keys(all).length) return { problems: all };
+      return { job: S.foldJob(id, draft, { opened: live.current.opened, said, done: close, flash }) };
+    });
+    if (!judged) { flash({ tone: "danger", msg: <>{BT_UNCHECKED}</> }); return; }
+    if (judged.problems) { setProblems(judged.problems); return; }
+    if (judged.nothing) { close(); return; }
     if (arm) setArm(false);
-    saver.save(S.foldJob(id, draft, { opened: live.current.opened, said, done: close, flash }));
+    saver.save(judged.job);
   };
 
-  let will = null;
-  if (open && channel && !Object.keys(S.problemsOf(id, now)).length) {
-    will = S.willSay({ was: base.brain, next: S.saveFold(id, base, now).brain, sections: id, channel });
-  }
+  // What it will say is worked out as the fold draws, so it is tried: a draft the helpers throw on draws no block.
+  const will = open && channel ? btWorkedOut(`what the ${id} fold will say`, () => (
+    Object.keys(S.problemsOf(id, now)).length ? null : S.willSay({ was: base.brain, next: S.saveFold(id, base, now).brain, sections: id, channel })
+  )) : null;
 
   const has = !(row.value == null || row.value === "" || row.value === false);
   return (
@@ -356,7 +386,7 @@ const BtFold = ({
           empty={row.empty}
           hint={row.hint}
           wrong={row.wrong}
-          act={canEdit ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => fold.request(), gate } : null}
+          act={canEdit && stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => fold.request(), gate } : null}
         >
           {row.children || null}
         </window.RecordRow>
@@ -384,7 +414,8 @@ const BtFold = ({
         saveLabel={saveLabel}
         gate={gate}
       >
-        {body({ draft: now, update, undo, press, problems: found, readOnly: busy, open })}
+        {/* With no draft to hand it (btWorkedOut, above) the body is not drawn: it would throw on nothing. */}
+        {stored ? body({ draft: now, update, undo, press, problems: found, readOnly: busy, open }) : null}
         {/* A refusal that is not this fold's to fix (a stored day that closes before it opens, met while saving the
             closures) stops this save too, and is said once, here, naming where. */}
         <window.FieldError id={`bt-${id}-elsewhere`} message={found.elsewhere || null} testid={`rec-fold-${id}-elsewhere`} />
