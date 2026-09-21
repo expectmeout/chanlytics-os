@@ -536,6 +536,31 @@ test("every view of Leads is one mount: a search, a list, a class or an open lea
   assert.notEqual(at("#/clients/seg:opted_in").key, at("#/clients").key, "People's own views keep the rule they had");
 });
 
+test("a page can say the same place more exactly: a replaced address makes no entry, and the shell follows it at once, with no hashchange to wait for", () => {
+  shell.installShell(win);
+  const LEAD = "1ead0000-0000-4000-8000-000000000001";
+  const keepHistory = win.history;
+  const replaced = [];
+  // The browser's own rule: replaceState moves the address and fires nothing.
+  win.history = { replaceState: (_state, _title, url) => { replaced.push(url); win.location.hash = url; } };
+  try {
+    const { tree } = mount("#/clients/leads");
+    const page = (t) => find(t, (n) => n.type === "ClientsA");
+    page(tree).props.onNavigate(`clients/leads:p-${LEAD}`, { replace: true });
+    assert.deepEqual(replaced, [`#/clients/leads:p-${LEAD}`], "replaced, not pushed: Back must not replay every lead the peek walked through");
+    // Drawn again with the state it kept, as React would after the shell's own setRoute.
+    deep = false; seq = 0;
+    const again = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
+    deep = true;
+    assert.equal(page(again).props.leadsRoute, `leads:p-${LEAD}`, "the page is handed the address it asked for without waiting for an event that never comes");
+    page(again).props.onNavigate("clients/leads");
+    assert.equal(win.location.hash, "/clients/leads", "and a plain navigation is still the hash's, pushed");
+    assert.equal(replaced.length, 1);
+  } finally {
+    win.history = keepHistory;
+  }
+});
+
 test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named in the crumbs -- the route dropped the id", () => {
   shell.installShell(win);
   const keepGate = win.gate;

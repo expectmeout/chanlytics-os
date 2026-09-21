@@ -1610,7 +1610,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const remembered = React.useMemo(() => ({ ...plLoadView(scope), ...((people.views && people.views[scope]) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
   // Which search, which list and which class this address names (contracts parseLeadsRoute, through the courier).
   // The address is the one place the Leads view's list lives, so the rail, the table and the saved view agree.
-  const leadView = onLeads && window.__leadsRouteParse ? (window.__leadsRouteParse(leadsRoute || "clients/leads") || { searchId: null, list: "all", cls: null, chips: {} }) : null;
+  const leadView = onLeads && window.__leadsRouteParse ? (window.__leadsRouteParse(leadsRoute || "clients/leads") || { searchId: null, list: "all", cls: null, chips: {}, peek: null }) : null;
+  // The view's own route, with no lead open over it, and the lead the address names. The page stays mounted across
+  // its views (app-shell.jsx shellMountKey), so what belongs to a view follows `viewRoute`, never `leadsRoute`: a
+  // lead opened over a view is the same view, and must not read it again or drop what is selected in it.
+  const viewRoute = leadView && window.__leadsRouteOf ? window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls }) : null;
+  const addrPeek = (leadView && leadView.peek) || null;
   // The columns this scope draws with: People's, or the Leads scope's (LEAD_COLUMNS, leads-scope.jsx).
   const cols = onLeads ? LEAD_COLUMNS : PL_COLUMNS;
   // The rail's row, as a name of its own: what a saved view carries and what a read is keyed by, and a name a
@@ -1719,7 +1724,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => {
     if (!onLeads || !window.__leadsView) return;
     window.__leadsView({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, chips: leadView.chips, sort: sortBy, dir: sortDir });
-  }, [scope, leadsRoute, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scope, viewRoute, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -1896,7 +1901,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // What this scope shows, for the table, the keyboard's cursor and the bulk bar: one list, whichever scope.
   const rowsShown = onLeads ? leadShown : shown;
   const filtered = onLeads ? !!q.trim() || !!chip || !!fitChip || !!leadView.cls || leadView.list !== "all" : tab !== "all" || !!listId || !!savedId || !!q.trim();
-  React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, q, leadsRoute, chip]);
+  React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, q, viewRoute, chip]);
   const shownIds = rowsShown.map((r) => r.id);
   // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
   // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never
@@ -1943,6 +1948,33 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The dialog's focus rule (leadPeekFocus): focus moves into the peek when it opens and back to the row when it
   // closes, and the row is the cursor, so Tab carries on from where the owner was.
   React.useEffect(() => { leadPeekFocus(peekId, cursor); }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The lead that is open is part of the address (contracts leadsRoute, `p-`): a refresh keeps it, Back closes it, and
+  // it can be sent to someone. The page's own state still draws the peek; this keeps the two saying one thing.
+  // When the ADDRESS moved -- a link, Back or Forward, a rail pick, the first draw -- the page follows it, and a view
+  // that changed under an open lead closes it. When the PAGE moved, it says so: opening pushes an entry, the cursor
+  // walking the peek on replaces it, and closing goes back to the entry the opening made. A lead that came with the
+  // address has no entry of the page's behind it, so it closes by replacing: going back would leave Leads.
+  const peekAddr = React.useRef({ view: undefined, peek: undefined, asked: null, pushed: false });
+  React.useEffect(() => {
+    if (!onLeads || !window.__leadsRouteOf) return;
+    const a = peekAddr.current;
+    if (a.view !== viewRoute || a.peek !== addrPeek) {
+      a.view = viewRoute;
+      a.peek = addrPeek;
+      a.asked = null;
+      if (!addrPeek) a.pushed = false;
+      if (peekId !== addrPeek) { setPeekId(addrPeek); setPeekMode("info"); setArmed(null); setDraft(null); }
+      return;
+    }
+    if (peekId === addrPeek) return;
+    const want = window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, peek: peekId });
+    // Said once: a push is answered a task later (hashchange), and every draw until then finds the address as it was.
+    if (a.asked === want) return;
+    a.asked = want;
+    if (peekId && !addrPeek && !a.pushed) { a.pushed = true; nav(want); }
+    else if (!peekId && a.pushed && window.history && window.history.back) { a.pushed = false; window.history.back(); }
+    else nav(want, { replace: true });
+  }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
   // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was
   // taken down and added again on every render, and / had a second listener of its own.
   const keys = React.useRef(null);

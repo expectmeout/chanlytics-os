@@ -683,6 +683,97 @@ test("the peek is the page's own overlay: J and K keep walking the rows behind i
   assert.equal(press("j"), false, "anything else open over the page has the keys");
 });
 
+/* ------------------------ the lead that is open, and the address ------------------------ */
+
+// Leads whose ids are ids, as the door's are: the address admits nothing else after `p-` (contracts parseLeadsRoute).
+const UA = "1ead0000-0000-4000-8000-00000000000a";
+const UB = "1ead0000-0000-4000-8000-00000000000b";
+const UC = "1ead0000-0000-4000-8000-00000000000c";
+const ID_ROWS = [
+  leadRow({ id: UA }),
+  leadRow({ id: UB, place_id: "ChIJfixture000b", business_name: "Barton Creek Coaching" }),
+  leadRow({ id: UC, place_id: "ChIJfixture000c", business_name: "Lamar Strength Co." }),
+].map((r) => toLeadRowVM(r, TZ, NOW));
+const ENTER_ON_ROW = { tagName: "TR", isContentEditable: false, closest: () => null };
+
+/** A page over leads with real ids, drawn at an address the way the shell hands it over, its navigations kept. */
+const addressed = () => {
+  fresh({ leads: surface({ rows: ID_ROWS }) });
+  globalThis.window.__leadPeekVM = (id) => { const r = ID_ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; };
+  const navs = [];
+  const backs = [];
+  globalThis.window.history.back = () => { backs.push(1); };
+  const at = (route) => draw({ leadsRoute: route, onNavigate: (to, opts) => { navs.push([to, opts && opts.replace ? "replace" : "push"]); } });
+  const openPeek = () => (peeks.length ? peeks.at(-1) : null);
+  return { navs, backs, at, openPeek };
+};
+
+test("the lead that is open is in the address: opening pushes it, the cursor walking the peek on replaces it, and closing goes back to the entry the opening made", () => {
+  const { navs, backs, at } = addressed();
+  at("leads");
+  press("j");
+  at("leads");
+  press("Enter", ENTER_ON_ROW);
+  at("leads");
+  assert.deepEqual(navs, [[`clients/leads:p-${UA}`, "push"]], "an entry of its own, so Back closes the lead instead of leaving Leads");
+  at("leads");
+  assert.equal(navs.length, 1, "said once, however many draws pass before the address answers");
+  at(`leads:p-${UA}`);
+  assert.equal(navs.length, 1, "and the address answering is not news");
+  press("j");
+  at(`leads:p-${UA}`);
+  at(`leads:p-${UA}`);
+  assert.deepEqual(navs.at(-1), [`clients/leads:p-${UB}`, "replace"], "walking on is the same place said more exactly: Back must not replay every lead passed");
+  at(`leads:p-${UB}`);
+  const drawn = peeks.length;
+  assert.equal(press("Escape"), true);
+  at(`leads:p-${UB}`);
+  assert.deepEqual([backs.length, navs.length], [1, 2], "closing goes back to the entry the opening made, and writes nothing over it");
+  at("leads");
+  at("leads");
+  assert.deepEqual([backs.length, navs.length, peeks.length > drawn + 1], [1, 2, false], "and the address answering that is not news either");
+});
+
+test("the address opens the lead: a refresh, a link or Forward draws the peek, Back closes it, and a lead that came with the address closes by replacing", () => {
+  const { navs, backs, at, openPeek } = addressed();
+  at(`leads:p-${UB}`);
+  at(`leads:p-${UB}`);
+  assert.equal(openPeek().vm.id, UB, "the lead the address names is open, with nothing pressed");
+  assert.deepEqual(navs, [], "and the page says nothing the address already says");
+  // The draw that hears the address still holds the lead it had; the one after it is the page having followed.
+  at("leads");
+  const drawn = peeks.length;
+  at("leads");
+  assert.equal(peeks.length, drawn, "Back took the lead off the address, and the peek went with it");
+  at(`leads:p-${UC}`);
+  at(`leads:p-${UC}`);
+  assert.equal(openPeek().vm.id, UC, "Forward, or another link, opens that one");
+  assert.equal(press("Escape"), true);
+  at(`leads:p-${UC}`);
+  assert.deepEqual([navs, backs.length], [[["clients/leads", "replace"]], 0], "no entry of the page's own to go back to: going back would leave Leads");
+});
+
+test("a lead opened over a view is not a new view: nothing is read again, the selection stays, and a rail pick closes the lead rather than carrying it along", () => {
+  const { navs, at } = addressed();
+  byTestId(at("leads"), "select-all").props.onChange();
+  at("leads");
+  press("j");
+  at("leads");
+  press("Enter", ENTER_ON_ROW);
+  at("leads");
+  at(`leads:p-${UA}`);
+  const tree = at(`leads:p-${UA}`);
+  assert.equal(calls.filter(([what]) => what === "view").length, 1, "one read for the view, however many leads are opened over it");
+  assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /3 selected/, "and the selection is still there");
+  const said = navs.length;
+  at(`leads:s-${SEARCH_A}`);
+  const drawn = peeks.length;
+  at(`leads:s-${SEARCH_A}`);
+  assert.equal(peeks.length, drawn, "the view changed under the lead, so the lead is closed");
+  assert.equal(navs.length, said, "and the old view's lead is not written onto the new view's address");
+  assert.equal(calls.filter(([what]) => what === "view").length, 2, "the new view is read, once");
+});
+
 test("the peek is handed acts, not setters: every control it draws has a function behind it, and each one moves the page's own state", () => {
   fresh();
   draw();

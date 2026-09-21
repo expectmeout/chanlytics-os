@@ -299,7 +299,16 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   const [routeTimedOut, setRouteTimedOut] = useShellState(false);
   const [readyTick, setReadyTick] = useShellState(0);
 
-  const navigate = useShellCallback((to) => { window.location.hash = "/" + to; }, []);
+  // A navigation is a new entry. `{ replace: true }` is a page saying the same place more exactly -- the lead a peek
+  // walked on to -- so it makes none; replaceState fires no hashchange, so the route is read here, at once.
+  const navigate = useShellCallback((to, opts) => {
+    if (opts && opts.replace && window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", "#/" + to);
+      setRoute(parseHash());
+      return;
+    }
+    window.location.hash = "/" + to;
+  }, []);
   const openAsk = useShellCallback(() => setAskOpen(true), []);
 
   // Expose for deep components (fleet cards, command rows) without prop-drilling
