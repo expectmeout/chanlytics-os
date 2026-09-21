@@ -710,6 +710,12 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-reach-cell,
   .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-rated-cell { display: none; }
   .ld-tile { width: 40px !important; height: 40px !important; }
+  /* The table's tile is a button, the one thing on the card that opens the photo, and on a touch screen legacy.css
+     makes every button at least 44px tall: this square stood 40 wide and 44 tall, with the photo cropped to fit. It
+     takes the width to match, as the chart kit's icon buttons do, and is a 44px square like Call at the card's other
+     end. A smaller target hands a thumb that misses it to the row, which opens the lead instead. The review bench's
+     tile is a picture, not a button, and stays 40px. */
+  @media (pointer: coarse) { button.ld-tile { width: 44px !important; height: 44px !important; } }
   .ld-card, .ld-tip, .ld-hover:hover > .ld-card, .ld-hover:hover > .ld-tip { display: none !important; }
   .ld-values { display: none; }
 }
