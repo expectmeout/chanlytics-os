@@ -12,7 +12,14 @@
 -- spares no kind when it withdraws what is scheduled, because the only kind it
 -- ever spared was that job; and it no longer collects the customer's phone
 -- digits as thread keys, which only that job had a use for. `counts` loses
--- `threads` and the return loses `thread_ids` with them.
+-- `threads` and the return loses `thread_ids` with them. A third delta: the
+-- jobs it cancels have their payload scrubbed in the same statement, because
+-- the number a canceled job carried must not outlive the row that owned it,
+-- and a re-driven erasure has no digits left to find it by.
+--
+-- APPLY AFTER BOTH APPS CARRY THIS CHANGE. A dashboard still queuing
+-- blob_thread_erase would be refused by the tightened CHECK, and every
+-- erasure would answer 500 until it redeployed.
 
 /* --------------------------------------------- the rows, then the set --- */
 
@@ -156,9 +163,13 @@ begin
      job before calling this function, and cancelling it would have cancelled
      the leg that removed the second copy of the conversation. There is no
      second copy and no such kind (00148), so every scheduled job that names
-     this person is withdrawn. */
+     this person is withdrawn -- and its payload scrubbed in the same
+     statement (jobs_guard allows a payload change on any row): the number it
+     carried must not outlive the row, and a re-driven erasure has no digits
+     to find it by. */
   update jobs
-     set state = 'canceled', last_error = 'contact erased'
+     set state = 'canceled', last_error = 'contact erased',
+         payload = jsonb_build_object('scrubbed_at', now(), 'reason', 'contact erased')
    where tenant_id = v_tenant
      and state = 'scheduled'
      and (payload->>'conversation_id' = any (v_conversations::text[])

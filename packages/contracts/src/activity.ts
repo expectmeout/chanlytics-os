@@ -60,6 +60,8 @@ const WORDS: Record<string, string> = {
   "message.send_blocked": "A message was held at the wire", "message.send_raced_cancel": "A send raced a cancel",
   "contact.consent_changed": "A consent answer changed", "contact.added": "A person was added", "contact.named": "A person was named",
   "contact.noted": "A note was written", "contact.email_set": "A person's email address changed", "contact.email_suppressed": "A person's email address stopped being sent to", "contact.erased": "A person was erased",
+  // Retired with the Blob store (00148): nothing writes it, but rows written before survive in `events` and still need their sentence.
+  "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened", "conversation.pause_expired": "A pause ended", "conversation.snooze_expired": "A snooze ended",
   "call.recorded": "A call was recorded", "broadcast.sent": "A broadcast finished", "playbook.run": "A playbook ran",
   "setup.requested": "Setup was requested", "voice.provisioned": "The phone receptionist was provisioned",
@@ -161,7 +163,7 @@ export function activityWords(kind: string, payload: unknown): string {
 const TONES: Record<string, Tone> = {
   // danger -- it failed, it was refused, or something is gone
   "message.send_failed": "danger", "message.send_blocked": "danger", "line.failed": "danger",
-  "line.texting_rejected": "danger", "contact.erased": "danger",
+  "line.texting_rejected": "danger", "contact.erased": "danger", "contact.blob_erased": "danger",
   "ingest.unroutable": "danger", "ingest.unreachable_sender": "danger",
   erase: "danger", decline: "danger", remove_member: "danger",
   // ok -- it completed, it connected, it is answering

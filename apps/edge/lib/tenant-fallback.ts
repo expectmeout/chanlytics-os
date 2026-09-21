@@ -36,6 +36,7 @@
  */
 import type { BrainConfig, NotificationsConfig } from "./packages/contracts.js";
 import { parseTenantConfigResult } from "./packages/contracts.js";
+import { platformFrom, platformTo } from "./notify.js";
 
 /**
  * What answers when the environment says nothing.
@@ -115,11 +116,10 @@ function brainFromEnv(): BrainConfig | null {
  * address is told about in redacted form rather than in a stranger's inbox.
  */
 function notificationsFromEnv(): NotificationsConfig {
-  const list = (s: string | undefined) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
-  const configured = list(process.env.DR_FALLBACK_ESCALATION_EMAILS);
-  const from = (process.env.DR_FALLBACK_FROM || process.env.LEAD_FROM || "").trim();
+  const configured = (process.env.DR_FALLBACK_ESCALATION_EMAILS || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const from = (process.env.DR_FALLBACK_FROM || "").trim() || platformFrom();
   return {
-    escalation_emails: configured.length ? configured : list(process.env.LEAD_TO),
+    escalation_emails: configured.length ? configured : platformTo(),
     ...(from ? { from } : {}),
   };
 }

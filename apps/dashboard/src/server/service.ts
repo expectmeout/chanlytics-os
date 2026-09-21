@@ -529,12 +529,20 @@ export async function acceptOpenInvites(userId: string, email: string | null): P
  * their payload — a copy of the conversation the erasure promised to remove.
  * Matched by contact id or by the number in any of its forms.
  */
-export async function scrubErasedJobs(tenantId: string, contactId: string, phones: string[]): Promise<number> {
+/** The states a job is finished in: its payload is a copy nothing will read again, so an erasure may scrub it. */
+export const FINISHED_JOB_STATES = ["done", "failed", "canceled"] as const;
+
+export async function scrubErasedJobs(
+  tenantId: string,
+  contactId: string,
+  phones: string[],
+  /** Only these states; every state when absent (after erase_contact has canceled what was scheduled). */
+  states?: readonly string[],
+): Promise<number> {
   const db = serviceDb();
-  const { data: rows, error } = await db
-    .from("jobs")
-    .select("id, payload")
-    .eq("tenant_id", tenantId);
+  let q = db.from("jobs").select("id, payload").eq("tenant_id", tenantId);
+  if (states) q = q.in("state", [...states]);
+  const { data: rows, error } = await q;
   if (error) throw new Error(`scrub_jobs_read: ${error.message}`);
   const digits = new Set(phones.map((p) => p.replace(/\D/g, "")).filter(Boolean));
   const hit = (rows ?? []).filter((j) => {

@@ -2,7 +2,7 @@ import { AppError, consentChangeOf } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
-import { removeMediaObjects, scrubErasedJobs, beginErasure } from "@/server/service";
+import { removeMediaObjects, scrubErasedJobs, beginErasure, FINISHED_JOB_STATES } from "@/server/service";
 import { requireUuid } from "@/server/request-guards";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
 import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
@@ -25,11 +25,13 @@ const digits = (s: string) => s.replace(/\D/g, "");
  * ORDER IS THE DESIGN. The keys are read first (reads only, retryable with
  * nothing to undo). Then the BLOCK (beginErasure, 00124): from that moment the
  * wire refuses the person and the passive doors will not bring them back,
- * whatever happens to the legs below. Storage objects go next, before the
- * rows that name their paths, and a Storage failure STOPS there rather than
- * running the irreversible delete; the person is blocked meanwhile, not live.
- * The rows go LAST, in one transaction. A crash at any point leaves the
- * request retryable.
+ * whatever happens to the legs below. Then the copies keyed on the number
+ * (Ask turns, finished jobs) are scrubbed while the number is still in hand,
+ * fail-closed, because nothing after the tombstone can find them again.
+ * Storage objects go next, before the rows that name their paths, and a
+ * Storage failure STOPS there rather than running the irreversible delete;
+ * the person is blocked meanwhile, not live. The rows go LAST, in one
+ * transaction. A crash at any point leaves the request retryable.
  */
 export const DELETE = write({
   scope: erasureScope,
@@ -39,16 +41,17 @@ export const DELETE = write({
     const id = contact.id;
 
     // Already erased: never destroy twice, but DO re-drive every leg that may
-    // still be outstanding. The legs below step 3 are best effort by design --
+    // still be outstanding. The legs below step 4 are best effort by design --
     // they log and carry on rather than turn a finished erasure into a failure
     // -- so a transient refusal on any of them leaves the erased person's
     // words in Ask, their number in a done job's payload, or their name on a
     // policy row. All of them are deletes or overwrites keyed on the contact,
     // so repeating one that already ran costs nothing.
     //
-    // The needles are empty here, and there is nothing left to recover them
-    // from: the digits are gone from contacts, so a re-drive scrubs by the
-    // person's id alone.
+    // The needles are empty here, nothing is left to recover them from, and
+    // nothing needs them: step 2 scrubbed every copy keyed on the number before
+    // anything was destroyed, fail-closed, and erase_contact scrubs the jobs it
+    // cancels in the same transaction. A re-drive repeats the id-keyed legs.
     if (contact.erased_at) {
       const needles: string[] = [];
       const { error: polErr } = await ctx.supabase.from("policies").delete()
@@ -111,10 +114,36 @@ export const DELETE = write({
       throw new AppError("internal", "Could not mark this person as being erased, so nothing was deleted. Try again.", 500);
     }
 
-    /* ---- 2. Storage, before the rows that name it ---- */
+    /* ---- 2. the copies keyed on the number, while the number is still in hand ---- */
+    // FAIL CLOSED, and BEFORE anything is destroyed. An Ask turn that quoted
+    // the number and a finished job that carried it (`to_phone` in a done
+    // outbound_send) are found by digits the tombstone will not hold and
+    // contact_identities will no longer have, so a re-driven erasure could
+    // never reach them. Scrubbed here, a transient refusal is a retry with
+    // nothing to undo; scrubbed only after the rows are gone, it was a copy
+    // kept for ever. Scheduled jobs are left to erase_contact, which cancels
+    // and scrubs them in the same transaction as the delete; one in flight
+    // finishes first, and the best-effort pass after step 4 reaches it.
+    {
+      const { error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
+        p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
+      });
+      if (askErr) {
+        console.error("erase_ask_prescrub_failed", id, askErr.message);
+        throw new AppError("internal", "The assistant's memory of this person could not be scrubbed, so nothing was deleted. Try again.", 500);
+      }
+      try {
+        await scrubErasedJobs(contact.tenant_id, id, threadIds, FINISHED_JOB_STATES);
+      } catch (e) {
+        console.error("erase_jobs_prescrub_failed", id, e instanceof Error ? e.message : e);
+        throw new AppError("internal", "The finished jobs that carried this person's number could not be scrubbed, so nothing was deleted. Try again.", 500);
+      }
+    }
+
+    /* ---- 3. Storage, before the rows that name it ---- */
     const storage = await removeMediaObjects(paths);
     if (storage.error) {
-      // Step 3 is irreversible and it deletes the only rows that still name these
+      // Step 4 is irreversible and it deletes the only rows that still name these
       // objects. Stop while the request is entirely retryable rather than leaving
       // a recording behind with nothing pointing at it.
       console.error("erase_storage_failed", id, storage.error);
@@ -126,7 +155,7 @@ export const DELETE = write({
       );
     }
 
-    /* ---- 3. the rows, in one transaction, carrying the legs into the ledger ---- */
+    /* ---- 4. the rows, in one transaction, carrying the legs into the ledger ---- */
     const { data: rpc, error: rpcErr } = await ctx.supabase.rpc("erase_contact", {
       p_contact_id: id,
       p_legs: {
@@ -146,8 +175,9 @@ export const DELETE = write({
     {
       const { data: scrubbed, error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
         // The thread keys, and the address: an Ask turn can quote either. Read
-        // off the row before erase_contact ran, because the row no longer has it;
-        // a re-driven erasure (above) scrubs by the person's id and thread keys alone.
+        // off the row before erase_contact ran, because the row no longer has it.
+        // Step 2 already scrubbed with these needles; this pass catches a turn
+        // written since, and a re-driven erasure (above) scrubs by the id alone.
         p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
       });
       if (askErr) console.error("erase_ask_scrub_failed", id, askErr.message);
@@ -165,17 +195,17 @@ export const DELETE = write({
       counts?: Record<string, number>; storage_paths?: string[]; jobs_canceled?: number;
     };
 
-    /* ---- 4. anything that landed during the window ----
+    /* ---- 5. anything that landed during the window ----
        The RPC's set is the authoritative one (it also sees messages and calls
-       reached only through the conversation). A call ingested between step 2 and
-       step 3 would otherwise leave audio behind. remove() on an absent key is a
+       reached only through the conversation). A call ingested between step 3 and
+       step 4 would otherwise leave audio behind. remove() on an absent key is a
        no-op, so re-listing an already-removed path costs nothing. */
     const missed = (out.storage_paths ?? []).filter((p) => !paths.includes(p));
     const sweep = missed.length ? await removeMediaObjects(missed) : null;
     if (sweep) {
       // decisions has no UPDATE policy for a session, so a late leg is a second
       // row on the same subject rather than an edit of the first. Best effort
-      // like the legs above it: past step 3 the person IS erased, and
+      // like the legs above it: past step 4 the person IS erased, and
       // throwing here would report that as a failure and send the owner back to
       // a route that now answers `already_erased`.
       await recordDecision(ctx, contact.tenant_id, "contact", id, "erase", {

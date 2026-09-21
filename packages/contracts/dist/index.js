@@ -10737,6 +10737,8 @@ var WORDS = {
   "contact.email_set": "A person's email address changed",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
+  // Retired with the Blob store (00148): nothing writes it, but rows written before survive in `events` and still need their sentence.
+  "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
@@ -10903,6 +10905,7 @@ var TONES = {
   "line.failed": "danger",
   "line.texting_rejected": "danger",
   "contact.erased": "danger",
+  "contact.blob_erased": "danger",
   "ingest.unroutable": "danger",
   "ingest.unreachable_sender": "danger",
   erase: "danger",
