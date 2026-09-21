@@ -243,11 +243,6 @@ export async function steerDraft(messageId: string, text: string): Promise<VerbR
   return api()("POST messages/[id]/steer", { params: { id: messageId }, body: { text } });
 }
 
-/** A call's recording: a link the route signs for five minutes, read through the client so the request names the workspace. */
-export async function recordingLink(callId: string): Promise<VerbResult> {
-  return api()("GET calls/[id]/recording", { params: { id: callId } });
-}
-
 export async function cancelSend(messageId: string): Promise<VerbResult> {
   return api()("POST messages/[id]/cancel-send", { params: { id: messageId } });
 }
@@ -356,7 +351,6 @@ declare global {
     __teamSetRole: typeof teamSetRole;
     __teamRemove: typeof teamRemove;
     __cancelSend: typeof cancelSend;
-    __recording: typeof recordingLink;
     __whisperCall: typeof whisperCall;
     __endCall: typeof endCall;
     __handOverCall: typeof handOverCall;
@@ -454,7 +448,8 @@ export function installInboxVerbs(): void {
   window.__teamSetRole = teamSetRole;
   window.__teamRemove = teamRemove;
   window.__cancelSend = cancelSend;
-  window.__recording = recordingLink;
+  // A call's recording is no verb: the thread's <audio> points at the route (window.__href), which redirects to a
+  // link signed for each request.
   window.__steerDraft = steerDraft;
   window.__whisperCall = whisperCall;
   window.__endCall = endCall;

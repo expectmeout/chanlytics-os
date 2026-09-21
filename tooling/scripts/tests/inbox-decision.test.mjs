@@ -56,11 +56,12 @@ test("a thread a teammate is answering is theirs: not Needs you, no unread dot, 
 });
 
 test("the customer's own words ride with the decision: what they last wrote, quoted; what the call left, as noted; nothing when nothing is being decided", () => {
-  assert.deepEqual(toInboxThreadVM(conv(), asked(), ZONE, NOW).ask, { label: "They wrote", text: "Can I move my appointment to Friday?", quoted: true });
+  assert.deepEqual(toInboxThreadVM(conv(), asked(), ZONE, NOW).ask, { kind: "wrote", label: "They wrote", text: "Can I move my appointment to Friday?", quoted: true });
   const later = conv({ messages: [wrote("m1", "Can I move my appointment to Friday?", 40), wrote("m2", "Or Saturday morning works too", 5)] });
   assert.equal(toInboxThreadVM(later, asked(), ZONE, NOW).ask.text, "Or Saturday morning works too", "the last thing they said, which is what they are waiting on");
   const call = toInboxThreadVM(conv({ last_wa_inbound_at: null, messages: [callNote] }), callback, ZONE, NOW);
-  assert.deepEqual(call.ask, { label: "From the call", text: "Call Rosa back to confirm the bridal trial on Oct 3", quoted: false });
+  // "call": the band says it as its sentence (the call is above it), so it is not said again beneath (calls you can follow).
+  assert.deepEqual(call.ask, { kind: "call", label: "From the call", text: "Call Rosa back to confirm the bridal trial on Oct 3", quoted: false });
   assert.equal(toInboxThreadVM(conv(), null, ZONE, NOW).ask, null, "no decision, nothing to put beside one");
 });
 
@@ -186,8 +187,11 @@ test("the pane: beside I'll answer this, the customer's own words -- what they w
   assert.equal(textOf(words), "They wrote“Can I move my appointment to Friday?”");
   assert.ok(buttonsOf(take).some((b) => b.includes("I'll answer this")), "the decision is still there to make");
 
+  // A call back's details are the line's own sentence, said once: "From the call" beneath the same words went (calls you
+  // can follow), and the call itself is right above.
   const callTake = find(paneOf(toInboxThreadVM(conv({ last_wa_inbound_at: null, messages: [callNote] }), callback, ZONE, NOW)), byTestId("ix-needs-you"));
-  assert.equal(textOf(find(callTake, byTestId("ix-take-ask"))), "From the callCall Rosa back to confirm the bridal trial on Oct 3", "REGRESSION: the call back promised the details and showed none");
+  assert.equal(textOf(find(callTake, hasClass("ix-state-says"))), "Call Rosa back to confirm the bridal trial on Oct 3", "REGRESSION: the call back promised the details and showed none");
+  assert.equal(find(callTake, byTestId("ix-take-ask")), undefined, "and not again beneath them");
 });
 
 test("the countdown's tip says what stops a real draft -- Hold, or starting to type -- where Edit only opens the composer", () => {

@@ -1216,6 +1216,7 @@ var RETENTION_DAYS = {
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
 var RECORDING_NOTE = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
@@ -2822,6 +2823,7 @@ var RETENTION_DAYS2 = {
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
 var RECORDING_NOTE2 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS2} days`
@@ -5011,6 +5013,7 @@ var RETENTION_DAYS3 = {
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
 var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
 var RECORDING_NOTE3 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS3} days`

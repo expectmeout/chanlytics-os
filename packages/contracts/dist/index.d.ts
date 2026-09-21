@@ -832,8 +832,11 @@ interface InboxThreadVM {
     /**
      * The customer's own words beside the decision: what they last wrote, quoted,
      * or what the call left behind for a call back. Null when nothing is being decided.
+     * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
+     * band does not say it again beneath; the row and its search still read `text`.
      */
     ask: {
+        kind: "call" | "wrote" | "sent";
         label: string;
         text: string;
         quoted: boolean;
@@ -1033,14 +1036,16 @@ interface CallDto {
     outcome?: string | null;
     follow_up?: string | null;
     caller_name?: string | null;
-    /** Turns. `start` (seconds) is the turn's first word; `words` is the raw
-     *  provider shape and is stripped by the list route (F15). */
+    /** Turns. `start`/`end` (seconds) are the turn's first and last word; `words` is
+     *  the raw provider shape and is stripped by the list route (F15). */
     transcript_object: Array<{
         role?: string;
         content?: string;
         start?: number;
+        end?: number;
         words?: Array<{
             start?: number;
+            end?: number;
         }>;
     }> | null;
     /** storage_path and provider_url are stripped server-side — audio is only
@@ -1113,11 +1118,17 @@ interface CallVM {
         headline: string;
         bullets: string[];
     };
+    /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
+     *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
     transcript: Array<{
         t: string;
         speaker: "agent" | "client" | "whisper";
         text: string;
+        start: number | null;
+        end: number | null;
     }>;
+    /** The call's length in seconds: the player's track before the audio says its own. */
+    durationSec: number | null;
     recordingState: "ready" | "pending" | "failed" | "purged" | "none";
     recordingUrl?: string;
     threadId?: string;

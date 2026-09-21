@@ -224,7 +224,10 @@ test("REGRESSION (A15): the template send says when the list could not be read, 
   const closed = { id: "th-1", real: true, who: "Rosa Díaz", primaryChannel: "whatsapp", hasChat: true, windowOpen: false, optedOut: false };
   const draw = () => { cells = []; seq = 0; return InboxComposer({ thread: closed, reply: "" }); };
   globalThis.window.__TEMPLATES = undefined;
-  assert.match(textOf(draw()), /Checking which templates are approved…/, "still reading");
+  // Still reading: nothing yet -- never that none is approved. "Checking which templates are approved…" was the
+  // machinery talking (calls you can follow).
+  const reading = textOf(draw());
+  assert.ok(!/No approved template|Checking which templates/.test(reading), `nothing said while it reads: ${reading}`);
   globalThis.window.__TEMPLATES = null;
   const failed = draw();
   const line = find(failed, byTestId("ix-tpl-failed"));
