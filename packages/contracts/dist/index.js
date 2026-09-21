@@ -10585,6 +10585,26 @@ var STRENGTHS = {
 function ruleStrength(key) {
   return STRENGTHS[key];
 }
+var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
+function standingLine(i) {
+  const p = i.profile ?? {};
+  const gaps = [];
+  if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
+  if (!has2(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
+  if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
+  if (!has2(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
+  if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
+  if (!has2(p.tone)) gaps.push({ sentence: "It has no voice of its own yet \u2014 it answers correctly, in nobody in particular's words.", row: "tone" });
+  const answers = [];
+  if (has2(p.address)) answers.push("where you are");
+  if (has2(p.hours)) answers.push("when you're open");
+  if (has2(p.services)) answers.push("what you offer");
+  if (has2(i.booking_link)) answers.push("how to book");
+  const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
+  const quiet = p.guardrails?.never_quote_prices !== false && has2(p.services);
+  const wont = quiet ? "It offers a consult instead of a price, by your rule." : null;
+  return { can, wont, missing: gaps[0] ?? null };
+}
 
 // src/a2p-enums.ts
 var BUSINESS_INDUSTRIES = [
@@ -10768,17 +10788,17 @@ var REGISTERABLE_COUNTRIES = ["US", "CA"];
 var digits = (s) => s.replace(/\D/g, "");
 function businessRecordProblems(r, path, facts = {}) {
   const out = {};
-  const has2 = (k) => String(r[k] ?? "").trim().length > 0;
-  for (const f of businessFieldsFor(path)) if (f.required && !has2(f.name)) out[f.name] = `${f.label} is needed.`;
-  if (has2("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
-  if (has2("contact_email") && !EMAIL.test(String(r.contact_email).trim())) out.contact_email = "That does not look like an email address.";
-  if (has2("contact_phone") && !E1642.test(String(r.contact_phone).replace(/[\s()-]/g, ""))) out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
-  if (has2("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
-  if (has2("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim())) out.website_url = "A full address a reviewer can open, starting with https://";
-  if (has2("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
+  const has3 = (k) => String(r[k] ?? "").trim().length > 0;
+  for (const f of businessFieldsFor(path)) if (f.required && !has3(f.name)) out[f.name] = `${f.label} is needed.`;
+  if (has3("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
+  if (has3("contact_email") && !EMAIL.test(String(r.contact_email).trim())) out.contact_email = "That does not look like an email address.";
+  if (has3("contact_phone") && !E1642.test(String(r.contact_phone).replace(/[\s()-]/g, ""))) out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
+  if (has3("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
+  if (has3("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim())) out.website_url = "A full address a reviewer can open, starting with https://";
+  if (has3("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
     out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
   }
-  if (path === "sole_proprietor" && has2("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
+  if (path === "sole_proprietor" && has3("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
     out.contact_phone = "This is the number Chanlytics answers for you. The carriers need YOUR handset \u2014 they text a code to it and you reply from the phone in your hand.";
   }
   return out;
@@ -13114,6 +13134,7 @@ export {
   spokenBreachDetails,
   spokenDuration,
   stageArgs,
+  standingLine,
   standingOf,
   starsOf,
   starterByKey,

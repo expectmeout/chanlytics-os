@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, SOURCE_WORDS, ruleStrength, GUARDRAIL_KEYS } from "@chanlytics/contracts";
+import { stateOf, SOURCE_WORDS, ruleStrength, GUARDRAIL_KEYS, standingLine } from "@chanlytics/contracts";
 
 test("a fact's source carries a tone and the words facts.ts already wrote", () => {
   assert.equal(stateOf("fact", "verified").tone, "ok");
@@ -53,4 +53,41 @@ test("the four rules carry three different guarantees", () => {
   assert.doesNotMatch(priced.checkedOn[1].words, /before/i);
   assert.match(priced.checkedOn[1].words, /already been heard/i);
   assert.doesNotMatch(priced.sentence, /WhatsApp|call/i);
+});
+
+const full = {
+  business_name: "Melany's Beauty Salon",
+  booking_link: "https://booksy.com/en-us/1817434",
+  profile: {
+    address: "2581 Pitkin Ave, Brooklyn, NY 11208",
+    tone: "Warm and unhurried.",
+    hours: { mon: { open: "09:30", close: "18:00" } },
+    services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
+    escalate_when: ["They ask for Melany"],
+    guardrails: { never_quote_prices: true },
+  },
+};
+
+test("the standing line is three clauses, and never a percentage", () => {
+  const s = standingLine(full);
+  assert.match(s.can, /where you are/);
+  assert.match(s.can, /when you.re open/);
+  assert.match(s.can, /how to book/);
+  assert.equal(s.missing, null, "a full record is missing nothing");
+  assert.match(s.wont ?? "", /consult instead of a price/);
+  assert.equal(typeof s.percent, "undefined", "there is no score on this page");
+});
+
+test("the standing line names the one thing missing, and where to fix it", () => {
+  const noVoice = { ...full, profile: { ...full.profile, tone: undefined } };
+  const s = standingLine(noVoice);
+  assert.match(s.missing.sentence, /no voice of its own/i);
+  assert.equal(s.missing.row, "tone");
+});
+
+test("a record with nothing says so without listing every gap", () => {
+  const s = standingLine({ business_name: "", booking_link: "", profile: {} });
+  assert.match(s.can, /cannot answer anyone yet/i);
+  assert.equal(s.wont, null);
+  assert.equal(s.missing.row, "name");
 });

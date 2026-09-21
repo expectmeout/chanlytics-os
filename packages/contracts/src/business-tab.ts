@@ -72,3 +72,63 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
 export function ruleStrength(key: GuardrailKey): RuleStrengthVM {
   return STRENGTHS[key];
 }
+
+/** The subset of the brain the standing line reads. */
+export interface StandingInputs {
+  business_name?: string | null;
+  booking_link?: string | null;
+  profile?: {
+    address?: string | null;
+    tone?: string | null;
+    hours?: Record<string, unknown> | null;
+    services?: unknown[] | null;
+    escalate_when?: string[] | null;
+    guardrails?: Partial<Record<GuardrailKey, boolean>> | null;
+  } | null;
+}
+
+export interface StandingVM {
+  /** What it can answer, in one clause. */
+  can: string;
+  /** What it deliberately will not do, by a rule the owner set. Null when there is none. */
+  wont: string | null;
+  /** The single most useful gap, and the row that fixes it. Null when there is none. */
+  missing: { sentence: string; row: string } | null;
+}
+
+const has = (v: unknown): boolean =>
+  typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v as object).length > 0;
+
+/**
+ * Three clauses, worst last.
+ *
+ * The gaps are ordered by what a customer notices: a receptionist with no name
+ * cannot introduce itself, one with no hours cannot answer the commonest
+ * question, and one with no voice answers correctly in nobody's words. Only
+ * the first gap is named — a list of six is a list nobody starts.
+ */
+export function standingLine(i: StandingInputs): StandingVM {
+  const p = i.profile ?? {};
+  const gaps: { sentence: string; row: string }[] = [];
+  if (!has(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
+  if (!has(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
+  if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
+  if (!has(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
+  if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
+  if (!has(p.tone)) gaps.push({ sentence: "It has no voice of its own yet — it answers correctly, in nobody in particular's words.", row: "tone" });
+
+  const answers: string[] = [];
+  if (has(p.address)) answers.push("where you are");
+  if (has(p.hours)) answers.push("when you're open");
+  if (has(p.services)) answers.push("what you offer");
+  if (has(i.booking_link)) answers.push("how to book");
+
+  const can = answers.length
+    ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.`
+    : "It cannot answer anyone yet.";
+
+  const quiet = p.guardrails?.never_quote_prices !== false && has(p.services);
+  const wont = quiet ? "It offers a consult instead of a price, by your rule." : null;
+
+  return { can, wont, missing: gaps[0] ?? null };
+}
