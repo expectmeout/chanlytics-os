@@ -515,6 +515,18 @@ test("with no fields, the prompt is the workspace's own, and the only rules are 
   assert.deepEqual(alone.map((b) => b.row), ["autonomy"]);
 });
 
+test("the rules block says which of its lines are not the owner's", () => {
+  // The composer writes three kinds of line under "Rules you must follow": the rules this row
+  // switches, Chanlytics' line for a customer who replies YES OFFERS, which every workspace
+  // carries, and under "ask" the Autonomy tab's rules. The block is the row's, so it says so.
+  for (const channel of ["whatsapp", "voice"]) {
+    const rules = promptBlocks(composeSystemPrompt(brain, profile, channel, tz, NOW, ASK), channel, { profile }).find((b) => b.row === "guardrails");
+    assert.match(rules.text, /YES OFFERS/, `${channel}: the line is there`);
+    assert.match(rules.text, /^- Booking: /m, `${channel}: and so is Autonomy's`);
+    assert.equal(rules.note, "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS, and any rule your Autonomy tab adds.", channel);
+  }
+});
+
 /* ---- The caller says what the prompt was composed from ---- */
 
 test("a caller has to say what the prompt was composed from", () => {

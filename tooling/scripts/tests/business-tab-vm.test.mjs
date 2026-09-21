@@ -12,7 +12,7 @@ import {
   GUARDRAIL_KEYS,
   standingLine,
   abilityRows,
-  CANNOT_ROWS,
+  cannotRows,
   bookingHeld,
   policyAskClass,
 } from "@chanlytics/contracts";
@@ -207,6 +207,35 @@ test("what it records, and how far ahead chat looks, are said as they are", () =
   assert.match(idOf(abilityRows(live)).open_times.detail, /next few days' openings/);
 });
 
+test("with no calendar it does not guess at times, and promises the link only where the link can go", () => {
+  // The link goes where the booking-link row is ready: WhatsApp connected, a link to send, and
+  // bookings not held on the Autonomy tab. Anywhere else "it sends the link instead" is not true.
+  const noFeed = { ...live, hasCalendarFeed: false };
+  const row = idOf(abilityRows(noFeed)).open_times;
+  assert.equal(row.detail, "No calendar to read, so it does not guess at open times — it sends the link instead.");
+  assert.equal(row.ready, false);
+  for (const [what, shape] of [["no WhatsApp", { ...noFeed, whatsappLive: false }], ["no link", { ...noFeed, hasBookingLink: false }], ["bookings held", { ...noFeed, bookingHeld: true }]]) {
+    assert.equal(idOf(abilityRows(shape)).open_times.detail, "No calendar to read, so it does not guess at open times.", what);
+  }
+});
+
+test("with a calendar, the link follows the times only where it can go", () => {
+  assert.match(idOf(abilityRows(live)).open_times.detail, /It offers up to three that fit, then the link\.$/);
+  // A phone-only workspace offers times on a call, and has no way to send the link after them.
+  assert.match(idOf(abilityRows({ ...live, whatsappLive: false })).open_times.detail, /It offers up to three that fit\.$/);
+  // With bookings held, the call's tool offers no times (retell-availability.ts) while the call
+  // starts with the openings (call-start.ts) and chat is handed them; no link follows on either.
+  const held = idOf(abilityRows({ ...live, bookingHeld: true })).open_times;
+  assert.equal(held.detail, "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so no link follows.");
+});
+
+test("on WhatsApp alone, the link goes in the thread", () => {
+  const b = idOf(abilityRows({ ...live, voiceLive: false })).booking_link;
+  assert.equal(b.detail, "It sends it in the thread.");
+  assert.equal(b.ready, true);
+  assert.deepEqual(b.channels, { voice: false, whatsapp: true });
+});
+
 test("the booking link goes by WhatsApp, so a phone-only workspace cannot send it", () => {
   // send_booking_link delivers a WhatsApp template to the caller's WhatsApp; it never
   // sends an SMS, which is not sold. The first draft said "texts it", and drew it ready
@@ -305,6 +334,17 @@ test("an input left out throws and says which, rather than drawing a card that l
   assert.doesNotThrow(() => abilityRows({ ...live, pauseHours: undefined }));
 });
 
+test("a photo is looked at when the switch is on, and passed to a person when it is off", () => {
+  // vision.ts: on, the photo is answered like a message under every rule the prompt carries;
+  // off, it is acknowledged where the mode allows and always handed to a person (inbound.ts).
+  const on = idOf(abilityRows({ ...live, visionOn: true })).vision;
+  assert.equal(on.detail, "It says what it sees and suggests the next step, under the rules it always keeps.");
+  assert.deepEqual([on.ready, on.on], [true, true]);
+  const off = idOf(abilityRows(live)).vision;
+  assert.equal(off.detail, "Off. A photo is passed to a person.");
+  assert.deepEqual([off.ready, off.on], [false, false]);
+});
+
 test("both halves of a hand-off open the one row the page draws for them", () => {
   const rows = idOf(abilityRows(live));
   assert.equal(rows.transfer.runsOn.row, "handoff");
@@ -316,9 +356,19 @@ test("both halves of a hand-off open the one row the page draws for them", () =>
 /* ---- What it cannot do ---- */
 
 test("what it cannot do is stated, and is not a setting", () => {
-  const ids = CANNOT_ROWS.map((r) => r.id);
+  const rows = cannotRows({ smsLive: false });
+  const ids = rows.map((r) => r.id);
   assert.deepEqual(ids, ["book", "outbound_call", "sms"]);
-  assert.match(CANNOT_ROWS[0].detail, /no appointments table/i);
-  assert.match(CANNOT_ROWS[1].detail, /never calls a customer/i);
-  assert.equal(CANNOT_ROWS[2].soon, true);
+  assert.match(rows[0].detail, /no appointments table/i);
+  assert.match(rows[1].detail, /never calls a customer/i);
+  assert.equal(rows[2].soon, true);
+});
+
+test("a text message is not listed as something it cannot do once texting is live", () => {
+  // Texting goes live on an active carrier line that is not a rehearsal filing
+  // (capabilities.ts). On such a line "not part of what is sold yet" is not true.
+  assert.deepEqual(cannotRows({ smsLive: true }).map((r) => r.id), ["book", "outbound_call"]);
+  // Left out by an untyped caller, it would quietly read as not live.
+  assert.throws(() => cannotRows({}), (e) => e instanceof TypeError && /smsLive/.test(e.message));
+  assert.throws(() => cannotRows(), TypeError);
 });

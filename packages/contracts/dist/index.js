@@ -10728,6 +10728,7 @@ function abilityRows(i) {
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   const answering = i.voiceLive || i.whatsappLive;
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
+  const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
   const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so it sends no link: it tells the customer someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
   const handoffWhen = i.hasEscalateWhen ? "On your reasons, or when a customer asks for a person or it can't help, it" : "When a customer asks for a person or it can't help, it";
   const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
@@ -10745,7 +10746,10 @@ function abilityRows(i) {
       id: "open_times",
       title: "Say which times are open",
       // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
-      detail: i.hasCalendarFeed ? "On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit, then the link." : "No calendar to read, so it does not guess at open times \u2014 it sends the link instead.",
+      // With bookings held, check_availability offers a caller no times (retell-availability.ts),
+      // while the call still starts with the openings (call-start.ts) and chat is still handed
+      // them, so this says only what holds on both: it has them, and no link follows.
+      detail: !i.hasCalendarFeed ? linkGoes ? "No calendar to read, so it does not guess at open times \u2014 it sends the link instead." : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed
@@ -10756,7 +10760,7 @@ function abilityRows(i) {
       detail: bookingDetail,
       channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: i.hasBookingLink && i.whatsappLive && !i.bookingHeld
+      ready: linkGoes
     },
     {
       id: "transfer",
@@ -10810,6 +10814,12 @@ var CANNOT_ROWS = [
     soon: true
   }
 ];
+function cannotRows(i) {
+  if (typeof i?.smsLive !== "boolean") {
+    throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
+  }
+  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
+}
 
 // src/prompt-blocks.ts
 var PLATFORM_LABEL = "Chanlytics' own instructions";
@@ -10841,7 +10851,12 @@ var BLOCK_MARKS = /* @__PURE__ */ (() => [
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callMedium, channel: "voice", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.chatMedium, channel: "whatsapp", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.openTimes, note: PLATFORM_NOTE },
-  { row: "guardrails", label: "Rules it always keeps", startsWith: PROMPT_OPENINGS.rules }
+  {
+    row: "guardrails",
+    label: "Rules it always keeps",
+    startsWith: PROMPT_OPENINGS.rules,
+    note: "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS, and any rule your Autonomy tab adds."
+  }
 ])();
 var IDENTITY = { row: "identity", label: "Who you are", startsWith: "" };
 var OWN_WORDS = { row: "extra_instructions", label: "In your own words", startsWith: "" };
@@ -12750,7 +12765,6 @@ export {
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
   CAMPAIGN_REPORT_RANGES,
-  CANNOT_ROWS,
   CAPABILITY_KINDS,
   CARRIERS,
   CARRIER_WORDS,
@@ -13135,6 +13149,7 @@ export {
   callOutcomeOf,
   callOutcomeWords,
   cameFromOf,
+  cannotRows,
   capabilityStatus,
   changedConfigFields,
   channelFor,

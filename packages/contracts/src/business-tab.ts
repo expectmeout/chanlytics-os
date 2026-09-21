@@ -247,6 +247,10 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   // So a phone-only workspace cannot send it at all, and a call cannot send it without
   // an approved template -- whatever the booking link field holds.
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
+  // Where the booking-link row below is ready. Another row that promises the link after
+  // something else promises it only here: with no WhatsApp to send it by, no link, or
+  // bookings held on the Autonomy tab, "then the link" would not be true.
+  const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
   // What is missing on this page is said first, because it is what this page can fix.
   // Then the Autonomy tab's hold: with Booking not on auto, a chat reply has the link taken
   // back out (steps.ts layerTwo) and the call's send is refused (outbound-gate.ts), and on
@@ -287,9 +291,16 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       id: "open_times",
       title: "Say which times are open",
       // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
-      detail: i.hasCalendarFeed
-        ? "On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit, then the link."
-        : "No calendar to read, so it does not guess at open times — it sends the link instead.",
+      // With bookings held, check_availability offers a caller no times (retell-availability.ts),
+      // while the call still starts with the openings (call-start.ts) and chat is still handed
+      // them, so this says only what holds on both: it has them, and no link follows.
+      detail: !i.hasCalendarFeed
+        ? linkGoes
+          ? "No calendar to read, so it does not guess at open times — it sends the link instead."
+          : "No calendar to read, so it does not guess at open times."
+        : i.bookingHeld
+          ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so no link follows."
+          : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
@@ -300,7 +311,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       detail: bookingDetail,
       channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: i.hasBookingLink && i.whatsappLive && !i.bookingHeld,
+      ready: linkGoes,
     },
     {
       id: "transfer",
@@ -348,13 +359,7 @@ export interface CannotRowVM {
   soon?: boolean;
 }
 
-/**
- * Said here so nobody has to find out from a customer.
- *
- * None of these is a setting that could be switched on, and saying so on the
- * page that holds the switches is the difference between a limit and a bug.
- */
-export const CANNOT_ROWS: readonly CannotRowVM[] = [
+const CANNOT_ROWS: readonly CannotRowVM[] = [
   {
     id: "book",
     title: "Book, move or cancel an appointment",
@@ -376,3 +381,22 @@ export const CANNOT_ROWS: readonly CannotRowVM[] = [
     soon: true,
   },
 ];
+
+/**
+ * Said here so nobody has to find out from a customer.
+ *
+ * None of these is a setting that could be switched on, and saying so on the
+ * page that holds the switches is the difference between a limit and a bug.
+ *
+ * Texting is the one that changes: it goes live on an active carrier line that
+ * is not a rehearsal filing (capabilities.ts), and on such a line "not part of
+ * what is sold yet" is not true, so the row is left out. `smsLive` is checked as
+ * it runs, like abilityRows' inputs: left out by an untyped page, it would read
+ * as not live.
+ */
+export function cannotRows(i: { smsLive: boolean }): CannotRowVM[] {
+  if (typeof i?.smsLive !== "boolean") {
+    throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
+  }
+  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
+}
