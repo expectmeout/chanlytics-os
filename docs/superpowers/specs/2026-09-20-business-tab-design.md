@@ -159,7 +159,9 @@ All additive; nothing existing changes meaning.
    - `ruleStrength(key)` → `structural | checked | instructed`, with its sentence.
    - `promptBlocks(composed)` → the prompt cut into blocks with the row that wrote each and its character count.
    - `consequenceOf(section, draft)` → the block a fold shows, from `composeSystemPrompt`.
-3. No change to `config.ts`, `facts.ts`, `capabilities.ts`, `policy.ts`, `voice-shell.ts`. The page reads what they already return.
+3. **No change to what `composeSystemPrompt` or `resolveSystemPrompt` return**, and no change at all to `facts.ts`, `capabilities.ts`, `policy.ts` or `voice-shell.ts`. The page reads what they already return.
+
+   Amended 20 Sep, in execution. This line first said "no change to `config.ts`". But the prompt view cuts the *resolved* prompt, and the resolver decides whose words count as the owner's: `profile.extra_instructions` when there are any, and `brain.system_prompt` carried in their place when there are not (`config.ts:1292`). A page that re-derived that rule would drift from it. So one exported helper, `ownWordsOf(brain)`, lives beside the resolver and the resolver itself calls it. It is a pure extract: the prompt's output stays byte-identical, and the thirteen test files that exercise the resolver, plus an equivalence test, hold it there. The live line reads this file, so the promise that matters is about what it *returns*, not whether a line of it moved.
 
 ## 8. One fact, one owner — applied
 
