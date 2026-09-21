@@ -135,7 +135,8 @@ const btFocusBack = (id, el) => {
  * is handed the draft, its setter, what stops it and the field's own ids. A disagreement on the row names the other
  * answer and the draft that takes it (`disputed.use`), which saves through the same `commit`.
  *
- * `section` is the row's name to consequenceOf (FOLD_BLOCK), where it is not the row's id: the name is `business_name`.
+ * `section` is the row's name to consequenceOf (FOLD_BLOCK) where it is not the row's id, or the names of each block its save
+ * can change: a rename changes the line the prompt opens with and, where the stored prompt is the product's own, that too.
  * `channel` is the one the row's words are read on; the transfer number is a call's, and changes nothing on WhatsApp.
  */
 const RecordInline = ({
@@ -163,8 +164,8 @@ const RecordInline = ({
   const dirty = open && !btSame(storedAs(now), storedAs(initial));
   const [busy, save] = useFieldSave(flash);
   const boxRef = useBizRef(null);
-  // The block as the stored brain writes it, resolved once per stored brain rather than on every keystroke.
-  const before = useBizRef({ brain: null, block: null });
+  // Each block as the stored brain writes it, resolved once per stored brain rather than on every keystroke.
+  const before = useBizRef({ brain: null, blocks: {} });
 
   // A row whose page goes away lets go of the registry, as a fold does (record-fold.jsx: the rail's "Yes, leave"
   // replaces the pane). Left open, its dirty test would go on answering after it had gone, and the rail would ask on
@@ -206,22 +207,29 @@ const RecordInline = ({
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
   };
 
-  // What saving would tell the receptionist: the lines of its block that the draft changes, resolved as the edge
+  // What saving would tell the receptionist: the lines of its blocks that the draft changes, resolved as the edge
   // resolves them. Only for a draft the save would send, and only while the editor is open, because each call parses
-  // the whole brain and resolves a full prompt. Nothing is drawn when nothing changes, and nothing when the block is
-  // null (the save's schema refuses the draft, or a record whose profile composes nothing is answered with its stored
+  // the whole brain and resolves a full prompt. Nothing is drawn when nothing changes, and nothing when a block is null
+  // (the save's schema refuses the draft, or a record whose profile composes nothing is answered with its stored
   // prompt): never an empty "It will say".
   let says = null;
   const tab = window.__businessTab;
   if (dirty && !check(now) && tab && tab.consequenceOf) {
-    const block = section || id;
-    const after = tab.consequenceOf(block, commit(now).change({ ...brain }, { ...(brain.profile || {}) }), channel);
-    if (after) {
-      if (before.current.brain !== brain) before.current = { brain, block: tab.consequenceOf(block, brain, channel) };
-      const changed = btChangedLines(before.current.block, after);
-      if (changed.added.length) says = { words: "It will say", lines: changed.added };
-      else if (changed.removed.length) says = { words: "It will no longer say", lines: changed.removed };
+    const next = commit(now).change({ ...brain }, { ...(brain.profile || {}) });
+    if (before.current.brain !== brain) before.current = { brain, blocks: {} };
+    const stored = before.current.blocks;
+    const added = [];
+    const removed = [];
+    for (const block of [].concat(section || id)) {
+      const after = tab.consequenceOf(block, next, channel);
+      if (!after) continue;
+      if (!(block in stored)) stored[block] = tab.consequenceOf(block, brain, channel);
+      const changed = btChangedLines(stored[block], after);
+      added.push(...changed.added);
+      removed.push(...changed.removed);
     }
+    if (added.length) says = { words: "It will say", lines: added };
+    else if (removed.length) says = { words: "It will no longer say", lines: removed };
   }
 
   // A disagreement, as the kit draws one: the other answer, in the resolver's own sentence when there is one, and one
@@ -355,6 +363,32 @@ const BT_TAKE_GOOGLES = { draft: (v) => v, from: ["verified"] };
 // The pattern every web address on this tab is checked by: the old form's, which the save's own URL rule backs up.
 const BT_WEB = /^https?:\/\/.+\..+/;
 
+// Whether a stored prompt is the product's own opening lines (contracts isBaselinePrompt, through the bridge), which
+// name the business, whatever name they were written with.
+const btIsBaseline = (text) => {
+  const tab = window.__businessTab;
+  return !!(tab && tab.isBaselinePrompt && typeof text === "string" && tab.isBaselinePrompt(text.trim()));
+};
+
+/**
+ * A new name for the business, as one patch: `business_name`, and the product's opening lines written again under the
+ * new name where the stored prompt is them. Every workspace the product sets up stores them as its prompt, and the
+ * resolver carries that prompt in the owner's place until they write their own (config.ts ownWordsOf), so a rename
+ * that left it behind had the receptionist told it was the assistant for both businesses, one line after the other.
+ * The old form wrote them on every save; a rename here writes them when it renames. A stored prompt that is not them
+ * is the owner's own words, carried, and a rename leaves it as they wrote it.
+ */
+const btRename = (name) => ({
+  change: (b) => {
+    if (name !== b.business_name && btIsBaseline(b.system_prompt) && window.__receptionistDefaults) {
+      b.system_prompt = window.__receptionistDefaults(name).system_prompt;
+    }
+    b.business_name = name;
+    return b;
+  },
+  said: BT_SAVED,
+});
+
 /* ------------------------------------ the page ------------------------------------ */
 
 /** The page's name, what it is, and who last changed it (the row's own author and stamp, 00085). */
@@ -463,7 +497,8 @@ const BtWho = ({ brain, canEdit, flash }) => {
       <RecordInline
         {...shared}
         id="name"
-        section="business_name"
+        // The line the prompt opens with, and the product's own lines where a rename writes them again (btRename).
+        section={btIsBaseline(brain.system_prompt) ? ["business_name", "system_prompt"] : "business_name"}
         label="Name"
         value={name.value}
         empty="Not set"
@@ -473,7 +508,7 @@ const BtWho = ({ brain, canEdit, flash }) => {
         initial={brain.business_name || ""}
         // Checked here so the owner is told before a round trip: the API refuses an empty name too, but names no field.
         check={(d) => (btTrimmed(d) ? null : "The receptionist needs a business name before it can answer anyone.")}
-        commit={(d) => ({ change: (b) => { b.business_name = btTrimmed(d); return b; }, said: BT_SAVED })}
+        commit={(d) => btRename(btTrimmed(d))}
         body={btTextBox({ placeholder: "The name customers know you by", autoComplete: "organization" })}
       />
 

@@ -10,7 +10,7 @@
  */
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
-  promptBlocks, resolveSystemPrompt, TenantConfigWriteSchema, type PromptBlockVM,
+  promptBlocks, resolveSystemPrompt, isBaselinePrompt, TenantConfigWriteSchema, type PromptBlockVM,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 
@@ -46,6 +46,12 @@ export const FOLD_BLOCK = {
   handoff_number: "handoff",
   guardrails: "guardrails",
   extra_instructions: "extra_instructions",
+  // The stored prompt, where it is the product's own opening lines: every workspace the product sets up stores them,
+  // and the resolver carries them in the owner's place until the owner writes their own, where promptBlocks names them
+  // the platform's. They name the business, so a rename writes them again under the new name, and the Name row shows
+  // that line changing beside its own. (A stored prompt that is the owner's words is read in extra_instructions, and
+  // no row writes it.)
+  system_prompt: "platform",
   // Sent in the business's name in place of a reply the model wrote (no model, a failed call, a voice note), never part of the prompt.
   fallbacks: null,
   // The feed's openings follow the prompt, in the block rebuilt for every message and call (prompt-preview.ts `now`).
@@ -133,7 +139,12 @@ function consequenceOf(section: FoldSection, next: unknown, channel: "whatsapp" 
   return consequenceFor(window as unknown as ConsequenceWindow, section, next, channel, new Date());
 }
 
-export const BUSINESS_TAB = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf };
+/**
+ * `isBaselinePrompt` tells the Name row whether the stored prompt is the product's own opening lines, which name the
+ * business: a rename writes them again under the new name, as the old form's save did, or the receptionist is told
+ * both names. A stored prompt that is anything else is the owner's words, and a rename leaves it alone.
+ */
+export const BUSINESS_TAB = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, isBaselinePrompt };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 
 declare global {

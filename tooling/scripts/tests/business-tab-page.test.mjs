@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   stateOf, standingLine, roleGate, formatPhoneDisplay, whyNotAPhone, whyNotAHandoff, samePhone, handoffE164,
-  resolveFacts, factConflicts,
+  resolveFacts, factConflicts, newReceptionistDefaults,
 } from "@chanlytics/contracts";
 import { installLegacyReact, again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
@@ -35,6 +35,8 @@ Object.assign(globalThis, {
   __handoffE164: handoffE164,
   __roleGate: roleGate,
   __lastChanged: () => "",
+  // What a new receptionist starts with, which a rename writes again under the new name (inbox-verbs.ts).
+  __receptionistDefaults: newReceptionistDefaults,
 });
 await import(`${L}/components/data-bits.jsx`);
 await import(`${L}/components/record-row.jsx`);
@@ -446,6 +448,49 @@ test("It will say: the line of the prompt the draft changes, resolved as the edg
   typeInto(tree, "handoff_number", "");
   tree = redrawTab();
   assert.match(lines(byTestId(tree, "rec-inline-says-handoff_number")), /^There is no line to transfer to\./);
+});
+
+test("a rename writes the product's opening lines again under the new name, and leaves an owner's own words alone", () => {
+  const sent = saving();
+  const was = "Melany's Beauty Salon";
+  const now = "Melany's Salon & Spa";
+  const baselineOf = (name) => newReceptionistDefaults(name).system_prompt;
+  // What the product stores for every workspace it sets up, carried in the owner's place while their box is empty.
+  let tree = drawTab({ brain: { system_prompt: baselineOf(was) } });
+  let stored = structuredClone(W.__SETTINGS.config);
+  openFold(tree, "name");
+  tree = redrawTab();
+  typeInto(tree, "name", now);
+  tree = redrawTab();
+  assert.deepEqual(textOf(find(byTestId(tree, "rec-inline-says-name"), (n) => n.type === "pre")).split("\n"), [
+    `You are the assistant for ${now}, answering customers over WhatsApp.`,
+    baselineOf(now),
+  ], "It will say both lines that change: the one the prompt opens with, and the product's own lines carried after it");
+  saveRow(tree, "name");
+  assert.deepEqual(sent[0].config, { ...stored, brain: { ...stored.brain, business_name: now, system_prompt: baselineOf(now) } }, "one patch: the name, and the lines that name it");
+  // What the receptionist is then told, resolved as the settings read resolves it, on either channel.
+  const told = composePromptPreview(sent[0].config.brain, { tz: "America/New_York", policy: {}, known: KNOWN, openings: null });
+  for (const channel of ["whatsapp", "voice"]) {
+    assert.ok(told[channel].includes(now), channel);
+    assert.ok(!told[channel].includes(was), `${channel}: the old name is nowhere in what it is told`);
+  }
+
+  // Google's name, taken in one press, is a rename like any other.
+  tree = drawTab({ brain: { system_prompt: baselineOf(was) }, resolved: { ...KNOWN, listing: { name: now, address: null } } });
+  stored = structuredClone(W.__SETTINGS.config);
+  press(find(byTestId(tree, "rec-row-name"), (n) => n.type === "button" && textOf(n) === "Use Google's"));
+  assert.deepEqual(sent[1].config, { ...stored, brain: { ...stored.brain, business_name: now, system_prompt: baselineOf(now) } });
+
+  // A prompt the owner's workspace had before its fields is their own words: a rename leaves it as they wrote it.
+  tree = drawTab();
+  stored = structuredClone(W.__SETTINGS.config);
+  openFold(tree, "name");
+  tree = redrawTab();
+  typeInto(tree, "name", now);
+  tree = redrawTab();
+  assert.equal(textOf(find(byTestId(tree, "rec-inline-says-name"), (n) => n.type === "pre")), `You are the assistant for ${now}, answering customers over WhatsApp.`);
+  saveRow(tree, "name");
+  assert.deepEqual(sent[2].config, { ...stored, brain: { ...stored.brain, business_name: now } }, "the name alone");
 });
 
 test("only one editor is open at a time: a clean one gives way, one holding changes asks first", () => {

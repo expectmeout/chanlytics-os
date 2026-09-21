@@ -16,6 +16,7 @@ import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
+  isBaselinePrompt, newReceptionistDefaults,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -78,8 +79,15 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
-    "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "consequenceOf", "promptBlocks", "ruleStrength", "standingLine",
+    "GUARDRAIL_KEYS", "abilityRows", "bookingHeld", "bookingTemplate", "cannotRows", "consequenceOf", "isBaselinePrompt", "promptBlocks", "ruleStrength", "standingLine",
   ]);
+  // Whether a stored prompt is the product's own opening lines, whatever name they were written with (the Name row
+  // writes them again under a new name), and never the owner's own words.
+  for (const text of [newReceptionistDefaults("Melany's Beauty Salon").system_prompt, newReceptionistDefaults("Bella Nails & Spa").system_prompt, STORED.system_prompt]) {
+    assert.equal(tab.isBaselinePrompt(text), isBaselinePrompt(text), text);
+  }
+  assert.equal(tab.isBaselinePrompt(newReceptionistDefaults("Bella Nails & Spa").system_prompt), true);
+  assert.equal(tab.isBaselinePrompt(STORED.system_prompt), false, "a prompt written before the workspace had fields is the owner's");
   assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
   const inputs = {
     voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true, hasBookingTemplate: true,
@@ -150,6 +158,8 @@ const EDITS = [
   ["handoff_number", "handoff", (b) => profile(b, { handoff_number: undefined }), "There is no line to transfer to.", "voice"],
   ["guardrails", "guardrails", (b) => profile(b, { guardrails: { never_quote_prices: true, no_health_advice: true } }), "- Never give medical or health advice"],
   ["extra_instructions", "extra_instructions", (b) => profile(b, { extra_instructions: "Never discuss competitors." }), "Never discuss competitors."],
+  // A rename writes the product's opening lines again under the new name, where the stored prompt was them.
+  ["system_prompt", "platform", (b) => ({ ...b, system_prompt: newReceptionistDefaults("Melany's Salon & Spa").system_prompt }), newReceptionistDefaults("Melany's Salon & Spa").system_prompt],
 ];
 
 test("each fold's draft lands in the block it maps to, as the server would compose that draft", () => {
