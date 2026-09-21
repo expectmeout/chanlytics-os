@@ -1995,6 +1995,7 @@ function spokenDuration(ms2) {
 }
 var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
 var RECORDING_NOTE = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
@@ -2030,15 +2031,28 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     );
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
-  const transcript = (dto.transcript_object ?? []).map((turn) => {
-    const start = turn.start ?? turn.words?.[0]?.start;
+  const turns = dto.transcript_object ?? [];
+  const given = turns.map((turn) => turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null);
+  const starts = given.map((s, i) => {
+    if (s != null || turns[i].role === "injected") return s;
+    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
+    const after = given.slice(i + 1).find((x) => x != null) ?? null;
+    return before != null && after != null ? (before + after) / 2 : before ?? after;
+  });
+  const transcript = turns.map((turn, i) => {
     if (turn.role === "injected") {
-      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content) };
+      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content), start: null, end: null };
     }
+    const own = given[i];
+    const start = starts[i];
+    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
+    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
     return {
-      t: typeof start === "number" ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : "\u2014",
+      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "\u2014",
       speaker: turn.role === "agent" ? "agent" : "client",
-      text: turn.content ?? ""
+      text: turn.content ?? "",
+      start,
+      end
     };
   });
   const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
@@ -2060,6 +2074,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
     transcript,
+    durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
     recordingState: recState,
     ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
     ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {},

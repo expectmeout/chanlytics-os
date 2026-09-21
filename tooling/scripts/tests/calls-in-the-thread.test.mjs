@@ -58,6 +58,31 @@ test("a call knows the note it left on its thread, and says its facts as facts -
   assert.equal(toCallVM(callDto({ message_id: null }), ZONE, NOW).messageId, undefined, "no note, no id");
 });
 
+test("each line says its moment in the call: where it starts and where it ends, a line with no time placed between its neighbours", () => {
+  const call = toCallVM(callDto({ transcript_object: [
+    { role: "agent", content: "Thank you for calling.", start: 0.4, end: 5.1 },
+    { role: "user", content: "Hi, a bridal trial please.", start: 6, end: 11.2 },
+    { role: "user", content: "After two." },
+    { role: "agent", content: "Noted.", start: 20, end: 21.5 },
+    { role: "injected", content: frameWhisper("mention the bridal package") },
+  ] }), ZONE, NOW);
+  assert.deepEqual(call.transcript.map((l) => [l.speaker, l.start, l.end]), [
+    ["agent", 0.4, 5.1],
+    ["client", 6, 11.2],
+    ["client", 13, 20],
+    ["agent", 20, 21.5],
+    ["whisper", null, null],
+  ], "REGRESSION: the view model kept only the string '0:06', so nothing could play from a line or light the one being said");
+  assert.equal(call.durationSec, 190, "the track's length before the audio says its own");
+  assert.equal(toCallVM(callDto({ duration_ms: null }), ZONE, NOW).durationSec, null);
+});
+
+test("a connected call with no recording says so; a call that never connected says nothing of one", () => {
+  assert.deepEqual(toCallVM(callDto({ recording: null }), ZONE, NOW).facts, ["Sounded positive", "Receptionist ended the call", "No recording"],
+    "REGRESSION: it said nothing, so a call with no audio (Emily's is filler, never a real call) looked like a player that failed to draw");
+  assert.deepEqual(toCallVM(callDto({ status: "not_connected", duration_ms: 0, disconnection_reason: "dial_no_answer", sentiment: null, recording: null }), ZONE, NOW).facts, ["No answer"]);
+});
+
 /* ---------------------------------- a browser ---------------------------------- */
 
 globalThis.window = {
@@ -158,11 +183,12 @@ test("in its thread a call is the call: what it was about, how it went, and its 
   }
 });
 
-test("no recording, no Play -- and why there is none is said only where that is worth saying", () => {
+test("no recording, no Play -- and the call says why there is none", () => {
   calls(toCallVM(callDto({ recording: null }), ZONE, NOW));
   let card = cardOf(draw(emily()));
   assert.equal(find(card, byTestId("tl-call-play")), undefined, "REGRESSION: a Play button beside 'No recording for this call'");
-  assert.equal(textOf(find(card, hasClass("tl-call-facts"))), "Sounded positive · Receptionist ended the call", "a call never recorded says nothing of it");
+  // #775 said nothing of a call never recorded; Emily's (filler, never a call) then read as a player that failed to draw.
+  assert.equal(textOf(find(card, hasClass("tl-call-facts"))), "Sounded positive · Receptionist ended the call · No recording", "a call never recorded says so, once");
 
   calls(toCallVM(callDto({ recording: { fetch_state: "pending" } }), ZONE, NOW));
   card = cardOf(draw(emily()));
