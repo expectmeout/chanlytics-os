@@ -11,8 +11,8 @@
  * decides: a number the database routes runs that workspace's receptionist on
  * that workspace's wire; a number the database answers is not ours is
  * dead-lettered under the platform and the platform is told, once a window; a
- * number the database could not answer for is NOT acknowledged, unless it is
- * the environment's own, which rides the blip out on its baked profile. The
+ * number the database could not answer for is NOT acknowledged, the
+ * environment's own number included: there is no fallback profile. The
  * account's news is routed by its WABA and never by a number. Receipts land
  * on the routed workspace's rows and nowhere else. An owner's reply from the
  * Business app pauses the receptionist for the workspace's own hours. And a
@@ -31,7 +31,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
-/** The environment's own pilot line: the one number with a baked profile to fall back on. */
+/** The environment's own pilot line: the one number whose credentials come from the environment. */
 const ENV_PHONE_ID = "109990000000001";
 
 // The door reads its secret and its token at the knock. Each test file is its
@@ -46,38 +46,29 @@ for (const k of [
   "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
 ]) delete process.env[k];
 
-// The disaster-recovery fallback is CONFIGURATION now, not source: the edge
-// reads it from the environment once, at module load (lib/tenant-fallback.ts).
-// Set here, before the import below, so these cases run the real path — a
-// deployment that has been given the env-default workspace's profile, exactly
-// as production holds it. Unset, the module answers with its neutral default,
-// which states no business fact (dr-fallback.test.mjs covers that).
-process.env.DR_FALLBACK_BRAIN_JSON = JSON.stringify({
-  business_name: "Riverside Studio",
-  booking_link: "https://booking.example/riverside",
-  system_prompt: "You are the assistant for Riverside Studio, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
-  fallbacks: {
-    greeting: "Thanks for writing to Riverside Studio. Book anytime at https://booking.example/riverside, or reply here with any question.",
-    error: "Thanks for writing to Riverside Studio! A member of the team will reply here soon.",
-    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
-  },
-});
-process.env.DR_FALLBACK_ESCALATION_EMAILS = "owner@riverside.example";
-process.env.DR_FALLBACK_FROM = "Riverside Studio <hello@platform.test>";
-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/pg.ts"));
 const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
 const { PAUSE_MS } = await import(at("apps/edge/lib/whatsapp/steps.ts"));
-const { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } = await import(at("apps/edge/lib/tenant-fallback.ts"));
 const hook = await import(at("apps/edge/api/whatsapp.ts"));
 after(() => { setPg(null); setInboundPorts(null); });
 
 const PLATFORM = "00000000-0000-0000-0000-000000000000";
 const DOOR = "http://edge/api/whatsapp";
 const GREETING = "Thanks for writing to Harbor Nails. A person will be with you shortly.";
+const NOTIFICATIONS = () => ({ escalation_emails: ["owner@riverside.example"], from: "Riverside Studio <hello@platform.test>" });
+const BRAIN = () => ({
+  business_name: "Harbor Nails",
+  booking_link: "https://booking.example/riverside",
+  system_prompt: "You are the assistant for Harbor Nails, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
+  fallbacks: {
+    greeting: GREETING,
+    error: "Thanks for writing to Harbor Nails! A member of the team will reply here soon.",
+    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
+  },
+});
 const MAIL = { RESEND_API_KEY: "re_test_only", LEAD_TO: "ops@platform.test", LEAD_FROM: "Pager <pager@platform.test>" };
 
 /* ------------------------------------------------------------- the knock */
@@ -200,8 +191,8 @@ function receptionist({ ingest = () => {} } = {}) {
       seen.runtimes.push(routed);
       return {
         tenantId: routed.tenantId,
-        brain: { ...FALLBACK_BRAIN, business_name: "Harbor Nails", fallbacks: { ...FALLBACK_BRAIN.fallbacks, greeting: GREETING } },
-        notifications: FALLBACK_NOTIFICATIONS,
+        brain: BRAIN(),
+        notifications: NOTIFICATIONS(),
         calendar: null,
         features: null,
         policy: { reply: { mode: "auto", limits: {} } },
@@ -409,7 +400,10 @@ test("a number the database could not answer for is not acknowledged: 503 with t
   }
 });
 
-test("the same failure on the environment's own number rides out on its baked profile: answered, 200, and nobody told the control plane is unreadable", async () => {
+test("the same failure on the environment's own number is no exception: not acknowledged, nothing said, the platform told", async () => {
+  // There used to be a baked copy of one workspace's profile that this number
+  // answered from while the database was unreadable. That copy is gone, and
+  // the pilot waits for the read like every other workspace.
   const w = world();
   w.open({ "tenant_channels.select": { message: "connection terminated unexpectedly" } });
   const seen = receptionist();
@@ -418,14 +412,14 @@ test("the same failure on the environment's own number rides out on its baked pr
   try {
     await withEnv(MAIL, () => listening(async (log) => {
       const res = await deliver(w.change({ messages: [text(from, `wamid.${w.i}.env`, "hi, are you open today?")] }, { phoneId: ENV_PHONE_ID }));
-      assert.deepEqual(await answer(res), [200, { ok: true }], "acknowledged: this number has somewhere to stand");
-      assert.deepEqual(seen.runtimes, [], "there is no channel row to load a runtime for");
-      assert.deepEqual(seen.ingested, [{ tenantId: null, body: "hi, are you open today?" }], "handed on under no workspace: the database could not say whose");
-      assert.deepEqual(seen.sent, [{ tenantId: null, to: from, body: FALLBACK_BRAIN.fallbacks.greeting, meta: { ack: true, fallback: "no_model" } }],
-        "the baked profile answers, which the posture allows only for the environment's number while the database has not answered");
-      assert.deepEqual(line.mail(), [], "the unreadable note is for numbers that cannot ride it out");
-      assert.equal(log.said("wa_routing_lookup_failed").length, 1, "the blip is still said");
-      assert.equal(log.said("wa_skip_routing_failed").length, 0);
+      assert.deepEqual(await answer(res), [503, { ok: false, unrecorded: 1 }], "not acknowledged, so Meta redelivers once the read works");
+      assert.deepEqual([seen.runtimes, seen.ingested, seen.sent], [[], [], []], "nothing recorded and nothing said in anyone's voice");
+      assert.equal(kind(w.tables, "ingest.unroutable").length, 0, "a blip is not a decision: nothing is dead-lettered");
+      assert.deepEqual(log.said("wa_routing_lookup_failed").map((l) => l.args[1]), [ENV_PHONE_ID]);
+      assert.deepEqual(log.said("wa_skip_routing_failed").map((l) => JSON.parse(l.args[1])), [{ phone_number_id: ENV_PHONE_ID, messages: 1 }]);
+      const mail = line.mail();
+      assert.equal(mail.length, 1, "the platform is told the control plane cannot be read");
+      assert.equal(mail[0].subject, "WhatsApp messages are arriving and the control plane cannot be read");
     }));
   } finally {
     line.restore();

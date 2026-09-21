@@ -73,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
   const carrier = carrierFor(inbound, held, held ? null : smsSenderFor(line, acct));
   L.info("sms_inbound", { held, opt: inbound.optOutType, media: inbound.numMedia });
   try {
-    await handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, false, carrier);
+    await handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, carrier);
   } catch (e) {
     L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
     // Twilio retries nothing on its own: a text the database did not accept is

@@ -109,8 +109,8 @@ export async function POST(request: Request): Promise<Response> {
           if (routed) { tenantId = routed.tenantId; routedChannel = routed; }
           else if (lookupFailed) {
             // The database did not answer. That is an infra blip, not a
-            // decision — the designated tenant rides it out on its baked
-            // profile rather than going silent mid-conversation.
+            // decision: nothing is recorded and nothing is said, and the 503
+            // below has the provider redeliver once the read works.
             routingFailed = true;
             console.error("wa_routing_lookup_failed", phoneNumberId);
           } else {
@@ -126,13 +126,13 @@ export async function POST(request: Request): Promise<Response> {
             ).catch(() => {});
           }
         }
-        if (field === "messages" && v.messages && routingFailed && !isEnvDefault) {
-          // The database did not answer and this number has no baked profile to
-          // ride it out on. Nothing can be recorded and nothing can be said, so
-          // this is NOT acknowledged: the 503 below has Meta redeliver, and the
-          // ingest's is_new gate makes that retry a no-op once one lands. The
-          // designated number is the exception this branch carves out: it DOES
-          // have a baked profile, answers from it, and keeps its 200.
+        if (field === "messages" && v.messages && routingFailed) {
+          // The database did not answer. Nothing can be recorded and nothing
+          // can be said in anyone's voice, so this is NOT acknowledged: the
+          // 503 below has Meta redeliver, and the ingest's is_new gate makes
+          // that retry a no-op once one lands. The environment's own number is
+          // no exception: it once rode a blip out on a baked copy of its
+          // profile, and now waits for the read like every other workspace.
           unrecorded += v.messages.length;
           console.error("wa_skip_routing_failed", JSON.stringify({
             phone_number_id: phoneNumberId, messages: v.messages.length,
@@ -158,7 +158,7 @@ export async function POST(request: Request): Promise<Response> {
             // never handled at all. The message itself is already persisted by
             // then, so it stays visible for reconciliation.
             try {
-              await handleInbound(m, v, tenantId, routedChannel, isEnvDefault, routingFailed);
+              await handleInbound(m, v, tenantId, routedChannel, isEnvDefault);
             } catch (e) {
               if (e instanceof IngestFailed) unrecorded += 1;
               console.error("wa_inbound_failed", m.id, e instanceof Error ? e.message : e);

@@ -51,31 +51,11 @@ for (const k of [
   "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "LINES_DRY_RUN", "VERCEL_ENV",
 ]) delete process.env[k];
 
-// The disaster-recovery fallback is CONFIGURATION now, not source: the edge
-// reads it from the environment once, at module load (lib/tenant-fallback.ts).
-// Set here, before the import below, so these cases run the real path — a
-// deployment that has been given the env-default workspace's profile, exactly
-// as production holds it. Unset, the module answers with its neutral default,
-// which states no business fact (dr-fallback.test.mjs covers that).
-process.env.DR_FALLBACK_BRAIN_JSON = JSON.stringify({
-  business_name: "Riverside Studio",
-  booking_link: "https://booking.example/riverside",
-  system_prompt: "You are the assistant for Riverside Studio, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
-  fallbacks: {
-    greeting: "Thanks for writing to Riverside Studio. Book anytime at https://booking.example/riverside, or reply here with any question.",
-    error: "Thanks for writing to Riverside Studio! A member of the team will reply here soon.",
-    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
-  },
-});
-process.env.DR_FALLBACK_ESCALATION_EMAILS = "owner@riverside.example";
-process.env.DR_FALLBACK_FROM = "Riverside Studio <hello@platform.test>";
-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/pg.ts"));
 const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
-const { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } = await import(at("apps/edge/lib/tenant-fallback.ts"));
 const hook = await import(at("apps/edge/api/inbound-sms.ts"));
 
 /* -------------------------------------------------------------- the wire */
@@ -157,6 +137,17 @@ async function listening(fn) {
 /* ------------------------------------------------------------- the world */
 
 const GREETING = "Thanks for texting Harbor Nails. A person will be with you shortly.";
+const NOTIFICATIONS = () => ({ escalation_emails: ["owner@riverside.example"], from: "Riverside Studio <hello@platform.test>" });
+const BRAIN = () => ({
+  business_name: "Harbor Nails",
+  booking_link: "https://booking.example/riverside",
+  system_prompt: "You are the assistant for Harbor Nails, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
+  fallbacks: {
+    greeting: GREETING,
+    error: "Thanks for writing to Harbor Nails! A member of the team will reply here soon.",
+    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
+  },
+});
 const SAID = "Are you open Saturday?";
 const pad = (n, width) => String(n).padStart(width, "0");
 let seq = 0;
@@ -218,8 +209,8 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
       seen.runtimes.push(routed);
       return {
         tenantId: routed.tenantId,
-        brain: { ...FALLBACK_BRAIN, business_name: "Harbor Nails", fallbacks: { ...FALLBACK_BRAIN.fallbacks, greeting: GREETING } },
-        notifications: FALLBACK_NOTIFICATIONS,
+        brain: BRAIN(),
+        notifications: NOTIFICATIONS(),
         calendar: null,
         features: null,
         policy: { reply: { mode: "auto", limits: {} } },

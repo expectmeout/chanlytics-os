@@ -171,7 +171,7 @@ export async function POST(request: Request): Promise<Response> {
       console.error("retell_fn_person_mode_failed", e instanceof Error ? e.message : e);
       return null;
     });
-    const replyMode = effectiveReplyMode({ drFallback: false, replyMode: workspaceMode }, personMode);
+    const replyMode = effectiveReplyMode({ replyMode: workspaceMode }, personMode);
     // The Autonomy pane's BOOKING row, read through the same predicate the text
     // receptionist reads it through. This path read the REPLY row, so a
     // workspace that asked to confirm its own bookings had its phone agent send

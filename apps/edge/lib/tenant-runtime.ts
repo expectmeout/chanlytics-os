@@ -66,7 +66,7 @@ export interface TenantRuntime {
    */
   known: KnownFacts;
   /** True when the control plane could not be read (infra blip, not config
-   *  absence) — the caller may apply its designated DR fallback. */
+   *  absence) — the caller holds the thread for a person rather than answering. */
   loadFailed: boolean;
   /** The config row EXISTS but does not parse. Distinct from an absent
    *  profile: the receptionist is silent either way, but this one is a
@@ -205,9 +205,9 @@ export async function loadTenantRuntime(
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     if (polQ.error) throw new Error(polQ.error.message);
     // No check here on purpose: resolveWaCredentials handles its own failure
-    // by logging and falling back to the environment. Throwing would put the
-    // whole runtime into its DR posture — silencing a tenant that does not use
-    // per-channel credentials at all — over a lookup it never needed.
+    // by logging and falling back to the environment. Throwing would mark the
+    // whole runtime unreadable — holding every thread of a tenant that does
+    // not use per-channel credentials at all — over a lookup it never needed.
     if (tzQ.error) throw new Error(tzQ.error.message);
 
     // A BROKEN config is not an ABSENT one. Both end in silence, but only one
@@ -237,8 +237,8 @@ export async function loadTenantRuntime(
       timezone: tzQ.data?.timezone ?? null,
       // Deliberately not thrown on. A channel list that failed to read leaves
       // the prompt exactly where it was before this existed — typed values,
-      // unresolved — which is degraded, not silent. Throwing would put the
-      // whole runtime into its DR posture over a fact it can live without.
+      // unresolved — which is degraded, not silent. Throwing would mark the
+      // whole runtime unreadable over a fact it can live without.
       known: {
         workspace: { name: tzQ.data?.name ?? null, timezone: tzQ.data?.timezone ?? null },
         channels: chanQ.error ? [] : (chanQ.data ?? []),
@@ -252,9 +252,9 @@ export async function loadTenantRuntime(
     return rt;
   } catch (e) {
     console.error("tenant_runtime_load_failed", e instanceof Error ? e.message : e);
-    // Never cache a failure — the next message retries. loadFailed lets the
-    // designated default tenant fall back to its baked profile (DR), while
-    // every other tenant fails safe into silence.
+    // Never cache a failure — the next message retries. loadFailed makes the
+    // runtime unusable, so the handler holds the thread for a person: a read
+    // that failed is never a persona, for any tenant.
     return {
       tenantId: routed.tenantId,
       brain: null,
