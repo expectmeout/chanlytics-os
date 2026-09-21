@@ -831,6 +831,35 @@ test("the search box's words, the row the cursor was on and the map come back wi
   assert.equal(searchBox(tree).props.value, "strength", "with the words still in the box");
 });
 
+test("REGRESSION: the list is put back only once the rows on screen are the ones the view's own words leave -- put back a draw sooner, over every row, the browser re-anchored it as the words shrank the list (500 became 122 on production)", async () => {
+  fresh();
+  const paneRef = find(draw(), (n) => String(n.props?.className || "").split(/\s+/).includes("cl-main-scroll")).props.ref;
+  const at = cells.indexOf(paneRef);
+  const heard = [];
+  let drawing = 0;
+  const putBack = [];
+  const table = { scrollHeight: 6000, clientHeight: 600, top: 0, get scrollTop() { return this.top; }, set scrollTop(v) { this.top = v; putBack.push({ to: v, duringDraw: drawing }); } };
+  const pane = { scrollTop: 0, scrollHeight: 600, clientHeight: 600, addEventListener: (type, fn, opts) => { if (type === "scroll" && opts && opts.capture) heard.push(fn); }, removeEventListener() {}, setAttribute() {}, removeAttribute() {}, querySelector: (sel) => (sel === ".pl-table-scroll" ? table : null) };
+  const mount = () => { cells = []; cells[at] = { current: pane }; for (const k of Object.keys(listeners)) delete listeners[k]; heard.length = 0; putBack.length = 0; drawing = 1; draw(); drawing = 2; const tree = draw(); drawing = 0; return tree; };
+  let tree = mount();
+  searchBox(tree).props.onChange({ target: { value: "strength" } });
+  draw();
+  table.top = 500;
+  heard[0]({ target: table });
+  await new Promise((r) => setTimeout(r, 260));
+  tree = mount();
+  assert.equal(searchBox(tree).props.value, "strength");
+  assert.deepEqual(putBack, [{ to: 500, duringDraw: 2 }], "after the draw that put the words back, not during the one that still drew every row");
+  // A view with no words of its own has nothing to wait for.
+  searchBox(tree).props.onChange({ target: { value: "" } });
+  draw();
+  table.top = 300;
+  heard[0]({ target: table });
+  await new Promise((r) => setTimeout(r, 260));
+  mount();
+  assert.deepEqual(putBack, [{ to: 300, duringDraw: 1 }]);
+});
+
 test("a cursor that came back with the view marks its row and takes nothing: not the focus, and not the scroll the list was just put back to", () => {
   fresh();
   const took = [];
