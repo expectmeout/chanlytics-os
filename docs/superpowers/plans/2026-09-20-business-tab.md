@@ -54,7 +54,8 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 
 | File | Responsibility |
 |---|---|
-| `packages/contracts/src/business-tab.ts` | Every sentence and row the tab shows: the standing line, ability rows, rule strengths, prompt blocks, fold consequences. Pure. |
+| `packages/contracts/src/business-tab.ts` | The tab's sentence tables: the standing line, the rule strengths, the ability rows and `cannotRows`. Pure. |
+| `packages/contracts/src/prompt-blocks.ts` | The prompt view: `promptBlocks`, the composed prompt cut into the blocks that wrote it. Split out of `business-tab.ts` by the Phase 1 review. Pure. A fold's consequence is composed from it in the bridge (Task 3.1). |
 | `apps/dashboard/src/legacy/components/record-row.jsx` | `RecordRow`, `RecordSourceChip` — one row grammar. |
 | `apps/dashboard/src/legacy/components/record-field.jsx` | `RecordField`, `RecordSwitch`, `RecordToggleGroup`, `RecordCombobox`. |
 | `apps/dashboard/src/legacy/components/record-fold.jsx` | `RecordFold` + the one-open-at-a-time registry. |
@@ -62,7 +63,8 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 | `apps/dashboard/src/legacy/styles/record.css` | The kit's styles. Nothing page-specific. |
 | `apps/dashboard/src/legacy/pages/business-tab.jsx` | The page: standing line and the four groups. |
 | `apps/dashboard/src/legacy/pages/business-can.jsx` | The *What it can do* card and the prompt sheet. |
-| `tooling/scripts/tests/business-tab-vm.test.mjs` | The contracts, as pure functions. |
+| `tooling/scripts/tests/business-tab-vm.test.mjs` | The sentence tables, as pure functions. |
+| `tooling/scripts/tests/prompt-blocks.test.mjs` | The prompt view, whose words are in it, and the resolver's equivalence. |
 | `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed. |
 | `tooling/scripts/tests/business-tab-folds.test.mjs` | Each fold patches only its own keys. |
 
@@ -176,6 +178,8 @@ git commit -m "A fact's source is a state the one pill can draw"
 ---
 
 ### Task 1.2: How far a rule goes
+
+> **Changed by the Phase 1 review.** The price rule's sentence below predates the owner's decision of 20 Sep 2026 that a receptionist never states a price: the detector runs whether the switch is on or off, and the switch changes only one prompt line. `ruleStrength("never_quote_prices").sentence` now says so. `GUARDRAIL_KEYS` is read inside a call marked pure, so the four dists that bundle contracts drop it. Read `business-tab.ts`.
 
 **Files:**
 - Create: `packages/contracts/src/business-tab.ts`
@@ -333,6 +337,8 @@ git commit -m "A rule says how far it goes"
 
 ### Task 1.3: The standing line
 
+> **Changed by the Phase 1 review.** `wont` is "It offers a consult instead of a price." whenever there are services, whatever the price switch says (the owner's decision, Task 4.2), and `StandingInputs` no longer takes `guardrails`. Read `business-tab.ts`.
+
 Three clauses: what it can say, what it deliberately will not, and what is missing. Never a percentage — a completion meter is a number nobody can act on.
 
 **Files:**
@@ -477,6 +483,8 @@ git commit -m "The page says what it can answer, what it will not, and what is m
 ---
 
 ### Task 1.4: The ability rows
+
+> **Superseded in execution — read `business-tab.ts` and the tests that pin it, not the code below.** The shipped `abilityRows` takes every input, all required: `voiceLive`, `whatsappLive`, `hasCalendarFeed`, `hasBookingLink`, `hasBookingTemplate`, `hasHandoffNumber`, `hasEscalateWhen`, `pauseHours`, `visionOn` and `bookingHeld`. It throws a `TypeError` naming any boolean input that is not a boolean, because its caller is untyped JSX. `pauseHours` is the stored value, read through `hardLimitsWords`. `CANNOT_ROWS` became `cannotRows({ smsLive })`. Task 4.1 says where each input comes from on the page.
 
 **Files:**
 - Modify: `packages/contracts/src/business-tab.ts`
@@ -1450,7 +1458,33 @@ A failing step fails with the assertion the previous step wrote. A passing step 
 Beside `window.__composedPrompt`, add:
 
 ```ts
-import { standingLine, abilityRows, CANNOT_ROWS, ruleStrength, GUARDRAIL_KEYS, promptBlocks, composeSystemPrompt, type PromptBlockVM } from "@chanlytics/contracts";
+// promptBlocks lives in contracts' prompt-blocks.ts since the Phase 1 review; the package exports it as before.
+import {
+  standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
+  promptBlocks, composeSystemPrompt, type PromptBlockVM,
+} from "@chanlytics/contracts";
+
+/**
+ * The prompt block each fold writes into. A fold is named for the keys it saves; a block
+ * for the heading the composer writes it under (PROMPT_OPENINGS, cut by prompt-blocks.ts),
+ * and some folds share one. The voice and the languages are lines of "Who you are"; the
+ * hand-off's reasons compose under the one hand-off heading on either channel, as the
+ * transfer number does. The fallbacks are sent when the model cannot be reached and are
+ * never part of the prompt, so their fold has no block.
+ */
+const FOLD_BLOCK: Record<string, string | null> = {
+  tone: "identity",
+  languages: "identity",
+  hours: "hours",
+  closures: "closures",
+  services: "services",
+  booking_rules: "booking_rules",
+  notes: "notes",
+  escalate_when: "handoff",
+  guardrails: "guardrails",
+  extra_instructions: "extra_instructions",
+  fallbacks: null,
+};
 
 /**
  * What one fold will add to the prompt.
@@ -1467,14 +1501,17 @@ function consequenceOf(
   channel: "whatsapp" | "voice" = "whatsapp",
   tz?: string | null,
 ): PromptBlockVM | null {
+  const row = FOLD_BLOCK[section] ?? null;
+  if (!row) return null;
   const text = composeSystemPrompt(draft.brain, draft.profile as never, channel, tz ?? null);
   // Composed from the draft, and the composer never carries the stored prompt in,
   // so the words to look for are the draft's own: `{ profile }`, not the stored
-  // brain. Blocks are named by row, and the hand-off's is "handoff" on both channels.
-  return promptBlocks(text, channel, { profile: draft.profile as { extra_instructions?: string | null } }).find((b) => b.row === section) ?? null;
+  // brain. Whose words they are is whoseWords' (config.ts), the decision the
+  // instructions box reads too.
+  return promptBlocks(text, channel, { profile: draft.profile as { extra_instructions?: string | null } }).find((b) => b.row === row) ?? null;
 }
 
-window.__businessTab = { standingLine, abilityRows, CANNOT_ROWS, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf };
+window.__businessTab = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf };
 ```
 
 - [ ] **Step 2: Declare it on the Window type**
@@ -1485,7 +1522,9 @@ Beside the existing `__composedPrompt: typeof composedPrompt;` entry in this fil
     __businessTab: {
       standingLine: typeof standingLine;
       abilityRows: typeof abilityRows;
-      CANNOT_ROWS: typeof CANNOT_ROWS;
+      cannotRows: typeof cannotRows;
+      bookingHeld: typeof bookingHeld;
+      bookingTemplate: typeof bookingTemplate;
       ruleStrength: typeof ruleStrength;
       GUARDRAIL_KEYS: typeof GUARDRAIL_KEYS;
       promptBlocks: typeof promptBlocks;
@@ -2046,11 +2085,16 @@ EOF
 - [ ] **Step 1: Write the failing test**
 
 ```js
-import { abilityRows, CANNOT_ROWS } from "@chanlytics/contracts";
+import { abilityRows, cannotRows } from "@chanlytics/contracts";
 
 test("the card draws every ability, with the channel that has it", () => {
   const card = byTestId(drawTab({ profile: melany }), "rec-card-can");
-  for (const a of abilityRows({ voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: false })) {
+  // Every input, as the page computes it for Melany (Step 3's table). abilityRows throws on a
+  // boolean left out, so a wiring slip fails here instead of drawing a card that lies.
+  for (const a of abilityRows({
+    voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true, hasBookingTemplate: true,
+    hasHandoffNumber: true, hasEscalateWhen: true, pauseHours: undefined, visionOn: false, bookingHeld: false,
+  })) {
     const row = byTestId(card, `rec-can-${a.id}`);
     assert.ok(row, `${a.id} is drawn`);
     assert.match(textOf(row), new RegExp(a.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -2067,9 +2111,32 @@ test("an ability whose input is missing points at the row that supplies it", () 
   assert.ok(find(transfer, (n) => typeof n.props?.onClick === "function"), "and offers the row that fixes it");
 });
 
+test("the card reads the Autonomy tab: a pause nobody set is a day, and held bookings are said", () => {
+  // Nothing under pause_hours is the common case. Passed as a number the page worked out, it
+  // read "holds off for NaN hours"; passed as stored, abilityRows reads it as the pane does.
+  const card = byTestId(drawTab({ profile: melany }), "rec-card-can");
+  assert.match(textOf(byTestId(card, "rec-can-handoff")), /holds off for a day/);
+  // Booking on ask: the page asks contracts' bookingHeld, the edge's own question, never a copy.
+  const before = W.__POLICIES;
+  W.__POLICIES = { rows: [{ class: "reply", mode: "auto", limits: {} }, { class: "booking", mode: "ask", limits: {} }], role: "owner" };
+  try {
+    const held = byTestId(byTestId(drawTab({ profile: melany }), "rec-card-can"), "rec-can-booking_link");
+    assert.match(textOf(held), /Your Autonomy tab holds bookings for you to confirm/);
+  } finally {
+    W.__POLICIES = before;
+  }
+});
+
+test("a workspace with both lines and an approved booking-link message is told the call sends the link", () => {
+  // hasBookingTemplate is contracts' bookingTemplate over the workspace's templates: left out,
+  // every two-channel workspace was told the call can't send it.
+  const row = byTestId(byTestId(drawTab({ profile: melany }), "rec-card-can"), "rec-can-booking_link");
+  assert.match(textOf(row), /caller's WhatsApp, when their number has one/);
+});
+
 test("what it cannot do carries no switch", () => {
   const card = byTestId(drawTab({ profile: melany }), "rec-card-cannot");
-  for (const c of CANNOT_ROWS) {
+  for (const c of cannotRows({ smsLive: false })) {
     const row = byTestId(card, `rec-cannot-${c.id}`);
     assert.ok(row, `${c.id} is drawn`);
     assert.equal(find(row, (n) => n.props?.role === "switch"), null, `${c.id} is not offered as a setting`);
@@ -2081,7 +2148,23 @@ test("what it cannot do carries no switch", () => {
 - [ ] **Step 2: Run it and watch it fail**
 - [ ] **Step 3: Implement**
 
-The inputs come from what the page already holds: `window.__FACTS.facts` for the lines, `__SETTINGS.config` for the feed, link, handoff and vision, and `capabilityStatus` through the Setup payload for `voiceLive`/`whatsappLive`.
+`abilityRows` is called with every input, each from its own source on the page. None is a number or a sentence the page works out for itself:
+
+| Input | Source |
+|---|---|
+| `voiceLive`, `whatsappLive` | `capabilityStatus("voice" / "whatsapp", …).live`, through the Setup payload |
+| `hasCalendarFeed` | `__SETTINGS.config.calendar?.ical_url` is set |
+| `hasBookingLink` | `__SETTINGS.config.brain.booking_link` is set |
+| `hasBookingTemplate` | `!!__businessTab.bookingTemplate(window.__TEMPLATES_ALL ?? [])`: contracts' `bookingTemplate` (`template-library.ts`), the function `retell-fn.ts` picks the call's template with |
+| `hasHandoffNumber` | `brain.profile.handoff_number` is set |
+| `hasEscalateWhen` | `brain.profile.escalate_when` has at least one line |
+| `pauseHours` | the Autonomy reply row's `limits.pause_hours` exactly as stored: `__POLICIES.rows.find((r) => r.class === "reply")?.limits?.pause_hours`. Usually nothing; `abilityRows` reads it through `hardLimitsWords`, so nothing, null or 0 is a day |
+| `visionOn` | `__SETTINGS.config.features?.vision === true` |
+| `bookingHeld` | `__businessTab.bookingHeld(Object.fromEntries(__POLICIES.rows.map((r) => [r.class, { mode: r.mode }])))`: contracts' predicate, the question the edge asks in `retell-fn.ts` |
+
+The cannot rows are `cannotRows({ smsLive })`, with `smsLive` from `capabilityStatus("sms", …).ready`, not `.live`. `live` needs a `tested` that texting never records (`capabilities.ts`), so it is never true, and the row would say texting is not sold on a line where it is on. `ready` is the active, non-rehearsal carrier line that `textingWords` calls "Texting is on."
+
+Both functions throw a `TypeError` naming any boolean input that is not a boolean. When `__POLICIES` is null the read failed, and neither `pauseHours` nor `bookingHeld` can be known. Draw `FailedRead` where the rows that depend on them would be, rather than passing false.
 
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Commit**
@@ -2108,6 +2191,15 @@ test("each rule says how far it goes, in the words contracts wrote", () => {
   }
 });
 
+test("the price rule still says it is checked with the switch off", () => {
+  // The owner's decision (20 Sep 2026): a receptionist never states a price. The detector runs
+  // whether the switch is on or off; the switch changes one prompt line, and the row says so.
+  const off = { ...melany, guardrails: { ...melany.guardrails, never_quote_prices: false } };
+  const row = byTestId(drawTab({ profile: off }), "rec-rule-never_quote_prices");
+  assert.match(textOf(row), /Checked, not just told/);
+  assert.match(textOf(row), /whether this switch is on or off/);
+});
+
 test("the checked rule draws both channels, because they differ", () => {
   const row = byTestId(drawTab({ profile: melany }), "rec-rule-never_quote_prices");
   assert.match(textOf(row), /In chat/i);
@@ -2127,6 +2219,8 @@ test("vision is an ability, not a limit, and is drawn apart", () => {
 - [ ] **Step 3: Implement**
 
 The four rule rows read `ruleStrength(key)` for the chip and the sentence — never typed in the page. The checked rule renders its two `checkedOn` entries side by side. The vision toggle sits below a `.rec-rule-sep` and carries the "gives it a power" chip.
+
+The price switch does not turn the checking on or off. The owner decided on 20 Sep 2026 that a receptionist never states a price: `violatesNoPrices` (chat) and `spokenBreach` (calls) run whatever the switch says, and the switch adds or removes the one prompt line that tells it not to quote one. So the row keeps its chip and its sentence with the switch off, and the page draws no warning that switching it off lets prices through. The standing line's "It offers a consult instead of a price." follows the same decision: it is said whenever there are services, and it no longer reads the switch.
 
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Run the suite, commit, open the PR**
@@ -2216,7 +2310,7 @@ test("what is sent beside the prompt is drawn apart, and says why", () => {
 - [ ] **Step 2: Run it and watch it fail**
 - [ ] **Step 3: Implement**
 
-The sheet is `RecordSheet` holding a contents rail and the blocks. Both come from `promptBlocks`; the page composes nothing. It cuts `window.__composedPrompt(channel).text`, which is the resolved prompt, so it passes the stored brain (`W.__SETTINGS.config.brain`) as `from`: that is how a prompt carried into a blank box is found. Key each block, and its `rec-prompt-block-*` test id, by `id` rather than `row`, because the platform's text appears twice on a call. The channel switch is `RecordToggleGroup`. The `now` block is `window.__composedPrompt(channel).now`, drawn under a dashed rule with the sentence about the prompt cache that `PromptPreview` already carried — keep those words, they are the reason the split exists.
+The sheet is `RecordSheet` holding a contents rail and the blocks. Both come from `promptBlocks` (contracts' `prompt-blocks.ts` since the Phase 1 review, exported by the package as before); the page composes nothing. Each block's `note` is drawn as contracts wrote it: the owner's block says when its words were carried in, or when they are a prompt read as it stands; the platform's say whose they are; and "Rules it always keeps" says it also carries the YES OFFERS line and any Autonomy rule. Whose words are whose is `whoseWords` (config.ts), the same decision the instructions box opens with. It cuts `window.__composedPrompt(channel).text`, which is the resolved prompt, so it passes the stored brain (`W.__SETTINGS.config.brain`) as `from`: that is how a prompt carried into a blank box is found. Key each block, and its `rec-prompt-block-*` test id, by `id` rather than `row`, because the platform's text appears twice on a call. The channel switch is `RecordToggleGroup`. The `now` block is `window.__composedPrompt(channel).now`, drawn under a dashed rule with the sentence about the prompt cache that `PromptPreview` already carried — keep those words, they are the reason the split exists.
 
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Run the suite, commit, open the PR**

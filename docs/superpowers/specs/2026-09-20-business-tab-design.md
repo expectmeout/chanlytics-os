@@ -100,7 +100,7 @@ Its voice (the new field) · Languages · Rules it always keeps · Hands you a c
 | Rule | Strength | What actually happens |
 |---|---|---|
 | Never confirm an appointment | **It cannot anyway** | There is no appointments table. Switching it off would not let it book, only stop it being told not to *claim* it had. |
-| Never quote a price | **Checked, not just told** | `violatesNoPrices` swaps the words before a chat customer sees them; on a call `spokenBreach` reads the agent's turns and a correction goes in live, and the owner is told while the call is up. |
+| Never quote a price | **Checked, not just told** | `violatesNoPrices` swaps the words before a chat customer sees them; on a call `spokenBreach` reads the agent's turns and a correction goes in live, and the owner is told while the call is up. The detector runs whether the switch is on or off: the owner decided (20 Sep 2026) that a receptionist never states a price, so the switch changes only the wording. On, one prompt line tells it not to quote one. |
 | Say it's an assistant | Told, and trusted | A prompt line. `policy.ts` says why there is no detector: the phrase that catches a denial also catches the correct disclosure. |
 | Never give health advice | Told, and trusted | Same. |
 
@@ -112,12 +112,12 @@ Six abilities, each with which channel has it and what it runs on, computed from
 
 - Answer from your facts — both; in chat it also records which facts it leaned on
 - Say which times are open — phone asks the calendar mid-call; chat is handed the next few days' openings with each message
-- Send the booking link — **by WhatsApp on both channels**: in the thread, or on a call as a template to the caller's own WhatsApp. So it needs WhatsApp connected, and the call side needs an approved booking-link template too
+- Send the booking link — **by WhatsApp on both channels**: in the thread, or on a call as a template to the caller's own WhatsApp. So it needs WhatsApp connected, and the call side needs an approved booking-link template too. While the Autonomy tab holds bookings for a person to confirm, it sends none
 - Put a caller through — phone only, during opening hours, staying on the line until someone picks up; otherwise it takes a message
-- Hand the thread to you — chat only; a pause for the Autonomy tab's `pause_hours` (a day by default), after which it answers the next message itself
+- Hand the thread to you — chat only; a pause for the Autonomy tab's `pause_hours` (a day by default, and a day when nothing is stored, as the Autonomy pane reads it), after which it answers the next message itself
 - Look at a photo — off
 
-And what it cannot: book, move or cancel an appointment (structural); call a customer (it answers, and the only number it rings is the owner's, to transfer); send a text message (not sold until the carriers approve a line).
+And what it cannot: book, move or cancel an appointment (structural); call a customer (it answers, and the only number it rings is the owner's, to transfer); send a text message (not sold until the carriers approve a line, and not listed once texting is live on the workspace's line).
 
 > **Corrected 20 Sep, by the Phase 1 review.** This section first said the phone "texts" the booking link, that a hand-off never resumes, that a transfer "steps out", and that the receptionist "never dials". None was true. The link is a WhatsApp template and never an SMS; a hand-off is a pause that ends; the transfer stays on the line and runs only during opening hours; and the transfer does dial — the owner's number. A redesign whose argument is that the old page said untrue things cannot ship an untrue sentence, so each one is pinned by a test that fails on the old wording.
 
@@ -152,18 +152,26 @@ Reused unchanged: `StatePill`, `Confirm`, `EmptyState`, `FailedRead`, `FieldErro
 
 ## 7. Contracts
 
-All additive; nothing existing changes meaning.
+All additive; nothing existing changes meaning but the one fix item 3 names, where the instructions box stops opening the product's baseline as the owner's own words.
 
 1. **`tone.ts`** — a `fact` StateKind: `verified`/`provisioned` → `ok`, `typed`/`workspace`/`absent` → `plain`, `disputed` → `warn`. Deletes the bespoke `.set-fact-src` family.
-2. **`business-tab.ts`** (new — named apart from the existing `business-page.ts`, which is the public `/b/<slug>` page, and `business-record.ts`, which is the carrier record) — the view models the page composes from:
-   - `standingLine(facts, profile)` → the three clauses.
-   - `abilityRows(capabilities, channels, profile)` → §4.7, with the cannots.
+2. **`business-tab.ts`** (new — named apart from the existing `business-page.ts`, which is the public `/b/<slug>` page, and `business-record.ts`, which is the carrier record) — the sentence tables the page composes from:
+   - `standingLine(inputs)` → the three clauses.
+   - `abilityRows(inputs)` → §4.7. Every input is required: which lines answer, what is filled in, the Autonomy reply row's stored `pause_hours`, and whether the Autonomy tab holds bookings (`bookingHeld(policy)`). A boolean left out throws a `TypeError`, because the page is untyped.
+   - `cannotRows({ smsLive })` → the cannots, texting left out once it is live.
    - `ruleStrength(key)` → `structural | checked | instructed`, with its sentence.
-   - `promptBlocks(composed)` → the prompt cut into blocks with the row that wrote each and its character count.
-   - `consequenceOf(section, draft)` → the block a fold shows, from `composeSystemPrompt`.
+
+   **`prompt-blocks.ts`** (split out of `business-tab.ts` by the Phase 1 review, because it reads what `config.ts` writes instead of holding sentences):
+   - `promptBlocks(text, channel, from)` → the prompt cut into blocks with the row that wrote each, its character count, and a note wherever whose words they are needs saying.
+
+   `consequenceOf(section, draft)`, the block a fold shows, is composed in the bridge from `promptBlocks` over `composeSystemPrompt` (plan Task 3.1).
 3. **No change to what `composeSystemPrompt` or `resolveSystemPrompt` return**, and no change at all to `facts.ts`, `capabilities.ts`, `policy.ts` or `voice-shell.ts`. The page reads what they already return.
 
    Amended 20 Sep, in execution. This line first said "no change to `config.ts`". But the prompt view cuts the *resolved* prompt, and the resolver decides whose words count as the owner's: `profile.extra_instructions` when there are any, and `brain.system_prompt` carried in their place when there are not (`config.ts:1292`). A page that re-derived that rule would drift from it. So one exported helper, `ownWordsOf(brain)`, lives beside the resolver and the resolver itself calls it. It is a pure extract: the prompt's output stays byte-identical, and the thirteen test files that exercise the resolver, plus an equivalence test, hold it there. The live line reads this file, so the promise that matters is about what it *returns*, not whether a line of it moved.
+
+   Amended again 20 Sep, by the Phase 1 review. `config.ts` gained three more exports, and none changes what either function returns. `PROMPT_OPENINGS` holds the openings the composer writes its blocks under. `composeSystemPrompt` and `resolveSystemPrompt` write them from there and `prompt-blocks.ts` reads them there, so the prompt view cannot drift from the composer. `whoseWords(brain)`, built on `ownWordsOf`, decides once whose words stand in the owner's place, and both `instructionsDraft` and `promptBlocks` ask it. `bookingHeld(policy)` asks the question the edge asks about the Autonomy tab's Booking row, for the ability card. One existing function changes meaning, on purpose: `instructionsDraft` now opens empty where the owner's own field holds the product's baseline, which saves before S4 put there. That is the S4 fix its comment always described, and it now agrees with the prompt view.
+
+   The equivalence test is "the resolver composes the typed details with the owner's words as ownWordsOf names them", in `tooling/scripts/tests/prompt-blocks.test.mjs`. With no platform facts, the resolver equals `composeSystemPrompt` over the typed details and the profile with `ownWordsOf`'s words (864 combinations), and a workspace whose fields compose nothing gets its stored prompt as it stands, with only Autonomy's rules after it (432 more). Byte identity was also proven outside the suite: both functions, built at `36dec914` and after the review, agree on 256,608 cases, and deliberately broken builds are caught.
 
 ## 8. One fact, one owner — applied
 
