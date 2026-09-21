@@ -14,13 +14,16 @@
  * The page head.
  *
  *   title   the page's name, as the tab says it
+ *   badge   a state beside the name, for a head that names one thing (an opened run)
  *   sub     one line under it: the page's numbers, or what it holds
  *   right   the page's own act, or a state that outranks it
  */
-const CmHead = ({ title, sub = null, right = null, testid = null }) => (
+const CmHead = ({ title, badge = null, sub = null, right = null, testid = null }) => (
   <header className="cm-head" data-testid={testid || undefined}>
     <div className="cm-head-text">
-      <h1 className="cm-head-title">{title}</h1>
+      {badge
+        ? <div className="cm-head-line"><h1 className="cm-head-title">{title}</h1>{badge}</div>
+        : <h1 className="cm-head-title">{title}</h1>}
       {sub && <div className="cm-head-sub">{sub}</div>}
     </div>
     {right && <div className="cm-head-right">{right}</div>}

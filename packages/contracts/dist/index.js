@@ -7000,6 +7000,22 @@ var BROADCAST_FAILURE_WORDS = {
   wire_unavailable: "WhatsApp could not be reached",
   run_interrupted: "its send stopped partway and did not start again"
 };
+var BROADCAST_FAILURE_FIX = {
+  paused: "Unpause it under Settings, then send it again.",
+  template_not_approved: "Open it in Templates \u2014 it can be resubmitted.",
+  wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
+  run_interrupted: "Nobody got it, so sending it again reaches nobody twice."
+};
+var BROADCAST_FAILURE_FIX_AFTER = {
+  paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
+  wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
+};
+function broadcastFailureFix(failure, reached = 0) {
+  if (!failure) return null;
+  const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[failure] : void 0;
+  return after ? after(reached) : BROADCAST_FAILURE_FIX[failure] || null;
+}
 function broadcastFailureWords(failure) {
   if (!failure) return "no reason was recorded";
   return BROADCAST_FAILURE_WORDS[failure] ?? "it could not finish";
@@ -7083,6 +7099,127 @@ function numberHealth(n) {
 function overLimitRefusal(h, audience) {
   if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
   return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
+}
+var RUN_REPORT_STEPS = 8;
+var RUN_REPORT_SPANS_H = [1, 2, 4, 8, 12, 24, 48, 72];
+var RUN_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "replied", label: "Replied" },
+  { id: "held", label: "Held back" },
+  { id: "stopped", label: "Stopped" }
+];
+function consentAnswerWords(consent, purpose) {
+  if (consent === "opted_in") return purpose === "marketing" ? "said yes to offers" : "said yes to hearing from you";
+  return purpose === "marketing" ? "stopped offers, not messages" : "asked to stop hearing from you";
+}
+function answersWords(rows, consent) {
+  const offers = rows.filter((r) => r.consent_purpose === "marketing").length;
+  const rest = rows.length - offers;
+  if (offers === 0 || rest === 0) return consentAnswerWords(consent, offers > 0 ? "marketing" : "conversational");
+  return consent === "opted_in" ? `${offers} to offers \xB7 ${rest} to hearing from you` : `${offers} stopped offers \xB7 ${rest} stopped everything`;
+}
+var STATUS_WORDS = { sent: "sent", delivered: "delivered", read: "read", failed: "not delivered", queued: "sending", canceled: "canceled" };
+function receiptWords(r, clock2) {
+  const parts2 = [];
+  const sent = clock2(r.sent_at);
+  parts2.push(sent ? `sent ${sent}` : r.message_status && STATUS_WORDS[r.message_status] || r.message_status || "sent");
+  const delivered = clock2(r.delivered_at);
+  const read = clock2(r.read_at);
+  if (delivered) parts2.push(`delivered ${delivered}`);
+  else if (r.message_status === "delivered" || r.message_status === "read") parts2.push("delivered");
+  if (read) parts2.push(`read ${read}`);
+  else if (r.message_status === "read") parts2.push("read");
+  if (r.message_status === "failed") parts2.push("not delivered");
+  if (r.replied) parts2.push(clock2(r.replied_at) ? `replied ${clock2(r.replied_at)}` : "replied");
+  return parts2.join(" \xB7 ");
+}
+var initialsOf2 = (name, named) => named ? name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => Array.from(w)[0] ?? "").join("").toUpperCase() || "\u2014" : "\u2014";
+function toRunReportVM(d, opts) {
+  const clock2 = opts.clock ?? ((iso) => iso);
+  const reached = d.recipients.filter((r) => r.state === "sent");
+  const sent = reached.length;
+  const delivered = reached.filter((r) => r.message_status === "delivered" || r.message_status === "read");
+  const replied = reached.filter((r) => r.replied);
+  const waiting = replied.filter((r) => r.waiting_on_you).length;
+  const yes = reached.filter((r) => r.consent_after === "opted_in");
+  const stopped = reached.filter((r) => r.consent_after === "opted_out");
+  const starts = reached.map((r) => r.sent_at ? Date.parse(r.sent_at) : NaN).filter(Number.isFinite);
+  const start = starts.length ? Math.min(...starts) : opts.nowMs;
+  const heard = reached.flatMap((r) => [r.delivered_at, r.read_at, r.replied ? r.replied_at : null, r.consent_after ? r.consent_at : null]).map((s) => s ? Date.parse(s) : NaN).filter((t) => Number.isFinite(t) && t >= start && t - start <= opts.windowMs);
+  const last = heard.length ? Math.max(...heard) - start : 0;
+  const windowH = opts.windowMs / 36e5;
+  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * 36e5 > last) ?? windowH;
+  const step = spanH * 36e5 / RUN_REPORT_STEPS;
+  const bars2 = (stamps) => {
+    const out = new Array(RUN_REPORT_STEPS).fill(0);
+    for (const s of stamps) {
+      const t = s ? Date.parse(s) : NaN;
+      if (!Number.isFinite(t)) continue;
+      const i = Math.floor((t - start) / step);
+      if (i >= 0 && i < RUN_REPORT_STEPS) out[i] += 1;
+    }
+    return out;
+  };
+  const pct2 = (n) => sent > 0 && n > 0 ? Math.round(n / sent * 100) : null;
+  const never = sent - delivered.length;
+  const greets = (d.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
+  const state = d.broadcast?.state;
+  const cutOff = state === "failed" ? "the run stopped before them" : state === "canceled" ? "canceled before it reached them" : state === "sent" ? "never sent" : null;
+  const people = d.recipients.map((r) => {
+    const out = r.state === "sent";
+    const hiThere = out && greets && !r.first_name;
+    const answer = r.consent_after ? consentAnswerWords(r.consent_after, r.consent_purpose) : null;
+    const pill = r.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" } : r.replied && out ? { label: "Replied", tone: "ok" } : r.consent_after === "opted_in" && out ? { label: "Said yes", tone: "ok" } : r.state === "skipped" ? { label: "Held back", tone: "plain" } : r.state === "failed" ? { label: "Not sent", tone: "danger" } : r.state === "queued" ? { label: cutOff ? "Not sent" : "Waiting", tone: "plain" } : r.message_status === "failed" ? { label: "Never delivered", tone: "danger" } : r.message_status === "read" ? { label: "Read", tone: "info" } : r.message_status === "delivered" ? { label: "Delivered", tone: "info" } : { label: "Sent", tone: "plain" };
+    const quote = r.replied && r.reply_words ? `\u201C${r.reply_words}\u201D` : null;
+    const words2 = r.state === "skipped" ? r.reason && HELD_REASONS[r.reason] || r.reason || "held back" : r.state === "failed" ? r.reason && HELD_REASONS[r.reason] || HELD_REASONS.send_failed || "WhatsApp refused it" : r.state === "queued" ? cutOff ?? "not sent yet" : r.consent_after === "opted_out" ? quote ? `${quote} \u2014 ${answer}` : answer : quote ? quote : r.consent_after === "opted_in" ? answer : r.message_status === "failed" ? "WhatsApp could not deliver it" : hiThere ? "greeted \u201CHi there\u201D \u2014 no name on file" : receiptWords(r, clock2);
+    const door = r.consent_after === "opted_out" && out ? { label: "See consent", to: `clients/${r.contact_id}` } : hiThere ? { label: "Add a name", to: `clients/${r.contact_id}` } : r.replied && r.conversation_id ? { label: "Open the thread", to: `inbox/th-${r.conversation_id}` } : null;
+    const inn = ["all"];
+    if (out && r.replied) inn.push("replied");
+    if (r.state === "skipped" || r.state === "failed" || r.state === "queued" && cutOff) inn.push("held");
+    if (out && r.consent_after === "opted_out") inn.push("stopped");
+    return {
+      contact_id: r.contact_id,
+      name: r.name,
+      initials: initialsOf2(r.name, !!r.first_name),
+      pill,
+      words: words2,
+      door,
+      at: out ? clock2(r.replied_at || r.consent_at || r.read_at || r.delivered_at || r.sent_at) : null,
+      attn: out && r.consent_after === "opted_out" || hiThere,
+      held: !out,
+      in: inn
+    };
+  });
+  const replies = replied.slice().sort((a, b) => String(a.replied_at ?? "").localeCompare(String(b.replied_at ?? ""))).map((r) => ({
+    contact_id: r.contact_id,
+    name: r.name,
+    initials: initialsOf2(r.name, !!r.first_name),
+    quote: r.reply_words ? `\u201C${r.reply_words}\u201D` : null,
+    outcome: r.waiting_on_you ? { words: "Waiting on you", tone: "warn" } : r.answered_by === "receptionist" ? { words: `The receptionist answered${clock2(r.answered_at) ? ` \xB7 ${clock2(r.answered_at)}` : ""}`, tone: "ok" } : r.answered_by === "team" ? { words: `Your team answered${clock2(r.answered_at) ? ` \xB7 ${clock2(r.answered_at)}` : ""}`, tone: "ok" } : { words: "Not answered yet", tone: "plain" },
+    to: r.conversation_id ? `inbox/th-${r.conversation_id}` : null
+  }));
+  const failed = d.broadcast?.state === "failed";
+  const code2 = d.broadcast?.failure ?? null;
+  return {
+    enrolled: d.recipients.length,
+    span: spanH === 1 ? "the first hour" : spanH < 24 ? `the first ${spanH} hours` : spanH === 24 ? "the first day" : `the first ${spanH / 24} days`,
+    groups: {
+      all: people.length,
+      replied: people.filter((p) => p.in.includes("replied")).length,
+      held: people.filter((p) => p.in.includes("held")).length,
+      stopped: people.filter((p) => p.in.includes("stopped")).length
+    },
+    people,
+    replies,
+    stop: failed ? { words: broadcastFailureWords(code2), fix: broadcastFailureFix(code2, sent), tone: code2 === "paused" ? "warn" : "danger" } : null,
+    figures: [
+      { id: "sent", label: "Messages sent", n: sent, pct: null, sub: `of ${d.recipients.length} on the list`, tone: "plain", bars: bars2(reached.map((r) => r.sent_at)) },
+      { id: "delivered", label: "Delivered", n: delivered.length, pct: pct2(delivered.length), sub: sent === 0 ? "nothing has gone out" : never > 0 ? `${never} never reached the handset` : "every one reached the handset", tone: delivered.length > 0 ? "ok" : "plain", bars: bars2(delivered.map((r) => r.delivered_at ?? r.read_at)) },
+      { id: "replied", label: "Replied", n: replied.length, pct: pct2(replied.length), sub: waiting > 0 ? `${waiting} waiting on you in the Inbox` : replied.length > 0 ? "each one is a thread in the Inbox" : "nobody has written back yet", tone: replied.length > 0 ? "ok" : "plain", bars: bars2(replied.map((r) => r.replied_at)) },
+      { id: "said_yes", label: "Said yes", n: yes.length, pct: pct2(yes.length), sub: yes.length > 0 ? answersWords(yes, "opted_in") : "nobody new said yes", tone: yes.length > 0 ? "ok" : "plain", bars: bars2(yes.map((r) => r.consent_at)) },
+      { id: "stopped", label: "Asked to stop", n: stopped.length, pct: pct2(stopped.length), sub: stopped.length > 0 ? answersWords(stopped, "opted_out") : "nobody asked to stop", tone: stopped.length > 0 ? "warn" : "plain", bars: bars2(stopped.map((r) => r.consent_at)) }
+    ]
+  };
 }
 
 // src/playbooks.ts
@@ -12436,6 +12573,7 @@ export {
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
   BROADCAST_CHUNK,
+  BROADCAST_FAILURE_FIX,
   BROADCAST_FAILURE_WORDS,
   BROADCAST_GAP_MS,
   BROADCAST_MAX_RECIPIENTS,
@@ -12741,6 +12879,8 @@ export {
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
+  RUN_FILTERS,
+  RUN_REPORT_STEPS,
   RenameLeadSearchSchema,
   SCHEMA_SETS,
   SENDING_HOURS_WORDS,
@@ -12820,6 +12960,7 @@ export {
   bookingLinkAction,
   bookingTemplate,
   brainMetaOf,
+  broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,
   buildAskSuggestions,
@@ -12870,6 +13011,7 @@ export {
   composeSystemPrompt,
   connectionRows,
   connectionWords,
+  consentAnswerWords,
   consentChangeOf,
   consentChangeWords,
   consentFormMetadata,
@@ -13155,6 +13297,7 @@ export {
   reachedCustomer,
   readAgoLabel,
   reasonShort,
+  receiptWords,
   recencyCells,
   receptionistOn,
   recoverCitations,
@@ -13284,6 +13427,7 @@ export {
   toPersonRowVM,
   toPersonVM,
   toReportVM,
+  toRunReportVM,
   toTodayVM,
   toVisitDto,
   toastShape,

@@ -36,8 +36,9 @@ const dto = (over = {}) => ({
   ...over,
 });
 const person = (over = {}) => ({
-  contact_id: "k1", name: "Rosa Díaz", phone: "+16465550123", state: "sent", reason: null, sent_at: iso(-5 * D), message_status: "delivered",
-  conversation_id: "cv1", replied: false, delivered_at: iso(-5 * D + 60_000), read_at: null, replied_at: null, ...over,
+  contact_id: "k1", name: "Rosa Díaz", first_name: "Rosa", phone: "+16465550123", state: "sent", reason: null, sent_at: iso(-5 * D), message_status: "delivered",
+  conversation_id: "cv1", replied: false, delivered_at: iso(-5 * D + 60_000), read_at: null, replied_at: null,
+  consent_after: null, consent_at: null, consent_purpose: null, reply_words: null, answered_by: null, answered_at: null, waiting_on_you: false, ...over,
 });
 const detailOf = (broadcast, recipients = [person()]) => ({ broadcast, recipients });
 const healthyNumber = { present: true, display: "+1 305-555-0100", health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }) };
@@ -174,8 +175,9 @@ const fresh = () => { cells = []; seq = 0; went.length = 0; for (const k of Obje
 /** The detail's reads, answered in order per broadcast; the last answer repeats. */
 const answers = new Map();
 globalThis.window.__broadcasts = {
-  // The bridge's words for why a whole broadcast stopped (broadcast-verbs.ts), as the verbs publish them.
+  // The bridge's words for why a whole broadcast stopped, and a run's report (broadcast-verbs.ts), as the verbs publish them.
   failureWords: (code) => contracts.broadcastFailureWords(code),
+  report: (d) => contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: (iso) => (iso ? globalThis.window.__clock.stamp(Date.parse(iso)) : null) }),
   detail: async (id) => {
     const queue = answers.get(id) || [];
     return (queue.length > 1 ? queue.shift() : queue[0]) || { ok: false, code: "not_found", status: 404, message: "Broadcast not found." };
@@ -268,15 +270,70 @@ test("REGRESSION (C12): a failed broadcast says why, in its row and in its detai
   const unexplained = dto({ id: "b-failed-2", name: "August offer", state: "failed", failure: null });
   globalThis.window.__BROADCASTS = broadcastsSurface({ rows: [failed, unexplained].map((b) => toBroadcastVM(b, ZONE)) });
   answers.set("b-failed", [{ ok: true, data: detailOf(failed, []) }]);
+  const rows = all(page({ initialSegment: null, initialRun: null }), (n) => n.props?.["data-testid"] === "bc-history");
+  // The card says it failed (its state) and why (its line), where the row said "· failed" and stopped.
+  assert.ok(textOf(rows[0]).includes("Failed") && textOf(rows[0]).includes("WhatsApp no longer approves its template"), `REGRESSION: ${textOf(rows[0])}`);
+  assert.ok(textOf(rows[1]).includes("no reason was recorded"), textOf(rows[1]));
   const props = { initialSegment: null, initialRun: "b-failed" };
   page(props);
   await settle();
   const tree = again(props);
-  const rows = all(tree, (n) => n.props?.["data-testid"] === "bc-history");
-  // The card says it failed (its state) and why (its line), where the row said "· failed" and stopped.
-  assert.ok(textOf(rows[0]).includes("Failed") && textOf(rows[0]).includes("WhatsApp no longer approves its template"), `REGRESSION: ${textOf(rows[0])}`);
-  assert.ok(textOf(rows[1]).includes("no reason was recorded"), textOf(rows[1]));
   assert.equal(textOf(byTestId(tree, "bc-detail-failure")), "It stopped: WhatsApp no longer approves its template.");
+  // And, opened, how to get past it -- never "something went wrong".
+  assert.ok(textOf(byTestId(tree, "bc-stopped")).includes("Open it in Templates — it can be resubmitted."), textOf(byTestId(tree, "bc-stopped")));
+});
+
+test("an opened run is sent again from its own head: the send screen, filled with its template, its list and its values -- and no button when one of them cannot go", async () => {
+  const note = { id: "tpl-note", channel: "whatsapp", name: "a_quick_note", language: "en_US", meta_status: "approved", category: "utility", purpose: "conversational", body_preview: "Hi {{1}}", variables: [{ position: 1, label: "First name", example: "Dani" }] };
+  const offer = { id: "tpl-offer", channel: "whatsapp", name: "autumn_offer", language: "en_US", meta_status: "approved", category: "marketing", purpose: "marketing",
+    body_preview: "Hi {{1}}, {{2}}", variables: [{ position: 1, label: "First name", example: "Dani" }, { position: 2, label: "The offer", example: "20% off" }] };
+  const byHand = dto({ id: "b-hand", name: "Autumn colour", playbook_id: null, run_for: null, template_id: "tpl-offer", template_name: "autumn_offer",
+    audience: { kind: "saved", id: "s1", label: "Regulars" }, params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [note, offer], number: healthyNumber, rows: [byHand, dto()].map((b) => toBroadcastVM(b, ZONE)) });
+  answers.set("b-hand", [{ ok: true, data: detailOf(byHand) }]);
+  const props = { initialSegment: null, initialRun: "b-hand" };
+  page(props);
+  await settle();
+  let tree = again(props);
+  press(byTestId(tree, "bc-again"));
+  assert.equal(went.at(-1), "broadcasts", "the run closes");
+  again({ initialSegment: null, initialRun: null });
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.ok(byTestId(tree, "bc-composer"), "onto the send screen");
+  assert.ok(textOf(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && String(n.props.className).includes("active"))).startsWith("Regulars"), "its list");
+  assert.ok(find(tree, (n) => n.props?.["data-testid"] === "bc-template" && n.props["aria-pressed"] === true && textOf(n).toLowerCase().includes("autumn")), "its template, not the one the screen opens on");
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "bc-var-source").map((x) => x.props.value), ["first_name", "text"], "its values, by what fills them");
+  assert.equal(all(byTestId(tree, "bc-vars"), (n) => n.type === "input")[1].props.value, "20% off colour", "and the words it said");
+
+  // A playbook's run is sent again by its playbook, and a template WhatsApp no longer approves cannot go at all.
+  answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
+  page({ initialSegment: null, initialRun: "b-sent" });
+  await settle();
+  assert.equal(byTestId(again({ initialSegment: null, initialRun: "b-sent" }), "bc-again"), null, "a playbook's run is sent again by its playbook");
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [note], number: healthyNumber, rows: [byHand].map((b) => toBroadcastVM(b, ZONE)) });
+  page(props);
+  await settle();
+  assert.equal(byTestId(again(props), "bc-again"), null, "REGRESSION-IN-WAITING: a send screen quietly filled with another template");
+});
+
+test("a run waiting on you is approved from the head of its own report -- a run Today opens is one you can act on where it lands", async () => {
+  const waiting = dto({ id: "b-wait", name: "The month's offer", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(2 * H), counts: quiet });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ rows: [waiting].map((b) => toBroadcastVM(b, ZONE)) });
+  answers.set("b-wait", [{ ok: true, data: detailOf(waiting, [person({ state: "queued", sent_at: null, message_status: null, delivered_at: null })]) }]);
+  const approved = [];
+  globalThis.window.__broadcasts.approve = async (id) => { approved.push(id); return { ok: true, data: { recipient_count: 1, scheduled_for: iso(2 * H), moved_from: null } }; };
+  try {
+    const props = { initialSegment: null, initialRun: "b-wait" };
+    page(props);
+    await settle();
+    const tree = again(props);
+    const head = find(byTestId(tree, "bc-detail"), (n) => n.type === "header");
+    assert.ok(byTestId(head, "bc-stop"), "and it can be skipped there too");
+    await press(byTestId(head, "bc-approve"));
+    assert.deepEqual(approved, ["b-wait"]);
+  } finally {
+    delete globalThis.window.__broadcasts.approve;
+  }
 });
 
 test("Broadcasts is one ledger: the runs waiting on you said at the head, a band bar whose legend filters the runs, the week ahead, and the composer its own screen", () => {

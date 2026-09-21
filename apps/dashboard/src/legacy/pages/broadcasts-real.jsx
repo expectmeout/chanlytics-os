@@ -46,37 +46,34 @@ const bcSources = () => Object.fromEntries(Object.entries((window.__starters && 
 // the effects on every render.
 const BC_NONE = [];
 
-// One broadcast's people: who got it (and whether WhatsApp says delivered
-// or read), who was held back and why, who it could not reach. Fetched when
-// a row is opened; every line is a recipient row.
-const BC_STATUS_WORDS = { sent: "sent", delivered: "delivered", read: "read", failed: "not delivered", queued: "sending", canceled: "canceled" };
-// A clock for a recipient's line, the business's (window.__clock): "10:32 AM", or "Sep 12 · 10:32 AM" before today.
-const bcClock = (iso) => {
+// One run, opened, as the canvas's After board draws it: what went out and what
+// came back, by the run's own people. Five figures, everyone it touched in the
+// words of what happened to them, every reply quoted with what has happened
+// since, and, for a run that stopped, why and what to do next. The words are the
+// contracts' (toRunReportVM, through window.__broadcasts.report); this draws
+// them. It is its own screen, as the send is, and it is read when it opens.
+// When a run went, for the head's line, by the business's clock (window.__clock) as the ledger says it: "Today 9:00 AM",
+// "Sep 12 · 10:00 AM".
+const bcWhen = (iso) => {
   const ms = iso ? Date.parse(iso) : NaN;
-  return Number.isNaN(ms) ? null : window.__clock.stamp(ms);
-};
-// What happened to one person, with the times WhatsApp's receipts gave (00111): "sent 10:31 · delivered 10:32 · read 10:40 · replied 10:52".
-const bcReceipt = (r) => {
-  const parts = [];
-  const sent = bcClock(r.sent_at);
-  parts.push(sent ? `sent ${sent}` : BC_STATUS_WORDS[r.message_status] || r.message_status || "sent");
-  const delivered = bcClock(r.delivered_at);
-  const read = bcClock(r.read_at);
-  if (delivered) parts.push(`delivered ${delivered}`);
-  else if (r.message_status === "delivered" || r.message_status === "read") parts.push("delivered");
-  if (read) parts.push(`read ${read}`);
-  else if (r.message_status === "read") parts.push("read");
-  if (r.message_status === "failed") parts.push("not delivered");
-  if (r.replied) parts.push(bcClock(r.replied_at) ? `replied ${bcClock(r.replied_at)}` : "replied");
-  return parts.join(" · ");
+  if (Number.isNaN(ms)) return null;
+  const w = window.__clock.when(ms);
+  return w.charAt(0).toUpperCase() + w.slice(1);
 };
 // A broadcast that can still change: waiting for a person, scheduled, or sending.
 const BC_LIVE = new Set(["pending_approval", "scheduled", "sending"]);
-const BroadcastDetail = ({ id, heldReasons, onClose, solo = false }) => {
+// Who "Everyone it touched" can show; who is in each is the report's (RunPersonVM.in).
+const BC_FILTERS = [["all", "All"], ["replied", "Replied"], ["held", "Held back"], ["stopped", "Stopped"]];
+const BC_FILTER_NONE = { all: "Nobody is on this run.", replied: "Nobody has written back yet.", held: "Nobody was held back.", stopped: "Nobody asked to stop." };
+// How many replies "What came back" quotes; the rest are threads in the Inbox, and it says how many.
+const BC_REPLIES_SHOWN = 5;
+const BroadcastDetail = ({ id, onClose, acts = null, again = null }) => {
   // The last answer, kept with the broadcast it answered for: a read of another id is not this one's.
   const [answer, setAnswer] = React.useState(null);
   const [asks, ask] = React.useReducer((n) => n + 1, 0);
   const [retrying, setRetrying] = React.useState(false);
+  // Who "Everyone it touched" shows: everyone, or the ones who replied, were held back, or asked to stop.
+  const [filter, setFilter] = React.useState("all");
   const mine = answer && answer.id === id ? answer : null;
   const d = mine && mine.ok ? mine.data : null;
   // While it can still change it is read again whenever the surface is -- which re-reads on every message, so
@@ -99,75 +96,152 @@ const BroadcastDetail = ({ id, heldReasons, onClose, solo = false }) => {
     });
     return () => { on = false; };
   }, [id, asks]);
-  const close = <button className="cl-bucket-link" onClick={onClose} data-testid="bc-detail-close">Close</button>;
-  if (!mine) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Reading who got it…</span></div>;
+  const close = <button className="btn btn-ghost" onClick={onClose} data-testid="bc-detail-close">Close</button>;
+  if (!mine) return <div className="bc-report" data-testid="bc-detail"><div className="bc-report-wait"><span className="cl-prof-aut-hint">Reading who got it…</span>{close}</div></div>;
   if (mine.gone) {
     return (
-      <div className="bc-detail" data-testid="bc-detail">
+      <div className="bc-report" data-testid="bc-detail">
         <EmptyState kind="line" title="This broadcast isn't in this workspace." body="The link may be old, or from another workspace." testid="bc-detail-gone" />
-        {close}
+        <div>{close}</div>
       </div>
     );
   }
   if (!d) {
     return (
-      <div className="bc-detail" data-testid="bc-detail">
+      <div className="bc-report" data-testid="bc-detail">
         <FailedRead kind="line" what="who got this broadcast" onRetry={() => { setRetrying(true); ask(); }} busy={retrying} testid="bc-detail-failed" />
-        {close}
+        <div>{close}</div>
       </div>
     );
   }
-  const got = d.recipients.filter((r) => r.state === "sent");
-  const heldBack = d.recipients.filter((r) => r.state === "skipped");
-  const rest = d.recipients.filter((r) => r.state === "failed" || r.state === "queued");
-  const Person = ({ r, words }) => (
-    <div className="bc-person" data-testid="bc-person">
-      <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(`clients/${r.contact_id}`)}>{r.name}</button>
-      <span className="dim">{words}</span>
-      {r.conversation_id && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(`inbox/th-${r.conversation_id}`)}>Open thread</button>}
-    </div>
-  );
+  const b = d.broadcast;
+  const vm = window.__broadcasts.report ? window.__broadcasts.report(d) : null;
+  const when = bcWhen(b.started_at || b.scheduled_for);
+  const lang = b.template_language ? String(b.template_language).slice(0, 2).toUpperCase() : null;
+  const shown = vm ? vm.people.filter((p) => p.in.includes(filter)) : [];
   return (
-    <div className="bc-detail" data-testid="bc-detail">
-      <div className="ct-sec-head">
-        <span className="ct-sec-title">{d.broadcast.name}</span>
-        {/* Opened on its own, no row above it says its state or when it went. */}
-        {solo && <StatePill kind="broadcast" value={d.broadcast.state} />}
-        <span className="ct-sec-meta">{solo && bcClock(d.broadcast.started_at || d.broadcast.scheduled_for) ? `${bcClock(d.broadcast.started_at || d.broadcast.scheduled_for)} · ` : ""}{d.broadcast.audience.label} · {d.recipients.length} enrolled · {bcTitle(d.broadcast.template_name)}</span>
-        {close}
-      </div>
-      {d.broadcast.state === "failed" && <div className="bc-excl-hint" data-testid="bc-detail-failure">It stopped: {window.__broadcasts.failureWords(d.broadcast.failure)}.</div>}
-      {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.__starters && window.__starters.sources || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</div>}
-      <div className="bc-detail-groups">
-        <div className="bc-detail-group">
-          <div className="cl-prof-rail-label">Got it · {got.length}</div>
-          {got.map((r) => <Person key={r.contact_id} r={r} words={bcReceipt(r)} />)}
-          {got.length === 0 && <span className="cl-prof-aut-hint">Nobody yet.</span>}
-        </div>
-        <div className="bc-detail-group">
-          <div className="cl-prof-rail-label">Held back · {heldBack.length}</div>
-          {heldBack.map((r) => <Person key={r.contact_id} r={r} words={(heldReasons || {})[r.reason] || r.reason || "held"} />)}
-          {heldBack.length === 0 && <span className="cl-prof-aut-hint">Nobody.</span>}
-        </div>
-        {rest.length > 0 && (
-          <div className="bc-detail-group">
-            <div className="cl-prof-rail-label">Not there yet · {rest.length}</div>
-            {/* The row's OWN reason, as the held-back group above already does.
-                Hardcoding send_failed here told everyone in this group that
-                WhatsApp refused them -- including the people a run was killed
-                mid-send for, who were never offered to WhatsApp at all. */}
-            {rest.map((r) => <Person key={r.contact_id} r={r} words={r.state === "failed" ? ((heldReasons || {})[r.reason] || (heldReasons || {}).send_failed || "WhatsApp refused") : "queued"} />)}
-          </div>
+    <div className="bc-report" data-testid="bc-detail">
+      <window.CmHead
+        title={b.name}
+        badge={<StatePill kind="broadcast" value={b.state} />}
+        sub={(
+          <>
+            {when && <><span>{when}</span><window.CmDot /></>}
+            {b.playbook_id
+              ? <button type="button" className="bc-run-link" onClick={() => window.CHANLY.nav(`outbound/${b.playbook_id}`)}>{b.audience.label} playbook</button>
+              : <span>{b.audience.label}</span>}
+            <window.CmDot />
+            <span className="tabular">{d.recipients.length} enrolled</span>
+            <window.CmDot />
+            <span className="mono bc-report-tpl">{b.template_name}{lang ? ` · ${lang}` : ""}</span>
+          </>
         )}
-      </div>
+        right={<>{acts}{again && again(b)}{close}</>}
+      />
+      {b.params.length > 0 && <div className="bc-report-values"><span className="cl-prof-aut-hint">Values: {b.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.__starters && window.__starters.sources || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</span></div>}
+      {vm && (
+        <div className="bc-figs" data-testid="bc-figures">
+          {vm.figures.map((f) => {
+            const top = Math.max(...f.bars, 1);
+            return (
+              <div key={f.id} className="bc-fig" data-tone={f.tone} data-testid={`bc-fig-${f.id}`}>
+                <span className="bc-fig-k">{f.label}</span>
+                <span className="bc-fig-n"><span className="bc-fig-v tabular">{f.n}</span>{f.pct !== null && <span className="bc-fig-pct">{f.pct}%</span>}</span>
+                <span className="bc-fig-bars" aria-hidden="true" title={`When they came, across ${vm.span}`}>{f.bars.map((v, i) => <span key={i} style={{ height: `${v > 0 ? Math.max(3, Math.round((v / top) * 16)) : 1}px` }} />)}</span>
+                <span className="bc-fig-sub">{f.sub}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {vm && (
+        <div className="bc-report-body">
+          <section className="bc-touched" data-testid="bc-touched">
+            <div className="bc-touched-head">
+              <span className="bc-card-title">Everyone it touched</span>
+              <span className="bc-touched-filters" role="group" aria-label="Who to show">
+                {BC_FILTERS.map(([k, label]) => (
+                  <button key={k} type="button" className={`bc-touched-filter${filter === k ? " on" : ""}`} aria-pressed={filter === k} onClick={() => setFilter(k)} data-testid={`bc-touched-${k}`}>
+                    {label} <span className="tabular">{vm.groups[k]}</span>
+                  </button>
+                ))}
+              </span>
+            </div>
+            {shown.map((p) => (
+              <div key={p.contact_id} className={`bc-person${p.attn ? " is-attn" : ""}${p.held ? " is-held" : ""}`} data-testid="bc-person">
+                <span className="bc-person-mark" aria-hidden="true">{p.initials}</span>
+                <button type="button" className="bc-person-name" onClick={() => window.CHANLY.nav(`clients/${p.contact_id}`)}>{p.name}</button>
+                <span className="bc-person-pill" data-tone={p.pill.tone}>{p.pill.label}</span>
+                <span className="bc-person-words">{p.words}</span>
+                {p.door && <button type="button" className="bc-person-door" onClick={() => window.CHANLY.nav(p.door.to)}>{p.door.label}</button>}
+                <span className="bc-person-at mono">{p.at || "—"}</span>
+              </div>
+            ))}
+            {shown.length === 0 && <div className="bc-touched-none">{BC_FILTER_NONE[filter]}</div>}
+          </section>
+          <div className="bc-report-aside">
+            {/* Why it stopped and what to do next, in the run's own words: a failed run never says "something went wrong". */}
+            {vm.stop && (
+              <section className="bc-card" data-testid="bc-stopped">
+                <span className="bc-card-title">Why it stopped</span>
+                <div className="bc-stop-box" data-tone={vm.stop.tone}>
+                  <span className="bc-stop-dot" aria-hidden="true" />
+                  <span className="bc-stop-text">
+                    <span className="bc-stop-line" data-testid="bc-detail-failure">It stopped: <strong>{vm.stop.words}</strong>.</span>
+                    {vm.stop.fix && <span className="bc-stop-fix">{vm.stop.fix}</span>}
+                  </span>
+                </div>
+              </section>
+            )}
+            <section className="bc-card" data-testid="bc-back">
+              <span className="bc-card-title">What came back</span>
+              <p className="bc-card-lede">A broadcast does not hold a conversation. Every reply is a thread in the Inbox, and the receptionist answers it under its usual autonomy.</p>
+              {vm.replies.length > 0
+                ? (
+                  <div className="bc-back-list">
+                    {vm.replies.slice(0, BC_REPLIES_SHOWN).map((x) => (
+                      <button key={x.contact_id} type="button" className="bc-back-row" disabled={!x.to} onClick={() => window.CHANLY.nav(x.to)} title={`${x.name} — open the thread`} data-testid="bc-reply">
+                        <span className="bc-person-mark" aria-hidden="true">{x.initials}</span>
+                        <span className="bc-back-text">
+                          <span className="bc-back-quote">{x.quote || "A reply with no words in it"}</span>
+                          <span className="bc-back-outcome" data-tone={x.outcome.tone}>{x.outcome.words}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )
+                : <p className="bc-back-none">Nobody has written back yet. A reply lands in the Inbox the moment it comes.</p>}
+              <button type="button" className="bc-back-all" onClick={() => window.CHANLY.nav("inbox")} data-testid="bc-back-inbox">
+                {vm.replies.length > BC_REPLIES_SHOWN ? `${vm.replies.length - BC_REPLIES_SHOWN} more in the Inbox` : "Open the Inbox"} <Icon name="arrow-right" size={11} />
+              </button>
+            </section>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// One open broadcast: its name, its numbers, its state, and the verbs. The
-// stop is armed and named for what it does -- stopping a send, skipping a run
-// nobody approved and cancelling one still to come are three acts, and none
-// of them is one click (the audit's D13). Drawn on its own by confirm.test.mjs.
+// A run's verbs: Approve for one waiting on a person, and the stop, armed and
+// named for what it does -- stopping a send, skipping a run nobody approved and
+// cancelling one still to come are three acts, and none of them is one click
+// (the audit's D13). The same on a run's card and at the head of an opened run,
+// where a run opened from Today is approved.
+const BcRunVerbs = ({ row, canSend, armed, onArm, stopping, approving = false, approve, cancel }) => {
+  const stop = bcStopWords(row.state);
+  if (armed && canSend) return <Confirm question={stop.question(row)} detail={stop.detail} yes={stop.yes} danger busy={stopping} onYes={() => cancel(row)} onNo={() => onArm(false)} testid="bc-stop" />;
+  return (
+    <>
+      {row.state === "pending_approval" && <button className="btn btn-sm btn-primary" disabled={approving} onClick={() => approve(row)} data-testid="bc-approve" {...(canSend || !window.gate ? {} : window.gate("approve", "approve a run"))}>{approving ? "Approving…" : "Approve the run"}</button>}
+      {/* Named for what it does: Stop, Skip or Cancel -- never "Hold", which
+          would promise a pause the act does not make. */}
+      {canSend && BC_LIVE.has(row.state) && <button className="btn btn-sm danger" onClick={() => onArm(true)} data-testid="bc-stop">{stop.verb}</button>}
+    </>
+  );
+};
+
+// One run on the ledger: its name, its numbers, its state, and the verbs; Open
+// opens its report, its own screen. Drawn on its own by confirm.test.mjs.
 const BC_STOP_WORDS = {
   sending: { verb: "Stop", question: (row) => `Stop ${row.name}?`, detail: "Messages already out stay out; the rest do not go.", yes: "Yes, stop it" },
   pending_approval: { verb: "Skip", question: (row) => `Skip ${row.name}?`, detail: "Nothing sends, and the run closes.", yes: "Yes, skip it" },
@@ -480,8 +554,7 @@ const bcSoon = (row, now) => {
  */
 // `renderDetail` draws the detail when the card is open -- a function, not an element, so a closed card
 // never mounts a detail that would read the run's recipients for nothing.
-const BcRunCard = ({ row, canSend, open, onOpen, armed, onArm, stopping, approving = false, approve, cancel, now, renderDetail = null }) => {
-  const stop = bcStopWords(row.state);
+const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = false, approve, cancel, now }) => {
   const byPb = bcByPlaybook(row);
   const pb = byPb && window.__PLAYBOOKS && Array.isArray(window.__PLAYBOOKS.rows) ? window.__PLAYBOOKS.rows.find((p) => p.id === row.playbook_id) : null;
   const waiting = row.state === "pending_approval";
@@ -511,7 +584,7 @@ const BcRunCard = ({ row, canSend, open, onOpen, armed, onArm, stopping, approvi
         <span className="bc-run-mark" data-tone={waiting ? "warn" : sending || soon ? "accent" : "plain"} aria-hidden="true"><Icon name={byPb ? "repeat" : "send"} size={16} /></span>
         <div className="bc-run-what">
           <div className="bc-run-titles">
-            <button type="button" className="bc-run-name" onClick={onOpen} aria-expanded={open} data-testid="bc-open-who">{row.name}</button>
+            <button type="button" className="bc-run-name" onClick={onOpen} data-testid="bc-open-who">{row.name}</button>
             <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
             {pb && <PolicyChip cls={pb.policy_class} />}
           </div>
@@ -527,23 +600,13 @@ const BcRunCard = ({ row, canSend, open, onOpen, armed, onArm, stopping, approvi
         </div>
         <div className="bc-run-acts">
           {soon && <span className="bc-run-soon tabular" data-testid="bc-soon" title="Until it goes">{soon}</span>}
-          {armed && canSend
-            ? <Confirm question={stop.question(row)} detail={stop.detail} yes={stop.yes} danger busy={stopping} onYes={() => cancel(row)} onNo={() => onArm(false)} testid="bc-stop" />
-            : (
-              <>
-                {waiting && <button className="btn btn-sm btn-primary" disabled={approving} onClick={() => approve(row)} data-testid="bc-approve" {...(canSend || !window.gate ? {} : window.gate("approve", "approve a run"))}>{approving ? "Approving…" : "Approve the run"}</button>}
-                {/* Named for what it does: Stop, Skip or Cancel -- never "Hold", which
-                    would promise a pause the act does not make. */}
-                {canSend && live && <button className="btn btn-sm danger" onClick={() => onArm(true)} data-testid="bc-stop">{stop.verb}</button>}
-                <button className="btn btn-sm" onClick={onOpen} aria-expanded={open}>{open ? "Close" : "Open"}</button>
-              </>
-            )}
+          <BcRunVerbs row={row} canSend={canSend} armed={armed} onArm={onArm} stopping={stopping} approving={approving} approve={approve} cancel={cancel} />
+          {!(armed && canSend) && <button className="btn btn-sm" onClick={onOpen}>Open</button>}
         </div>
       </div>
-      {open && renderDetail && renderDetail()}
     </>
   );
-  const cls = `bc-run${waiting ? " is-urgent" : ""}${open ? " is-open" : ""}`;
+  const cls = `bc-run${waiting ? " is-urgent" : ""}`;
   // Gone or not, by its state: a run to come or going out is "open", one gone is history.
   return finished
     ? <div className={cls} id={`bc-run-${row.id}`} data-testid="bc-history" data-state={row.state}>{inner}</div>
@@ -612,11 +675,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // template and one audience cannot be answered for another, so changing either
   // puts the button back.
   const [armed, setArmed] = React.useState(false);
-  // The broadcast open on the page is the one its link names (broadcasts/run:<id>); pressing a row follows that link.
+  // The broadcast open on the page is the one its link names (broadcasts/run:<id>); Open on a run follows that link,
+  // and its report is its own screen, as the send is.
   const openId = initialRun;
   const openRun = (id) => window.CHANLY.nav(id ? `broadcasts/run:${id}` : "broadcasts");
-  // A link lands on its run: brought into view when it is out of it -- under the composer on a page just opened, or
-  // first on a page already scrolled past it. A row pressed in view stays where it is.
+  // A link lands on its run: its report brought into view when the page it replaced was scrolled past where it opens.
   React.useEffect(() => {
     const el = openId && typeof document !== "undefined" && document.getElementById ? document.getElementById(`bc-run-${openId}`) : null;
     if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
@@ -720,6 +783,8 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     setName("");
     setWhenAt(null);
+    // Sent, the screen closes onto the ledger, where the run now is -- and "See who" opens it.
+    setWriting(false);
     const n = r.data.recipient_count;
     // Outside nine to twenty by the business's clock the send moved to the next
     // nine o'clock: the receipt says when it really goes (bcWhenWords).
@@ -779,35 +844,73 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
       row={row}
       canSend={canSend}
       now={now}
-      open={openId === row.id}
-      onOpen={() => openRun(openId === row.id ? null : row.id)}
+      onOpen={() => openRun(row.id)}
       armed={armId === row.id}
       onArm={(on) => setArmId(on ? row.id : null)}
       stopping={stopping === row.id}
       approving={approving === row.id}
       approve={approve}
       cancel={cancel}
-      renderDetail={() => <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => openRun(null)} />}
     />
   );
+  // The run open on its own screen, when the list holds it: its verbs go at the head of its report. A run older than
+  // the newest fifty is read by its id alone, and has finished.
+  const openRow = openId ? rows.find((r) => r.id === openId) || null : null;
+  // Send it again: the send screen, filled with what this run sent -- its template, its list and its values -- when
+  // all three can still go. A template WhatsApp no longer approves, a list since deleted, or a playbook's run (whose
+  // playbook sends it again) offers no button rather than a composer quietly filled with something else.
+  const againFor = (b) => {
+    if (!canSend || b.playbook_id) return null;
+    const t = templates.find((x) => x.id === b.template_id);
+    const a = audiences.find((x) => bcKey(x) === bcKey(b.audience || {}));
+    if (!t || !a) return null;
+    const offered = Object.keys(SRC).filter((k) => k !== "booking_link" || data.bookingLink);
+    const kinds = (b.params || []).map((p) => (p && offered.includes(p.kind) ? p.kind : "text"));
+    const typedBack = (b.params || []).map((p, i) => (kinds[i] === "text" && p && p.kind === "text" ? p.value : ""));
+    return (
+      <button
+        className="btn"
+        data-testid="bc-again"
+        onClick={() => {
+          setAud(bcKey(a));
+          setTplId(t.id);
+          setSources((x) => ({ ...x, [t.id]: kinds }));
+          setParams((x) => ({ ...x, [t.id]: typedBack }));
+          setName("");
+          setWhenAt(null);
+          setWriting(true);
+          openRun(null);
+        }}
+        {...window.gate("approve", "send a broadcast")}
+      >
+        Send it again
+      </button>
+    );
+  };
 
   return (
-    <div className="bc-page" data-testid="broadcasts-real">
+    <div className={`bc-page${openId ? " is-report" : ""}`} data-testid="broadcasts-real">
       <div className="bc-body">
-      {/* A run the list does not hold -- older than its newest fifty -- opens here, first, where its link lands. */}
-      {openId && !rows.some((r) => r.id === openId) && (
-        <section className="ct-section bc-run-solo" id={`bc-run-${openId}`} data-testid="bc-run-solo">
-          <BroadcastDetail id={openId} heldReasons={data.heldReasons} onClose={() => openRun(null)} solo />
+      {/* A run, opened: its report on a screen of its own, whether the list holds it or it is older than the list. */}
+      {openId ? (
+        <section className="bc-run-solo" id={`bc-run-${openId}`} data-testid="bc-run-solo">
+          <BroadcastDetail
+            id={openId}
+            onClose={() => openRun(null)}
+            acts={openRow && BC_LIVE.has(openRow.state)
+              ? <BcRunVerbs row={openRow} canSend={canSend} armed={armId === openRow.id} onArm={(on) => setArmId(on ? openRow.id : null)} stopping={stopping === openRow.id} approving={approving === openRow.id} approve={approve} cancel={cancel} />
+              : null}
+            again={againFor}
+          />
         </section>
-      )}
-
+      ) : null}
 
       {/* Three questions, side by side -- who, what, when -- and the one act that
           cannot be taken back alone at the foot. As a single column, the audience,
           the words and the send button never appeared on the same screen: an owner
           scrolled past the preview to reach Send, which is the wrong direction of
           travel for the only irreversible control on the surface. */}
-      {writing ? (
+      {openId ? null : writing ? (
       <section className="bc-composer bc-send" data-testid="bc-composer">
         {/* The one screen in Campaigns that cannot be undone, opened on its own:
             who, what and when at once, with the people named rather than counted,
