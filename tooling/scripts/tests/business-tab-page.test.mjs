@@ -191,9 +191,13 @@ test("the line it answers is shown, never offered as a box", () => {
   assert.equal(byTestId(row, "rec-row-act-voice_line"), null, "nothing here is typed");
   const door = find(row, (n) => typeof n.props?.onClick === "function");
   assert.ok(door, "one link to Connections");
-  // Beyond the plan: the number as Setup writes it, where it came from, and where the door goes.
+  // Beyond the plan: the number as Setup writes it, where it came from, where the door goes, and what a screen reader
+  // hears it called: its words with the row's label, as every row's act is named.
   assert.match(textOf(row), /\+1 \(308\) 336-8109/);
   assert.match(textOf(row), /your line/);
+  assert.equal(door.props["data-testid"], "rec-row-door-voice_line");
+  const named = door.props["aria-labelledby"].split(" ").map((id) => textOf(find(row, (n) => n.props?.id === id))).join(" ");
+  assert.equal(named.replace(/\s+/g, " ").trim(), "Connections Answers on");
   went.length = 0;
   press(door);
   assert.deepEqual(went, ["admin/integrations"]);
@@ -252,22 +256,32 @@ test("the head says what the page is, and who last changed it when that is known
 });
 
 test("every fact says where it came from, in contracts' words", () => {
-  const tree = drawTab();
+  // Resolved as the settings read resolves them (contracts resolveFacts), since the chip is the source it reports: a
+  // typed value that agrees with Google's is reported as typed, so a name Google agrees with reads "you set this".
+  let tree = drawTab({ resolved: { ...KNOWN, listing: { name: "Melany's Beauty Salon", address: "2581 Pitkin Ave, Brooklyn, NY 11208, USA" } } });
   const chipOf = (row) => textOf(find(byTestId(tree, row), (n) => classes(n).includes("rec-src")));
-  assert.equal(chipOf("rec-row-name"), stateOf("fact", "verified").label, "the name Google lists");
+  assert.equal(chipOf("rec-row-name"), stateOf("fact", "typed").label, "typed, and agreeing with Google, is typed");
   assert.equal(chipOf("rec-row-website"), stateOf("fact", "typed").label);
   assert.equal(chipOf("rec-row-voice_line"), stateOf("fact", "provisioned").label, "the line the platform provisioned");
+  assert.equal(chipOf("rec-row-phone_display"), stateOf("fact", "provisioned").label, "no number typed: it gives out the line");
   assert.equal(chipOf("rec-row-handoff_number"), stateOf("fact", "typed").label);
   assert.match(textOf(byTestId(tree, "rec-row-handoff_number")), /\+1 \(646\) 932-5775/, "written as people write it, never as it is stored");
   assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /Sent instead of confirming an appointment itself\./, "the old form's note, under the link");
+  // What only Google says is Google's: no address typed, and the one it lists.
+  tree = drawTab({ profile: without(melany, "address"), resolved: { ...KNOWN, listing: { name: null, address: "2581 Pitkin Ave, Brooklyn, NY 11208, USA" } } });
+  assert.equal(chipOf("rec-row-address"), stateOf("fact", "verified").label, "from Google");
+  assert.match(textOf(byTestId(tree, "rec-row-address")), /2581 Pitkin Ave, Brooklyn, NY 11208, USA/);
 });
 
 test("an empty website says what empty means, and claims no page it cannot back", () => {
   const tree = drawTab({ profile: without(melany, "website"), facts: { website: { value: null, source: "absent" } } });
   const row = byTestId(tree, "rec-row-website");
   assert.equal(row.props["data-empty"], "true");
-  assert.match(textOf(row), /Left empty, the receptionist has no website to give anyone who asks\./);
-  assert.doesNotMatch(textOf(row), /\/b\//, "the receptionist is told no website, and the carriers read the business record's");
+  // Exactly what the composer does with an empty box: it writes no website line. Not that the receptionist has none to
+  // give -- the owner's own words may name one -- and not the page we publish, which no receptionist is told and the
+  // carriers are filed only from the business record's own website.
+  assert.match(textOf(row), /Optional\. Left empty, the receptionist is given no website\./);
+  assert.doesNotMatch(textOf(row), /\/b\/|no website to give/);
   assert.equal(textOf(byTestId(tree, "rec-row-act-website")), "Add one");
 });
 
@@ -448,6 +462,33 @@ test("It will say: the line of the prompt the draft changes, resolved as the edg
   typeInto(tree, "handoff_number", "");
   tree = redrawTab();
   assert.match(lines(byTestId(tree, "rec-inline-says-handoff_number")), /^There is no line to transfer to\./);
+  // And only where there is a line to call: a workspace that answers on WhatsApp alone is told no phone-call sentence.
+  tree = drawTab({ facts: { voice_line: { value: null, source: "absent" } } });
+  openFold(tree, "handoff_number");
+  tree = redrawTab();
+  typeInto(tree, "handoff_number", "");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-inline-says-handoff_number"), null, "no line to call, nothing a call would be told");
+});
+
+test("It will say nothing for a draft the page refuses, even where the save's own schema would take it", () => {
+  // "12345" is no number anyone can be reached on, and the row says so under its box. The save's schema holds a
+  // published number to three characters or more, so the bridge alone would resolve a prompt that gives it out: what
+  // keeps it from being shown as what the receptionist will say is the page's own check.
+  let tree = drawTab();
+  openFold(tree, "phone_display");
+  tree = redrawTab();
+  press(all(byTestId(tree, "rec-inline-phone_display-choice"), (n) => n.props?.role === "radio")[1]);
+  tree = redrawTab();
+  typeInto(tree, "phone_display", "12345");
+  tree = redrawTab();
+  const draft = { ...W.__SETTINGS.config.brain, phone_display: "12345" };
+  assert.match(W.__businessTab.consequenceOf("phone_display", draft, "whatsapp").text, /^Phone: 12345$/m, "the bridge would tell it");
+  assert.equal(byTestId(tree, "rec-inline-says-phone_display"), null, "the page does not");
+  // A number the check takes is shown the moment it is typed.
+  typeInto(tree, "phone_display", "+1 (646) 555-0100");
+  tree = redrawTab();
+  assert.equal(textOf(find(byTestId(tree, "rec-inline-says-phone_display"), (n) => n.type === "pre")), "Phone: +1 (646) 555-0100");
 });
 
 test("a rename writes the product's opening lines again under the new name, and leaves an owner's own words alone", () => {

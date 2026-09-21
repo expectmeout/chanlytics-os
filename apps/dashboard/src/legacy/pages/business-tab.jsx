@@ -138,6 +138,7 @@ const btFocusBack = (id, el) => {
  * `section` is the row's name to consequenceOf (FOLD_BLOCK) where it is not the row's id, or the names of each block its save
  * can change: a rename changes the line the prompt opens with and, where the stored prompt is the product's own, that too.
  * `channel` is the one the row's words are read on; the transfer number is a call's, and changes nothing on WhatsApp.
+ * Null is no channel that reads them on this workspace, and the row says nothing it will say.
  */
 const RecordInline = ({
   id, section = null, label, brain, value = null, empty = null, hint = null, source = null, disputed = null, wrong = null,
@@ -214,7 +215,7 @@ const RecordInline = ({
   // prompt): never an empty "It will say".
   let says = null;
   const tab = window.__businessTab;
-  if (dirty && !check(now) && tab && tab.consequenceOf) {
+  if (channel && dirty && !check(now) && tab && tab.consequenceOf) {
     const next = commit(now).change({ ...brain }, { ...(brain.profile || {}) });
     if (before.current.brain !== brain) before.current = { brain, blocks: {} };
     const stored = before.current.blocks;
@@ -532,11 +533,11 @@ const BtWho = ({ brain, canEdit, flash }) => {
         label="Website"
         value={website.value}
         empty="Not set"
-        // What empty means, and only what is true of it: the receptionist is told no website, so it has none to give.
-        // The canvas said empty sent customers and the carriers to the page we publish, /b/<slug>. Neither reads this
-        // field: the prompt names a website only when one is typed here, and the carriers are filed the business
-        // record's own website (Connections), or that page when the record has none.
-        hint={website.value ? null : "Optional. Left empty, the receptionist has no website to give anyone who asks."}
+        // What empty means, and only what is exact: the prompt names a website only when one is typed here. Not that it
+        // has none to give, since the owner's own words may name one. Nor what the canvas said, that empty sent
+        // customers and the carriers to the page we publish, /b/<slug>: no receptionist is told that page, and the
+        // carriers are filed the business record's own website (Connections), or that page when the record has none.
+        hint={website.value ? null : "Optional. Left empty, the receptionist is given no website."}
         source={chip(website)}
         disputed={btDispute(website, conflictOn("website"), BT_TAKE_THEIRS)}
         gate={gate("website")}
@@ -571,8 +572,10 @@ const BtWho = ({ brain, canEdit, flash }) => {
           which is how a salon came to publish the number it transfers to as the number to call. The line it answers
           is provisioned and belongs to Connections, so it is shown here and never offered as a box; the other two are
           the receptionist's behaviour, edited in the row that states them. */}
+      {/* The door is the row's act, named with the row's label ("Connections Answers on"), and its own test id: it
+          opens Connections, never a box, so it is not the row's Change. */}
       <window.RecordRow
-        testid="rec-row-voice_line"
+        id="voice_line"
         label="Answers on"
         value={voiceLine ? lineShown : null}
         empty="No phone line yet"
@@ -650,12 +653,13 @@ const BtWho = ({ brain, canEdit, flash }) => {
 
       {/* Where a caller who insists on a person is transferred. Empty is a choice. Shown, and changed from, the way the
           row writes it: the check and the stored form both read "+1 (786) 555-0182". Its words are a call's, so what
-          it will say is read on the phone: on WhatsApp the number changes nothing. */}
+          it will say is read on the phone: on WhatsApp the number changes nothing. And only where there is a line to
+          call: a workspace that answers on WhatsApp alone is shown no sentence that no receptionist of its receives. */}
       <RecordInline
         {...shared}
         id="handoff_number"
         label="Transfers a caller to"
-        channel="voice"
+        channel={voiceLine ? "voice" : null}
         value={transfer.value ? phoneShown(transfer.value) : null}
         empty="Takes a message instead"
         source={chip(transfer)}
