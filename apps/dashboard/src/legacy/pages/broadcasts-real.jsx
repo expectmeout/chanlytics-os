@@ -906,6 +906,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const noNumber = active && activeCount === 0 && sample && sample.saidYes > 0 && window.__broadcasts && window.__broadcasts.noNumberWords
     ? window.__broadcasts.noNumberWords(`“${active.label}”`, purpose)
     : null;
+  // How many on it said yes, for the line under the audience (contracts saidYesWords): who it reaches, and who said
+  // yes when nobody can be sent it -- "0 people … said yes" stood right over the no-number line, and was false.
+  const yesWords = active && window.__broadcasts && window.__broadcasts.saidYesWords
+    ? window.__broadcasts.saidYesWords(`“${active.label}”`, purpose, activeCount, (sample && sample.saidYes) || 0)
+    : null;
   const person = people.length ? people[Math.min(who, people.length - 1)] : null;
   // What this person really reads. A first-name slot takes THEIR name, and the
   // words the wire uses when nobody has one -- "Hi there" (contracts
@@ -1135,9 +1140,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             <div className="bc-meta">
               <Icon name="shield" size={11} />
               <span>
-                {active
-                  ? `${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}” said yes${purpose === "marketing" ? " to offers" : " to messages"}`
-                  : "Pick who this goes to"}
+                {active ? yesWords : "Pick who this goes to"}
                 {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire{data.chunk ? ` · sent ${data.chunk} at a time` : ""}
               </span>
             </div>

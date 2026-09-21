@@ -1,4 +1,4 @@
-import { AppError, AUDIENCE_KINDS, nextOpenMoment, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, PEOPLE_LISTS, broadcastName, eligibleFor, emptyAudienceRefusal, overLimitRefusal, paramLabel, purposeOfTemplate, type Audience, type AudienceKind } from "@chanlytics/contracts";
+import { AppError, AUDIENCE_KINDS, nextOpenMoment, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, PEOPLE_LISTS, audienceMembers, broadcastName, eligibleFor, emptyAudienceRefusal, overLimitRefusal, paramLabel, purposeOfTemplate, type Audience, type AudienceKind } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import { templateValues } from "./template-values";
 import type { CreateBroadcastCommand, CreateBroadcastPorts } from "./ports";
@@ -87,7 +87,9 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   // here is the audience the wire will accept.
   const purpose = purposeOfTemplate(tpl.category);
   const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose);
-  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose), 409);
+  // Nobody to send to says which of its two causes it is: nobody on it said this yes, or the ones who did have no
+  // number. So the refusal is handed everyone on the audience, before anyone is left out.
+  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind as AudienceKind, audienceId, savedIds)), 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   // An audience past the day's limit is split, not silently cut.
   const over = overLimitRefusal(health, eligible.length);

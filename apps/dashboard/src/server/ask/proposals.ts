@@ -6,6 +6,7 @@ import {
   EVERYONE_LABEL,
   PEOPLE_LISTS,
   PERSON_MODES,
+  audienceMembers,
   broadcastName,
   cleanParam,
   clockWhen,
@@ -427,7 +428,8 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   // broadcast the route then refuses has wasted the operator's approval.
   const purpose = purposeOfTemplate(tpl.category);
   const count = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose).length;
-  if (count === 0) return refuse(`nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose)} Say so, and name what to do about it`);
+  // In the route's words, which say which cause it is -- nobody said this yes, or the ones who did have no number.
+  if (count === 0) return refuse(`nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind as AudienceKind, audienceId, savedIds))} Say so, and name what to do about it`);
   const when = str(input.scheduled_for, 40) || null;
   // With its offset: a bare date is midnight UTC, the evening before here, and
   // the route refuses it after the person approved the card.

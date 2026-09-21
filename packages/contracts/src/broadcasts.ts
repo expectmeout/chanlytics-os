@@ -24,7 +24,7 @@
  */
 import { templateTitle } from "./template-library";
 import { clockDate, clockWhen } from "./clock";
-import { PEOPLE_LISTS, mayReceive, saidYesTo, type PersonRowVM } from "./people";
+import { PEOPLE_LISTS, mayReceive, noNumberWords, saidYesTo, type PersonRowVM } from "./people";
 import { firstNameOf, type ParamSpec } from "./templates";
 import { mayMessageFor, PURPOSE_REFUSALS, type SendPurpose } from "./consent";
 import type { RunReach } from "./playbooks";
@@ -389,11 +389,24 @@ export const HELD_REASONS: Record<string, string> = {
  * itself and calls an empty set "this customer". One source of truth is for FACTS.
  * The fact here is the reason code, which both registries key on and which a test
  * holds them both complete against; the prose is written for its own reader.
+ *
+ * An empty audience has two causes, and only one of them is a missing yes: the
+ * ones who said it may have no number to send to -- someone who has only ever
+ * emailed, or a walk-in recorded with a yes and no number. That case is said in
+ * People's words (`noNumberWords`, #663), naming the audience as the send screen
+ * does, and without the QR, which would ask them for an answer they gave. So the
+ * caller hands in the audience's name and everyone on it, before anyone is left
+ * out (`audienceMembers`), and the refusal says which cause it is.
+ *
+ * The QR is on Broadcasts, the ledger's "Get their yes" card since #758. These
+ * words are read in a toast on the send screen, which has no QR, and in Ask,
+ * which is no page at all -- so they say where it is rather than "on this page".
  */
-export function emptyAudienceRefusal(purpose: SendPurpose): string {
+export function emptyAudienceRefusal(purpose: SendPurpose, label: string, pool: readonly Pick<PersonRowVM, "consent">[]): string {
+  if (pool.some((r) => saidYesTo(r, purpose))) return noNumberWords(`“${label}”`, purpose);
   return purpose === "marketing"
-    ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and QR on this page."
-    : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
+    ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR on Broadcasts."
+    : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
 }
 
 /* ---- The number's health: what WhatsApp has said about it, and what that permits ---- */

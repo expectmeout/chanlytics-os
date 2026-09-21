@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BROADCAST_MAX_RECIPIENTS, EVERYONE_LABEL, broadcastName, emptyAudienceRefusal, numberHealth, paramLabel, starterForTrigger, templateTitle } from "@chanlytics/contracts";
+import { BROADCAST_MAX_RECIPIENTS, EVERYONE_LABEL, broadcastName, emptyAudienceRefusal, noNumberWords, numberHealth, paramLabel, starterForTrigger, templateTitle, toPersonRowVM } from "@chanlytics/contracts";
 import { importSrc } from "./_source.mjs";
 import { localDate as tzDate } from "@chanlytics/contracts";
 
@@ -108,11 +108,69 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
   assert.deepEqual(saved.of("create")[0][1].audience, { kind: "saved", id: S1, label: "VIPs" });
   await refused(make(fakes(), { template_id: T1, audience: { kind: "saved", id: S1 } }), "not_found", 404, "List not found.");
   const nobody = fakes({ people: noOne });
-  await refused(make(nobody, { template_id: T1, audience: everyone }), "conflict", 409, emptyAudienceRefusal("marketing"));
-  await refused(make(fakes({ people: noOne, template: template({ category: "utility" }) }), { template_id: T1, audience: everyone }), "conflict", 409, emptyAudienceRefusal("conversational"));
+  await refused(make(nobody, { template_id: T1, audience: everyone }), "conflict", 409, emptyAudienceRefusal("marketing", EVERYONE_LABEL, noOne));
+  await refused(make(fakes({ people: noOne, template: template({ category: "utility" }) }), { template_id: T1, audience: everyone }), "conflict", 409, emptyAudienceRefusal("conversational", EVERYONE_LABEL, noOne));
   const crowd = Array.from({ length: BROADCAST_MAX_RECIPIENTS + 1 }, (_, i) => person(i));
   await refused(make(fakes({ people: crowd }), { template_id: T1, audience: everyone }), "validation", 400, `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   assert.deepEqual(nobody.ops(), []);
+});
+
+test("REGRESSION: an empty audience says which of its two causes it has -- a yes with no number to send to read 'Nobody there has said yes', and every refusal sent the owner to a QR 'on this page'", async () => {
+  // People's rows as the route reads them: the database's rows through contracts' toPersonRowVM.
+  const at = (days) => new Date(NOW.getTime() - days * D).toISOString();
+  const row = (over) => toPersonRowVM({
+    id: "x", display_name: null, wa_profile_name: null, phone_e164: null, email: null,
+    consent: "opted_in", consent_source: "in_person", consent_updated_at: at(20), dnc: false,
+    marketing_consent: null, marketing_consent_source: null, marketing_consent_updated_at: null,
+    channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
+    latest_conversation_id: null, latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null,
+    last_message_at: at(3), last_message_direction: "inbound", last_message_sender: "customer", last_inbound_text: "Thanks!", last_inbound_at: at(3),
+    last_call_at: null, call_count: 0, call_seconds: 0, first_contact_at: at(30), earliest_row_at: at(30), has_backfill: false, has_chat: true, queued_reply_at: null,
+    ...over,
+  }, ZONE, NOW);
+  const rows = [
+    // Wrote in by email and said yes to both there: an address, and no number (the email channel, live since 18 Sep).
+    row({ id: "ana", display_name: "Ana Reyes", email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent: "opted_in", marketing_consent_source: "customer_message", marketing_consent_updated_at: at(20) }),
+    // Walked in, said yes to messages at the desk, and left no number.
+    row({ id: "bea", display_name: "Bea Soto", channels: [], has_chat: false, conversation_count: 0, latest_state: null, last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null }),
+    // A number, and a yes to messages only: offers he was never asked about.
+    row({ id: "luis", display_name: "Luis Mora", wa_profile_name: "Luis", phone_e164: "+17865550183" }),
+    // A number, and no yes to anything yet.
+    row({ id: "cleo", display_name: "Cleo Park", phone_e164: "+17865550184", consent: null, consent_source: null, consent_updated_at: null }),
+  ];
+  const REGULARS = "66666666-6666-4666-8666-666666666662";
+  const WALK_INS = "66666666-6666-4666-8666-666666666663";
+  const DESK = "66666666-6666-4666-8666-666666666664";
+  const NEW = "66666666-6666-4666-8666-666666666665";
+  const lists = { [REGULARS]: { name: "Regulars", memberIds: ["ana", "luis"] }, [WALK_INS]: { name: "Walk-ins", memberIds: ["luis"] }, [DESK]: { name: "At the desk", memberIds: ["bea"] }, [NEW]: { name: "New", memberIds: ["cleo"] } };
+  // Where a yes is got: on Broadcasts, the ledger's card since #758. Not "on this page" -- these words are read in a
+  // toast on the send screen, which has no QR, and in Ask, which is no page at all.
+  const noYesToOffers = "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
+  const noYesToMessages = "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
+  /** The route's refusal of one list, for a message of this category: its status and its words, whole. */
+  const refusalOf = async (list, category = "marketing") => {
+    const f = fakes({ people: rows, savedList: (id) => lists[id] ?? null, template: template({ category }) });
+    try {
+      await make(f, { template_id: T1, audience: { kind: "saved", id: list } });
+    } catch (e) {
+      assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
+      return [e.status, e.message];
+    }
+    assert.fail(`a broadcast to ${lists[list].name} went out`);
+  };
+
+  // Ana said yes to offers, and there is no number to send one to: the list is missing a number, not an answer.
+  // People's words for it (#663), naming the list as the send screen names it (#811) -- and no QR, which would ask
+  // Ana for the yes she gave.
+  assert.deepEqual(await refusalOf(REGULARS), [409, noNumberWords("“Regulars”", "marketing")], "REGRESSION: 'Nobody there has said yes to offers yet'");
+  // Nobody on Walk-ins said yes to offers -- Ana did, and she is not on it: that IS a missing answer.
+  assert.deepEqual(await refusalOf(WALK_INS), [409, noYesToOffers]);
+  // The yes is the message's own. Bea said yes to messages, so a message to her list is missing a number...
+  assert.deepEqual(await refusalOf(DESK, "utility"), [409, noNumberWords("“At the desk”", "conversational")]);
+  // ...and an offer to it is missing her answer.
+  assert.deepEqual(await refusalOf(DESK), [409, noYesToOffers]);
+  // Cleo has a number and has said yes to nothing: a message to her is missing its answer too.
+  assert.deepEqual(await refusalOf(NEW, "utility"), [409, noYesToMessages]);
 });
 
 test("the number: none connected, flagged, or an audience past the day's limit, refused before a row", async () => {

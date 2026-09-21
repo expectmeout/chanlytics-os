@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
-import { ASK_MAX_ROUNDS, ASK_MODEL } from "@chanlytics/contracts";
+import { ASK_MAX_ROUNDS, ASK_MODEL, noNumberWords } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -427,6 +427,51 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.match((await p("teleport", {})).result, /unknown tool teleport/);
   const throwing = newToolContext(ctxFor(t, RPCS, { "contacts.select": { message: "permission denied" } }), A, "owner", TZ, NOW);
   assert.deepEqual(await buildProposal(throwing, "propose_person_mode", { contact_id: P1, mode: "ask" }), { proposal: null, result: JSON.stringify({ error: "that could not be checked; say so and suggest the page" }), isError: true });
+});
+
+test("REGRESSION: a broadcast to nobody is refused with the cause it has -- Ask called a yes with no number to send to 'nobody has said yes', and pointed at a QR 'on this page'", async () => {
+  const S_REG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+  const S_WALK = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
+  const ANA = "cccccccc-cccc-4ccc-8ccc-cccccccccca1";
+  const LUIS = "cccccccc-cccc-4ccc-8ccc-cccccccccca2";
+  const day = 86_400_000;
+  // As people_list returns them; proposeBroadcast maps them through toPersonRowVM, as the route's adapter does.
+  const person = (over) => ({
+    display_name: null, wa_profile_name: null, phone_e164: null, email: null, consent: "opted_in", consent_source: "desk", consent_updated_at: iso(NOW.getTime() - 20 * day),
+    marketing_consent: null, marketing_consent_source: null, marketing_consent_updated_at: null, dnc: false, channels: ["whatsapp"], conversation_count: 1, escalation_count: 0,
+    needs_human: false, open_escalation_reason: null, open_escalation_since: null, latest_conversation_id: null, latest_state: "open", latest_paused_until: null,
+    latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null, last_message_at: iso(NOW.getTime() - 3 * day), last_message_direction: "inbound",
+    last_message_sender: "client", last_inbound_text: "Thanks!", last_inbound_at: iso(NOW.getTime() - 3 * day), last_call_at: null, last_outbound_call_at: null,
+    last_inbound_call_at: null, created_at: iso(NOW.getTime() - 40 * day), ...over,
+  });
+  const people = [
+    // Wrote in by email and said yes to both there: an address, and no number.
+    person({ id: ANA, display_name: "Ana Reyes", email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent: "opted_in", marketing_consent_source: "customer_message", marketing_consent_updated_at: iso(NOW.getTime() - 20 * day) }),
+    // A number, and a yes to messages only.
+    person({ id: LUIS, display_name: "Luis Mora", phone_e164: "+15555550101" }),
+  ];
+  const t = tables({
+    templates: [{ id: TPL, tenant_id: A, channel: "whatsapp", name: "fall_offer", language: "en", meta_status: "approved", category: "MARKETING", variables: [], body_preview: "20% off this week.", hidden_at: null }],
+    segments: [{ id: S_REG, tenant_id: A, name: "Regulars" }, { id: S_WALK, tenant_id: A, name: "Walk-ins" }],
+    segment_members: [{ segment_id: S_REG, contact_id: ANA }, { segment_id: S_REG, contact_id: LUIS }, { segment_id: S_WALK, contact_id: LUIS }],
+  });
+  const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
+  /** What the model is told when it proposes an offer to one of the lists: no card, and why. */
+  const refusal = async (audience_id) => {
+    const r = await buildProposal(tc, "propose_broadcast", { template_id: TPL, audience_kind: "saved", audience_id, params: [] });
+    assert.deepEqual([r.proposal, r.isError], [null, true], r.result);
+    return JSON.parse(r.result).error;
+  };
+
+  // Ana said yes to offers and has no number: the list is missing a number, not an answer -- People's words (#663).
+  const regulars = await refusal(S_REG);
+  assert.ok(regulars.includes(noNumberWords("“Regulars”", "marketing")), regulars);
+  assert.ok(!regulars.includes("has said yes"), `REGRESSION: the model was told nobody had said yes: ${regulars}`);
+  // Nobody on Walk-ins said yes to offers: the QR is where that is got, and it is on Broadcasts -- Ask is no page.
+  const walkIns = await refusal(S_WALK);
+  assert.ok(walkIns.includes("Nobody there has said yes to offers yet"), walkIns);
+  assert.ok(walkIns.includes("or get their yes with the phrase and the QR on Broadcasts."), walkIns);
+  assert.ok(!walkIns.includes("on this page"), `REGRESSION: ${walkIns}`);
 });
 
 test("the real ports are the real modules, and an override reaches only the field it names", async () => {
