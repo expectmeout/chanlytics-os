@@ -763,6 +763,30 @@ test("a save made while another is out waits its turn, and its row says it is sa
   assert.equal(sent[2].config.brain.profile.address, google);
 });
 
+test("a save the server refuses is said in its words, and the editor stays open with what was typed", async () => {
+  const sent = [];
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const refusal = "Someone else saved settings after you loaded them — reload and reapply.";
+  W.__saveSettings = (config, version) => {
+    sent.push({ config, version });
+    return Promise.resolve({ ok: false, code: "conflict", message: refusal });
+  };
+  let tree = drawTab({ flash });
+  openFold(tree, "website");
+  tree = redrawTab(flash);
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab(flash);
+  saveRow(tree, "website");
+  await settle();
+  tree = redrawTab(flash);
+  assert.equal(sent.length, 1, "sent once");
+  assert.deepEqual(openRows(tree), ["website"], "the editor is still open");
+  assert.equal(boxOf(tree, "website").props.value, "https://melanys.example", "with its draft");
+  assert.equal(byTestId(tree, "rec-inline-save-website").props["aria-busy"], undefined, "and Save is not busy");
+  assert.deepEqual([flashes.length, flashes[0].tone, textOf(flashes[0].msg)], [1, "danger", refusal], "the toast carries the server's words, and nothing said it was saved");
+});
+
 test("a save whose promise fails before the server takes it says so, and leaves the row ready to try again", async () => {
   const flashes = [];
   const flash = (f) => flashes.push(f);
