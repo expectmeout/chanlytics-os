@@ -34,8 +34,9 @@
 // for), stay() (keep editing it), or close(id) from the holding fold itself (saved or cancelled; the one asked for
 // then opens). close(id) from a fold that is not the open one does nothing. subscribe(fn) hears every change. A page
 // reaches all of this through useRecordFold rather than by hand.
-// Two are not for pages: drawn(id) is RecordFold's own (it counts the folds with each id on the page, and when the
-// last one with the open id goes, the registry lets go), and reset() is for tests (it forgets what is open and asked).
+// Three are not for pages: drawn(id) is RecordFold's own (it counts the folds with each id on the page, and when the
+// last one with the open id goes, the registry lets go); rebind(id, check) is useRecordFold's (a page drawn again
+// hands over its own dirty test); and reset() is for tests (it forgets what is open and asked).
 
 const { useRef: useFoldRef, useEffect: useFoldEffect, useState: useFoldState } = React;
 
@@ -97,6 +98,14 @@ const recFolds = (() => {
     // For tests: forget what is open and what is asked. The folds counted on the page stay counted; they are the page's.
     reset() { become(null); },
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
+    // useRecordFold's own, not a page's: the page holding fold `id` was drawn again as a new instance, and this is
+    // its dirty test now, whether the fold is open or waiting behind an ask to open. Nothing else moves, the ask
+    // included, and nobody is told: nothing anyone sees has changed.
+    rebind(id, check) {
+      if (typeof check !== "function") return;
+      if (openId != null && id === openId) openDirty = check;
+      if (asked && asked.wants === id) asked.check = check;
+    },
     // RecordFold's own, not a page's: a fold with this id is on the page; call what this returns when it goes. When
     // the last fold with the open id goes, the registry lets go of it, asked a moment later so a fold that comes
     // straight back, or comes back as a new instance, is counted again first.
@@ -118,20 +127,27 @@ const recFolds = (() => {
 //   <RecordRow id="hours" act={{ label: "Change", onClick: hours.request }} ... />
 //   <RecordFold id="hours" open={hours.open} onCancel={hours.close} ... />
 //   {hours.asking ? <Confirm ... onYes={hours.discard} onNo={hours.stay} /> : null}
-// `dirty` is the fold's unsaved-changes test, a boolean or a function, read whenever the registry asks. `asking` is
-// the registry's { holding, wants } while a fold holds, or null.
+// Every section may draw that Confirm: `asking` is the registry's { holding, wants } only for the fold holding the
+// unsaved changes, where the prompt belongs, and null for every other, the fold asked for included. A section is
+// drawn again only when what it sees changes. `dirty` is the fold's unsaved-changes test, a boolean or a function,
+// read whenever the registry asks; a page drawn again as a new instance (a key change, a new parent) hands the
+// registry its own, and a pending ask stands.
 const recSameAsk = (a, b) => (a ? a.holding : null) === (b ? b.holding : null) && (a ? a.wants : null) === (b ? b.wants : null);
 const useRecordFold = (id, { dirty = false } = {}) => {
-  const read = () => ({ open: recFolds.open() === id, asking: recFolds.asking() });
+  const read = () => {
+    const ask = recFolds.asking();
+    return { open: recFolds.open() === id, asking: ask && ask.holding === id ? ask : null };
+  };
   const [seen, setSeen] = useFoldState(read);
   const dirtyNow = useFoldRef(dirty);
   dirtyNow.current = dirty;
+  const holds = () => { const d = dirtyNow.current; return typeof d === "function" ? !!d() : !!d; };
   useFoldEffect(() => {
+    recFolds.rebind(id, holds);
     const hear = () => setSeen((was) => { const now = read(); return was.open === now.open && recSameAsk(was.asking, now.asking) ? was : now; });
     hear();
     return recFolds.subscribe(hear);
   }, [id]);
-  const holds = () => { const d = dirtyNow.current; return typeof d === "function" ? !!d() : !!d; };
   return {
     open: seen.open,
     asking: seen.asking,

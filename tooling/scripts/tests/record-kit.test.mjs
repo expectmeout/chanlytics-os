@@ -563,6 +563,61 @@ test("a page holds its fold through useRecordFold: open, close and the ask come 
   folds.reset();
 });
 
+test("a fold's ask is its own: only the section holding the changes is asked, beside them", () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  let hours;
+  let notes;
+  // Two sections, as the hook's own example draws them: each renders `{x.asking ? <Confirm/> : null}`.
+  const Hours = () => { hours = W.useRecordFold("hours", { dirty: true }); return null; };
+  const Notes = () => { notes = W.useRecordFold("notes", { dirty: false }); return null; };
+  const Page = () => W.React.createElement("div", null, W.React.createElement(Hours), W.React.createElement(Notes));
+  const redrawPage = () => again(() => W.React.createElement(Page));
+  draw(Page);
+
+  hours.request();
+  notes.request();
+  redrawPage();
+  assert.deepEqual(hours.asking, { holding: "hours", wants: "notes" }, "the section holding the changes is asked, and told which fold waits");
+  assert.equal(notes.asking, null, "the section asked for draws no prompt: it was never open");
+
+  hours.discard();
+  redrawPage();
+  assert.deepEqual([hours.open, notes.open, hours.asking, notes.asking], [false, true, null, null], "discard: the one asked for opens, and nobody is asked");
+
+  folds.reset();
+  hours.request();
+  notes.request();
+  hours.stay();
+  redrawPage();
+  assert.deepEqual([hours.open, notes.open, hours.asking, notes.asking], [true, false, null, null], "keep editing: it stays open, and nobody is asked");
+  folds.reset();
+});
+
+test("a page that remounts while its fold is open hands the registry its own dirty test, and an ask stands", () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  let changed = true;
+  let hours;
+  // Each drawing of the page answers for itself: its own `dirty`, as a remounted page's own state would.
+  const Page = () => { const mine = changed; hours = W.useRecordFold("hours", { dirty: () => mine }); return null; };
+  draw(Page);
+  hours.request();
+  folds.request("notes", { dirty: () => false });
+  assert.deepEqual(folds.asking(), { holding: "hours", wants: "notes" });
+
+  // A key change, or a new parent: this drawing goes and a new one comes, which holds no changes.
+  unmount();
+  changed = false;
+  W.React.createElement(Page);
+  assert.deepEqual(folds.asking(), { holding: "hours", wants: "notes" }, "the remount leaves the ask standing");
+  assert.equal(W.__settingsUnsaved(), false, "the rail asks the page on screen, not the drawing that went");
+  changed = true;
+  again(() => W.React.createElement(Page));
+  assert.equal(W.__settingsUnsaved(), true, "and follows it as it changes");
+  folds.reset();
+});
+
 test("a fold whose id is falsy is still a fold, and one listener that throws does not silence the rest", () => {
   const folds = W.__recordFolds;
   folds.reset();
