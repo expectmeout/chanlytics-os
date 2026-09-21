@@ -285,8 +285,8 @@ const BtRow = ({
  *                         refuses the way Save does: focusable, aria-disabled (never `disabled`, which lets go of
  *                         focus), and doing nothing:  <button type="button" {...press(() => shifts.removeAt(n, said))}>
  *
- * `rows({ max, blank, keysOf, key, full, list, put })` answers { canAdd, add(), setAt(i, patch), removeAt(i, said) } for
- * one list of the draft: the closed days (the draft itself), or one day's shifts (`list` reads it out of the draft and
+ * `rows({ name, max, blank, keysOf, key, full, list, put })` answers { canAdd, add(), setAt(i, patch), removeAt(i, said),
+ * row(i) } for one list of the draft: the closed days (the draft itself), or one day's shifts (`list` reads it out of the draft and
  * `put` writes it back; left out, the draft is the list). Each body once had to remember all of this, and the cap was
  * forgotten in the one place nobody looks: a toast's Undo put a fifth shift on a Monday that takes four.
  *   the cap        `max`, in all three places: `canAdd` is what the body offers Add by, `add()` appends `blank()` only
@@ -295,7 +295,10 @@ const BtRow = ({
  *   the removal    the row is captured from the latest draft before it goes, comes back at its own index, and
  *                  `said(row)` is toasted only when the change was taken;
  *   the sentences  `keysOf(i)` are row i's field keys and `key` the list's own (too many). A change to row i answers
- *                  its keys; a removal moves every later row up a place, so it answers them all.
+ *                  its keys; a removal moves every later row up a place, so it answers them all;
+ *   the focus      `name(i)` names row i, and the body spreads `row(i)` on the element that holds its boxes. A row that
+ *                  was just added takes focus in its first box (the kit's useRecFocus, through RecordFold's focusOn):
+ *                  it stayed on Add.
  * The caps themselves are business-tab-folds.jsx's LIMITS, which the save's checks read too.
  *
  * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `act` and `name` replace the
@@ -309,6 +312,8 @@ const BtFold = ({
   const [draft, setDraft] = useBizState(null);
   const [problems, setProblems] = useBizState(null);
   const [arm, setArm] = useBizState(false);
+  // The row a list was just given, for the kit to put focus in (rows' add).
+  const [focusOn, setFocusOn] = useBizState(null);
   // What the registry, an Undo and a keystroke read: the latest draft, whatever the page has drawn since.
   const live = useBizRef({ draft: null, opened: null, open: false, opening: 0 });
   const busy = saver ? saver.pending(id) : false;
@@ -328,7 +333,7 @@ const BtFold = ({
   const open = fold.open && canEdit && !!base && !!stored;
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
-  const reset = () => { live.current.draft = null; live.current.opened = null; setDraft(null); setProblems(null); setArm(false); };
+  const reset = () => { live.current.draft = null; live.current.opened = null; setDraft(null); setProblems(null); setArm(false); setFocusOn(null); };
   useBizEffect(() => { if (!open) reset(); }, [open]);
   if (open && live.current.opened == null) { live.current.opened = stored.draft; live.current.opening += 1; }
   live.current.open = open;
@@ -362,12 +367,18 @@ const BtFold = ({
     if (words.said) flash({ msg: words.said, undo: words.back ? undo(words.back) : undefined });
     return true;
   };
-  const rows = ({ max = Infinity, blank = () => ({}), keysOf = () => [], key = null, full = null, list = (d) => d, put = (d, l) => l }) => {
+  const rows = ({ name = null, max = Infinity, blank = () => ({}), keysOf = () => [], key = null, full = null, list = (d) => d, put = (d, l) => l }) => {
     const latest = () => list(live.current.draft != null ? live.current.draft : live.current.opened) || [];
     const own = (keys) => (key ? keys.concat([key]) : keys);
     return {
       canAdd: (list(now) || []).length < max,
-      add: () => update((d) => (list(d).length >= max ? d : put(d, [...list(d), blank()])), own([])),
+      row: (i) => (name ? { "data-rec-row": name(i) } : {}),
+      add: () => {
+        let at = -1;
+        const taken = update((d) => { if (list(d).length >= max) return d; at = list(d).length; return put(d, [...list(d), blank()]); }, own([]));
+        if (taken && at >= 0 && name) setFocusOn({ row: name(at) });
+        return taken;
+      },
       setAt: (i, patch) => update((d) => put(d, list(d).map((x, j) => (j === i ? { ...x, ...patch } : x))), own(keysOf(i))),
       removeAt: (i, said) => {
         const gone = latest()[i];
@@ -451,6 +462,7 @@ const BtFold = ({
         goneLabel="It will no longer be told"
         note={will ? will.note : null}
         footNote={footNote}
+        focusOn={focusOn}
         confirm={fold.asking ? (
           <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={() => { reset(); fold.discard(); }} onNo={fold.stay} testid={`rec-fold-${id}-ask`} />
         ) : arm ? (

@@ -4,7 +4,7 @@
 // Two of the kit's three gestures (spec §5): the fold, a set of fields opened under the row that states them, and the
 // inline editor, one value edited in its row (RecordInline, below RecordFold); the sheet is record-sheet.jsx. The two
 // here share what they have in common rather than holding two copies of it: focus in as they open, back as they close,
-// and back to where the person was when an ask inside them is answered and took focus with it (useRecFocus); Escape and Ctrl or Cmd with Enter (recKeys); what
+// and back to where the person was when what held it leaves the page under it (useRecFocus); Escape and Ctrl or Cmd with Enter (recKeys); what
 // saving writes (RecordSays); Save and Cancel (RecordFoot); and their hold on the registry (useRecDrawn).
 //
 // A set of fields opens under the row that states them. Its head keeps the row's label where it was and puts the
@@ -285,38 +285,61 @@ const recFocusBack = (id, el) => {
   const back = document.querySelector(`[data-rec-act="${id}"]`);
   if (back && back.focus) back.focus();
 };
-// As it opens, focus moves to the first thing in it, since the act that opened it has gone; as it closes, focus that
-// went with it comes back to that row's act (data-rec-act). And when an ask drawn inside it is answered while it is
-// still open, focus comes back into it: the ask's "Yes" held focus, and "Keep editing" or Esc took the ask away with
-// focus on it, which left a keyboard at the top of the document.
+// Focus inside a gesture, once, for every page that draws one.
 //
-// Only when it was lost, and to where the person was. An ask also goes away when the person types (the page takes its
-// question back), and then focus is in the box they are typing in: moved to the first field with the caret at the end,
-// as this first did whenever an ask went, the caret jumped after one keystroke. And the first field is the wrong place
-// in a fold of many: the hook hands back the gesture's onFocus, which remembers the last of its fields focus was in
-// (never the ask, nor Save and Cancel, nor the head's Close), and focus goes back there, its caret where it was left;
-// the first field only when there is no such place.
-const useRecFocus = (id, open, asked, box, inner, fallback) => {
+// As it opens, focus moves to the first thing in it, since the act that opened it has gone; as it closes, focus that
+// went with it comes back to that row's act (data-rec-act).
+//
+// While it is open, focus that WENT WITH SOMETHING comes back into it. The thing focus was on can leave the page under
+// it: an ask answered "Keep editing" (its "Yes" held focus), the last shift's remove, an Add that turns into the
+// sentence for a full list, an item of a menu that closes. Each left a keyboard at the top of the document. After
+// every draw, if the last thing in the gesture to take focus is no longer in the document and focus is on nothing,
+// focus goes to where the person was: the last of its FIELDS focus was in (never the ask, nor Save and Cancel, nor the
+// head's Close, nor a plain press among the fields), its caret where it was left, or the first field when that has
+// gone too.
+//
+// Only then. Focus a person moved themselves stays where they put it: the box they are typing in when a keystroke
+// takes an ask away (moved to the first field, as this first did whenever an ask went, the caret jumped after one
+// letter), and the page itself when they clicked away from the gesture, which a redraw must not undo.
+//
+// And a row a list has just been given takes focus in its first box (`focusOn`: { row }, the row's data-rec-row), since
+// the Add that made it is where focus was, and the next thing a person does is type into the row.
+const useRecFocus = (id, open, box, inner, fallback, focusOn = null) => {
   const last = useFoldRef(null);
+  // The last thing inside the gesture to take focus, a field or not.
+  const had = useFoldRef(null);
   useFoldEffect(() => {
-    if (!open) { last.current = null; return undefined; }
+    if (!open) { last.current = null; had.current = null; return undefined; }
     const el = box.current;
     recFocusIn(el, inner, fallback);
     return () => recFocusBack(id, el);
   }, [open, id]);
-  const wasAsked = useFoldRef(asked);
+  // After every draw: no inputs, so it runs each time.
   useFoldEffect(() => {
-    const was = wasAsked.current;
-    wasAsked.current = asked;
-    if (!open || !was || asked || !recFocusLost()) return;
+    const went = had.current;
+    if (!open || !went || !document.contains || document.contains(went)) return;
+    had.current = null;
+    if (!recFocusLost()) return;
     const el = box.current;
     const back = last.current;
-    const there = back && back.focus && el && el.contains && el.contains(back) && (!document.contains || document.contains(back));
+    const there = back && back.focus && el && el.contains && el.contains(back) && document.contains(back);
     if (there) back.focus(); else recFocusIn(el, inner, fallback);
-  }, [open, asked]);
+  });
+  useFoldEffect(() => {
+    const el = box.current;
+    if (!open || !focusOn || !focusOn.row || !el || !el.querySelector) return;
+    const row = el.querySelector(`[data-rec-row="${focusOn.row}"]`);
+    const first = row && window.tabStops ? window.tabStops(row)[0] : null;
+    if (first && first.focus) first.focus();
+  }, [focusOn]);
   return (e) => {
     const t = e && e.target;
-    if (!t || !t.closest || !t.closest(inner) || t.closest(".confirm") || t.closest(".rec-foot")) return;
+    if (!t || !t.closest) return;
+    had.current = t;
+    if (!t.closest(inner) || t.closest(".confirm") || t.closest(".rec-foot")) return;
+    // A field is where a person was; a plain press (a row's remove, Add, a menu's item) is what they did there, and is
+    // often the very thing that has gone. A switch or a radio is a button that is a field.
+    if (t.matches && t.matches("button:not([role])")) return;
     last.current = t;
   };
 };
@@ -401,17 +424,19 @@ const RecordFoot = ({
 
 // `confirm` is the page's ask (its Confirm), drawn above the foot while it is open: the section's own "Discard your
 // changes?", or the registry's `asking`. Answered with "Keep editing", focus comes back into the fold (useRecFocus).
+// `focusOn` ({ row }) names a row a list in it has just been given, by the data-rec-row the page put on it: focus goes
+// to that row's first box. A new object each time, so the same row named twice is focused twice.
 // Not while it saves: nothing asks whether to discard a change that is on its way (the header says what happens to an
 // ask meanwhile), and the fold says it is busy.
 const RecordFold = ({
   id, label, hint = null, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null,
-  footNote = null, confirm = null,
+  footNote = null, confirm = null, focusOn = null,
   onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel", closeLabel = "Close",
   gate = null, wide = false, children = null,
 }) => {
   const box = useFoldRef(null);
   const ask = saving ? null : confirm;
-  const onFocus = useRecFocus(id, open, !!ask, box, ".rec-fold-inner", ".rec-fold-close");
+  const onFocus = useRecFocus(id, open, box, ".rec-fold-inner", ".rec-fold-close", focusOn);
   useRecDrawn(id);
   const labelId = `rec-fold-${id}-label`;
   const closeId = `rec-fold-${id}-close`;
@@ -498,7 +523,7 @@ const RecordInline = ({
   const box = useFoldRef(null);
   // Its ask is not drawn while it saves, as a fold's is not.
   const ask = saving ? null : confirm;
-  const onFocus = useRecFocus(id, open, !!ask, box, ".rec-inline-body", null);
+  const onFocus = useRecFocus(id, open, box, ".rec-inline-body", null);
   useRecDrawn(id);
   const keyId = `rec-inline-${id}-key`;
   const refused = !!(gate && gate["aria-disabled"]);

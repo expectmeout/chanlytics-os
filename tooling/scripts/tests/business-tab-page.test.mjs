@@ -752,44 +752,86 @@ test("answered with Keep editing, an ask gives focus back to the box, whichever 
   const box = { tabIndex: 0, disabled: false, value: "", getClientRects: () => [{}], classList: { contains: () => false }, closest: () => null, focus: () => focused.push("box"), setSelectionRange() {} };
   const body = { querySelectorAll: () => [box] };
   const element = { querySelector: (sel) => (sel === ".rec-inline-body" ? body : null), contains: () => true };
-  let tree = drawTab();
-  openFold(tree, "website");
-  tree = redrawTab();
-  inline(tree, "website").props.ref.current = element;
-  typeInto(tree, "website", "https://melanys.example");
-  tree = redrawTab();
-
-  // Cancel's own ask: "Yes, discard" had focus, and "Keep editing" takes the ask away.
-  cancelRow(tree, "website");
-  tree = redrawTab();
-  press(byTestId(tree, "rec-inline-website-cancel-no"));
-  tree = redrawTab();
-  assert.deepEqual(focused, ["box"], "back in the box, not at the top of the document");
-
-  // The registry's ask, from another row's act: the same.
-  openFold(tree, "name");
-  tree = redrawTab();
-  press(byTestId(tree, "rec-inline-website-ask-no"));
-  tree = redrawTab();
-  assert.deepEqual(focused, ["box", "box"]);
-  assert.deepEqual(openRows(tree), ["website"]);
-
-  // Typing takes Cancel's ask away too, with focus in the box being typed in: it is left there, its caret with it. The
-  // refocus once fired whenever an ask went, so the caret jumped to the end after one keystroke.
+  // The ask's "Yes, discard" takes focus as it is drawn (autoFocus), and leaves the page with the ask. The stub attaches
+  // no elements, so the test says what took focus (the editor's onFocus) and what has left the document since.
+  const yes = { closest: (sel) => (sel === ".confirm" || sel === ".rec-inline-body" ? {} : null) };
   const doc = globalThis.document;
-  const was = doc.activeElement;
+  const was = { activeElement: doc.activeElement, contains: doc.contains };
+  let asking = true;
+  doc.contains = (el) => !(el === yes && !asking);
   try {
+    let tree = drawTab();
+    openFold(tree, "website");
+    tree = redrawTab();
+    inline(tree, "website").props.ref.current = element;
+    inline(tree, "website").props.onFocus({ target: box });
+    typeInto(tree, "website", "https://melanys.example");
+    tree = redrawTab();
+
+    // Cancel's own ask: "Yes, discard" had focus, and "Keep editing" takes the ask away.
     cancelRow(tree, "website");
     tree = redrawTab();
+    inline(tree, "website").props.onFocus({ target: yes });
+    press(byTestId(tree, "rec-inline-website-cancel-no"));
+    asking = false;
+    tree = redrawTab();
+    assert.deepEqual(focused, ["box"], "back in the box, not at the top of the document");
+
+    // The registry's ask, from another row's act: the same.
+    openFold(tree, "name");
+    asking = true;
+    tree = redrawTab();
+    inline(tree, "website").props.onFocus({ target: yes });
+    press(byTestId(tree, "rec-inline-website-ask-no"));
+    asking = false;
+    tree = redrawTab();
+    assert.deepEqual(focused, ["box", "box"]);
+    assert.deepEqual(openRows(tree), ["website"]);
+
+    // Typing takes Cancel's ask away too, with focus in the box being typed in: it is left there, its caret with it. The
+    // refocus once fired whenever an ask went, so the caret jumped to the end after one keystroke.
+    cancelRow(tree, "website");
+    asking = true;
+    tree = redrawTab();
     assert.ok(byTestId(tree, "rec-inline-website-cancel-confirm"));
+    inline(tree, "website").props.onFocus({ target: box });
     doc.activeElement = box;
     typeInto(tree, "website", "https://melanys.example/h");
+    asking = false;
     tree = redrawTab();
     assert.equal(byTestId(tree, "rec-inline-website-cancel-confirm"), null, "a keystroke is an answer: keep editing");
     assert.deepEqual(focused, ["box", "box"], "and focus that was never lost is not moved");
   } finally {
-    doc.activeElement = was;
+    Object.assign(doc, was);
+    if (was.contains === undefined) delete doc.contains;
   }
+});
+
+test("a shift or a closed day that was just added is the row focus goes to, by the name the page gave it", () => {
+  // After an Add, focus stayed on Add. The fold (the kit's useRecFocus) focuses the first box of the row the page
+  // names; what the stub can see is the name handed over, and the row that carries it.
+  let tree = drawTab();
+  const focusOn = (id) => find(tree, (n) => n.type === W.RecordFold && n.props.id === id).props.focusOn;
+  openFold(tree, "hours");
+  tree = redrawTab();
+  assert.equal(focusOn("hours"), null, "nothing added, nothing to go to");
+  press(byTestId(tree, "rec-hours-add-tue"));
+  tree = redrawTab();
+  assert.deepEqual(focusOn("hours"), { row: "hours-tue-1" });
+  const row = find(dayOf(tree, "tue"), (n) => n.props?.["data-rec-row"] === "hours-tue-1");
+  assert.deepEqual(all(row, (n) => n.type === "input").map((n) => n.props["aria-label"]), ["Tuesday shift 2 opens", "Tuesday shift 2 closes"], "the new shift's own boxes");
+  // Closed, the name goes with the draft: a fold opened again does not jump to a row added last time.
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-fold-hours-cancel-yes"));
+  tree = redrawTab();
+  openFold(tree, "closures");
+  tree = redrawTab();
+  assert.equal(focusOn("hours"), null);
+  press(byTestId(tree, "rec-closures-add"));
+  tree = redrawTab();
+  assert.deepEqual(focusOn("closures"), { row: "closure-0" });
+  assert.equal(byTestId(tree, "rec-closure-0").props["data-rec-row"], "closure-0");
 });
 
 test("Save stays a button focus can rest on while it saves, and a press meanwhile sends nothing more", () => {

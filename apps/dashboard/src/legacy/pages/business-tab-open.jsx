@@ -114,6 +114,7 @@ const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly 
   // (LIMITS.shifts, contracts MAX_INTERVALS_PER_DAY) when adding and when an Undo puts one back, the removal said only
   // when it happened, and the removed shift back at its own index.
   const shiftsOf = (d) => rows({
+    name: (n) => `hours-${d}-${n}`,
     max: window.__businessTabSave.LIMITS.shifts,
     blank: () => ({ open: "", close: "" }),
     keysOf: () => [`hours-${d}`],
@@ -209,7 +210,7 @@ const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly 
               {day.isOpen ? (
                 <>
                   {day.shifts.map((sh, n) => (
-                    <span key={n} className="bt-week-shift">
+                    <span key={n} className="bt-week-shift" {...shiftsOf(d).row(n)}>
                       <input
                         className="rec-input bt-time" type="time" value={sh.open} readOnly={readOnly || undefined}
                         aria-label={n === 0 ? `${long} opens` : `${long} shift ${n + 1} opens`}
@@ -400,6 +401,7 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }) => {
   const max = window.__businessTabSave.LIMITS.closures;
   const full = `That is the most closures the receptionist keeps (${max}). Dates that have passed can go.`;
   const closed = rows({
+    name: (i) => `closure-${i}`,
     max,
     blank: () => ({ date: "", note: "" }),
     keysOf: (i) => [`closure-${i}-date`, `closure-${i}-until`, `closure-${i}-note`],
@@ -429,7 +431,7 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }) => {
         const idOf = (k) => `bt-closure-${i}-${k}-problem`;
         const wired = (k) => ({ "aria-invalid": bad[k] ? true : undefined, "aria-describedby": bad[k] ? idOf(k) : undefined, readOnly: readOnly || undefined });
         return (
-          <div key={i} className="bt-closure" data-testid={`rec-closure-${i}`}>
+          <div key={i} className="bt-closure" data-testid={`rec-closure-${i}`} {...closed.row(i)}>
             {/* type=date, so 31 November cannot be typed at all — the class of
                 bug where a stored non-date names the wrong day downstream. */}
             <input
