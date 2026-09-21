@@ -1623,6 +1623,17 @@ function mediaVM(m) {
     available: m.media.fetch_state === "stored"
   };
 }
+var QUOTE_BLOCK = /^[ \t]*(?:(?:-{2,}[ \t]*Original Message[ \t]*-{2,})|(?:_{5,})|(?:>[ \t]?))/m;
+var QUOTE_ATTRIBUTION = /\bOn\b[\s\S]{0,240}?\bwrote:[ \t]*(?=\r?\n|>)/;
+function splitQuotedReply(body) {
+  const cuts = [QUOTE_ATTRIBUTION.exec(body), QUOTE_BLOCK.exec(body)].filter((m) => m !== null).map((m) => m.index);
+  if (cuts.length === 0) return { text: body, quoted: null };
+  const cut = Math.min(...cuts);
+  const text = body.slice(0, cut).trim();
+  const quoted = body.slice(cut).trim();
+  if (!text || !quoted) return { text: body, quoted: null };
+  return { text, quoted };
+}
 function messageText(m) {
   if (m.type === "call_summary" && m.body) {
     return m.body.replace(CALL_NOTE_PREFIX, "").trim();
@@ -1717,6 +1728,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
+    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
     return {
       type: "msg",
       from: m.sender === "customer" ? "client" : "agent",
@@ -1725,7 +1737,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       ...subject ? { subject } : {},
       ...leftOut ? { leftOut } : {},
       at: bubbleTime(messageAt(m), tz, now),
-      body: messageText(m),
+      body: said ? said.text : messageText(m),
+      ...said && said.quoted ? { quoted: said.quoted } : {},
       ...media ? { media } : {},
       ...why ? { why } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
@@ -13138,6 +13151,7 @@ export {
   spanLabel,
   spanUnits,
   speedOf,
+  splitQuotedReply,
   spokenBreach,
   spokenBreachDetails,
   spokenDuration,

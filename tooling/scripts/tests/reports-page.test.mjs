@@ -350,6 +350,13 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
     // Neither card sets the other's height: a run of days and a list of reviews want different shapes, so they take
     // the row one above the other. Side by side, the reviews stretched the days to a picture of nothing.
     for (const id of ["chart-google-gained", "chart-google-latest"]) assert.ok(classes(card(tree, id)).includes("rpt-span-12"), id);
+    // Five reviews are what Google hands back, never the listing: the way to the rest is the listing's own address,
+    // in a tab of its own. No listing address, no link -- the card never invents one.
+    assert.equal(byTestId(card(tree, "chart-google-latest"), "google-open-listing"), null, "no address from Google, no link: the card never invents one");
+    globalThis.__GOOGLE = { dto: { ...dto, listing: { ...dto.listing, maps_uri: "https://maps.google.com/?cid=7" } } };
+    const out = byTestId(card(page(), "chart-google-latest"), "google-open-listing");
+    assert.equal(textOf(out), "Read every review on Google");
+    assert.deepEqual([out.props.href, out.props.target, out.props.rel], ["https://maps.google.com/?cid=7", "_blank", "noreferrer"], "the listing's own address, in a tab of its own");
   } finally {
     delete globalThis.__GOOGLE;
     delete globalThis.__google;
