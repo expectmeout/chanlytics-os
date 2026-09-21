@@ -2006,8 +2006,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The cursor's row takes focus, so a screen reader says it and Tab carries on from it, and is scrolled to (under the
   // sticky header: scroll-padding-top). Not when focus is already on it or in it: a row focused by Tab or a click put
   // the cursor here itself (onFocus). It was a scroll inside the state updater, and the row never took focus.
+  // A cursor that came back with the view (the page keeps the owner's place, below) marks its row and takes nothing:
+  // the list has just been put back where it was, and a scrollIntoView after that moved it on again.
+  const cursorCameBack = React.useRef(null);
   React.useEffect(() => {
     if (!cursor || !document.getElementById) return;
+    if (cursorCameBack.current === cursor) { cursorCameBack.current = null; return; }
+    cursorCameBack.current = null;
     // The row's id wears the table's own noun (people-table.jsx), so the cursor and the peek's focus rule find the
     // same element under Leads as under People.
     const row = document.getElementById(`${onLeads ? "lead" : "person"}-${cursor}`);
@@ -2067,6 +2072,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     if (!onLeads) return;
     const p = ldPlaceLoad(viewRoute) || {};
     setQ(p.q || "");
+    cursorCameBack.current = p.cursor || null;
     setCursor(p.cursor || null);
     setMapOpen(!!p.map);
     if (placeOf.current !== undefined) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }

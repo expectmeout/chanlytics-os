@@ -831,6 +831,29 @@ test("the search box's words, the row the cursor was on and the map come back wi
   assert.equal(searchBox(tree).props.value, "strength", "with the words still in the box");
 });
 
+test("a cursor that came back with the view marks its row and takes nothing: not the focus, and not the scroll the list was just put back to", () => {
+  fresh();
+  const took = [];
+  const row = { focus: () => took.push("focus"), scrollIntoView: () => took.push("scroll"), contains: () => false };
+  const keep = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (/^lead-/.test(id) ? row : null);
+  try {
+    draw();
+    press("j");
+    draw();
+    assert.deepEqual(took, ["focus", "scroll"], "a key that moves the cursor takes focus to its row and keeps it in sight, as ever");
+    took.length = 0;
+    const tree = comeBack();
+    assert.equal(cursorRow(tree), "lead-l1", "the row is marked");
+    assert.deepEqual(took, [], "REGRESSION: the row's scrollIntoView ran after the list was put back, and moved it 37px on (seen in a browser)");
+    press("j");
+    draw();
+    assert.deepEqual(took, ["focus", "scroll"], "and the next key moves on from it");
+  } finally {
+    globalThis.document.getElementById = keep;
+  }
+});
+
 test("each view keeps its own place: what was typed over one search is not the next one's, and is there again on the way back", () => {
   fresh();
   const at = (route) => { draw({ leadsRoute: route }); return draw({ leadsRoute: route }); };
