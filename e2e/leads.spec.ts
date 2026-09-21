@@ -232,6 +232,10 @@ test.describe("Leads on a real workspace", () => {
     await expect(bar).toBeVisible();
     await expect(bar.getByTestId("leads-phone-search")).toBeVisible();
     await expect(bar.getByTestId("leads-phone-find")).toBeVisible();
+    // Whole, not only there: the bar once drew 18px tall with all four clipped inside it (the rated card's star
+    // track shared its class), and a clipped control still has a box, so it still passed as visible.
+    await expect(bar.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
+    await expect(bar.getByTestId("leads-phone-find")).toBeInViewport({ ratio: 1 });
     // Nothing above the rows but the bar and the strip: no stat cards, no
     // controls row, no rail (feedback_mobile_work_first).
     await expect(page.locator(".cl-rail")).toBeHidden();
@@ -240,6 +244,17 @@ test.describe("Leads on a real workspace", () => {
     // A card, not a row of columns, with a 44px Call.
     const call = page.locator(".cl-table tbody tr").first().getByRole("button", { name: /^Call / });
     expect((await call.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    // Every cell the card draws sits on one of the card's own areas, and Call ends where the card ends. A phone draws
+    // every column, and a cell naming an area the template lacks is laid out on tracks of its own past the grid:
+    // Fit and Stage did, and Call sat mid-card.
+    const card = await page.locator(".cl-table tbody tr").first().evaluate((tr) => {
+      const areas = new Set(getComputedStyle(tr).gridTemplateAreas.replace(/"/g, " ").split(/\s+/).filter(Boolean));
+      const strays = [...tr.children].filter((td) => getComputedStyle(td).display !== "none" && !areas.has(getComputedStyle(td).gridRowStart)).map((td) => td.className);
+      const callEl = tr.querySelector(".ld-call");
+      return { strays, callGap: tr.getBoundingClientRect().right - (callEl ? callEl.getBoundingClientRect().right : 0) };
+    });
+    expect(card.strays, "a cell the card draws has no area in its template").toEqual([]);
+    expect(Math.abs(card.callGap), "Call ends at the card's right edge").toBeLessThanOrEqual(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
   });
 
