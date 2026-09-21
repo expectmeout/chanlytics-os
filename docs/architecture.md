@@ -54,7 +54,7 @@ flowchart LR
     API["/api/v1"]
   end
   C --> META & RET & TWI & RES
-  META & RET & TWI & RES & APF -->|signed webhooks| WH
+  META & RET & TWI & RES & APF -->|webhooks, each proven at the door| WH
   WH -->|service role| PG
   PGC -->|x-cron-key| TICK & CRON
   TICK -->|sends, and starts lead runs| META & TWI & RES & APF
@@ -129,11 +129,21 @@ A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jo
 ## The packages, and the direction of dependency
 
 ```
-contracts  <-  core  <-  jobs
-    ^          ^
-    |          |
-   db       channels
+contracts            pure: types, schemas, view models, the composer
+   ^     ^
+   |     |
+  db   channels      repositories; provider adapters
+   ^     ^
+   \     /
+    core             verbs over ports, and the one send door
+     ^
+     |
+   jobs              the ledger and the handlers that call core
 ```
+
+Arrows point at what a package depends on, read upward: `jobs` depends on
+`core`, `db`, `channels` and `contracts`; `core` on `db`, `channels` and
+`contracts`; `db` and `channels` on `contracts` alone; `contracts` on nothing.
 
 | Package | Holds | Rule |
 |---|---|---|
