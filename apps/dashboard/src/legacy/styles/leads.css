@@ -681,10 +681,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     align-items: center;
     height: auto;
   }
-  /* A card is as wide as its wrap. mobile.css gives every .cl-table the mockup's 760px floor from 900px down, and
-     clients.css lifts it only at 720px and under, so from 721px to about 790px a card ran past its wrap and the
-     wrap cut off Call, at the card's end. */
-  .leads-scope .cl-table.pl-table { min-width: 0; }
   .cl-table td.ld-biz-cell { grid-area: business; }
   .cl-table td.ld-reach-cell { grid-area: reach; }
   .cl-table td.ld-rated-cell { grid-area: rated; justify-self: end; }

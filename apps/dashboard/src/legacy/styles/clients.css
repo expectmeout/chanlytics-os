@@ -1855,6 +1855,11 @@
 @media (max-width: 900px) {
   /* Cards: the table and its body become blocks so each row's grid takes the full width; the shrink columns give up their 1%. */
   .cl-table, .cl-table tbody { display: block; width: 100%; }
+  /* And no wider, in People and Leads alike. mobile.css keeps the mockup's 760px floor on every .cl-table from 900px
+     down, and the seeded tables still scroll sideways under it. A card's wrap did too, from 721px to 803px (36px at
+     768px), and up to about 790px the card's last cell, a person's state or a lead's Call, ended past the wrap's
+     visible edge (26px at 768px). */
+  .cl-table.pl-table { min-width: 0; }
   .cl-table thead { display: none; }
   .cl-table tbody tr { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "sel name state" "sel last visits" "sel offers offers"; column-gap: 8px; row-gap: 2px; padding: 8px 10px; width: 100%; box-sizing: border-box; }
   .cl-table td, .cl-table td.shrink { display: block; width: auto; min-width: 0; padding: 0; border: none; white-space: normal; }
@@ -1936,7 +1941,6 @@
    strip above it was the only place a phone could see it. */
 @media (max-width: 720px) {
   .cl-table-wrap.pl-table-wrap { overflow-x: visible; margin: 0 16px; }
-  .cl-table.pl-table { min-width: 0; }
   .pl-table thead { display: none; }
   .pl-table tbody tr {
     display: grid;
