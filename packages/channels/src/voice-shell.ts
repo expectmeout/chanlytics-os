@@ -52,7 +52,7 @@ export const HANDOFF_VAR = "{{handoff_number}}";
  * the shell's default and the webhook's answer cannot drift apart.
  */
 export const FACTS_UNAVAILABLE =
-  "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory — you do not have them. Say you will have someone confirm, offer to take a message, and offer to text the booking link.";
+  "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory — you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
 
 /** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 export const CALLER_UNKNOWN = "New caller - no prior interactions on record.";

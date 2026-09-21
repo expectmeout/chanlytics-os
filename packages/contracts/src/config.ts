@@ -1149,11 +1149,17 @@ function composeSystemPromptWith(
       `\nHanding the caller to a person:\n${staffed}\n` +
         `Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
     );
+    // The booking link is a WhatsApp message and nothing else: retell-fn
+    // delivers it on channel "whatsapp", and texting is not sold until the
+    // carriers approve a line (capabilities.ts). This used to say the tool
+    // "texts" the link, so a caller could be promised a text and get a
+    // WhatsApp message -- or nothing, on a number with no WhatsApp.
     s.push(
       "\nOpen times: use check_availability before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n" +
-        "Booking: when the caller wants to book, use send_booking_link — it texts the booking link to the number they are calling from, " +
-        "so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. " +
-        "If it fails, give the phone number above and offer to have someone follow up.\n" +
+        "Booking: when the caller wants to book, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, " +
+        "so do not ask them for a number unless they want it sent somewhere else. " +
+        "Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " +
+        "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" +
         "Ending: once the caller has said goodbye, use end_call.",
     );
   }
@@ -1198,7 +1204,7 @@ function composeSystemPromptWith(
   // Medium, not facts. A phone caller cannot re-read a paragraph.
   s.push(
     channel === "voice"
-      ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead."
+      ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead."
       : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book.",
   );
 

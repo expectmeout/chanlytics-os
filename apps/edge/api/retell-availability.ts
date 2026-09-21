@@ -19,9 +19,9 @@ import { openingsData } from "../lib/availability.js";
 import { describeOpenings, filterOpenings, offerFor, offerLead, policyAskClass, type ConsultRules, type ServiceLike, type ServiceOffer } from "../lib/workspace/contracts.js";
 
 const CANNOT_SEE =
-  "I can't see the calendar right now. Offer to text the booking link — it shows the open times — or to have someone call back.";
+  "I can't see the calendar right now. Offer to send the booking link to the caller's WhatsApp — it shows the open times — or to have someone call back.";
 const NO_CALENDAR =
-  "There is no calendar to check. Offer to text the booking link — it shows the open times.";
+  "There is no calendar to check. Offer to send the booking link to the caller's WhatsApp — it shows the open times.";
 /**
  * The workspace confirms its own bookings (Autonomy -> Booking -> Ask me first).
  *
