@@ -143,7 +143,7 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 | `RecordSheet` | new; the phone's `PeopleListsSheet` is the precedent |
 | `RecordSwitch` | `.set-switch`, lifted out of settings.css |
 | `RecordToggleGroup` | `.cl-tabs` used as a radiogroup |
-| `RecordTip` / `RecordCard` | `set-mark` + `window.__tip`, formalised as two tiers |
+| `RecordTip` / `RecordTipCard` | `set-mark` + `window.__tip`, formalised as two tiers |
 | `RecordCombobox` | the 418-option timezone `<select>`, and the language add |
 
 Not built, and why: DatePicker (native `type="date"` is deliberate — 31 November cannot be typed), DataTable (`PeopleTable` is one; Settings has no table), Command (⌘K is Ask, shell-owned), Pagination, Drawer, Progress, Carousel, Menubar, Message/Bubble.

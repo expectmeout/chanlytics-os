@@ -3,12 +3,13 @@
 //
 // Each is announced as what it is. A field is a label that holds its box; a switch is role="switch" and says which
 // state it is in; a choice of a few is a radiogroup, one tab stop that the arrows walk; a long list you type into is
-// a combobox. None of them knows what it edits, and every word is the page's. A control that commits takes `gate`
-// (window.gate(...)'s props) and spreads it after its handlers, as every committing control here does.
+// a combobox. None of them knows what it edits, and none has words of its own: every label, hint, option and tip here
+// is the page's. A control that commits takes `gate` (window.gate(...)'s props) and spreads it after its handlers, as
+// every committing control here does.
 //
 // Two tiers of tip, and the rule between them: if there is nothing to press in it, it is a chip. RecordTip is the
-// chip, the app's own dark tooltip (data-bits' __tip) on a mark; RecordCard is the white card, for a tip that
-// carries an act.
+// chip, the app's own dark tooltip (data-bits' __tip) on a mark; RecordTipCard is the white card, for a tip that
+// carries an act (named apart from .rec-card, the card a page's rows sit in).
 
 const { useState: useRfState, useEffect: useRfEffect, useRef: useRfRef, useId: useRfId } = React;
 
@@ -240,7 +241,7 @@ const RecordTip = ({ text, label = null, testid = null }) => (
 );
 
 // The card: a tip with something to press in it, white with a shadow. The page places it; the kit draws it.
-const RecordCard = ({ title, body = null, act = null, testid = null }) => (
+const RecordTipCard = ({ title, body = null, act = null, testid = null }) => (
   <div className="rec-card-tip" role="group" aria-label={typeof title === "string" ? title : undefined} data-testid={testid || undefined}>
     <span className="rec-card-tip-title">{title}</span>
     {body ? <span className="rec-card-tip-body">{body}</span> : null}
@@ -250,4 +251,4 @@ const RecordCard = ({ title, body = null, act = null, testid = null }) => (
   </div>
 );
 
-Object.assign(window, { RecordField, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordCard });
+Object.assign(window, { RecordField, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordTipCard });

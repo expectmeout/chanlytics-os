@@ -1175,8 +1175,8 @@ Create `apps/dashboard/src/legacy/components/record-field.jsx` with `RecordField
 - `RecordSwitch` is a `<button role="switch">` with `aria-checked` and `aria-label`, containing `.rec-knob`. Never a `<div onClick>`.
 - `RecordToggleGroup` is a `<div role="radiogroup" aria-label>` of `<button role="radio" aria-checked>`.
 - `RecordCombobox` is a text input over a filtered list, keyboard-navigable with ↑/↓/Enter/Esc, `role="combobox"` with `aria-expanded` and `aria-activedescendant`. It takes `options: [{ value, label, meta }]`.
-- `RecordTip({ text, label })` is the dark chip for a tip you can never click: a `<button>` carrying `data-tip`, `aria-label` and a press that calls `window.__tip.show` — the mechanism `set-mark` already uses, given a name. `RecordCard({ title, body, act })` is the white card with a shadow, for a tip that *does* have something to press. Two tiers, and the rule that decides between them: if there is nothing to click, it is a chip.
-- `Object.assign(window, { RecordField, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordCard })`.
+- `RecordTip({ text, label })` is the dark chip for a tip you can never click: a `<button>` carrying `data-tip`, `aria-label` and a press that calls `window.__tip.show` — the mechanism `set-mark` already uses, given a name. `RecordTipCard({ title, body, act })` (renamed from RecordCard by the Phase 2 review, so nobody takes it for the section card) is the white card with a shadow, for a tip that *does* have something to press. Two tiers, and the rule that decides between them: if there is nothing to click, it is a chip.
+- `Object.assign(window, { RecordField, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordTipCard })`.
 
 Add one more test for the two tiers before implementing them:
 
@@ -1188,7 +1188,7 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
   assert.ok(!find(chip, (n) => classes(n).includes("rec-card-tip")), "a chip is not a card");
 
   const used = [];
-  const card = draw(W.RecordCard, { title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
+  const card = draw(W.RecordTipCard, { title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
   press(find(card, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Use it"));
   assert.equal(used.length, 1);
 });

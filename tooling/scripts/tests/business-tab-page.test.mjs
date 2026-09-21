@@ -321,7 +321,7 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
   assert.deepEqual(shown, [el], "a press shows it at the mark, which is how a finger reads it");
 
   const used = [];
-  const card = draw(W.RecordCard, { title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
+  const card = draw(W.RecordTipCard, { title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
   assert.ok(find(card, (n) => classes(n).includes("rec-card-tip")), "a card is the white card");
   press(find(card, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Use it"));
   assert.equal(used.length, 1);

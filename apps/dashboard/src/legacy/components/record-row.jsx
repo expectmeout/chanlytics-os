@@ -3,7 +3,9 @@
 //
 // One grammar for a record a person reads: a label, the value, where the value came from, and one act. Four classes
 // drew this row before, each its own way (.cl-prof-attr, .set-row, .set-team-row, .set-int-row). The kit knows
-// nothing about any page: every word it draws is the page's, or contracts' through StatePill.
+// nothing about any page. The words it draws are the page's, or contracts' through StatePill, but for a disagreement's
+// two presses, which have defaults ("Use Google's" and the like, "Keep mine") that the page replaces with useLabel and
+// keepLabel.
 //
 //   <RecordRow id="website" label="Website" value="melanys.com" source="typed"
 //              act={{ label: "Change", onClick, gate: window.gate("settings", "change the website") }} />
@@ -28,9 +30,9 @@
 //   minor disagreement keeps its warn pill and its line at full strength and leaves the row as it is, its act waiting
 //   to be approached like any other: Group-Who washes only the phone conflict, not the address written two ways.
 
-// Taking the other answer, by where it came from. A source's words (contracts SOURCE_WORDS: "from Google") are a
-// pill's, not a verb's object, and contracts keeps no possessive form of them; `useLabel` wins wherever these read
-// wrong for a page.
+// A fallback for the press that takes the other answer, by where the answer came from. The page passes `useLabel`,
+// since it knows what the answer is; these stand in when it does not. A source's words (contracts SOURCE_WORDS:
+// "from Google") are a pill's, not a verb's object, and contracts keeps no possessive form of them yet.
 const REC_USE_WORDS = { verified: "Use Google's", provisioned: "Use your line", workspace: "Use the workspace's" };
 
 const recEmpty = (v) => v == null || v === "" || v === false;
