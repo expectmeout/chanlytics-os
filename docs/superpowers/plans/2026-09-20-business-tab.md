@@ -1445,6 +1445,12 @@ EOF
 
 The big one. The new page lands whole and `BusinessEditor` is deleted in the same commit, because two editors writing one versioned config is how they drift.
 
+> **How Phase 3 runs (21 Sep, before it started).** Four changes to the tasks below, each for a reason the tasks did not have in view:
+> 1. **The order is 3.1, 3.2, 3.6, 3.3, 3.4, 3.5, 3.7, 3.8.** Every fold in 3.3–3.5 saves through Task 3.6's helpers, so they come first, and 3.6's patch test is red before any fold can save.
+> 2. **The test code draws as the kit's tests draw.** `fresh(() => …)` draws nothing (Phase 2's correction, above). `drawTab` draws with `unmount()` then `W.React.createElement(W.BusinessTab, { flash })`, and a redraw is `again(() => W.React.createElement(W.BusinessTab, props))`, as `record-kit.test.mjs` does.
+> 3. **`PromptPreview` stays until Phase 5.** Task 3.7 deleted it, but what replaces it is Phase 5's prompt sheet, so between the two PRs an owner could not read what the receptionist is told. That view exists because a live salon lost its prompt unseen. Task 5.1 deletes it, with its `set-prompt-*` styles and `prompt-preview.test.mjs`, in the PR that brings the sheet.
+> 4. **Nothing `BusinessEditor` does is lost with it.** It does two things no task names. It creates the receptionist on a workspace that has none (the unconfigured card's *Set up the receptionist*), and Task 3.7 builds that as a fold of the new page, asking for what the old create form asked for. And it holds the four guardrail switches and the vision switch, which Task 3.5 builds as the *Rules it always keeps* fold: one `rec-rule-<key>` row per switch and the vision switch under a separator, for Phase 4's Task 4.2 to draw at three strengths.
+
 **Every "run it" step from here on is this command**, so it is not repeated in each step:
 
 ```bash
@@ -2316,6 +2322,8 @@ EOF
 > **Carried from the Phase 1 re-review (21 Sep): M-5, a false block from inside a note.** This predates Phase 1's fixes. A note whose second line happens to open like the heading of a section the record *doesn't* have (e.g. "Services" on a record with no services) gets a block of its own, charged to that row. Review reproduced it. The fix: accept an opening only on a line that follows a blank line, because `composeSystemPrompt` always writes `\n${heading}`. Pin it with the note-continuation case, and check it against the full-sequence tests from Phase 1 item C.
 
 ### Task 5.1: The anchored prompt
+
+> **Deletes `PromptPreview` (added 21 Sep).** Phase 3 kept the card, so an owner is never without a view of the prompt. When the sheet lands, it goes: the component in `settings.jsx`, its `set-prompt-*` styles in `settings.css`, and `prompt-preview.test.mjs`'s pins on it, rewritten against the sheet as the rest were in Task 3.7.
 
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-can.jsx`
