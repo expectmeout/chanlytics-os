@@ -884,6 +884,7 @@ EOF
 ---
 
 ## Phase 2 — The record kit (PR 2: "One row, one field, one fold, one sheet")
+> **Two corrections to this phase's test code, found 21 Sep before it ran.** (1) `fresh()` in `_legacy-react.mjs` takes no argument: it only resets hook state. Draw as `today-page.test.mjs` does, with `const draw = (Comp, props = {}) => { fresh(); return W.React.createElement(Comp, props); };`, and redraw with `again(() => W.React.createElement(Comp, props))`. Every `fresh(() => W.X(...))` below draws nothing. (2) `installLegacyReact` does not install `window.__chrome.state`, so `StatePill` renders every tone as plain and any `pill-ok` or `pill-warn` assertion fails. Install it from contracts: `installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } })`, with `stateOf` imported from `@chanlytics/contracts`.
 
 The kit is shaped like the charts kit: its own files, its own stylesheet, both load lists, and it knows nothing about the Business tab.
 
@@ -1024,14 +1025,14 @@ test("a row draws its label, its value and one act", () => {
 });
 
 test("an empty row says so and keeps its act reachable", () => {
-  const tree = fresh(() => W.RecordRow({ label: "Website", value: null, empty: "Not set", act: { label: "Add one", onClick: () => {} } }));
+  const tree = draw(W.RecordRow, { label: "Website", value: null, empty: "Not set", act: { label: "Add one", onClick: () => {} } });
   assert.match(textOf(tree), /Not set/);
   const row = find(tree, (n) => classes(n).includes("rec-row"));
   assert.equal(row.props["data-empty"], "true");
 });
 
 test("a source chip is the one pill, in the fact kind's tone", () => {
-  const tree = fresh(() => W.RecordRow({ label: "Address", value: "2581 Pitkin Ave", source: "verified" }));
+  const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Ave", source: "verified" });
   const pill = find(tree, (n) => classes(n).some((c) => c.startsWith("pill-")));
   assert.ok(pill, "the chip is a StatePill");
   assert.ok(classes(pill).includes("pill-ok"), "verified is ok");
@@ -1126,7 +1127,7 @@ test("a field carries its label, its unit and its refusal, wired for a screen re
 
 test("a switch is a switch, and says which state it is in", () => {
   const flips = [];
-  const tree = fresh(() => W.RecordSwitch({ on: true, label: "Never quote a price", onChange: () => flips.push(1) }));
+  const tree = draw(W.RecordSwitch, { on: true, label: "Never quote a price", onChange: () => flips.push(1) });
   const sw = find(tree, (n) => classes(n).includes("rec-switch"));
   assert.equal(sw.props.role, "switch");
   assert.equal(sw.props["aria-checked"], true);
@@ -1178,13 +1179,13 @@ Add one more test for the two tiers before implementing them:
 
 ```js
 test("a tip you cannot click is a chip; one you can is a card", () => {
-  const chip = fresh(() => W.RecordTip({ text: "Call audio is not included.", label: "What the file holds" }));
+  const chip = draw(W.RecordTip, { text: "Call audio is not included.", label: "What the file holds" });
   const btn = find(chip, (n) => n.props?.["data-tip"]);
   assert.equal(btn.props["aria-label"], "What the file holds");
   assert.ok(!find(chip, (n) => classes(n).includes("rec-card-tip")), "a chip is not a card");
 
   const used = [];
-  const card = fresh(() => W.RecordCard({ title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } }));
+  const card = draw(W.RecordCard, { title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
   press(find(card, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Use it"));
   assert.equal(used.length, 1);
 });
