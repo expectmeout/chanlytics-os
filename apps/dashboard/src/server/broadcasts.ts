@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError, REPLY_WINDOW_MS, parseParamSpecs, personName, type Audience, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type RecipientState } from "@chanlytics/contracts";
+import { AppError, REPLY_WINDOW_MS, firstNameOf, parseParamSpecs, personName, type Audience, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type RecipientState } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 
 /**
@@ -81,29 +81,90 @@ function countRecipients(recipients: RecipientRow[], ids: string[]): { counts: M
 
 // A reply is an inbound within the contracts' reply window of the send (REPLY_WINDOW_MS); the SQL series keeps the same one.
 
-/** Which threads heard from the customer within the reply window after the broadcast reached them, and when the first reply came. */
-async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<string, string>): Promise<Map<string, string>> {
+/**
+ * Which threads heard from the customer within the reply window after the broadcast reached them, and when the first
+ * reply came -- and, when the detail passes somewhere to keep them, that reply's words on one line (a list only
+ * counts replies, and reads no bodies).
+ */
+async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<string, string>, words: Map<string, string | null> | null = null): Promise<Map<string, string>> {
   const convIds = [...threads.keys()];
   const since = [...threads.values()].sort()[0];
   const replied = new Map<string, string>();
   for (let i = 0; i < convIds.length; i += IN_CHUNK) {
     const { data: inbound, error } = await ctx.supabase
       .from("messages")
-      .select("conversation_id, created_at")
+      .select(words ? "conversation_id, created_at, body" : "conversation_id, created_at")
       .eq("tenant_id", tenantId)
       .eq("direction", "inbound")
       .in("conversation_id", convIds.slice(i, i + IN_CHUNK))
       .gt("created_at", since);
     if (error) throw new Error(error.message);
-    for (const m of inbound ?? []) {
+    // A select chosen at run time is past the client's typed parser: the rows are the columns named above.
+    for (const m of (inbound ?? []) as unknown as { conversation_id: string; created_at: string; body?: string | null }[]) {
       const sentAt = threads.get(m.conversation_id);
       if (sentAt && m.created_at > sentAt && Date.parse(m.created_at) - Date.parse(sentAt) <= REPLY_WINDOW_MS) {
         const first = replied.get(m.conversation_id);
-        if (!first || m.created_at < first) replied.set(m.conversation_id, m.created_at);
+        if (!first || m.created_at < first) {
+          replied.set(m.conversation_id, m.created_at);
+          words?.set(m.conversation_id, oneLine(m.body));
+        }
       }
     }
   }
   return replied;
+}
+
+/** A reply's words as a list line shows them: the whitespace folded, cut at a length no row needs more of. Null for none. */
+function oneLine(body: string | null | undefined): string | null {
+  const t = typeof body === "string" ? body.replace(/\s+/g, " ").trim() : "";
+  return t ? t.slice(0, 200) : null;
+}
+
+/**
+ * Who answered each reply first, and when: the first message out of the thread after the reply that a person could
+ * read as an answer -- the receptionist's, or the team's own words. A note is the team talking to itself, and a
+ * template is the machine starting something new (a later broadcast, a playbook's run), so neither is an answer.
+ */
+async function answeredAfter(ctx: RouteContext, tenantId: string, replied: Map<string, string>): Promise<Map<string, { by: "receptionist" | "team"; at: string }>> {
+  const convIds = [...replied.keys()];
+  const out = new Map<string, { by: "receptionist" | "team"; at: string }>();
+  if (convIds.length === 0) return out;
+  const since = [...replied.values()].sort()[0];
+  for (let i = 0; i < convIds.length; i += IN_CHUNK) {
+    const { data, error } = await ctx.supabase
+      .from("messages")
+      .select("conversation_id, created_at, sender, type")
+      .eq("tenant_id", tenantId)
+      .eq("direction", "outbound")
+      .in("conversation_id", convIds.slice(i, i + IN_CHUNK))
+      .gt("created_at", since);
+    if (error) throw new Error(error.message);
+    for (const m of (data ?? []) as { conversation_id: string; created_at: string; sender: string; type: string }[]) {
+      const reply = replied.get(m.conversation_id);
+      if (!reply || !(m.created_at > reply)) continue;
+      if (m.type !== "text" && m.type !== "media") continue;
+      const by = m.sender === "ai" ? "receptionist" : m.sender === "human" ? "team" : null;
+      if (!by) continue;
+      const first = out.get(m.conversation_id);
+      if (!first || m.created_at < first.at) out.set(m.conversation_id, { by, at: m.created_at });
+    }
+  }
+  return out;
+}
+
+/** Which of these threads wait on a person now (needs_human): a reply the receptionist handed over. */
+async function waitingThreads(ctx: RouteContext, tenantId: string, convIds: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (let i = 0; i < convIds.length; i += IN_CHUNK) {
+    const { data, error } = await ctx.supabase
+      .from("conversations")
+      .select("id, state")
+      .eq("tenant_id", tenantId)
+      .in("id", convIds.slice(i, i + IN_CHUNK));
+    if (error) throw new Error(error.message);
+    for (const c of (data ?? []) as { id: string; state: string }[]) if (c.state === "needs_human") out.add(c.id);
+  }
+  return out;
 }
 
 function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
@@ -183,7 +244,48 @@ export async function listRuns(ctx: RouteContext, tenantId: string): Promise<Bro
   return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
 }
 
-/** One broadcast and every person on it, in the words of what happened to them. */
+/**
+ * What each person the run reached said about hearing from the business after
+ * it reached them: the consent ledger both doors write (00013) -- a yes at the
+ * desk or in their own words, a STOP -- inside the same reply window a reply is
+ * counted in, and the latest there stands. Reports › Campaigns counts the same
+ * ledger by day for the whole workspace (00064); this is one run's share of it.
+ * Someone the run never reached did not answer it.
+ */
+type ConsentAnswer = { consent: "opted_in" | "opted_out"; purpose: "marketing" | "conversational"; at: string };
+async function consentAfter(ctx: RouteContext, tenantId: string, rows: RecipientRow[]): Promise<Map<string, ConsentAnswer>> {
+  const sentAt = new Map<string, number>();
+  for (const r of rows) if (r.state === "sent" && r.sent_at) sentAt.set(r.contact_id, Date.parse(r.sent_at));
+  const out = new Map<string, ConsentAnswer>();
+  if (sentAt.size === 0) return out;
+  const ids = [...sentAt.keys()];
+  const since = new Date(Math.min(...sentAt.values())).toISOString();
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const { data, error } = await ctx.supabase
+      .from("events")
+      .select("subject_id, data, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "contact.consent_changed")
+      .in("subject_id", ids.slice(i, i + IN_CHUNK))
+      .gt("created_at", since);
+    if (error) throw new Error(error.message);
+    for (const e of (data ?? []) as { subject_id: string | null; data: unknown; created_at: string }[]) {
+      const from = e.subject_id ? sentAt.get(e.subject_id) : undefined;
+      const t = Date.parse(e.created_at);
+      if (from === undefined || !(t > from) || t - from > REPLY_WINDOW_MS) continue;
+      const data = e.data as { consent?: unknown; purpose?: unknown } | null;
+      const consent = data?.consent;
+      if (consent !== "opted_in" && consent !== "opted_out") continue;
+      // The offers door names its purpose (00095); the conversational one names none.
+      const purpose = data?.purpose === "marketing" ? "marketing" : "conversational";
+      const had = out.get(e.subject_id!);
+      if (!had || e.created_at > had.at) out.set(e.subject_id!, { consent, purpose, at: e.created_at });
+    }
+  }
+  return out;
+}
+
+/** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */
 export async function getBroadcast(ctx: RouteContext, tenantId: string, id: string): Promise<BroadcastDetailDto> {
   const { data: row, error } = await ctx.supabase
     .from("broadcasts")
@@ -205,12 +307,17 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
 
   const { counts, threadsOf } = countRecipients(rows, [id]);
   const threads = threadsOf.get(id);
-  const replied = threads ? await repliedThreads(ctx, tenantId, threads) : new Map<string, string>();
+  const words = new Map<string, string | null>();
+  const replied = threads ? await repliedThreads(ctx, tenantId, threads, words) : new Map<string, string>();
   counts.get(id)!.replied = replied.size;
+  const answered = await consentAfter(ctx, tenantId, rows);
+  const answers = await answeredAfter(ctx, tenantId, replied);
+  const waiting = replied.size > 0 ? await waitingThreads(ctx, tenantId, [...replied.keys()]) : new Set<string>();
 
   const people: BroadcastRecipientDto[] = rows.map((r) => ({
     contact_id: r.contact_id,
     name: personName({ display_name: r.contacts?.display_name ?? null, wa_profile_name: r.contacts?.wa_profile_name ?? null, phone_e164: r.contacts?.phone_e164 ?? null, email: r.contacts?.email ?? null }),
+    first_name: firstNameOf(r.contacts?.display_name, r.contacts?.wa_profile_name),
     phone: r.contacts?.phone_e164 ?? null,
     state: r.state as RecipientState,
     reason: r.reason,
@@ -221,6 +328,13 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     delivered_at: statusAt(r.messages?.meta, "delivered"),
     read_at: statusAt(r.messages?.meta, "read"),
     replied_at: r.messages?.conversation_id ? replied.get(r.messages.conversation_id) ?? null : null,
+    consent_after: answered.get(r.contact_id)?.consent ?? null,
+    consent_at: answered.get(r.contact_id)?.at ?? null,
+    consent_purpose: answered.get(r.contact_id)?.purpose ?? null,
+    reply_words: r.messages?.conversation_id ? words.get(r.messages.conversation_id) ?? null : null,
+    answered_by: r.messages?.conversation_id ? answers.get(r.messages.conversation_id)?.by ?? null : null,
+    answered_at: r.messages?.conversation_id ? answers.get(r.messages.conversation_id)?.at ?? null : null,
+    waiting_on_you: !!(r.messages?.conversation_id && waiting.has(r.messages.conversation_id)),
   }));
   return { broadcast: toDto(row as BroadcastRow, counts.get(id) ?? emptyCounts()), recipients: people };
 }

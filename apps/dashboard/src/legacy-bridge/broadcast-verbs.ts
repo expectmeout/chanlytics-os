@@ -1,13 +1,14 @@
 /**
  * Broadcasts, the verbs: `window.__broadcasts.send(body)`, `.cancel(id)`,
- * `.approve(id)`, and `.detail(id)`, a read.
+ * `.approve(id)`, and `.detail(id)`, a read -- with `.report(detail)`, what
+ * that read says about the run, in the contracts' words.
  *
  * Each goes through the typed client (owner or operator on the server; a
  * viewer's click returns the server's refusal), and after a write lands the
  * refresh map re-reads the Broadcasts surface, so the Scheduled and History
  * rows are the server's — never a row the page invented while it waited.
  */
-import { broadcastFailureWords } from "@chanlytics/contracts";
+import { REPLY_WINDOW_MS, broadcastFailureWords, toRunReportVM, type BroadcastDetailDto } from "@chanlytics/contracts";
 import { api } from "./api";
 import { broadcastsOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
@@ -35,6 +36,19 @@ export const broadcasts = {
   detail: (id: string) => api()("GET broadcasts/[id]", { params: { id } }),
   /** Why a whole broadcast stopped, in the owner's words, for the detail, which reads the row as the route returns it. */
   failureWords: broadcastFailureWords,
+  /**
+   * One run's report, as the opened run draws it: its five figures, everyone it touched in words, every reply, and
+   * why it stopped -- stamped by the business's clock (zone.ts), which the page has installed before it opens a run.
+   */
+  report: (d: BroadcastDetailDto) =>
+    toRunReportVM(d, {
+      windowMs: REPLY_WINDOW_MS,
+      nowMs: Date.now(),
+      clock: (iso) => {
+        const ms = iso ? Date.parse(iso) : NaN;
+        return Number.isNaN(ms) || !window.__clock ? null : window.__clock.stamp(ms);
+      },
+    }),
 };
 
 declare global {
