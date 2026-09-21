@@ -7,6 +7,7 @@ import {
   validateTemplateDraft,
   type TemplateCategoryChoice,
   type TemplateDraft,
+  languageName,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
@@ -36,7 +37,8 @@ const DraftSchema = z.object({
 export type DraftedTemplate = z.infer<typeof DraftSchema> & { warnings: string[]; category: TemplateCategoryChoice; language: string };
 
 export function draftSystemPrompt(f: WorkspaceFacts, category: TemplateCategoryChoice, language: string): string {
-  const lang = language.startsWith("es") ? "Spanish" : language.startsWith("pt") ? "Portuguese" : "English";
+  // The language asked for, by its name: every language that was not Spanish or Portuguese was drafted in English.
+  const lang = languageName(language) === language ? "English" : languageName(language);
   const services = f.services.slice(0, 12).map((s) => s.name).join(", ");
   return [
     `You write WhatsApp message templates for ${f.businessName}, a small business, in its own voice: warm, brief, specific, never salesy.`,

@@ -11,14 +11,131 @@
 import { clockDate } from "./clock";
 import { agoWords } from "./time";
 
-export const TEMPLATE_LANGUAGES: readonly { id: string; label: string }[] = [
-  { id: "en_US", label: "English (US)" },
-  { id: "en", label: "English" },
-  { id: "es", label: "Spanish" },
-  { id: "es_MX", label: "Spanish (Mexico)" },
-  { id: "es_ES", label: "Spanish (Spain)" },
-  { id: "pt_BR", label: "Portuguese (Brazil)" },
+/** A language WhatsApp takes for a template: its code, its name, and its name in itself -- what a person types to find it. */
+export interface TemplateLanguage {
+  id: string;
+  label: string;
+  native: string;
+}
+
+/**
+ * Every language WhatsApp takes for a message template (Meta's supported
+ * languages), English (US) first because the composer opens on it. A message
+ * is one thing in any of these: Meta stores a row per language, and the pages
+ * show the one in view with the rest a search away.
+ */
+export const TEMPLATE_LANGUAGES: readonly TemplateLanguage[] = [
+  { id: "en_US", label: "English (US)", native: "English (US)" },
+  { id: "en", label: "English", native: "English" },
+  { id: "en_GB", label: "English (UK)", native: "English (UK)" },
+  { id: "es", label: "Spanish", native: "Español" },
+  { id: "es_MX", label: "Spanish (Mexico)", native: "Español (México)" },
+  { id: "es_ES", label: "Spanish (Spain)", native: "Español (España)" },
+  { id: "es_AR", label: "Spanish (Argentina)", native: "Español (Argentina)" },
+  { id: "pt_BR", label: "Portuguese (Brazil)", native: "Português (Brasil)" },
+  { id: "pt_PT", label: "Portuguese (Portugal)", native: "Português (Portugal)" },
+  { id: "af", label: "Afrikaans", native: "Afrikaans" },
+  { id: "sq", label: "Albanian", native: "Shqip" },
+  { id: "ar", label: "Arabic", native: "العربية" },
+  { id: "az", label: "Azerbaijani", native: "Azərbaycan dili" },
+  { id: "bn", label: "Bengali", native: "বাংলা" },
+  { id: "bg", label: "Bulgarian", native: "Български" },
+  { id: "ca", label: "Catalan", native: "Català" },
+  { id: "zh_CN", label: "Chinese (Simplified)", native: "中文（简体）" },
+  { id: "zh_HK", label: "Chinese (Hong Kong)", native: "中文（香港）" },
+  { id: "zh_TW", label: "Chinese (Traditional)", native: "中文（繁體）" },
+  { id: "hr", label: "Croatian", native: "Hrvatski" },
+  { id: "cs", label: "Czech", native: "Čeština" },
+  { id: "da", label: "Danish", native: "Dansk" },
+  { id: "nl", label: "Dutch", native: "Nederlands" },
+  { id: "et", label: "Estonian", native: "Eesti" },
+  { id: "fil", label: "Filipino", native: "Filipino" },
+  { id: "fi", label: "Finnish", native: "Suomi" },
+  { id: "fr", label: "French", native: "Français" },
+  { id: "ka", label: "Georgian", native: "ქართული" },
+  { id: "de", label: "German", native: "Deutsch" },
+  { id: "el", label: "Greek", native: "Ελληνικά" },
+  { id: "gu", label: "Gujarati", native: "ગુજરાતી" },
+  { id: "ha", label: "Hausa", native: "Hausa" },
+  { id: "he", label: "Hebrew", native: "עברית" },
+  { id: "hi", label: "Hindi", native: "हिन्दी" },
+  { id: "hu", label: "Hungarian", native: "Magyar" },
+  { id: "id", label: "Indonesian", native: "Bahasa Indonesia" },
+  { id: "ga", label: "Irish", native: "Gaeilge" },
+  { id: "it", label: "Italian", native: "Italiano" },
+  { id: "ja", label: "Japanese", native: "日本語" },
+  { id: "kn", label: "Kannada", native: "ಕನ್ನಡ" },
+  { id: "kk", label: "Kazakh", native: "Қазақ тілі" },
+  { id: "rw_RW", label: "Kinyarwanda", native: "Ikinyarwanda" },
+  { id: "ko", label: "Korean", native: "한국어" },
+  { id: "ky_KG", label: "Kyrgyz", native: "Кыргызча" },
+  { id: "lo", label: "Lao", native: "ລາວ" },
+  { id: "lv", label: "Latvian", native: "Latviešu" },
+  { id: "lt", label: "Lithuanian", native: "Lietuvių" },
+  { id: "mk", label: "Macedonian", native: "Македонски" },
+  { id: "ms", label: "Malay", native: "Bahasa Melayu" },
+  { id: "ml", label: "Malayalam", native: "മലയാളം" },
+  { id: "mr", label: "Marathi", native: "मराठी" },
+  { id: "nb", label: "Norwegian", native: "Norsk bokmål" },
+  { id: "fa", label: "Persian", native: "فارسی" },
+  { id: "pl", label: "Polish", native: "Polski" },
+  { id: "pa", label: "Punjabi", native: "ਪੰਜਾਬੀ" },
+  { id: "ro", label: "Romanian", native: "Română" },
+  { id: "ru", label: "Russian", native: "Русский" },
+  { id: "sr", label: "Serbian", native: "Српски" },
+  { id: "sk", label: "Slovak", native: "Slovenčina" },
+  { id: "sl", label: "Slovenian", native: "Slovenščina" },
+  { id: "sw", label: "Swahili", native: "Kiswahili" },
+  { id: "sv", label: "Swedish", native: "Svenska" },
+  { id: "ta", label: "Tamil", native: "தமிழ்" },
+  { id: "te", label: "Telugu", native: "తెలుగు" },
+  { id: "th", label: "Thai", native: "ไทย" },
+  { id: "tr", label: "Turkish", native: "Türkçe" },
+  { id: "uk", label: "Ukrainian", native: "Українська" },
+  { id: "ur", label: "Urdu", native: "اردو" },
+  { id: "uz", label: "Uzbek", native: "Oʻzbekcha" },
+  { id: "vi", label: "Vietnamese", native: "Tiếng Việt" },
+  { id: "zu", label: "Zulu", native: "isiZulu" },
 ];
+
+/** Lowercase, without accents: "Português" is found by "portugues", which a keyboard without the accent types. */
+const langFold = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+/**
+ * The languages that answer what a person typed -- by name, by the name the
+ * language has for itself, or by code -- the closest first: a name that starts
+ * with it, then its own name, then its code, then anything that holds it, each
+ * by name. Nothing typed is all of them, in their order.
+ */
+export function findLanguages<T extends { id: string; label: string; native?: string }>(list: readonly T[], query: string): T[] {
+  const q = langFold(String(query ?? ""));
+  if (!q) return list.slice();
+  const rank = (l: T): number => {
+    const label = langFold(l.label);
+    const native = langFold(l.native ?? "");
+    const code = langFold(l.id.replace(/_/g, " "));
+    if (label.startsWith(q)) return 0;
+    if (native.startsWith(q)) return 1;
+    if (code.startsWith(q) || langFold(l.id) === q) return 2;
+    if (label.includes(q) || native.includes(q)) return 3;
+    return -1;
+  };
+  return list
+    .map((l) => ({ l, r: rank(l) }))
+    .filter((x) => x.r >= 0)
+    .sort((a, b) => a.r - b.r || a.l.label.localeCompare(b.l.label))
+    .map((x) => x.l);
+}
+
+/** A language in a chip: its code's letters, "EN", "PT", "FIL". */
+export function languageShort(code: string): string {
+  return String(code ?? "").split(/[-_]/)[0].toUpperCase();
+}
+
+/** A language in a sentence: its name from the list, or its code as given when nobody listed it. */
+export function languageName(code: string): string {
+  return TEMPLATE_LANGUAGES.find((l) => l.id === code)?.label ?? String(code ?? "");
+}
 
 export const TEMPLATE_CATEGORIES = ["marketing", "utility"] as const;
 export type TemplateCategoryChoice = (typeof TEMPLATE_CATEGORIES)[number];

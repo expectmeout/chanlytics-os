@@ -6716,13 +6716,100 @@ function slotToWrite(t) {
 
 // src/templates.ts
 var TEMPLATE_LANGUAGES = [
-  { id: "en_US", label: "English (US)" },
-  { id: "en", label: "English" },
-  { id: "es", label: "Spanish" },
-  { id: "es_MX", label: "Spanish (Mexico)" },
-  { id: "es_ES", label: "Spanish (Spain)" },
-  { id: "pt_BR", label: "Portuguese (Brazil)" }
+  { id: "en_US", label: "English (US)", native: "English (US)" },
+  { id: "en", label: "English", native: "English" },
+  { id: "en_GB", label: "English (UK)", native: "English (UK)" },
+  { id: "es", label: "Spanish", native: "Espa\xF1ol" },
+  { id: "es_MX", label: "Spanish (Mexico)", native: "Espa\xF1ol (M\xE9xico)" },
+  { id: "es_ES", label: "Spanish (Spain)", native: "Espa\xF1ol (Espa\xF1a)" },
+  { id: "es_AR", label: "Spanish (Argentina)", native: "Espa\xF1ol (Argentina)" },
+  { id: "pt_BR", label: "Portuguese (Brazil)", native: "Portugu\xEAs (Brasil)" },
+  { id: "pt_PT", label: "Portuguese (Portugal)", native: "Portugu\xEAs (Portugal)" },
+  { id: "af", label: "Afrikaans", native: "Afrikaans" },
+  { id: "sq", label: "Albanian", native: "Shqip" },
+  { id: "ar", label: "Arabic", native: "\u0627\u0644\u0639\u0631\u0628\u064A\u0629" },
+  { id: "az", label: "Azerbaijani", native: "Az\u0259rbaycan dili" },
+  { id: "bn", label: "Bengali", native: "\u09AC\u09BE\u0982\u09B2\u09BE" },
+  { id: "bg", label: "Bulgarian", native: "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438" },
+  { id: "ca", label: "Catalan", native: "Catal\xE0" },
+  { id: "zh_CN", label: "Chinese (Simplified)", native: "\u4E2D\u6587\uFF08\u7B80\u4F53\uFF09" },
+  { id: "zh_HK", label: "Chinese (Hong Kong)", native: "\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09" },
+  { id: "zh_TW", label: "Chinese (Traditional)", native: "\u4E2D\u6587\uFF08\u7E41\u9AD4\uFF09" },
+  { id: "hr", label: "Croatian", native: "Hrvatski" },
+  { id: "cs", label: "Czech", native: "\u010Ce\u0161tina" },
+  { id: "da", label: "Danish", native: "Dansk" },
+  { id: "nl", label: "Dutch", native: "Nederlands" },
+  { id: "et", label: "Estonian", native: "Eesti" },
+  { id: "fil", label: "Filipino", native: "Filipino" },
+  { id: "fi", label: "Finnish", native: "Suomi" },
+  { id: "fr", label: "French", native: "Fran\xE7ais" },
+  { id: "ka", label: "Georgian", native: "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8" },
+  { id: "de", label: "German", native: "Deutsch" },
+  { id: "el", label: "Greek", native: "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC" },
+  { id: "gu", label: "Gujarati", native: "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0" },
+  { id: "ha", label: "Hausa", native: "Hausa" },
+  { id: "he", label: "Hebrew", native: "\u05E2\u05D1\u05E8\u05D9\u05EA" },
+  { id: "hi", label: "Hindi", native: "\u0939\u093F\u0928\u094D\u0926\u0940" },
+  { id: "hu", label: "Hungarian", native: "Magyar" },
+  { id: "id", label: "Indonesian", native: "Bahasa Indonesia" },
+  { id: "ga", label: "Irish", native: "Gaeilge" },
+  { id: "it", label: "Italian", native: "Italiano" },
+  { id: "ja", label: "Japanese", native: "\u65E5\u672C\u8A9E" },
+  { id: "kn", label: "Kannada", native: "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1" },
+  { id: "kk", label: "Kazakh", native: "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456" },
+  { id: "rw_RW", label: "Kinyarwanda", native: "Ikinyarwanda" },
+  { id: "ko", label: "Korean", native: "\uD55C\uAD6D\uC5B4" },
+  { id: "ky_KG", label: "Kyrgyz", native: "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430" },
+  { id: "lo", label: "Lao", native: "\u0EA5\u0EB2\u0EA7" },
+  { id: "lv", label: "Latvian", native: "Latvie\u0161u" },
+  { id: "lt", label: "Lithuanian", native: "Lietuvi\u0173" },
+  { id: "mk", label: "Macedonian", native: "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438" },
+  { id: "ms", label: "Malay", native: "Bahasa Melayu" },
+  { id: "ml", label: "Malayalam", native: "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02" },
+  { id: "mr", label: "Marathi", native: "\u092E\u0930\u093E\u0920\u0940" },
+  { id: "nb", label: "Norwegian", native: "Norsk bokm\xE5l" },
+  { id: "fa", label: "Persian", native: "\u0641\u0627\u0631\u0633\u06CC" },
+  { id: "pl", label: "Polish", native: "Polski" },
+  { id: "pa", label: "Punjabi", native: "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40" },
+  { id: "ro", label: "Romanian", native: "Rom\xE2n\u0103" },
+  { id: "ru", label: "Russian", native: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439" },
+  { id: "sr", label: "Serbian", native: "\u0421\u0440\u043F\u0441\u043A\u0438" },
+  { id: "sk", label: "Slovak", native: "Sloven\u010Dina" },
+  { id: "sl", label: "Slovenian", native: "Sloven\u0161\u010Dina" },
+  { id: "sw", label: "Swahili", native: "Kiswahili" },
+  { id: "sv", label: "Swedish", native: "Svenska" },
+  { id: "ta", label: "Tamil", native: "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD" },
+  { id: "te", label: "Telugu", native: "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41" },
+  { id: "th", label: "Thai", native: "\u0E44\u0E17\u0E22" },
+  { id: "tr", label: "Turkish", native: "T\xFCrk\xE7e" },
+  { id: "uk", label: "Ukrainian", native: "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430" },
+  { id: "ur", label: "Urdu", native: "\u0627\u0631\u062F\u0648" },
+  { id: "uz", label: "Uzbek", native: "O\u02BBzbekcha" },
+  { id: "vi", label: "Vietnamese", native: "Ti\u1EBFng Vi\u1EC7t" },
+  { id: "zu", label: "Zulu", native: "isiZulu" }
 ];
+var langFold = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+function findLanguages(list2, query) {
+  const q = langFold(String(query ?? ""));
+  if (!q) return list2.slice();
+  const rank = (l) => {
+    const label = langFold(l.label);
+    const native = langFold(l.native ?? "");
+    const code2 = langFold(l.id.replace(/_/g, " "));
+    if (label.startsWith(q)) return 0;
+    if (native.startsWith(q)) return 1;
+    if (code2.startsWith(q) || langFold(l.id) === q) return 2;
+    if (label.includes(q) || native.includes(q)) return 3;
+    return -1;
+  };
+  return list2.map((l) => ({ l, r: rank(l) })).filter((x) => x.r >= 0).sort((a, b) => a.r - b.r || a.l.label.localeCompare(b.l.label)).map((x) => x.l);
+}
+function languageShort(code2) {
+  return String(code2 ?? "").split(/[-_]/)[0].toUpperCase();
+}
+function languageName(code2) {
+  return TEMPLATE_LANGUAGES.find((l) => l.id === code2)?.label ?? String(code2 ?? "");
+}
 var TEMPLATE_CATEGORIES = ["marketing", "utility"];
 var TEMPLATE_BODY_MAX = 1024;
 var TEMPLATE_FOOTER_MAX = 60;
@@ -13162,6 +13249,7 @@ export {
   feedUrlOk,
   filterOpenings,
   filterTimeline,
+  findLanguages,
   firstNameOf,
   firstWorkspaceDoor,
   fmtClock,
@@ -13228,6 +13316,8 @@ export {
   judgeUserContent,
   knownTimezones,
   languageLabels,
+  languageName,
+  languageShort,
   languageWords,
   lastChangedWords,
   leadAllowanceFact,

@@ -593,10 +593,13 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     ) : null;
     content = <OutboundPage initialPlaybook={param} />;
   } else if (page === "messages") {
+    // messages/write:<name>:<language> opens the writer on a message, to write it in a language it does not have --
+    // what a composer's language popover links to.
+    const msgWrite = param && param.startsWith("write:") ? (() => { const [name, language] = param.slice(6).split(":"); return name && language ? { name, language } : null; })() : null;
     activeNav = "messages";
-    crumbs = ["Campaigns", "Templates"];
+    crumbs = msgWrite ? ["Campaigns", { label: "Templates", to: "messages" }, "Another language"] : ["Campaigns", "Templates"];
     pane = true;
-    content = <MessagesPage />;
+    content = <MessagesPage write={msgWrite} />;
   } else if (page === "content") {
     activeNav = "content";
     crumbs = ["Campaigns", "Content"];

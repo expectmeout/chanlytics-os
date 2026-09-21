@@ -44,9 +44,6 @@ const tplOwn = () => {
 // the chrome bridge): a tone this file never picks for itself. A language Meta has
 // never seen has no state -- it is an absence, and absence is drawn, not coloured.
 const tplSaid = (status) => (status && window.__chrome && window.__chrome.state ? window.__chrome.state("template", status) : null);
-// "EN", "ES", "PT" -- the slot's two letters. A row has one slot per language the
-// workspace answers in, and a label ("English (US)") does not fit a slot.
-const tplShort = (id) => String(id || "").slice(0, 2).toUpperCase();
 // One line, whatever the message does with newlines and tabs: a row is one line
 // tall, and a template written in WhatsApp Manager can be six paragraphs.
 const tplOneLine = (s) => String(s || "").replace(/\s+/g, " ").trim();
@@ -64,34 +61,6 @@ const useMessages = () => {
   return window.__TEMPLATES_ALL;
 };
 
-// One language of one message, as a slot: filled when WhatsApp approved it,
-// dotted while WhatsApp is reading it, struck through when WhatsApp refused it,
-// and an open dashed ring for a language this message does not exist in. The
-// glyph carries the state and the two letters carry the language, so pressing
-// it does one thing -- put that language in view -- and the row is readable
-// across sixteen messages without reading sixteen words.
-const MsgSlot = ({ lang, status, on, onPick }) => {
-  const said = tplSaid(status);
-  const tone = said ? said.tone : "none";
-  return (
-    <button
-      type="button"
-      className={`msg-slot${on ? " on" : ""}`}
-      data-tone={tone}
-      aria-pressed={on}
-      onClick={onPick}
-      title={`${lang.label} — ${said ? said.label : "not on WhatsApp"}`}
-      data-testid="template-lang"
-    >
-      <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true">
-        <circle cx="7" cy="7" r="5.1" fill={tone === "ok" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" strokeDasharray={!said ? "2 2.1" : tone === "info" ? "1.3 2.3" : undefined} />
-        {tone === "danger" && <path d="M3.8 10.2 L10.2 3.8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />}
-      </svg>
-      <span className="msg-slot-k">{tplShort(lang.id)}</span>
-    </button>
-  );
-};
-
 // One message, as a row: what it is, what each of its languages is doing, what
 // sends it and how much of it went out — the things you scan sixteen of at once.
 // The message itself, and the verbs that change it, are in the row it opens.
@@ -100,7 +69,7 @@ const MsgSlot = ({ lang, status, on, onPick }) => {
 // thousand pixels of chat nobody can compare. The words are still the point, so
 // a line of them rides the row and the WHOLE message — heading, what varies per
 // person, footer, buttons — is one press away, for one message at a time.
-const MessageRow = ({ g, langs, bizName, canAct, busy, doing = null, S, open = false, onOpen, onAdd, onRename, onHide, onDelete }) => {
+const MessageRow = ({ g, langs, bizName, canAct, busy, doing = null, S, open = false, onOpen, onAdd, onWrite = null, onRename, onHide, onDelete }) => {
   const present = g.rows.filter((r) => r.row);
   const [langId, setLangId] = React.useState(present[0] ? present[0].lang.id : (langs[0] ? langs[0].id : "en_US"));
   const [menu, setMenu] = React.useState(false);
@@ -191,17 +160,42 @@ const MessageRow = ({ g, langs, bizName, canAct, busy, doing = null, S, open = f
             <span className="msg-row-words">{words ? `“${words}”` : g.purpose}</span>
           </span>
         </button>
-        {/* One control, one job. A language button switched the language AND carried
-            that language's status as a dot plus words, so the thing you press to
-            read the Spanish version was also the only place its approval was
-            written. A slot is the language; its glyph is that language's state,
-            drawn rather than written, so every language of every message is legible
-            without reading -- and a language that is not simply approved is also
-            the pill beside the title. */}
-        <span className="msg-row-langs" role="group" aria-label={`Language for ${g.title}`}>
-          {g.rows.map(({ lang, row: r }) => (
-            <MsgSlot key={lang.id} lang={lang} status={r ? r.meta_status : null} on={open && lang.id === langId} onPick={() => { setLangId(lang.id); closeMenu(); if (!open) onOpen(); }} />
-          ))}
+        {/* The message's language, as one control. Meta keeps a row per language and
+            the row drew them all -- a slot each, "EN" beside "ES" beside a dashed
+            ring for the one missing -- which is storage, not the message. It is the
+            language in view now, its state drawn beside it and "+1" for the others
+            on file; the popover puts another in view, shows each one's state in
+            words, and finds any language WhatsApp takes to write it in. A language
+            that is not simply approved is still the pill beside the title. */}
+        <span className="msg-row-langs">
+          <window.LangPicker
+            value={langId}
+            options={g.rows.map(({ lang, row: r }) => ({ id: lang.id, label: lang.label, status: r ? r.meta_status : null, note: r ? null : "Not added yet" }))}
+            onChoose={(id) => { setLangId(id); closeMenu(); if (!open) onOpen(); }}
+            onWrite={onWrite ? (id) => onWrite(g, id, { language: langId, label: cur ? cur.lang.label : langId, body, footer, row, kinds, labels }) : null}
+            testid="template-lang"
+            label={`Language for ${g.title}`}
+            trigger={({ open: shown, toggle, current, others, short }) => {
+              const state = current ? tplSaid(current.status) : null;
+              return (
+                <button
+                  type="button"
+                  className={`msg-lang${shown ? " open" : ""}`}
+                  data-tone={state ? state.tone : "none"}
+                  aria-haspopup="listbox"
+                  aria-expanded={shown}
+                  aria-label={`Language for ${g.title}: ${current ? current.label : langId}, ${state ? state.label.toLowerCase() : "not on WhatsApp"}${others ? `, and ${others} more` : ""}`}
+                  onClick={toggle}
+                  data-testid="template-lang"
+                >
+                  <window.CmLangGlyph status={current ? current.status : null} size={12} />
+                  <span className="msg-lang-k">{short}</span>
+                  {others > 0 && <span className="msg-lang-more">+{others}</span>}
+                  <Icon name="chevron-down" size={10} />
+                </button>
+              );
+            }}
+          />
         </span>
         {/* What sends it -- every source, not only the playbooks -- and under it,
             what that thing is doing: "runs daily at 10:00", "a run is waiting on
@@ -304,7 +298,7 @@ const MessageRow = ({ g, langs, bizName, canAct, busy, doing = null, S, open = f
   );
 };
 
-const MessagesReal = () => {
+const MessagesReal = ({ write = null }) => {
   const templates = useMessages();
   const S = window.__starters;
   // Which act is under way, if any: every control waits for it, and only the one pressed says it is working. The ref
@@ -313,6 +307,9 @@ const MessagesReal = () => {
   const doingRef = React.useRef(null);
   const busy = doing !== null;
   const [composing, setComposing] = React.useState(false);
+  // What the writer opens on when it writes a message the page already has, in a language it does not: the
+  // message's name, the language, and the words it has, to translate. Null: a new template from nothing.
+  const [preset, setPreset] = React.useState(null);
   const [showHidden, setShowHidden] = React.useState(false);
   // Which message is open, by its key. One at a time: the words of two
   // messages side by side is the wall this page stopped being.
@@ -324,6 +321,42 @@ const MessagesReal = () => {
   const canAct = !!(window.canDo && window.canDo("approve"));
   const hasWhatsApp = (window.__CHANNELS || []).some((c) => c.kind === "whatsapp");
   const bizName = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.__SETTINGS.config.brain.business_name) || null;
+  // Write a message in a language it does not have: the writer, opened on the message's own name and the words in
+  // view, which it translates. The same name is the point -- WhatsApp keeps one message per name per language.
+  const writeIn = (name, language, from) => {
+    setPreset({ key: `${name}:${language}:${Date.now()}`, name, language, title: tplTitle(from.row || { name }), category: /market/i.test(String(from.category || "")) ? "marketing" : "utility", from });
+    setComposing(true);
+  };
+  // The writer, brought into view when it opens on a message further down the page.
+  React.useEffect(() => {
+    if (!preset || typeof document === "undefined" || !document.getElementById) return;
+    const el = document.getElementById("tpl-writer");
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [preset]);
+  // A link that asks for it (messages/write:<name>:<language>, a composer's language popover): the page follows it,
+  // once per link, when the templates have been read.
+  const followed = React.useRef(null);
+  React.useEffect(() => {
+    const key = write ? `${write.name}:${write.language}` : null;
+    if (!key || followed.current === key || !Array.isArray(templates)) return;
+    followed.current = key;
+    const L = window.__starters || null;
+    const rows = templates.filter((t) => t.name === write.name);
+    const src = rows.find((t) => t.meta_status === "approved") || rows[0] || null;
+    const starter = L && L.byName ? L.byName(write.name) : null;
+    const first = L && L.languages && L.languages[0] ? L.languages[0].id : "en_US";
+    const text = !src && starter ? L.text(starter, first) : null;
+    writeIn(write.name, write.language, {
+      language: src ? src.language : first,
+      label: L && L.langName ? L.langName(src ? src.language : first) : "",
+      body: src ? src.body_preview || "" : text ? text.body : "",
+      footer: src && L ? L.footer(src) : text ? text.footer : null,
+      row: src,
+      category: src ? src.category : starter ? starter.category : "marketing",
+      kinds: src && L ? L.slotKinds(src) : [],
+      labels: src && L ? L.slotLabels(src) : [],
+    });
+  }, [write, templates]);
 
   if (templates === undefined) {
     return (
@@ -388,7 +421,8 @@ const MessagesReal = () => {
   const remove = (t) => run(`delete:${t.id}`, () => window.__templates.remove(t.id), () => <><b>{tplTitle(t)}</b> deleted — sends that named it fail from now on</>);
   const addStarters = (keys, languages) => run(`add:${keys ? keys.join(",") : "all"}:${languages.join(",")}`, () => window.__templates.addStarters({ ...(keys ? { keys } : {}), languages }), (r) => <>{window.starterWords ? window.starterWords(r.data) : "Added"}</>);
   const sync = () => run("sync", () => window.__syncTemplates(), (r) => <>{r.data.seen} template{r.data.seen === 1 ? "" : "s"} from WhatsApp — {r.data.approved} approved, {r.data.marketing} marketing</>);
-  const card = (g) => <MessageRow key={g.key} g={g} langs={langs} bizName={bizName} canAct={canAct && hasWhatsApp} busy={busy} doing={doing} S={S} open={openKey === g.key} onOpen={() => setOpenKey((k) => (k === g.key ? null : g.key))} onAdd={(gg, lang) => addStarters([gg.starter.key], [lang.id])} onRename={rename} onHide={toggleHidden} onDelete={remove} />;
+  const writeFor = (g, language, from) => writeIn(g.starter ? g.starter.name : (from.row || (g.rows.find((r) => r.row) || {}).row || {}).name, language, { ...from, category: from.row ? from.row.category : g.starter ? g.starter.category : g.purpose });
+  const card = (g) => <MessageRow key={g.key} g={g} langs={langs} bizName={bizName} canAct={canAct && hasWhatsApp} busy={busy} doing={doing} S={S} open={openKey === g.key} onOpen={() => setOpenKey((k) => (k === g.key ? null : g.key))} onAdd={(gg, lang) => addStarters([gg.starter.key], [lang.id])} onWrite={canAct && hasWhatsApp ? writeFor : null} onRename={rename} onHide={toggleHidden} onDelete={remove} />;
 
   // The search box: a message's title, the name WhatsApp knows it by, and its words
   // in every language on file or in the library. Rows that do not match stand down;
@@ -461,7 +495,7 @@ const MessagesReal = () => {
                 <Icon name="search" size={13} />
                 <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the words" aria-label="Search the templates' words" data-testid="templates-search" />
               </label>
-              {hasWhatsApp && <button className="btn btn-primary" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a template")}><Icon name="plus" size={12} /> New template</button>}
+              {hasWhatsApp && <button className="btn btn-primary" onClick={() => { setPreset(null); setComposing((c) => !(c && !preset)); }} data-testid="template-new" {...window.gate("approve", "write a template")}><Icon name="plus" size={12} /> New template</button>}
             </>
           )}
         />
@@ -475,11 +509,19 @@ const MessagesReal = () => {
           <EmptyState kind="card" glyph="phone" title="Connect a WhatsApp number first" body="Templates belong to a number's account." action={{ label: "Open Connections", to: "admin/integrations" }} testid="messages-no-number" />
         )}
         {composing && window.TemplateComposer && (
-          <section className="fl-card rp2-card" data-testid="messages-composer">
+          <section className="fl-card rp2-card" id="tpl-writer" data-testid="messages-composer">
             <window.TemplateComposer
+              key={preset ? preset.key : "new"}
+              preset={preset}
               businessName={bizName || ""}
-              onCancel={() => setComposing(false)}
-              onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; its status shows here</> }); }}
+              onCancel={() => { setComposing(false); setPreset(null); }}
+              onDone={(made) => {
+                setComposing(false);
+                setPreset(null);
+                flash({ msg: preset
+                  ? <><b>{preset.title}</b> in {S && S.langName ? S.langName(made.language) : made.language} submitted — WhatsApp reviews it; it joins the message's languages once it does</>
+                  : <><b>{made.name}</b> submitted — WhatsApp reviews it; its status shows here</> });
+              }}
             />
           </section>
         )}
@@ -526,7 +568,7 @@ const MessagesReal = () => {
               <div className="msg-list-head" aria-hidden="true">
                 <span />
                 <span>The message</span>
-                <span>Languages</span>
+                <span>Language</span>
                 <span>What sends it</span>
                 <span className="msg-list-head-sent">Sent</span>
               </div>
@@ -562,6 +604,6 @@ const MessagesReal = () => {
 // The page is real on every workspace. The standalone mockup routes here too —
 // Campaigns · Messages is a tab there — and has no templates to read, so the
 // waiting line above says which of the two is looking.
-const MessagesPage = () => <MessagesReal />;
+const MessagesPage = (props) => <MessagesReal {...props} />;
 
 window.MessagesPage = MessagesPage;

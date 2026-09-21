@@ -147,6 +147,7 @@ await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/lang-picker.jsx");
 globalThis.StatePill = globalThis.window.StatePill;
 await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 const { OutcomePill } = globalThis.window;

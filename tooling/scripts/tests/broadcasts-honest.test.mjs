@@ -144,6 +144,7 @@ Object.assign(globalThis.window, {
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/lang-picker.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
@@ -572,22 +573,35 @@ test("A message is a row you scan, and the words open under it: what it is, ever
   assert.ok(textOf(byTestId(row, "template-users")).includes("Win-back"), "and what sends it, closed");
   assert.equal(byTestId(row, "template-open-body"), null, "the whole message is not drawn until it is asked for");
 
-  // A message the workspace wrote has a slot per language it exists in: nobody
-  // can "add Spanish" to words nobody has written.
-  assert.deepEqual(all(row, (n) => n.props?.["data-testid"] === "template-lang").map((sl) => textOf(sl).trim()), ["EN"]);
+  // Its language is ONE control naming the language in view -- a slot per language
+  // drew Meta's storage (a row per language), not the message.
+  const control = byTestId(row, "template-lang");
+  assert.equal(all(row, (n) => n.props?.["data-testid"] === "template-lang").length, 1);
+  assert.equal(textOf(control).trim(), "EN");
+  // Opened, it offers the one language a message the workspace wrote has: nobody can
+  // "add Spanish" to words nobody has written -- only write it, in any language WhatsApp takes.
+  press(control);
+  tree = messagesAgain();
+  const mine = byTestId(tree, "custom-row");
+  assert.deepEqual(all(mine, (n) => n.props?.["data-testid"] === "template-lang-option").map((o) => o.props["data-lang"]), ["en_US"]);
+  assert.ok(all(mine, (n) => n.props?.["data-testid"] === "template-lang-write").length >= 60, "and every other language WhatsApp takes, to write it in");
 
-  // A STARTER has a slot per language the workspace answers in, including the one
-  // it is missing -- a language that did not exist was simply absent before, which
-  // is the hole the toolbar's arithmetic ("Add the 3 in English") was describing.
+  // A STARTER's control draws the language in view, approved; its popover also
+  // offers the language the library has written and the workspace has not added --
+  // the hole the toolbar's arithmetic ("Add the 3 in English") was describing.
   tree = messages({ __TEMPLATES_ALL: [en, templateRow({ id: "t-w", name: "winback_offer", language: "en_US", meta_status: "approved" })] });
-  const starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
-  const slots = all(starter, (n) => n.props?.["data-testid"] === "template-lang");
-  assert.deepEqual(slots.map((sl) => textOf(sl).trim()), ["EN", "ES"]);
-  assert.deepEqual(slots.map((sl) => sl.props["data-tone"]), ["ok", "none"], "approved, and one WhatsApp has never seen");
+  const starterControl = byTestId(all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0], "template-lang");
+  assert.equal(textOf(starterControl).trim(), "EN");
+  assert.equal(starterControl.props["data-tone"], "ok", "approved, drawn");
+  press(starterControl);
+  tree = messagesAgain();
+  const offered = all(all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0], (n) => n.props?.["data-testid"] === "template-lang-option");
+  assert.deepEqual(offered.map((o) => o.props["data-lang"]), ["en_US", "es"]);
+  assert.ok(textOf(offered[1]).includes("Not added yet"), "and one WhatsApp has never seen, said so");
 
-  // Pressing the empty one puts that language in view and opens the message,
-  // where the words WhatsApp would review are, and the Add beside them.
-  press(slots[1]);
+  // Choosing it puts that language in view and opens the message, where the words
+  // WhatsApp would review are, and the Add beside them.
+  press(offered[1]);
   tree = messagesAgain();
   const open = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
   assert.ok(byTestId(open, "template-open-body"), "the message opens on the language that was pressed");
@@ -858,18 +872,29 @@ test("One chip per message, its languages inside it -- the starter set in two dr
   const titles = chips.map((c) => textOf(c).trim());
   assert.equal(new Set(titles).size, titles.length, `REGRESSION: two chips read alike -- ${titles.join(" | ")}`);
 
-  // Each chip carries its languages, in words, as its own buttons.
+  // Each chip carries ONE control for its language -- a toggle per language drew the
+  // rows Meta keeps -- and its popover names every language the message goes in.
   const langs = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang");
-  assert.equal(langs.length, starters.length * 2);
-  assert.deepEqual([...new Set(langs.map((l) => textOf(l).trim()))].sort(), ["English", "Spanish"]);
-  // A group with one language shows no toggle at all.
+  assert.equal(langs.length, starters.length, "one per message");
+  press(langs[0]);
+  tree = again({ initialSegment: null, initialRun: null });
+  const inOne = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang-option");
+  assert.deepEqual(inOne.map((o) => textOf(find(o, (n) => n.props?.className === "lang-opt-name")).trim()), ["English", "Spanish"]);
+  // A message in one language still says which, and can be written in another.
   globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [rows[rows.length - 1]], number: healthyNumber });
-  assert.equal(all(writing({ initialSegment: null, initialRun: null }), (n) => n.props?.["data-testid"] === "bc-template-lang").length, 0);
+  const single = all(writing({ initialSegment: null, initialRun: null }), (n) => n.props?.["data-testid"] === "bc-template-lang");
+  assert.equal(single.length, 1);
+  assert.equal(textOf(single[0]).trim(), "EN");
 
   // Picking a language picks THAT row, and the armed send names it.
   globalThis.window.__BROADCASTS = broadcastsSurface({ templates: rows, number: healthyNumber });
   tree = writing({ initialSegment: null, initialRun: null });
-  const spanish = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang").find((n) => textOf(n).trim() === "Spanish");
+  const firstChip = find(tree, (n) => String(n.props?.className || "").includes("tpl-chip") && byTestId(n, "bc-template") === find(tree, (m) => m.props?.["data-testid"] === "bc-template"));
+  press(byTestId(firstChip, "bc-template"));
+  tree = again({ initialSegment: null, initialRun: null });
+  press(find(tree, (n) => n.props?.["data-testid"] === "bc-template-lang"));
+  tree = again({ initialSegment: null, initialRun: null });
+  const spanish = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang-option").find((n) => n.props["data-lang"] === "es");
   press(spanish);
   tree = again({ initialSegment: null, initialRun: null });
   press(byTestId(tree, "bc-send"));
@@ -881,8 +906,8 @@ test("One chip per message, its languages inside it -- the starter set in two dr
   const opened = (list) => {
     globalThis.window.__BROADCASTS = broadcastsSurface({ templates: list, number: healthyNumber });
     const t = writing({ initialSegment: null, initialRun: null });
-    const on = all(t, (n) => n.props?.["data-testid"] === "bc-template-lang").find((n) => String(n.props.className).includes("on"));
-    return on ? textOf(on).trim() : null;
+    const active = find(t, (n) => String(n.props?.className || "").includes("tpl-chip") && String(n.props.className).includes("active"));
+    return active ? textOf(byTestId(active, "bc-template-lang")).trim() : null;
   };
   assert.equal(opened(rows), opened(rows.slice().reverse()), "the picker opens on the same language either way");
 });
@@ -915,6 +940,96 @@ test("The template a composer opens on does not depend on the order the rows arr
   assert.notEqual(contracts.compareTemplates(row("winback_offer", "en_US"), row("winback_offer", "es")), 0);
 });
 
+test("a message's language finds any language WhatsApp takes -- by its name or its own -- and writing one opens the writer on the message's own name, which translates it", async () => {
+  const en = templateRow({ id: "t-en", name: "offer", language: "en_US", meta_status: "approved", body_preview: "Hi {{1}}, 20% off this week.", variables: [{ position: 1, label: "First name", example: "Dani" }] });
+  let tree = messages({ __TEMPLATES_ALL: [en] });
+  press(byTestId(byTestId(tree, "custom-row"), "template-lang"));
+  tree = messagesAgain();
+  byTestId(byTestId(tree, "custom-row"), "template-lang-search").props.onChange({ target: { value: "deutsch" } });
+  tree = messagesAgain();
+  const written = all(byTestId(tree, "custom-row"), (n) => n.props?.["data-testid"] === "template-lang-write");
+  assert.equal(written[0].props["data-lang"], "de", "German, found by what Germans call it");
+  assert.equal(all(byTestId(tree, "custom-row"), (n) => n.props?.["data-testid"] === "template-lang-option").length, 0, "and the message's own English stands down: it does not match");
+  byTestId(byTestId(tree, "custom-row"), "template-lang-search").props.onChange({ target: { value: "klingon" } });
+  tree = messagesAgain();
+  assert.ok(byTestId(byTestId(tree, "custom-row"), "template-lang-none"), "nothing made up for a language WhatsApp does not take");
+  byTestId(byTestId(tree, "custom-row"), "template-lang-search").props.onChange({ target: { value: "deutsch" } });
+  tree = messagesAgain();
+  press(find(byTestId(tree, "custom-row"), (n) => n.props?.["data-testid"] === "template-lang-write"));
+  tree = messagesAgain();
+  assert.ok(byTestId(tree, "messages-composer"), "the writer opens");
+  const preset = find(tree, (n) => n.type === globalThis.window.TemplateComposer).props.preset;
+  assert.deepEqual([preset.name, preset.language, preset.from.language], ["offer", "de", "en_US"], "on the message's own name: WhatsApp keeps one message per name per language");
+  // The writer, drawn on that preset.
+  const draw = () => { seq = 0; return globalThis.window.TemplateComposer({ preset, businessName: "Northside Studio", onDone() {}, onCancel() {} }); };
+  fresh();
+  let writer = draw();
+  assert.equal(byTestId(writer, "tpl-name").props.value, "offer");
+  assert.equal(byTestId(writer, "tpl-name").props.readOnly, true, "the name is the message: it does not change here");
+  assert.ok(textOf(byTestId(writer, "tpl-source")).includes("Hi first name, 20% off this week."), `with the words it has, its slots by what fills them -- never {{1}}: ${textOf(byTestId(writer, "tpl-source"))}`);
+  assert.equal(textOf(byTestId(writer, "tpl-language")).trim(), "German");
+  // Translated on a press -- and the draft keeps the message's name, whatever the draft calls it.
+  const asked = [];
+  const keep = globalThis.window.__templates;
+  globalThis.window.__templates = { ...keep, draft: async (b) => { asked.push(b); return { ok: true, data: { draft: { name: "rabatt_angebot", body: "Hallo {{1}}, 20 % Rabatt diese Woche.", footer: null, examples: ["Dani"], variables: [{ label: "Vorname" }], warnings: [] } } }; } };
+  try {
+    await press(byTestId(writer, "tpl-translate"));
+    writer = draw();
+    assert.equal(asked[0].language, "de");
+    assert.ok(asked[0].brief.includes("Hi {{1}}, 20% off this week.") && asked[0].brief.includes("German"), asked[0].brief);
+    assert.equal(byTestId(writer, "tpl-name").props.value, "offer", "REGRESSION-IN-WAITING: a translation filed as a new message");
+    assert.equal(byTestId(writer, "tpl-body").props.value, "Hallo {{1}}, 20 % Rabatt diese Woche.");
+  } finally {
+    globalThis.window.__templates = keep;
+  }
+});
+
+test("a link to write a message in a language -- messages/write:<name>:<language>, from a composer's popover -- opens the writer on it", () => {
+  Object.assign(globalThis.window, {
+    __TEMPLATES_ALL: [templateRow({ id: "t-en", name: "offer", language: "en_US", meta_status: "approved", body_preview: "Hi {{1}}, 20% off this week." })],
+    __TEMPLATE_USE: null, __TEMPLATE_SENT: null, __CHANNELS: [{ kind: "whatsapp" }], __SETTINGS: { config: { brain: { business_name: "Northside Studio" } } },
+  });
+  fresh();
+  const props = { write: { name: "offer", language: "fr" } };
+  globalThis.window.MessagesPage(props);
+  seq = 0;
+  const tree = globalThis.window.MessagesPage(props);
+  assert.ok(byTestId(tree, "messages-composer"), "the link opens the writer");
+  const preset = find(tree, (n) => n.type === globalThis.window.TemplateComposer).props.preset;
+  assert.deepEqual([preset.name, preset.language, preset.from.body], ["offer", "fr", "Hi {{1}}, 20% off this week."], "on the message, in the language, with the words it has");
+});
+
+test("in a composer, a message's language adds a starter's missing language in place, and sends any other to be written on Templates", async () => {
+  const S = globalThis.window.__starters;
+  const s = S.list[0];
+  const enRow = templateRow({ id: `${s.name}:en_US`, name: s.name, language: "en_US", category: s.category, purpose: s.category === "utility" ? "conversational" : "marketing", body_preview: S.text(s, "en_US").body });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [enRow], number: healthyNumber });
+  globalThis.window.__TEMPLATES_ALL = [enRow];
+  const added = [];
+  const keep = globalThis.window.__templates;
+  globalThis.window.__templates = { ...keep, addStarters: async (b) => { added.push(b); return { ok: true, data: { submitted: 1 } }; } };
+  try {
+    const props = { initialSegment: null, initialRun: null };
+    // The popover, open: the composer mounts after the ledger in one stub session, and the stub's hook tape is linear,
+    // so the picker's first cell can hold what the ledger left there. Pressed until it shows, twice at most.
+    const withPop = (t) => { for (let i = 0; i < 2 && !byTestId(t, "bc-template-lang-pop"); i++) { press(find(t, (n) => n.props?.["data-testid"] === "bc-template-lang")); t = again(props); } return t; };
+    let tree = withPop(writing(props));
+    const es = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang-option").find((o) => o.props["data-lang"] === "es");
+    assert.ok(es && textOf(es).includes("Add from the starter set"), "the library has it written");
+    press(es);
+    await settle();
+    tree = again(props);
+    assert.deepEqual(added, [{ keys: [s.key], languages: ["es"] }]);
+    assert.ok(textOf(byTestId(tree, "bc-template-lang-note")).includes("is with WhatsApp"), textOf(byTestId(tree, "bc-template-lang-note")));
+    tree = withPop(tree);
+    press(all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang-write").find((o) => o.props["data-lang"] === "fr"));
+    assert.equal(went.at(-1), `messages/write:${s.name}:fr`, "any other language is written where the words are");
+  } finally {
+    globalThis.window.__templates = keep;
+    globalThis.window.__TEMPLATES_ALL = [];
+  }
+});
+
 test("A message says its state once, and a refusal is a line rather than a hover", () => {
   // The language button switched the language AND carried that language's status
   // as a dot plus words, so the control you press to read the Spanish version was
@@ -924,20 +1039,24 @@ test("A message says its state once, and a refusal is a line rather than a hover
     templateRow({ id: "t-en", name: "offer", language: "en_US", meta_status: "approved" }),
     templateRow({ id: "t-es", name: "offer", language: "es", meta_status: "pending" }),
   ] });
-  // Scoped to the workspace's own message: every starter on the page now has a
-  // slot per language too -- an empty one for a language it is missing -- so the
-  // count across the page is every message's languages, not this message's.
-  const langs = all(byTestId(tree, "custom-row"), (n) => n.props?.["data-testid"] === "template-lang");
-  assert.equal(langs.length, 2);
-  for (const l of langs) assert.ok(!/approved|review/i.test(textOf(l)), `a language slot says a language, not a state: ${textOf(l)}`);
-  // Each slot DRAWS its own language's state, so the row is legible at a glance.
-  assert.deepEqual(langs.map((l) => l.props["data-tone"]), ["ok", "info"]);
+  // One control, for the language in view: it DRAWS that language's state and says
+  // the language -- and "+1" for the other on file -- never the state in words.
+  const control = byTestId(byTestId(tree, "custom-row"), "template-lang");
+  assert.equal(textOf(control).trim(), "EN+1");
+  assert.ok(!/approved|review/i.test(textOf(control)), `a language control says a language, not a state: ${textOf(control)}`);
+  assert.equal(control.props["data-tone"], "ok");
+  // Opened, each language's state is said in words, where there is room for them.
+  press(control);
+  tree = messagesAgain();
+  const langs = all(byTestId(tree, "custom-row"), (n) => n.props?.["data-testid"] === "template-lang-option");
+  assert.deepEqual(langs.map((l) => textOf(find(l, (n) => n.props?.className === "lang-opt-note")).trim()), ["Approved", "In review"]);
   // Words once per MESSAGE, beside the title, for the language that is not simply
   // approved -- whichever language is in view. It was the state of the language in
   // view, so a message half in review read as fine until Spanish was pressed.
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review", "the language that is not approved, in words, beside the title");
   press(langs[1]);
   tree = messagesAgain();
+  assert.equal(byTestId(byTestId(tree, "custom-row"), "template-lang").props["data-tone"], "info", "the control draws the language now in view");
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review", "and the same words with the other language in view");
   // A message whose every language is approved has nothing to say: a green
   // "Approved" on every row is the state said twice, beside the slot that drew it.
