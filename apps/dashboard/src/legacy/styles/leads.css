@@ -180,7 +180,6 @@
 
 .pk-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 20px; }
 /* The verdict (D8): the fit's word and the evidence as a pipeline on one line, and the why under it. */
-.pk-verdict { position: relative; }
 .pk-verdict-head { display: flex; align-items: center; gap: 10px; }
 .pk-fit-word { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
 .pk-fit-word.strong { color: var(--ok-ink); }
@@ -193,23 +192,25 @@
 .pk-seg.unknown { fill: var(--warn); }
 .pk-seg.no { fill: var(--ink-faint); }
 
-/* A hint (D8): the mark is quiet until pointed at; its tip spans the row or card it sits in, so a pane that scrolls
-   never cuts it off at the side. Shown on hover and on focus, so a tap on a touch screen shows it too. */
+/* A hint (D8): the mark is quiet until pointed at, and its tip is the peek's, not the scrolling body's: nothing
+   between them is positioned, so the body cannot cut it off, and pkPlaceTip puts it under its line (or above) as it
+   is asked for. Shown on hover and on focus, so a tap on a touch screen shows it too; never while the body scrolls
+   or once its line has scrolled out of view (.pk-away), because it would float free of what it explains. */
 .pk-hint { display: inline-flex; align-items: center; flex: none; }
 .pk-hint-mark { display: inline-grid; place-items: center; min-width: 22px; min-height: 22px; padding: 3px; border: 0; border-radius: 6px; background: none; color: var(--ink-dim); cursor: help; }
 .pk-hint-mark:hover { background: var(--bg-hover); }
 .pk-hint-tip {
-  position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 30; padding: 8px 10px; border-radius: 8px;
+  position: absolute; left: 0; right: 0; top: 0; z-index: 30; padding: 8px 10px; border-radius: 8px;
   background: var(--ink); color: var(--bg); font-size: var(--text-xs); line-height: 1.5; font-weight: 400; white-space: normal;
   box-shadow: var(--shadow-md); pointer-events: none;
   display: none; opacity: 0;
   transition: opacity var(--duration-fast) var(--ease-out), display var(--duration-fast) allow-discrete;
 }
-.pk-hint:hover > .pk-hint-tip, .pk-hint:focus-within > .pk-hint-tip { display: block; opacity: 1; transition-delay: 150ms; }
-@starting-style { .pk-hint:hover > .pk-hint-tip, .pk-hint:focus-within > .pk-hint-tip { opacity: 0; } }
+.pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip { display: block; opacity: 1; transition-delay: 150ms; }
+@starting-style { .pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip { opacity: 0; } }
 /* The evidence's tip is a raised card: a list someone reads, not a line. */
 .pk-hint-tip.card { background: var(--bg-raised); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-lg); padding: 10px 12px; display: none; }
-.pk-hint:hover > .pk-hint-tip.card, .pk-hint:focus-within > .pk-hint-tip.card { display: flex; flex-direction: column; gap: 6px; }
+.pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip.card { display: flex; flex-direction: column; gap: 6px; }
 .pk-hint-tip.card .pk-group { display: flex; flex-direction: column; gap: 5px; }
 .pk-hint-tip.card .pk-group + .pk-group { padding-top: 6px; border-top: 1px solid var(--line); }
 .pk-hint-tip.card .pk-ck { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; }
@@ -230,7 +231,7 @@
 
 /* A channel is one line (D8): its icon, its value, its mark, what to press. The row is what a hint's tip spans. */
 .pk-reach { display: flex; flex-direction: column; }
-.pk-rr { position: relative; display: flex; align-items: center; gap: 8px; min-height: 40px; border-top: 1px solid var(--line); }
+.pk-rr { display: flex; align-items: center; gap: 8px; min-height: 40px; border-top: 1px solid var(--line); }
 .pk-rr:first-child { border-top: 0; }
 .pk-rr > .icon { flex: none; color: var(--ink-dim); }
 .pk-rr > .sp { flex: 1; }

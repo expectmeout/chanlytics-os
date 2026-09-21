@@ -6,13 +6,13 @@
  * the state is this file's, the way ClientsAReal holds it on the real page. Nothing is mocked that the owner reads:
  * the view model is contracts' own toLeadPeekVM and the words are contracts' LEAD_WORDS.
  */
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate } from "../../../packages/contracts/src/refusal.ts";
 import {
   LEAD_WORDS, LEAD_EMAIL_WORDS, LEAD_LOCKED_LINE, LEAD_DRAFT_NOTE, LEAD_NO_ADDRESS,
   LEAD_NOT_A_FIT_WORDS, LEAD_CONTACT_STANDARD_WORDS,
-  outcomeMove, leadDraftFooter, toLeadPeekVM,
+  leadDraftFooter, toLeadPeekVM,
 } from "../../../packages/contracts/src/leads.ts";
 
 let cells = [];
@@ -700,6 +700,93 @@ test("the peek's band: the mark covers the photo, the photo stands alone without
   const initials = (over) => find(band(over), (n) => n.props?.className === "pk-band-initials");
   assert.ok(initials({ image_url: PHOTO, logo_url: MARK }), "the initials wait under both layers");
   assert.ok(initials({}), "and carry the band alone when there is neither");
+});
+
+
+// A tip must be seen whole. On production (21 Sep, a 720px window) the peek's scrolling body was 200px tall, and a
+// tip placed under its line INSIDE that body was cut at its edge: the evidence card lost 18px, the email's note 41.
+// A tip is the peek's now, placed as it is asked for. The CSS half (nothing positioned between the tip and the peek,
+// the show rule's gates) is verified against the real stylesheet over production; the page's half is pinned here.
+test("a hint's tip is placed against the peek as it is asked for, flips above its line when the room is there, and never shows over a moving body", () => {
+  reset();
+  const tree = page().draw().tree;
+  const place = globalThis.window.pkPlaceTip;
+  const scrolling = globalThis.window.pkScrolling;
+  const hints = all(tree, (n) => n.props?.className === "pk-hint");
+  assert.equal(hints.length, 4, "the evidence bar, the phone's note, the email's note, and why texts are locked");
+  for (const h of hints) {
+    assert.equal(h.props.onMouseEnter, place, "asks where it is as the pointer arrives");
+    assert.equal(h.props.onFocus, place, "and as focus arrives, so a keyboard and a tap get the same placement");
+  }
+  assert.equal(byTestId(tree, "peek-body").props.onScroll, scrolling, "the body says when it is moving");
+
+  // The arithmetic, on elements that answer as a browser's would, with production's numbers: the peek's padding box
+  // runs 52..720 (a 1px border on its left), its body 457..657, and every line spans 891..1252.
+  const tipOf = ({ checks = 0, text = "" }) => ({ style: {}, textContent: text, querySelectorAll: (s) => (s === ".pk-ck" ? { length: checks } : []) });
+  const hintAt = ({ top, bottom }, tip) => {
+    const classes = new Set();
+    const line = { getBoundingClientRect: () => ({ top, bottom, left: 891, right: 1252 }) };
+    const peek = { getBoundingClientRect: () => ({ top: 52, bottom: 720, left: 872, right: 1280 }), clientTop: 0, clientLeft: 1, clientHeight: 668, clientWidth: 407 };
+    const body = { getBoundingClientRect: () => ({ top: 457, bottom: 657 }) };
+    const at = { ".pk-rr, .pk-verdict": line, ".pk": peek, ".pk-body": body };
+    return {
+      closest: (s) => at[s] ?? null,
+      querySelector: (s) => (s === ":scope > .pk-hint-tip" ? tip : null),
+      classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), has: (c) => classes.has(c) },
+    };
+  };
+  const placed = (line, what) => { const tip = tipOf(what); const h = hintAt(line, tip); place({ currentTarget: h }); return { ...tip.style, away: h.classList.has("pk-away") }; };
+
+  // The verdict at the top of the body, four checks: 132px wanted, 174 below. It hangs under its line, as wide as it,
+  // and outside the body -- which is what the body could not cut off.
+  assert.deepEqual(placed({ top: 474, bottom: 546 }, { checks: 4 }), { left: "18px", right: "28px", top: "496px", bottom: "auto", away: false });
+  // The email's note on a line near the foot: three lines of words want 72px and there are 40, so it hangs above.
+  const note = "Unconfirmed. Their server accepts every address, so the check can't tell. This search counts a phone as enough.";
+  assert.deepEqual(placed({ top: 640, bottom: 680 }, { text: note }), { left: "18px", right: "28px", top: "auto", bottom: "82px", away: false });
+  // Seven checks want 204px: 88 below is not room, so the card opens upward from a verdict scrolled low.
+  assert.equal(placed({ top: 560, bottom: 632 }, { checks: 7 }).top, "auto");
+  assert.equal(placed({ top: 560, bottom: 632 }, { checks: 2 }).bottom, "auto", "while two checks fit below");
+  // A line scrolled out of the body's view, above it or under the act bar, keeps its tip hidden.
+  assert.equal(placed({ top: 420, bottom: 450 }, { text: "x" }).away, true);
+  assert.equal(placed({ top: 657, bottom: 697 }, { text: "x" }).away, true);
+  assert.equal(placed({ top: 600, bottom: 640 }, { text: "x" }).away, false);
+  // Anything that cannot be measured is left alone.
+  place({ currentTarget: {} });
+  place({ currentTarget: { closest: () => null, querySelector: () => null, classList: { toggle: () => { throw new Error("no peek, no change"); } } } });
+  place(null);
+
+  // A moving body shows no tip; once it has been still for a moment, a tip still asked for is placed where its line
+  // is now, and one that is not is left alone.
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const attrs = {};
+    const asked = hintAt({ top: 474, bottom: 546 }, tipOf({ checks: 4 }));
+    const idle = hintAt({ top: 600, bottom: 640 }, tipOf({ text: "x" }));
+    asked.matches = (s) => s === ":hover, :focus-within";
+    idle.matches = () => false;
+    let againAsked = 0;
+    const body = {
+      setAttribute: (k, v) => { attrs[k] = v; },
+      removeAttribute: (k) => { delete attrs[k]; },
+      querySelectorAll: (s) => (s === ".pk-hint" ? [asked, idle] : []),
+    };
+    const q = asked.querySelector;
+    asked.querySelector = (s) => { againAsked += 1; return q(s); };
+    scrolling({ currentTarget: body });
+    assert.equal(attrs["data-scrolling"], "1", "moving: the tips hide");
+    mock.timers.tick(100);
+    scrolling({ currentTarget: body });
+    mock.timers.tick(100);
+    assert.equal(attrs["data-scrolling"], "1", "each scroll starts the stillness over");
+    assert.equal(againAsked, 0);
+    mock.timers.tick(100);
+    assert.equal(attrs["data-scrolling"], undefined, "still again: they may show");
+    assert.equal(againAsked, 1, "and the one still asked for is placed again");
+  } finally {
+    mock.timers.reset();
+  }
+  scrolling(null);
+  scrolling({ currentTarget: {} });
 });
 
 

@@ -110,13 +110,65 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
 };
 
 /**
+ * Where a hint's tip hangs: under its line and as wide as it, or above it when the peek has no room below. The tip
+ * belongs to the peek, not to the body it sits in -- the body scrolls, and on a short window it is 200px tall, so a
+ * tip placed inside it was cut off at its edge (the evidence card lost 18px on production, the email's note 41). So it
+ * is placed against the peek as it is asked for. A tip is out of the layout until it shows, so its height is reckoned
+ * from what it holds: a line a check on the card, a line to every 48 characters of a sentence.
+ */
+const pkTipRoom = (tip) => {
+  const checks = tip.querySelectorAll(".pk-ck").length;
+  return checks ? checks * 24 + 36 : Math.ceil((tip.textContent || "").length / 48) * 18 + 18;
+};
+const pkPlace = (hint) => {
+  if (!hint || typeof hint.closest !== "function" || typeof hint.querySelector !== "function" || !hint.classList) return;
+  const tip = hint.querySelector(":scope > .pk-hint-tip");
+  const line = hint.closest(".pk-rr, .pk-verdict");
+  const peek = hint.closest(".pk");
+  const body = hint.closest(".pk-body");
+  if (!tip || !line || !peek || !body) return;
+  const p = peek.getBoundingClientRect();
+  const l = line.getBoundingClientRect();
+  const b = body.getBoundingClientRect();
+  // An absolute box is placed against its containing block's padding box, inside the peek's border.
+  const top = p.top + peek.clientTop;
+  const left = p.left + peek.clientLeft;
+  const bottom = top + peek.clientHeight;
+  const right = left + peek.clientWidth;
+  // A line scrolled out of the body's view says nothing over the band or the act bar.
+  hint.classList.toggle("pk-away", l.bottom <= b.top || l.top >= b.bottom);
+  const up = bottom - l.bottom < pkTipRoom(tip) && l.top - top > bottom - l.bottom;
+  tip.style.left = `${l.left - left}px`;
+  tip.style.right = `${right - l.right}px`;
+  tip.style.top = up ? "auto" : `${l.bottom - top + 2}px`;
+  tip.style.bottom = up ? `${bottom - l.top + 2}px` : "auto";
+};
+const pkPlaceTip = (e) => pkPlace(e && e.currentTarget);
+/**
+ * A body that is moving shows no tip, as the table's scroller shows no hover (clients-a.jsx): a tip is placed
+ * against the peek, so it would stay put while its line scrolled away. Once the body is still, a tip still asked for
+ * is placed again where its line is now.
+ */
+const PK_STILL = new WeakMap();
+const pkScrolling = (e) => {
+  const body = e && e.currentTarget;
+  if (!body || typeof body.setAttribute !== "function") return;
+  body.setAttribute("data-scrolling", "1");
+  clearTimeout(PK_STILL.get(body));
+  PK_STILL.set(body, setTimeout(() => {
+    body.removeAttribute("data-scrolling");
+    for (const h of body.querySelectorAll(".pk-hint")) if (h.matches(":hover, :focus-within")) pkPlace(h);
+  }, 160));
+};
+
+/**
  * A note that was a sentence under its line (D8): now a mark you can point at, focus or tap. The mark is the line's
  * own glyph where it has one -- the reach shapes the table's rows wear -- else a small info mark. Its words are always
  * in the DOM and named by aria-describedby, so a screen reader hears them; a touch shows them on tap, because the
- * mark is a button; and the tip spans its row, so a pane that scrolls never cuts it off at the side.
+ * mark is a button; and the tip is placed as it is asked for (pkPlaceTip), so no pane cuts it off.
  */
 const PkHint = ({ id, label, mark, testid, card = false, children }) => (
-  <span className="pk-hint">
+  <span className="pk-hint" onMouseEnter={pkPlaceTip} onFocus={pkPlaceTip}>
     <button type="button" className="pk-hint-mark" aria-label={label} aria-describedby={id} data-testid={testid} onClick={(e) => e.stopPropagation()}>
       {mark || <Icon name="info" size={12} />}
     </button>
@@ -337,7 +389,7 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
         )}
       </div>
       {mode === "why" ? <LeadNotFitWhy busy={busy} on={on} /> : null}
-      <div className="pk-body">
+      <div className="pk-body" data-testid="peek-body" onScroll={pkScrolling}>
         {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
         {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} deck={deck} /> : null}
         {/* The verdict (D8): the fit's word with the evidence as a pipeline beside it, and one line of why. The checks
@@ -599,4 +651,4 @@ const leadArmOnReturn = (armed, setArmed) => {
 
 // LeadNotFitWhy is published because the bulk bar asks the same five whys for a selection (Task 15): one list,
 // declared here where it is drawn first, never a second copy in leads-scope.jsx.
-Object.assign(window, { LeadPeek, LeadPeekActions, LeadNotFitWhy, LeadLightbox, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn });
+Object.assign(window, { LeadPeek, LeadPeekActions, LeadNotFitWhy, LeadLightbox, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, pkPlaceTip, pkScrolling });
