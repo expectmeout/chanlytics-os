@@ -144,6 +144,14 @@ test("an act says which row it acts on, and a gate's refusal replaces its press"
   assert.deepEqual([pressed.length, refused.length], [0, 1], "the gate is spread after the handler, so its refusal wins");
 });
 
+test("an act the page names itself is called that, and its words and the row's label no longer make its name", () => {
+  const tree = draw(W.RecordRow, { id: "handoff_number", label: "Transfers a caller to", value: "+1 (786) 555-0182", act: { label: "Change", onClick: () => {}, name: "Change the transfer number" } });
+  const act = find(tree, (n) => n.props?.["data-testid"] === "rec-row-act-handoff_number");
+  assert.equal(act.props["aria-label"], "Change the transfer number", "not \"Change Transfers a caller to\"");
+  assert.equal(act.props["aria-labelledby"], undefined, "one name, not two");
+  assert.equal(act.props["data-rec-act"], "handoff_number", "and focus still comes back to it as a fold closes");
+});
+
 /* ------------------------------------ the fields ------------------------------------ */
 
 test("a field carries its label, its unit and its refusal, wired for a screen reader", () => {

@@ -1547,7 +1547,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    around it. */
 
 .bt-head { display: flex; flex-direction: column; gap: 3px; }
-.bt-title { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: -0.02em; color: var(--ink); }
+.bt-title { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); color: var(--ink); }
 .bt-sub { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 /* Said once, under the head, for a role that may not change the business: why no row offers a change. */
 .bt-viewer { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
@@ -1571,10 +1571,13 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .bt-card-foot { margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 .bt-link { display: inline; line-height: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; border-radius: var(--radius-xs); }
 .bt-link:hover { text-decoration-color: currentColor; }
-/* legacy.css gives every button on a touch screen 44px of height, which would break these out of their sentence:
-   they keep the line's box and take a thumb's reach from an ::after, as the kit's words-that-are-buttons do. */
-html.legacy-on .bt-link, html.legacy-on .bt-standing-door { position: relative; min-height: 0; }
-.bt-link::after, .bt-standing-door::after { content: ""; position: absolute; inset: -12px -6px; }
+/* legacy.css gives every button on a touch screen 44px of height, which would break these out of their sentence: they
+   keep the line's box. A link that is one word takes a thumb's reach from an ::after, as the kit's words-that-are-
+   buttons do. The door does not: it is a sentence that wraps, which is reach enough, and an area stretched round every
+   line of it would lie over the clause before it and take a press meant for nothing. */
+html.legacy-on .bt-link, html.legacy-on .bt-standing-door { min-height: 0; }
+html.legacy-on .bt-link { position: relative; }
+.bt-link::after { content: ""; position: absolute; inset: -12px -6px; }
 
 /* A row being edited is the kit's inline editor (record.css); what is this page's inside it: the published number's
    box, hidden while its line is chosen, and the notes that say what each choice costs. */
@@ -1583,5 +1586,4 @@ html.legacy-on .bt-link, html.legacy-on .bt-standing-door { position: relative; 
 .bt-inline-note b { font-weight: var(--weight-medium); color: var(--ink); }
 @media (max-width: 760px) {
   .bt-standing { padding: 14px 15px; }
-}
 }

@@ -12,11 +12,14 @@
 // window.__FACTS), read as the page draws. What a save writes is pages/business-tab-save.jsx's, through
 // window.__businessTabSave: each row's check and patch, and the page's one saver. That file loads before this one.
 //
-// Hooks are cells in one order, in React and in the tests' stub React alike: every component here that holds one is
-// drawn on every render (an inline editor that is closed is `hidden`, as a closed RecordFold is), and what comes and
-// goes (a row at rest, a Confirm, a note) holds none. And no object rest in a pattern anywhere in this file: the
-// standalone mockup compiles every file into one global scope, where Babel's `_excluded` for a rest is shared, and the
-// last file compiled decides what every earlier rest leaves out (record-field.jsx says how that bit).
+// The tests' stub React (tooling/scripts/tests/_legacy-react.mjs) keeps every hook on the page as a cell in one order,
+// so a component holding hooks that is drawn on one render and not the next moves every cell after it. So every
+// component here that holds one is drawn on every render (an inline editor that is closed is `hidden`, as a closed
+// RecordFold is), and what comes and goes (a row at rest, a Confirm, a note) holds none. That is the stub's rule, not
+// React's, which keeps each component's hooks with the component: nothing here needs shaping further for React's sake.
+// And no object rest in a pattern anywhere in this file: the standalone mockup compiles every file into one global
+// scope, where Babel's `_excluded` for a rest is shared, and the last file compiled decides what every earlier rest
+// leaves out (record-field.jsx says how that bit).
 
 const { useState: useBizState, useEffect: useBizEffect, useRef: useBizRef } = React;
 
@@ -67,11 +70,15 @@ const btChangedLines = (before, after) => {
  * its save can change: a rename changes the line the prompt opens with and, where the stored prompt is the product's
  * own, that too. `channel` is the one the row's words are read on; the transfer number is a call's, and changes nothing
  * on WhatsApp. Null is no channel that reads them on this workspace, and the row says nothing it will say.
+ *
+ * `named` is what the row holds, said as a thing, where its label is a phrase: a screen reader hears the act as its
+ * words and the label together, and "Change Tells customers to call" says nothing, where "Change the number customers
+ * are told to call" does. A row whose label is a noun needs none ("Change Website", "Add one Address").
  */
 const BtRow = ({
-  id, section = null, label, brain, value = null, empty = null, hint = null, source = null, disputed = null, wrong = null,
-  initial, storedAs: stores = null, check = btNoCheck, commit, body, channel = "whatsapp",
-  canEdit = true, gate = null, flash = () => {}, saver = null,
+  id, section = null, label, named = null, brain, value = null, empty = null, hint = null, source = null,
+  disputed = null, wrong = null, initial, storedAs: stores = null, check = btNoCheck, commit, body,
+  channel = "whatsapp", canEdit = true, gate = null, flash = () => {}, saver = null,
 }) => {
   // What saving writes is business-tab-save.jsx's, read as the row draws (that file loads before this one).
   const S = window.__businessTabSave;
@@ -195,7 +202,12 @@ const BtRow = ({
           source={source}
           disputed={other}
           wrong={wrong}
-          act={canEdit ? { label: value ? "Change" : "Add one", onClick: () => fold.request(), gate } : null}
+          act={canEdit ? {
+            label: value ? "Change" : "Add one",
+            name: named ? (value ? `Change the ${named}` : `Add one ${named}`) : undefined,
+            onClick: () => fold.request(),
+            gate,
+          } : null}
         />
       )}
       <window.RecordInline
@@ -281,6 +293,10 @@ const BtHead = () => {
  * Three clauses, not a meter (spec §4.1): what it can say, what it will not, and the one gap most worth closing, which
  * is the door to the row that closes it. Every word is contracts' (standingLine): the gap's own sentence is its door.
  * A role that may not change the business reads the gap and gets no door, since the row behind it would not open.
+ *
+ * The door is named by its sentence and then by what it does, which is the act of the row it opens: "It cannot say
+ * where you are. Add one Address", in the row's own words and label (RecordRow's ids), so a screen reader hears where
+ * it goes and not only a statement. A row not on the page yet adds nothing to the name, and the sentence stands alone.
  */
 const BtStanding = ({ brain, door }) => {
   const tab = window.__businessTab;
@@ -297,7 +313,15 @@ const BtStanding = ({ brain, door }) => {
             {vm.wont}
             {vm.wont && gap ? " " : null}
             {gap && door ? (
-              <button type="button" className="bt-standing-door" onClick={() => door(gap.row)} data-testid="rec-standing-door">{gap.sentence}</button>
+              <button
+                type="button"
+                className="bt-standing-door"
+                onClick={() => door(gap.row)}
+                aria-labelledby={`bt-standing-door-words rec-row-${gap.row}-act rec-row-${gap.row}-key`}
+                data-testid="rec-standing-door"
+              >
+                <span id="bt-standing-door-words">{gap.sentence}</span>
+              </button>
             ) : gap ? (
               <span className="bt-standing-gap">{gap.sentence}</span>
             ) : null}
@@ -437,15 +461,21 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
           which is how a salon came to publish the number it transfers to as the number to call. The line it answers
           is provisioned and belongs to Connections, so it is shown here and never offered as a box; the other two are
           the receptionist's behaviour, edited in the row that states them. */}
-      {/* The door is the row's act, named with the row's label ("Connections Answers on"), and its own test id: it
-          opens Connections, never a box, so it is not the row's Change. */}
+      {/* The door is the row's act, with its own test id: it opens Connections, never a box, so it is not the row's
+          Change. Named for where it goes and why, beginning with its own word, since its word and the row's label
+          together ("Connections Answers on") say nothing. */}
       <window.RecordRow
         id="voice_line"
         label="Answers on"
         value={voiceLine ? lineShown : null}
         empty="No phone line yet"
         source={voiceLine ? line.source : null}
-        act={{ label: <>Connections <Icon name="arrow-right" size={10} /></>, onClick: () => window.CHANLY.nav("admin/integrations"), testid: "rec-row-door-voice_line" }}
+        act={{
+          label: <>Connections <Icon name="arrow-right" size={10} /></>,
+          name: "Connections, where the line it answers on is set up",
+          onClick: () => window.CHANLY.nav("admin/integrations"),
+          testid: "rec-row-door-voice_line",
+        }}
       />
 
       {/* What the receptionist tells customers to call.
@@ -458,6 +488,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         {...shared}
         id="phone_display"
         label="Tells customers to call"
+        named="number customers are told to call"
         value={pub.value}
         empty="No number to give out"
         source={chip(pub)}
@@ -519,6 +550,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         {...shared}
         id="handoff_number"
         label="Transfers a caller to"
+        named="transfer number"
         channel={voiceLine ? "voice" : null}
         value={transfer.value ? phoneShown(transfer.value) : null}
         empty="Takes a message instead"

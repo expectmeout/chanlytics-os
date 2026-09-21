@@ -20,10 +20,13 @@
 //   it instead. Without `onUse` the line is there to read and offers nothing: a role that may not settle it, or an
 //   answer that is information rather than a fill, is drawn no dead press. `severity` is "serious" or "minor",
 //   passed straight from contracts' FactConflict.
-// - `act` { label, onClick, gate?, testid? } is the row's one act. `gate` is window.gate(...)'s props, spread AFTER
-//   the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is named
-//   by its words and the row's label together ("Change Website"), and the two carry data-testid rec-row-act-<id>
-//   and rec-row-<id>. The act's data-rec-act is where a fold that closes (record-fold.jsx) gives focus back.
+// - `act` { label, onClick, gate?, testid?, name? } is the row's one act. `gate` is window.gate(...)'s props, spread
+//   AFTER the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is
+//   named by its words and the row's label together ("Change Website"), and the two carry data-testid
+//   rec-row-act-<id> and rec-row-<id>. Where the two make no sense together (a label that is a phrase, "Change Tells
+//   customers to call"; an act that goes somewhere, "Connections Answers on") the page names the act itself, `name`,
+//   a sentence that holds the act's own words so a person who says them still reaches it. The act's data-rec-act is
+//   where a fold that closes (record-fold.jsx) gives focus back.
 // - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips).
 // - Something wrong is on the row at full strength, hover or not: data-state="warn", which record.css draws as the warn
 //   wash with the key in the warn ink and the act always drawn. A serious disagreement is one (facts.ts: "Severity is
@@ -111,7 +114,8 @@ const RecordRow = ({
           type="button"
           className="rec-row-act"
           onClick={act.onClick}
-          aria-labelledby={id ? `${wordsId} ${keyId}` : undefined}
+          aria-label={act.name || undefined}
+          aria-labelledby={id && !act.name ? `${wordsId} ${keyId}` : undefined}
           aria-describedby={wrongId}
           data-rec-act={id || undefined}
           data-testid={act.testid || (id ? `rec-row-act-${id}` : undefined)}

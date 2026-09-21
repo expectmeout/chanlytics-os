@@ -219,12 +219,13 @@ test("the line it answers is shown, never offered as a box", () => {
   const door = find(row, (n) => typeof n.props?.onClick === "function");
   assert.ok(door, "one link to Connections");
   // Beyond the plan: the number as Setup writes it, where it came from, where the door goes, and what a screen reader
-  // hears it called: its words with the row's label, as every row's act is named.
+  // hears it called: where it goes and why, beginning with the word on it, since that word and the row's label
+  // together ("Connections Answers on") say nothing.
   assert.match(textOf(row), /\+1 \(308\) 336-8109/);
   assert.match(textOf(row), /your line/);
   assert.equal(door.props["data-testid"], "rec-row-door-voice_line");
-  const named = door.props["aria-labelledby"].split(" ").map((id) => textOf(find(row, (n) => n.props?.id === id))).join(" ");
-  assert.equal(named.replace(/\s+/g, " ").trim(), "Connections Answers on");
+  assert.equal(door.props["aria-label"], "Connections, where the line it answers on is set up");
+  assert.ok(door.props["aria-label"].startsWith(textOf(find(door, (n) => classes(n).includes("rec-row-act-words"))).trim()), "a person who says the word on it reaches it");
   went.length = 0;
   press(door);
   assert.deepEqual(went, ["admin/integrations"]);
@@ -310,6 +311,22 @@ test("an empty website says what empty means, and claims no page it cannot back"
   assert.match(textOf(row), /Optional\. Left empty, the receptionist is given no website\./);
   assert.doesNotMatch(textOf(row), /\/b\/|no website to give/);
   assert.equal(textOf(byTestId(tree, "rec-row-act-website")), "Add one");
+});
+
+test("each act is named for what it acts on: its words and its row's label, or what the row holds where the label is a phrase", () => {
+  const heard = (tree, row) => {
+    const act = byTestId(tree, `rec-row-act-${row}`);
+    return act.props["aria-label"] || act.props["aria-labelledby"].split(" ").map((id) => textOf(find(tree, (n) => n.props?.id === id))).join(" ");
+  };
+  let tree = drawTab();
+  assert.deepEqual(["name", "address", "booking_link", "phone_display", "handoff_number"].map((row) => heard(tree, row)), [
+    "Change Name", "Change Address", "Change Booking link",
+    // Not "Change Tells customers to call" and "Change Transfers a caller to", which say nothing.
+    "Change the number customers are told to call", "Change the transfer number",
+  ]);
+  // Empty, the act's own words are "Add one", and the name keeps them.
+  tree = drawTab({ profile: without(without(melany, "website"), "handoff_number"), facts: { website: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } } });
+  assert.deepEqual([heard(tree, "website"), heard(tree, "handoff_number")], ["Add one Website", "Add one transfer number"]);
 });
 
 test("a workspace with no receptionist is PaneWorkspace's to draw: the page draws nothing, and nothing throws", () => {
@@ -1025,6 +1042,9 @@ test("the standing line's door opens the row it names, and that row asks before 
   assert.equal(gap.row, "address");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   assert.equal(textOf(door), gap.sentence, "the gap's own words are its door");
+  // And a screen reader hears where it goes, not only a statement: the sentence, then the act of the row it opens.
+  const heard = (b) => b.props["aria-labelledby"].split(" ").map((id) => find(tree, (n) => n.props?.id === id)).filter(Boolean).map(textOf).join(" ");
+  assert.equal(heard(door), `${gap.sentence} Add one Address`);
   press(door);
   tree = redrawTab();
   assert.deepEqual(openRows(tree), ["address"]);
@@ -1042,8 +1062,11 @@ test("the standing line's door opens the row it names, and that row asks before 
   assert.ok(byTestId(tree, "rec-inline-address-ask-confirm"), "it asks first, beside them");
   assert.equal(boxOf(tree, "address").props.value, "2581 Pitkin Ave, Brooklyn, NY 11208");
 
-  // A row this page does not draw yet is asked for by its id, for the fold that draws it to open.
+  // A row this page does not draw yet is asked for by its id, for the fold that draws it to open, and its door is named
+  // by its sentence alone.
   tree = drawTab({ profile: { ...melany, tone: undefined } });
-  press(byTestId(byTestId(tree, "rec-standing"), "rec-standing-door"));
+  const toTone = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
+  assert.equal(heard(toTone), standingLine(W.__SETTINGS.config.brain).missing.sentence);
+  press(toTone);
   assert.equal(W.__recordFolds.open(), "tone");
 });
