@@ -19,6 +19,11 @@ const tplAgo = (iso) => {
   if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
   return `${Math.round(diff / 86400000)}d ago`;
 };
+// "English", "English and Spanish", "English, Spanish and Portuguese" -- the
+// languages a workspace answers in, said the way a person says a list. The line
+// under the messages named English and Spanish in the markup, so a workspace
+// that answers in neither read a sentence about two languages it does not have.
+const tplAnd = (words) => (words.length < 2 ? words[0] || "" : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
 // Words for people: a starter's title, the workspace's own, or the name with its underscores made spaces.
 const tplTitle = (t) => (window.__starters ? window.__starters.title(t) : (t && t.name) || "");
 // Meta's own sample lives in every account and is nobody's message: never shown, whatever the sync keeps.
@@ -211,6 +216,10 @@ const MessagesReal = () => {
   const hiddenGroups = groupsOf(hiddenRows, () => "hidden from the composers");
   const missing = langs.map((l) => ({ lang: l, n: starters.filter((g) => !g.rows.find((r) => r.lang.id === l.id).row).length }));
   const missingTotal = missing.reduce((a, m) => a + m.n, 0);
+  // A workspace with none of the set is starting, not broken: it is offered the
+  // set, while one part-way through is told what the hole costs.
+  const allMissing = missingTotal > 0 && missingTotal === starters.length * langs.length;
+  const addingAll = doing === `add:all:${langs.map((l) => l.id).join(",")}`;
   const shown = list.filter((t) => !t.hidden_at);
   const approved = shown.filter((t) => t.meta_status === "approved").length;
   const pending = shown.filter((t) => t.meta_status === "pending").length;
@@ -252,16 +261,6 @@ const MessagesReal = () => {
             <span className="tabular">{approved} approved{pending ? `, ${pending} in review with WhatsApp` : ""}</span>
           </span>
         )}
-        {missingTotal > 0 && (
-          <span className="cm-standing-part">
-            <span className="cm-standing-dot" aria-hidden="true">·</span>
-            <span className="tabular">{missingTotal} of the starter set not added</span>
-          </span>
-        )}
-        <span className="cm-standing-part">
-          <span className="cm-standing-dot" aria-hidden="true">·</span>
-          <span>{lastSync ? `synced ${tplAgo(lastSync)}` : "never synced from WhatsApp"}</span>
-        </span>
       </div>
 
       <div className="cl-controls">
@@ -269,10 +268,25 @@ const MessagesReal = () => {
           {/* The page's own acts stay where they are for every role and say who may
               (window.gate); a message's rename, hide and delete stay with those who may. */}
           {!canAct && hasWhatsApp && <span className="bc-excl-hint" data-testid="messages-role">{window.gateTitle("approve", "rename, hide or delete a template")}</span>}
-          {hasWhatsApp && missing.filter((m) => m.n > 0).map((m) => (
-            <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all" {...window.gate("approve", "add a starter template")}>{doing === `add:all:${m.lang.id}` ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
-          ))}
-          {hasWhatsApp && <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates" {...window.gate("approve", "sync from WhatsApp")}>{doing === "sync" ? "Syncing…" : "Sync from WhatsApp"}</button>}
+          {/* Being in step with WhatsApp is a STATE the page is in, not a chore the
+              owner remembers. It was a button beside two others, permanently loud,
+              whose answer was a toast of counts. The state says when it last looked
+              and presses to look again; while it looks, it is the only control that
+              says it is working (C20 holds that for every control here). */}
+          {hasWhatsApp && (
+            <button
+              className={`tpl-fresh${doing === "sync" ? " is-busy" : ""}`}
+              onClick={sync}
+              disabled={busy}
+              data-testid="sync-templates"
+              aria-label="Check WhatsApp for changes"
+              {...window.gate("approve", "sync from WhatsApp")}
+            >
+              <span className={`tpl-fresh-dot${lastSync ? "" : " never"}`} aria-hidden="true" />
+              {doing === "sync" ? "Checking WhatsApp…" : lastSync ? `In step with WhatsApp · ${tplAgo(lastSync)}` : "Never checked with WhatsApp"}
+              <Icon name="refresh" size={11} />
+            </button>
+          )}
           {hasWhatsApp && <button className="btn btn-primary btn-sm" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a template")}><Icon name="plus" size={12} /> New template</button>}
         </div>
       </div>
@@ -294,9 +308,36 @@ const MessagesReal = () => {
           </section>
         )}
         <section data-testid="templates">
+          {/* The gap, where the gap is, in one sentence.
+              It was two buttons in the toolbar doing arithmetic -- "Add the 3 in
+              English", "Add the 7 in Spanish" -- whose labels were a remainder that
+              changed each time they were pressed, and whose asymmetry read as
+              breakage when it only meant English was added first. Meta's model is
+              one template per name PER LANGUAGE; that is the product's problem, not
+              the owner's. The set is the set: one line, one press, and the
+              consequence rather than the count. */}
           {hasWhatsApp && S && (
             <div className="msg-intro" data-testid="starters">
-              <span className="rp2-foot">The starter set: {S.list.length} templates for the moments Chanlytics acts on, in English and Spanish — WhatsApp reviews each, usually within minutes.</span>
+              {missingTotal === 0
+                ? <span className="rp2-foot">The starter set is here in {tplAnd(langs.map((l) => l.label))} — {S.list.length} messages for the moments Chanlytics acts on.</span>
+                : (
+                  <>
+                    <span className="rp2-foot">
+                      {allMissing
+                        ? <>The starter set is {S.list.length} messages for the moments Chanlytics acts on, in {tplAnd(langs.map((l) => l.label))}. WhatsApp reviews each, usually within minutes.</>
+                        : <>{missingTotal} of the starter set {missingTotal === 1 ? "is" : "are"} missing: {tplAnd(missing.filter((m) => m.n > 0).map((m) => `${m.n} in ${m.lang.label}`))}. A message that exists in one language reaches only the customers who read it.</>}
+                    </span>
+                    <button
+                      className="btn btn-sm"
+                      disabled={busy}
+                      onClick={() => addStarters(null, langs.map((l) => l.id))}
+                      data-testid="starter-add-all"
+                      {...window.gate("approve", "add a starter template")}
+                    >
+                      {addingAll ? "Adding…" : allMissing ? "Add the starter set" : `Add the missing ${missingTotal}`}
+                    </button>
+                  </>
+                )}
             </div>
           )}
           <div className="msg-grid">

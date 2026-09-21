@@ -365,9 +365,12 @@ test("REGRESSION (C20): on Messages only the pressed control says it is working,
   let tree = messages();
   press(byTestId(tree, "sync-templates"));
   tree = messagesAgain();
-  assert.equal(textOf(byTestId(tree, "sync-templates")).trim(), "Syncing…");
+  // The control is the freshness state now -- a dot, when it last looked, and a
+  // press to look again -- so its working words are its own: it still says it is
+  // working, and it is still the only one that does.
+  assert.match(textOf(byTestId(tree, "sync-templates")), /Checking WhatsApp/, "the pressed control says it is working");
   const addAll = all(tree, (n) => n.props?.["data-testid"] === "starter-add-all");
-  assert.ok(addAll.length > 0, "the fixture has starters to add");
+  assert.equal(addAll.length, 1, "one press adds what the starter set is missing, in every language at once");
   for (const b of addAll) {
     assert.ok(!textOf(b).includes("Adding"), `REGRESSION: ${textOf(b)} while a sync ran`);
     assert.equal(b.props.disabled, true, "and it waits for the sync");
@@ -376,7 +379,7 @@ test("REGRESSION (C20): on Messages only the pressed control says it is working,
   finish();
   await settle();
   tree = messagesAgain();
-  assert.equal(textOf(byTestId(tree, "sync-templates")).trim(), "Sync from WhatsApp");
+  assert.match(textOf(byTestId(tree, "sync-templates")), /In step with WhatsApp|Never checked with WhatsApp/, "and afterwards it says when it last looked, not what to press");
 });
 
 test("REGRESSION (C22): a message shows the quality WhatsApp rated it -- the rating was synced and never drawn", () => {
