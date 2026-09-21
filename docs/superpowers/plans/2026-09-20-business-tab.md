@@ -2356,7 +2356,7 @@ EOF
 - [ ] **Step 1: Write the failing test**
 
 ```js
-import { promptBlocks, composeSystemPrompt } from "@chanlytics/contracts";
+import { promptBlocks } from "@chanlytics/contracts";
 
 const drawPrompt = (channel = "whatsapp") => {
   const tree = drawTab({ profile: melany });
@@ -2366,11 +2366,8 @@ const drawPrompt = (channel = "whatsapp") => {
 
 test("the contents lists one entry per block, with what each costs", () => {
   const tree = drawPrompt();
-  const blocks = promptBlocks(
-    composeSystemPrompt(W.__SETTINGS.config.brain, melany, "whatsapp", "America/New_York"),
-    "whatsapp",
-    { profile: melany },
-  );
+  // The resolved prompt the sheet cuts, cut the way it cuts it: with the stored brain, so a carried prompt is found.
+  const blocks = promptBlocks(W.__SETTINGS.prompt.whatsapp, "whatsapp", W.__SETTINGS.config.brain);
   const entries = all(byTestId(tree, "rec-prompt-contents"), (n) => classes(n).includes("rec-prompt-entry"));
   assert.equal(entries.length, blocks.length);
   for (const b of blocks) {
