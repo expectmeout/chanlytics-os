@@ -808,6 +808,49 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
 const searchBox = (tree) => find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
 /** The tab refreshed, or the owner went to the Inbox and came back: the page's state is gone, the tab's storage is not. */
 const comeBack = (props) => { cells = []; for (const k of Object.keys(listeners)) delete listeners[k]; draw(props); return draw(props); };
+/**
+ * The page with a pane a browser could have given it. The pane's ref is found on a first draw and put in place before
+ * the next first draw: React sets a ref before it runs an effect, and the stub runs an effect as it draws. The pane
+ * keeps its scroll listeners with the phase each went up in (a removal takes down only one in that same phase) and its
+ * attributes, and holds the table's own box. scrolls(box) is a scroll as a browser delivers it: it does not bubble, so
+ * a box inside the pane reaches only the pane's capture listeners, and the pane's own scroll reaches them all. A test
+ * never picks one of the pane's listeners itself: the page has more than one, and which is first is not a fact about
+ * the page. mount(props, drawing) tells `drawing` which of its two draws is running (1, 2), and 0 once both are over.
+ */
+const paned = (table) => {
+  fresh();
+  const paneRef = find(draw(), (n) => String(n.props?.className || "").split(/\s+/).includes("cl-main-scroll")).props.ref;
+  const at = cells.indexOf(paneRef);
+  assert.ok(at >= 0, "the pane's ref is one of the page's cells");
+  const heard = [];
+  const attrs = {};
+  const capture = (opts) => opts === true || !!(opts && opts.capture);
+  const pane = {
+    scrollTop: 0, scrollHeight: 600, clientHeight: 600,
+    addEventListener: (type, fn, opts) => { if (type === "scroll") heard.push({ fn, capture: capture(opts) }); },
+    removeEventListener: (type, fn, opts) => {
+      const i = heard.findIndex((h) => type === "scroll" && h.fn === fn && h.capture === capture(opts));
+      if (i >= 0) heard.splice(i, 1);
+    },
+    setAttribute: (k, v) => { attrs[k] = String(v); },
+    removeAttribute: (k) => { delete attrs[k]; },
+    querySelector: (sel) => (sel === ".pl-table-scroll" ? table : null),
+  };
+  const mount = (props, drawing = () => {}) => {
+    cells = [];
+    cells[at] = { current: pane };
+    for (const k of Object.keys(listeners)) delete listeners[k];
+    heard.length = 0;
+    drawing(1);
+    draw(props);
+    drawing(2);
+    const tree = draw(props);
+    drawing(0);
+    return tree;
+  };
+  const scrolls = (target) => { for (const h of [...heard]) if (h.capture || target === pane) h.fn({ target }); };
+  return { pane, heard, attrs, mount, scrolls };
+};
 
 test("the search box's words, the row the cursor was on and the map come back with the view: after a refresh, and after leaving and coming back", () => {
   fresh();
@@ -832,20 +875,16 @@ test("the search box's words, the row the cursor was on and the map come back wi
 });
 
 test("REGRESSION: the list is put back only once the rows on screen are the ones the view's own words leave -- put back a draw sooner, over every row, the browser re-anchored it as the words shrank the list (500 became 122 on production)", async () => {
-  fresh();
-  const paneRef = find(draw(), (n) => String(n.props?.className || "").split(/\s+/).includes("cl-main-scroll")).props.ref;
-  const at = cells.indexOf(paneRef);
-  const heard = [];
   let drawing = 0;
   const putBack = [];
   const table = { scrollHeight: 6000, clientHeight: 600, top: 0, get scrollTop() { return this.top; }, set scrollTop(v) { this.top = v; putBack.push({ to: v, duringDraw: drawing }); } };
-  const pane = { scrollTop: 0, scrollHeight: 600, clientHeight: 600, addEventListener: (type, fn, opts) => { if (type === "scroll" && opts && opts.capture) heard.push(fn); }, removeEventListener() {}, setAttribute() {}, removeAttribute() {}, querySelector: (sel) => (sel === ".pl-table-scroll" ? table : null) };
-  const mount = () => { cells = []; cells[at] = { current: pane }; for (const k of Object.keys(listeners)) delete listeners[k]; heard.length = 0; putBack.length = 0; drawing = 1; draw(); drawing = 2; const tree = draw(); drawing = 0; return tree; };
+  const { mount: mountPane, scrolls } = paned(table);
+  const mount = () => { putBack.length = 0; return mountPane(undefined, (n) => { drawing = n; }); };
   let tree = mount();
   searchBox(tree).props.onChange({ target: { value: "strength" } });
   draw();
   table.top = 500;
-  heard[0]({ target: table });
+  scrolls(table);
   await new Promise((r) => setTimeout(r, 260));
   tree = mount();
   assert.equal(searchBox(tree).props.value, "strength");
@@ -854,7 +893,7 @@ test("REGRESSION: the list is put back only once the rows on screen are the ones
   searchBox(tree).props.onChange({ target: { value: "" } });
   draw();
   table.top = 300;
-  heard[0]({ target: table });
+  scrolls(table);
   await new Promise((r) => setTimeout(r, 260));
   mount();
   assert.deepEqual(putBack, [{ to: 300, duringDraw: 1 }]);
@@ -908,37 +947,6 @@ test("a view starts clean of the view before it: its fit filter and its open map
   assert.equal(byTestId(tree, "lead-map"), null, "the list picked next draws its table");
   assert.equal(searchBox(tree).props.value, "");
 });
-
-/**
- * The page with a pane a browser could have given it. The pane's ref is found on a first draw and put in place before
- * the next first draw: React sets a ref before it runs an effect, and the stub runs an effect as it draws. The pane
- * keeps its scroll listeners with the phase each went up in (a removal takes down only one in that same phase) and its
- * attributes, and holds the table's own box. scrolls(box) is a scroll as a browser delivers it: it does not bubble, so
- * a box inside the pane reaches only the pane's capture listeners, and the pane's own scroll reaches them all.
- */
-const paned = (table) => {
-  fresh();
-  const paneRef = find(draw(), (n) => String(n.props?.className || "").split(/\s+/).includes("cl-main-scroll")).props.ref;
-  const at = cells.indexOf(paneRef);
-  assert.ok(at >= 0, "the pane's ref is one of the page's cells");
-  const heard = [];
-  const attrs = {};
-  const capture = (opts) => opts === true || !!(opts && opts.capture);
-  const pane = {
-    scrollTop: 0, scrollHeight: 600, clientHeight: 600,
-    addEventListener: (type, fn, opts) => { if (type === "scroll") heard.push({ fn, capture: capture(opts) }); },
-    removeEventListener: (type, fn, opts) => {
-      const i = heard.findIndex((h) => type === "scroll" && h.fn === fn && h.capture === capture(opts));
-      if (i >= 0) heard.splice(i, 1);
-    },
-    setAttribute: (k, v) => { attrs[k] = String(v); },
-    removeAttribute: (k) => { delete attrs[k]; },
-    querySelector: (sel) => (sel === ".pl-table-scroll" ? table : null),
-  };
-  const mount = (props) => { cells = []; cells[at] = { current: pane }; for (const k of Object.keys(listeners)) delete listeners[k]; heard.length = 0; draw(props); return draw(props); };
-  const scrolls = (target) => { for (const h of [...heard]) if (h.capture || target === pane) h.fn({ target }); };
-  return { pane, heard, attrs, mount, scrolls };
-};
 
 test("the list is scrolled back to where it was once the view's rows are the ones on screen -- never over the rows of the view before", async () => {
   // A desktop: the rows overflow the table's own box inside the pane, and that is the box that scrolls.
