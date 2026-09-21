@@ -570,11 +570,15 @@ a.btn { text-decoration: none; }
 }
 .pill .dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
 
-.pill-ok    { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
-.pill-warn  { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
-.pill-danger{ color: var(--danger); background: var(--danger-soft); border-color: transparent; }
-.pill-info  { color: var(--info); background: var(--info-soft); border-color: transparent; }
-.pill-accent{ color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+/* A pill's words are small text on a tint, which is exactly what the -ink tokens are for (tokens.css: "the colour
+   as small text on the page ... 4.5:1 or more, on a tint too"). The raw tones read 2.1:1 (warn), 3.0:1 (ok) and
+   3.4:1 (info) on their own soft ground in light, and info 4.1:1 in dark. #610 found this on Settings and fixed it
+   there alone, so every other page kept a pill whose words fail AA. The ground stays the tone; the words take its ink. */
+.pill-ok    { color: var(--ok-ink); background: var(--ok-soft); border-color: transparent; }
+.pill-warn  { color: var(--warn-ink); background: var(--warn-soft); border-color: transparent; }
+.pill-danger{ color: var(--danger-ink); background: var(--danger-soft); border-color: transparent; }
+.pill-info  { color: var(--info-ink); background: var(--info-soft); border-color: transparent; }
+.pill-accent{ color: var(--accent-ink); background: var(--accent-soft); border-color: transparent; }
 
 /* ---------- Live indicator (the signature accent moment) ---------- */
 .live-dot {

@@ -163,7 +163,8 @@ const LeadRatedCard = ({ l }) => {
 
 // The identity cell (D5): the tile, the name (which peeks) with its card, the tags the row's state and its fit
 // wear, and one quiet line about where -- or, for a row that waits, what would resolve it; for a left-out row,
-// what left it out.
+// what left it out. The two tags are the app's one StatePill, on the registry's tones (tone.ts): they were a
+// hand-styled pair of their own, and a Contacted tag drew grey while its dot, its pin and the registry said info.
 const ldBusinessCell = (l, x) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
@@ -172,8 +173,8 @@ const ldBusinessCell = (l, x) => (
         <div className="cl-row-fullname">
           <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} aria-describedby={`${l.id}-card`} data-testid="lead-name">{l.name}</button>
           {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} listings</span>}
-          {x.mixedFits && l.fit ? <span className={`ld-fit-tag ${l.fit}`} data-testid="lead-fit-tag">{l.fitLabel}</span> : null}
-          {l.stateTag ? <span className={`ld-state-tag ${l.state}`} data-testid="lead-state-tag">{l.stateTag}</span> : null}
+          {x.mixedFits && l.fit ? <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" /> : null}
+          {l.stateTag ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
         </div>
         <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">{l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub)}</div>
         <LeadNameCard l={l} x={x} />
@@ -212,7 +213,7 @@ const LEAD_COLUMNS = [
   ) },
   { key: "fit", label: "Fit", sortable: true, on: false, cell: (l) => <td key="fit" className={`shrink ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">{l.fitLabel}</td> },
   { key: "why", label: "Why it fits", sortable: false, on: false, cell: (l) => <td key="why" className="dim ld-why-cell" title={l.why}>{l.why}</td> },
-  { key: "stage", label: "Stage", sortable: true, on: false, cell: (l) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <><span className={`ld-dot ${l.stage}`} aria-hidden="true" />{l.stageLabel}</>}</td> },
+  { key: "stage", label: "Stage", sortable: true, on: false, cell: (l) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <StatePill kind="lead_stage" value={l.stage} label={l.stageLabel} />}</td> },
   { key: "distance", label: "Distance", sortable: true, needs: (x) => x.hasCenter, on: false, cell: (l) => <td key="distance" className="shrink dim ld-distance-cell">{l.distance}</td> },
   { key: "source", label: "Source", sortable: false, on: false, cell: (l) => <td key="source" className="shrink dim ld-source-cell">{l.source}</td> },
   { key: "website", label: "Website", sortable: false, on: false, cell: (l) => <td key="website" className="shrink dim ld-website-cell">{l.host}</td> },
