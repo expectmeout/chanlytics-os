@@ -2494,10 +2494,16 @@ function isBaselinePrompt(text) {
   return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 function instructionsDraft(brain) {
-  const own = brain?.profile?.extra_instructions ?? "";
-  if (own.trim()) return { text: own, carried: false };
-  const prompt = brain?.system_prompt ?? "";
-  return prompt.trim() && !isBaselinePrompt(prompt) ? { text: prompt, carried: true } : { text: "", carried: false };
+  const words2 = whoseWords(brain);
+  switch (words2.kind) {
+    case "own":
+      return { text: words2.text, carried: false };
+    case "carried":
+    case "prompt":
+      return { text: words2.text, carried: true };
+    default:
+      return { text: "", carried: false };
+  }
 }
 var NotificationsConfigSchema = z3.object({
   escalation_emails: z3.array(z3.string().email()).min(1).max(10),
@@ -2926,6 +2932,13 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
 function ownWordsOf(brain) {
   const own = brain?.profile?.extra_instructions;
   return own?.trim() ? own : brain?.system_prompt ?? null;
+}
+function whoseWords(brain) {
+  const text = ownWordsOf(brain);
+  if (!text?.trim()) return { kind: "none", text: null };
+  if (isBaselinePrompt(text)) return { kind: "baseline", text };
+  if (brain?.profile?.extra_instructions?.trim()) return { kind: "own", text };
+  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
 }
 var FALLBACK_DETAILS = ["business", "booking link", "phone"];
 var FALLBACK_DEFAULTS = {
@@ -10814,8 +10827,15 @@ var CARRIED = {
   startsWith: "",
   note: "The prompt this workspace had before it had fields. It is read until you write your own."
 };
+var PROMPT = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  note: "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet."
+};
 var BASELINE = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
 var AUTONOMY = { row: "autonomy", label: "Autonomy's rules", startsWith: "", note: "Set on the Autonomy tab, not on this page." };
+var MARK_OF = { own: OWN_WORDS, carried: CARRIED, prompt: PROMPT, baseline: BASELINE };
 function ownWordsSpan(lines, ownWords) {
   const want = (ownWords ?? "").trim().split("\n");
   if (!want[0]) return null;
@@ -10831,8 +10851,8 @@ function promptBlocks(text, channel, from) {
     throw new TypeError("promptBlocks needs what the prompt was composed from: the stored brain, { profile } for a draft, or null.");
   }
   const lines = text.split("\n");
-  const words2 = ownWordsOf(from);
-  const own = ownWordsSpan(lines, words2);
+  const whose = whoseWords(from);
+  const own = ownWordsSpan(lines, whose.text);
   const insideOwn = (n) => !!own && n >= own.from && n < own.to;
   const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
   const found = [];
@@ -10844,17 +10864,15 @@ function promptBlocks(text, channel, from) {
     seen.add(mark.startsWith);
     found.push({ at: n, mark });
   });
-  const carried = !from?.profile?.extra_instructions?.trim() && !!from?.system_prompt?.trim();
-  const theirs = (body) => isBaselinePrompt(body.trim()) ? BASELINE : carried ? CARRIED : OWN_WORDS;
   let starts;
   let head;
   if (found.some((s) => s.mark.row === "platform")) {
-    starts = own ? [...found, { at: own.from, mark: theirs(words2 ?? "") }] : found;
+    starts = own && whose.kind !== "none" ? [...found, { at: own.from, mark: MARK_OF[whose.kind] }] : found;
     head = IDENTITY;
   } else {
     const rules = found.find((s) => s.mark.row === "guardrails");
     starts = rules ? [{ at: rules.at, mark: AUTONOMY }] : [];
-    head = theirs(lines.slice(0, rules?.at ?? lines.length).join("\n"));
+    head = whose.kind === "none" ? PROMPT : MARK_OF[whose.kind];
   }
   starts.sort((a, b) => a.at - b.at);
   const segments = [];
@@ -13577,6 +13595,7 @@ export {
   weekOf,
   whenLabel,
   whisperText,
+  whoseWords,
   whyCannotSpend,
   whyNotAFromName,
   whyNotAHandoff,

@@ -11,6 +11,10 @@ import {
   ownWordsOf,
   newReceptionistDefaults,
   PROMPT_OPENINGS,
+  whoseWords,
+  instructionsDraft,
+  hasProfile,
+  policyRules,
 } from "@chanlytics/contracts";
 
 const brain = { business_name: "Melany's Beauty Salon", phone_display: "+1 (308) 336-8109", booking_link: "https://booksy.com/x" };
@@ -32,6 +36,10 @@ const OLD =
   "You are the WhatsApp assistant for Melany's Beauty Salon.\n\nServices:\n- Lashes, brows, nails.\n\nOpening hours: 9 to 6, closed Sundays.\n\nAlways end with [[HUMAN]] if unsure.";
 /** The Autonomy tab's Booking and FAQ rows, both under "ask", so they compose into the prompt as rules. */
 const ASK = { booking: { mode: "ask" }, faq: { mode: "ask" } };
+const NOW = new Date("2026-09-21T15:00:00Z");
+/** The product's own opening lines, as a new workspace is given them, and as one named earlier would still have them. */
+const BASELINE = newReceptionistDefaults("Melany's Beauty Salon").system_prompt;
+const BASELINE_EARLIER_NAME = newReceptionistDefaults("Melany's Salon").system_prompt;
 
 /* ---- Whose words: the resolver's rule, stated once ---- */
 
@@ -49,6 +57,149 @@ test("the owner's words are what they wrote, or the prompt the resolver carries 
     const b = { ...stored, profile: p };
     for (const channel of ["whatsapp", "voice"]) assert.ok(resolveSystemPrompt(b, channel, tz).includes(ownWordsOf(b).trim()), channel);
   }
+});
+
+test("whose words these are is decided once, wherever they are stored", () => {
+  const stored = (p, system_prompt = OLD) => ({ ...brain, system_prompt, ...(p === undefined ? {} : { profile: p }) });
+  const hours = profile.hours;
+  const cases = [
+    ["the owner's own, over a prompt", stored({ hours, extra_instructions: own }), "own", own],
+    ["the owner's own, with no prompt behind them", stored({ extra_instructions: own }, ""), "own", own],
+    ["the owner's own, over the baseline", stored({ hours, extra_instructions: own }, BASELINE), "own", own],
+    ["a blank box: the prompt is carried in", stored({ hours, extra_instructions: "  " }), "carried", OLD],
+    ["fields and no box: the prompt is carried in", stored({ hours }), "carried", OLD],
+    ["no profile: the workspace's prompt, as it stands", stored(undefined), "prompt", OLD],
+    // No profile to the resolver, which hands the prompt back as it stands (hasProfile).
+    ["a profile with nothing the resolver composes from", stored({}), "prompt", OLD],
+    ["a profile holding only closures, which expire", stored({ closures: [{ date: "2026-12-24" }] }), "prompt", OLD],
+    ["the baseline as the prompt, with fields", stored({ hours }, BASELINE), "baseline", BASELINE],
+    ["the baseline as the prompt, with none", stored(undefined, BASELINE), "baseline", BASELINE],
+    ["the baseline under the name the business had", stored(undefined, BASELINE_EARLIER_NAME), "baseline", BASELINE_EARLIER_NAME],
+    ["the baseline in the owner's own field, where saves before S4 put it", stored({ hours, extra_instructions: BASELINE }), "baseline", BASELINE],
+    ["nothing written and nothing to carry", stored({ hours, extra_instructions: "" }, ""), "none", null],
+    ["a prompt of spaces", stored({ hours }, "   "), "none", null],
+    ["no brain", null, "none", null],
+  ];
+  for (const [what, b, kind, text] of cases) assert.deepEqual(whoseWords(b), { kind, text }, what);
+  // The words are ownWordsOf's, the resolver's own rule, whoever's they are.
+  for (const [what, b, kind] of cases) if (kind !== "none") assert.equal(whoseWords(b).text, ownWordsOf(b), what);
+});
+
+test("the instructions box opens as it always did, except on the baseline stored as the owner's own", () => {
+  // instructionsDraft, re-expressed through whoseWords. Each row: what the box opened with
+  // before, and what it opens with now. They differ only where the owner's own field holds
+  // the product's baseline: it opened there as the owner's text, which no owner wrote.
+  const EMPTY = { text: "", carried: false };
+  const hours = profile.hours;
+  const rows = [
+    ["no brain", null, EMPTY, EMPTY],
+    ["a brain with nothing in it", {}, EMPTY, EMPTY],
+    ["the owner's own words", { ...brain, system_prompt: OLD, profile: { hours, extra_instructions: own } }, { text: own, carried: false }, { text: own, carried: false }],
+    ["the owner's own words, with the spaces they were stored with", { ...brain, system_prompt: OLD, profile: { extra_instructions: "  Mine.\n" } }, { text: "  Mine.\n", carried: false }, { text: "  Mine.\n", carried: false }],
+    ["the owner's own words, over the baseline", { ...brain, system_prompt: BASELINE, profile: { hours, extra_instructions: own } }, { text: own, carried: false }, { text: own, carried: false }],
+    ["a blank box over the old prompt", { ...brain, system_prompt: OLD, profile: { hours, extra_instructions: "   " } }, { text: OLD, carried: true }, { text: OLD, carried: true }],
+    ["fields and no box, over the old prompt", { ...brain, system_prompt: OLD, profile: { hours } }, { text: OLD, carried: true }, { text: OLD, carried: true }],
+    ["no profile, over the old prompt", { ...brain, system_prompt: OLD }, { text: OLD, carried: true }, { text: OLD, carried: true }],
+    ["an empty profile, over the old prompt", { ...brain, system_prompt: OLD, profile: {} }, { text: OLD, carried: true }, { text: OLD, carried: true }],
+    ["the baseline as the prompt, with fields", { ...brain, system_prompt: BASELINE, profile: { hours } }, EMPTY, EMPTY],
+    ["the baseline as the prompt, with none", { ...brain, system_prompt: BASELINE }, EMPTY, EMPTY],
+    ["the baseline under an earlier name, as the prompt", { ...brain, system_prompt: BASELINE_EARLIER_NAME }, EMPTY, EMPTY],
+    ["a prompt of spaces", { ...brain, system_prompt: "   ", profile: { hours } }, EMPTY, EMPTY],
+    ["the baseline in the owner's box", { ...brain, system_prompt: OLD, profile: { hours, extra_instructions: BASELINE } }, { text: BASELINE, carried: false }, EMPTY],
+    ["the baseline under an earlier name in the owner's box", { ...brain, system_prompt: BASELINE, profile: { hours, extra_instructions: BASELINE_EARLIER_NAME } }, { text: BASELINE_EARLIER_NAME, carried: false }, EMPTY],
+  ];
+  const moved = [];
+  for (const [what, b, before, now] of rows) {
+    assert.deepEqual(instructionsDraft(b), now, what);
+    if (JSON.stringify(before) !== JSON.stringify(now)) moved.push(what);
+  }
+  assert.deepEqual(moved, ["the baseline in the owner's box", "the baseline under an earlier name in the owner's box"], "only the baseline in the box moves");
+});
+
+test("the box and the prompt view agree on whose words these are", () => {
+  // Phase 3 puts both on one page. A block charged to the owner's row is words the box opens
+  // with; a block that says where its words came from is a box that says it was carried in.
+  const hours = profile.hours;
+  const shapes = [
+    ["own words", { ...brain, system_prompt: OLD, profile: { hours, extra_instructions: own } }],
+    ["carried", { ...brain, system_prompt: OLD, profile: { hours } }],
+    ["no fields", { ...brain, system_prompt: OLD }],
+    ["an empty profile", { ...brain, system_prompt: OLD, profile: {} }],
+    ["the baseline as the prompt", { ...brain, system_prompt: BASELINE, profile: { hours } }],
+    ["the baseline with no fields", { ...brain, system_prompt: BASELINE }],
+    ["the baseline in the owner's box", { ...brain, system_prompt: OLD, profile: { hours, extra_instructions: BASELINE } }],
+    ["nothing at all", { ...brain, system_prompt: "", profile: { hours } }],
+  ];
+  for (const [what, b] of shapes) {
+    const box = instructionsDraft(b);
+    for (const channel of ["whatsapp", "voice"]) {
+      const blocks = promptBlocks(resolveSystemPrompt(b, channel, tz, NOW, ASK), channel, b);
+      const mine = blocks.find((x) => x.row === "extra_instructions");
+      assert.equal(Boolean(mine), box.text !== "", `${channel}, ${what}: the view has the owner's block exactly when the box has words`);
+      if (mine) {
+        assert.ok(mine.text.includes(box.text.trim()), `${channel}, ${what}: and they are the box's words`);
+        assert.equal(Boolean(mine.note), box.carried, `${channel}, ${what}: and both say, or neither says, that they were carried in`);
+      }
+    }
+  }
+  // The shape they disagreed on: the box opened the baseline as the owner's own.
+  const boxed = shapes.find(([what]) => what === "the baseline in the owner's box")[1];
+  for (const channel of ["whatsapp", "voice"]) {
+    const blocks = promptBlocks(resolveSystemPrompt(boxed, channel, tz), channel, boxed);
+    assert.ok(blocks.some((x) => x.row === "platform" && x.text.includes(BASELINE)), `${channel}: it is the platform's`);
+  }
+});
+
+test("a workspace whose fields compose nothing is told its prompt is read as it stands", () => {
+  // The carried note says the prompt is the one it "had before it had fields" -- not true of a
+  // workspace that has none, whose prompt the resolver hands back exactly as stored.
+  for (const stored of [{ ...brain, system_prompt: OLD }, { ...brain, system_prompt: OLD, profile: {} }]) {
+    for (const channel of ["whatsapp", "voice"]) {
+      const mine = promptBlocks(resolveSystemPrompt(stored, channel, tz), channel, stored).find((b) => b.row === "extra_instructions");
+      assert.equal(mine.text, OLD.trim(), `${channel}: the prompt, word for word`);
+      assert.doesNotMatch(mine.note ?? "", /before it had fields/, channel);
+      assert.equal(mine.note, "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet.", channel);
+    }
+  }
+});
+
+test("the resolver composes the typed details with the owner's words as ownWordsOf names them", () => {
+  // Spec 7.3's equivalence. With no platform facts (known = null), a workspace whose fields
+  // compose is composeSystemPrompt over the details it typed and its profile, the owner's slot
+  // holding ownWordsOf's words; one whose fields compose nothing is its stored prompt as it
+  // stands, with only the Autonomy tab's rules after it.
+  const typed = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const profiles = [
+    undefined, {}, { closures: [{ date: "2026-12-24" }] }, { hours: profile.hours }, profile,
+    { ...profile, extra_instructions: own }, { ...profile, extra_instructions: "  " }, { ...profile, extra_instructions: BASELINE },
+    { ...profile, handoff_number: "+16469325775", closures: [{ date: "2026-12-24", until: "2026-12-26", note: "Holidays" }], booking_rules: { lead_hours: 0, party_max: 2 } },
+  ];
+  const prompts = [OLD, BASELINE, ""];
+  const phones = [undefined, "+1 (308) 336-8109", "  (646) 932-5775  "];
+  const policies = [null, ASK, { booking: { mode: "ask" } }, { reply: { mode: "ask" } }];
+  let composed = 0, asStored = 0;
+  for (const p of profiles) for (const system_prompt of prompts) for (const phone of phones) for (const policy of policies) {
+    const b = { business_name: brain.business_name, booking_link: brain.booking_link, system_prompt, ...(phone === undefined ? {} : { phone_display: phone }), ...(p === undefined ? {} : { profile: p }) };
+    for (const channel of ["whatsapp", "voice"]) for (const zone of [null, tz]) {
+      const got = resolveSystemPrompt(b, channel, zone, NOW, policy, null);
+      let want;
+      if (hasProfile(b.profile)) {
+        composed++;
+        want = composeSystemPrompt(
+          { business_name: b.business_name, phone_display: typed(phone), booking_link: b.booking_link },
+          { ...b.profile, extra_instructions: ownWordsOf(b) ?? undefined },
+          channel, zone, NOW, policy,
+        );
+      } else {
+        asStored++;
+        const rules = policyRules(policy, channel);
+        want = rules.length ? `${system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}` : system_prompt;
+      }
+      assert.equal(got, want, `${channel}, ${zone}, ${JSON.stringify(p)?.slice(0, 60)}, ${JSON.stringify(policy)}`);
+    }
+  }
+  // Both paths, every combination: six profiles that compose and three that do not.
+  assert.deepEqual({ composed, asStored }, { composed: 864, asStored: 432 });
 });
 
 /* ---- The cut: every block named, sized and its own ---- */
@@ -113,7 +264,6 @@ test("every block has an id of its own, and a row keeps its meaning", () => {
 
 /* ---- The cut follows the composer's own openings ---- */
 
-const NOW = new Date("2026-09-21T15:00:00Z");
 /** Every section the composer can write, filled in, with the owner's own words and Autonomy's rules. */
 const everything = {
   ...profile,

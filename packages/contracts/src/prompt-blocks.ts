@@ -7,7 +7,7 @@
  * keep reading it the way the composer writes it.
  */
 
-import { PROMPT_OPENINGS as O, isBaselinePrompt, ownWordsOf } from "./config";
+import { PROMPT_OPENINGS as O, whoseWords, type WhoseWords } from "./config";
 
 /**
  * The composed prompt, cut into the blocks that wrote it.
@@ -24,8 +24,9 @@ import { PROMPT_OPENINGS as O, isBaselinePrompt, ownWordsOf } from "./config";
  *     heading it stops emitting simply stops appearing here.
  *   - The owner's own words, which have no reliable heading -- the composer
  *     frames them only when there is something above to disagree with. Found by
- *     their literal text instead, as `ownWordsOf` names them, so a prompt the
- *     resolver carried in their place is found too. Fenced off FIRST: they are
+ *     their literal text instead, as `whoseWords` names them (the resolver's own
+ *     rule, `ownWordsOf`, and whose they are), so a prompt the resolver carried
+ *     in their place is found too. Fenced off FIRST: they are
  *     often a prompt written before the form existed, restating the hours and
  *     services under headings of their own, and a cut on headings would count
  *     that old prose as the Hours and Services rows.
@@ -124,8 +125,20 @@ const CARRIED: BlockMark = {
   startsWith: "",
   note: "The prompt this workspace had before it had fields. It is read until you write your own.",
 };
+// A workspace whose fields compose nothing: the resolver hands its prompt back as
+// stored, and none of the page's details are in it. It never "had fields", so the
+// carried note would not be true of it.
+const PROMPT: BlockMark = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  note: "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet.",
+};
 const BASELINE: BlockMark = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
 const AUTONOMY: BlockMark = { row: "autonomy", label: "Autonomy's rules", startsWith: "", note: "Set on the Autonomy tab, not on this page." };
+
+/** Whose words these are, as whoseWords decides it for the form's box too, and the mark that says so. */
+const MARK_OF: Record<Exclude<WhoseWords["kind"], "none">, BlockMark> = { own: OWN_WORDS, carried: CARRIED, prompt: PROMPT, baseline: BASELINE };
 
 /**
  * Where the owner's own words sit, as a line range, or null.
@@ -158,8 +171,8 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
     throw new TypeError("promptBlocks needs what the prompt was composed from: the stored brain, { profile } for a draft, or null.");
   }
   const lines = text.split("\n");
-  const words = ownWordsOf(from);
-  const own = ownWordsSpan(lines, words);
+  const whose = whoseWords(from);
+  const own = ownWordsSpan(lines, whose.text);
   const insideOwn = (n: number) => !!own && n >= own.from && n < own.to;
   const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
 
@@ -174,11 +187,6 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
     found.push({ at: n, mark });
   });
 
-  // Whose words these are. A blank box means the resolver carried the stored prompt
-  // in, and the block says so; the product's own opening lines are nobody's here.
-  const carried = !from?.profile?.extra_instructions?.trim() && !!from?.system_prompt?.trim();
-  const theirs = (body: string): BlockMark => (isBaselinePrompt(body.trim()) ? BASELINE : carried ? CARRIED : OWN_WORDS);
-
   // The composer always writes the platform's lines: the medium line and the
   // open-times line. A prompt without them is one the resolver handed back as it
   // stood, because the workspace has no fields -- the workspace's own prompt, then
@@ -186,14 +194,17 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
   let starts: { at: number; mark: BlockMark }[];
   let head: BlockMark;
   if (found.some((s) => s.mark.row === "platform")) {
-    starts = own ? [...found, { at: own.from, mark: theirs(words ?? "") }] : found;
+    // Found words are never "none": a span needs words to find.
+    starts = own && whose.kind !== "none" ? [...found, { at: own.from, mark: MARK_OF[whose.kind] }] : found;
     // Everything before the first heading is who you are: the opening sentence,
     // the tone, the languages, the address, the phone and the link.
     head = IDENTITY;
   } else {
     const rules = found.find((s) => s.mark.row === "guardrails");
     starts = rules ? [{ at: rules.at, mark: AUTONOMY }] : [];
-    head = theirs(lines.slice(0, rules?.at ?? lines.length).join("\n"));
+    // A caller that says there is nothing to look for still gets the one thing this
+    // branch knows: whatever stands above the rules is a prompt handed back as stored.
+    head = whose.kind === "none" ? PROMPT : MARK_OF[whose.kind];
   }
   starts.sort((a, b) => a.at - b.at);
 

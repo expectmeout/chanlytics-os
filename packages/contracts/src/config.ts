@@ -497,18 +497,30 @@ export function isBaselinePrompt(text: string): boolean {
  * The owner's own instructions when they have written some. Otherwise the
  * prompt a profile carries in their place, shown so nothing the receptionist
  * follows is out of sight and marked `carried` so the form can say where it
- * came from -- unless it is the product's baseline, which no owner wrote. A
- * save then keeps what the box holds as the owner's and puts the baseline back
- * as the prompt: the text is stored once, and an emptied box stays empty
- * instead of filling itself again from the copy left behind.
+ * came from -- unless it is the product's baseline, which no owner wrote,
+ * wherever it is stored: a save before S4 copied it into the owner's own field,
+ * and the box opened it there as their text. A save then keeps what the box
+ * holds as the owner's and puts the baseline back as the prompt: the text is
+ * stored once, and an emptied box stays empty instead of filling itself again
+ * from the copy left behind.
+ *
+ * Whose words these are is whoseWords', the one decision the prompt view reads
+ * too, so the box and the view cannot disagree about it.
  */
 export function instructionsDraft(
   brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
 ): { text: string; carried: boolean } {
-  const own = brain?.profile?.extra_instructions ?? "";
-  if (own.trim()) return { text: own, carried: false };
-  const prompt = brain?.system_prompt ?? "";
-  return prompt.trim() && !isBaselinePrompt(prompt) ? { text: prompt, carried: true } : { text: "", carried: false };
+  const words = whoseWords(brain);
+  switch (words.kind) {
+    case "own":
+      return { text: words.text, carried: false };
+    case "carried":
+    case "prompt":
+      return { text: words.text, carried: true };
+    default:
+      // The baseline, which no owner wrote, and nothing at all.
+      return { text: "", carried: false };
+  }
 }
 
 export const NotificationsConfigSchema = z
@@ -1346,6 +1358,43 @@ export function ownWordsOf(
 ): string | null {
   const own = brain?.profile?.extra_instructions;
   return own?.trim() ? own : (brain?.system_prompt ?? null);
+}
+
+/** Whose words stand in the owner's place: see whoseWords. */
+export type WhoseWords =
+  | { kind: "own" | "carried" | "prompt" | "baseline"; text: string }
+  | { kind: "none"; text: null };
+
+/**
+ * Whose words the receptionist is given in the owner's place, decided once.
+ *
+ * The words are ownWordsOf's, the resolver's own rule. This says whose they are,
+ * which the Business form's instructions box (instructionsDraft) and its prompt
+ * view (promptBlocks) used to decide apart -- and did not agree on: a workspace
+ * saved before S4 keeps the product's baseline in the owner's own field, and the
+ * box opened it as the owner's text while the prompt view called it the
+ * platform's. Both ask here now.
+ *
+ *   baseline  the product's own opening lines (isBaselinePrompt), wherever they
+ *             are stored. No owner wrote them.
+ *   own       what the owner wrote into the profile's own field.
+ *   carried   the profile composes, but its own field is blank, so the stored
+ *             prompt stands in: the resolver carries it into the owner's place.
+ *   prompt    nothing composes, so the stored prompt is simply the workspace's
+ *             prompt, read as it stands. "Composes" is the resolver's own test
+ *             (hasProfile): no profile at all, or one holding nothing the
+ *             resolver composes from, and the resolver hands the prompt back.
+ *   none      nothing to read.
+ */
+export function whoseWords(
+  brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
+): WhoseWords {
+  const text = ownWordsOf(brain);
+  if (!text?.trim()) return { kind: "none", text: null };
+  if (isBaselinePrompt(text)) return { kind: "baseline", text };
+  if (brain?.profile?.extra_instructions?.trim()) return { kind: "own", text };
+  // The profile arrives as the brain stores it; hasProfile reads only what it counts.
+  return { kind: hasProfile(brain?.profile as BusinessProfile | null | undefined) ? "carried" : "prompt", text };
 }
 
 /** The details a message sent in the business's name may name, as the owner writes them. */
