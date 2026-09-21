@@ -75,6 +75,8 @@ Three clauses, not a meter: what it can answer, what it deliberately will not, a
 | Tells customers to call | `typed` or follows the line | inline (unchanged behaviour) |
 | Transfers a caller to | `typed` | inline (unchanged behaviour) |
 
+The chip is the source the settings read resolved (facts.ts `resolveFacts`, which this spec does not change), and it reports a typed value that agrees with Google's as typed: a name Google agrees with reads "you set this", and "from Google" is shown only on a value that came from Google alone.
+
 Foot: one sentence saying the legal name and registered address live on Connections and are asked once.
 
 The **Workspace** row goes. It printed the business's name a second time whenever it differed.

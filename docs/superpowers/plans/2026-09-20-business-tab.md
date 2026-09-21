@@ -1885,6 +1885,8 @@ git commit -am "What you offer, and the list that needed room"
 
 ### Task 3.5: *How it answers*, and the voice that had no box
 
+> **Decided 21 Sep, in Task 3.2's review.** The transfer number is edited in one place, Task 3.2's *Transfers a caller to* row. The *Hands you a customer* row below reads it and opens that row; it never edits it.
+
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
 - Test: `tooling/scripts/tests/business-tab-page.test.mjs`
