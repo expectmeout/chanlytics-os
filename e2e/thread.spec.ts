@@ -178,7 +178,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(bubble).toContainText("by you");
       await expect(bubble).toContainText("Sending");
       // A reply takes the thread: the receptionist steps back for the person who wrote.
-      await expect(pane.getByText(/You own this thread/)).toBeVisible();
+      await expect(pane.getByText(/You have it/)).toBeVisible();
     });
 
     await test.step("the number has no credentials: the send fails, and the thread says so in its own words", async () => {
@@ -277,7 +277,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await pane.getByRole("button", { name: "I'll answer this" }).click();
       await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
       pane = await openRobin(page, "Needs you");
-      await expect(pane.getByText(/You own this thread/)).toBeVisible();
+      await expect(pane.getByText(/You have it/)).toBeVisible();
       const { conversation: c } = await readThread(page, id);
       expect(c.state).toBe("needs_human");
       expect(Date.parse(c.paused_until ?? ""), "paused into the future").toBeGreaterThan(Date.now());
@@ -304,7 +304,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       const pane = await openRobin(page, "Needs you");
       await expect(pane.getByText(/Flagged for a human/)).toHaveCount(0);
       // Resolving what the thread was about does not hand it back: it is still yours.
-      await expect(pane.getByText(/You own this thread/)).toBeVisible();
+      await expect(pane.getByText(/You have it/)).toBeVisible();
     });
 
     await test.step("handed back from the thread: the receptionist answers again, and the words that never left still say so", async () => {
