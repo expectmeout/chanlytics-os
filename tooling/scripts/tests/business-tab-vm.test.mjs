@@ -103,7 +103,7 @@ test("the standing line is three clauses, and never a percentage", () => {
   assert.match(s.can, /when you.re open/);
   assert.match(s.can, /how to book/);
   assert.equal(s.missing, null, "a full record is missing nothing");
-  assert.match(s.wont ?? "", /consult instead of a price/);
+  assert.match(s.wont ?? "", /consult or the booking link instead of a price/);
   assert.equal(typeof s.percent, "undefined", "there is no score on this page");
 });
 
