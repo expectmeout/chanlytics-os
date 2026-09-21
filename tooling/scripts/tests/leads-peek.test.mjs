@@ -620,11 +620,12 @@ test("the peek's band: the mark covers the photo, the photo stands alone without
   assert.equal(byTestId(withMark, "peek-mark").props.src, MARK);
   assert.equal(byTestId(withMark, "peek-mark").props.alt, "", "a mark says nothing a screen reader must repeat");
   assert.equal(byTestId(withMark, "peek-photo").props.src, PHOTO, "the photograph is still there under it, for Expand");
-  // The tint is only the ground: it is covered whenever either layer draws, and bare when neither does.
-  for (const over of [{ image_url: PHOTO, logo_url: MARK }, { logo_url: MARK }, { image_url: PHOTO }]) {
-    assert.match(band(over).props.className, /\bhas-img\b/, JSON.stringify(over));
+  // The band carries its tint and nothing else. It used to carry `has-img` too, from before the mark painted over
+  // the photograph: the rule that read it went with that change, and a class nothing reads gets read wrongly later.
+  for (const over of [{ image_url: PHOTO, logo_url: MARK }, { logo_url: MARK }, { image_url: PHOTO }, {}]) {
+    assert.doesNotMatch(band(over).props.className, /\bhas-img\b/, JSON.stringify(over));
+    assert.match(band(over).props.className, /\bpk-band tint-\d\b/, "the tint is the ground under every layer");
   }
-  assert.doesNotMatch(band({}).props.className, /\bhas-img\b/, "nothing to cover the tint, so the initials carry it");
   // The initials are always drawn, under everything: they are what a layer that fails to load falls back onto.
   const initials = (over) => find(band(over), (n) => n.props?.className === "pk-band-initials");
   assert.ok(initials({ image_url: PHOTO, logo_url: MARK }), "the initials wait under both layers");

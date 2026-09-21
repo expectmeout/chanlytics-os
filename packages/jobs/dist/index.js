@@ -1109,10 +1109,10 @@ var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: 
 var LEAD_CALL_OUTCOME_TONES = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
@@ -7251,10 +7251,10 @@ var LEAD_CLOSED_WORDS2 = { said_no: "Said no", not_a_fit: "Not a fit", customer:
 var LEAD_CALL_OUTCOME_TONES2 = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS2 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE2 = "Your business address and a way to say no are added at the foot, as US law asks.";
@@ -9481,10 +9481,10 @@ var LEAD_CLOSED_WORDS3 = { said_no: "Said no", not_a_fit: "Not a fit", customer:
 var LEAD_CALL_OUTCOME_TONES3 = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS3 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE3 = "Your business address and a way to say no are added at the foot, as US law asks.";
@@ -10801,10 +10801,10 @@ var LEAD_CLOSED_WORDS22 = { said_no: "Said no", not_a_fit: "Not a fit", customer
 var LEAD_CALL_OUTCOME_TONES22 = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS22 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE22 = "Your business address and a way to say no are added at the foot, as US law asks.";
@@ -11992,10 +11992,10 @@ var LEAD_CLOSED_WORDS32 = { said_no: "Said no", not_a_fit: "Not a fit", customer
 var LEAD_CALL_OUTCOME_TONES32 = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS32 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE32 = "Your business address and a way to say no are added at the foot, as US law asks.";
@@ -13672,10 +13672,10 @@ var LEAD_CLOSED_WORDS4 = { said_no: "Said no", not_a_fit: "Not a fit", customer:
 var LEAD_CALL_OUTCOME_TONES4 = {
   interested: "ok",
   call_back: "warn",
-  voicemail: "quiet",
-  no_answer: "quiet",
-  not_interested: "bad",
-  wrong_number: "bad"
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
 };
 var LEAD_CALL_OUTCOME_WORDS4 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE4 = "Your business address and a way to say no are added at the foot, as US law asks.";

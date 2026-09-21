@@ -16,7 +16,7 @@ import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
-  leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars, leadMapPlot,
+  LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars, leadMapPlot,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
 import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LeadSearchPlanSchema } from "../../../packages/contracts/src/lead-search.ts";
@@ -100,6 +100,23 @@ test("a stage change in the page's words becomes the door's arguments; the door,
   assert.deepEqual(args({ kind: "outcome", outcome: "wrong_number" }), { p_stage: null, p_reason: null, p_fit_reason: null, p_outcome: "wrong_number", p_note: null });
   assert.deepEqual(args({ kind: "emailed" }), { p_stage: "nurture", p_reason: null, p_fit_reason: null, p_outcome: "emailed", p_note: null });
   assert.deepEqual([outcomeMove("interested").converts, outcomeMove("call_back").converts], [true, false], "only Interested makes a person");
+});
+
+// Every colour the app names is one of six tones (tone.ts). The call outcomes carried a private set of four words --
+// two of which, `quiet` and `bad`, no pill and no stylesheet could draw -- so a voicemail and a no-answer fell
+// through to the faintest grey and a wrong number drew as though nothing had happened. Nothing pinned it.
+test("a lead's call outcome speaks the app's one tone vocabulary, and every outcome has a tone", () => {
+  const TONES = ["accent", "warn", "info", "ok", "danger", "plain"];
+  assert.deepEqual(Object.keys(LEAD_CALL_OUTCOME_TONES).sort(), [...LEAD_CALL_OUTCOMES].sort(), "one tone per outcome, and no outcome without one");
+  for (const [id, tone] of Object.entries(LEAD_CALL_OUTCOME_TONES)) {
+    assert.ok(TONES.includes(tone), `${id} is "${tone}", which is not one of the six tones`);
+  }
+  // What the words mean, not merely that they are legal.
+  assert.equal(LEAD_CALL_OUTCOME_TONES.interested, "ok", "the call that went well");
+  assert.equal(LEAD_CALL_OUTCOME_TONES.call_back, "warn", "a promise someone has to keep");
+  assert.equal(LEAD_CALL_OUTCOME_TONES.wrong_number, "danger", "the number is wrong and the lead is unreachable by it");
+  assert.equal(LEAD_CALL_OUTCOME_TONES.not_interested, "danger");
+  assert.deepEqual([LEAD_CALL_OUTCOME_TONES.voicemail, LEAD_CALL_OUTCOME_TONES.no_answer], ["plain", "plain"], "nobody picked up: nothing happened, and nothing is what it should look like");
 });
 
 test("the email states are words that claim only what was seen: a catch-all is Unconfirmed", () => {
@@ -357,7 +374,10 @@ test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on,
   assert.deepEqual(st({ stage: "nurture", contacted_at: "2026-09-15T19:20:00.000Z" }), ["contacted", "Contacted · 3d", null]);
   assert.deepEqual(st({ stage: "converted" }), ["talking", "Talking", null]);
   assert.deepEqual(st({ stage: "archived", closed_reason: "not_a_fit" }), ["out", "Not a fit", null]);
-  assert.deepEqual(st({ member: { ...row().member, class: "review", fit: "look", reasons: ["email:unknown"] } }), ["review", null, "Their mail server wouldn't answer"], "a waiting row names the thing that resolves it");
+  // A review row says BOTH: the tag names the state, the sub-line names the one thing that would resolve it. The tag
+  // was null for this state alone, which left `.ld-state-tag.review` matching no row ever drawn, and on a mixed list
+  // a lead that is waiting looked exactly like a lead that is ready to call.
+  assert.deepEqual(st({ member: { ...row().member, class: "review", fit: "look", reasons: ["email:unknown"] } }), ["review", "Needs review", "Their mail server wouldn't answer"]);
   assert.deepEqual(st({ member: { ...row().member, class: "excluded", fit: null, excluded_by: "chain" } }), ["out", "Left out", null]);
 });
 

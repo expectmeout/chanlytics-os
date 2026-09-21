@@ -304,7 +304,6 @@
 .ld-fit-cell.excluded { color: var(--ink-dim); }
 .ld-email-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .ld-phone-cell.wrong { color: var(--ink-dim); text-decoration: line-through; }
-.ld-tick2 { color: var(--ok-ink); margin-left: 4px; }
 .ld-why-cell { max-width: 34ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ld-rating-cell, .ld-found-cell, .ld-distance-cell { font-variant-numeric: tabular-nums; }
 .ld-dot { width: 7px; height: 7px; border-radius: var(--radius-full); display: inline-block; margin-right: 6px; background: var(--ink-faint); }
@@ -527,6 +526,12 @@
 .leads-scope .cl-table tbody tr.ld-row-review { box-shadow: inset 3px 0 0 var(--warn); }
 .leads-scope .cl-table tbody tr.ld-row-contacted { box-shadow: inset 3px 0 0 var(--line-strong); }
 .leads-scope .cl-table tbody tr.ld-row-talking { box-shadow: inset 3px 0 0 var(--ok); }
+/* The cursor's accent edge and the row state's edge are the same property, and the state rules are the more
+   specific, so a row that had moved on lost the keyboard cursor entirely. Draw both: the accent at 2px with the
+   state's own colour behind it out to 5px. The first shadow in the list paints on top. */
+.leads-scope .cl-table tbody tr.ld-row-review.focused { box-shadow: inset 2px 0 0 var(--accent), inset 5px 0 0 var(--warn); }
+.leads-scope .cl-table tbody tr.ld-row-contacted.focused { box-shadow: inset 2px 0 0 var(--accent), inset 5px 0 0 var(--line-strong); }
+.leads-scope .cl-table tbody tr.ld-row-talking.focused { box-shadow: inset 2px 0 0 var(--accent), inset 5px 0 0 var(--ok); }
 .leads-scope .cl-table tbody tr.ld-row-out .ld-biz-name, .leads-scope .cl-table tbody tr.ld-row-out .ld-rated-score { color: var(--ink-dim); }
 .leads-scope .cl-table tbody tr.ld-row-out .ld-tile { opacity: .7; }
 .ld-state-tag, .ld-fit-tag { flex: none; font-size: var(--text-xs); line-height: 18px; padding: 0 7px; border-radius: 5px; background: var(--bg-active); color: var(--ink-muted); white-space: nowrap; }
@@ -824,7 +829,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); flex: none; margin-right: 7px; display: inline-block; vertical-align: -1px; }
 .pk-chip.tone-ok .dot { background: var(--ok); }
 .pk-chip.tone-warn .dot { background: var(--warn); }
-.pk-chip.tone-bad .dot { background: var(--danger); }
+.pk-chip.tone-danger .dot { background: var(--danger); }
+.pk-chip.tone-info .dot { background: var(--info); }
+.pk-chip.tone-plain .dot { background: var(--ink-faint); }
 
 @media (max-width: 900px) {
   /* Where you are in the pile, and the two ways through it -- a swipe does the same. */
