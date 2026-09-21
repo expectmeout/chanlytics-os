@@ -84,9 +84,9 @@ const MsgSlot = ({ lang, status, on, onPick }) => {
   );
 };
 
-// One message, as a row: what it is, what each of its languages is doing, and
-// what sends it — the four things you scan sixteen of at once. The message
-// itself, and the verbs that change it, are in the row it opens.
+// One message, as a row: what it is, what each of its languages is doing, what
+// sends it and how much of it went out — the things you scan sixteen of at once.
+// The message itself, and the verbs that change it, are in the row it opens.
 //
 // It was a card carrying the whole bubble, and sixteen of those is about three
 // thousand pixels of chat nobody can compare. The words are still the point, so
@@ -120,6 +120,10 @@ const MessageRow = ({ g, langs, bizName, canAct, busy, doing = null, S, open = f
   const named = g.rows.find((r) => r.row);
   const gName = g.starter ? g.starter.name : named ? named.row.name : null;
   const use = gName && window.__TEMPLATE_USE ? window.__TEMPLATE_USE[gName] || null : null;
+  // How many of it went out and when the latest did, in the words the bridge
+  // composed: the people a run SENT to and what the Inbox sent on it, never the
+  // audience a run was scheduled for. Keyed by name like the usage; null is not read.
+  const sent = gName && window.__TEMPLATE_SENT ? window.__TEMPLATE_SENT[gName] || null : null;
   // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
   // Per ROW, not per message: this is what a delete of ONE language must refuse on.
   const pbRows = window.__PLAYBOOKS ? window.__PLAYBOOKS.rows || [] : null;
@@ -186,6 +190,19 @@ const MessageRow = ({ g, langs, bizName, canAct, busy, doing = null, S, open = f
           {use && (use.unused
             ? <span className="msg-card-meta is-unused" data-testid="template-users">Nothing sends it</span>
             : <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(use.playbook ? `outbound/${use.playbook}` : "outbound")} data-testid="template-users">Sent by {use.words}</button>)}
+        </span>
+        {/* What LEFT, and when the latest did: counted off the people a run sent
+            to, which is what Reports calls "Messages sent" -- not a run's
+            `recipient_count`, the audience it was scheduled for. "sent" rides the
+            count, because a stacked row has no heading and a screen reader never
+            hears the heading at all. A message that never went out says so. */}
+        <span className="msg-row-sent" data-testid="template-sent">
+          {sent && (sent.count
+            ? <>
+                <span className="msg-row-sent-n">{sent.count}<span className="msg-row-sent-unit"> sent</span></span>
+                {sent.when && <><span className="msg-row-sent-dot" aria-hidden="true">·</span><span className="msg-row-sent-when">{sent.when}</span></>}
+              </>
+            : <span className="msg-row-sent-never">{sent.when}</span>)}
         </span>
       </div>
       {/* A refusal was a `title=` on the language button and a tail on the meta
@@ -446,6 +463,7 @@ const MessagesReal = () => {
                 <span>The message</span>
                 <span>Languages</span>
                 <span>What sends it</span>
+                <span className="msg-list-head-sent">Sent</span>
               </div>
             )}
             {hasWhatsApp && starters.map(card)}

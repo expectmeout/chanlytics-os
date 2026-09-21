@@ -8,6 +8,8 @@
  * or its booking link — resolved per recipient by the job with the same
  * function the page previews with.
  */
+import { clockDate } from "./clock";
+import { agoWords } from "./time";
 
 export const TEMPLATE_LANGUAGES: readonly { id: string; label: string }[] = [
   { id: "en_US", label: "English (US)" },
@@ -314,4 +316,82 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
 export function templateUnused(use: TemplateUse | null | undefined): boolean {
   const u = use ?? NOTHING;
   return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}
+
+/* ------------------------------ what went out ----------------------------- */
+
+/**
+ * How many times a template actually went out, and when the latest did.
+ *
+ * Not a broadcast's `recipient_count`: that is the audience a run was scheduled
+ * for, and the wire holds people back from it (no yes to offers, asked to stop,
+ * no number, a person had the thread) while a run can stop part-way. Reports ›
+ * Campaigns counts "Messages sent" apart from "Delivered" off the recipient rows
+ * (campaign_series), and a Sent column summed from the audience would contradict
+ * the page beside it. So this counts what that page counts -- a person a run
+ * marked `sent` -- and the one door that page does not cover: a template the
+ * Inbox sent into a thread whose window had closed, which left when WhatsApp
+ * took it and the row got its wamid.
+ *
+ * Keyed by NAME, as `templateUsage` is: a run names its template, not a
+ * language's row.
+ */
+export interface TemplateSends {
+  /** Messages that left with it: sent, which is not delivered and not read. */
+  count: number;
+  /** When the latest of them left (ISO), or null when none kept its time. */
+  lastAt: string | null;
+}
+
+export interface TemplateSendSource {
+  /** Every broadcast -- one a person sent, or a playbook's run -- and the template it sent. */
+  runs: readonly { id: string; template_name: string }[];
+  /** The people on those runs (`broadcast_recipients`). Only the ones in state `sent` went out. */
+  recipients: readonly { broadcast_id: string; state: string; sent_at: string | null }[];
+  /** What the Inbox sent on a template (`messages.template_name`). Only the ones WhatsApp took -- a wamid -- went out. */
+  inbox: readonly { template_name: string | null; external_id: string | null; created_at: string }[];
+}
+
+/** One entry per template name that has gone out. A name absent from the map never has. */
+export function templateSends(src: TemplateSendSource): Record<string, TemplateSends> {
+  const out: Record<string, TemplateSends> = {};
+  const nameOf = new Map(src.runs.map((r) => [r.id, r.template_name]));
+  const went = (name: string, at: string | null) => {
+    const s = (out[name] ??= { count: 0, lastAt: null });
+    s.count += 1;
+    // As instants, not as text: two stamps in different offsets, or one with a
+    // fraction of a second and one without, do not sort by their characters.
+    const ms = at === null ? NaN : Date.parse(at);
+    if (Number.isFinite(ms) && (s.lastAt === null || ms > Date.parse(s.lastAt))) s.lastAt = at;
+  };
+  for (const r of src.recipients) {
+    const name = r.state === "sent" ? nameOf.get(r.broadcast_id) : undefined;
+    if (name) went(name, r.sent_at);
+  }
+  for (const m of src.inbox) {
+    if (m.template_name && m.external_id) went(m.template_name, m.created_at);
+  }
+  return out;
+}
+
+export interface TemplateSentWords {
+  /** "1,204": how many went out; null when none has. */
+  count: string | null;
+  /** "2d ago", "Jul 31" or "Never sent"; null when none of them kept its time. */
+  when: string | null;
+}
+
+/**
+ * The Sent cell. How long ago is said the way every page says it (time.ts):
+ * "just now" · "3h ago" · "2d ago", and past a week the business's date.
+ * A message that never went out says so in words: a "0" in a column of counts
+ * reads as a quantity to compare with the others, and never is not one.
+ */
+export function templateSentWords(s: TemplateSends | null | undefined, tz: string, nowMs: number): TemplateSentWords {
+  if (!s || s.count === 0) return { count: null, when: "Never sent" };
+  const at = s.lastAt === null ? NaN : Date.parse(s.lastAt);
+  return {
+    count: s.count.toLocaleString("en-US"),
+    when: Number.isFinite(at) ? agoWords(at, nowMs, { date: (ms) => clockDate(ms, tz, nowMs) }) : null,
+  };
 }

@@ -2285,7 +2285,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    opens under the row it belongs to, one at a time. */
 .msg-list { container-type: inline-size; }
 .msg-list-head,
-.msg-row-line { display: grid; grid-template-columns: minmax(0, 1fr) 104px 196px; gap: 14px; align-items: center; }
+.msg-row-line { display: grid; grid-template-columns: minmax(0, 1fr) 104px 196px 92px; gap: 14px; align-items: center; }
 .msg-list-head { padding: 0 14px 6px; border-bottom: 1px solid var(--line); font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
 /* The hidden fold has rows and no heading, so the first of them draws the hairline the heading would have. */
 .msg-list > .msg-row:first-child { border-top: 1px solid var(--line); }
@@ -2309,6 +2309,18 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .msg-row-langs { display: flex; align-items: center; gap: 6px; }
 .msg-row-use { min-width: 0; font-size: var(--text-xs); }
 .msg-row-use > * { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* What left, and when the latest did: counts to compare down the column, so
+   right-aligned in even figures, the heading over them too. The when is a
+   caption, in the caption ink (--ink-dim is the one kept at 4.5:1). */
+.msg-list-head-sent { text-align: right; }
+.msg-row-sent { min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; text-align: right; }
+.msg-row-sent-n { font-family: var(--font-mono); font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.msg-row-sent-when,
+.msg-row-sent-never { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+/* "sent" beside the count is for whoever cannot see the heading: a screen reader
+   (the heading is aria-hidden) and a stacked row (the heading is gone). */
+.msg-row-sent-unit { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.msg-row-sent-dot { display: none; }
 /* A language, as a slot: the glyph is that language's state and the two letters
    are the language. Every colour is the one the state vocabulary gives it
    (tone.ts), so a template in review is the same blue here as anywhere. */
@@ -2337,14 +2349,21 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .msg-card-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11.5px; padding-top: 6px; border-top: 1px solid var(--line); }
 .msg-fold { display: grid; gap: 12px; }
 .msg-fold-toggle { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: inline-flex; align-items: center; gap: 6px; padding: 0; }
-/* The list sits beside the sidebar, so what decides whether three columns fit is
+/* The list sits beside the sidebar, so what decides whether the columns fit is
    the LIST's width and never the window's (#735). Under that, a row stacks: the
-   words keep the whole width and the languages and what sends it fall under them. */
-@container (max-width: 620px) {
+   words keep the whole width and the languages, what sends it and what went out
+   fall under them -- the last as one line, "412 sent · 2d ago", with no heading
+   left above it to say what the number is. It was 620px with three columns; the
+   Sent column and its gap are 106px more, taken from the words, so the row
+   stacks 106px sooner and the words never get less room than they had. */
+@container (max-width: 726px) {
   .msg-list-head { display: none; }
   .msg-row-line { grid-template-columns: minmax(0, 1fr); gap: 0; padding-bottom: 10px; }
   .msg-row-langs { padding-left: 40px; }
   .msg-row-use { padding-left: 40px; }
+  .msg-row-sent { padding-left: 40px; flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
+  .msg-row-sent-unit { position: static; width: auto; height: auto; overflow: visible; clip-path: none; font-family: var(--font-sans); font-size: var(--text-xs); color: var(--ink-dim); }
+  .msg-row-sent-dot { display: inline; color: var(--ink-faint); }
   .msg-row-open { padding-left: 14px; }
   .msg-row > .bc-excl-hint { margin-left: 14px; }
 }
