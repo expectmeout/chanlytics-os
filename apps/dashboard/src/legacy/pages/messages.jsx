@@ -413,7 +413,7 @@ const MessagesReal = () => {
   }).find(Boolean) : null;
 
   return (
-    <div className="reports" data-testid="messages-real">
+    <div className="reports tpl-page" data-testid="messages-real">
       <div className="rp-body cm-page">
         {/* A headline and one line under it, the way every Campaigns page opens.
             The line is the page's numbers -- how many, how many approved, how many

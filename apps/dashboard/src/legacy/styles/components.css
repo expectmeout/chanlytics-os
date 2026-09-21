@@ -2269,6 +2269,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    spent its faintest grey on words, the words take --ink-dim, the grey that keeps
    4.5:1 (#749); --ink-faint is a placeholder's grey. */
 .rp-body.cm-page { padding: 26px 28px 40px; gap: 14px; }
+/* Templates is a table that needs more than a column, so it takes --measure-page
+   (legacy/CLAUDE.md): on a wide monitor the rows stop growing emptier. */
+.tpl-page .rp-body { max-width: var(--measure-page); }
 .cm-head { display: flex; align-items: flex-end; gap: 18px; }
 .cm-head-text { flex: 1 1 auto; min-width: 0; }
 .cm-head-title { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: 1.1; color: var(--ink); }
