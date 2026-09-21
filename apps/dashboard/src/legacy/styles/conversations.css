@@ -34,6 +34,11 @@
 }
 .cv-filters .fleet-filter { width: 100%; }
 .cv-filters .fleet-filter-chip { flex: 1; justify-content: center; }
+/* Four tabs on a 320px phone: 319px of chips in a 288px strip, so "Email 1" was cut off at the edge, to be found by a
+   swipe nobody would think to make. Tighter chips fit all four; from 375px up nothing changes. */
+@media (max-width: 360px) {
+  .cv-filters .fleet-filter-chip { padding-left: 6px; padding-right: 6px; gap: 4px; }
+}
 
 .cv-rows {
   flex: 1 1 auto;

@@ -257,6 +257,8 @@ globalThis.React = {
 await import("../../../apps/dashboard/src/legacy/components/topbar.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/app-shell.jsx");
+// The page's rule for the word after conversations/ (window.CV_ROUTE), which the shell asks.
+await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -441,6 +443,27 @@ test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the 
     assert.equal(pageAt("#/conversations/cv-4").props.initialId, "cv-4", "a call's id still opens it");
     const phone = pageAt("#/conversations/phone").props;
     assert.deepEqual([phone.channel, phone.initialId], ["phone", null], "a channel is a filter, not an id");
+  } finally {
+    delete win.CONVERSATIONS_DATA;
+    delete globalThis.ConversationsPage;
+  }
+});
+
+test("REGRESSION: a real workspace's WhatsApp and Email tabs filter the list -- the shell knew only the mockup's three, so it opened 'whatsapp' as a conversation nobody could find", async () => {
+  shell.installShell(win);
+  globalThis.ConversationsPage = "ConversationsPage";
+  const { conversationTabs } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  // The strip the bridge draws for a workspace on the phone, WhatsApp, texts and email.
+  win.CONVERSATIONS_DATA = { CONVERSATIONS: [{ id: "c-9", who: "Rosa Díaz" }], CV_CHANNELS: conversationTabs(true, ["whatsapp", "sms", "email"]) };
+  const pageAt = (hash) => { const { tree, title } = mount(hash); return { props: find(tree, (n) => n.type === "ConversationsPage").props, title }; };
+  try {
+    for (const tab of win.CONVERSATIONS_DATA.CV_CHANNELS.filter((t) => t.id !== "all")) {
+      const { props, title } = pageAt(`#/conversations/${tab.id}`);
+      assert.deepEqual([props.channel, props.initialId], [tab.id, null], `REGRESSION: "${tab.id}" was read as a conversation's id`);
+      assert.equal(title, `${tab.label} · Conversations · Inbox · Chanlytics`, "the trail names the tab in its chip's words");
+    }
+    assert.deepEqual([pageAt("#/conversations").props.channel, pageAt("#/conversations").props.initialId], ["all", null]);
+    assert.equal(pageAt("#/conversations/c-9").props.initialId, "c-9", "and a row's id still opens its row");
   } finally {
     delete win.CONVERSATIONS_DATA;
     delete globalThis.ConversationsPage;
@@ -689,8 +712,11 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
   assert.equal(all.tabs.props.page, "conversations");
   assert.equal(all.title, "Conversations · Inbox · Chanlytics", "REGRESSION: the trail led with Conversations, a place the nav no longer has");
 
+  // The trail names a tab as its chip does, from the strip the page draws (always there: the seed's, or the read's).
+  win.CONVERSATIONS_DATA = { CONVERSATIONS: [], CV_CHANNELS: [{ id: "all", label: "All" }, { id: "phone", label: "Calls" }] };
   const calls = at("#/conversations/phone");
   assert.equal(calls.title, "Calls · Conversations · Inbox · Chanlytics", "a channel is a view of a view");
+  delete win.CONVERSATIONS_DATA;
 
   const live = at("#/live");
   assert.equal(live.nav, "live");
