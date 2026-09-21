@@ -414,6 +414,19 @@ test("REGRESSION (B6): past everyone loaded, a search keeps the loaded people it
   assert.match(textOf(byTestId(tree, "people-more")), /couldn't search past/, "a search that could not ask the server says so");
 });
 
+test("REGRESSION: past a page of people, the line under the table stands in the table's gutter -- its own padding put its words at the pane's edge", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 1240, has_more: true };
+  const more = byTestId(draw(), "people-more");
+  assert.ok(more, "more people than a page: the line is drawn");
+  assert.equal(textOf(more), "2 of 1,240 loaded Show more", "the count, then the one button");
+  assert.equal(more.props.children.at(-1), byTestId(more, "people-more-btn"), "the button ends the line");
+  // The gutter is People's stylesheet's (.pl-more: 28px, 16px at 900px and under, as the standing line and the
+  // table's wrap have it), and nothing on the line says otherwise.
+  assert.ok(String(more.props.className).split(/\s+/).includes("pl-more"), "the line takes People's gutter");
+  assert.equal(more.props.style, undefined, "REGRESSION: an inline padding of 8px 0 16px set the sides to 0, 28px left of the table on a desktop and 16px on a phone");
+});
+
 test("REGRESSION: People opens on the people -- one line, then the table; a title, two sentences, four stat cards and a five-tab strip stood in front of them", async () => {
   await freshPage({
     people: [

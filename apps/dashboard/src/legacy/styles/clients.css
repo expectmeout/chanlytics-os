@@ -1985,6 +1985,9 @@
 .pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
 .pl-standing-reached { font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .pl-standing { padding: 12px 16px 0; } }
+/* And one under it while more people follow, "N of M loaded" and Show more: in the table's gutter, as the line above. */
+.pl-more { padding: 8px 28px 16px; }
+@media (max-width: 900px) { .pl-more { padding: 8px 16px 16px; } }
 /* --attn-row was set on the People strip's own container, which is gone; every
    page that still draws these rows (Today's queue, Setup, the back office) sets
    it itself or lets the row size to its content, as it already did. */

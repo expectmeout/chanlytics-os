@@ -2572,7 +2572,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
             empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
           />
           {hasMore && (
-            <div className="cl-section-sub" style={{ padding: "8px 0 16px" }} data-testid="people-more">
+            <div className="cl-section-sub pl-more" data-testid="people-more">
               {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? (searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
               {" "}
               <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>

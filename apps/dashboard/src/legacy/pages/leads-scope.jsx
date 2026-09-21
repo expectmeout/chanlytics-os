@@ -929,7 +929,7 @@ const LeadsScope = (p) => {
               />
             )}
           {L.next && (
-            <div className="cl-section-sub" style={{ padding: "8px 0 16px" }} data-testid="leads-more">
+            <div className="cl-section-sub ld-more" data-testid="leads-more">
               {p.rows.length.toLocaleString()} of {p.total.toLocaleString()} loaded{" "}
               <button type="button" className="btn btn-ghost btn-sm" disabled={p.loadingMore} onClick={p.onMore} data-testid="leads-more-btn">{p.loadingMore ? "Loading…" : "Show more"}</button>
             </div>
