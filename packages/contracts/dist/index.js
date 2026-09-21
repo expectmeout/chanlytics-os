@@ -7425,6 +7425,52 @@ function visitDayWord(visit, tz, sendAt, assumed) {
     return delta > 0 ? "soon" : "recently";
   }
 }
+function toApprovalVM(d, opts) {
+  const b = d.broadcast;
+  const will = b.recipient_count;
+  const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
+  const rules = [];
+  if (t && opts.playbook) {
+    rules.push(purposeOfPlaybook(t.cls) === "marketing" ? "each said yes to offers" : "each said yes to hearing from you");
+    if (t.kind === "visit") {
+      rules.push(opts.playbook.trigger === "visit_tomorrow" ? "each has a visit tomorrow on the calendar" : "each visited yesterday and has nothing booked next");
+    } else {
+      const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
+      rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");
+      if (will >= opts.playbook.cap_per_run) rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
+    }
+  }
+  const named = d.recipients.find((r) => r.first_name);
+  const reader = named ?? d.recipients[0] ?? null;
+  const params = Array.isArray(b.params) ? b.params : [];
+  const values = params.map((p) => {
+    switch (p.kind) {
+      case "text":
+        return p.value;
+      case "first_name":
+        return reader?.first_name || "there";
+      case "business_name":
+        return opts.businessName;
+      case "booking_link":
+        return "your booking link";
+      default:
+        return `[${PARAM_SOURCE_LABELS[p.kind].toLowerCase()}]`;
+    }
+  });
+  const greets = params.some((p) => p.kind === "first_name");
+  const late = !!b.run_for && b.run_for !== opts.today;
+  return {
+    will,
+    rules,
+    values,
+    reader: reader ? reader.name : null,
+    hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
+    approve: late ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    expired: late ? `Made for ${opts.day(b.run_for)}, and that day has passed \u2014 its people and its words were that day's. Skip it; the next run starts over.` : null,
+    goes: late ? `made for ${opts.day(b.run_for)}` : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
+    skip: "Skipping loses this run only \u2014 the playbook keeps running."
+  };
+}
 
 // src/refusal.ts
 var NEEDS_TITLE = { owner: "Owner only", operator: "Not for viewers" };
@@ -13792,6 +13838,7 @@ export {
   tidyCallSummary,
   timezoneCity,
   timezoneWords,
+  toApprovalVM,
   toBillingVM,
   toBookingReportVM,
   toBroadcastVM,
