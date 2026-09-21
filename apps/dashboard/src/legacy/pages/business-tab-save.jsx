@@ -195,11 +195,19 @@ const BT_CHECK_OF = {
 
 /* ------------------------------------ what each row's save writes ------------------------------------ */
 
-// Whether a stored prompt is the product's own opening lines (contracts isBaselinePrompt, through the bridge), which
-// name the business, whatever name they were written with.
-const btIsBaseline = (text) => {
-  const tab = window.__businessTab;
-  return !!(tab && tab.isBaselinePrompt && typeof text === "string" && tab.isBaselinePrompt(text.trim()));
+/**
+ * Whether a brain's stored prompt is exactly the product's opening lines under the business's stored name: what the
+ * product writes for it (contracts newReceptionistDefaults, which the bridge publishes), and nothing else.
+ *
+ * Not isBaselinePrompt, which reads only the opening and the closing and takes anything between them as a name. That
+ * is right for saying whose words a prompt is, but a rename overwrites what this matches, and words an owner put
+ * between the two would go with it (config.ts, isBaselineInOwnersField, says where the loose test is unsafe). Missed,
+ * a rename leaves the prompt as it is, which loses nothing. Space around the prompt is not a word of it.
+ */
+const btIsBaseline = (brain) => {
+  const text = brain && typeof brain.system_prompt === "string" ? brain.system_prompt.trim() : "";
+  if (!text || !window.__receptionistDefaults) return false;
+  return text === window.__receptionistDefaults(brain.business_name || "").system_prompt;
 };
 
 /**
@@ -207,13 +215,12 @@ const btIsBaseline = (text) => {
  * new name where the stored prompt is them. Every workspace the product sets up stores them as its prompt, and the
  * resolver carries that prompt in the owner's place until they write their own (config.ts ownWordsOf), so a rename
  * that left it behind had the receptionist told it was the assistant for both businesses, one line after the other.
- * The old form wrote them on every save; a rename here writes them when it renames. A stored prompt that is not them
- * is the owner's own words, carried, and a rename leaves it as they wrote it.
+ * The old form wrote them on every save; a rename here writes them when it renames. A stored prompt that is not them,
+ * word for word under the name stored beside it, is the owner's own words, carried, and a rename leaves it as they
+ * wrote it.
  */
 const btPatchName = (name) => (b) => {
-  if (name !== b.business_name && btIsBaseline(b.system_prompt) && window.__receptionistDefaults) {
-    b.system_prompt = window.__receptionistDefaults(name).system_prompt;
-  }
+  if (name !== b.business_name && btIsBaseline(b)) b.system_prompt = window.__receptionistDefaults(name).system_prompt;
   b.business_name = name;
   return b;
 };

@@ -544,6 +544,21 @@ test("a rename writes the product's opening lines again under the new name, and 
   assert.equal(textOf(find(byTestId(tree, "rec-inline-says-name"), (n) => n.type === "pre")), `You are the assistant for ${now}, answering customers over WhatsApp.`);
   saveRow(tree, "name");
   assert.deepEqual(sent[2].config, { ...stored, brain: { ...stored.brain, business_name: now } }, "the name alone");
+
+  // Only the product's lines word for word, under the name stored beside them, are the product's to write again. The
+  // owner's own sentences between its opening and its closing, or its lines under a name that is not the stored one,
+  // are left as they are: a rename would have overwritten them.
+  for (const prompt of [baselineOf(`${was}, a family salon since 1998. We never book walk-ins after 5pm`), baselineOf("Bella Nails & Spa")]) {
+    tree = drawTab({ brain: { system_prompt: prompt } });
+    stored = structuredClone(W.__SETTINGS.config);
+    openFold(tree, "name");
+    tree = redrawTab();
+    typeInto(tree, "name", now);
+    tree = redrawTab();
+    assert.equal(textOf(find(byTestId(tree, "rec-inline-says-name"), (n) => n.type === "pre")), `You are the assistant for ${now}, answering customers over WhatsApp.`, prompt);
+    saveRow(tree, "name");
+    assert.deepEqual(sent.at(-1).config, { ...stored, brain: { ...stored.brain, business_name: now } }, prompt);
+  }
 });
 
 test("a save that crosses the resolver's line says so beside the lines it changes, and still goes", () => {

@@ -367,7 +367,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         {...shared}
         id="name"
         // The line the prompt opens with, and the product's own lines where a rename writes them again (the name's patch).
-        section={S.isBaseline(brain.system_prompt) ? ["business_name", "system_prompt"] : "business_name"}
+        section={S.isBaseline(brain) ? ["business_name", "system_prompt"] : "business_name"}
         label="Name"
         value={name.value}
         empty="Not set"

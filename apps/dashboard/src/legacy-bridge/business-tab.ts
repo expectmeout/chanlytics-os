@@ -10,7 +10,7 @@
  */
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
-  promptBlocks, resolveSystemPrompt, isBaselinePrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema,
+  promptBlocks, resolveSystemPrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema,
   type PromptBlockVM, type ProfileCrossing, type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -167,12 +167,7 @@ function profileCrossing(next: unknown): { crossing: ProfileCrossing; sentence: 
   return crossingFor(window as unknown as ConsequenceWindow, next);
 }
 
-/**
- * `isBaselinePrompt` tells the Name row whether the stored prompt is the product's own opening lines, which name the
- * business: a rename writes them again under the new name, as the old form's save did, or the receptionist is told
- * both names. A stored prompt that is anything else is the owner's words, and a rename leaves it alone.
- */
-export const BUSINESS_TAB = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing, isBaselinePrompt };
+export const BUSINESS_TAB = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 
 declare global {
