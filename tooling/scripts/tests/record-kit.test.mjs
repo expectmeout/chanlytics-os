@@ -445,6 +445,13 @@ test("a fold's Save is gated, says when it is saving, and the keys cancel and sa
   assert.deepEqual([busy.props.disabled, busy.props["aria-disabled"], busy.props["aria-busy"], textOf(busy)], [undefined, true, true, "Saving…"]);
   press(busy);
   assert.equal(whileSaving.length, 0, "a press while it saves does nothing, and focus stays on Save");
+  // Neither does the head's Close, which is Cancel: it cancelled while the foot's Cancel and Escape did not.
+  const closed = [];
+  const saving = draw(W.RecordFold, bookingRules({ saving: true, onCancel: () => closed.push(1) }));
+  const close = find(saving, (n) => n.props?.["data-testid"] === "rec-fold-close-booking_rules");
+  press(close);
+  press(find(saving, (n) => n.props?.["data-testid"] === "rec-fold-cancel-booking_rules"));
+  assert.deepEqual([closed.length, close.props["aria-disabled"], close.props.disabled], [0, true, undefined], "the save is on its way, and nothing says it was thrown away");
 
   const cancelled = [];
   const tree = draw(W.RecordFold, bookingRules({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));
@@ -655,6 +662,10 @@ test("a row being edited keeps its disagreement on screen, to read, and its pres
   const line = find(tree, (n) => classes(n).includes("rec-row-dispute"));
   assert.match(textOf(line), /Google has you at/);
   assert.equal(find(line, (n) => n.type === "button"), null, "nothing to press while the value is being typed");
+  // The editor is on the page, hidden, while the row is at rest, so its line must not carry the row's line's id.
+  assert.deepEqual(all(tree, (n) => n.props?.id === "rec-row-address-other"), [], "the id is the row's own line's, once in the document");
+  const row = draw(W.RecordRow, { id: "address", label: "Address", value: "2581 Pitkin Avenue", disputed });
+  assert.equal(all(row, (n) => n.props?.id === "rec-row-address-other").length, 1);
 });
 
 test("an inline editor whose page goes away lets go of the registry, as a fold does", async () => {

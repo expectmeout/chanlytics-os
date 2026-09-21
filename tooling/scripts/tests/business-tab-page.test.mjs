@@ -454,6 +454,8 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
   const minor = W.__FACTS.conflicts.find((k) => k.fact === "address");
   assert.match(textOf(address), new RegExp(escape(minor.sentence)), "the resolver's own sentence, on the row");
   assert.equal(address.props["data-state"], undefined, "a minor disagreement leaves the row as it is");
+  // The row's hidden editor keeps the disagreement to read, and not under the id the row's press is described by.
+  assert.equal(all(tree, (n) => n.props?.id === "rec-row-address-other").length, 1, "one id, once on the page");
   assert.equal(find(address, (n) => n.type === "button" && /Keep/.test(textOf(n))), null, "nothing stores a choice to keep it, so nothing offers one");
   press(find(address, (n) => n.type === "button" && textOf(n) === "Use Google's"));
   assert.deepEqual(sent[0].config, { ...stored, brain: { ...stored.brain, profile: { ...stored.brain.profile, address: google } } });

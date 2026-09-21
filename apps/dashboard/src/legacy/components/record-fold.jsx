@@ -433,7 +433,17 @@ const RecordFold = ({
       <div className="rec-fold-head">
         <span className="rec-fold-label" id={labelId}>{label}</span>
         <span className="rec-fold-hint">{hint}</span>
-        <button type="button" className="rec-fold-close" id={closeId} aria-labelledby={`${closeId} ${labelId}`} onClick={onCancel} data-testid={`rec-fold-close-${id}`}>
+        {/* Close is Cancel, so it too does nothing while the fold saves (recKeys says why); it cancelled then, where
+            the foot's Cancel and Escape did not. Not disabled, as Save is not. */}
+        <button
+          type="button"
+          className="rec-fold-close"
+          id={closeId}
+          aria-labelledby={`${closeId} ${labelId}`}
+          aria-disabled={saving || undefined}
+          onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onCancel) onCancel(e); }}
+          data-testid={`rec-fold-close-${id}`}
+        >
           {closeLabel}
         </button>
       </div>
@@ -467,6 +477,8 @@ const RecordFold = ({
 // names its box by), and the page's field, what saving writes (RecordSays, as rec-inline-<id>-says, which describes the
 // box), the page's ask, and Save and Cancel with the keys that do the same take the value's place. A disagreement on
 // the row (`disputed`, RecordRow's shape) stays on screen while it is edited, to read: its press is the row's, at rest.
+// Its line carries no id here: the editor is on the page, hidden, while the row is at rest, and the row's own line has
+// the id its press is described by (rec-row-<id>-other), which was in the document twice.
 //
 //   const website = useRecordFold("website", { dirty: changed });
 //   {website.open ? null : <RecordRow id="website" act={{ label: "Change", onClick: website.request }} ... />}
@@ -506,7 +518,7 @@ const RecordInline = ({
     >
       <span className="rec-inline-key" id={keyId}>{label}</span>
       <div className="rec-inline-body">
-        {disputed && Dispute ? <Dispute id={id} disputed={{ value: disputed.value, source: disputed.source, sentence: disputed.sentence }} /> : null}
+        {disputed && Dispute ? <Dispute disputed={{ value: disputed.value, source: disputed.source, sentence: disputed.sentence }} /> : null}
         {children}
         <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} inline />
         {ask}
