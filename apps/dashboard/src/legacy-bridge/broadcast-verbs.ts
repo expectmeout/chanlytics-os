@@ -8,7 +8,7 @@
  * refresh map re-reads the Broadcasts surface, so the Scheduled and History
  * rows are the server's — never a row the page invented while it waited.
  */
-import { REPLY_WINDOW_MS, broadcastFailureWords, toRunReportVM, type BroadcastDetailDto } from "@chanlytics/contracts";
+import { REPLY_WINDOW_MS, broadcastFailureWords, toApprovalVM, toRunReportVM, type BroadcastDetailDto, type PlaybookDto } from "@chanlytics/contracts";
 import { api } from "./api";
 import { broadcastsOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
@@ -49,6 +49,23 @@ export const broadcasts = {
         return Number.isNaN(ms) || !window.__clock ? null : window.__clock.stamp(ms);
       },
     }),
+  /**
+   * A run waiting on a person, as its sheet says it (toApprovalVM): what it reaches and by which rules, the words as
+   * its first person reads them, and what approving does now -- by the business's clock, whose next open moment is
+   * when approveRun would send it.
+   */
+  approval: (d: BroadcastDetailDto, playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null, businessName: string) => {
+    const clock = window.__clock;
+    const now = Date.now();
+    const open = clock ? clock.nextOpen(now) : { at: now, moved: false };
+    return toApprovalVM(d, {
+      playbook,
+      businessName,
+      today: clock ? clock.dayKey(now) : new Date(now).toISOString().slice(0, 10),
+      open: { time: clock ? clock.time(open.at) : "", moved: open.moved },
+      day: (ymd) => (clock ? clock.dayWords(ymd) : ymd),
+    });
+  },
 };
 
 declare global {

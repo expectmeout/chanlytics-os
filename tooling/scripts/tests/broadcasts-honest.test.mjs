@@ -178,6 +178,11 @@ globalThis.window.__broadcasts = {
   // The bridge's words for why a whole broadcast stopped, and a run's report (broadcast-verbs.ts), as the verbs publish them.
   failureWords: (code) => contracts.broadcastFailureWords(code),
   report: (d) => contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: (iso) => (iso ? globalThis.window.__clock.stamp(Date.parse(iso)) : null) }),
+  approval: (d, playbook, businessName) => {
+    const clock = globalThis.window.__clock;
+    const open = clock.nextOpen(Date.now());
+    return contracts.toApprovalVM(d, { playbook, businessName, today: clock.dayKey(Date.now()), open: { time: clock.time(open.at), moved: open.moved }, day: (ymd) => clock.dayWords(ymd) });
+  },
   detail: async (id) => {
     const queue = answers.get(id) || [];
     return (queue.length > 1 ? queue.shift() : queue[0]) || { ok: false, code: "not_found", status: 404, message: "Broadcast not found." };
@@ -316,23 +321,73 @@ test("an opened run is sent again from its own head: the send screen, filled wit
   assert.equal(byTestId(again(props), "bc-again"), null, "REGRESSION-IN-WAITING: a send screen quietly filled with another template");
 });
 
-test("a run waiting on you is approved from the head of its own report -- a run Today opens is one you can act on where it lands", async () => {
-  const waiting = dto({ id: "b-wait", name: "The month's offer", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(2 * H), counts: quiet });
-  globalThis.window.__BROADCASTS = broadcastsSurface({ rows: [waiting].map((b) => toBroadcastVM(b, ZONE)) });
-  answers.set("b-wait", [{ ok: true, data: detailOf(waiting, [person({ state: "queued", sent_at: null, message_status: null, delivered_at: null })]) }]);
+test("a run waiting on you opens as the sheet the canvas draws -- where it sits in the queue, who it reaches by the rules that made it, the words, and Approve alone at the foot -- and approving opens the next one", async () => {
+  const today = globalThis.window.__clock.dayKey(Date.now());
+  const offer = { id: "tpl-offer", channel: "whatsapp", name: "monthly_offer", language: "en_US", meta_status: "approved", category: "marketing", purpose: "marketing", body_preview: "Hi {{1}}, this month at {{2}}: a free gloss with any cut.", variables: [] };
+  const waitingRun = (id, name, pb) => dto({ id, name, state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(-H), counts: quiet, recipient_count: 2,
+    playbook_id: pb, run_for: today, template_id: "tpl-offer", template_name: "monthly_offer", params: [{ kind: "first_name" }, { kind: "business_name" }], audience: { kind: "playbook", id: pb, label: name } });
+  const first = waitingRun("b-wait", "The month's offer", "pb-offer");
+  const second = waitingRun("b-wait-2", "Win-back", "pb-1");
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], rows: [first, second].map((b) => toBroadcastVM(b, ZONE)) });
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ rows: [playbook({ id: "pb-offer", name: "The month's offer", trigger: "everyone_monthly", policy_class: "campaign", cap_per_run: 250, cadence_days: 30, triggerHint: "Everyone who said yes, on a cadence" }), playbook()] });
+  const people = [person({ contact_id: "k0", name: "+1 (917) 555-0142", first_name: null, state: "queued", sent_at: null, message_status: null, delivered_at: null }), person({ state: "queued", sent_at: null, message_status: null, delivered_at: null })];
+  answers.set("b-wait", [{ ok: true, data: detailOf(first, people) }]);
   const approved = [];
-  globalThis.window.__broadcasts.approve = async (id) => { approved.push(id); return { ok: true, data: { recipient_count: 1, scheduled_for: iso(2 * H), moved_from: null } }; };
+  globalThis.window.__broadcasts.approve = async (id) => { approved.push(id); return { ok: true, data: { recipient_count: 2, scheduled_for: iso(0), moved_from: null } }; };
   try {
     const props = { initialSegment: null, initialRun: "b-wait" };
     page(props);
     await settle();
-    const tree = again(props);
-    const head = find(byTestId(tree, "bc-detail"), (n) => n.type === "header");
-    assert.ok(byTestId(head, "bc-stop"), "and it can be skipped there too");
-    await press(byTestId(head, "bc-approve"));
+    let tree = again(props);
+    const sheet = byTestId(tree, "bc-sheet");
+    assert.ok(sheet, "a run waiting on you is its sheet, not a report of nothing sent");
+    assert.equal(byTestId(tree, "bc-figures"), null);
+    assert.equal(textOf(byTestId(sheet, "bc-sheet-pos")), "1 of 2 · Campaigns", "where it sits among the runs waiting");
+    assert.equal(textOf(find(sheet, (n) => n.type === "h1")), "The month's offer");
+    const reach = textOf(byTestId(sheet, "bc-sheet-reach"));
+    assert.ok(reach.includes("2will get it") && reach.includes("each said yes to offers") && reach.includes("none heard from any playbook this week"), reach);
+    assert.ok(!/ of \d/.test(reach), `REGRESSION-IN-WAITING: a pool the run never recorded -- ${reach}`);
+    const words = textOf(byTestId(sheet, "bc-sheet-words"));
+    assert.ok(words.includes("Hi Rosa, this month at Northside Studio") && words.includes("as Rosa Díaz reads it"), words);
+    assert.equal(textOf(byTestId(sheet, "bc-sheet-hi")), "1 gets \u201cHi there\u201d \u2014 no name on file", "the case nobody is shown before a send, shown before this one");
+    assert.ok(textOf(byTestId(sheet, "bc-sheet-approve")).includes("Approve \u2014 2 "), textOf(byTestId(sheet, "bc-sheet-approve")));
+    // Who gets it, on asking.
+    press(byTestId(sheet, "bc-sheet-see"));
+    tree = again(props);
+    assert.equal(all(byTestId(tree, "bc-sheet-people"), (n) => n.props?.["data-testid"] === "bc-person").length, 2);
+    // Approved, the next run waiting opens.
+    await press(byTestId(tree, "bc-sheet-approve"));
     assert.deepEqual(approved, ["b-wait"]);
+    assert.equal(went.at(-1), "broadcasts/run:b-wait-2", "a queue of two is two presses");
+
+    // Skip arms before it acts, as every stop on the page does (D13).
+    const skipped = [];
+    globalThis.window.__broadcasts.cancel = async (id) => { skipped.push(id); return { ok: true, data: { was: "pending_approval" } }; };
+    page(props);
+    await settle();
+    tree = again(props);
+    press(byTestId(tree, "bc-sheet-skip"));
+    tree = again(props);
+    assert.equal(skipped.length, 0, "one press does not skip");
+    assert.equal(byTestId(tree, "bc-sheet-approve"), null, "the question stands alone");
+    assert.ok(textOf(byTestId(tree, "bc-sheet-skip-confirm")).includes("Nothing sends, and the run closes."), "and it says what skipping does");
+    await press(byTestId(tree, "bc-sheet-skip-yes"));
+    assert.deepEqual(skipped, ["b-wait"]);
+    assert.equal(went.at(-1), "broadcasts/run:b-wait-2");
+
+    // A run whose day has passed is refused by approveRun: the sheet says why, and offers the skip.
+    const stale = { ...first, run_for: "2020-01-01" };
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], rows: [toBroadcastVM(stale, ZONE)] });
+    answers.set("b-wait", [{ ok: true, data: detailOf(stale, people) }]);
+    page(props);
+    await settle();
+    tree = again(props);
+    assert.equal(byTestId(tree, "bc-sheet-approve"), null, "REGRESSION-IN-WAITING: a button the server refuses");
+    assert.ok(textOf(byTestId(tree, "bc-sheet-expired")).includes("that day has passed"));
+    assert.equal(textOf(byTestId(tree, "bc-sheet-pos")), "Campaigns", "the only one waiting");
   } finally {
     delete globalThis.window.__broadcasts.approve;
+    delete globalThis.window.__broadcasts.cancel;
   }
 });
 

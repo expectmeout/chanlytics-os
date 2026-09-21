@@ -67,13 +67,101 @@ const BC_FILTERS = [["all", "All"], ["replied", "Replied"], ["held", "Held back"
 const BC_FILTER_NONE = { all: "Nobody is on this run.", replied: "Nobody has written back yet.", held: "Nobody was held back.", stopped: "Nobody asked to stop." };
 // How many replies "What came back" quotes; the rest are threads in the Inbox, and it says how many.
 const BC_REPLIES_SHOWN = 5;
-const BroadcastDetail = ({ id, onClose, acts = null, again = null }) => {
+// One person's line on a run: who, how it went, the words, their one door, and when.
+const bcPersonRow = (p) => (
+  <div key={p.contact_id} className={`bc-person${p.attn ? " is-attn" : ""}${p.held ? " is-held" : ""}`} data-testid="bc-person">
+    <span className="bc-person-mark" aria-hidden="true">{p.initials}</span>
+    <button type="button" className="bc-person-name" onClick={() => window.CHANLY.nav(`clients/${p.contact_id}`)}>{p.name}</button>
+    <span className="bc-person-pill" data-tone={p.pill.tone}>{p.pill.label}</span>
+    <span className="bc-person-words">{p.words}</span>
+    {p.door && <button type="button" className="bc-person-door" onClick={() => window.CHANLY.nav(p.door.to)}>{p.door.label}</button>}
+    <span className="bc-person-at mono">{p.at || "—"}</span>
+  </div>
+);
+
+// A run waiting on you, opened: the sheet the canvas draws for the phone -- "approving from the sofa" -- at any
+// width, since a run that has not gone has no report to read. What it reaches, by the rules that made its list (a
+// run records how many it enrolled and nothing about the rest, so no "of 312"); the words as its first person reads
+// them; and the act alone at the foot, pinned, with the skip and the list beside it. The words are the contracts'
+// (toApprovalVM, through window.__broadcasts.approval); the acts are the page's, and when one lands the next run
+// waiting opens, so a queue of two is two presses.
+const BcSheet = ({ d, people, avm, sheet, onClose, seeAll, onSeeAll }) => {
+  const b = d.broadcast;
+  const pb = sheet.playbook;
+  const stop = bcStopWords("pending_approval");
+  const hint = pb && pb.triggerHint ? pb.triggerHint.charAt(0).toLowerCase() + pb.triggerHint.slice(1) : b.audience.label;
+  const body = sheet.template ? sheet.template.body_preview : null;
+  const parts = body && window.mpParts ? window.mpParts(body, avm.values) : [];
+  const pos = sheet.position;
+  return (
+    <div className="bc-sheet" data-testid="bc-sheet">
+      <div className="bc-sheet-top">
+        <button type="button" className="bc-sheet-back" onClick={onClose} aria-label="Back to Broadcasts" data-testid="bc-detail-close"><Icon name="chevron" size={18} /></button>
+        <div className="bc-sheet-where">
+          <div className="bc-sheet-k">Waiting on you</div>
+          <div className="bc-sheet-pos" data-testid="bc-sheet-pos">{pos && pos[1] > 1 ? `${pos[0]} of ${pos[1]} · Campaigns` : "Campaigns"}</div>
+        </div>
+      </div>
+      <div className="bc-sheet-body">
+        <div>
+          <div className="bc-sheet-titles">
+            <h1 className="bc-sheet-title">{b.name}</h1>
+            {pb && <PolicyChip cls={pb.policy_class} />}
+          </div>
+          <div className="bc-sheet-sub">Playbook · {hint} · {avm.goes}</div>
+        </div>
+        <div className="bc-sheet-reach" data-testid="bc-sheet-reach">
+          <div className="bc-sheet-n"><span className="bc-sheet-v tabular">{avm.will}</span><span className="bc-sheet-will">will get it</span></div>
+          <div className="bc-sheet-bar" aria-hidden="true"><span /></div>
+          {avm.rules.length > 0 && <div className="bc-sheet-rules">{avm.rules.map((r) => <div key={r}>{r}</div>)}</div>}
+        </div>
+        {parts.length > 0 && (
+          <div className="bc-sheet-words" data-testid="bc-sheet-words">
+            <p className="bc-sheet-quote">“{parts.map((x, i) => (x.kind === "slot" ? <span key={i} className="bc-sheet-slot">{x.text}</span> : <React.Fragment key={i}>{x.text}</React.Fragment>))}”</p>
+            <div className="bc-sheet-reader">
+              {avm.reader && <span>as {avm.reader} reads it</span>}
+              {avm.hiThere > 0 && <span className="bc-sheet-hi" data-testid="bc-sheet-hi">{avm.hiThere} {avm.hiThere === 1 ? "gets" : "get"} “Hi there” — no name on file</span>}
+            </div>
+          </div>
+        )}
+      </div>
+      {seeAll && (
+        <section className="bc-touched bc-sheet-people" data-testid="bc-sheet-people">
+          <div className="bc-touched-head"><span className="bc-card-title">Who gets it</span></div>
+          {people.map(bcPersonRow)}
+        </section>
+      )}
+      {/* The act, pinned to the foot while the list above it scrolls. */}
+      <div className="bc-sheet-acts" data-testid="bc-sheet-acts">
+        {avm.expired && <p className="bc-sheet-expired" data-testid="bc-sheet-expired">{avm.expired}</p>}
+        {sheet.canSend && avm.approve && !sheet.armed && (
+          <button type="button" className="bc-sheet-approve" disabled={sheet.approving} onClick={sheet.approve} data-testid="bc-sheet-approve">
+            <Icon name="check" size={16} /> {sheet.approving ? "Approving…" : avm.approve}
+          </button>
+        )}
+        {sheet.armed && sheet.canSend
+          ? <Confirm question={stop.question(b)} detail={stop.detail} yes={stop.yes} danger busy={sheet.stopping} onYes={sheet.skip} onNo={() => sheet.onArm(false)} testid="bc-sheet-skip" />
+          : (
+            <div className="bc-sheet-pair">
+              {sheet.canSend && <button type="button" className="bc-sheet-second" onClick={() => sheet.onArm(true)} data-testid="bc-sheet-skip">Skip this run</button>}
+              <button type="button" className="bc-sheet-second" aria-expanded={seeAll} onClick={onSeeAll} data-testid="bc-sheet-see">{seeAll ? "Hide the list" : `See the ${avm.will}`}</button>
+            </div>
+          )}
+        <span className="bc-sheet-note">{sheet.canSend ? avm.skip : window.gateTitle("approve", "approve or skip a run")}</span>
+      </div>
+    </div>
+  );
+};
+
+const BroadcastDetail = ({ id, onClose, acts = null, again = null, sheet = null }) => {
   // The last answer, kept with the broadcast it answered for: a read of another id is not this one's.
   const [answer, setAnswer] = React.useState(null);
   const [asks, ask] = React.useReducer((n) => n + 1, 0);
   const [retrying, setRetrying] = React.useState(false);
   // Who "Everyone it touched" shows: everyone, or the ones who replied, were held back, or asked to stop.
   const [filter, setFilter] = React.useState("all");
+  // Whether a waiting run's sheet shows who gets it.
+  const [seeAll, setSeeAll] = React.useState(false);
   const mine = answer && answer.id === id ? answer : null;
   const d = mine && mine.ok ? mine.data : null;
   // While it can still change it is read again whenever the surface is -- which re-reads on every message, so
@@ -116,6 +204,14 @@ const BroadcastDetail = ({ id, onClose, acts = null, again = null }) => {
   }
   const b = d.broadcast;
   const vm = window.__broadcasts.report ? window.__broadcasts.report(d) : null;
+  const avm = sheet && b.state === "pending_approval" && window.__broadcasts.approval ? window.__broadcasts.approval(d, sheet.playbook, sheet.businessName) : null;
+  if (avm) {
+    return (
+      <div className="bc-report is-sheet" data-testid="bc-detail">
+        <BcSheet d={d} people={vm ? vm.people : []} avm={avm} sheet={sheet} onClose={onClose} seeAll={seeAll} onSeeAll={() => setSeeAll((v) => !v)} />
+      </div>
+    );
+  }
   const when = bcWhen(b.started_at || b.scheduled_for);
   const lang = b.template_language ? String(b.template_language).slice(0, 2).toUpperCase() : null;
   const shown = vm ? vm.people.filter((p) => p.in.includes(filter)) : [];
@@ -167,16 +263,7 @@ const BroadcastDetail = ({ id, onClose, acts = null, again = null }) => {
                 ))}
               </span>
             </div>
-            {shown.map((p) => (
-              <div key={p.contact_id} className={`bc-person${p.attn ? " is-attn" : ""}${p.held ? " is-held" : ""}`} data-testid="bc-person">
-                <span className="bc-person-mark" aria-hidden="true">{p.initials}</span>
-                <button type="button" className="bc-person-name" onClick={() => window.CHANLY.nav(`clients/${p.contact_id}`)}>{p.name}</button>
-                <span className="bc-person-pill" data-tone={p.pill.tone}>{p.pill.label}</span>
-                <span className="bc-person-words">{p.words}</span>
-                {p.door && <button type="button" className="bc-person-door" onClick={() => window.CHANLY.nav(p.door.to)}>{p.door.label}</button>}
-                <span className="bc-person-at mono">{p.at || "—"}</span>
-              </div>
-            ))}
+            {shown.map(bcPersonRow)}
             {shown.length === 0 && <div className="bc-touched-none">{BC_FILTER_NONE[filter]}</div>}
           </section>
           <div className="bc-report-aside">
@@ -808,25 +895,27 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
   };
   const cancel = async (row) => {
-    if (!window.__broadcasts || stopping || !canSend) return;
+    if (!window.__broadcasts || stopping || !canSend) return false;
     setStopping(row.id);
     const r = await window.__broadcasts.cancel(row.id);
     setStopping(null);
     setArmId(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
+    return r.ok;
   };
   // One approve at a time: a second press while the first is out would be refused by the server, so the button says
   // it is approving instead, and the guard holds before the button has drawn that.
   const approvingRef = React.useRef(null);
   const [approving, setApproving] = React.useState(null);
   const approve = async (row) => {
-    if (!window.__broadcasts || !canSend || approvingRef.current) return;
+    if (!window.__broadcasts || !canSend || approvingRef.current) return false;
     approvingRef.current = row.id;
     setApproving(row.id);
     const r = await window.__broadcasts.approve(row.id);
     approvingRef.current = null;
     setApproving(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(r.data)}</> : <>{r.message}</> });
+    return r.ok;
   };
 
   // The list under the band: a band's runs when one is pressed; else everything
@@ -859,6 +948,32 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // Send it again: the send screen, filled with what this run sent -- its template, its list and its values -- when
   // all three can still go. A template WhatsApp no longer approves, a list since deleted, or a playbook's run (whose
   // playbook sends it again) offers no button rather than a composer quietly filled with something else.
+  // A run waiting on you, open: its sheet. Where it sits among the runs waiting (the ledger's order), its playbook
+  // and its template for the words, and the acts -- which, when they land, open the next run waiting, or the ledger.
+  const sheetFor = (row) => {
+    if (!row || row.state !== "pending_approval") return null;
+    const queue = openRows.filter((r) => r.state === "pending_approval");
+    const at = queue.findIndex((r) => r.id === row.id);
+    const rest = queue.filter((r) => r.id !== row.id);
+    const next = rest[Math.min(Math.max(at, 0), rest.length - 1)] || null;
+    const pb = window.__PLAYBOOKS && Array.isArray(window.__PLAYBOOKS.rows) ? window.__PLAYBOOKS.rows.find((p) => p.id === row.playbook_id) || null : null;
+    const pool = [...(data.templates || BC_NONE), ...(window.__TEMPLATES_ALL || BC_NONE)];
+    const template = pool.find((t) => t.id === row.template_id) || pool.find((t) => t.name === row.template_name && t.language === row.template_language) || null;
+    const onward = () => openRun(next ? next.id : null);
+    return {
+      position: at >= 0 ? [at + 1, queue.length] : null,
+      canSend,
+      playbook: pb,
+      template,
+      businessName: data.businessName || "",
+      armed: armId === row.id,
+      onArm: (on) => setArmId(on ? row.id : null),
+      stopping: stopping === row.id,
+      approving: approving === row.id,
+      approve: async () => { if (await approve(row)) onward(); },
+      skip: async () => { if (await cancel(row)) onward(); },
+    };
+  };
   const againFor = (b) => {
     if (!canSend || b.playbook_id) return null;
     const t = templates.find((x) => x.id === b.template_id);
@@ -901,6 +1016,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
               ? <BcRunVerbs row={openRow} canSend={canSend} armed={armId === openRow.id} onArm={(on) => setArmId(on ? openRow.id : null)} stopping={stopping === openRow.id} approving={approving === openRow.id} approve={approve} cancel={cancel} />
               : null}
             again={againFor}
+            sheet={sheetFor(openRow)}
           />
         </section>
       ) : null}
