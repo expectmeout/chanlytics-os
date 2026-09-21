@@ -962,7 +962,12 @@
   text-overflow: ellipsis;
 }
 .tl-msg-by > .agent-avatar { flex: 0 0 auto; }
+/* A body never leaves its bubble. It is a column-flex item aligned to one edge, so its width is
+   fit-content — floored at its min-content. A link that will not wrap (.tl-msg-link) made that
+   floor the whole address: on production Daniela's Booksy link drew a 552px body inside a 259px
+   bubble, pushed 218px off the left of the screen. Capped at the bubble, the link clips instead. */
 .tl-msg-body {
+  max-width: 100%;
   padding: 9px 14px;
   border-radius: 14px;
   font-size: 13px;
@@ -999,7 +1004,9 @@
 }
 .tl-msg-link:hover { text-decoration-color: currentColor; }
 /* What an email quoted back at us: kept, not shown. "Got it, thanks!" was six lines of headers. */
+/* Its own line, under what they wrote: inline, it sat against the last word — "thanks!Show". */
 .tl-msg-quote-toggle {
+  display: block;
   appearance: none;
   background: none;
   border: 0;
@@ -1012,6 +1019,11 @@
   text-align: left;
 }
 .tl-msg-quote-toggle:hover { color: var(--ink); }
+/* A thumb's reach without a thumb's height. Every button on a touch screen is 44px tall
+   (legacy.css), which put 25px of air under the words in every email that quoted; the height
+   comes off the box and the reach goes to an ::after that takes no room. */
+html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
+.tl-msg-quote-toggle::after { content: ""; position: absolute; inset: -12px -8px; }
 .tl-msg-quote {
   margin-top: 6px;
   padding-left: 8px;
