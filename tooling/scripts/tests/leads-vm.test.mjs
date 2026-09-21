@@ -17,7 +17,7 @@ import {
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
   LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars, leadMapPlot, leadMapNote,
-  leadPlanAsk, leadPlanFacts, leadPlanLikely,
+  leadPlanAsk, leadPlanFacts, leadPlanLikely, leadTodayLine, leadHoursShort,
 } from "../../../packages/contracts/src/leads.ts";
 import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LeadSearchPlanSchema } from "../../../packages/contracts/src/lead-search.ts";
 
@@ -350,7 +350,7 @@ test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on,
   assert.equal(vm.tile.tint, leadTintOf("Personal trainer"), "the same kind, the same tint");
   assert.notEqual(leadTintOf("Personal trainer"), leadTintOf("Book store"), "two kinds, two tints (these two)");
   assert.deepEqual([vm.waitsOn, vm.state, vm.stateTag], [null, "ready", null], "Ready is silent");
-  assert.equal(vm.card.today, "Open today · 6 AM to 8 PM");
+  assert.equal(vm.card.today, "Open until 8 PM", "whether they are open now, not the hours to work it out from");
   assert.equal(vm.card.about, "Coaching only.");
   assert.deepEqual(vm.card.where, { line: "1200 Barton Springs Rd, Austin, TX 78704", href: "https://maps.example/?cid=1" });
   assert.deepEqual([vm.card.site, vm.card.maps], [{ label: "zilkerstrength.example", href: "https://zilkerstrength.example" }, { label: "Google Maps", href: "https://maps.example/?cid=1" }]);
@@ -422,7 +422,7 @@ test("the peek knows who they are: their own words, where, whether they are open
   const v = toLeadPeekVM(row(shown), SEARCH_DONE, TZ, NOW);
   assert.equal(v.about, "Waterfront venue for weddings.");
   assert.deepEqual(v.where, { line: "101 Biscayne Blvd, Miami, FL 33132", href: "https://maps.example/?cid=1" });
-  assert.equal(v.today, "Open today · 9 AM to 6 PM");
+  assert.equal(v.today, "Open until 6 PM");
   assert.equal(toLeadPeekVM(row(shown), SEARCH_DONE, TZ, new Date(NOW.getTime() + 86_400_000)).today, "Closed today", "Saturday");
   assert.equal(toLeadPeekVM(row({ ...shown, hours: [] }), SEARCH_DONE, TZ, NOW).today, null, "no hours, no line");
   assert.equal(v.tile.image, "https://lh3.example/p.jpg");
@@ -437,10 +437,38 @@ test("the peek knows who they are: their own words, where, whether they are open
   assert.equal(v.claimedNote, "Listing not claimed by the owner", "an unclaimed listing rarely watches its email");
   assert.equal(toLeadPeekVM(row({ ...shown, claimed: true }), SEARCH_DONE, TZ, NOW).claimedNote, null);
   assert.equal(toLeadPeekVM(row({ ...shown, claimed: null }), SEARCH_DONE, TZ, NOW).claimedNote, null, "a listing that did not say is not called unclaimed");
-  assert.match(v.found[0].what, /^On Google Maps, #3 for “/, "the rank rides the first line of Found");
+  assert.match(v.found[0].what, /^Google Maps · #3 for “/, "the rank rides the first step of Found");
+  assert.match(v.foundSummary, /^#3 on Google Maps · /, "and the line it folds under");
   const before = toLeadPeekVM(row(), SEARCH_DONE, TZ, NOW);
   assert.deepEqual([before.about, before.today, before.tile.image, before.claimedNote, before.links.facebook, before.links.maps], [null, null, null, null, null, null], "a lead from before D2 claims none of it");
-  assert.match(before.found[0].what, /^On Google Maps, searching “/, "and is found the way it was");
+  assert.match(before.found[0].what, /^Google Maps · searching “/, "and is found the way it was");
+  assert.match(before.foundSummary, /^On Google Maps · /, "with no rank to claim");
+});
+
+// D8: today as an owner about to call asks it -- are they open now -- and the week in as few characters as say it.
+// NOW is 2:20 PM on a Friday in America/Chicago.
+test("today says whether they are open now, a night past midnight is the day it began, and hours are said short", () => {
+  const at = (hours, iso = NOW.toISOString()) => leadTodayLine(hours, TZ, new Date(iso));
+  const fri = (h) => [{ day: "Thursday", hours: "Closed" }, { day: "Friday", hours: h }];
+  assert.equal(at(fri("9 AM to 6 PM")), "Open until 6 PM");
+  assert.equal(at(fri("4:30 PM to 11 PM")), "Opens 4:30 PM", "not open yet: when they open");
+  assert.equal(at(fri("7 AM to 1 PM")), "Closed now", "shut for the day");
+  assert.equal(at(fri("Closed")), "Closed today");
+  assert.equal(at(fri("Open 24 hours")), "Open 24 hours");
+  assert.equal(at(fri("11 AM to 2 PM, 5 PM to 10 PM")), "Open today · 11–2, 5–10 PM", "two runs keep both, short");
+  assert.equal(at(fri("by appointment")), "Open today · by appointment", "words the parser cannot read are kept");
+  assert.equal(at([{ day: "Monday", hours: "9 AM to 6 PM" }]), null, "a listing silent about today says nothing");
+  assert.equal(at([]), null);
+  // 1 AM Saturday in Chicago: Friday's night is still running.
+  const late = "2026-09-19T06:00:00.000Z";
+  assert.equal(at([{ day: "Friday", hours: "5 PM to 2 AM" }, { day: "Saturday", hours: "5 PM to 2 AM" }], late), "Open until 2 AM", "not \"Opens 5 PM\" while the doors are open");
+  assert.equal(at([{ day: "Friday", hours: "5 PM to 11 PM" }, { day: "Saturday", hours: "5 PM to 2 AM" }], late), "Opens 5 PM", "a night that ended before midnight holds nothing over");
+
+  assert.deepEqual(
+    ["10 AM to 6 PM", "5 PM to 10 PM", "8 AM to 11 AM", "5 PM to 2 AM", "9:30 AM to 5:30 PM", "Open 24 hours", "Closed", "by appointment"].map(leadHoursShort),
+    ["10–6", "5–10 PM", "8–11 AM", "5 PM–2 AM", "9:30–5:30", "24 hours", "Closed", "by appointment"],
+    "morning into afternoon says neither half; one half says it once; into the night says both",
+  );
 });
 
 // D6: the row's tile and the peek's band draw the same three stacked layers -- the business's own mark over the

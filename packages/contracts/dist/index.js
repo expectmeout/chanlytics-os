@@ -11354,7 +11354,6 @@ var LEAD_REVIEW_WORD = "Needs review";
 var LEAD_LEFT_OUT_WORD = "Left out";
 var LEAD_CLASS_WORDS = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
 var LEAD_UNREACHABLE_WORD = "No way to reach them";
-var LEAD_CHECK_GROUP_WORDS = { seen: "Seen", read: "Claude's read" };
 var LEAD_CHECK_UNSURE = "Couldn't tell";
 var LEAD_CHECK_WORDS = {
   // Each unknown names what could not be told: four rows of "Couldn't tell" told the owner nothing.
@@ -11753,16 +11752,50 @@ Not interested? Reply "no thanks" and I won't write again.`;
 }
 function leadTodayLine(hours, tz, now) {
   if (!hours.length) return null;
-  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now);
-  const h = hours.find((x) => x.day.toLowerCase() === day.toLowerCase());
-  if (!h) return null;
-  return /^closed/i.test(h.hours) ? "Closed today" : `Open today \xB7 ${h.hours}`;
+  const dayOf = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf(d))?.hours.trim() ?? null;
+  const parts2 = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);
+  const at2 = Number(parts2.find((p) => p.type === "hour")?.value ?? 0) + Number(parts2.find((p) => p.type === "minute")?.value ?? 0) / 60;
+  const clock2 = (hh, mm, ap) => `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
+  const last = hoursOn(new Date(now.getTime() - 864e5))?.match(CLOCK);
+  if (last && hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) && at2 < hourOf(last[4], last[5], last[6])) {
+    return `Open until ${clock2(last[4], last[5], last[6])}`;
+  }
+  const text = hoursOn(now);
+  if (text === null) return null;
+  if (/^closed/i.test(text)) return "Closed today";
+  if (/^open 24 hours$/i.test(text)) return "Open 24 hours";
+  const m = text.match(CLOCK);
+  if (!m) return `Open today \xB7 ${leadHoursShort(text)}`;
+  const open = hourOf(m[1], m[2], m[3]);
+  let close = hourOf(m[4], m[5], m[6]);
+  if (close <= open) close += 24;
+  if (at2 < open) return `Opens ${clock2(m[1], m[2], m[3])}`;
+  if (at2 < close) return `Open until ${clock2(m[4], m[5], m[6])}`;
+  return "Closed now";
+}
+function leadHoursShort(text) {
+  const t = text.trim();
+  if (/^open 24 hours$/i.test(t)) return "24 hours";
+  if (/^closed/i.test(t)) return "Closed";
+  const at2 = (h, mm) => mm && mm !== "00" ? `${h}:${mm}` : h;
+  const ranges = t.split(/\s*,\s*/).map((part) => {
+    const m = part.match(CLOCK);
+    if (!m) return null;
+    const a1 = m[3].toUpperCase();
+    const a2 = m[6].toUpperCase();
+    const wraps = hourOf(m[4], m[5], m[6]) <= hourOf(m[1], m[2], m[3]);
+    if (!wraps && a1 === "AM" && a2 === "PM") return `${at2(m[1], m[2])}\u2013${at2(m[4], m[5])}`;
+    if (!wraps && a1 === a2) return `${at2(m[1], m[2])}\u2013${at2(m[4], m[5])} ${a2}`;
+    return `${at2(m[1], m[2])} ${a1}\u2013${at2(m[4], m[5])} ${a2}`;
+  });
+  return ranges.every(Boolean) ? ranges.join(", ") : t;
 }
 function leadWeekSummary(week) {
   const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
   if (!open.length) return "";
   const tally2 = /* @__PURE__ */ new Map();
-  for (const d of open) tally2.set(d.hours, (tally2.get(d.hours) ?? 0) + 1);
+  for (const d of open) tally2.set(d.short, (tally2.get(d.short) ?? 0) + 1);
   let best = "";
   let most = 0;
   for (const [hours, n] of tally2) if (n > most) {
@@ -11773,10 +11806,6 @@ function leadWeekSummary(week) {
   if (most === open.length) return `${days} \xB7 ${best}`;
   if (most * 2 >= open.length) return `${days} \xB7 ${best} most days`;
   return days;
-}
-function leadFactsSummary(facts) {
-  if (!facts.length) return "";
-  return `${LEAD_WORDS.fromListing} \u2014 ${facts.map((f) => f.k.toLowerCase()).join(", ")}`;
 }
 var CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 var hourOf = (h, m, ap) => Number(h) % 12 + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
@@ -11795,7 +11824,7 @@ function leadWeekBars(hours, tz, now) {
         bar = { x: Math.round(a / 24 * 1e3) / 10, w: Math.round((b - a) / 24 * 1e3) / 10 };
       }
     }
-    return { day: h.day, hours: text, bar, today: h.day.toLowerCase() === today };
+    return { day: h.day, hours: text, short: leadHoursShort(text), bar, today: h.day.toLowerCase() === today };
   });
 }
 function leadWhere(r) {
@@ -11818,6 +11847,15 @@ function leadExclusionWord(search, key) {
   const cr = plan?.criteria.find((c) => c.key === key);
   return cr ? cr.text : LEAD_LEFT_OUT_WORD;
 }
+function dayIn(tz, iso, now) {
+  if (!iso) return "";
+  const at2 = new Date(iso);
+  if (Number.isNaN(at2.getTime())) return "";
+  const key = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  if (key(at2) === key(now)) return "today";
+  if (key(at2) === key(new Date(now.getTime() - 864e5))) return "yesterday";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at2);
+}
 function clockIn(tz, iso, now) {
   if (!iso) return "\u2014";
   const at2 = new Date(iso);
@@ -11834,8 +11872,14 @@ function toLeadPeekVM(r, search, tz, now) {
   const fitWord = m.class === "qualified" ? m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look : m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} \u2014 ${leadExclusionWord(search, m.excluded_by)}`;
   const fitCls = m.class === "qualified" ? m.fit ?? "look" : m.class === "review" ? "review" : "out";
   const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
-  const emailNote = r.email ? r.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} \xB7 checked ${clockIn(tz, r.email_checked_at, now)}` : r.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking : r.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.` : LEAD_MAILBOX_WORDS[r.email_state] : LEAD_NO_EMAIL_LINE;
+  const emailNote = r.email ? r.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} \xB7 checked ${dayIn(tz, r.email_checked_at, now) || "on finding it"}` : r.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking : r.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.` : LEAD_MAILBOX_WORDS[r.email_state] : LEAD_NO_EMAIL_LINE;
   const mailboxLabel = LEAD_MAILBOX_WORDS[r.email_state];
+  const stop = (s) => /[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`;
+  const emailTip = [
+    ...r.email && (r.email_state === "catch_all" || r.email_state === "unknown" || r.email_state === "invalid") ? [LEAD_EMAIL_WORDS[r.email_state]] : [],
+    emailNote,
+    ...r.email_state === "ok" ? [] : [standard]
+  ].map(stop).join(" ");
   const seen = [];
   const read = [];
   for (const c of m.checks) {
@@ -11848,7 +11892,7 @@ function toLeadPeekVM(r, search, tz, now) {
     items: m.other_emails
   } : null;
   const host = r.website;
-  const siteLine = host ? r.email_state === "none" ? `Their website, ${host}: no email on the home, contact or about pages` : `Their website, ${host}: an email on the contact page` : "No website to check";
+  const siteLine = host ? r.email_state === "none" ? `${host} \xB7 no email on the home, contact or about pages` : `${host} \xB7 an email on the contact page` : "No website to check";
   const term = search?.plan.terms[0] ?? null;
   const passed = m.checks.filter((c) => c.answer === "yes").length;
   const unsure = m.checks.filter((c) => c.answer === "unknown").length;
@@ -11860,7 +11904,6 @@ function toLeadPeekVM(r, search, tz, now) {
   ].join(" \xB7 ");
   const week = leadWeekBars(r.hours ?? [], tz, now);
   const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US"), low: leadLowShare(r.reviews_dist ?? null) };
-  const foundWays = 3;
   const facts = [
     ...r.category ? [{ k: "Kind", v: r.category }] : [],
     ...r.price ? [{ k: "Price", v: r.price }] : [],
@@ -11879,7 +11922,6 @@ function toLeadPeekVM(r, search, tz, now) {
     week,
     weekSummary: leadWeekSummary(week),
     facts,
-    factsSummary: leadFactsSummary(facts),
     checksSummary,
     checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),
@@ -11898,14 +11940,16 @@ function toLeadPeekVM(r, search, tz, now) {
     fit: { word: fitWord, cls: fitCls, sentence: m.reason },
     reach: {
       phone: r.phone ? {
-        value: r.phone,
+        value: formatPhoneDisplay(r.phone) ?? r.phone,
         note: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website" : "From their Google Maps listing",
+        tip: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website." : "From their Google Maps listing.",
         tel: r.phone_wrong ? null : `tel:${r.phone}`,
         wrong: r.phone_wrong
       } : null,
       email: {
         value: r.email ?? "No email on their site",
         note: emailNote,
+        tip: emailTip,
         // The standard explains a lead the mailbox did not settle. Beside an address that checks out it is a line
         // saying nothing, on every good lead: null there, so the peek reads shorter where there is nothing to say.
         standard: r.email_state === "ok" ? null : standard,
@@ -11917,19 +11961,19 @@ function toLeadPeekVM(r, search, tz, now) {
       locked: { title: "Texts and WhatsApp", line: LEAD_LOCKED_LINE }
     },
     groups: [
-      { how: "seen", label: LEAD_CHECK_GROUP_WORDS.seen, checks: seen },
-      { how: "read", label: LEAD_CHECK_GROUP_WORDS.read, checks: read }
+      { how: "seen", checks: seen },
+      { how: "read", checks: read }
     ].filter((g) => g.checks.length > 0),
     others,
-    foundSummary: [
-      `Found ${foundWays} way${foundWays === 1 ? "" : "s"}, ${clockIn(tz, r.found_at, now)}`,
-      ...term && r.rank ? [`#${r.rank} for \u201C${term}\u201D`] : []
-    ].join(" \xB7 "),
+    // Where it was found and when, in one short line: "#19 on Google Maps · Sep 20". The three steps behind it are a
+    // few words each, and the minute each happened lives in its own hover: they happen within a minute or two of each
+    // other, so four copies of "Sep 20, 2:02 PM" said nothing the head had not.
+    foundSummary: [term && r.rank ? `#${r.rank} on Google Maps` : "On Google Maps", dayIn(tz, r.found_at, now)].filter(Boolean).join(" \xB7 "),
     found: [
-      // The rank it was found at rides the first line when the listing gave one: "#3 for “wedding planner”".
-      { at: clockIn(tz, r.found_at, now), what: term ? r.rank ? `On Google Maps, #${r.rank} for \u201C${term}\u201D` : `On Google Maps, searching \u201C${term}\u201D` : "On a Google Maps listing" },
+      { at: clockIn(tz, r.found_at, now), what: term ? r.rank ? `Google Maps \xB7 #${r.rank} for \u201C${term}\u201D` : `Google Maps \xB7 searching \u201C${term}\u201D` : "A Google Maps listing" },
       { at: clockIn(tz, r.found_at, now), what: siteLine },
-      { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox check: ${mailboxLabel}` }
+      // The mailbox's long sentence is the email row's to say; here it is the state's one word.
+      { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox \xB7 ${LEAD_EMAIL_WORDS[r.email_state]}` }
     ],
     links: {
       website: host ? { label: host, href: `https://${host}` } : null,
@@ -12711,7 +12755,6 @@ export {
   LEAD_CALL_QUESTION,
   LEAD_CARDS,
   LEAD_CHECK_CENTS_EACH,
-  LEAD_CHECK_GROUP_WORDS,
   LEAD_CHECK_KEYS,
   LEAD_CHECK_UNSURE,
   LEAD_CHECK_WORDS,
@@ -13195,7 +13238,7 @@ export {
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
-  leadFactsSummary,
+  leadHoursShort,
   leadKindWord,
   leadLowShare,
   leadLowerFirst,
