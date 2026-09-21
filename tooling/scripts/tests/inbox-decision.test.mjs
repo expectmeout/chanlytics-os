@@ -187,8 +187,11 @@ test("the pane: beside I'll answer this, the customer's own words -- what they w
   assert.equal(textOf(words), "They wrote“Can I move my appointment to Friday?”");
   assert.ok(buttonsOf(take).some((b) => b.includes("I'll answer this")), "the decision is still there to make");
 
+  // A call back's details are the line's own sentence, said once: "From the call" beneath the same words went (calls you
+  // can follow), and the call itself is right above.
   const callTake = find(paneOf(toInboxThreadVM(conv({ last_wa_inbound_at: null, messages: [callNote] }), callback, ZONE, NOW)), byTestId("ix-needs-you"));
-  assert.equal(textOf(find(callTake, byTestId("ix-take-ask"))), "From the callCall Rosa back to confirm the bridal trial on Oct 3", "REGRESSION: the call back promised the details and showed none");
+  assert.equal(textOf(find(callTake, hasClass("ix-state-says"))), "Call Rosa back to confirm the bridal trial on Oct 3", "REGRESSION: the call back promised the details and showed none");
+  assert.equal(find(callTake, byTestId("ix-take-ask")), undefined, "and not again beneath them");
 });
 
 test("the countdown's tip says what stops a real draft -- Hold, or starting to type -- where Edit only opens the composer", () => {

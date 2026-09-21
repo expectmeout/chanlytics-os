@@ -19,6 +19,12 @@ const ixDockDials = (t) => !!(t && t.real && t.phone && t.primaryChannel === "ph
   && t.state === "escalated" && !t.takenOver && !t.claimedByOther
   && (!window.canDo || window.canDo("approve")));
 
+// Whether the thread's status band offers the call back: the one place it is offered, whichever button it is -- the
+// number itself, or taking the thread for a teammate who may not dial it from here. The reply box and the header
+// offered their own beside it, so a teammate without approve saw two Call backs saying two different things.
+const ixBandCallBack = (t) => !!(t && t.real && t.state === "escalated" && !t.takenOver && !t.claimedByOther
+  && (ixDockDials(t) || t.primaryChannel === "phone"));
+
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline) => { for (let i = (timeline || []).length - 1; i >= 0; i--) if (timeline[i].type === "msg") return i; return -1; };
 
@@ -208,7 +214,7 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
         // a held message was not "already answered", and a call back is not a reply.
         says={thread.summary}
         // What they asked, beside the decision: their last message, or what the call left behind.
-        ask={thread.ask ? <IxAsk ask={thread.ask} /> : null}
+        ask={thread.ask && thread.ask.kind !== "call" ? <IxAsk ask={thread.ask} /> : null}
         acts={<>
           {ixDockDials(thread) ? (
             <a className="btn btn-sm ix-state-go" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
@@ -280,7 +286,7 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
         // The reason it was flagged is said here, once: "Where this stands" said it below (I1).
         says={<>The receptionist stays quiet while you have it.{thread.escalationId && thread.summary ? <> {thread.summary}</> : null}</>}
         // What they asked, where you answer it: it was only in the timeline (I3).
-        ask={thread.ask ? <IxAsk ask={thread.ask} /> : null}
+        ask={thread.ask && thread.ask.kind !== "call" ? <IxAsk ask={thread.ask} /> : null}
         acts={
           <button className="btn btn-ghost btn-sm" onClick={() => onHandBack(thread.id)} aria-label={`Hand back to ${thread.agent.name}`} {...window.gate("approve", "hand a conversation back")}>
             Hand back
@@ -419,7 +425,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             ))}
           </div>
         )}
-        {thread.real && thread.phone && thread.primaryChannel === "phone" && thread.optedOut && !ixDockDials(thread) && (
+        {thread.real && thread.phone && thread.primaryChannel === "phone" && thread.optedOut && !ixBandCallBack(thread) && (
           <a className="btn btn-ghost btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
             <Icon name="phone" size={12} /> Call back
           </a>
@@ -1241,29 +1247,31 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false, thread 
     }
   };
 
+  // A caller with no WhatsApp thread whose call back the band offers: the call is what to do, so the reply box says
+  // nothing of what cannot be sent beneath it -- "No approved message can go to Emily Chen yet" under Call back.
+  const quiet = real && !!thread && thread.hasChat === false && ixBandCallBack(thread);
   // Nothing approved yet. Say so, rather than offering a send that cannot
   // happen: outside the window this is the only thing WhatsApp will deliver,
   // so an operator needs to know the gap is at Meta and not on this screen.
   if (real && templates && templates.length === 0) {
-    return (
+    return quiet ? null : (
       <span className="ix-tpl-none">
         No approved template yet — outside the 24-hour window WhatsApp delivers nothing else.
       </span>
     );
   }
   if (real && readTemplates === null) {
-    return <FailedRead kind="line" title="Couldn't read your approved templates" body="Outside the 24-hour window only an approved template sends, so none can be offered until they're read." surface="inbox" testid="ix-tpl-failed" />;
+    return quiet ? null : <FailedRead kind="line" title="Couldn't read your approved templates" body="Outside the 24-hour window only an approved template sends, so none can be offered until they're read." surface="inbox" testid="ix-tpl-failed" />;
   }
   if (real && choice && choice.sendable.length === 0) {
-    return (
+    return quiet ? null : (
       <span className="ix-tpl-none">
         No approved message can go to {thread.who} yet.{choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
       </span>
     );
   }
-  if (real && !list) {
-    return <span className="ix-tpl-none">Checking which templates are approved…</span>;
-  }
+  // Still being read: nothing yet. "Checking which templates are approved…" was the machinery talking.
+  if (real && !list) return null;
 
   return (
     <>
@@ -1405,7 +1413,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
             line above does not already carry it -- and the approved message that starts a thread. */}
         <div className="ix-composer-foot">
           <div className="ix-composer-actions">
-            {!ixDockDials(thread) && thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back"><Icon name="phone" size={12} /> Call back</a>}
+            {!ixBandCallBack(thread) && thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back"><Icon name="phone" size={12} /> Call back</a>}
             <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
           </div>
         </div>
