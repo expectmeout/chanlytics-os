@@ -235,10 +235,49 @@ test("a combobox narrows as you type, and the arrows, Enter and Escape drive it"
   box(tree).props.onChange({ target: { value: "lon" } });
   tree = redraw(W.RecordCombobox, props);
   let held = false;
-  opts(tree)[0].props.onMouseDown({ preventDefault() { held = true; } });
+  find(tree, (n) => n.props?.role === "listbox").props.onMouseDown({ preventDefault() { held = true; } });
   press(opts(tree)[0]);
-  assert.equal(held, true, "a pointer keeps focus in the box");
+  assert.equal(held, true, "a pointer on the list, an option or its scroll, keeps focus in the box");
   assert.deepEqual(picked, ["America/North_Dakota/New_Salem", "Europe/London"], "and a press takes it");
+});
+
+test("a combobox searches what is typed onto its chosen label, and its list is never a tab stop", () => {
+  const props = {
+    id: "tz2",
+    label: "Timezone",
+    value: "America/Chicago",
+    options: [{ value: "America/Chicago", label: "America/Chicago" }, { value: "Europe/London", label: "Europe/London" }, { value: "Europe/Lisbon", label: "Europe/Lisbon" }],
+    onChange: () => {},
+  };
+  const box = (tree) => find(tree, (n) => n.props?.role === "combobox");
+  let tree = draw(W.RecordCombobox, props);
+  // Closed, the box shows the chosen label. Focus selects it, so the first keystroke replaces it.
+  const selected = [];
+  box(tree).props.onFocus({ target: { select: () => selected.push("all") } });
+  assert.deepEqual(selected, ["all"]);
+  // A click that focuses the box would put the caret where it landed, undoing that; its mouseup is held.
+  const doc = globalThis.document;
+  const was = doc.activeElement;
+  const input = { tag: "the box" };
+  let held = false;
+  try {
+    doc.activeElement = null;
+    box(tree).props.onMouseDown({ currentTarget: input });
+    box(tree).props.onMouseUp({ preventDefault() { held = true; } });
+  } finally {
+    doc.activeElement = was;
+  }
+  assert.equal(held, true, "the click that focused it keeps the label selected");
+  // A caret moved into the label anyway: what the browser hands onChange is the label with the typing in it.
+  box(tree).props.onChange({ target: { value: "America/ChicagoLon" } });
+  tree = redraw(W.RecordCombobox, props);
+  assert.equal(box(tree).props.value, "Lon", "what was typed is the search, not the label with it appended");
+  assert.equal(box(tree).props["aria-expanded"], true);
+  assert.deepEqual(all(tree, (n) => n.props?.role === "option").map((o) => textOf(o)), ["Europe/London"]);
+  // A list that scrolls is a tab stop in Chrome unless it says otherwise, and Tab would leave the box for it.
+  const list = find(tree, (n) => n.props?.role === "listbox");
+  assert.equal(list.props.tabIndex, -1);
+  assert.equal(all(tree, (n) => n.props?.role === "option" && typeof n.props.onMouseDown === "function").length, 0, "the list holds the pointer, not each option");
 });
 
 test("a tip you cannot click is a chip; one you can is a card", () => {

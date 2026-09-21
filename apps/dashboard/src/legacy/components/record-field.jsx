@@ -10,7 +10,7 @@
 // chip, the app's own dark tooltip (data-bits' __tip) on a mark; RecordCard is the white card, for a tip that
 // carries an act.
 
-const { useState: useRfState, useEffect: useRfEffect } = React;
+const { useState: useRfState, useEffect: useRfEffect, useRef: useRfRef } = React;
 
 // A field: its label, the box (with its unit when it has one), and under it a hint or what is wrong with it.
 //   <RecordField id="lead" label="Least notice" unit="hours" value={v} onChange={setV} hint="Empty means no rule." />
@@ -118,12 +118,28 @@ const RecordToggleGroup = ({ label, value, options = [], onChange, gate = null, 
 // match active; down and up walk it (down also opens it); Enter takes the one walked to; Escape closes it and says
 // it handled the key, so a fold or a sheet around it stays open. The list is part of the box and pushes what is
 // under it, so nothing is covered and no fold's edge clips it. `options` is [{ value, label, meta? }]; it matches a
-// label or a value, anywhere in it. Closed, the box shows the chosen option's label.
+// label or a value, anywhere in it. Closed, the box shows the chosen option's label; focus selects it, so the first
+// keystroke replaces it rather than landing on the end of it, and a caret moved into it anyway searches what was typed.
 // The options are the combobox pattern's <li role="option">: a pointer presses them, a keyboard never focuses them.
+// The list itself is never a tab stop (Chrome makes a list that scrolls one), and it holds the pointer, on an option
+// or on its scroll, so focus never leaves the box for it.
+
+// What was typed into `was`, where `now` is `was` with the typing in it, anywhere; or `now` as it is.
+const recTypedInto = (was, now) => {
+  if (!was || now.length <= was.length) return now;
+  let head = 0;
+  while (head < was.length && was[head] === now[head]) head += 1;
+  let tail = 0;
+  while (tail < was.length - head && was[was.length - 1 - tail] === now[now.length - 1 - tail]) tail += 1;
+  return head + tail === was.length ? now.slice(head, now.length - tail) : now;
+};
+
 const RecordCombobox = ({ id, label, value = null, options = [], onChange, placeholder = undefined, gate = null, testid = null }) => {
   const [open, setOpen] = useRfState(false);
   const [query, setQuery] = useRfState("");
   const [active, setActive] = useRfState(0);
+  // A click that focuses the box would put the caret where it landed, undoing the selection focus made.
+  const clickFocuses = useRfRef(false);
   const refused = !!(gate && gate["aria-disabled"]);
   const chosen = options.find((o) => o.value === value) || null;
   const q = query.trim().toLowerCase();
@@ -168,13 +184,16 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
           readOnly={refused}
           value={open ? query : chosen ? chosen.label : ""}
           placeholder={chosen ? chosen.label : placeholder}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); setActive(0); }}
+          onMouseDown={(e) => { clickFocuses.current = document.activeElement !== e.currentTarget; }}
+          onFocus={(e) => { if (e.target && e.target.select) e.target.select(); }}
+          onMouseUp={(e) => { if (clickFocuses.current) { clickFocuses.current = false; e.preventDefault(); } }}
+          onChange={(e) => { setQuery(open ? e.target.value : recTypedInto(chosen ? chosen.label : "", e.target.value)); setOpen(true); setActive(0); }}
           onKeyDown={onKey}
           onBlur={shut}
           {...(gate || {})}
         />
       </span>
-      <ul className="rec-combo-list" role="listbox" id={listId} aria-label={label} hidden={!expanded}>
+      <ul className="rec-combo-list" role="listbox" id={listId} aria-label={label} hidden={!expanded} tabIndex={-1} onMouseDown={(e) => e.preventDefault()}>
         {expanded && shown.map((o, i) => (
           <li
             key={String(o.value)}
@@ -183,7 +202,6 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
             aria-selected={i === at}
             className="rec-combo-opt"
             data-chosen={o.value === value ? "true" : undefined}
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => pick(o)}
           >
             <span className="rec-combo-label">{o.label}</span>
