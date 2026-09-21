@@ -35,6 +35,13 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 ### Rules that bite in this tree
 
 - **Apps typecheck against built `dist`.** After any change under `packages/`, re-run `corepack pnpm --filter "./packages/*" build` before `corepack pnpm -r typecheck`. The `dist` diff is committed — it is a real artefact here, not noise.
+- **A change to `contracts` moves five dists, not one.** `channels`, `core`, `db` and `jobs` each bundle `@chanlytics/contracts`, so a new export or union member lands in their `dist/index.js` too. Stage `packages/*/dist`, never `packages/contracts/dist` alone, and prove it with:
+
+  ```bash
+  corepack pnpm run check:dist
+  ```
+
+  Expected: `dist in sync with src`. Anything else and CI is red. This bit Task 1.1 — it staged contracts' own dist and left the other four behind.
 - **A new legacy file goes in BOTH load lists**, in the same order: `apps/dashboard/src/legacy-bridge/manifest.ts` and `apps/dashboard/src/legacy/Chanlytics.html`. `tooling/scripts/tests/legacy-harness.test.mjs` pins them together. Bump `?v=N` on every edited file in the HTML.
 - **No `readCode` assertions in a new test.** Execute the page on the stub React. `settings-editor.test.mjs` builds its own stub window; `today-page.test.mjs` uses the newer `./_legacy-react.mjs` helpers. New tests use `_legacy-react.mjs`.
 - **A save patches, never rebuilds.** Every fold starts from the stored profile object and writes its own keys.
@@ -162,7 +169,7 @@ Expected: PASS, 1 test.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/contracts/src/tone.ts packages/contracts/dist tooling/scripts/tests/business-tab-vm.test.mjs
+git add packages/contracts/src/tone.ts packages/*/dist tooling/scripts/tests/business-tab-vm.test.mjs
 git commit -m "A fact's source is a state the one pill can draw"
 ```
 
@@ -305,7 +312,7 @@ Expected: PASS, 2 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/contracts/src/business-tab.ts packages/contracts/src/index.ts packages/contracts/dist tooling/scripts/tests/business-tab-vm.test.mjs
+git add packages/contracts/src/business-tab.ts packages/contracts/src/index.ts packages/*/dist tooling/scripts/tests/business-tab-vm.test.mjs
 git commit -m "A rule says how far it goes"
 ```
 
@@ -450,7 +457,7 @@ Expected: PASS, 5 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/contracts/src/business-tab.ts packages/contracts/dist tooling/scripts/tests/business-tab-vm.test.mjs
+git add packages/contracts/src/business-tab.ts packages/*/dist tooling/scripts/tests/business-tab-vm.test.mjs
 git commit -m "The page says what it can answer, what it will not, and what is missing"
 ```
 
@@ -670,7 +677,7 @@ Expected: PASS, 8 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/contracts/src/business-tab.ts packages/contracts/dist tooling/scripts/tests/business-tab-vm.test.mjs
+git add packages/contracts/src/business-tab.ts packages/*/dist tooling/scripts/tests/business-tab-vm.test.mjs
 git commit -m "What the receptionist can do, and what it cannot"
 ```
 
@@ -710,6 +717,11 @@ test("the prompt is cut into blocks, each naming the row that wrote it", () => {
   assert.ok(ids.includes("hours"));
   assert.ok(ids.includes("services"));
   assert.ok(ids.includes("escalate_when"));
+  assert.ok(ids.includes("guardrails"), "the rules compose into the prompt too");
+  // The head block holds the tone and the languages, which have no heading of their own.
+  const head = blocks.find((b) => b.row === "identity");
+  assert.match(head.text, /^Tone: Warm and unhurried\./m);
+  assert.match(head.text, /You speak: English, Spanish\./);
 
   // Each block carries its own size, and the sizes add up to the whole.
   const total = blocks.reduce((n, b) => n + b.chars, 0);
@@ -760,13 +772,24 @@ export interface PromptBlockVM {
   note?: string;
 }
 
+/**
+ * Read off `composeSystemPrompt`, not guessed. Each `startsWith` is the exact
+ * heading that function emits; a heading it stops emitting simply stops
+ * appearing here, which is the point of cutting on them.
+ */
 const BLOCK_MARKS: { row: string; label: string; startsWith: string; note?: string }[] = [
   { row: "hours", label: "When you're open", startsWith: "Opening hours" },
   { row: "closures", label: "Days you're closed", startsWith: "Closed on these dates" },
   { row: "services", label: "Services", startsWith: "Services:" },
   { row: "notes", label: "Things it should know", startsWith: "Other things to know:" },
   { row: "booking_rules", label: "Booking rules", startsWith: "Booking rules:" },
-  { row: "escalate_when", label: "Hand-off", startsWith: "Hand over to a person", note: "WhatsApp only — on a call the agent has its own transfer, so this block is absent." },
+  {
+    row: "escalate_when",
+    label: "Hand-off",
+    startsWith: "Handing the conversation to a person:",
+    note: "WhatsApp only — on a call the agent has its own transfer, so this block is absent.",
+  },
+  { row: "guardrails", label: "Rules it always keeps", startsWith: "Rules you must follow:" },
 ];
 
 export function promptBlocks(text: string, _channel: "whatsapp" | "voice"): PromptBlockVM[] {
@@ -808,7 +831,7 @@ Expected: PASS, 10 tests. If the hand-off assertion fails, read `composeSystemPr
 
 ```bash
 corepack pnpm test
-git add packages/contracts/src/business-tab.ts packages/contracts/dist tooling/scripts/tests/business-tab-vm.test.mjs
+git add packages/contracts/src/business-tab.ts packages/*/dist tooling/scripts/tests/business-tab-vm.test.mjs
 git commit -m "The prompt is a table of contents, not a dump"
 ```
 
@@ -1529,14 +1552,72 @@ const typeInto = (tree, row, text) => {
 };
 ```
 
-Then the tests, asserting:
+Then the tests:
 
-- The standing line's three clauses are the ones `standingLine` returned — read it back from contracts, never typed in the test.
-- Seven rows are drawn in *Who you are*, in the spec's order.
-- The *Workspace* row is **not** drawn when the workspace name equals the business name, and is not drawn when it differs either — it is gone.
-- The `Answers on` row has no act and one link to Connections.
-- The foot sentence names Connections once.
-- With `__FACTS.conflicts` carrying the serious phone conflict, the conflict is drawn **on the `phone_display` row** and there is no banner above the card.
+```js
+test("the standing line says what contracts said, and never writes its own", () => {
+  const tree = drawTab({ profile: melany });
+  const band = byTestId(tree, "rec-standing");
+  const vm = standingLine(W.__SETTINGS.config.brain);
+  assert.match(textOf(band), new RegExp(vm.can.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(textOf(band), new RegExp(vm.wont.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.equal(vm.missing, null, "Melany's record is missing nothing");
+});
+
+test("a missing voice is named in the band, and the link opens its row", () => {
+  const tree = drawTab({ profile: { ...melany, tone: undefined } });
+  const band = byTestId(tree, "rec-standing");
+  assert.match(textOf(band), /no voice of its own/i);
+  assert.ok(find(band, (n) => typeof n.props?.onClick === "function"), "the gap carries its own door");
+});
+
+test("Who you are draws seven rows, in the spec's order", () => {
+  const card = byTestId(drawTab({ profile: melany }), "rec-card-who");
+  const keys = all(card, (n) => classes(n).includes("rec-row-key")).map(textOf);
+  assert.deepEqual(keys, [
+    "Name", "Address", "Website", "Booking link", "Answers on", "Tells customers to call", "Transfers a caller to",
+  ]);
+});
+
+test("the Workspace row is gone, whatever the workspace is called", () => {
+  const same = drawTab({ profile: melany });
+  assert.equal(byTestId(same, "rec-row-workspace"), null);
+  W.__WORKSPACES = [{ id: "t-melany", name: "Billing probe", timezone: "America/New_York" }];
+  const different = again(() => W.BusinessTab({ flash: () => {} }));
+  assert.equal(byTestId(different, "rec-row-workspace"), null, "a second name for the business is not a row");
+});
+
+test("the line it answers is shown, never offered as a box", () => {
+  const row = byTestId(drawTab({ profile: melany }), "rec-row-voice_line");
+  assert.equal(byTestId(row, "rec-row-act-voice_line"), null, "nothing here is typed");
+  const door = find(row, (n) => typeof n.props?.onClick === "function");
+  assert.ok(door, "one link to Connections");
+});
+
+test("the carrier record is named once, at the foot", () => {
+  const card = byTestId(drawTab({ profile: melany }), "rec-card-who");
+  const mentions = all(card, (n) => typeof n.props?.children === "string" && /Connections/.test(n.props.children));
+  assert.equal(mentions.length, 1, "asked once, said once");
+  assert.match(textOf(byTestId(card, "rec-who-foot")), /legal name/i);
+});
+
+test("a conflict sits on the row it is about, and there is no banner", () => {
+  const conflict = {
+    fact: "phone_display",
+    severity: "serious",
+    used: "+1 (646) 932-5775",
+    known: "+1 (308) 336-8109",
+    knownSource: "provisioned",
+    sentence: "Your receptionist tells customers to call +1 (646) 932-5775, but it answers on +1 (308) 336-8109.",
+    to: "admin/workspace",
+  };
+  const tree = drawTab({ profile: melany, conflicts: [conflict] });
+  assert.equal(byTestId(tree, "set-conflict-banner"), null, "the banner above the card is gone");
+  const row = byTestId(tree, "rec-row-phone_display");
+  assert.match(textOf(row), new RegExp(conflict.sentence.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.ok(find(row, (n) => classes(n).includes("pill-warn")), "and it wears warn, because a person settles it");
+});
+```
 
 - [ ] **Step 2: Run it and watch it fail**
 
@@ -1566,12 +1647,53 @@ git commit -m "Who you are, as rows"
 
 - [ ] **Step 1: Write the failing test**
 
-Assert, by executing:
+```js
+import { hoursLines } from "@chanlytics/contracts";
 
-- The ribbon draws seven days, and the closed day carries no bar.
-- The summary sentence is the one `hoursSummary` returns — keep that helper, move it to `business-tab.ts` so a test can read it back.
-- Opening the hours fold and pressing *Copy Monday to every day* flashes a toast naming the days that were closed and the days whose own hours were replaced, and the toast carries an undo that restores the whole grid.
-- The calendar row states the last read and the event count, and there is **no** *Check the address* button.
+/** The card's summary is the composer's own run-collapsing, joined. Never a second implementation. */
+const summaryOf = (hours) => hoursLines(hours).join(" · ");
+
+test("the ribbon draws the week, and a closed day carries no bar", () => {
+  const ribbon = byTestId(drawTab({ profile: melany }), "rec-hours-ribbon");
+  const days = all(ribbon, (n) => classes(n).includes("rec-ribbon-day"));
+  assert.equal(days.length, 7);
+  const sunday = days[6];
+  assert.equal(find(sunday, (n) => classes(n).includes("rec-ribbon-bar")), null, "Sunday is shut, and looks it");
+});
+
+test("the summary sentence is the one the composer wrote", () => {
+  const row = byTestId(drawTab({ profile: melany }), "rec-row-hours");
+  assert.match(textOf(row), new RegExp(summaryOf(melany.hours).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("copying a day says what it opened and what it overwrote, and puts it all back", () => {
+  const flashes = [];
+  W.__SETTINGS = settings(melany);
+  W.__FACTS = facts();
+  const tree = fresh(() => W.BusinessTab({ flash: (f) => flashes.push(f) }));
+  openFold(tree, "hours");
+  press(byTestId(again(() => W.BusinessTab({ flash: (f) => flashes.push(f) })), "rec-hours-copy-all"));
+
+  const said = flashes.at(-1);
+  assert.match(textOf({ props: { children: said.msg } }), /Sun/, "the day that was closed is named");
+  assert.match(textOf({ props: { children: said.msg } }), /Fri|Sat/, "and the days whose own hours went");
+  assert.equal(typeof said.undo, "function", "the whole grid goes back in one press");
+
+  said.undo();
+  const after = again(() => W.BusinessTab({ flash: () => {} }));
+  const days = all(byTestId(after, "rec-hours-ribbon"), (n) => classes(n).includes("rec-ribbon-day"));
+  assert.equal(find(days[6], (n) => classes(n).includes("rec-ribbon-bar")), null, "Sunday is shut again");
+});
+
+test("the calendar row states its last read, and there is no button for it", () => {
+  const tree = drawTab({ profile: melany });
+  const row = byTestId(tree, "rec-row-calendar");
+  assert.match(textOf(row), /read/i);
+  assert.equal(find(row, (n) => /Check the address/i.test(textOf(n))), null, "a row that can say it needs no button");
+});
+```
+
+**Do not move `hoursSummary`.** It is already a two-line wrapper over `window.__hoursLines`, which is contracts' own `hoursLines` — the composer's run-collapsing, published by the bridge. Its comment says why that matters: two copies of "which days share the same hours" is how the card and the receptionist start disagreeing on the one screen an owner glances at. The new page calls the same wrapper; the test reads `hoursLines` straight from contracts, as above.
 
 - [ ] **Step 2: Run it and watch it fail**
 - [ ] **Step 3: Implement**
@@ -1595,14 +1717,69 @@ git commit -am "The week has a shape"
 
 - [ ] **Step 1: Write the failing test**
 
-- The services row states the count, four chips and the pricing sentence.
-- Opening the sheet draws one editable row per service and a search that filters them.
-- Removing one flashes a toast with an undo that puts it back at its own index.
-- The booking-rules fold shows the five numbers, and its `says` block is the one `consequenceOf("booking_rules", draft)` returns.
-- Consult-first is its own row with its own label.
+```js
+const many = { ...melany, services: Array.from({ length: 33 }, (_, i) => ({ name: `Service ${i + 1}`, duration_min: 30 + i, price_note: "quoted at consult" })) };
+
+test("the services row counts them and says how they are priced", () => {
+  const row = byTestId(drawTab({ profile: many }), "rec-row-services");
+  assert.match(textOf(row), /33 on record/);
+  assert.equal(all(row, (n) => classes(n).includes("rec-chip")).length, 5, "four services and a +29 more");
+  assert.match(textOf(row), /quoted at consult/i);
+});
+
+test("the sheet holds every service, and the search narrows them", () => {
+  const tree = drawTab({ profile: many });
+  press(byTestId(tree, "rec-row-act-services"));
+  const open = () => again(() => W.BusinessTab({ flash: () => {} }));
+  assert.equal(all(byTestId(open(), "rec-sheet-services"), (n) => classes(n).includes("rec-service-row")).length, 33);
+
+  const search = find(byTestId(open(), "rec-sheet-services"), (n) => classes(n).includes("rec-input"));
+  search.props.onChange({ target: { value: "Service 1" } });
+  const shown = all(byTestId(open(), "rec-sheet-services"), (n) => classes(n).includes("rec-service-row"));
+  assert.ok(shown.length < 33 && shown.length > 0, "the search narrows without emptying");
+});
+
+test("removing a service offers it back at its own index", () => {
+  const flashes = [];
+  W.__SETTINGS = settings(many);
+  W.__FACTS = facts();
+  const draw = () => W.BusinessTab({ flash: (f) => flashes.push(f) });
+  const tree = fresh(draw);
+  press(byTestId(tree, "rec-row-act-services"));
+  press(byTestId(again(draw), "rec-service-remove-2"));
+
+  const said = flashes.at(-1);
+  assert.equal(typeof said.undo, "function");
+  const afterRemove = all(byTestId(again(draw), "rec-sheet-services"), (n) => classes(n).includes("rec-service-row"));
+  assert.equal(afterRemove.length, 32);
+  said.undo();
+  const rows = all(byTestId(again(draw), "rec-sheet-services"), (n) => classes(n).includes("rec-service-row"));
+  assert.equal(rows.length, 33);
+  assert.match(textOf(rows[2]), /Service 3/, "and it comes back where it was, not at the end");
+});
+
+test("the booking-rules fold shows what the composer will write", () => {
+  const tree = drawTab({ profile: melany });
+  openFold(tree, "booking_rules");
+  const says = byTestId(again(() => W.BusinessTab({ flash: () => {} })), "rec-fold-says-booking_rules");
+  const block = W.__businessTab.consequenceOf("booking_rules", { brain: W.__SETTINGS.config.brain, profile: melany });
+  assert.match(textOf(says), new RegExp(block.text.split("\n")[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("consult-first is its own row with its own name", () => {
+  const row = byTestId(drawTab({ profile: melany }), "rec-row-consult_first");
+  assert.match(textOf(row), /Needs a consult first/i);
+  assert.match(textOf(row), /Color correction/);
+});
+```
 
 - [ ] **Step 2: Run it and watch it fail**
 - [ ] **Step 3: Implement**
+
+Three rows: services (opening a `RecordSheet`), booking rules (opening a `RecordFold`), and consult-first (a `RecordFold` of its own, because it is one of the two unlabelled textareas the old form had). Port `removeService` from `BusinessEditor` unchanged — its undo restores the row at its own index, which is the behaviour the test above pins.
+
+The sheet's rows are `RecordField`s in a three-column grid. The search filters on the service name only; it never reorders, because the stored order is the order the receptionist reads them in.
+
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Commit**
 
