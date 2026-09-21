@@ -1,11 +1,24 @@
-/* global React, ckArc, useChartNav, ChartLive */
+/* global React, ckArc, useChartWidth, useChartNav, ChartLive */
 // A donut for part-to-whole at a glance: at most five slices, each a fixed identity (a channel keeps its colour
 // whatever its size), from twelve o'clock, separated by a 2px gap of card. The legend beside it carries the numbers,
 // so no value hangs on colour or on hovering; the focused slice speaks in the centre. One slice is a whole, not a
 // part: the number and its row are the chart, with no ring.
 
 // data: [{ key, value }] in the fixed order · config: { key: { label, color } } · center: { value, label }
-const PieChart = ({ data, config = {}, size = 138, thickness = 16, center = null, ariaLabel, describe = null }) => {
+// size: a number, or "fill" to grow with the card -- never under `floor`, never over `ceiling`, and never more than
+// a share of the card's width, because the legend reads beside the ring.
+//
+// The ring is measured from the WIDTH it is given and never from the height, though it is height the card has to
+// spare. Height would chase itself: the ring is what makes the box tall, so a ring sized from its own box grows
+// until it is capped. Basis-zero was the other way out and it was worse -- on a phone the legend stacks under the
+// ring, and a box pinned to the room shrank under what it held, spilling the legend over the bar below it. Width is
+// settled before the ring is drawn, so it cannot argue back; `flex: 1 1 auto` then centres the ring in whatever
+// height is left.
+const PIE_OF_WIDTH = 0.45;
+const PieChart = ({ data, config = {}, size = 138, floor = 138, ceiling = 208, thickness = 16, center = null, ariaLabel, describe = null }) => {
+  const [ref, boxW] = useChartWidth();
+  const fill = size === "fill";
+  const S = fill ? Math.max(floor, Math.min(ceiling, Math.round(boxW * PIE_OF_WIDTH))) : size;
   const slices = data.filter((d) => d.value > 0);
   const n = slices.length;
   const [active, setActive, nav] = useChartNav(n, { start: 0 });
@@ -44,11 +57,13 @@ const PieChart = ({ data, config = {}, size = 138, thickness = 16, center = null
       </div>
     );
   }
-  const cx = size / 2, cy = size / 2, r1 = size / 2 - 4, r0 = r1 - thickness;
+  // A bigger ring deserves a bigger hole: the band keeps its share of the radius rather than swelling with it.
+  const band = Math.max(thickness, Math.round(S * (thickness / 138)));
+  const cx = S / 2, cy = S / 2, r1 = S / 2 - 4, r0 = r1 - band;
   return (
-    <div className="ck-pie">
-      <div className="ck-pie-figure" role="group" aria-roledescription="chart" aria-label={ariaLabel} {...nav} style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="ck-svg" aria-hidden="true">
+    <div className={`ck-pie${fill ? " fill" : ""}`} ref={ref} style={fill ? { minHeight: floor } : undefined}>
+      <div className="ck-pie-figure" role="group" aria-roledescription="chart" aria-label={ariaLabel} {...nav} style={{ width: S, height: S }}>
+        <svg width={S} height={S} className="ck-svg" aria-hidden="true">
           {arcs.map((s, i) => (
             <path key={s.key} d={ckArc(cx, cy, r0, active === i ? r1 + 3 : r1, s.a0, s.a1)} fill={`var(--color-${s.key})`}
               className={`ck-slice ${active === null ? "" : active === i ? "hot" : "dim"}`} {...hold(i)} />

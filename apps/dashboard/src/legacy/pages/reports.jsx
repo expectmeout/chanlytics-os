@@ -146,6 +146,15 @@ const GoogleSection = ({ days }) => {
               ))}
             </div>
           ) : <EmptyState kind="line" title="Google shows no written reviews for this listing yet." />}
+          {/* The card shows what Google hands back, which is never the whole listing: the rest are on Google, and the
+              listing's own address is the one place that has all of them. Google's `maps_uri`, as Setup links it. */}
+          {L.mapsUri && (
+            <p className="rp2-reviews-more">
+              <a className="cl-bucket-link" href={L.mapsUri} target="_blank" rel="noreferrer" data-testid="google-open-listing">
+                Read every review on Google<Icon name="external" size={12} />
+              </a>
+            </p>
+          )}
         </ChartCard>
       </div>
     </RptSection>

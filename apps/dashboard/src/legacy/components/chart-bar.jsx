@@ -1,4 +1,4 @@
-/* global React, ckNice, ckTopRound, ckFrame, ckEvery, ckPointer, ckTip, ckDescribe, CkYAxis, CkXLabels, useChartWidth, useChartNav, ChartTooltip, ChartTooltipContent, ChartLive */
+/* global React, ckNice, ckTopRound, ckFrame, ckEvery, ckHeight, ckPointer, ckTip, ckDescribe, CkYAxis, CkXLabels, useChartWidth, useChartNav, ChartTooltip, ChartTooltipContent, ChartLive */
 // Bar charts: columns over days (one series, or a stack of them), and a list of horizontal bars for categories.
 //
 // A column is at most 24px wide and never fills its slot; stacked segments touch through a 2px gap of card, the top
@@ -8,14 +8,17 @@
 const CK_BAR_GAP = 2;
 
 // data: [{ day, label, short?, ...values }] · keys: series keys, bottom first · config: the card's, for the words
+// height: a number, or "fill" to take the room the card has left, never under `floor`
 // tip(d, i) and describe(d, i) replace the words said from config; tipNote(d) adds a line under the default tip
-const BarChart = ({ data, keys, config = {}, height = 208, yTicks = 3, tip = null, tipNote = null, describe = null, ariaLabel, animKey }) => {
-  const [ref, width] = useChartWidth();
+const BarChart = ({ data, keys, config = {}, height = 208, floor = 128, yTicks = 3, tip = null, tipNote = null, describe = null, ariaLabel, animKey }) => {
+  const [ref, width, box] = useChartWidth();
+  const fill = height === "fill";
+  const H = ckHeight(height, box, floor);
   const n = data.length;
   const [active, setActive, nav] = useChartNav(n);
   const totals = data.map((d) => keys.reduce((s, k) => s + (Number(d[k]) || 0), 0));
   const { max, ticks } = ckNice(Math.max(1, ...totals), yTicks);
-  const f = ckFrame({ width, height, max, ticks, R: 2, T: 10, B: 24 });
+  const f = ckFrame({ width, height: H, max, ticks, R: 2, T: 10, B: 24 });
   const slot = f.pw / Math.max(1, n);
   const bw = Math.max(2, Math.min(24, slot * 0.62));
   const cx = (i) => f.L + i * slot + slot / 2;
@@ -26,9 +29,9 @@ const BarChart = ({ data, keys, config = {}, height = 208, yTicks = 3, tip = nul
   const d = active === null ? null : data[active];
   const said = d && (tip ? tip(d, active) : ckTip(d, keys, config, { note: tipNote ? tipNote(d) : null }));
   return (
-    <div className="ck-plot" ref={ref} role="group" aria-roledescription="chart" aria-label={ariaLabel} {...nav} {...ckPointer(setActive, at)} style={{ height }}>
+    <div className={`ck-plot${fill ? " fill" : ""}`} ref={ref} role="group" aria-roledescription="chart" aria-label={ariaLabel} {...nav} {...ckPointer(setActive, at)} style={fill ? { minHeight: floor } : { height: H }}>
       {width > 0 && (
-        <svg key={animKey} width={width} height={height} className="ck-svg" aria-hidden="true">
+        <svg key={animKey} width={width} height={H} className="ck-svg" aria-hidden="true">
           <CkYAxis ticks={ticks} y={f.y} L={f.L} width={width} R={f.R} />
           {data.map((row, i) => {
             const x = cx(i) - bw / 2;
@@ -55,7 +58,7 @@ const BarChart = ({ data, keys, config = {}, height = 208, yTicks = 3, tip = nul
               </g>
             );
           })}
-          <CkXLabels data={data} x={cx} every={ckEvery(n, f.pw, 46)} height={height} edges={slot < 44} />
+          <CkXLabels data={data} x={cx} every={ckEvery(n, f.pw, 46)} height={H} edges={slot < 44} />
         </svg>
       )}
       <ChartTooltip x={active === null ? null : cx(active)} width={width}>{said ? <ChartTooltipContent {...said} /> : null}</ChartTooltip>
