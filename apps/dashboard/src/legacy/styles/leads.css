@@ -411,6 +411,10 @@
 .fr-door:hover { text-decoration: underline; }
 
 .fr-sub { margin-top: 10px; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
+/* The composer is the column's, on the column's gutter (the canvas's .fr .lf-panel). .lf-panel's own margin is the
+   finder's over the table, where it folds out; here it is on the page from the first draw. With that margin kept, the
+   composer stood 56px in at 1280, against the heading's 28px. */
+.fr .lf-panel { margin: 4px 0 0; animation: none; }
 
 .fr-sugs-h { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .fr-line-edit { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--accent); cursor: pointer; }
@@ -501,11 +505,28 @@
      the popover it is on a desktop, inside the peek that is now the screen. */
   .pk .pk-nf.pl-peek { position: absolute; inset: auto; right: 14px; top: 118px; width: 268px; background: var(--bg-raised); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
 
-  /* Find opens a sheet from the bottom, and hold-to-talk is its first control. */
-  .pl-finder { border-radius: var(--radius-xl) var(--radius-xl) 0 0; padding: 8px var(--gutter-page) 18px; display: flex; flex-direction: column; gap: 14px; max-height: 88vh; overflow: auto; }
+  /* Find opens a sheet from the bottom, and hold-to-talk is its first control. Three things wear .pl-finder, the
+     name PL_OVERLAY knows the finder by: the sheet, the finder inside it and the first day's composer, so the sheet's
+     box names the sheet. The sheet is the pane, edge to edge on the bottom as the canvas draws it (.ph-sheet) and as
+     People's lists sheet and the record sheet sit, with the one gutter and the one scroller. The finder inside it is
+     its column, with no box of its own, and its foot runs to the sheet's edges (.ph-sheet .lf-foot). When one rule
+     drew all three, the sheet stood centred 16px in from each edge and padded the finder a second time: the input
+     started 49px in on a touch phone at 375, and a plan scrolled in two boxes at once. */
+  .sb-sheet.pl-finder {
+    left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 88vh; max-height: 88dvh; overflow: auto;
+    border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: 8px var(--gutter-page) 18px; display: flex; flex-direction: column; gap: 14px;
+  }
   .ld-sheet-handle { width: 36px; height: 4px; border-radius: var(--radius-full); background: var(--line-strong); margin: 0 auto 2px; flex: none; }
-  .pl-finder .lf-panel { border: 0; background: none; margin: 0; box-shadow: none; }
-  .pl-finder .lf-compose { flex-direction: column; gap: 10px; padding: 0; }
+  .pl-finder .lf-panel { border: 0; background: none; margin: 0; box-shadow: none; overflow: visible; display: flex; flex-direction: column; gap: 14px; }
+  .pl-finder .lf-panel .lf-foot { margin: 0 calc(-1 * var(--gutter-page)) -18px; padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); }
+  /* The composer is voice first on a phone, in the sheet and on the first day alike: a centred column, even on both
+     sides (the desktop row's narrower right side is for the close button at its end), and on the sheet's gutter in
+     the sheet. Its foot gives the sentence the whole line and puts the keys under it: beside it they left the
+     sentence three lines tall at 375 and broke "plan it" in two. */
+  .pl-finder .lf-compose { flex-direction: column; gap: 10px; padding: 12px 16px; }
+  .pl-finder .lf-panel .lf-compose { padding: 0; }
+  .pl-finder .lf-foot { flex-wrap: wrap; row-gap: 6px; }
   .pl-finder .lf-spark { display: none; }
   .pl-finder .lf-mic { order: -1; width: 76px; height: 76px; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent); border: 0; }
   .pl-finder .lf-input { width: 100%; text-align: center; font-size: var(--text-lg); line-height: var(--leading-relaxed); }
