@@ -18,6 +18,15 @@ const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGat
 
 /** Surfaces whose own route param is a prop they follow, not a new identity. */
 const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts"]);
+// What a route is MOUNTED under (the long note where it is used says why that is not the route). Leads follows its
+// address as a prop -- the page reads `leadsRoute` on every draw and its one read is keyed by it -- so every view of
+// Leads, and a lead opened over one, is the page already there. People's own views and a profile keep their whole
+// route: only the leads route itself, not an id that starts with the word.
+const shellMountKey = (page, param) => {
+  if (PARAM_FOLLOWED_AS_PROP.has(page)) return page;
+  if (page === "clients" && param && /^leads(:|$)/.test(param)) return "clients/leads";
+  return `${page}/${param || ""}`;
+};
 // A flipped surface whose fetch failed. Painting the mockup here would show
 // invented customers as real, so the shell says so instead.
 const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
@@ -725,7 +734,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // the param and never looks again would show the wrong entity, so the default
   // stays remount and this is opt-in: forgetting a surface costs the
   // improvement, never correctness.
-  const mountKey = PARAM_FOLLOWED_AS_PROP.has(page) ? page : routeKey;
+  const mountKey = shellMountKey(page, param);
   useShellEffect(() => {
     setNavOpen(false);
     setRouteTimedOut(false);

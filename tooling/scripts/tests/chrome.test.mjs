@@ -123,7 +123,8 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // fetches thrown away on a navigation that never left it.
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('const routeKey = `${page}/${param || ""}`;'), "the GATE still asks per pane");
-  assert.ok(shell.includes("const mountKey = PARAM_FOLLOWED_AS_PROP.has(page) ? page : routeKey;"), "what it mounts under is a separate question");
+  // What it mounts under is a separate question, and it is asked of the shell as drawn (shell-status.test.mjs: one
+  // mount for Broadcasts and its runs, one for every view of Leads), not of its source.
   assert.ok(shell.includes("<div key={mountKey}"), "and the surface is keyed on that, not on the gate key");
   assert.ok(shell.includes('routeReady(page, param)'), "the readiness check still sees the param");
 

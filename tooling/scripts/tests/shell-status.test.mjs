@@ -516,6 +516,26 @@ test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs
   }
 });
 
+test("every view of Leads is one mount: a search, a list, a class or an open lead keeps the page that is there -- each rail pick tore it down, and the search box, the scroll and a half-typed Find went with it", () => {
+  shell.installShell(win);
+  const SEARCH = "5e000000-0000-4000-8000-000000000001";
+  const LEAD = "1ead0000-0000-4000-8000-000000000001";
+  const at = (hash) => {
+    const { tree } = mount(hash);
+    return { key: find(tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key, page: find(tree, (n) => n.type === "ClientsA" || n.type === "ClientProfile") };
+  };
+  const all = at("#/clients/leads");
+  assert.equal(all.page.props.scope, "leads");
+  for (const param of [`leads:s-${SEARCH}`, "leads:l-ready", `leads:s-${SEARCH}:c-review`, `leads:p-${LEAD}`, `leads:s-${SEARCH}:l-nurture:p-${LEAD}`]) {
+    const view = at(`#/clients/${param}`);
+    assert.equal(view.key, all.key, `${param} is the Leads page already on screen`);
+    assert.equal(view.page.props.leadsRoute, param, "and the page is handed the address to follow");
+  }
+  assert.notEqual(at("#/clients").key, all.key, "People and Leads are two pages: each starts from its own sort and columns");
+  assert.notEqual(at("#/clients/c-1").key, at("#/clients/c-2").key, "two profiles are still two mounts");
+  assert.notEqual(at("#/clients/seg:opted_in").key, at("#/clients").key, "People's own views keep the rule they had");
+});
+
 test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named in the crumbs -- the route dropped the id", () => {
   shell.installShell(win);
   const keepGate = win.gate;
