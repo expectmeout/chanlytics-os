@@ -439,7 +439,7 @@ test("It will say: the line of the prompt the draft changes, resolved as the edg
   assert.equal(byTestId(tree, "rec-inline-says-website"), null, "nothing changed, nothing said");
   typeInto(tree, "website", "https://melanys.example");
   tree = redrawTab();
-  const eyebrow = (says) => textOf(find(says, (n) => classes(n).includes("bt-inline-says-eyebrow")));
+  const eyebrow = (says) => textOf(find(says, (n) => classes(n).includes("rec-says-eyebrow")));
   const lines = (says) => textOf(find(says, (n) => n.type === "pre"));
   let says = byTestId(tree, "rec-inline-says-website");
   assert.equal(eyebrow(says), "It will say");
@@ -556,7 +556,7 @@ test("a save that crosses the resolver's line says so beside the lines it change
   tree = redrawTab();
   typeInto(tree, "address", "");
   tree = redrawTab();
-  assert.equal(textOf(byTestId(tree, "rec-inline-crossing-address")), PROFILE_CROSSING_WORDS.stops);
+  assert.equal(textOf(byTestId(tree, "rec-inline-says-address-note")), PROFILE_CROSSING_WORDS.stops);
   saveRow(tree, "address");
   assert.equal(sent.length, 1, "not a refusal: the save still goes");
   assert.equal("address" in sent[0].config.brain.profile, false);
@@ -568,7 +568,7 @@ test("a save that crosses the resolver's line says so beside the lines it change
   typeInto(tree, "address", "12 Main St, Brooklyn, NY");
   tree = redrawTab();
   const says = byTestId(tree, "rec-inline-says-address");
-  assert.equal(textOf(byTestId(says, "rec-inline-crossing-address")), PROFILE_CROSSING_WORDS.starts);
+  assert.equal(textOf(byTestId(says, "rec-inline-says-address-note")), PROFILE_CROSSING_WORDS.starts);
   const next = { ...W.__SETTINGS.config.brain, profile: sparse };
   const identity = W.__businessTab.consequenceOf("address", next, "whatsapp").text.split("\n").filter((l) => l.trim());
   assert.equal(textOf(find(says, (n) => n.type === "pre")), identity.join("\n"), "every line of the block it starts with");
@@ -579,7 +579,7 @@ test("a save that crosses the resolver's line says so beside the lines it change
   tree = redrawTab();
   typeInto(tree, "address", "10 Pier St, Brooklyn, NY 11201");
   tree = redrawTab();
-  assert.equal(byTestId(tree, "rec-inline-crossing-address"), null);
+  assert.equal(byTestId(tree, "rec-inline-says-address-note"), null);
 });
 
 test("only one editor is open at a time: a clean one gives way, one holding changes asks first", () => {
@@ -660,8 +660,9 @@ test("answered with Keep editing, an ask gives focus back to the box, whichever 
   // The stub attaches no ref, so the test stands in for the element React would have put there: the box, the one
   // thing in it Tab stops at.
   const focused = [];
-  const box = { tabIndex: 0, disabled: false, value: "", getClientRects: () => [{}], focus: () => focused.push("box"), setSelectionRange() {} };
-  const element = { querySelectorAll: () => [box], contains: () => true };
+  const box = { tabIndex: 0, disabled: false, value: "", getClientRects: () => [{}], classList: { contains: () => false }, closest: () => null, focus: () => focused.push("box"), setSelectionRange() {} };
+  const body = { querySelectorAll: () => [box] };
+  const element = { querySelector: (sel) => (sel === ".rec-inline-body" ? body : null), contains: () => true };
   let tree = drawTab();
   openFold(tree, "website");
   tree = redrawTab();

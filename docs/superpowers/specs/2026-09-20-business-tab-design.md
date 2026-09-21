@@ -142,6 +142,7 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 | `RecordRow` | `.cl-prof-attr`, `.set-row`, `.set-team-row`, `.set-int-row` — four classes drawing one row |
 | `RecordField` | `.biz-field`, `.set-ident-row`, `.set-br-field`; wraps the existing `FieldError` |
 | `RecordFold` | new |
+| `RecordInline` | the inline editing `PublishedNumberRow` and `HandoffRow` each drew by hand (`.set-row-editing`, `.set-pub-inline`); beside `RecordFold` in `record-fold.jsx`, sharing its focus, keys, foot and `RecordSays`, what saving writes (added in Task 3.2's review) |
 | `RecordSheet` | new; the phone's `PeopleListsSheet` is the precedent |
 | `RecordSwitch` | `.set-switch`, lifted out of settings.css |
 | `RecordToggleGroup` | `.cl-tabs` used as a radiogroup |

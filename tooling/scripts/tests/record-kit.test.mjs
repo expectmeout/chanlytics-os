@@ -1,8 +1,8 @@
 /**
- * The record kit, EXECUTED on the stub React: the row, the fields, the fold and the registry that keeps one open, and
- * the sheet. No source-text assertions: every claim here is something the kit drew. The kit serves every Settings
- * tab, so it is tested here on its own, and a page's tests live in the page's own file, where a change to the page
- * cannot break these.
+ * The record kit, EXECUTED on the stub React: the row, the fields, the fold, the inline editor, the registry that keeps
+ * one open, and the sheet. No source-text assertions: every claim here is something the kit drew. The kit serves every
+ * Settings tab, so it is tested here on its own, and a page's tests live in the page's own file, where a change to the
+ * page cannot break these.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -375,7 +375,7 @@ test("a fold opens, says what the receptionist will be told, and saves only itse
   press(find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Cancel"));
   press(find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Close"));
   assert.equal(cancelled.length, 2, "Cancel and Close both hand the page the fold's cancel");
-  assert.equal(find(draw(W.RecordFold, bookingRules({ says: "" })), (n) => classes(n).includes("rec-fold-says")), null, "a fold that writes nothing draws no block");
+  assert.equal(find(draw(W.RecordFold, bookingRules({ says: "" })), (n) => classes(n).includes("rec-says")), null, "a fold that writes nothing draws no block");
 });
 
 test("a fold kept while closed is hidden whole, its head and its Close with it", () => {
@@ -430,7 +430,7 @@ test("a fold's Save is gated, says when it is saving, and the keys cancel and sa
 test("a fold takes focus as it opens, and gives it back to its row as it closes", () => {
   const focused = [];
   // What the fold's fields hold, in order: the mark that explains a label comes before its box, and Save after it.
-  const stop = (name, cls, inFoot = false) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: (c) => c === cls }, closest: (sel) => (inFoot && sel === ".rec-fold-foot" ? {} : null), focus: () => focused.push(name) });
+  const stop = (name, cls, inFoot = false) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: (c) => c === cls }, closest: (sel) => (inFoot && sel === ".rec-foot" ? {} : null), focus: () => focused.push(name) });
   const inner = { querySelectorAll: () => [stop("tip", "rec-tip"), stop("field", "rec-input"), stop("save", "btn", true)] };
   const act = { focus: () => focused.push("act") };
   let tree = draw(W.RecordFold, bookingRules({ open: false }));
@@ -450,6 +450,137 @@ test("a fold takes focus as it opens, and gives it back to its row as it closes"
   assert.deepEqual(focused, ["field", "act"], "focus that went with the fold comes back to the row's act");
   const row = draw(W.RecordRow, { id: "booking_rules", label: "Booking rules", value: "2 hours' notice", act: { label: "Change", onClick: () => {} } });
   assert.equal(find(row, (n) => classes(n).includes("rec-row-act")).props["data-rec-act"], "booking_rules", "which is where the row's act says it is");
+});
+
+test("a fold draws the page's ask above its foot, where the changes it asks about are", () => {
+  const ask = W.React.createElement("span", { className: "confirm", "data-testid": "ask" }, "Discard your changes?");
+  const inner = find(draw(W.RecordFold, bookingRules({ confirm: ask })), (n) => classes(n).includes("rec-fold-inner"));
+  const kids = [].concat(inner.props.children).filter(Boolean);
+  const at = (pred) => kids.findIndex(pred);
+  assert.ok(at((k) => k === ask) >= 0, "inside the fold");
+  assert.ok(at((k) => k === ask) < at((k) => classes(k.rendered).includes("rec-foot")), "above Save and Cancel");
+});
+
+/* ------------------------------------ the inline editor ------------------------------------ */
+
+const website = (over = {}) => ({ id: "website", label: "Website", open: true, onSave: () => {}, onCancel: () => {}, ...over });
+/** An inline editor over its field, as a page draws one: the field is its child. */
+const drawInline = (props, field = W.React.createElement("input", { className: "rec-input", "aria-labelledby": "rec-inline-website-key" })) => {
+  unmount();
+  return W.React.createElement(W.RecordInline, props, field);
+};
+
+test("an inline editor is the row's label and its field, what saving writes, and Save and Cancel", () => {
+  const saved = [];
+  const cancelled = [];
+  const tree = drawInline(website({ says: "Website: https://melanys.example", saysLabel: "It will say", onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));
+  const editor = find(tree, (n) => classes(n).includes("rec-inline"));
+  assert.equal(editor.props["data-testid"], "rec-inline-website");
+  assert.equal(editor.props.role, "group");
+  assert.equal(textOf(byId(tree, editor.props["aria-labelledby"])), "Website", "named by the row's own label, which stays where it was");
+  assert.equal(find(tree, (n) => classes(n).includes("rec-input")).props["aria-labelledby"], "rec-inline-website-key", "and the page's field can be named by it too");
+  const says = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-says-website");
+  assert.equal(says.props.id, "rec-inline-website-says", "what saving writes has the id the page's field is described by");
+  assert.equal(says.props["data-inline"], "true");
+  assert.deepEqual([textOf(find(says, (n) => classes(n).includes("rec-says-eyebrow"))), textOf(find(says, (n) => n.type === "pre"))], ["It will say", "Website: https://melanys.example"]);
+  press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website"));
+  press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website"));
+  assert.deepEqual([saved.length, cancelled.length], [1, 1]);
+  assert.match(textOf(find(tree, (n) => classes(n).includes("rec-foot-keys"))), /Esc cancels/);
+  // Closed, it is hidden whole, as a closed fold is: the row is what shows.
+  assert.equal(find(drawInline(website({ open: false })), (n) => classes(n).includes("rec-inline")).props.hidden, true);
+});
+
+test("what saving writes can say what goes as well as what comes, and a sentence of the page's before them", () => {
+  const tree = drawInline(website({
+    says: "Website: https://melanys.example", saysLabel: "It will say",
+    gone: "Website: https://melanysbeautysalon.com", goneLabel: "It will no longer say",
+    note: "Saved like this, the receptionist starts being given the details on this page.",
+  }));
+  const says = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-says-website");
+  const parts = all(says, (n) => classes(n).includes("rec-says-part")).map((p) => [p.props["data-part"], textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow"))), textOf(find(p, (n) => n.type === "pre"))]);
+  assert.deepEqual(parts, [
+    ["says", "It will say", "Website: https://melanys.example"],
+    ["gone", "It will no longer say", "Website: https://melanysbeautysalon.com"],
+  ]);
+  assert.match(textOf(find(says, (n) => n.props?.["data-testid"] === "rec-inline-says-website-note")), /starts being given/);
+  // Nothing to say draws nothing: never an empty block.
+  assert.equal(find(drawInline(website({ says: " ", gone: "" })), (n) => classes(n).includes("rec-says")), null);
+});
+
+test("an inline editor's keys: Escape cancels, Ctrl or Cmd with Enter saves, and neither while it saves", () => {
+  const saved = [];
+  const cancelled = [];
+  const key = (k, over = {}) => ({ key: k, defaultPrevented: false, metaKey: false, ctrlKey: false, currentTarget: { contains: () => true }, target: {}, preventDefault() { this.defaultPrevented = true; }, ...over });
+  let editor = find(drawInline(website({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) })), (n) => classes(n).includes("rec-inline"));
+  editor.props.onKeyDown(key("Escape"));
+  editor.props.onKeyDown(key("Escape", { defaultPrevented: true }));
+  editor.props.onKeyDown(key("Enter", { metaKey: true }));
+  editor.props.onKeyDown(key("Enter"));
+  assert.deepEqual([cancelled.length, saved.length], [1, 1], "Escape unless a field inside took it; Cmd or Ctrl with Enter; Enter alone does nothing");
+  editor.props.onKeyDown(key("Enter", { ctrlKey: true, currentTarget: { contains: () => false } }));
+  assert.equal(saved.length, 1, "a key from a sheet drawn inside it is the sheet's");
+  editor = find(drawInline(website({ saving: true, onSave: () => saved.push(1), onCancel: () => cancelled.push(1) })), (n) => classes(n).includes("rec-inline"));
+  editor.props.onKeyDown(key("Escape"));
+  editor.props.onKeyDown(key("Enter", { ctrlKey: true }));
+  assert.deepEqual([cancelled.length, saved.length], [1, 1], "while it saves, the save is on its way: nothing cancels it and nothing sends it twice");
+});
+
+test("an inline editor's Save stays a button focus rests on while it saves, and neither press acts meanwhile", () => {
+  const pressed = [];
+  const tree = drawInline(website({ saving: true, onSave: () => pressed.push("save"), onCancel: () => pressed.push("cancel") }));
+  const save = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website");
+  const cancel = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website");
+  // Not `disabled`: a disabled button lets go of focus, to the page, and a save that failed left it there.
+  assert.deepEqual([save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], textOf(save)], [undefined, true, true, "Saving…"]);
+  assert.equal(cancel.props["aria-disabled"], true);
+  press(save);
+  press(cancel);
+  assert.deepEqual(pressed, []);
+});
+
+test("an inline editor takes focus as it opens, gives it back as it closes, and takes it back when an ask inside it goes", () => {
+  const focused = [];
+  const box = { tabIndex: 0, disabled: false, value: "https://melanys.example", getClientRects: () => [{}], classList: { contains: () => false }, closest: () => null, focus: () => focused.push("box"), setSelectionRange: (a, b) => focused.push(`caret ${a}-${b}`) };
+  const body = { querySelectorAll: () => [box] };
+  const element = { querySelector: (sel) => (sel === ".rec-inline-body" ? body : null), contains: () => true };
+  const ask = W.React.createElement("span", { className: "confirm" }, "Discard your changes?");
+  const redrawInline = (props) => again(() => W.React.createElement(W.RecordInline, props, W.React.createElement("input", { className: "rec-input" })));
+  let tree = drawInline(website({ open: false }));
+  // The stub attaches no ref, so the test stands in for the element React would have put there.
+  find(tree, (n) => classes(n).includes("rec-inline")).props.ref.current = element;
+  redrawInline(website({ open: true }));
+  assert.deepEqual(focused, ["box", "caret 23-23"], "the box, with the caret at the end of what is there");
+  redrawInline(website({ open: true, confirm: ask }));
+  redrawInline(website({ open: true }));
+  assert.deepEqual(focused, ["box", "caret 23-23", "box", "caret 23-23"], "an ask answered with Keep editing gives focus back to the box");
+  const doc = globalThis.document;
+  const was = { activeElement: doc.activeElement, querySelector: doc.querySelector };
+  Object.assign(doc, { activeElement: null, querySelector: (sel) => (sel === '[data-rec-act="website"]' ? { focus: () => focused.push("act") } : null) });
+  try {
+    redrawInline(website({ open: false }));
+  } finally {
+    Object.assign(doc, was);
+  }
+  assert.equal(focused.at(-1), "act", "closed, focus comes back to the row's act");
+});
+
+test("a row being edited keeps its disagreement on screen, to read, and its press stays with the row", () => {
+  const disputed = { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", sentence: "Your receptionist gives 2581 Pitkin Avenue; Google has you at 2581 Pitkin Ave, Brooklyn, NY 11208, USA.", onUse: () => {} };
+  const tree = drawInline(website({ id: "address", label: "Address", disputed }));
+  const line = find(tree, (n) => classes(n).includes("rec-row-dispute"));
+  assert.match(textOf(line), /Google has you at/);
+  assert.equal(find(line, (n) => n.type === "button"), null, "nothing to press while the value is being typed");
+});
+
+test("an inline editor whose page goes away lets go of the registry, as a fold does", async () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  folds.request("website", { dirty: () => true });
+  drawInline(website());
+  unmount();
+  await settle();
+  assert.deepEqual([folds.open(), W.__settingsUnsaved()], [null, false]);
 });
 
 /* ------------------------------------ one fold at a time ------------------------------------ */

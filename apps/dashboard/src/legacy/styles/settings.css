@@ -1576,31 +1576,12 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 html.legacy-on .bt-link, html.legacy-on .bt-standing-door { position: relative; min-height: 0; }
 .bt-link::after, .bt-standing-door::after { content: ""; position: absolute; inset: -12px -6px; }
 
-/* A row being edited: the row itself becomes the field (spec §5). The label stays in the label column, and the box,
-   what it will say, and Save and Cancel take the value's place. Closed, it is hidden whole, as a closed fold is. */
-.bt-inline { display: flex; align-items: flex-start; gap: 16px; padding: 13px 0; border-top: 1px solid var(--line); }
-.bt-inline[hidden], .bt-inline-box[hidden] { display: none; }
-/* 12px down to sit on the box's middle: RecordField's label holds no words here (the row's label names the box), and
-   the field keeps its 5px gap under it. */
-.bt-inline-key { flex: 0 0 var(--rec-key); padding-top: 12px; font-size: var(--text-sm); color: var(--ink-dim); }
-.bt-inline-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+/* A row being edited is the kit's inline editor (record.css); what is this page's inside it: the published number's
+   box, hidden while its line is chosen, and the notes that say what each choice costs. */
+.bt-inline-box[hidden] { display: none; }
 .bt-inline-note { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 .bt-inline-note b { font-weight: var(--weight-medium); color: var(--ink); }
-/* What the receptionist will be told: the composer's own lines, set as it writes them. */
-.bt-inline-says { display: flex; flex-direction: column; gap: 8px; padding: 9px 11px; background: var(--bg-sunken); border-radius: var(--radius-md); }
-.bt-inline-says-part { display: flex; align-items: flex-start; gap: 9px; }
-/* A save that crosses the resolver's line says so first, in the product's words: a sentence, not the prompt's own text. */
-.bt-inline-says-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
-.bt-inline-says-eyebrow { flex: none; margin-top: 2px; font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
-.bt-inline-says pre { flex: 1; min-width: 0; margin: 0; font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
-.bt-inline-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.bt-inline-foot [aria-busy="true"] { cursor: progress; }
-.bt-inline-keys { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); }
-/* A finger has no Escape and no Cmd. */
-@media (hover: none), (pointer: coarse) { .bt-inline-keys { display: none; } }
-/* No label column beside a phone's box: the label goes above it, as a phone's row puts its value under its label. */
 @media (max-width: 760px) {
-  .bt-inline { flex-direction: column; gap: 6px; }
-  .bt-inline-key { flex: none; padding-top: 0; }
   .bt-standing { padding: 14px 15px; }
+}
 }

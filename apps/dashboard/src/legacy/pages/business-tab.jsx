@@ -159,37 +159,16 @@ const btChangedLines = (before, after) => {
   return { added: now.filter((l) => !was.includes(l)), removed: was.filter((l) => !now.includes(l)) };
 };
 
-// Opened, focus goes to the first thing in the editor to type into or press (data-bits tabStops), with the caret at
-// the end of what is there (spec §9): the act that opened it has gone. Focus is also what brings a row opened from
-// the standing line into view.
-const btFocusIn = (el) => {
-  if (!el || !window.tabStops) return;
-  const first = window.tabStops(el)[0];
-  if (!first || !first.focus) return;
-  first.focus();
-  if (typeof first.value === "string" && first.setSelectionRange) {
-    try { first.setSelectionRange(first.value.length, first.value.length); } catch { /* a box that holds no caret */ }
-  }
-};
-// Closed, or gone: focus that went with the editor (it is on nothing, or still inside it) comes back to the act of
-// the row it opened from, as a fold's does (record-fold.jsx). Focus a person has put somewhere else stays there.
-const btFocusBack = (id, el) => {
-  const now = document.activeElement;
-  const lost = !now || now === document.body || (el && el.contains && el.contains(now)) || (document.contains && !document.contains(now));
-  if (!lost || !document.querySelector) return;
-  const back = document.querySelector(`[data-rec-act="${id}"]`);
-  if (back && back.focus) back.focus();
-};
-
 /**
- * One value, edited in the row that states it (spec §5, canvas Edit-Inline).
+ * One of this page's rows: at rest a RecordRow, and while it is edited the kit's inline editor (RecordInline,
+ * record-fold.jsx), which holds the gesture itself -- its focus, its keys, what saving writes and its foot. What is the
+ * page's is here: the draft, what stops a save, the save through the page's one saver, what the receptionist will be
+ * told, and the row's disagreement with its press.
  *
- * At rest the row is a RecordRow: its value, where the value came from, and one act. The act opens the editor in the
- * row's place, and the row becomes the field: its label where the label was, the box, what the receptionist will be
- * told once it is saved ("It will say"), and Save and Cancel. Esc cancels and Ctrl or Cmd with Enter saves, as in a
- * fold. What stops a save is said under the box before any round trip, never as a toast. Cancel with changes asks
- * first, as the form this replaces did (S22). When the server accepts, the editor closes and the toast says so; the
- * surface's refresh finishes behind it (useFieldSave).
+ * At rest the row is its value, where the value came from, and one act. The act opens the editor in the row's place.
+ * What stops a save is said under the box before any round trip, never as a toast. Cancel with changes asks first, as
+ * the form this replaces did (S22). When the server accepts, the editor closes and the toast says so; the surface's
+ * refresh finishes behind it.
  *
  * It holds the fold registry (record-fold.jsx) as a fold does, so one editor or fold is open on the page at a time:
  * opening another row closes a clean editor and asks about one holding changes, and the Settings rail and the
@@ -203,12 +182,12 @@ const btFocusBack = (id, el) => {
  * is handed the draft, its setter, what stops it and the field's own ids. A disagreement on the row names the other
  * answer and the draft that takes it (`disputed.use`), which saves through the same `commit`.
  *
- * `section` is the row's name to consequenceOf (FOLD_BLOCK) where it is not the row's id, or the names of each block its save
- * can change: a rename changes the line the prompt opens with and, where the stored prompt is the product's own, that too.
- * `channel` is the one the row's words are read on; the transfer number is a call's, and changes nothing on WhatsApp.
- * Null is no channel that reads them on this workspace, and the row says nothing it will say.
+ * `section` is the row's name to consequenceOf (FOLD_BLOCK) where it is not the row's id, or the names of each block
+ * its save can change: a rename changes the line the prompt opens with and, where the stored prompt is the product's
+ * own, that too. `channel` is the one the row's words are read on; the transfer number is a call's, and changes nothing
+ * on WhatsApp. Null is no channel that reads them on this workspace, and the row says nothing it will say.
  */
-const RecordInline = ({
+const BtRow = ({
   id, section = null, label, brain, value = null, empty = null, hint = null, source = null, disputed = null, wrong = null,
   initial, storedAs = btTrimmed, check = btNoCheck, commit, body, channel = "whatsapp",
   canEdit = true, gate = null, flash = () => {}, saver = null,
@@ -234,30 +213,8 @@ const RecordInline = ({
   // The page's one saver (btSaver): this row's save waits its turn behind any other, and goes on the config current then.
   const busy = saver ? saver.pending(id) : false;
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
-  const boxRef = useBizRef(null);
   // Each block as the stored brain writes it, resolved once per stored brain rather than on every keystroke.
   const before = useBizRef({ brain: null, blocks: {} });
-
-  // A row whose page goes away lets go of the registry, as a fold does (record-fold.jsx: the rail's "Yes, leave"
-  // replaces the pane). Left open, its dirty test would go on answering after it had gone, and the rail would ask on
-  // every tab and the browser before every reload.
-  useBizEffect(() => (window.__recordFolds ? window.__recordFolds.drawn(id) : undefined), [id]);
-  useBizEffect(() => {
-    if (!open) return undefined;
-    const el = boxRef.current;
-    btFocusIn(el);
-    return () => btFocusBack(id, el);
-  }, [open, id]);
-  // An ask put focus on its "Yes, discard"; answered with "Keep editing" (or Esc), it goes while it holds focus, and
-  // focus fell to the top of the document, so Esc and Esc again left a keyboard at the page's start. Answered and
-  // still open, focus comes back to the box.
-  const asked = !!(arm || fold.asking);
-  const wasAsked = useBizRef(asked);
-  useBizEffect(() => {
-    const was = wasAsked.current;
-    wasAsked.current = asked;
-    if (open && was && !asked) btFocusIn(boxRef.current);
-  }, [open, asked]);
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); setArm(false); };
@@ -277,15 +234,7 @@ const RecordInline = ({
     if (bad) { setProblem(bad); return; }
     // Nothing to write is nothing to send: the editor closes and says nothing, since nothing was saved.
     if (!dirty) { close(); return; }
-    const c = commit(now);
-    save(c, close);
-  };
-  // Only its own keys: a key from something drawn inside it through a portal bubbles through React from outside its
-  // DOM, as record-fold.jsx found.
-  const onKey = (e) => {
-    if (e.defaultPrevented || !e.currentTarget.contains(e.target)) return;
-    if (e.key === "Escape") { e.preventDefault(); cancel(); return; }
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
+    save(commit(now), close);
   };
 
   // What saving would tell the receptionist: the lines of its blocks that the draft changes, resolved as the edge
@@ -317,9 +266,9 @@ const RecordInline = ({
       }
     }
     const note = crossing ? crossing.sentence : null;
-    if (added.length) says = { note, words: "It will say", lines: added };
-    else if (removed.length) says = { note, words: "It will no longer say", lines: removed };
-    else if (note) says = { note, words: null, lines: [] };
+    if (added.length || removed.length || note) {
+      says = { note, says: added.length ? added.join("\n") : null, gone: added.length ? null : removed.join("\n") || null };
+    }
   }
 
   // A disagreement, as the kit draws one: the other answer, in the resolver's own sentence when there is one, and one
@@ -336,17 +285,14 @@ const RecordInline = ({
       if (busy) return;
       const bad = check(disputed.use);
       if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
-      const c = commit(disputed.use);
-      save(c, () => {});
+      save(commit(disputed.use), () => {});
     } : undefined,
     gate,
   } : null;
 
-  const keyId = `bt-${id}-key`;
-  const saysId = `bt-${id}-says`;
   // The field is named by the row's own label, where the label stays (the canvas's editing row), rather than by a
-  // second copy of it over the box; a consequence line describes the box too.
-  const field = { id: `bt-${id}`, label: null, "aria-labelledby": keyId, "aria-describedby": says ? saysId : undefined };
+  // second copy of it over the box; what it will say describes the box too. Both ids are the kit's (RecordInline).
+  const field = { id: `bt-${id}`, label: null, "aria-labelledby": `rec-inline-${id}-key`, "aria-describedby": says ? `rec-inline-${id}-says` : undefined };
   // Drawn on every render, open or not: the box holds hooks of its own (RecordField's id).
   const inner = body({ draft: now, set, problem, field, gate });
   return (
@@ -364,53 +310,28 @@ const RecordInline = ({
           act={canEdit ? { label: value ? "Change" : "Add one", onClick: () => fold.request(), gate } : null}
         />
       )}
-      <div
-        ref={boxRef}
-        className="bt-inline"
-        role="group"
-        aria-labelledby={keyId}
-        hidden={open ? undefined : true}
-        data-testid={`rec-inline-${id}`}
-        onKeyDown={onKey}
+      <window.RecordInline
+        id={id}
+        label={label}
+        open={open}
+        disputed={other}
+        says={says ? says.says : null}
+        saysLabel="It will say"
+        gone={says ? says.gone : null}
+        goneLabel="It will no longer say"
+        note={says ? says.note : null}
+        confirm={fold.asking ? (
+          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={() => { reset(); fold.discard(); }} onNo={fold.stay} testid={`rec-inline-${id}-ask`} />
+        ) : arm ? (
+          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={close} onNo={() => setArm(false)} testid={`rec-inline-${id}-cancel`} />
+        ) : null}
+        onSave={submit}
+        onCancel={cancel}
+        saving={busy}
+        gate={gate}
       >
-        <span className="bt-inline-key" id={keyId}>{label}</span>
-        <div className="bt-inline-body">
-          {inner}
-          {says ? (
-            <div className="bt-inline-says" id={saysId} data-testid={`rec-inline-says-${id}`}>
-              {says.note ? <p className="bt-inline-says-note" data-testid={`rec-inline-crossing-${id}`}>{says.note}</p> : null}
-              {says.lines.length ? (
-                <div className="bt-inline-says-part">
-                  <span className="bt-inline-says-eyebrow">{says.words}</span>
-                  <pre>{says.lines.join("\n")}</pre>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          {fold.asking ? (
-            <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={() => { reset(); fold.discard(); }} onNo={fold.stay} testid={`rec-inline-${id}-ask`} />
-          ) : arm ? (
-            <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={close} onNo={() => setArm(false)} testid={`rec-inline-${id}-cancel`} />
-          ) : null}
-          <div className="bt-inline-foot">
-            {/* Busy, not disabled: a disabled button lets go of focus, to the page, and a save that failed left it there
-                (record-fold.jsx). It stays a button focus can rest on, and a press while it saves does nothing. */}
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={(e) => { if (busy) { e.preventDefault(); return; } submit(); }}
-              aria-disabled={busy || undefined}
-              aria-busy={busy || undefined}
-              data-testid={`rec-inline-save-${id}`}
-              {...(gate || {})}
-            >
-              {busy ? "Saving…" : "Save"}
-            </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={cancel} aria-disabled={busy || undefined} data-testid={`rec-inline-cancel-${id}`}>Cancel</button>
-            <span className="bt-inline-keys">Esc cancels · ⌘↵ saves</span>
-          </div>
-        </div>
-      </div>
+        {inner}
+      </window.RecordInline>
     </>
   );
 };
@@ -589,7 +510,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         <span className="rec-card-sub">The facts a customer asks for by name</span>
       </div>
 
-      <RecordInline
+      <BtRow
         {...shared}
         id="name"
         // The line the prompt opens with, and the product's own lines where a rename writes them again (btRename).
@@ -607,7 +528,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         body={btTextBox({ placeholder: "The name customers know you by", autoComplete: "organization" })}
       />
 
-      <RecordInline
+      <BtRow
         {...shared}
         id="address"
         label="Address"
@@ -621,7 +542,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         body={btTextBox({ placeholder: "123 Example St, Brooklyn, NY 11208", autoComplete: "street-address", hint: "Given when someone asks how to find you." })}
       />
 
-      <RecordInline
+      <BtRow
         {...shared}
         id="website"
         label="Website"
@@ -641,7 +562,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
         body={btTextBox({ placeholder: "https://example.com", inputMode: "url", autoComplete: "url", hint: "Optional. Given when someone asks." })}
       />
 
-      <RecordInline
+      <BtRow
         {...shared}
         id="booking_link"
         label="Booking link"
@@ -683,7 +604,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
           right when the number changes. Publishing anything else is a deliberate act, and the note says what it costs
           -- because the live salon published its transfer number here and every customer who rang it reached a
           person's mobile instead of the receptionist standing by. */}
-      <RecordInline
+      <BtRow
         {...shared}
         id="phone_display"
         label="Tells customers to call"
@@ -749,7 +670,7 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
           row writes it: the check and the stored form both read "+1 (786) 555-0182". Its words are a call's, so what
           it will say is read on the phone: on WhatsApp the number changes nothing. And only where there is a line to
           call: a workspace that answers on WhatsApp alone is shown no sentence that no receptionist of its receives. */}
-      <RecordInline
+      <BtRow
         {...shared}
         id="handoff_number"
         label="Transfers a caller to"

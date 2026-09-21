@@ -125,4 +125,6 @@ const RecordRow = ({
   );
 };
 
-Object.assign(window, { RecordRow, RecordSourceChip });
+// RecordDispute on its own is the inline editor's (record-fold.jsx): a row being edited keeps its disagreement on
+// screen, to read, while its press waits at rest on the row.
+Object.assign(window, { RecordRow, RecordSourceChip, RecordDispute });

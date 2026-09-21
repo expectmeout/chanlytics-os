@@ -1,5 +1,11 @@
 /* global React */
-// Chanlytics record kit: the fold, and the rule that only one is open.
+// Chanlytics record kit: the fold and the inline editor, and the rule that only one is open.
+//
+// Two of the kit's three gestures (spec §5): the fold, a set of fields opened under the row that states them, and the
+// inline editor, one value edited in its row (RecordInline, below RecordFold); the sheet is record-sheet.jsx. The two
+// here share what they have in common rather than holding two copies of it: focus in as they open, back as they close,
+// and back in when an ask inside them is answered (useRecFocus); Escape and Ctrl or Cmd with Enter (recKeys); what
+// saving writes (RecordSays); Save and Cancel (RecordFoot); and their hold on the registry (useRecDrawn).
 //
 // A set of fields opens under the row that states them. Its head keeps the row's label where it was and puts the
 // page's hint where the value was; its act becomes Close. Under its fields, a fold can show what saving it will
@@ -191,57 +197,145 @@ const useRecordFold = (id, { dirty = false } = {}) => {
 // BusinessEditor does until the record replaces it; nothing replaces it outright.
 window.__settingsUnsaved = () => recFolds.dirty();
 
-// The first thing in an opened fold a person would type into or press: the first of its fields' tab stops (data-bits
-// tabStops), never a tip (the mark that explains a label comes before its box) and never its Save or Cancel.
-const recFoldFocusIn = (el) => {
+
+// ---- What the fold and the inline editor share: focus in and back, their keys, what saving writes, the foot ----
+
+// The first thing in an opened gesture a person would type into or press: the first of its fields' tab stops (data-bits
+// tabStops) inside `inner`, never a tip (the mark that explains a label comes before its box) and never its Save or
+// Cancel, with the caret at the end of what is there (spec §9); failing that, `fallback`.
+const recFocusIn = (el, inner, fallback = null) => {
   if (!el || !el.querySelector) return;
-  const inner = el.querySelector(".rec-fold-inner");
-  const stops = inner && window.tabStops ? window.tabStops(inner) : [];
-  const first = stops.find((c) => !c.classList.contains("rec-tip") && !c.closest(".rec-fold-foot")) || el.querySelector(".rec-fold-close");
-  if (first && first.focus) first.focus();
+  const within = el.querySelector(inner);
+  const stops = within && window.tabStops ? window.tabStops(within) : [];
+  const first = stops.find((c) => !c.classList.contains("rec-tip") && !c.closest(".rec-foot")) || (fallback ? el.querySelector(fallback) : null);
+  if (!first || !first.focus) return;
+  first.focus();
+  if (typeof first.value === "string" && first.setSelectionRange) {
+    try { first.setSelectionRange(first.value.length, first.value.length); } catch { /* a box that holds no caret */ }
+  }
 };
-// Closed, or gone: focus that went with the fold (it is on nothing, or still inside it) comes back to the act of the
-// row the fold opened from. Focus a person has put somewhere else stays there.
-const recFoldFocusBack = (id, el) => {
+// Closed, or gone: focus that went with it (it is on nothing, or still inside it) comes back to the act of the row it
+// opened from. Focus a person has put somewhere else stays there.
+const recFocusBack = (id, el) => {
   const now = document.activeElement;
   const lost = !now || now === document.body || (el && el.contains && el.contains(now)) || (document.contains && !document.contains(now));
   if (!lost || !document.querySelector) return;
   const back = document.querySelector(`[data-rec-act="${id}"]`);
   if (back && back.focus) back.focus();
 };
+// As it opens, focus moves to the first thing in it, since the act that opened it has gone; as it closes, focus that
+// went with it comes back to that row's act (data-rec-act). And when an ask drawn inside it is answered while it is
+// still open, focus comes back into it: the ask's "Yes" held focus, and "Keep editing" or Esc took the ask away with
+// focus on it, which left a keyboard at the top of the document.
+const useRecFocus = (id, open, asked, box, inner, fallback) => {
+  useFoldEffect(() => {
+    if (!open) return undefined;
+    const el = box.current;
+    recFocusIn(el, inner, fallback);
+    return () => recFocusBack(id, el);
+  }, [open, id]);
+  const wasAsked = useFoldRef(asked);
+  useFoldEffect(() => {
+    const was = wasAsked.current;
+    wasAsked.current = asked;
+    if (open && was && !asked) recFocusIn(box.current, inner, fallback);
+  }, [open, asked]);
+};
+// A gesture whose page goes away (the rail's "Yes, leave" replaces the pane) lets go of the registry: left as the open
+// fold, its dirty check would go on answering after it had gone, and the rail would ask on every tab and the browser
+// before every reload. The registry counts what is on the page by id (drawn), so one that comes straight back
+// (StrictMode, in development) or comes back as a new instance (a key change, a new parent) keeps hold. One closed, or
+// given way to another, before it goes is no longer the open one, and leaves it alone.
+const useRecDrawn = (id) => useFoldEffect(() => recFolds.drawn(id), [id]);
+// Escape cancels, unless something inside took the key first (a combobox's list closing); Ctrl or Cmd with Enter saves.
+// Neither while it saves: the save is on its way and closes it when the server takes it, and a Cancel meanwhile would
+// say the change was thrown away. Only its own keys: a portal's bubble through React from outside its DOM (a sheet
+// drawn from a field inside it), and its Ctrl+Enter would save it.
+const recKeys = ({ onCancel, onSave, saving, refused }) => (e) => {
+  if (e.defaultPrevented || !e.currentTarget.contains(e.target)) return;
+  if (e.key === "Escape" && onCancel && !saving) { e.preventDefault(); onCancel(); return; }
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && onSave && !saving && !refused) { e.preventDefault(); onSave(); }
+};
 
+// What saving writes, in the composer's own words: the lines it adds, under the page's eyebrow (`label`); the lines it
+// takes away, under a second (`goneLabel`); and a sentence of the page's own before them (`note`), where the change
+// reaches past its lines. Nothing to say draws nothing, never an empty block. `inline` sets each eyebrow beside its
+// lines, as an inline editor's row does on a desktop; a fold, and every phone, stacks them.
+const RecordSays = ({ id = null, testid = null, text = null, label = null, gone = null, goneLabel = null, note = null, inline = false }) => {
+  const writes = typeof text === "string" && text.trim() !== "";
+  const drops = typeof gone === "string" && gone.trim() !== "";
+  if (!writes && !drops && !note) return null;
+  return (
+    <div className="rec-says" id={id || undefined} data-inline={inline ? "true" : undefined} data-testid={testid || undefined}>
+      {note ? <p className="rec-says-note" data-testid={testid ? `${testid}-note` : undefined}>{note}</p> : null}
+      {writes ? (
+        <div className="rec-says-part" data-part="says">
+          {label ? <span className="rec-says-eyebrow">{label}</span> : null}
+          <pre>{text}</pre>
+        </div>
+      ) : null}
+      {drops ? (
+        <div className="rec-says-part" data-part="gone">
+          {goneLabel ? <span className="rec-says-eyebrow">{goneLabel}</span> : null}
+          <pre>{gone}</pre>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+// The foot: Save and Cancel, and beside them a line of the page's (`note`) or the keys that do the same (`keys`, which
+// record.css hides on a touch screen, where there are none). Save is busy, not disabled, while it saves: a disabled
+// button lets go of focus, to the page, and a save that failed left it there. It stays a button focus can rest on, and
+// a press while it saves does nothing; so does a press on Cancel, for the reason recKeys gives.
+const RecordFoot = ({
+  saveTestid, cancelTestid, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…",
+  cancelLabel = "Cancel", gate = null, note = null, keys = null,
+}) => (
+  <div className="rec-foot">
+    <button
+      type="button"
+      className="btn btn-sm btn-primary"
+      onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onSave) onSave(e); }}
+      aria-disabled={saving || undefined}
+      aria-busy={saving || undefined}
+      data-testid={saveTestid}
+      {...(gate || {})}
+    >
+      {saving ? savingLabel : saveLabel}
+    </button>
+    <button
+      type="button"
+      className="btn btn-sm btn-ghost"
+      onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onCancel) onCancel(e); }}
+      aria-disabled={saving || undefined}
+      data-testid={cancelTestid}
+    >
+      {cancelLabel}
+    </button>
+    {note ? <span className="rec-foot-note">{note}</span> : null}
+    {keys ? <span className="rec-foot-keys">{keys}</span> : null}
+  </div>
+);
+
+// ---- The fold: a set of fields, under the row that states them ----
+
+// `confirm` is the page's ask (its Confirm), drawn above the foot while it is open: the section's own "Discard your
+// changes?", or the registry's `asking`. Answered with "Keep editing", focus comes back into the fold (useRecFocus).
 const RecordFold = ({
-  id, label, hint = null, open = true, says = null, saysLabel = null, note = null,
+  id, label, hint = null, open = true, says = null, saysLabel = null, note = null, confirm = null,
   onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel", closeLabel = "Close",
   gate = null, wide = false, children = null,
 }) => {
-  const foldRef = useFoldRef(null);
-  useFoldEffect(() => {
-    if (!open) return undefined;
-    const el = foldRef.current;
-    recFoldFocusIn(el);
-    return () => recFoldFocusBack(id, el);
-  }, [open, id]);
-  // A fold whose page goes away (the rail's "Yes, leave" replaces the pane) lets go of the registry: left as the open
-  // fold, its dirty check would go on answering after it had gone, and the rail would ask on every tab and the
-  // browser before every reload. The registry counts the folds on the page by id (drawn), so a fold that comes
-  // straight back (StrictMode, in development) or comes back as a new instance (a key change, a new parent) keeps
-  // hold. A fold closed, or given way to another, before it goes is no longer the open one, and leaves it alone.
-  useFoldEffect(() => recFolds.drawn(id), [id]);
+  const box = useFoldRef(null);
+  useRecFocus(id, open, !!confirm, box, ".rec-fold-inner", ".rec-fold-close");
+  useRecDrawn(id);
   const labelId = `rec-fold-${id}-label`;
   const closeId = `rec-fold-${id}-close`;
   const refused = !!(gate && gate["aria-disabled"]);
-  const onKey = (e) => {
-    // Only the fold's own keys: a portal's bubble through React from outside the fold's DOM (a sheet drawn from a
-    // field inside it), and its Ctrl+Enter would save the fold.
-    if (e.defaultPrevented || !e.currentTarget.contains(e.target)) return;
-    if (e.key === "Escape" && onCancel) { e.preventDefault(); onCancel(); return; }
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && onSave && !saving && !refused) { e.preventDefault(); onSave(); }
-  };
-  const writes = typeof says === "string" && says.trim() !== "";
   return (
     <div
-      ref={foldRef}
+      ref={box}
       className="rec-fold"
       role="group"
       aria-labelledby={labelId}
@@ -249,7 +343,7 @@ const RecordFold = ({
       hidden={open ? undefined : true}
       data-wide={wide ? "true" : undefined}
       data-testid={`rec-fold-${id}`}
-      onKeyDown={onKey}
+      onKeyDown={recKeys({ onCancel, onSave, saving, refused })}
     >
       <div className="rec-fold-head">
         <span className="rec-fold-label" id={labelId}>{label}</span>
@@ -261,33 +355,87 @@ const RecordFold = ({
       <div className="rec-fold-body">
         <div className="rec-fold-inner">
           {children}
-          {writes ? (
-            <div className="rec-fold-says" data-testid={`rec-fold-says-${id}`}>
-              {saysLabel ? <span className="rec-fold-says-eyebrow">{saysLabel}</span> : null}
-              <pre>{says}</pre>
-            </div>
-          ) : null}
-          <div className="rec-fold-foot">
-            {/* Busy, not disabled: a disabled button lets go of focus, to the page, and a save that failed left it
-                there. It stays a button focus can rest on, and a press while it saves does nothing. */}
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onSave) onSave(e); }}
-              aria-disabled={saving || undefined}
-              aria-busy={saving || undefined}
-              data-testid={`rec-fold-save-${id}`}
-              {...(gate || {})}
-            >
-              {saving ? savingLabel : saveLabel}
-            </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel} data-testid={`rec-fold-cancel-${id}`}>{cancelLabel}</button>
-            {note ? <span className="rec-fold-note">{note}</span> : null}
-          </div>
+          <RecordSays testid={`rec-fold-says-${id}`} text={says} label={saysLabel} />
+          {confirm}
+          <RecordFoot
+            saveTestid={`rec-fold-save-${id}`}
+            cancelTestid={`rec-fold-cancel-${id}`}
+            onSave={onSave}
+            onCancel={onCancel}
+            saving={saving}
+            saveLabel={saveLabel}
+            savingLabel={savingLabel}
+            cancelLabel={cancelLabel}
+            gate={gate}
+            note={note}
+          />
         </div>
       </div>
     </div>
   );
 };
 
-Object.assign(window, { RecordFold, useRecordFold, __recordFolds: recFolds });
+// ---- The inline editor: one value, edited in the row that states it ----
+
+// The kit's third gesture (spec §5, canvas Edit-Inline), for one value. The row becomes its field: its label stays in
+// the label column (`label`, drawn as rec-inline-<id>-key, which names the whole editor and which the page's field
+// names its box by), and the page's field, what saving writes (RecordSays, as rec-inline-<id>-says, which describes the
+// box), the page's ask, and Save and Cancel with the keys that do the same take the value's place. A disagreement on
+// the row (`disputed`, RecordRow's shape) stays on screen while it is edited, to read: its press is the row's, at rest.
+//
+//   const website = useRecordFold("website", { dirty: changed });
+//   {website.open ? null : <RecordRow id="website" act={{ label: "Change", onClick: website.request }} ... />}
+//   <RecordInline id="website" label="Website" open={website.open} says={lines} saysLabel="It will say"
+//                 confirm={asking ? <Confirm ... /> : null} onSave={save} onCancel={cancel} saving={busy} gate={…}>
+//     <RecordField id="website-box" label={null} aria-labelledby="rec-inline-website-key" … />
+//   </RecordInline>
+//
+// Like a fold it is drawn on every render and flips `open`: closed, it is `hidden`, whole. It holds nothing of its
+// own: whether it is open comes from the registry (useRecordFold), and the draft, the check and the save are the
+// page's. It shares the fold's focus, keys and foot, and registers with the registry as a fold does (drawn).
+const RecordInline = ({
+  id, label, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null, disputed = null,
+  confirm = null, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel",
+  keys = "Esc cancels · ⌘↵ saves", gate = null, children = null,
+}) => {
+  const box = useFoldRef(null);
+  useRecFocus(id, open, !!confirm, box, ".rec-inline-body", null);
+  useRecDrawn(id);
+  const keyId = `rec-inline-${id}-key`;
+  const refused = !!(gate && gate["aria-disabled"]);
+  const Dispute = window.RecordDispute;
+  return (
+    <div
+      ref={box}
+      className="rec-inline"
+      role="group"
+      aria-labelledby={keyId}
+      data-open={open ? "true" : "false"}
+      hidden={open ? undefined : true}
+      data-testid={`rec-inline-${id}`}
+      onKeyDown={recKeys({ onCancel, onSave, saving, refused })}
+    >
+      <span className="rec-inline-key" id={keyId}>{label}</span>
+      <div className="rec-inline-body">
+        {disputed && Dispute ? <Dispute id={id} disputed={{ value: disputed.value, source: disputed.source, sentence: disputed.sentence }} /> : null}
+        {children}
+        <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} inline />
+        {confirm}
+        <RecordFoot
+          saveTestid={`rec-inline-save-${id}`}
+          cancelTestid={`rec-inline-cancel-${id}`}
+          onSave={onSave}
+          onCancel={onCancel}
+          saving={saving}
+          saveLabel={saveLabel}
+          savingLabel={savingLabel}
+          cancelLabel={cancelLabel}
+          gate={gate}
+          keys={keys}
+        />
+      </div>
+    </div>
+  );
+};
+
+Object.assign(window, { RecordFold, RecordInline, RecordSays, useRecordFold, __recordFolds: recFolds });
