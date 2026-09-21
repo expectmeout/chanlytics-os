@@ -340,6 +340,17 @@
 .ld-reach-email:hover { text-decoration: underline; }
 .ld-reach-phone.wrong { text-decoration: line-through; color: var(--ink-faint); }
 .ld-biz-name { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: left; cursor: pointer; }
+/* A thumb's reach without a thumb's height. Every button on a touch screen is 44px tall (legacy.css), so a lead's
+   one-line name stood in a 44px box, with the air between it and its sub-line: on the review card and on the
+   table's phone card alike. The height comes off the box. The review card's name keeps its reach in an ::after that
+   takes no room: 44px, from the card's top edge (its 11px of padding, so a press on the card above stays that
+   card's) down over the name's own sub-line. The table's name takes none: a press anywhere on its row opens the same
+   lead, Call is the card's 44px act, and the ellipsis that shortens the name clips anything drawn outside its box. */
+@media (pointer: coarse) {
+  html.legacy-on .ld-biz-name { min-height: 0; }
+  html.legacy-on .ld-bench-card .ld-biz-name { position: relative; }
+  .ld-bench-card .ld-biz-name::after { content: ""; position: absolute; inset: -11px -8px -13px; }
+}
 .ld-badge { margin-left: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-fit-cell.qualified { color: var(--ink-muted); }
 .ld-fit-cell.review { color: var(--warn-ink); }
