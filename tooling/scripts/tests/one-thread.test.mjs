@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, memberWords } from "@chanlytics/contracts";
+import { stateOf, memberWords, toInboxThreadVM } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
 
@@ -179,5 +179,51 @@ test("a draft's Hold and your first keystroke both withdraw it on the server; a 
     assert.equal(said.at(-1).tone, "danger", "and says the server's refusal");
   } finally {
     delete globalThis.window.__cancelSend;
+  }
+});
+
+/* ------------------------------- the thread's menu ------------------------------- */
+
+const NOW = new Date("2026-09-14T14:00:00Z");
+const at = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
+// A conversation as GET conversations returns it, made a thread by the Inbox's own view model.
+const convo = (over = {}) => ({
+  id: "c1", state: "open", paused_until: null, snooze_until: null, assignee_user_id: null, assignee_is_me: false,
+  last_wa_inbound_at: at(60), last_message_at: at(59),
+  contact: { id: "k1", display_name: "Rosa Díaz", wa_profile_name: null, phone_e164: "+13475550101", consent: "opted_in", dnc: false },
+  messages: [
+    { id: "m1", direction: "inbound", sender: "customer", type: "text", body: "Do you have Friday?", media: null, meta: null, status: "received", channel: "whatsapp", created_at: at(60), channel_ts: at(60) },
+    { id: "m2", direction: "outbound", sender: "ai", type: "text", body: "Yes, 3pm works.", media: null, meta: null, status: "read", channel: "whatsapp", created_at: at(59), channel_ts: at(59) },
+  ],
+  ...over,
+});
+
+test("Export is in the thread's menu, from the conversation's own route -- in whichever tab the thread is open", () => {
+  fresh(); releasePane();
+  const vm = toInboxThreadVM(convo(), null, ZONE, NOW);
+  globalThis.window.INBOX_DATA = { THREADS: [vm], CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+  globalThis.window.__href = (route, p) => `${route}|${p.id}`;
+  const anchors = [];
+  const realCreate = globalThis.document.createElement;
+  globalThis.document.createElement = (tag) => {
+    const a = { tag, href: null, download: null, clicked: 0, click() { this.clicked += 1; }, remove() {}, setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } };
+    anchors.push(a);
+    return a;
+  };
+  try {
+    seq = 0;
+    const tree = ThreadPane({ threadId: vm.id });
+    const menu = find(tree, (n) => n.type === globalThis.MoreMenu);
+    assert.ok(menu, "the thread has its menu");
+    const item = menu.props.items.find((it) => it.label === "Export");
+    assert.ok(item, "REGRESSION: Export was a button in Conversations' header only");
+    item.onClick();
+    const a = anchors.find((x) => x.tag === "a");
+    assert.equal(a.href, "GET conversations/[id]/export|c1", "the file the conversation's own route writes");
+    assert.equal(a.download, "", "fetched as a file, not opened as a page");
+    assert.equal(a.clicked, 1);
+  } finally {
+    globalThis.document.createElement = realCreate;
+    delete globalThis.window.__href;
   }
 });
