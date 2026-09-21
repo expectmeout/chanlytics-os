@@ -26,7 +26,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
 import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/workspace/channels.js";
-import { ingestCall, recordCallNote, linkCallMessage } from "../../lib/workspace/db.js";
+import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from "../../lib/workspace/db.js";
 import { copyRecording, purgeExpiredRecordings, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
 
 /** Only look at rows that have had time to settle — a call that started
@@ -140,7 +140,8 @@ export async function POST(request: Request): Promise<Response> {
   // ---- recordings that did not finish copying inside the webhook's budget ----
   // Same settle rule: the row's own updated_at moved on the last attempt, so
   // waiting five minutes IS the back-off. After RECORDING_MAX_ATTEMPTS the
-  // copy is marked failed by copyRecording and stops being a candidate.
+  // copy is marked failed (by copyRecording, or below when the provider has
+  // no link to give) and stops being a candidate.
   const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0 };
   const { data: pendingRec, error: recErr } = await db
     .from("calls")
@@ -162,6 +163,15 @@ export async function POST(request: Request): Promise<Response> {
     const url = fresh?.recording_url ?? null;
     if (!url) {
       L.warn("calls_sweep_recording_no_url", { call: row.retell_call_id });
+      // No link to copy from is a try like any other: counted, so a recording
+      // the provider never hands over ends "couldn't be saved" after
+      // RECORDING_MAX_ATTEMPTS. Skipped and unwritten, it said "still
+      // processing" for ever, and with its updated_at never moving it stood
+      // first in line on every run.
+      const attempt = (rec.attempts ?? 0) + 1;
+      const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
+      await setCallRecording(db, row.tenant_id, row.id, { fetch_state: exhausted ? "failed" : "pending", attempts: attempt, error: "provider_no_url" });
+      recordings[exhausted ? "failed" : "retry"]++;
       continue;
     }
     const outcome = await copyRecording(db, {

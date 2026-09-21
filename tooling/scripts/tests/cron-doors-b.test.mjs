@@ -386,6 +386,34 @@ test("calls: a CDN that refuses a recording for good (401, 403, 410) fails the c
   assert.equal(rec("unpublished").attempts, 2);
 });
 
+test("calls: a recording the provider never hands over is a try like any other, counted on the row, so it ends as couldn't-be-saved instead of processing for ever", async () => {
+  // It used to be skipped and left unwritten: the row said "Recording still
+  // processing" for good, and since nothing moved its updated_at it stood
+  // first in line on every run, two of them holding both of a tick's places.
+  const T = tenant(4);
+  const pending = (id, attempts, over = {}) => callRow(T, id, { status: "ended", ended_at: ago(20 * MIN), updated_at: ago(10 * MIN), recording: { fetch_state: "pending", attempts }, ...over });
+  const tables = { calls: [pending("spent", RECORDING_MAX_ATTEMPTS - 1), pending("fresh", 0, { updated_at: ago(9 * MIN) })], messages: [], events: [] };
+  use(tables, { ingest_call: ingestRpc(tables) });
+  const GET_CALL = "https://api.retellai.com/v2/get-call/";
+  const net = wired((req) => {
+    // The provider knows the call and has no recording to give.
+    if (req.url.startsWith(GET_CALL)) return { status: 200, body: { call_id: req.url.slice(GET_CALL.length), call_status: "ended" } };
+    throw new Error("unexpected " + req.method + " " + req.url);
+  });
+  const rec = (id) => tables.calls.find((c) => c.id === id).recording;
+
+  let [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.recordings, { candidates: 2, stored: 0, retry: 1, failed: 1 });
+  assert.deepEqual(rec("spent"), { fetch_state: "failed", attempts: RECORDING_MAX_ATTEMPTS, error: "provider_no_url" }, "the last try spent: it reads as couldn't be saved");
+  assert.deepEqual(rec("fresh"), { fetch_state: "pending", attempts: 1, error: "provider_no_url" }, "a first miss is counted and waits for the next try");
+  assert.equal(net.to("cdn.retell.test").length, 0, "there was nothing to fetch");
+
+  [status, body] = await answer(await knock("calls"));
+  assert.deepEqual(body.recordings, { candidates: 1, stored: 0, retry: 1, failed: 0 }, "the failed copy is no longer a candidate");
+  assert.equal(rec("fresh").attempts, 2);
+});
+
 test("calls: recordings past the ninety days the privacy page states are removed from the bucket and the row says so — before the provider is asked, so a deployment without the key still keeps that promise; a call that ended, or errored, without an analysis still gets its line in the customer's thread, once", async () => {
   const T = tenant(3);
   const CONV = uuid(31);
