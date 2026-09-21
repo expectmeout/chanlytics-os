@@ -14,9 +14,11 @@ the people who said yes.
 It does not book. The booking tool behind the link does that, and the
 receptionist is told never to confirm a slot itself: there is no appointments
 table here, and nothing in the product can create, move or cancel one
-(`docs/decisions/0002-appointments-record.md` proposes the record). It never
-decides money, and it never quotes a price where the workspace forbids it; both
-are enforced in code, not in a prompt.
+(`docs/decisions/0002-appointments-record.md` proposes the record). It does
+not decide money: the money class of the Autonomy matrix is locked to `never`
+by a database trigger, and the prompt says so. It does not quote a price in a
+reply: a deterministic check after generation replaces any reply carrying one
+and hands the thread to a person, whatever the prompt said.
 
 **This is live.** Real businesses are in production with real customers on real
 numbers. Treat every change to `apps/edge` and `packages/channels` as something
@@ -88,7 +90,8 @@ globals. Surfaces were made real one at a time by *branching inside the
 existing components* (`XReal`/`XSeed`), never by redesigning them; the seam
 that feeds a real surface from `/api/v1` is `src/legacy-bridge`, and
 `surface-registry.ts` there is the table that says which routes are real. The
-mockup's unbuilt surfaces (agent fleet, store, studio, tasks, content) stay in
+mockup's unbuilt surfaces (agent fleet, store, studio, tasks, content, the
+pipeline board, the shared report viewer) stay in
 the tree and hidden from every real workspace, by decision. The mockup's own
 prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 

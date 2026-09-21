@@ -294,27 +294,26 @@ The gates, in the order they run. Each stop reports through the sink, and tells 
 | 1 | The sender is a short code | Recorded; `ingest.unreachable_sender`; never answered |
 | 2 | The pilot allowlist (the environment's own number only) | Recorded; `ingest.allowlist_skip` |
 | 3 | `ingest_inbound` — persist first | — the message is now on record (or the webhook answers 503) |
-| 4 | Read memory (Postgres) — a thread it cannot produce is handed to a person | `state_unavailable` escalation, nothing answered |
-| 5 | A duplicate delivery (`is_new` false) | Skipped, before anything below |
-| 6 | This person's own receptionist mode | Changes the mode in force |
-| 7 | Memory unreadable from every source | Escalation `state_unavailable` |
-| 8 | Consent: this message is STOP, or an opt-out on record, or a cached one when Postgres is down | No reply; on the STOP itself, escalation `opt_out`. The carriers' opt-out words belong to the carriers' channel: a texting line honours them; WhatsApp keeps its own list |
-| 9 | An SMS line the carriers have not approved | Escalation `carriers` |
-| 10 | A reaction or a system notice | Recorded; nothing was asked |
-| 11 | A location or a contact card | Escalation `non_text`, without an apology |
-| 12 | A photo, when `features.vision` is on | Fetched and shown to the model |
-| 13 | Anything else that is not words | Acknowledged when the mode may speak; escalation `non_text`; thread paused |
-| 14 | More than two hours late | Escalation `stale` (ten minutes to two hours late is answered, and logged) |
-| 15 | The thread is paused for a person | Added to history; no reply. The pause is for the machine: a queued draft yields only to a person's words |
-| 16 | Twenty automatic replies on this thread today (the owner's dial) | Escalation `rate_cap` |
-| 17 | The workspace's day of model tokens is spent (`budget.ts`, from `usage.llm_tokens`) | Escalation `budget` |
-| 18 | The workspace is paused (billing) | Escalation `paused` |
-| 19 | Reply mode `ask` or `never`, or no persona | Escalation `policy_block`, or `person_hold` for a hold set on this person |
-| 20 | No model key at all | A degraded state a person can see: escalation, and the platform paged — never a canned receptionist |
-| 21 | The brain composes | On error: the persona's fallback words and escalation `brain_error` |
-| 22 | Layer two | A price in the draft blocks it; a booking or pricing question under "ask me first" escalates `policy_ask` |
-| 23 | The hold plan | Veto window, or confidence below `min_confidence`: written as a `queued` draft with an `outbound_send` job (`draft-queue.ts`, the one writer, shared with steer) |
-| 24 | Send now | Outbound row written `sent` only when the provider accepted it, and `usage.llm_tokens`; on a handoff, pause + escalation + an alert whose email tells the truth; on a failed send, escalation `send_failed` |
+| 4 | A duplicate delivery (`is_new` false) | Skipped, before anything below |
+| 5 | This person's own receptionist mode | Changes the mode in force |
+| 6 | Memory (Postgres): a thread it cannot produce | Escalation `state_unavailable`, nothing answered |
+| 7 | Consent: this message is STOP, or an opt-out on record | No reply; on the STOP itself, escalation `opt_out`. The carriers' opt-out words belong to the carriers' channel: a texting line honours them; WhatsApp keeps its own list |
+| 8 | An SMS line the carriers have not approved | Escalation `carriers` |
+| 9 | A reaction or a system notice | Recorded; nothing was asked |
+| 10 | A location or a contact card | Escalation `non_text`, without an apology |
+| 11 | A photo, when `features.vision` is on | Fetched and shown to the model |
+| 12 | Anything else that is not words | Acknowledged when the mode may speak; escalation `non_text`; thread paused |
+| 13 | More than two hours late | Escalation `stale` (ten minutes to two hours late is answered, and logged) |
+| 14 | The thread is paused for a person | Added to history; no reply. The pause is for the machine: a queued draft yields only to a person's words |
+| 15 | Twenty automatic replies on this thread today (the owner's dial) | Escalation `rate_cap` |
+| 16 | The workspace's day of model tokens is spent (`budget.ts`, from `usage.llm_tokens`) | Escalation `budget` |
+| 17 | The workspace is paused (billing) | Escalation `paused` |
+| 18 | Reply mode `ask` or `never`, or no persona | Escalation `policy_block`, or `person_hold` for a hold set on this person |
+| 19 | No model key at all | A degraded state a person can see: escalation, and the platform paged — never a canned receptionist |
+| 20 | The brain composes | On error: the persona's fallback words and escalation `brain_error` |
+| 21 | Layer two | A price in the draft blocks it; a booking or pricing question under "ask me first" escalates `policy_ask` |
+| 22 | The hold plan | Veto window, or confidence below `min_confidence`: written as a `queued` draft with an `outbound_send` job (`draft-queue.ts`, the one writer, shared with steer) |
+| 23 | Send now | Outbound row written `sent` only when the provider accepted it, and `usage.llm_tokens`; on a handoff, pause + escalation + an alert whose email tells the truth; on a failed send, escalation `send_failed` |
 
 A veto-window draft that cannot be queued is sent at once and recorded (`vetoFallback`): an un-vetoed reply beats silence. A low-confidence hold that cannot be queued sends nothing: the floor is the owner's policy, so the thread is a person's for the pause window and the owner is told what the customer said (#577). The brain's plain retry, taken when the schema is refused, carries a record at confidence 0 so the dial still holds it (#577). At the wire, a draft on a thread a person has taken over is refused (`human_has_it`), the take-over's withdrawal kept for the case it failed (#577).
 
@@ -326,7 +325,7 @@ A veto-window draft that cannot be queued is sent at once and recorded (`vetoFal
 
 ### 5.4 Memory
 
-Postgres is the receptionist's only memory: `packages/db/repositories/thread.ts` returns the history, the pause and today's replies, and `ingest_inbound`'s atomic `is_new` claim is the dedupe. There is no flag on it and no second copy to fall back to — a thread Postgres cannot produce is handed to a person (`state_unavailable`) rather than answered from an invented empty history. It used to be a Vercel Blob object per thread, with Postgres a write-only shadow behind `PG_READS`; the flags and the store are gone (00148). `GET /api/diag` reports `memory`.
+Postgres is the receptionist's only memory: `packages/db/repositories/thread.ts` returns the history, the pause and today's replies, and `ingest_inbound`'s atomic `is_new` claim is the dedupe. There is no flag on it and no second copy to fall back to — a thread Postgres cannot produce is handed to a person (`state_unavailable`) rather than answered from an invented empty history. It used to be a Vercel Blob object per thread: Postgres was first written beside it (`PG_WRITES`), then made the memory (`PG_READS`) with Blob kept as a shadow; the flags and the store are gone (00148). `GET /api/diag` reports `memory`.
 
 ### 5.5 Credentials, and connecting a number
 
@@ -530,7 +529,7 @@ On a local or CI database, `supabase/seed.sql` removes the production edge addre
 
 ### 10.1 Core, and a committing verb
 
-The rules a route or a job runs live in **`packages/core`**, as use cases behind ports; the route and the job handler are adapters. Three groups: **conversations** (reply, cancel-send, take over, hand back, snooze, wake, resolve, archive), **messages** (the queued send, the broadcast batch, the thread erasure, line provisioning — and `deliver`, the one sender both apps use) and **campaigns** (create, approve and cancel a broadcast; assemble an audience; a playbook's run and its check; template values). Every branch is run by a test calling the use case with fakes; the source-reading pins that held the routes' text were deleted with each extraction. What stays on the edge is the WhatsApp handler itself, over its ports object.
+The rules a route or a job runs live in **`packages/core`**, as use cases behind ports; the route and the job handler are adapters. Four groups: **conversations** (reply, cancel-send, take over, hand back, snooze, wake, resolve, archive), **messages** (the queued send, the broadcast batch, email intake, line provisioning — and `deliver`, the one sender both apps use), **campaigns** (create, approve and cancel a broadcast; assemble an audience; a playbook's run and its check; template values) and **leads** (the finder's runner, its judge, the cleaning of what an actor returns, and a round's endings). Every branch is run by a test calling the use case with fakes; the source-reading pins that held the routes' text were deleted with each extraction. What stays on the edge is the WhatsApp handler itself, over its ports object.
 
 Every verb is **a decision row plus a change to its subject**, both on the session client so RLS enforces them (`server/verbs.ts`). Side effects that need the service role — scheduling a job, removing a Storage object, calling the edge — go through `server/service.ts`. The ledger's verbs are a closed set: approve, edit, decline, snooze, wake, take_over, hand_back, resolve, archive, reply, cancel_send, pause_agent, resume_agent, invite, revoke_invite, change_role, remove_member, erase, whisper, connect_channel, consent_change, send_broadcast, cancel_broadcast, start_playbook, pause_playbook, reply_review, workspace, export, end_call. Every event kind declared is written and every kind written is declared (`EVENT_KINDS`, held by a test).
 
@@ -963,6 +962,7 @@ Names only; values live in each Vercel project.
 | | Voice and lines | `RETELL_API_KEY`, `RETELL_WEBHOOK_KEY`, `RETELL_FN_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PRIMARY_PROFILE_SID`, `LINES_DRY_RUN` |
 | | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM`, `EMAIL_DOMAIN`, `RESEND_WEBHOOK_SECRET` |
 | | Memory | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+| | Disaster recovery | `DR_FALLBACK_BRAIN_JSON`, `DR_FALLBACK_ESCALATION_EMAILS`, `DR_FALLBACK_FROM` |
 | | Google | `GOOGLE_PLACES_API_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `GOOGLE_OAUTH_AUDIENCE` |
 | | Billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `BILLING_TRIAL_DAYS`, `DASHBOARD_ORIGIN` |
 | | Operations | `DIAG_KEY`, `EDGE_CALL_SECRET`, `EDGE_ORIGIN` |
