@@ -3969,12 +3969,17 @@ function consentOf(r, tz, nowMs) {
   };
 }
 function mayReceive(r, purpose) {
-  if (!r.phone) return false;
-  return mayMessageFor(
+  return whyNotReceive(r, purpose) === null;
+}
+function whyNotReceive(r, purpose) {
+  if (!r.phone) return "no_number";
+  const said = mayMessageFor(
     { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
     purpose,
     { proactive: true }
-  ).ok;
+  );
+  if (said.ok) return null;
+  return said.reason === "opted_out" ? "stopped" : "no_yes";
 }
 function receptionistOf(r, tz, nowMs) {
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
@@ -7206,28 +7211,21 @@ var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
-  let pool = rows;
+  return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
+}
+function audienceMembers(rows, kind, id, savedIds) {
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
-    if (!l) return [];
-    pool = rows.filter(l.test);
-  } else if (kind === "saved") {
-    if (!savedIds) return [];
-    pool = rows.filter((r) => savedIds.has(r.id));
+    return l ? rows.filter(l.test) : [];
   }
-  return pool.filter((r) => mayReceive(r, purpose));
+  if (kind === "saved") return savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
+  return rows;
 }
 function previewPerson(r, refusal) {
   return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
 }
 function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5) {
-  let pool = rows;
-  if (kind === "list") {
-    const l = PEOPLE_LISTS.find((x) => x.id === id);
-    pool = l ? rows.filter(l.test) : [];
-  } else if (kind === "saved") {
-    pool = savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
-  }
+  const pool = audienceMembers(rows, kind, id, savedIds);
   const sending = pool.filter((r) => mayReceive(r, purpose));
   const held = pool.filter((r) => !mayReceive(r, purpose));
   const named = sending.filter((r) => firstNameOf(r.givenName, r.waName) !== null);
@@ -7512,29 +7510,51 @@ function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 function eligibleForPlaybook(rows, p, touches, nowMs) {
+  return playbookRunReach(rows, p, touches, nowMs).eligible;
+}
+function playbookRunReach(rows, p, touches, nowMs) {
+  const reach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return [];
+  if (!t) return { eligible: [], reach };
   const purpose = purposeOfPlaybook(t.cls);
-  if (t.kind === "visit") {
-    const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
-    });
-    pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
-    return pool2;
+  const named = t.kind === "visit" ? rows.filter((r) => {
+    if (!r.calendarTz) return false;
+    if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
+    return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
+  }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  reach.pool = named.length;
+  const allowed = [];
+  for (const r of named) {
+    const why = whyNotReceive(r, purpose);
+    if (why === "no_number") reach.noNumber += 1;
+    else if (why === "stopped") reach.stopped += 1;
+    else if (why === "no_yes") reach.noYes += 1;
+    else allowed.push(r);
   }
-  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
+  if (t.kind === "visit") {
+    allowed.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
+    reach.will = allowed.length;
+    return { eligible: allowed, reach };
+  }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS6;
-  const picked = pool.filter((r) => {
+  const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
-    if (mine !== void 0 && nowMs - mine < gapMs) return false;
+    if (mine !== void 0 && nowMs - mine < gapMs) {
+      reach.heardThis += 1;
+      return false;
+    }
     const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) return false;
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) {
+      reach.heardAny += 1;
+      return false;
+    }
     return true;
   });
   picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
-  return picked.slice(0, Math.max(1, p.cap_per_run));
+  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
+  reach.overCap = picked.length - eligible.length;
+  reach.will = eligible.length;
+  return { eligible, reach };
 }
 function planRun(mode, now) {
   switch (mode) {
@@ -7642,6 +7662,24 @@ function visitDayWord(visit, tz, sendAt, assumed) {
     return delta > 0 ? "soon" : "recently";
   }
 }
+function reachLines(reach, p) {
+  if (!reach || !Number.isFinite(reach.pool)) return null;
+  const t = p ? triggerOf(p.trigger) : null;
+  const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
+  const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
+  const one = (n, singular, plural7) => n === 1 ? singular : plural7;
+  const reasons = [
+    { n: reach.noYes, words: `never said yes to ${offers ? "offers" : "hearing from you"}`, tone: "plain", door: { words: "Get their yes", to: GET_YES_ROUTE } },
+    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    { n: reach.heardThis, words: gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately", tone: "warn", door: null },
+    { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
+    { n: reach.noNumber, words: one(reach.noNumber, "has no number on file", "have no number on file"), tone: "plain", door: null },
+    { n: reach.overCap, words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` \u2014 ${p.cap_per_run} a run, the longest unheard first` : ""}`, tone: "plain", door: null },
+    { n: reach.overLimit, words: one(reach.overLimit, "is past what the number may start today", "are past what the number may start today"), tone: "warn", door: null }
+  ];
+  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words2, tone, door }) => ({ n, words: `${n} ${words2}`, tone, door }));
+  return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
+}
 function toApprovalVM(d, opts) {
   const b = d.broadcast;
   const will = b.recipient_count;
@@ -7679,6 +7717,7 @@ function toApprovalVM(d, opts) {
   return {
     will,
     rules,
+    of: reachLines(b.audience?.reach ?? null, opts.playbook),
     values,
     reader: reader ? reader.name : null,
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
@@ -13637,6 +13676,7 @@ export {
   askJump,
   askUndoOpen,
   attentionRow,
+  audienceMembers,
   audiencePreview,
   autoReplyBell,
   autoReplyCandidates,
@@ -13975,6 +14015,7 @@ export {
   platformRows,
   platformSummary,
   playbookReach,
+  playbookRunReach,
   playbooksStillSending,
   pointsDelta,
   policyAskClass,
@@ -13991,6 +14032,7 @@ export {
   quantile,
   questionAfterProbe,
   ratingWords,
+  reachLines,
   reachedCustomer,
   readAgoLabel,
   reasonShort,
@@ -14178,6 +14220,7 @@ export {
   whyNotALocalPart,
   whyNotAPhone,
   whyNotAnEmail,
+  whyNotReceive,
   windowFor,
   workspaceHotkey,
   writtenChannelOf,

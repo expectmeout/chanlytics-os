@@ -393,6 +393,31 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
   }
 });
 
+test("a run that kept who it left out opens as the board's card: of how many, the grey and the amber, a line per reason, and the door to getting their yes", async () => {
+  const today = globalThis.window.__clock.dayKey(Date.now());
+  const offer = { id: "tpl-offer", channel: "whatsapp", name: "monthly_offer", language: "en_US", meta_status: "approved", category: "marketing", purpose: "marketing", body_preview: "Hi {{1}}, a free gloss with any cut.", variables: [] };
+  const reach = { pool: 312, will: 186, noNumber: 0, stopped: 0, noYes: 94, heardThis: 0, heardAny: 32, overCap: 0, overLimit: 0 };
+  const waiting = dto({ id: "b-kept", name: "The month's offer", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(-H), counts: quiet, recipient_count: 186,
+    playbook_id: "pb-offer", run_for: today, template_id: "tpl-offer", template_name: "monthly_offer", params: [{ kind: "first_name" }], audience: { kind: "playbook", id: "pb-offer", label: "The month's offer", reach } });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], rows: [toBroadcastVM(waiting, ZONE)] });
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ rows: [playbook({ id: "pb-offer", name: "The month's offer", trigger: "everyone_monthly", policy_class: "campaign", cap_per_run: 250, cadence_days: 30 })] });
+  answers.set("b-kept", [{ ok: true, data: detailOf(waiting, [person({ state: "queued", sent_at: null, message_status: null, delivered_at: null })]) }]);
+  const props = { initialSegment: null, initialRun: "b-kept" };
+  page(props);
+  await settle();
+  const tree = again(props);
+  const card = byTestId(byTestId(tree, "bc-sheet"), "bc-sheet-reach");
+  assert.equal(textOf(byTestId(card, "bc-sheet-pool")), "312", "out of everyone its moment named");
+  assert.deepEqual(all(byTestId(card, "bc-sheet-why"), (n) => n.type === "li").map((li) => textOf(li)), ["94 never said yes to offersGet their yes", "32 heard from a playbook this week"]);
+  // The bar is the whole list: green reaches, amber waits, and the grey is the rest.
+  const parts = all(card, (n) => /^bc-sheet-bar-/.test(String(n.props?.className || ""))).map((n) => [n.props.className, n.props.style ? n.props.style.width : null]);
+  assert.deepEqual(parts, [["bc-sheet-bar-will", "59.6%"], ["bc-sheet-bar-held", "10.3%"], ["bc-sheet-bar-rest", null]]);
+  assert.equal(textOf(card).includes("each said yes to offers"), false, "the counts stand where the rules stood");
+  // Of every reason, the one an owner can change opens where it is changed.
+  press(byTestId(card, "bc-sheet-door"));
+  assert.equal(went.at(-1), "broadcasts/get-yes");
+});
+
 test("Broadcasts is one ledger: the runs waiting on you said at the head, a band bar whose legend filters the runs, the week ahead, and the composer its own screen", () => {
   const sent = (i) => dto({ id: `b-s${i}`, name: `Sent ${i}`, state: "sent", scheduled_for: iso(-(i + 1) * D), counts: { queued: 0, sent: 3, skipped: 0, failed: 0, delivered: 3, read: 1, replied: 1 } });
   const waiting = dto({ id: "b-wait", name: "The month's offer", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(2 * H), playbook_id: "pb-1", counts: quiet });

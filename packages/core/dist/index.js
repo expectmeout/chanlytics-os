@@ -3190,12 +3190,17 @@ var PERSON_CAME_FROM_WORDS2 = {
   lead: "A lead you found"
 };
 function mayReceive(r, purpose) {
-  if (!r.phone) return false;
-  return mayMessageFor(
+  return whyNotReceive(r, purpose) === null;
+}
+function whyNotReceive(r, purpose) {
+  if (!r.phone) return "no_number";
+  const said2 = mayMessageFor(
     { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
     purpose,
     { proactive: true }
-  ).ok;
+  );
+  if (said2.ok) return null;
+  return said2.reason === "opted_out" ? "stopped" : "no_yes";
 }
 var PEOPLE_LISTS = [
   { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
@@ -3760,16 +3765,15 @@ var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
-  let pool = rows;
+  return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
+}
+function audienceMembers(rows, kind, id, savedIds) {
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
-    if (!l) return [];
-    pool = rows.filter(l.test);
-  } else if (kind === "saved") {
-    if (!savedIds) return [];
-    pool = rows.filter((r) => savedIds.has(r.id));
+    return l ? rows.filter(l.test) : [];
   }
-  return pool.filter((r) => mayReceive(r, purpose));
+  if (kind === "saved") return savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
+  return rows;
 }
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
@@ -3828,30 +3832,49 @@ var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
-function eligibleForPlaybook(rows, p, touches, nowMs) {
+function playbookRunReach(rows, p, touches, nowMs) {
+  const reach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return [];
+  if (!t) return { eligible: [], reach };
   const purpose = purposeOfPlaybook(t.cls);
-  if (t.kind === "visit") {
-    const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS62));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS62)) && !r.booked;
-    });
-    pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
-    return pool2;
+  const named = t.kind === "visit" ? rows.filter((r) => {
+    if (!r.calendarTz) return false;
+    if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS62));
+    return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS62)) && !r.booked;
+  }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  reach.pool = named.length;
+  const allowed = [];
+  for (const r of named) {
+    const why = whyNotReceive(r, purpose);
+    if (why === "no_number") reach.noNumber += 1;
+    else if (why === "stopped") reach.stopped += 1;
+    else if (why === "no_yes") reach.noYes += 1;
+    else allowed.push(r);
   }
-  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
+  if (t.kind === "visit") {
+    allowed.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
+    reach.will = allowed.length;
+    return { eligible: allowed, reach };
+  }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS62;
-  const picked = pool.filter((r) => {
+  const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
-    if (mine !== void 0 && nowMs - mine < gapMs) return false;
+    if (mine !== void 0 && nowMs - mine < gapMs) {
+      reach.heardThis += 1;
+      return false;
+    }
     const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS2) return false;
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS2) {
+      reach.heardAny += 1;
+      return false;
+    }
     return true;
   });
   picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
-  return picked.slice(0, Math.max(1, p.cap_per_run));
+  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
+  reach.overCap = picked.length - eligible.length;
+  reach.will = eligible.length;
+  return { eligible, reach };
 }
 function planRun(mode, now) {
   switch (mode) {
@@ -6797,20 +6820,24 @@ async function runPlaybook(ports, cmd) {
   if (!ctx.health.canSend) return off("number_flagged");
   if (await ports.alreadyRan(p.id, runFor)) return off("already_ran_today", { record: false });
   if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") return off("no_calendar");
-  let eligible = eligibleForPlaybook(
+  const drawn = playbookRunReach(
     ctx.people,
     { trigger: p.trigger, cap_per_run: p.cap_per_run, gap_days: p.gap_days, cadence_days: p.cadence_days },
     { byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(), byAny: ctx.touches.byAny },
     now.getTime()
   );
+  let eligible = drawn.eligible;
+  const reach = { ...drawn.reach };
   let dropped = 0;
   if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) {
     const keep = Math.max(0, Math.floor(ctx.health.limitPerDay));
     dropped = eligible.length - keep;
     eligible = eligible.slice(0, keep);
+    reach.overLimit = dropped;
+    reach.will = eligible.length;
   }
   if (eligible.length === 0) {
-    await record({ mode, eligible: 0, ...dropped ? { dropped } : {} });
+    await record({ mode, eligible: 0, reach, ...dropped ? { dropped } : {} });
     return { outcome: "empty", eligible: 0, mode };
   }
   const specs = parseParamSpecs(p.params);
@@ -6826,7 +6853,8 @@ async function runPlaybook(ports, cmd) {
       template_name: p.template_name,
       template_language: p.template_language,
       params: specs,
-      audience: { kind: "playbook", id: p.id, label: p.name },
+      // The run's own audience: the playbook, and who its moment named and left out.
+      audience: { kind: "playbook", id: p.id, label: p.name, reach },
       state: plan.state,
       scheduled_for: (open ? open.at : now).toISOString(),
       recipient_count: n,
@@ -6846,7 +6874,7 @@ async function runPlaybook(ports, cmd) {
       `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns \u203A Playbooks. Nothing is sent until you do.`
     );
   }
-  await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state, ...movedFrom ? { moved_from: movedFrom } : {} });
+  await record({ mode, eligible: n, reach, broadcast_id: made.id, state: plan.state, ...movedFrom ? { moved_from: movedFrom } : {} });
   return open ? { outcome: "sent", broadcast_id: made.id, eligible: n, mode, state: plan.state, scheduled_for: open.at.toISOString(), moved_from: movedFrom } : { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
 }
 
