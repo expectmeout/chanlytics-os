@@ -151,16 +151,24 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
       </button>
       {!open && (
         <>
-          {/* The message it sends, by the name WhatsApp knows it by, and the
-              languages it has -- what a customer in each language gets. */}
+          {/* The message it sends, by the name WhatsApp knows it by, and the one
+              language it sends in -- its state drawn, "+1" for the others on file.
+              A slot per language drew Meta's storage, a row per language; a
+              language it is missing is a reason under the bar. Which language it
+              sends in is changed where the playbook is, in its composer. */}
           <div className="pb-tile-tpl">
             <span className="pb-tile-tpl-name mono">{p.template_name}</span>
-            {langs.map((l) => (
-              <span key={l.id} className="pb-tile-lang" title={`${l.label}${l.status ? "" : " — not on WhatsApp"}`}>
-                <window.CmLangGlyph status={l.status} size={11} />
-                <span>{pbShort(l.id)}</span>
-              </span>
-            ))}
+            {(() => {
+              const sends = langs.find((l) => l.id === p.template_language) || { id: p.template_language, label: p.template_language, status: "approved" };
+              const more = langs.filter((l) => l.status && l.id !== p.template_language).length;
+              return (
+                <span className="pb-tile-lang" title={`Sends in ${sends.label}${more ? ` · ${more} more on file` : ""}`} data-testid="pb-tile-lang">
+                  <window.CmLangGlyph status={sends.status} size={11} />
+                  <span className="pb-tile-lang-k">{pbShort(sends.id)}</span>
+                  {more > 0 && <span className="pb-tile-lang-more">+{more}</span>}
+                </span>
+              );
+            })()}
           </div>
           <window.CmReach will={will} pool={pool} of="who said yes" held={paused ? pool : p.held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
           <div className="pb-tile-foot">

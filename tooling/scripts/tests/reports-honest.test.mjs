@@ -216,6 +216,18 @@ test("A playbook is a card of the moment it does: its message and languages, who
   // Who it reaches, out of whom, and who it holds back -- named, not summed away.
   assert.ok(textOf(byTestId(winback, "pb-tile-reach")).includes("24of 36 who said yes"), textOf(byTestId(winback, "pb-tile-reach")));
   assert.ok(textOf(winback).includes("12 heard from a playbook this week"));
+  // The one language it sends in, not a slot per language Meta keeps: "EN", and "+1" for Spanish on file.
+  const tplRows = [{ id: "w-en", name: "winback_offer", language: "en_US", meta_status: "approved" }, { id: "w-es", name: "winback_offer", language: "es", meta_status: "approved" }];
+  const keepAll = globalThis.window.__TEMPLATES_ALL;
+  globalThis.window.__TEMPLATES_ALL = tplRows;
+  try {
+    fresh();
+    const withEs = all(globalThis.window.OutboundPage({}), (n) => n.props?.["data-testid"] === "pb-card")[0];
+    assert.equal(all(withEs, (n) => n.props?.["data-testid"] === "pb-tile-lang").length, 1);
+    assert.equal(textOf(byTestId(withEs, "pb-tile-lang")).trim(), "EN+1");
+  } finally {
+    globalThis.window.__TEMPLATES_ALL = keepAll;
+  }
   assert.ok(textOf(winback).includes("Next run tomorrow 10:00") && textOf(winback).includes("18 runs"));
   assert.ok(String(byTestId(winback, "pb-tile-runs").props["data-tip"]).includes("198 sent, 180 delivered, 36 wrote back"), "what its runs earned is a hover away");
   // Paused counts nobody of its own: its moment's count is how many it is not reaching.
