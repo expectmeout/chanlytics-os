@@ -4,11 +4,22 @@
 // Meta for review, and tracked to approval by the webhook. Rendered on the
 // Broadcasts page and on Campaigns › Templates; one component,
 // published as window.TemplateComposer. Nothing here sends a message.
+//
+// With `translate`, it writes a message the workspace already has in one more
+// language: the same name and slots, drafted by the assistant from the words
+// WhatsApp holds, for the owner to read, change and submit. Campaigns ›
+// Templates opens it in a message's row when a language nobody has written is
+// picked there.
 
-const TC_LANGS = [
+// Every language WhatsApp takes (contracts WHATSAPP_LANGUAGES). The composer
+// offered six, so a French-speaking salon was told to pick from a list that
+// had no French in it. Without the library read, the six it had.
+const TC_LANGS_FALLBACK = [
   { id: "en_US", label: "English (US)" }, { id: "en", label: "English" }, { id: "es", label: "Spanish" },
   { id: "es_MX", label: "Spanish (Mexico)" }, { id: "es_ES", label: "Spanish (Spain)" }, { id: "pt_BR", label: "Portuguese (Brazil)" },
-];
+].map((l) => ({ ...l, name: l.label, native: "" }));
+const tcLangs = () => (window.__starters && window.__starters.allLanguages ? window.__starters.allLanguages : TC_LANGS_FALLBACK);
+const tcLangLabel = (id) => (window.__starters && window.__starters.langLabel ? window.__starters.langLabel(id) : id);
 // The one address a button may open: what the workspace put in Settings.
 const tcBookingLink = () => {
   const brain = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain) || {};
@@ -27,21 +38,28 @@ const starterWords = (d) => {
   return parts.length ? parts.join(" · ") : "Nothing to add";
 };
 
-const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
+const TemplateComposer = ({ onDone, onCancel, businessName = "", translate = null }) => {
   const [brief, setBrief] = React.useState("");
-  const [category, setCategory] = React.useState("marketing");
-  const [language, setLanguage] = React.useState("en_US");
-  const [name, setName] = React.useState("");
+  const [category, setCategory] = React.useState(translate && translate.category ? translate.category : "marketing");
+  const [language, setLanguage] = React.useState(translate ? translate.language : "en_US");
+  const [name, setName] = React.useState(translate ? translate.name || "" : "");
   const [body, setBody] = React.useState("");
   const [footer, setFooter] = React.useState("");
   const [examples, setExamples] = React.useState([]);
   const [labels, setLabels] = React.useState([]);
   // The words on a button under the message. Empty means no button.
   const [buttonText, setButtonText] = React.useState("");
+  // Where a translated message's button goes: the address its own button opens,
+  // never the booking link guessed at. Null outside a translation.
+  const [buttonUrl, setButtonUrl] = React.useState(null);
   const [warnings, setWarnings] = React.useState([]);
-  const [drafting, setDrafting] = React.useState(false);
+  const [drafting, setDrafting] = React.useState(!!translate);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState(null);
+  // A translation that could not be written: the words are not there to change,
+  // so the only thing to offer is another try.
+  const [failed, setFailed] = React.useState(false);
+  const asked = React.useRef(false);
   // Who may draft or submit: the role store's answer, View-as included.
   const canEdit = !!(window.canDo && window.canDo("approve"));
   const slots = tcSlots(body);
@@ -50,10 +68,13 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
   // one that took a value would need a parameter `sendTemplate` never sends, and
   // WhatsApp would refuse every recipient (contracts templateBlocked).
   const bookingLink = tcBookingLink();
-  const button = bookingLink && buttonText.trim() ? { text: buttonText.trim(), url: bookingLink } : null;
+  const link = translate ? buttonUrl : bookingLink;
+  const button = link && buttonText.trim() ? { text: buttonText.trim(), url: link } : null;
   const exampleFor = (i) => examples[i] || "";
   const previewValues = slots.map((n, i) => exampleFor(i));
-  const ready = !!name.trim() && !!body.trim() && slots.every((n, i) => !!exampleFor(i).trim()) && !submitting;
+  const ready = !!name.trim() && !!body.trim() && slots.every((n, i) => !!exampleFor(i).trim()) && !submitting && !drafting;
+  const toLabel = tcLangLabel(language);
+  const fromLabel = translate ? tcLangLabel(translate.from) : "";
 
   const draft = async () => {
     if (!window.__templates || drafting || brief.trim().length < 4 || !canEdit) return;
@@ -69,6 +90,30 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
     setLabels((d.variables || []).map((v) => v.label || ""));
     setWarnings(d.warnings || []);
   };
+  // The message in one more language, written once when the composer opens and
+  // again only when asked: the assistant is paid for per draft.
+  const translateNow = async () => {
+    if (!translate || !window.__templates) return;
+    setDrafting(true); setError(null); setFailed(false);
+    const r = await window.__templates.draft({ language: translate.language, translate: translate.ref });
+    setDrafting(false);
+    if (!r.ok) { setError(r.message || `It could not be written in ${toLabel} just now.`); setFailed(true); return; }
+    const d = r.data.draft;
+    setName(d.name || translate.name || "");
+    if (d.category) setCategory(d.category);
+    setBody(d.body || "");
+    setFooter(d.footer || "");
+    setExamples(d.examples || []);
+    setLabels((d.variables || []).map((v) => v.label || ""));
+    setButtonText(d.button ? d.button.text : "");
+    setButtonUrl(d.button ? d.button.url : null);
+    setWarnings(d.warnings || []);
+  };
+  React.useEffect(() => {
+    if (!translate || asked.current) return;
+    asked.current = true;
+    translateNow();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, on arrival: a composer is keyed by its language
   const submit = async () => {
     if (!window.__templates || !ready || !canEdit) return;
     setSubmitting(true); setError(null);
@@ -90,6 +135,74 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
     setWarnings([]);
     setError(null);
   };
+
+  // The fields the words are changed in: a translation's are the same as a new
+  // message's, less the name (it IS the message, so it keeps its name) and a
+  // button it never had.
+  const fields = (
+    <div className="tpl-fields">
+      {!translate && <label className="bc-var"><span className="bc-var-label">Name (lowercase, underscores)</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="spring_offer" data-testid="tpl-name" /></label>}
+      <label className="bc-var tpl-body"><span className="bc-var-label">Message — values as {"{{1}}"}, {"{{2}}"} in order</span><textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} data-testid="tpl-body" /></label>
+      <label className="bc-var"><span className="bc-var-label">Footer (optional)</span><input value={footer} onChange={(e) => setFooter(e.target.value)} placeholder={category === "marketing" ? "Reply STOP to opt out" : ""} data-testid="tpl-footer" /></label>
+      {(!translate || buttonUrl) && (
+        <label className="bc-var" data-testid="tpl-button">
+          <span className="bc-var-label">Button (optional){link ? <> &middot; opens {link.replace(/^https?:\/\//, "")}</> : null}</span>
+          {link
+            ? <input value={buttonText} maxLength={25} onChange={(e) => setButtonText(e.target.value)} placeholder="Book now" data-testid="tpl-button-text" />
+            : <span className="bc-excl-hint" data-testid="tpl-button-none">A button needs somewhere to go. Put your booking link in <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("admin/workspace")}>Settings</button> first.</span>}
+        </label>
+      )}
+      {slots.length > 0 && (
+        <div className="bc-vars" data-testid="tpl-examples">
+          {slots.map((n, i) => (
+            <label key={n} className="bc-var">
+              <span className="bc-var-label">Example for {"{{" + n + "}}"}{labels[i] ? ` · ${labels[i]}` : ""}</span>
+              <input value={exampleFor(i)} onChange={(e) => setExamples((ex) => { const next = [...ex]; next[i] = e.target.value; return next; })} placeholder="what a real value looks like" />
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+  const preview = body ? <div className="bc-preview-wrap" data-testid="tpl-preview"><window.MessagePreview from={businessName} body={body} values={previewValues} footer={footer || null} buttons={button ? [{ text: button.text, kind: "url" }] : null} /></div> : null;
+
+  if (translate) {
+    return (
+      <section className="ct-section tpl-composer is-translate" data-testid="tpl-composer" data-mode="translate">
+        <div className="ct-sec-head">
+          <span className="ct-sec-title"><Icon name="globe" size={13} /> {translate.title} in {toLabel}</span>
+          <span className="ct-sec-meta" data-testid="tpl-translate-meta">
+            {drafting ? `Writing it from the ${fromLabel} words…` : failed ? `From the ${fromLabel} words` : `Written from the ${fromLabel} words — read it through, change what you like, then send it for review`}
+          </span>
+        </div>
+        {drafting ? (
+          <div className="tpl-drafting" role="status" aria-busy="true" aria-label={`Writing it in ${toLabel}`} data-testid="tpl-translating">
+            <span className="tpl-drafting-line" />
+            <span className="tpl-drafting-line" />
+            <span className="tpl-drafting-line is-short" />
+          </div>
+        ) : failed ? (
+          <div className="tpl-retry" data-testid="tpl-translate-failed">
+            <window.FieldError message={error} testid="tpl-error" />
+            <button className="btn btn-sm" onClick={translateNow} data-testid="tpl-translate-again" {...(window.gate ? window.gate("approve", "write a template in another language") : {})}><Icon name="refresh" size={11} /> Try again</button>
+          </div>
+        ) : (
+          <div className="tpl-split">
+            {fields}
+            {preview}
+          </div>
+        )}
+        {!drafting && !failed && warnings.length > 0 && <div className="bc-excl-hint" data-testid="tpl-warnings">{warnings.join(" ")}</div>}
+        {!drafting && !failed && <window.FieldError message={error} testid="tpl-error" />}
+        <div className="bc-actions">
+          <span className="bc-excl-hint">The same message, <span className="mono">{translate.name}</span>, in one more language — WhatsApp reviews it on its own.</span>
+          <span className="bc-actions-spacer" />
+          {onCancel && <button className="cl-bucket-link" onClick={onCancel} data-testid="tpl-cancel">Cancel</button>}
+          <button className="btn btn-primary btn-sm" disabled={!ready} onClick={submit} data-testid="tpl-submit" {...(window.gate ? window.gate("approve", "submit a template") : {})}>{submitting ? "Submitting…" : "Submit to WhatsApp"}</button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="ct-section tpl-composer" data-testid="tpl-composer">
@@ -118,36 +231,16 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
         <div className="bc-chips">
           <button className={"bc-chip" + (category === "marketing" ? " active" : "")} onClick={() => setCategory("marketing")} title="An offer, news or an invitation — needs the customer's yes">Marketing</button>
           <button className={"bc-chip" + (category === "utility" ? " active" : "")} onClick={() => setCategory("utility")} title="A notice about their own booking or account — no promotional words">Utility</button>
-          <select className="tpl-select" value={language} onChange={(e) => setLanguage(e.target.value)} data-testid="tpl-language">
-            {TC_LANGS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
-          </select>
+          {/* Any language WhatsApp takes, found by typing it: the list is 111 long,
+              and a select of 111 is a scroll nobody finishes. */}
+          <window.LanguagePicker display="label" value={language} choices={tcLangs()} onPick={(id) => setLanguage(id)} label="The language it is written in" search testid="tpl-language" />
           <button className="btn btn-sm" disabled={drafting || brief.trim().length < 4} onClick={draft} data-testid="tpl-draft" {...(window.gate ? window.gate("approve", "draft a template") : {})}>
             <Icon name="sparkle" size={11} /> {drafting ? "Drafting…" : "Draft with Chanlytics"}
           </button>
         </div>
       </div>
-      <div className="tpl-fields">
-        <label className="bc-var"><span className="bc-var-label">Name (lowercase, underscores)</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="spring_offer" data-testid="tpl-name" /></label>
-        <label className="bc-var tpl-body"><span className="bc-var-label">Message — values as {"{{1}}"}, {"{{2}}"} in order</span><textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} data-testid="tpl-body" /></label>
-        <label className="bc-var"><span className="bc-var-label">Footer (optional)</span><input value={footer} onChange={(e) => setFooter(e.target.value)} placeholder={category === "marketing" ? "Reply STOP to opt out" : ""} data-testid="tpl-footer" /></label>
-        <label className="bc-var" data-testid="tpl-button">
-          <span className="bc-var-label">Button (optional){bookingLink ? <> &middot; opens {bookingLink.replace(/^https?:\/\//, "")}</> : null}</span>
-          {bookingLink
-            ? <input value={buttonText} maxLength={25} onChange={(e) => setButtonText(e.target.value)} placeholder="Book now" data-testid="tpl-button-text" />
-            : <span className="bc-excl-hint" data-testid="tpl-button-none">A button needs somewhere to go. Put your booking link in <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("admin/workspace")}>Settings</button> first.</span>}
-        </label>
-        {slots.length > 0 && (
-          <div className="bc-vars" data-testid="tpl-examples">
-            {slots.map((n, i) => (
-              <label key={n} className="bc-var">
-                <span className="bc-var-label">Example for {"{{" + n + "}}"}{labels[i] ? ` · ${labels[i]}` : ""}</span>
-                <input value={exampleFor(i)} onChange={(e) => setExamples((ex) => { const next = [...ex]; next[i] = e.target.value; return next; })} placeholder="what a real value looks like" />
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-      {body && <div className="bc-preview-wrap" data-testid="tpl-preview"><window.MessagePreview from={businessName} body={body} values={previewValues} footer={footer || null} buttons={button ? [{ text: button.text, kind: "url" }] : null} /></div>}
+      {fields}
+      {preview}
       {warnings.length > 0 && <div className="bc-excl-hint" data-testid="tpl-warnings">{warnings.join(" ")}</div>}
       <window.FieldError message={error} testid="tpl-error" />
       <div className="bc-actions">

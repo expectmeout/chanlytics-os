@@ -30,21 +30,31 @@ test.describe("Templates on a real workspace", () => {
     const { data } = await res.json();
     const wa = data.templates.filter((t: { channel: string; name: string }) => t.channel === "whatsapp" && t.name !== "hello_world");
     const shown = wa.filter((t: { hidden_at: string | null }) => !t.hidden_at);
-    // One language chip per template on file and in the composers; the hidden ones sit under a fold.
-    await expect(real.getByTestId("template-lang")).toHaveCount(shown.length);
     await expect(real).not.toContainText("hello_world");
     await expect(real.getByTestId("templates-hidden")).toHaveCount(wa.length - shown.length > 0 ? 1 : 0);
 
     const hasNumber = (await real.getByTestId("messages-no-number").count()) === 0;
+    const starterNames = await page.evaluate(() => (window as unknown as { __starters?: { list: Array<{ name: string }> } }).__starters?.list.map((s) => s.name) ?? []);
+    // ONE language chip per message, however many languages it has: every starter
+    // (with a number), and each message the workspace keeps in the composers,
+    // counted once by its name. It was a slot per language, "EN ES" on every row.
+    const own = new Set(shown.map((t: { name: string }) => t.name).filter((n: string) => !starterNames.includes(n)));
+    await expect(real.getByTestId("template-lang")).toHaveCount(own.size + (hasNumber ? starterNames.length : 0));
     if (hasNumber) {
-      const starters = await page.evaluate(() => (window as unknown as { __starters?: { list: unknown[] } }).__starters?.list.length ?? 0);
-      expect(starters).toBeGreaterThanOrEqual(5);
-      await expect(real.getByTestId("starter-row")).toHaveCount(starters);
+      expect(starterNames.length).toBeGreaterThanOrEqual(5);
+      await expect(real.getByTestId("starter-row")).toHaveCount(starterNames.length);
       const first = real.getByTestId("starter-row").first();
       await expect(first).toContainText("Win-back");
-      // The bubble carries words, never a bare {{1}} for a template WhatsApp holds.
-      await expect(first.getByTestId("wa-bubble")).toBeVisible();
-      const bubble = (await first.getByTestId("wa-bubble").innerText()).trim();
+      // The chip opens the languages there are, and closes without touching anything.
+      await first.getByTestId("template-lang").click();
+      await expect(page.getByTestId("template-lang-pop")).toBeVisible();
+      await expect(page.getByTestId("template-lang-option").first()).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("template-lang-pop")).toHaveCount(0);
+      // Opened, the message carries words, never a bare {{1}} for a template WhatsApp holds.
+      await first.getByTestId("template-open").click();
+      await expect(first.getByTestId("message-preview")).toBeVisible();
+      const bubble = (await first.getByTestId("message-preview").innerText()).trim();
       expect(bubble.length).toBeGreaterThan(20);
       // A card's menu offers the verbs and closes without touching anything.
       if ((await first.getByTestId("template-menu").count()) > 0) {
