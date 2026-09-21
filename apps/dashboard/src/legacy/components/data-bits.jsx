@@ -228,10 +228,10 @@ window.useHotkey = useHotkey;
 
 // ---- Tab stays inside a modal ---------------------------------------------------
 // Tab and Shift+Tab walk a dialog's own controls and wrap round, so focus never leaves it for the page behind: call
-// trapTab(e, box) from the dialog's keydown when e.key is "Tab". It counts only what Tab actually stops at, not a
-// control taken out of the tab order (tabindex -1: a radiogroup's unchosen options) nor one with no box on screen (a
-// closed fold's head and fields, hidden). Counting either, the wrap waited on a control Tab never reached, and focus
-// walked out of an aria-modal dialog. calendar-real.jsx's crTrapTab still counts both.
+// trapTab(e, box) from the dialog's keydown when e.key is "Tab". It counts only what Tab actually stops at
+// (tabStops(box)), not a control taken out of the tab order (tabindex -1: a radiogroup's unchosen options) nor one
+// with no box on screen (a closed fold's head and fields, hidden). Counting either, the wrap waited on a control Tab
+// never reached, and focus walked out of an aria-modal dialog. calendar-real.jsx's crTrapTab still counts both.
 const TAB_STOP_KINDS = 'button, a[href], input, select, textarea, [tabindex]';
 const tabStopsIn = (box) =>
   Array.from(box.querySelectorAll(TAB_STOP_KINDS)).filter((el) => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length > 0);
@@ -245,7 +245,7 @@ const trapTab = (e, box) => {
   if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
 };
-window.trapTab = trapTab;
+Object.assign(window, { trapTab, tabStops: tabStopsIn });
 
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------
 // gate(action, doing?) spreads onto a committing control's opening tag AFTER its

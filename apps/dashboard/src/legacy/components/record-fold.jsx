@@ -142,11 +142,13 @@ const useRecordFold = (id, { dirty = false } = {}) => {
 // BusinessEditor does until the record replaces it; nothing replaces it outright.
 window.__settingsUnsaved = () => recFolds.dirty();
 
-// The first thing in an opened fold a person would type into or press, never its Save or Cancel.
-const REC_FOLD_FIRST = '.rec-fold-inner :is(input, textarea, select, button:not([tabindex="-1"]), [tabindex="0"]):not([disabled]):not(.rec-fold-foot *)';
+// The first thing in an opened fold a person would type into or press: the first of its fields' tab stops (data-bits
+// tabStops), never a tip (the mark that explains a label comes before its box) and never its Save or Cancel.
 const recFoldFocusIn = (el) => {
   if (!el || !el.querySelector) return;
-  const first = el.querySelector(REC_FOLD_FIRST) || el.querySelector(".rec-fold-close");
+  const inner = el.querySelector(".rec-fold-inner");
+  const stops = inner && window.tabStops ? window.tabStops(inner) : [];
+  const first = stops.find((c) => !c.classList.contains("rec-tip") && !c.closest(".rec-fold-foot")) || el.querySelector(".rec-fold-close");
   if (first && first.focus) first.focus();
 };
 // Closed, or gone: focus that went with the fold (it is on nothing, or still inside it) comes back to the act of the
@@ -181,7 +183,9 @@ const RecordFold = ({
   const closeId = `rec-fold-${id}-close`;
   const refused = !!(gate && gate["aria-disabled"]);
   const onKey = (e) => {
-    if (e.defaultPrevented) return;
+    // Only the fold's own keys: a portal's bubble through React from outside the fold's DOM (a sheet drawn from a
+    // field inside it), and its Ctrl+Enter would save the fold.
+    if (e.defaultPrevented || !e.currentTarget.contains(e.target)) return;
     if (e.key === "Escape" && onCancel) { e.preventDefault(); onCancel(); return; }
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && onSave && !saving && !refused) { e.preventDefault(); onSave(); }
   };

@@ -365,23 +365,32 @@ test("a fold's Save is gated, says when it is saving, and the keys cancel and sa
   const cancelled = [];
   const tree = draw(W.RecordFold, bookingRules({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));
   const fold = find(tree, (n) => classes(n).includes("rec-fold"));
-  const key = (k, over = {}) => ({ key: k, defaultPrevented: false, metaKey: false, ctrlKey: false, preventDefault() { this.defaultPrevented = true; }, ...over });
+  // A key pressed inside the fold's own DOM; a portal's (a sheet drawn from inside the fold) bubbles through React
+  // to the fold all the same, from outside it.
+  const inside = { currentTarget: { contains: () => true }, target: { tag: "a field" } };
+  const key = (k, over = {}) => ({ key: k, defaultPrevented: false, metaKey: false, ctrlKey: false, ...inside, preventDefault() { this.defaultPrevented = true; }, ...over });
   fold.props.onKeyDown(key("Escape"));
   fold.props.onKeyDown(key("Escape", { defaultPrevented: true }));
   fold.props.onKeyDown(key("Enter", { ctrlKey: true }));
   fold.props.onKeyDown(key("Enter"));
   assert.deepEqual([cancelled.length, saved.length], [1, 1], "Escape cancels unless a field inside took it; Ctrl or Cmd with Enter saves; Enter alone does not");
+  const fromPortal = { currentTarget: { contains: () => false } };
+  fold.props.onKeyDown(key("Enter", { ctrlKey: true, ...fromPortal }));
+  fold.props.onKeyDown(key("Escape", fromPortal));
+  assert.deepEqual([cancelled.length, saved.length], [1, 1], "a key from a sheet drawn inside the fold is the sheet's, not the fold's");
 });
 
 test("a fold takes focus as it opens, and gives it back to its row as it closes", () => {
   const focused = [];
-  const field = { focus: () => focused.push("field") };
+  // What the fold's fields hold, in order: the mark that explains a label comes before its box, and Save after it.
+  const stop = (name, cls, inFoot = false) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: (c) => c === cls }, closest: (sel) => (inFoot && sel === ".rec-fold-foot" ? {} : null), focus: () => focused.push(name) });
+  const inner = { querySelectorAll: () => [stop("tip", "rec-tip"), stop("field", "rec-input"), stop("save", "btn", true)] };
   const act = { focus: () => focused.push("act") };
   let tree = draw(W.RecordFold, bookingRules({ open: false }));
   // The stub attaches no ref, so the test stands in for the element React would have put there.
-  find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = { querySelector: (sel) => (sel.includes("rec-fold-inner") ? field : null), contains: () => false };
+  find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = { querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null), contains: () => false };
   tree = redraw(W.RecordFold, bookingRules({ open: true }));
-  assert.deepEqual(focused, ["field"], "the first thing to type into, not the page behind");
+  assert.deepEqual(focused, ["field"], "the first thing to type into: not the tip before it, not the page behind");
 
   const doc = globalThis.document;
   const was = { activeElement: doc.activeElement, querySelector: doc.querySelector };
