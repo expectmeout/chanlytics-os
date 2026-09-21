@@ -109,14 +109,20 @@ const btoSameShifts = (a, b) =>
  * The week on one scale (the canvas's Group-Open): a day is a switch, its bars, and its times as boxes. Hookless but
  * for the one menu, which is always drawn: a day's shifts come and go.
  */
-const BtoWeek = ({ draft: week, update, undo, press, problems, readOnly, flash }) => {
-  const max = ((window.__configLimits || {}).maxIntervalsPerDay) || 4;
+const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly }) => {
+  // A day's shifts are a list inside the week, with a list's rules from BtFold (rows): the cap the write schema keeps
+  // (LIMITS.shifts, contracts MAX_INTERVALS_PER_DAY) when adding and when an Undo puts one back, the removal said only
+  // when it happened, and the removed shift back at its own index.
+  const shiftsOf = (d) => rows({
+    max: window.__businessTabSave.LIMITS.shifts,
+    blank: () => ({ open: "", close: "" }),
+    keysOf: () => [`hours-${d}`],
+    full: `${BTO_LONG[d]} already has the most shifts a day takes. Remove one first.`,
+    list: (h) => h[d].shifts,
+    put: (h, shifts) => ({ ...h, [d]: { ...h[d], shifts } }),
+  });
   const setDay = (d, patch) => update((h) => ({ ...h, [d]: { ...h[d], ...patch } }), [`hours-${d}`]);
-  const setShift = (d, n, k, v) =>
-    update((h) => ({
-      ...h,
-      [d]: { ...h[d], shifts: h[d].shifts.map((s, j) => (j === n ? { ...s, [k]: v } : s)) },
-    }), [`hours-${d}`]);
+  const setShift = (d, n, k, v) => shiftsOf(d).setAt(n, { [k]: v });
   /**
    * Toggling a day closed KEEPS its shifts.
    *
@@ -127,20 +133,8 @@ const BtoWeek = ({ draft: week, update, undo, press, problems, readOnly, flash }
    * The save is what decides a closed day stores nothing.
    */
   const toggleDay = (d) => setDay(d, { isOpen: !week[d].isOpen, shifts: week[d].shifts.length ? week[d].shifts : [{ open: "", close: "" }] });
-  const addShift = (d) =>
-    update((h) => (h[d].shifts.length >= max ? h : { ...h, [d]: { ...h[d], shifts: [...h[d].shifts, { open: "", close: "" }] } }), [`hours-${d}`]);
-  const removeShift = (d, n) => {
-    const gone = week[d].shifts[n];
-    // Said only when it happened: update takes no change while the week saves (BtFold).
-    if (!update((h) => ({ ...h, [d]: { ...h[d], shifts: h[d].shifts.filter((_, j) => j !== n) } }), [`hours-${d}`])) return;
-    flash({
-      msg: <>Removed the {BTO_SHORT[d]} shift{gone.open ? <> at <b>{gone.open}</b></> : null}</>,
-      undo: undo((h) => ({
-        ...h,
-        [d]: { ...h[d], shifts: [...h[d].shifts.slice(0, n), gone, ...h[d].shifts.slice(n)] },
-      })),
-    });
-  };
+  const addShift = (d) => shiftsOf(d).add();
+  const removeShift = (d, n) => shiftsOf(d).removeAt(n, (gone) => <>Removed the {BTO_SHORT[d]} shift{gone.open ? <> at <b>{gone.open}</b></> : null}</>);
 
   // Most businesses keep one set of weekday hours. Typing the same two times
   // five more times is the kind of chore that makes people leave the field
@@ -163,21 +157,20 @@ const BtoWeek = ({ draft: week, update, undo, press, problems, readOnly, flash }
     const replaced = days.filter((d) => week[d].isOpen && !btoSameShifts(week[d], src));
     const before = {};
     BTO_DAYS.forEach(([d]) => { before[d] = { isOpen: week[d].isOpen, shifts: week[d].shifts.map((s) => ({ ...s })) }; });
-    const copied = update((h) => {
-      const next = { ...h };
-      days.forEach((d) => { next[d] = { isOpen: true, shifts: src.shifts.map((s) => ({ ...s })) }; });
-      return next;
-    });
-    if (!copied) return;
     const names = (list) => list.map((d) => BTO_SHORT[d]).join(", ");
     const notes = [];
     if (opened.length) notes.push(<><b>{names(opened)}</b> {opened.length === 1 ? "was" : "were"} closed and {opened.length === 1 ? "is" : "are"} now open</>);
     if (replaced.length) notes.push(<>replaced different hours on <b>{names(replaced)}</b></>);
-    flash({
-      msg: notes.length
+    // Said only when it happened, and put back whole by the one Undo (BtFold's change).
+    change((h) => {
+      const next = { ...h };
+      days.forEach((d) => { next[d] = { isOpen: true, shifts: src.shifts.map((s) => ({ ...s })) }; });
+      return next;
+    }, {
+      said: notes.length
         ? <>Copied {BTO_SHORT[from]}&apos;s hours — {notes.map((n, i) => <React.Fragment key={i}>{i ? ", and " : ""}{n}</React.Fragment>)}</>
         : <>Copied {BTO_SHORT[from]}&apos;s hours — nothing else changed</>,
-      undo: undo(() => before),
+      back: () => before,
     });
   };
 
@@ -249,9 +242,8 @@ const BtoWeek = ({ draft: week, update, undo, press, problems, readOnly, flash }
               )}
             </span>
             <span className="bt-week-more">
-              {/* The write schema refuses more than this, so the fold must not offer it (window.__configLimits,
-                  published by the bridge from contracts MAX_INTERVALS_PER_DAY). */}
-              {day.isOpen && day.shifts.length < max ? (
+              {/* The write schema refuses more than this, so the fold must not offer it (rows' canAdd). */}
+              {day.isOpen && shiftsOf(d).canAdd ? (
                 <button type="button" className="bt-week-break" {...press(() => addShift(d))} aria-label={`Add a break to ${long}`} data-testid={`rec-hours-add-${d}`}>
                   <Icon name="plus" size={10} /> break
                 </button>
@@ -402,12 +394,19 @@ const BtoZone = ({ canEdit, gate, flash }) => {
 /* ------------------------------------ the days the week does not apply to ------------------------------------ */
 
 /** The closed days, as rows of from, until and why. Hookless: its rows come and go. */
-const BtoClosures = ({ draft: rows, update, undo, press, problems, readOnly, flash }) => {
-  // The same cap the write schema enforces (contracts MAX_CLOSURES), so the fold
+const BtoClosures = ({ draft: days, rows, press, problems, readOnly }) => {
+  // The same cap the write schema enforces (contracts MAX_CLOSURES, LIMITS.closures), so the fold
   // stops at the number the save would refuse, instead of refusing at Save.
-  const max = ((window.__configLimits || {}).maxClosures) || 60;
-  const keysOf = (i) => [`closure-${i}-date`, `closure-${i}-until`, `closure-${i}-note`, "closures"];
-  const setClosure = (i, k, v) => update((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)), keysOf(i));
+  const max = window.__businessTabSave.LIMITS.closures;
+  const full = `That is the most closures the receptionist keeps (${max}). Dates that have passed can go.`;
+  const closed = rows({
+    max,
+    blank: () => ({ date: "", note: "" }),
+    keysOf: (i) => [`closure-${i}-date`, `closure-${i}-until`, `closure-${i}-note`],
+    key: "closures",
+    full,
+  });
+  const setClosure = (i, k, v) => closed.setAt(i, { [k]: v });
   /**
    * Removing one closure is undoable, because it is a date somebody typed.
    *
@@ -416,26 +415,16 @@ const BtoClosures = ({ draft: rows, update, undo, press, problems, readOnly, fla
    * composer already stops stating a date once it has gone by, so there is
    * nothing an owner has to tidy and nothing for them to delete by accident.
    */
-  const removeClosure = (i) => {
-    const gone = rows[i];
-    // Every sentence is asked again at Save: the rows after this one have moved up a place, and so have their keys. And
-    // said only when it happened: update takes no change while the fold saves (BtFold).
-    if (!update((l) => l.filter((_, j) => j !== i))) return;
-    flash({
-      msg: <>Removed {gone.date ? <b>{gone.date}</b> : "the closure"}{gone.note ? ` — ${gone.note}` : ""}</>,
-      undo: undo((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
-    });
-  };
-  const add = () => update((l) => (l.length >= max ? l : [...l, { date: "", note: "" }]), ["closures"]);
+  const removeClosure = (i) => closed.removeAt(i, (gone) => <>Removed {gone.date ? <b>{gone.date}</b> : "the closure"}{gone.note ? ` — ${gone.note}` : ""}</>);
   const said = (key) => problems[key] || null;
   return (
     <div className="bt-closures" data-testid="rec-closures-rows">
-      {rows.length > 0 ? (
+      {days.length > 0 ? (
         <div className="bt-closure bt-closure-head" aria-hidden="true">
           <span>From</span><span>Until (optional)</span><span>Why</span><span />
         </div>
       ) : null}
-      {rows.map((c, i) => {
+      {days.map((c, i) => {
         const bad = { date: said(`closure-${i}-date`), until: said(`closure-${i}-until`), note: said(`closure-${i}-note`) };
         const idOf = (k) => `bt-closure-${i}-${k}-problem`;
         const wired = (k) => ({ "aria-invalid": bad[k] ? true : undefined, "aria-describedby": bad[k] ? idOf(k) : undefined, readOnly: readOnly || undefined });
@@ -465,12 +454,12 @@ const BtoClosures = ({ draft: rows, update, undo, press, problems, readOnly, fla
           </div>
         );
       })}
-      {rows.length < max ? (
-        <button type="button" className="btn btn-sm bt-fold-add" {...press(add)} data-testid="rec-closures-add">
+      {closed.canAdd ? (
+        <button type="button" className="btn btn-sm bt-fold-add" {...press(() => closed.add())} data-testid="rec-closures-add">
           <Icon name="plus" size={12} /> Add a closed day
         </button>
       ) : (
-        <p className="bt-fold-note" data-testid="rec-closures-cap">That is the most closures the receptionist keeps ({max}). Dates that have passed can go.</p>
+        <p className="bt-fold-note" data-testid="rec-closures-cap">{full}</p>
       )}
       <window.FieldError id="bt-closures-problem" message={said("closures")} testid="rec-closures-problem" />
       {/* The one case this cannot express, said plainly rather than left for
@@ -682,7 +671,7 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
           act: hoursLine ? "Change" : "Add them",
           name: hoursLine ? "Change your opening hours" : "Add them: your opening hours",
         }}
-        body={(f) => <BtoWeek {...f} flash={flash} />}
+        body={(f) => <BtoWeek {...f} />}
       />
 
       <BtoZone canEdit={canEdit} gate={gate("the timezone")} flash={flash} />
@@ -698,7 +687,7 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
           empty: "None ahead",
           name: ahead.line ? "Change the days you are closed" : "Add one: a day you are closed",
         }}
-        body={(f) => <BtoClosures {...f} flash={flash} />}
+        body={(f) => <BtoClosures {...f} />}
       />
 
       <Fold

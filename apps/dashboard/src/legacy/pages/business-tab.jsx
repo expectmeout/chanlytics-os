@@ -265,20 +265,38 @@ const BtRow = ({
  *                   and the sentence for a save that crosses the resolver's line. `channel` null draws none (the
  *                   calendar's address and the zone are in no draft of the brain).
  *
- * `body` draws the fields. It is handed the draft, `update(fn, keys)` (the draft as `fn` makes it of the latest one;
- * `keys` are the field keys whose sentences the change answers, all of them when left out), `undo(fn)` (the same, as
- * a toast's Undo: it does nothing once the fold has closed, since the draft it would put something back into is gone),
- * `press(fn)` (the props of a press that changes the draft: an add, a remove), `problems` by field key, and `readOnly`
- * while the fold's save is out.
+ * `body` draws the fields. It is drawn on every render, open or not: a body may hold hooks (a menu, a field's id), and
+ * the tests' stub React keeps every hook on the page as a cell in one order (this file's header). So a body whose rows
+ * come and go draws them hookless. It is handed all of this, and takes nothing else from its card, `flash` least of all:
+ *   draft                 the draft as it stands: what is stored, while the fold is closed;
+ *   open                  whether the fold is open, for a body that draws less while it is not;
+ *   problems              what stopped the last Save, by field key;
+ *   readOnly              the fold's save is out: every box takes it (record-fold.jsx says why);
+ *   update(fn, keys)      the draft as `fn` makes it of the LATEST one. `keys` are the field keys whose sentences the
+ *                         change answers; left out, all of them. It ANSWERS WHETHER IT TOOK THE CHANGE: while the save
+ *                         is out it takes none, and whoever would say "Removed…" says it only of a change that was made;
+ *   change(fn, words)     a change that is said: taken, it toasts `words.said`, with an Undo when `words.back` is given
+ *                         (the draft as `back` makes it of the latest one; it does nothing once the fold has closed,
+ *                         since the draft it would put something back into went with it). Refused, it says nothing: a
+ *                         body that toasted for itself said "Removed the Mon shift at 14:00", with an Undo, of a shift
+ *                         that was still there. `words.keys` as for update;
+ *   rows(list)            a list inside the draft, with every rule a list has, ONCE: see below;
+ *   press(fn)             the props of a press that changes the draft (an add, a remove). While the fold saves it
+ *                         refuses the way Save does: focusable, aria-disabled (never `disabled`, which lets go of
+ *                         focus), and doing nothing:  <button type="button" {...press(() => shifts.removeAt(n, said))}>
  *
- * `update` SAYS WHETHER IT TOOK THE CHANGE, and a body toasts only when it did. While the save is out it takes none
- * (record-fold.jsx), and a body that toasted regardless said "Removed the Mon shift at 14:00", with an Undo, of a shift
- * that was still there. And every press that changes the draft refuses while the fold saves the way Save does:
- * focusable, saying it is not to be pressed (aria-disabled, never `disabled`, which lets go of focus), and doing
- * nothing. `press` is that rule, so a body spreads it and cannot forget half of it:
- *   <button type="button" {...press(() => removeShift(d, n))}>…</button> It is drawn on every render, open or not: a
- * body may hold hooks (a menu, a field's id), and the tests' stub React keeps every hook on the page as a cell in one
- * order (this file's header). So a body whose rows come and go draws them hookless.
+ * `rows({ max, blank, keysOf, key, full, list, put })` answers { canAdd, add(), setAt(i, patch), removeAt(i, said) } for
+ * one list of the draft: the closed days (the draft itself), or one day's shifts (`list` reads it out of the draft and
+ * `put` writes it back; left out, the draft is the list). Each body once had to remember all of this, and the cap was
+ * forgotten in the one place nobody looks: a toast's Undo put a fifth shift on a Monday that takes four.
+ *   the cap        `max`, in all three places: `canAdd` is what the body offers Add by, `add()` appends `blank()` only
+ *                  while there is room, and a removed row is PUT BACK only while there is room, the Undo saying `full`
+ *                  when there is not;
+ *   the removal    the row is captured from the latest draft before it goes, comes back at its own index, and
+ *                  `said(row)` is toasted only when the change was taken;
+ *   the sentences  `keysOf(i)` are row i's field keys and `key` the list's own (too many). A change to row i answers
+ *                  its keys; a removal moves every later row up a place, so it answers them all.
+ * The caps themselves are business-tab-folds.jsx's LIMITS, which the save's checks read too.
  *
  * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `act` and `name` replace the
  * act's words and its name where "Change" or "Add one" and the label say nothing together.
@@ -338,6 +356,36 @@ const BtFold = ({
   const undo = (fn) => {
     const at = live.current.opening;
     return () => (live.current.open && live.current.opening === at ? update(fn) : false);
+  };
+  const change = (fn, words = {}) => {
+    if (!update(fn, words.keys)) return false;
+    if (words.said) flash({ msg: words.said, undo: words.back ? undo(words.back) : undefined });
+    return true;
+  };
+  const rows = ({ max = Infinity, blank = () => ({}), keysOf = () => [], key = null, full = null, list = (d) => d, put = (d, l) => l }) => {
+    const latest = () => list(live.current.draft != null ? live.current.draft : live.current.opened) || [];
+    const own = (keys) => (key ? keys.concat([key]) : keys);
+    return {
+      canAdd: (list(now) || []).length < max,
+      add: () => update((d) => (list(d).length >= max ? d : put(d, [...list(d), blank()])), own([])),
+      setAt: (i, patch) => update((d) => put(d, list(d).map((x, j) => (j === i ? { ...x, ...patch } : x))), own(keysOf(i))),
+      removeAt: (i, said) => {
+        const gone = latest()[i];
+        if (gone === undefined) return false;
+        // Every row after it moves up a place, and its sentences with it: they are all asked again at Save.
+        const moved = latest().flatMap((_, j) => (j >= i ? keysOf(j) : []));
+        if (!update((d) => put(d, list(d).filter((_, j) => j !== i)), own(moved))) return false;
+        const back = undo((d) => put(d, [...list(d).slice(0, i), gone, ...list(d).slice(i)]));
+        flash({
+          msg: typeof said === "function" ? said(gone) : said,
+          undo: () => {
+            if (live.current.open && latest().length >= max) { if (full) flash({ tone: "warn", msg: <>Not put back — {full}</> }); return false; }
+            return back();
+          },
+        });
+        return true;
+      },
+    };
   };
   const press = (fn) => ({
     "aria-disabled": busy || undefined,
@@ -415,7 +463,7 @@ const BtFold = ({
         gate={gate}
       >
         {/* With no draft to hand it (btWorkedOut, above) the body is not drawn: it would throw on nothing. */}
-        {stored ? body({ draft: now, update, undo, press, problems: found, readOnly: busy, open }) : null}
+        {stored ? body({ draft: now, open, problems: found, readOnly: busy, update, change, rows, press }) : null}
         {/* A refusal that is not this fold's to fix (a stored day that closes before it opens, met while saving the
             closures) stops this save too, and is said once, here, naming where. */}
         <window.FieldError id={`bt-${id}-elsewhere`} message={found.elsewhere || null} testid={`rec-fold-${id}-elsewhere`} />

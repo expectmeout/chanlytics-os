@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   newReceptionistDefaults, instructionsDraft, FALLBACK_DEFAULTS, unknownDetails, INSTRUCTIONS_MAX, resolveSystemPrompt,
-  hasProfile,
+  hasProfile, MAX_INTERVALS_PER_DAY, MAX_CLOSURES,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "./_legacy-react.mjs";
 
@@ -991,5 +991,27 @@ test("each block of the brain a save goes on is resolved once for that brain, by
   } finally {
     tab.consequenceOf = real;
     delete W.__SETTINGS;
+  }
+});
+
+test("the two caps the write schema keeps are in LIMITS, once, and a day with more shifts than it takes is said under its day", () => {
+  // The fallback literal was `|| 60` in two files, and a day's cap was the body's to remember in three places. A toast's
+  // Undo skipped it: Monday came to five shifts, and Save said only "This can't be saved as it is written."
+  const was = W.__configLimits;
+  try {
+    W.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES };
+    assert.deepEqual([S.LIMITS.shifts, S.LIMITS.closures], [MAX_INTERVALS_PER_DAY, MAX_CLOSURES], "the bridge's published limits, read when asked");
+    delete W.__configLimits;
+    assert.deepEqual([S.LIMITS.shifts, S.LIMITS.closures], [4, 60], "and the standalone mockup's fallback, in the one place");
+    W.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES };
+    const week = S.draftOf("hours", taken());
+    const stretch = (n) => ({ open: `${String(8 + 2 * n).padStart(2, "0")}:00`, close: `${String(9 + 2 * n).padStart(2, "0")}:00` });
+    week.tue = { isOpen: true, shifts: Array.from({ length: MAX_INTERVALS_PER_DAY + 1 }, (_, n) => stretch(n)) };
+    assert.deepEqual(S.problemsOf("hours", week), { "hours-tue": `At most ${MAX_INTERVALS_PER_DAY} shifts in a day — Tuesday has ${MAX_INTERVALS_PER_DAY + 1}.` });
+    // A row nobody filled in is not a shift: the save drops it, so it is not counted.
+    week.tue = { isOpen: true, shifts: Array.from({ length: MAX_INTERVALS_PER_DAY }, (_, n) => stretch(n)).concat([{ open: "", close: "" }]) };
+    assert.deepEqual(S.problemsOf("hours", week), {});
+  } finally {
+    if (was) W.__configLimits = was; else delete W.__configLimits;
   }
 });

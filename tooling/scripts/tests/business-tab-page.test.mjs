@@ -2616,3 +2616,69 @@ test("nothing a fold works out as it draws can take the page down: a draft its h
     console.error = was;
   }
 });
+
+test("a list inside a fold keeps its cap through an Undo too: a removed row is put back only while there is room", () => {
+  // The quality review's probe. Monday at four shifts, one removed, one added, then the toast's Undo: Monday held five,
+  // past what the save's schema takes, and Save said only that it could not be saved as written.
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  typeAt(tree, "Monday closes", "10:00");
+  tree = redrawTab(flash);
+  for (let n = 2; n <= MAX_INTERVALS_PER_DAY; n += 1) {
+    press(byTestId(tree, "rec-hours-add-mon"));
+    tree = redrawTab(flash);
+    typeAt(tree, `Monday shift ${n} opens`, `1${n}:00`);
+    tree = redrawTab(flash);
+    typeAt(tree, `Monday shift ${n} closes`, `1${n}:30`);
+    tree = redrawTab(flash);
+  }
+  const opens = () => all(dayOf(tree, "mon"), (n) => n.type === "input" && /opens$/.test(n.props["aria-label"])).map((n) => n.props.value);
+  press(byTestId(tree, "rec-hours-remove-mon-1"));
+  tree = redrawTab(flash);
+  const undo = flashes.at(-1).undo;
+  press(byTestId(tree, "rec-hours-add-mon"));
+  tree = redrawTab(flash);
+  typeAt(tree, `Monday shift ${MAX_INTERVALS_PER_DAY} opens`, "21:00");
+  tree = redrawTab(flash);
+  typeAt(tree, `Monday shift ${MAX_INTERVALS_PER_DAY} closes`, "21:30");
+  tree = redrawTab(flash);
+  assert.equal(byTestId(tree, "rec-hours-add-mon"), null, "at the cap");
+  undo();
+  tree = redrawTab(flash);
+  assert.deepEqual(opens(), ["09:30", "13:00", "14:00", "21:00"], "the day still holds what the save takes, and what was typed since");
+  assert.deepEqual([flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })], ["warn", "Not put back — Monday already has the most shifts a day takes. Remove one first."], "and the Undo says why it did nothing");
+  saveFoldOf(tree, "hours");
+  assert.equal(sent.length, 1, "so the week can be saved");
+  assert.deepEqual(sent[0].config.brain.profile.hours.mon.intervals.map((s) => s.open), ["09:30", "13:00", "14:00", "21:00"]);
+
+  // The closed days, the same: at the cap, a removed day is not put back over one added since.
+  const many = Array.from({ length: MAX_CLOSURES }, (_, i) => ({ date: `2099-${String(1 + (i % 12)).padStart(2, "0")}-${String(1 + Math.floor(i / 12)).padStart(2, "0")}` }));
+  tree = drawTab({ flash, profile: { ...melany, closures: many } });
+  openFold(tree, "closures");
+  tree = redrawTab(flash);
+  press(byTestId(tree, "rec-closure-remove-0"));
+  tree = redrawTab(flash);
+  const back = flashes.at(-1).undo;
+  press(byTestId(tree, "rec-closures-add"));
+  tree = redrawTab(flash);
+  back();
+  tree = redrawTab(flash);
+  assert.equal(all(foldOf(tree, "closures"), (n) => /^rec-closure-\d+$/.test(n.props?.["data-testid"] || "")).length, MAX_CLOSURES);
+  assert.equal(flashes.at(-1).tone, "warn");
+  // With room, it goes back where it was (the tests above), and says nothing more.
+
+  // And Add itself keeps the cap, not only the button that offers it: pressed twice in one breath with room for one,
+  // before the page has drawn again, one is added.
+  tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  for (let n = 2; n < MAX_INTERVALS_PER_DAY; n += 1) { press(byTestId(tree, "rec-hours-add-tue")); tree = redrawTab(flash); }
+  press(byTestId(tree, "rec-hours-add-tue"));
+  press(byTestId(tree, "rec-hours-add-tue"));
+  tree = redrawTab(flash);
+  assert.equal(all(dayOf(tree, "tue"), (n) => n.type === "input" && /opens$/.test(n.props["aria-label"])).length, MAX_INTERVALS_PER_DAY);
+});

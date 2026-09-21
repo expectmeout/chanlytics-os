@@ -56,7 +56,7 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  *
  * The field keys problemsOf names, for each fold to say a problem under its own field (i is a row's place in the draft):
  *   tone                tone
- *   hours               hours-<day> (a shift typed half-way, or a day switched on with no times)
+ *   hours               hours-<day> (too many shifts, a shift typed half-way, or a day switched on with no times)
  *   closures            closure-<i>-note, closures (too many)
  *   services            service-<i>-name, service-<i>-duration_min, service-<i>-price_note, services (too many)
  *   languages           languages
@@ -115,8 +115,12 @@ const BT_FALLBACKS = ["greeting", "error", "non_text"];
  * How much of each thing the save's schema takes (contracts BusinessProfileSchema and its parts), once, for the folds:
  * a list offers no "Add" past its count, a box says its length before a round trip, and a number input takes its range
  * from RULES. The old form enforced one of these in its own markup (ten notes) and none of the rest, so a name of 81
- * characters was refused by the server under no field at all. The closures and shifts caps are the bridge's
- * (window.__configLimits), which the old form read too.
+ * characters was refused by the server under no field at all.
+ *
+ * The closures and shifts caps are the bridge's (window.__configLimits, from contracts MAX_CLOSURES and
+ * MAX_INTERVALS_PER_DAY), which the old form read too. They are read when asked, since the bridge publishes them as it
+ * installs, and the literal each falls back to where there is no bridge (the standalone mockup) is here and nowhere
+ * else: it was `|| 60` in two files.
  */
 const BT_LIMITS = {
   tone: 200,
@@ -127,6 +131,8 @@ const BT_LIMITS = {
   ruleNotes: 10, ruleNote: 200,
   notes: 10, noteTitle: 80, noteText: 1200,
   closureNote: 200,
+  get closures() { return (window.__configLimits && window.__configLimits.maxClosures) || 60; },
+  get shifts() { return (window.__configLimits && window.__configLimits.maxIntervalsPerDay) || 4; },
 };
 // A service's minutes as its box holds them: a whole number, 0 for an empty box, NaN for anything else.
 const btMinutes = (v) => {
@@ -411,13 +417,20 @@ const BT_PROBLEMS_OF = {
   // And a day switched on with no times at all is said under the same key, in the page's words (the schema has none:
   // to it a day with no times is a closed day). The save writes such a day as closed, so a week whose only change was
   // the switch "changed nothing", and the fold closed without a word with the owner's Sunday gone.
+  //
+  // More shifts than a day takes (LIMITS.shifts) is said first, since removing one is what answers it. The fold offers
+  // no Add past the cap and puts none back past it, so this is a week that arrived that way; the schema's own refusal
+  // names no number, and reached the owner as "This can't be saved as it is written." Only shifts the save would write
+  // are counted: a row nobody filled in is dropped.
   hours: (draft) => {
     const found = {};
     BT_DAYS.forEach((d) => {
       const x = (draft || {})[d];
       if (!x || !x.isOpen) return;
       const shifts = x.shifts || [];
-      if (shifts.some((s) => !!btfTrimmed(s.open) !== !!btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} needs both an opening and a closing time, or neither.`;
+      const written = shifts.filter((s) => btfTrimmed(s.open) && btfTrimmed(s.close)).length;
+      if (written > BT_LIMITS.shifts) found[`hours-${d}`] = `At most ${btCount(BT_LIMITS.shifts)} shifts in a day — ${BT_DAY_NAMES[d]} has ${btCount(written)}.`;
+      else if (shifts.some((s) => !!btfTrimmed(s.open) !== !!btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} needs both an opening and a closing time, or neither.`;
       else if (!shifts.some((s) => btfTrimmed(s.open) && btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} is switched on with no times. Give it an opening and a closing time, or switch it off.`;
     });
     return found;
@@ -425,7 +438,7 @@ const BT_PROBLEMS_OF = {
   closures: (draft) => {
     const found = {};
     const rows = draft || [];
-    const max = (window.__configLimits && window.__configLimits.maxClosures) || 60;
+    const max = BT_LIMITS.closures;
     if (rows.filter((c) => btfTrimmed(c.date)).length > max) found.closures = `At most ${btCount(max)} closed days. Dates that have passed can go.`;
     rows.forEach((c, i) => {
       const n = btfTrimmed(c.note).length;
