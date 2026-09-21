@@ -1036,13 +1036,16 @@ function span(tz, start, end) {
 function describeOpenings(openings, tz, opts = {}) {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
+  const held = opts.bookingHeld === true;
   if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
+    const instead = held ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link." : "Offer to have someone call back, and send the booking link so they are told when a slot frees up.";
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
   }
   const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
+  const next = held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.";
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
-Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
+${next}`;
 }
 var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);

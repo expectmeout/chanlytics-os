@@ -10,7 +10,7 @@
  * COUNT, UNTIL and INTERVAL honoured, and rules this parser does not read
  * keep their first occurrence and are counted.
  */
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -228,37 +228,123 @@ test("RDATE: extra dates join a series, or make one of a single event, and are n
 
 /* -------------------------------- the workspace's own answer about booking */
 
-test("a workspace that confirms its own bookings is not given times to read out", async () => {
-  // Reading times aloud is the first half of offering a booking, and the text
-  // receptionist already obeys this row for the whole of it: under "Ask me
-  // first" layerTwo replaces the reply with a person will confirm -- times,
-  // link and all. This tool read the openings out regardless, so one workspace
-  // had two receptionists answering "when are you free?" differently.
-  //
-  // Asked BEFORE the calendar, which is what this world proves: there is no
-  // feed here at all, and the caller still hears the booking answer rather
-  // than "there is no calendar to check".
-  const T = "cccccccc-0000-4000-8000-000000000001";
-  const AGENT = "agent_availability_booking_held";
+// Autonomy -> Booking. On "Sends it" the receptionist offers up to three open
+// times, then the booking link. On "Asks you", by THE OWNER'S DECISION (21 Sep
+// 2026), it still says which times are open and holds back only the link: a
+// member of the team confirms instead. The call already opens with the
+// openings (call-start.ts) and chat is handed them with every message
+// (whatsapp/inbound.ts); this tool alone refused them, so a caller could hear
+// the times at the top of a call and be refused them when they asked.
+//
+// Run through the door as Retell calls it, over a database in memory and a
+// feed answered by a captured fetch. Each case owns its workspace and its
+// agent: the channel resolver keeps a routing answer for five minutes and the
+// runtime is cached per workspace, so a case sharing either would read the
+// other's answer.
+
+/** Open every day: whatever the clock says when this runs, the next fortnight has times in it. */
+const EVERY_DAY = Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, { open: "09:00", close: "17:00" }]));
+/** A time the agent could read out, as the tool writes one. */
+const A_TIME = /\b\d{1,2}:\d{2} [AP]M\b/;
+/** Every mention of the booking link is the one forbidding it: nothing sends it, offers it or promises it. */
+const holdsTheLink = (said) => !/booking link/i.test(said.replace(/never send or promise the booking link/gi, ""));
+
+/** Feed address -> its text. An address not here is a calendar that cannot be read. */
+const feeds = new Map();
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url) => {
+  const u = String(url);
+  return feeds.has(u)
+    ? new Response(feeds.get(u), { status: 200, headers: { "content-type": "text/calendar" } })
+    : new Response("no such calendar", { status: 404 });
+};
+after(() => { globalThis.fetch = realFetch; setPg(null); });
+
+let seq = 0;
+/**
+ * A workspace answering calls on its own agent. `booking` is its Booking row
+ * (null: none set, which reads as auto); `calendar` is a feed that reads
+ * ("feed"), an address that answers nothing ("gone"), or none connected
+ * (null); `hours` its opening hours. The database is handed to the door here.
+ */
+function workspace({ booking = null, calendar = "feed", hours = EVERY_DAY } = {}) {
+  const i = ++seq;
+  const T = `cccccccc-0000-4000-8000-${String(i).padStart(12, "0")}`;
+  const agent = `agent_availability_${i}`;
+  const url = `https://cal.example/availability-${i}.ics`;
+  if (calendar === "feed") feeds.set(url, ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//booking tool//EN", "END:VCALENDAR"].join("\r\n"));
+  const brain = {
+    business_name: "Harbor Nails",
+    booking_link: `https://book.example/harbor-${i}`,
+    system_prompt: "Answer as the front desk of Harbor Nails: brief and warm, and never guess a price.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+    profile: { hours },
+  };
   setPg(fakeDb({
-    tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active" }],
-    tenant_channels: [{ id: "voice-1", tenant_id: T, kind: "voice", external_id: AGENT, number_e164: "+13055550100", status: "active", credentials_ref: null, config: {} }],
-    tenant_config: [{ tenant_id: T, config: {} }],
-    policies: [{ id: "pol-b", tenant_id: T, class: "booking", mode: "ask", limits: {}, subject_type: null, subject_id: null }],
+    tenants: [{ id: T, name: "Harbor Nails", timezone: TZ, status: "active" }],
+    tenant_channels: [{ id: `voice-${i}`, tenant_id: T, kind: "voice", external_id: agent, number_e164: "+13055550100", status: "active", credentials_ref: null, config: {} }],
+    tenant_config: [{ tenant_id: T, config: { brain, ...(calendar ? { calendar: { ical_url: url } } : {}) } }],
+    policies: booking ? [{ id: `pol-b-${i}`, tenant_id: T, class: "booking", mode: booking, limits: {}, subject_type: null, subject_id: null }] : [],
     google_listings: [],
-  }, {}, { runtime_stamp: () => "stamp-1" }));
-  try {
-    const res = await door.POST(new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
-      body: JSON.stringify({ call: { call_id: "call_1", agent_id: AGENT }, args: {} }),
-    }));
-    assert.equal(res.status, 200, "a refusal is still a 200: the agent SPEAKS the result, and an error leaves it silent");
-    const { result } = await res.json();
-    assert.match(result, /confirms its own bookings/i);
-    assert.match(result, /do not offer times/i);
-    assert.doesNotMatch(result, /calendar/i, "asked before the feed, so a workspace with no feed still hears the true reason");
-  } finally {
-    setPg(null);
+  }, {}, { runtime_stamp: () => `stamp-${i}` }));
+  return agent;
+}
+
+/** The tool's call as Retell makes it, and the sentence the agent is handed to speak. */
+async function asked(agent, args = {}) {
+  const res = await door.POST(new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
+    body: JSON.stringify({ call: { call_id: `call_${agent}`, agent_id: agent }, args }),
+  }));
+  assert.equal(res.status, 200, "every answer is a 200: the agent SPEAKS the result, and an error leaves it silent");
+  return (await res.json()).result;
+}
+
+test("a workspace that confirms its own bookings is still told the open times, and holds back only the link: a member of the team confirms", async () => {
+  // "never" is no Booking mode. A mode the runtime does not know holds, fail
+  // safe, as policyAskClass reads it: the rule retell-fn-door pins for the link.
+  for (const booking of ["ask", "never"]) {
+    const said = await asked(workspace({ booking }));
+    assert.match(said, /^Open times \(from the calendar, checked just now/, `${booking}: the openings, as on auto`);
+    assert.match(said, A_TIME, `${booking}: REGRESSION: it answered "do not offer times"`);
+    assert.match(said, /Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name\./, booking);
+    assert.match(said, /confirms its own bookings/i, `${booking}: the agent is told why`);
+    assert.ok(holdsTheLink(said), `${booking}: nothing sends, offers or promises the link: ${said}`);
+    assert.ok(!said.includes("book.example"), "and the link itself is never in it");
   }
+});
+
+test("a workspace on auto is told the same open times, then the link", async () => {
+  for (const booking of [null, "auto"]) {
+    const said = await asked(workspace({ booking }));
+    assert.match(said, /^Open times \(from the calendar, checked just now/, String(booking));
+    assert.match(said, A_TIME, String(booking));
+    assert.match(said, /then send the booking link to lock one in\./, `${booking ?? "no Booking row"}: the link follows the times`);
+  }
+});
+
+test("with no calendar, or one that cannot be read, no time is guessed -- and under a hold the link is not what is offered instead", async () => {
+  for (const [calendar, reason] of [[null, /no calendar to check/i], ["gone", /can't see the calendar/i]]) {
+    const auto = await asked(workspace({ calendar }));
+    assert.match(auto, reason, String(calendar));
+    assert.doesNotMatch(auto, A_TIME, `${calendar}: no time guessed`);
+    assert.ok(auto.includes("send the booking link to the caller's WhatsApp"), `${calendar}: on auto the link goes instead, and it shows the open times`);
+
+    const held = await asked(workspace({ booking: "ask", calendar }));
+    assert.match(held, reason, `${calendar}: the same reason, said first`);
+    assert.doesNotMatch(held, A_TIME, `${calendar}: no time guessed`);
+    assert.match(held, /do not guess at open times/i, String(calendar));
+    assert.match(held, /a member of the team will call or text them to confirm/i, String(calendar));
+    assert.ok(holdsTheLink(held), `${calendar}: under a hold the link is not offered in place of the times: ${held}`);
+  }
+});
+
+test("under a hold, a fortnight with nothing open is said without the link", async () => {
+  const held = await asked(workspace({ booking: "ask", hours: {} }));
+  assert.match(held, /nothing is open in the next 14 days/);
+  assert.match(held, /a member of the team/i);
+  assert.ok(holdsTheLink(held), held);
+  const auto = await asked(workspace({ hours: {} }));
+  assert.match(auto, /send the booking link so they are told when a slot frees up/, "on auto, as it was");
 });

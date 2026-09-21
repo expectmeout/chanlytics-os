@@ -3802,10 +3802,16 @@ declare function filterOpenings(openings: Opening[], by: {
  * The openings as the receptionist is told them: a few days, the windows on
  * each, and the rule that the calendar decides. Text on both channels; the
  * phone agent reads it aloud in its own words.
+ *
+ * `bookingHeld`: the Autonomy tab's Booking row is not on auto. By the owner's
+ * decision (21 Sep 2026) the times are still offered, word for word, and only
+ * the booking link is held back: what follows them is a member of the team
+ * confirming, never the link.
  */
 declare function describeOpenings(openings: Opening[], tz: string, opts?: {
     maxDays?: number;
     daysAhead?: number;
+    bookingHeld?: boolean;
 }): string;
 /** A service the business lists, as far as matching one needs it. */
 interface ServiceLike {

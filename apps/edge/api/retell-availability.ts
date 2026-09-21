@@ -23,16 +23,21 @@ const CANNOT_SEE =
 const NO_CALENDAR =
   "There is no calendar to check. Offer to send the booking link to the caller's WhatsApp — it shows the open times.";
 /**
- * The workspace confirms its own bookings (Autonomy -> Booking -> Ask me first).
+ * The workspace confirms its own bookings (Autonomy -> Booking -> Asks you).
  *
- * Reading times aloud is the first half of offering a booking, so this tool
- * obeys that row as the other half does. The text receptionist has: under this
- * setting `layerTwo` replaces the whole reply with a person will confirm, times
- * and link and all. The phone agent used to read the openings out regardless,
- * so one workspace's two receptionists answered the same question differently.
+ * THE OWNER'S DECISION (21 Sep 2026): the receptionist still says which times
+ * are open and holds back only the booking link; a member of the team confirms
+ * instead. This tool used to refuse the times outright, while the same call
+ * opened with them (call-start.ts) and chat is handed them with every message
+ * (whatsapp/inbound.ts), so a caller could hear the times at the top of a call
+ * and be refused them when they asked. The times now go out in auto's own
+ * words (describeOpenings, bookingHeld), and only what would have offered the
+ * link says otherwise -- here too, where there are no times to give.
  */
-const BOOKING_HELD =
-  "This business confirms its own bookings, so do not offer times. Tell the caller a member of the team will call or text them to confirm, and take their name.";
+const HELD =
+  "This business confirms its own bookings: tell the caller a member of the team will call or text them to confirm a time, and take their name. Never send or promise the booking link.";
+const CANNOT_SEE_HELD = `I can't see the calendar right now, so do not guess at open times. ${HELD}`;
+const NO_CALENDAR_HELD = `There is no calendar to check, so do not guess at open times. ${HELD}`;
 
 /** The prompt block, folded into one spoken paragraph, after what the service is offered as (offerLead). */
 export function spoken(text: string, offer: ServiceOffer | null): string {
@@ -44,17 +49,19 @@ type Openings = NonNullable<Awaited<ReturnType<typeof openingsData>>>;
 
 /**
  * What the tool says for a day and a service, from the openings it read: the caller's service offered as itself, or as
- * a consultation first -- sized by the consultation, never by the service's own length (C5b).
+ * a consultation first -- sized by the consultation, never by the service's own length (C5b). Under a booking hold the
+ * same times, and a member of the team confirming in place of the link.
  */
 export function availabilityAnswer(
   data: Openings,
   profile: { services?: readonly ServiceLike[]; booking_rules?: ConsultRules | null } | undefined,
   args: { day?: unknown; service?: unknown },
+  opts: { bookingHeld?: boolean } = {},
 ): { result: string; offer: ServiceOffer | null; day: string | null; days: number } {
   const offer = offerFor(profile?.services, profile?.booking_rules, args.service);
   const day = typeof args.day === "string" ? args.day : null;
   const picked = filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null });
-  const text = describeOpenings(picked, data.tz, { maxDays: 3, daysAhead: data.daysAhead });
+  const text = describeOpenings(picked, data.tz, { maxDays: 3, daysAhead: data.daysAhead, bookingHeld: opts.bookingHeld });
   return { result: spoken(text, offer), offer, day, days: picked.length };
 }
 
@@ -81,20 +88,19 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, { result: CANNOT_SEE });
   }
   const rt = await loadTenantRuntime(db, routed);
-  if (policyAskClass(rt.policy, "booking") === "booking") {
-    log("retell_availability_booking_held", { tenant: routed.tenantId });
-    return json(200, { result: BOOKING_HELD });
-  }
+  // Autonomy -> Booking, through the predicate retell-fn.ts reads it through.
+  // A hold changes what follows the times, never whether they are said.
+  const held = policyAskClass(rt.policy, "booking") === "booking";
   if (!rt.calendar?.ical_url) {
-    log("retell_availability_no_calendar", { tenant: routed.tenantId });
-    return json(200, { result: NO_CALENDAR });
+    log("retell_availability_no_calendar", { tenant: routed.tenantId, held });
+    return json(200, { result: held ? NO_CALENDAR_HELD : NO_CALENDAR });
   }
   const data = await openingsData(rt);
   if (!data) {
-    log("retell_availability_unavailable", { tenant: routed.tenantId });
-    return json(200, { result: CANNOT_SEE });
+    log("retell_availability_unavailable", { tenant: routed.tenantId, held });
+    return json(200, { result: held ? CANNOT_SEE_HELD : CANNOT_SEE });
   }
-  const answer = availabilityAnswer(data, rt.brain?.profile, args);
-  log("retell_availability", { tenant: routed.tenantId, day: answer.day, service: answer.offer?.service.name ?? null, consultation: answer.offer?.consultation ?? false, days: answer.days });
+  const answer = availabilityAnswer(data, rt.brain?.profile, args, { bookingHeld: held });
+  log("retell_availability", { tenant: routed.tenantId, day: answer.day, service: answer.offer?.service.name ?? null, consultation: answer.offer?.consultation ?? false, days: answer.days, held });
   return json(200, { result: answer.result });
 }
