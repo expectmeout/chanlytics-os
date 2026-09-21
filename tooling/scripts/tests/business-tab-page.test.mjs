@@ -384,8 +384,12 @@ test("a fold's Save is gated, says when it is saving, and the keys cancel and sa
   press(find(gated, (n) => n.props?.["data-testid"] === "rec-fold-save-booking_rules"));
   assert.deepEqual([saved.length, refused.length], [0, 1], "the gate is spread after the handler");
 
-  const busy = find(draw(W.RecordFold, bookingRules({ saving: true, savingLabel: "Saving…" })), (n) => n.props?.["data-testid"] === "rec-fold-save-booking_rules");
-  assert.deepEqual([busy.props.disabled, busy.props["aria-busy"], textOf(busy)], [true, true, "Saving…"]);
+  const whileSaving = [];
+  const busy = find(draw(W.RecordFold, bookingRules({ saving: true, savingLabel: "Saving…", onSave: () => whileSaving.push(1) })), (n) => n.props?.["data-testid"] === "rec-fold-save-booking_rules");
+  // Not `disabled`: a disabled button lets go of focus, to the page, and a save that failed left it there.
+  assert.deepEqual([busy.props.disabled, busy.props["aria-disabled"], busy.props["aria-busy"], textOf(busy)], [undefined, true, true, "Saving…"]);
+  press(busy);
+  assert.equal(whileSaving.length, 0, "a press while it saves does nothing, and focus stays on Save");
 
   const cancelled = [];
   const tree = draw(W.RecordFold, bookingRules({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));

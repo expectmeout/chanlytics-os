@@ -225,11 +225,13 @@ const RecordFold = ({
             </div>
           ) : null}
           <div className="rec-fold-foot">
+            {/* Busy, not disabled: a disabled button lets go of focus, to the page, and a save that failed left it
+                there. It stays a button focus can rest on, and a press while it saves does nothing. */}
             <button
               type="button"
               className="btn btn-sm btn-primary"
-              onClick={onSave}
-              disabled={saving}
+              onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onSave) onSave(e); }}
+              aria-disabled={saving || undefined}
               aria-busy={saving || undefined}
               data-testid={`rec-fold-save-${id}`}
               {...(gate || {})}
