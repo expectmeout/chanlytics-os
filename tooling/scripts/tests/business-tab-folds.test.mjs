@@ -4,9 +4,9 @@
  * The editor this replaces once started its profile from {} and added the known keys back, which is not a save -- it
  * is a rebuild, and a rebuild silently deletes every key the form does not happen to render. That is how a live
  * workspace lost a 5,000-character prompt. Every fold is held to the opposite, here, before any fold can save (plan
- * Task 3.6): each fold of the Business tab opens a draft from the stored config (draftOf), and writes its own paths onto
- * the config and nothing else (saveFold). Both are pages/business-tab-save.jsx's, run on the stub React as the page
- * tests load it; they are pure, so nothing is drawn.
+ * Task 3.6): each fold of the Business tab opens a draft from the stored config (draftOf), is stopped by the old form's
+ * own sentences (problemsOf), and writes its own paths onto the config and nothing else (saveFold). All three are
+ * pages/business-tab-save.jsx's, run on the stub React as the page tests load it; they are pure, so nothing is drawn.
  *
  * EXECUTED, never read: every claim is something a helper returned for a config it was handed.
  */
@@ -192,7 +192,7 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
     ["buffer_min", "lead_hours", "max_days_ahead", "notes", "party_max", "slot_min"],
   );
   assert.deepEqual(FOLDS.filter((f) => S.PATHS_OF[f].includes("brain.system_prompt")), ["extra_instructions"], "one fold owns the stored prompt");
-  for (const helper of ["draftOf", "saveFold"]) {
+  for (const helper of ["draftOf", "saveFold", "problemsOf"]) {
     assert.throws(() => S[helper]("not_a_fold", stored(), ""), { name: "TypeError", message: /"not_a_fold"/ }, helper);
     assert.throws(() => S[helper]("toString", stored(), ""), { name: "TypeError", message: /"toString"/ }, `${helper}: a name every object has is not a fold`);
   }
@@ -364,7 +364,7 @@ test("booking_rules and consult_first share one stored object, and each writes o
     consult_first: RULES.consult_first, a_rule_added_later: "keep me",
     lead_hours: 24, buffer_min: 15, max_days_ahead: 30, party_max: 4, notes: ["Deposit for colour", "Cash or card"],
   });
-  // A number outside its range is never written: it is no rule at all.
+  // A number outside its range is never written: problemsOf stops that save before it goes (below).
   assert.equal("lead_hours" in S.saveFold("booking_rules", stored(), { ...draft, lead_hours: "500" }).brain.profile.booking_rules, false);
 
   // Consult first: its lines, and every other rule as stored.
@@ -437,6 +437,59 @@ test("fallbacks and the calendar write what the old form wrote: the three messag
   const noFeed = stored();
   delete noFeed.calendar;
   assert.deepEqual(S.saveFold("calendar", noFeed, ""), noFeed, "and with none stored, nothing is written");
+});
+
+/* ------------------------------------ what stops a save ------------------------------------ */
+
+test("problemsOf says the old form's sentences, word for word, each under the field it is about", () => {
+  // The booking rules' ranges, each at both ends and past them.
+  const rules = S.draftOf("booking_rules", stored());
+  const ranges = [
+    ["lead_hours", ["-1", "169", "soon"], ["0", "168"], "Least notice is 0 to 168 hours; leave it empty for no rule."],
+    ["slot_min", ["14", "241"], ["15", "240"], "A slot is 15 to 240 minutes; leave it empty for the calendar’s 30."],
+    ["buffer_min", ["-1", "121"], ["0", "120"], "The gap is 0 to 120 minutes; leave it empty for none."],
+    ["max_days_ahead", ["0", "91"], ["1", "90"], "Times are offered 1 to 90 days ahead; leave it empty for no rule."],
+    ["party_max", ["0", "21"], ["1", "20"], "A booking is for 1 to 20 people; leave it empty for no rule."],
+  ];
+  for (const [key, bad, good, words] of ranges) {
+    for (const v of bad) assert.deepEqual(S.problemsOf("booking_rules", { ...rules, [key]: v }), { [key]: words }, `${key} ${v}`);
+    for (const v of [...good, "", "  "]) assert.deepEqual(S.problemsOf("booking_rules", { ...rules, [key]: v }), {}, `${key} ${JSON.stringify(v)}`);
+  }
+  // Every problem at once, each under its own box (S22): the save used to stop at the first.
+  assert.deepEqual(Object.keys(S.problemsOf("booking_rules", { ...rules, lead_hours: "500", slot_min: "5", party_max: "0" })), ["lead_hours", "slot_min", "party_max"]);
+
+  // A note needs both its title and its text; one with neither is dropped, not refused.
+  const half = "Each note needs both a title and the text to say.";
+  assert.deepEqual(
+    S.problemsOf("notes", [{ title: "Parking", text: " " }, { title: "Wi-Fi", text: "Ask at the desk." }, { title: "", text: "No title" }, { title: " ", text: "" }]),
+    { "note-0": half, "note-2": half },
+  );
+
+  // As much as the receptionist takes, and the space around the words is not counted.
+  assert.deepEqual(S.problemsOf("extra_instructions", { text: "x".repeat(INSTRUCTIONS_MAX + 1), carried: false }), { extra_instructions: "At most 20,000 characters — this is 20,001." });
+  assert.deepEqual(S.problemsOf("extra_instructions", { text: ` ${"x".repeat(INSTRUCTIONS_MAX)} `, carried: false }), {});
+
+  // Each message: nothing to send, more than a message holds, or a name nothing fills in.
+  const messages = S.draftOf("fallbacks", stored());
+  assert.deepEqual(S.problemsOf("fallbacks", { ...messages, error: "  " }), { error: "Write this message, or use the default wording." });
+  assert.deepEqual(S.problemsOf("fallbacks", { ...messages, greeting: "x".repeat(2001) }), { greeting: "At most 2,000 characters — this is 2,001." });
+  assert.deepEqual(
+    S.problemsOf("fallbacks", { ...messages, non_text: "Call us at {phone number}." }),
+    { non_text: "Only {business}, {booking link} and {phone} are filled in — {phone number} would be sent as written." },
+  );
+  assert.deepEqual(S.problemsOf("fallbacks", { greeting: "", error: "", non_text: "" }), {
+    greeting: "Write this message, or use the default wording.",
+    error: "Write this message, or use the default wording.",
+    non_text: "Write this message, or use the default wording.",
+  });
+  assert.deepEqual(S.problemsOf("fallbacks", { ...messages, non_text: "x".repeat(2000) }), {}, "2,000 is as much as a message holds");
+
+  // The calendar feed, an address the receptionist can read.
+  assert.deepEqual(S.problemsOf("calendar", "calendar"), { ical_url: "The calendar feed needs to be a full address, starting with https:// or webcal://" });
+  for (const ok of ["", "  ", "https://calendar.example.com/a.ics", "webcal://calendar.example.com/a.ics"]) assert.deepEqual(S.problemsOf("calendar", ok), {}, ok);
+
+  // Nothing for a good draft: every fold, as it opens on the record.
+  for (const fold of FOLDS) assert.deepEqual(S.problemsOf(fold, S.draftOf(fold, stored())), {}, fold);
 });
 
 /* ------------------------------------ through the tab's one saver ------------------------------------ */

@@ -4,9 +4,9 @@
 // The page (pages/business-tab.jsx) draws; this file decides what its saves write. Here: each row's check (the
 // sentence that stops a save before any round trip, or null), what a row's draft stores, and its patch (the one-key
 // change a save makes: a pure function of the stored brain and profile that returns the brain); each fold's helpers
-// (what it opens with, and the config its save writes, its own paths and nothing else); the tab's one saver, which
-// every row and fold saves through; how a number is written for people (phoneShown); and the old card's one-key save
-// (useFieldSave), until Task 3.7 retires that card.
+// (what it opens with, what stops its save, and the config its save writes, its own paths and nothing else); the tab's
+// one saver, which every row and fold saves through; how a number is written for people (phoneShown); and the old
+// card's one-key save (useFieldSave), until Task 3.7 retires that card.
 //
 // Everything is published on window and read there as each consumer draws: in the app every legacy file is its own
 // module, where a top-level const of one is nothing to another. This file loads before business-tab.jsx, which loads
@@ -341,20 +341,22 @@ const BT_PATCH_OF = {
 /* ------------------------------------ what each fold opens with, refuses and writes ------------------------------------ */
 
 /*
- * A fold's helpers, pure: they read nothing but what they are handed and the bridge's published functions
- * (__instructionsDraft, __fallbackDefaults, __receptionistDefaults), and change nothing they are handed. Ported from the
- * form they replace, BusinessEditor in settings.jsx, section by section: how it opened each part of its state, and how
- * its `save` wrote each part back. A fold is named by its id, the same name consequenceOf knows it by (the bridge's
- * FOLD_BLOCK); any other name is a TypeError naming it.
+ * A fold's three helpers, pure: they read nothing but what they are handed and the bridge's published functions
+ * (__instructionsDraft, __fallbackDefaults, __receptionistDefaults, __instructionsMax, __unknownDetails), and change
+ * nothing they are handed. Ported from the form they replace, BusinessEditor in settings.jsx, section by section: how it
+ * opened each part of its state, what its `save` checked, and how it wrote each part back. A fold is named by its id,
+ * the same name consequenceOf knows it by (the bridge's FOLD_BLOCK); any other name is a TypeError naming it.
  *
  * How a fold of Tasks 3.3 to 3.5 uses them. `base` is the tab's saver's base(), the config the fold's save will go on:
  *
  *   draftOf(fold, base)          as it opens: the draft its fields edit, from what is stored, in the shape the old form
  *                                held it (lines of a box joined by "\n", a number as its box holds it). The fold's own
  *                                copy, to change as it likes: nothing it does to it reaches the settings read.
+ *   problemsOf(fold, draft)      on Save: { fieldKey: sentence }, every problem at once, each said under its field (S22).
+ *                                Nothing is sent while there is any. saveFold is only for a draft with none: it writes a
+ *                                booking rule outside its range as no rule at all, which is why that is refused first.
  *   saveFold(fold, base, draft)  the next config: `base` with the fold's own paths (PATHS_OF) written from the draft, and
  *                                everything else exactly as it was, down to the order of its keys. `base` is not changed.
- *                                A booking rule outside its range is written as no rule at all.
  *
  * Its save goes through the tab's one saver as a patch of the whole config, run on whatever config is current when it
  * goes, and what it will say is worked out on the saver's base with the same helper, so it describes that save:
@@ -367,6 +369,15 @@ const BT_PATCH_OF = {
  * back exactly what they opened on every record, and say the same thing when they do not: the hours write a day the
  * record left out as {}, the rules write all four switches out, and the instructions keep a carried prompt as the
  * owner's words (S4). Judged the rows' way, opening one of them and pressing Save with nothing changed sends nothing.
+ *
+ * The field keys problemsOf names, for each fold to say a problem under its own field:
+ *   booking_rules       lead_hours, slot_min, buffer_min, max_days_ahead, party_max: the draft's own keys
+ *   notes               note-<i>, where i is the note's place in the draft
+ *   extra_instructions  extra_instructions
+ *   fallbacks           greeting, error, non_text: the draft's own keys
+ *   calendar            ical_url
+ * The other folds refuse nothing, as the old form's sections did not. Its sentences are word for word, which the
+ * settings tests pin; where a sentence was JSX only for its fragment or its braces, it is a plain string here.
  */
 
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
@@ -377,18 +388,19 @@ const btLines = (text) => String(text == null ? "" : text).split("\n").map((x) =
 
 /**
  * The booking rules the booking_rules fold edits, each with the range the schema allows (contracts
- * BookingRulesSchema). Its notes are the fold's too; consult_first is a fold of its own.
+ * BookingRulesSchema) and the old form's sentence for a number outside it. One table, so the range a save writes and
+ * the range a check refuses are never two. Its notes are the fold's too; consult_first is a fold of its own.
  */
 const BT_RULES = [
-  ["lead_hours", 0, 168],
+  ["lead_hours", 0, 168, "Least notice is 0 to 168 hours; leave it empty for no rule."],
   // The slot length has a field of its own now (S2): 15 to 240 minutes, as the schema allows; blank is the calendar's
   // default.
-  ["slot_min", 15, 240],
-  ["buffer_min", 0, 120],
-  ["max_days_ahead", 1, 90],
-  ["party_max", 1, 20],
+  ["slot_min", 15, 240, "A slot is 15 to 240 minutes; leave it empty for the calendar’s 30."],
+  ["buffer_min", 0, 120, "The gap is 0 to 120 minutes; leave it empty for none."],
+  ["max_days_ahead", 1, 90, "Times are offered 1 to 90 days ahead; leave it empty for no rule."],
+  ["party_max", 1, 20, "A booking is for 1 to 20 people; leave it empty for no rule."],
 ];
-// A blank box is "no rule", never zero; so is a number outside the rule's range.
+// A blank box is "no rule", never zero; so is a number outside the rule's range, which problemsOf refuses first.
 const btRuleNumber = (v, lo, hi) => {
   const n = parseInt(btTrimmed(v), 10);
   return Number.isFinite(n) && n >= lo && n <= hi ? n : undefined;
@@ -638,10 +650,65 @@ const btSaveFold = (fold, stored, draft) => {
   return next;
 };
 
+/** What stops each fold's save, by the field it is under: BusinessEditor's `save` checks, word for word. */
+const BT_PROBLEMS_OF = {
+  // A number outside what a rule allows is said under its box; it used to be dropped without a word (S22).
+  booking_rules: (draft) => {
+    const d = draft || {};
+    const found = {};
+    BT_RULES.forEach(([key, lo, hi, words]) => {
+      if (btTrimmed(d[key]) !== "" && btRuleNumber(d[key], lo, hi) === undefined) found[key] = words;
+    });
+    return found;
+  },
+  // Half a note is refused; a note with neither half is dropped on save, as a row somebody started and left.
+  notes: (draft) => {
+    const found = {};
+    (draft || []).forEach((n, i) => {
+      const title = btTrimmed(n.title);
+      const text = btTrimmed(n.text);
+      if ((title || text) && (!title || !text)) found[`note-${i}`] = "Each note needs both a title and the text to say.";
+    });
+    return found;
+  },
+  // As much as the receptionist takes, said under the box before a round trip (S4): the server's refusal named no field.
+  extra_instructions: (draft) => {
+    const n = btTrimmed(draft && draft.text).length;
+    const max = window.__instructionsMax;
+    return n > max ? { extra_instructions: `At most ${max.toLocaleString("en-US")} characters — this is ${n.toLocaleString("en-US")}.` } : {};
+  },
+  // Each message says under itself what stops it (S5): nothing to send, more than a message holds, or a name that
+  // nothing fills in and a customer would read as written.
+  fallbacks: (draft) => {
+    const d = draft || {};
+    const found = {};
+    BT_FALLBACKS.forEach((key) => {
+      const t = btTrimmed(d[key]);
+      const unknown = window.__unknownDetails(t);
+      if (!t) found[key] = "Write this message, or use the default wording.";
+      else if (t.length > 2000) found[key] = `At most 2,000 characters — this is ${t.length.toLocaleString("en-US")}.`;
+      else if (unknown.length) found[key] = `Only {business}, {booking link} and {phone} are filled in — ${unknown[0]} would be sent as written.`;
+    });
+    return found;
+  },
+  calendar: (draft) => {
+    const feed = btTrimmed(draft);
+    return feed && !/^(https?|webcal):\/\/\S+$/i.test(feed)
+      ? { ical_url: "The calendar feed needs to be a full address, starting with https:// or webcal://" }
+      : {};
+  },
+};
+
+/** Every problem with a fold's draft at once, by the field it is under: {} when it may be saved. */
+const btProblemsOf = (fold, draft) => {
+  btFoldNamed(fold);
+  return Object.prototype.hasOwnProperty.call(BT_PROBLEMS_OF, fold) ? BT_PROBLEMS_OF[fold](draft) : {};
+};
+
 // window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), base(), subscribe(fn), reset() }),
 // how a job's patch is applied (`patched`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
 // brain's prompt is the product's own lines under its stored name (`isBaseline`), each row's STORED_AS, CHECK_OF and
-// PATCH_OF by its id, and each fold's paths and keys (PATHS_OF, KEYS_OF) and helpers (draftOf, saveFold).
+// PATCH_OF by its id, and each fold's paths and keys (PATHS_OF, KEYS_OF) and helpers (draftOf, problemsOf, saveFold).
 Object.assign(window, {
   phoneShown: btPhoneShown,
   useFieldSave: useBtFieldSave,
@@ -657,6 +724,7 @@ Object.assign(window, {
     PATHS_OF: BT_PATHS_OF,
     KEYS_OF: BT_KEYS_OF,
     draftOf: btDraftOf,
+    problemsOf: btProblemsOf,
     saveFold: btSaveFold,
   },
 });
