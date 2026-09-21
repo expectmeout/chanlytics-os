@@ -97,6 +97,10 @@
   }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }
+  /* Inside an open thread the reply box IS the action, and Send sits a thumb from here: two
+     primaries in one corner, one of them answering a different question. Ask comes back with
+     the list. (Here, not in mobile.css: the palette's rules live in this file.) */
+  body:has(.inbox.phone-thread) .phone-ask { display: none; }
   .ask-overlay { padding: 0; padding-top: 0; align-items: flex-end; }
   .ask-modal.cmd-modal.ask-real {
     max-width: 100%; width: 100%; height: min(78vh, 640px);
