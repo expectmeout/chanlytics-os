@@ -98,6 +98,8 @@ import "@/legacy/pages/reports-sections.jsx";
 import "@/legacy/pages/reports.jsx";
 import "@/legacy/pages/tasks.jsx";
 import "@/legacy/pages/setup.jsx";
+// Before settings.jsx: the Business tab publishes the one-key save and how a number is written, which the old card uses.
+import "@/legacy/pages/business-tab.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/billing-real.jsx";
 // After the mockup's settings: the Integrations pane and the one form it opens.

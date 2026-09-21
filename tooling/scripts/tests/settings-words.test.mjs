@@ -222,6 +222,7 @@ Object.assign(globalThis.window, {
   __unknownDetails: contracts.unknownDetails,
   __hoursLines: contracts.hoursLines,
 });
+await import("../../../apps/dashboard/src/legacy/pages/business-tab.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {

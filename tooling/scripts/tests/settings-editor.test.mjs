@@ -142,6 +142,7 @@ Object.assign(globalThis.window, {
   },
   __TEAM: [], __TEAM_INVITES: [],
 });
+await import("../../../apps/dashboard/src/legacy/pages/business-tab.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {

@@ -172,8 +172,11 @@ test("the field that caused this says what it is", () => {
   assert.ok(pane.includes('<PublishedNumberRow fact={F.phone_display} flash={flash} />'));
   assert.ok(pane.includes('<HandoffRow fact={F.handoff_number} flash={flash} />'));
   // One key, on top of what is stored -- PUT /settings is a whole-config CAS,
-  // and a fragment would delete the rest.
-  assert.ok(pane.includes("function useFieldSave(flash)") && pane.includes("window.__saveSettings(next, settings.version"));
+  // and a fragment would delete the rest. The save itself moved to
+  // pages/business-tab.jsx with the Business tab (Task 3.2), where
+  // business-tab-page.test.mjs runs it and compares what it sends with the
+  // stored config; these rows take it from window.
+  assert.ok(pane.includes("window.useFieldSave(flash)") && pane.includes("window.__saveSettings(next, settings.version"));
   assert.ok(pane.includes("if (value) brain.phone_display = value; else delete brain.phone_display;"), "absent means the line, so clearing it removes the key");
   assert.ok(pane.includes("<FactConflicts />"), "and a serious disagreement is said out loud, not left in a document");
 });

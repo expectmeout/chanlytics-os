@@ -336,13 +336,10 @@ const YourName = ({ flash, ...rest }) => {
  * owner nothing and "New York, 3:42 PM there now" tells them in one glance
  * whether it is theirs.
  */
-/**
- * A number as people write it, "+1 (305) 555-0100", the way Setup and Connections show one (contracts
- * formatPhoneDisplay, published by the bridge). Business showed the line it answers and the transfer number in the
- * E.164 they are stored as (the wiring audit's L7). Only E.164 is rewritten: anything else is shown as it was written,
- * which for the number it gives out is what the receptionist says.
- */
-const phoneShown = (v) => (v && window.__phoneDisplay && /^\+[1-9][0-9]{6,14}$/.test(v) ? window.__phoneDisplay(v) : v);
+// How a number is written for people (window.phoneShown) and the one-key save (window.useFieldSave) live in
+// pages/business-tab.jsx, which loads before this file: the Business tab's rows use both, and the card below keeps
+// using them until Task 3.7 swaps the tab in. Read from window as each card draws, since in the app every file is its
+// own module and a top-level const of one is nothing to another.
 
 /**
  * A fact, with where it came from.
@@ -398,43 +395,6 @@ const FactConflicts = () => {
 };
 
 /**
- * One brain field, saved from the row it is shown in.
- *
- * The two numbers below used to be sections nine and thirteen of a fourteen-
- * section form -- "Tell customers to call" near the top of one step, "How
- * callers reach a person" most of a page later in another, both of them read
- * from the Business card five rows apart. Editing one meant opening a form,
- * finding it among twelve fields that had nothing to do with it, and pressing
- * a Save that wrote the entire configuration.
- *
- * It still writes the entire configuration -- PUT /settings is a versioned
- * compare-and-swap, and sending a fragment would delete the rest -- but it
- * starts from what is stored and changes ONE key, which is the same discipline
- * the big form's `save` learned after a rebuild lost a workspace its prompt.
- */
-function useFieldSave(flash) {
-  const [busy, setBusy] = React.useState(false);
-  const settings = window.__SETTINGS || null;
-  const save = (change, said, done) => {
-    if (busy || !window.__saveSettings || !settings || !settings.config) return;
-    const cfg = settings.config;
-    const brain = cfg.brain || {};
-    setBusy(true);
-    const next = { ...cfg, brain: change({ ...brain }, { ...(brain.profile || {}) }) };
-    window.__saveSettings(next, settings.version, () => {
-      setBusy(false);
-      done();
-      flash({ msg: said });
-    }).then((r) => {
-      if (r.ok) return;
-      setBusy(false);
-      flash({ tone: "danger", msg: <>{r.message}</> });
-    });
-  };
-  return [busy, save];
-}
-
-/**
  * What the receptionist tells customers to call.
  *
  * Absent means "the line it answers", which is the answer for nearly every
@@ -446,13 +406,13 @@ function useFieldSave(flash) {
 const PublishedNumberRow = ({ fact, flash }) => {
   const line = ((window.__FACTS || {}).facts || {}).voice_line || null;
   const voiceLine = (line && line.value) || "";
-  const lineShown = phoneShown(voiceLine);
+  const lineShown = window.phoneShown(voiceLine);
   const handoff = (((window.__FACTS || {}).facts || {}).handoff_number || {}).value || null;
   const stored = ((window.__SETTINGS || {}).config || {}).brain || {};
   const [editing, setEditing] = React.useState(false);
   const [own, setOwn] = React.useState(!stored.phone_display);
   const [typed, setTyped] = React.useState(stored.phone_display || "");
-  const [busy, save] = useFieldSave(flash);
+  const [busy, save] = window.useFieldSave(flash);
   const open = () => { setOwn(!stored.phone_display); setTyped(stored.phone_display || ""); setEditing(true); };
   const commit = () => {
     const value = own ? "" : typed.trim();
@@ -517,8 +477,8 @@ const HandoffRow = ({ fact, flash }) => {
   const stored = (((window.__SETTINGS || {}).config || {}).brain || {}).profile || {};
   const [editing, setEditing] = React.useState(false);
   // Shown, and changed from, the way the row writes it: the check and the stored form both read "+1 (786) 555-0182".
-  const [typed, setTyped] = React.useState(phoneShown(stored.handoff_number) || "");
-  const [busy, save] = useFieldSave(flash);
+  const [typed, setTyped] = React.useState(window.phoneShown(stored.handoff_number) || "");
+  const [busy, save] = window.useFieldSave(flash);
   const commit = () => {
     const bad = window.__whyNotAHandoff ? window.__whyNotAHandoff(typed, voiceLine) : null;
     if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
@@ -529,7 +489,7 @@ const HandoffRow = ({ fact, flash }) => {
         brain.profile = profile;
         return brain;
       },
-      value ? <>Callers who insist on a person reach <b className="tabular">{phoneShown(value)}</b>.</> : <>The receptionist takes a message instead of transferring.</>,
+      value ? <>Callers who insist on a person reach <b className="tabular">{window.phoneShown(value)}</b>.</> : <>The receptionist takes a message instead of transferring.</>,
       () => setEditing(false),
     );
   };
@@ -538,8 +498,8 @@ const HandoffRow = ({ fact, flash }) => {
       <div className="cl-prof-attr" data-testid="fact-transfers-a-caller-to">
         <span className="cl-prof-attr-key">Transfers a caller to</span>
         <span className="cl-prof-attr-val set-fact">
-          <span className={fact && fact.value ? "" : "set-fact-empty"}>{fact && fact.value ? phoneShown(fact.value) : "Takes a message instead"}</span>
-          <button className="cl-bucket-link" onClick={() => { setTyped(phoneShown(stored.handoff_number) || ""); setEditing(true); }} {...window.gate("settings")} data-testid="set-handoff-change">Change</button>
+          <span className={fact && fact.value ? "" : "set-fact-empty"}>{fact && fact.value ? window.phoneShown(fact.value) : "Takes a message instead"}</span>
+          <button className="cl-bucket-link" onClick={() => { setTyped(window.phoneShown(stored.handoff_number) || ""); setEditing(true); }} {...window.gate("settings")} data-testid="set-handoff-change">Change</button>
         </span>
       </div>
     );
@@ -1029,7 +989,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   // field rather than trusting whatever was typed to be the same number.
   const RF = ((window.__FACTS || {}).facts) || {};
   const voiceLine = (RF.voice_line && RF.voice_line.value) || null;
-  const lineShown = phoneShown(voiceLine);
+  const lineShown = window.phoneShown(voiceLine);
   const handoffLine = (RF.handoff_number && RF.handoff_number.value) || null;
   const [bookingLink, setBookingLink] = useSetState(brain.booking_link || "");
   const [address, setAddress] = useSetState(p0.address || "");
@@ -2137,7 +2097,7 @@ const PaneWorkspace = ({ flash }) => {
             and from the card that reads them. */}
         {real ? (
           <>
-            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Connections" empty="No phone line yet" show={phoneShown} />
+            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Connections" empty="No phone line yet" show={window.phoneShown} />
             <PublishedNumberRow fact={F.phone_display} flash={flash} />
             <HandoffRow fact={F.handoff_number} flash={flash} />
           </>

@@ -138,6 +138,7 @@ Object.assign(globalThis.window, {
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
+await import("../../../apps/dashboard/src/legacy/pages/business-tab.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/activity.jsx");
 
