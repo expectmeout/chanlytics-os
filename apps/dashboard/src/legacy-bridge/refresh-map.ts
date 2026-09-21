@@ -109,6 +109,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Name, hours, services, the hand-off number and the calendar feed are Setup rows too.
   "PUT settings": () => [settingsOverride, todayOverride, calendarOverride, setupOverride],
   "PUT policies": settings,
+  // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
+  // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
+  // re-read, they kept the old zone until something else was saved.
+  "PATCH workspaces": settings,
   "POST team/invite": settings,
   "PATCH team/[id]": settings,
   "DELETE team/[id]": settings,

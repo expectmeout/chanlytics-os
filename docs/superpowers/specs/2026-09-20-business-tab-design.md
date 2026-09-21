@@ -127,6 +127,8 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 
 **Inline.** The value becomes an input on the same baseline. Save/Cancel on the row, Esc cancels, ⌘↵ saves. The consequence line sits between the field and the buttons. Refusals appear under the box before any round trip.
 
+> **Amended 21 Sep, in execution (Task 3.3).** The timezone row has no consequence line. Its consequence is the local time beside it (4.3): "New York, 7:23 PM there now" says what the choice does. The zone is in the prompt (the hours heading names it, and closures pass by its clock), but it is the workspace's, saved through its own route (`PATCH workspaces`), not a key of the brain a save sends, so no draft of it can be resolved as the edge resolves one (`FOLD_BLOCK.timezone` is null on purpose). Once the zone is saved, the settings surface is read again (`refresh-map.ts`), so the prompt's preview, the hours fold's hint and every fold's block name the new zone.
+
 **Fold.** Opens under its row inside the card, `grid-template-rows: 0fr → 1fr`. The accent left edge marks it. Its footer carries the composed block and its own Save. One at a time: opening another closes a clean fold and asks about a dirty one. The rows below are pushed, never covered, and the fold's top edge does not move.
 
 **Sheet.** Right-hand panel for the services list and the prompt. Head, search, rows, sticky footer. The page behind stays readable.
