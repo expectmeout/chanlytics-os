@@ -176,6 +176,7 @@ const ThreadPane = ({ thread: given = null, threadId = null, onBack = null, onOp
   // Alone, the pane keeps its own draft's countdown and looks again at zero. Inside the Inbox, the list's tick draws
   // it and the list looks again for every thread it holds.
   const live = !!(standalone && t && t.real && t.veto);
+  const liveId = live ? t.id : null;
   React.useEffect(() => {
     if (!live) return undefined;
     const tick = () => {
@@ -190,7 +191,7 @@ const ThreadPane = ({ thread: given = null, threadId = null, onBack = null, onOp
     const iv = window.setInterval(tick, 1000);
     window.addEventListener("presence:changed", redraw);
     return () => { window.clearInterval(iv); window.removeEventListener("presence:changed", redraw); };
-  }, [live, t && t.id]);
+  }, [live, liveId]);
 
   const labels = ((window.INBOX_DATA || {}).CHANNEL_LABELS) || {};
   if (!t) {
