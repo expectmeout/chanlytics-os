@@ -1031,11 +1031,15 @@ const ThreadCall = ({ call = null, note = null, at, mid, open: openFirst = false
         {src && !listening
           ? <button type="button" className="tl-call-play" onClick={listen} aria-label={`Listen to the call${length ? `, ${length}` : ""}`} data-testid="tl-call-play"><Icon name="play" size={10} /></button>
           : <span className="tl-call-glyph" aria-hidden="true"><Icon name="phone" size={11} /></span>}
+        {/* What it was, then when, set apart by space rather than a dot: on a narrow phone the when takes its own line,
+            and a dot began it. */}
         <span className="tl-call-words">
-          <span className="tl-call-kind">{kind}</span>
-          {length && <span className="tl-call-length tabular">{length}</span>}
-          {/* A call with no lines says how it went on its one line: "Missed call · No answer". */}
-          {!lines && facts.length > 0 && <span className="tl-call-facts">{facts.join(" · ")}</span>}
+          <span className="tl-call-what">
+            <span className="tl-call-kind">{kind}</span>
+            {length && <span className="tl-call-length tabular">{length}</span>}
+            {/* A call with no lines says how it went on its one line: "Missed call · No answer". */}
+            {!lines && facts.length > 0 && <span className="tl-call-facts">{facts.join(" · ")}</span>}
+          </span>
           <span className="tl-call-at tabular">{at}</span>
         </span>
       </div>

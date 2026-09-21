@@ -133,8 +133,10 @@ const CallPane = ({ c, onBack = null }) => {
               <div className="tl-call-mark">
                 <span className="live-dot" aria-hidden="true" />
                 <span className="tl-call-words">
-                  <span className="tl-call-kind">On the phone now</span>
-                  {secs != null && <span className="tl-call-length tabular">{cvClock(secs)}</span>}
+                  <span className="tl-call-what">
+                    <span className="tl-call-kind">On the phone now</span>
+                    {secs != null && <span className="tl-call-length tabular">{cvClock(secs)}</span>}
+                  </span>
                 </span>
               </div>
               <div className="tl-call-live-acts">
