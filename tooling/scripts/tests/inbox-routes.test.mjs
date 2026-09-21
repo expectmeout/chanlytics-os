@@ -15,6 +15,16 @@ import { fakeDb } from "./_fake-db.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
+// Storage's answer to "sign this object", for the recording route; every other request goes where it was going.
+// Installed before anything builds the service client, which keeps the fetch it was built with.
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (input, init) => {
+  const url = String(input instanceof Request ? input.url : input);
+  const signing = /\/storage\/v1\/object\/sign\/media\/(.+)$/.exec(url);
+  if (signing) return new Response(JSON.stringify({ signedURL: `/object/sign/media/${signing[1]}?token=abc` }), { status: 200, headers: { "content-type": "application/json" } });
+  return realFetch(input, init);
+};
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
@@ -194,6 +204,16 @@ test("a whisper: the call is the row, only into a call in progress, never from a
   await refused(recording.GET.run(get(), ctxFor(tables, { id: L2 })), "not_found", 404, "no recording yet");
   await refused(recording.GET.run(get(), ctxFor(tables, { id: L3 })), "not_found", 404, "fetched but not stored");
   await refused(recording.GET.run(get(), ctxFor(tables, { id: "not-a-uuid" })), "not_found", 404);
+});
+
+test("a stored recording is a redirect to a link signed for this request: the <audio> points at the route, so a seek or a long pause is signed afresh", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    calls: [call(L3, B, { recording: { storage_path: "t1/calls/k.wav", fetch_state: "stored", mime: "audio/wav", bytes: 10 } })],
+  };
+  const res = await recording.GET.run(get(), ctxFor(tables, { id: L3 }));
+  assert.equal(res.status, 302, "REGRESSION: JSON holding a link that expired five minutes into a listen, and a seek after it failed");
+  assert.match(res.headers.get("location") || "", /\/object\/sign\/media\/t1\/calls\/k\.wav\?token=abc$/, "the stored copy, signed now");
 });
 
 test("ending a call and passing it to the business: the call is the row, only a call in progress, a workspace with no line is told the fix, never from a preview, and nothing is recorded for a control that did not happen", async () => {
