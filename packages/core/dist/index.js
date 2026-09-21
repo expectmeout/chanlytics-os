@@ -1893,6 +1893,7 @@ var LeadSearchPlanSchema = z6.object({
 });
 var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name, code2]) => [code2, name]));
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var GUARDRAIL_KEYS = GuardrailsSchema.keyof().options;
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
   label: "Password",
@@ -4238,6 +4239,7 @@ function stateCode(raw) {
   return US_STATES2[s.toLowerCase()] ?? null;
 }
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
+var GUARDRAIL_KEYS2 = GuardrailsSchema2.keyof().options;
 var PASSWORD_MIN2 = 12;
 var PASSWORD_WORDS2 = {
   label: "Password",
@@ -5571,6 +5573,7 @@ var LeadSearchPlanSchema3 = z63.object({
 });
 var US_NAMES3 = Object.fromEntries(Object.entries(US_STATES3).map(([name, code2]) => [code2, name]));
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
+var GUARDRAIL_KEYS3 = GuardrailsSchema3.keyof().options;
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {
   label: "Password",

@@ -1111,6 +1111,7 @@ var LeadSearchPlanSchema = z6.object({
 });
 var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name2, code2]) => [code2, name2]));
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var GUARDRAIL_KEYS = GuardrailsSchema.keyof().options;
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
   label: "Password",
@@ -7335,6 +7336,7 @@ var LeadSearchPlanSchema2 = z62.object({
 });
 var US_NAMES2 = Object.fromEntries(Object.entries(US_STATES2).map(([name2, code2]) => [code2, name2]));
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
+var GUARDRAIL_KEYS2 = GuardrailsSchema2.keyof().options;
 var PASSWORD_MIN2 = 12;
 var PASSWORD_WORDS2 = {
   label: "Password",
@@ -9647,6 +9649,7 @@ var LeadSearchPlanSchema3 = z63.object({
 });
 var US_NAMES3 = Object.fromEntries(Object.entries(US_STATES3).map(([name2, code2]) => [code2, name2]));
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
+var GUARDRAIL_KEYS3 = GuardrailsSchema3.keyof().options;
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {
   label: "Password",
@@ -11049,6 +11052,7 @@ var LeadSearchPlanSchema22 = z622.object({
 });
 var US_NAMES22 = Object.fromEntries(Object.entries(US_STATES22).map(([name2, code2]) => [code2, name2]));
 var ACTIVITY_KINDS22 = [...DECISION_VERBS22, ...EVENT_KINDS22];
+var GUARDRAIL_KEYS22 = GuardrailsSchema22.keyof().options;
 var PASSWORD_MIN22 = 12;
 var PASSWORD_WORDS22 = {
   label: "Password",
@@ -12322,6 +12326,7 @@ var LeadSearchPlanSchema32 = z632.object({
 });
 var US_NAMES32 = Object.fromEntries(Object.entries(US_STATES32).map(([name2, code2]) => [code2, name2]));
 var ACTIVITY_KINDS32 = [...DECISION_VERBS32, ...EVENT_KINDS32];
+var GUARDRAIL_KEYS32 = GuardrailsSchema32.keyof().options;
 var PASSWORD_MIN32 = 12;
 var PASSWORD_WORDS32 = {
   label: "Password",
@@ -14084,6 +14089,7 @@ var LeadSearchPlanSchema4 = z64.object({
 });
 var US_NAMES4 = Object.fromEntries(Object.entries(US_STATES4).map(([name2, code2]) => [code2, name2]));
 var ACTIVITY_KINDS4 = [...DECISION_VERBS4, ...EVENT_KINDS4];
+var GUARDRAIL_KEYS4 = GuardrailsSchema4.keyof().options;
 var PASSWORD_MIN4 = 12;
 var PASSWORD_WORDS4 = {
   label: "Password",

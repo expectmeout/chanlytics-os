@@ -10,10 +10,14 @@
  * twice is one that will be edited once.
  */
 
-import { isBaselinePrompt, ownWordsOf } from "./config";
+import { GuardrailsSchema, isBaselinePrompt, ownWordsOf } from "./config";
 
-/** The guardrail keys the profile stores. The editor writes exactly these. */
-export const GUARDRAIL_KEYS = ["never_quote_prices", "never_confirm_booking", "disclose_ai", "no_health_advice"] as const;
+/**
+ * The guardrail keys the profile stores, read off the schema rather than copied
+ * from it. A copy would let a new rule reach the schema without a strength here;
+ * derived, `STRENGTHS` below fails to compile until somebody says how far it goes.
+ */
+export const GUARDRAIL_KEYS = GuardrailsSchema.keyof().options;
 export type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
 
 /**
@@ -50,7 +54,9 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
     // The sentence says the rule. `checkedOn` says how it lands per channel, and the
     // page draws both -- so the sentence must not say the channels too, or an owner
     // reads the same fact twice, once in prose and once in the two boxes under it.
-    sentence: "A detector reads every reply for a currency figure. It offers a consult or the booking link instead.",
+    // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
+    // more: forty-five euros, or a pound sign, would pass it untouched.
+    sentence: "A detector reads every reply for a price in dollars or pesos. It offers a consult or the booking link instead.",
     checkedOn: [
       { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
       { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." },
@@ -60,7 +66,7 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
     strength: "instructed",
     chip: "Told, and trusted",
     sentence:
-      "A line in what it reads, and it follows it reliably — but nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+      "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
     checkedOn: null,
   },
   no_health_advice: {
@@ -105,7 +111,7 @@ const has = (v: unknown): boolean =>
  *
  * The gaps are ordered by what a customer notices: a receptionist with no name
  * cannot introduce itself, one with no hours cannot answer the commonest
- * question, and one with no voice answers correctly in nobody's words. Only
+ * question, and one with no voice answers in nobody's words. Only
  * the first gap is named — a list of six is a list nobody starts.
  */
 export function standingLine(i: StandingInputs): StandingVM {
@@ -116,7 +122,7 @@ export function standingLine(i: StandingInputs): StandingVM {
   if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
   if (!has(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
   if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
-  if (!has(p.tone)) gaps.push({ sentence: "It has no voice of its own yet — it answers correctly, in nobody in particular's words.", row: "tone" });
+  if (!has(p.tone)) gaps.push({ sentence: "It has no voice of its own yet — it answers in nobody in particular's words.", row: "tone" });
 
   const answers: string[] = [];
   if (has(p.address)) answers.push("where you are");
@@ -139,19 +145,27 @@ export function standingLine(i: StandingInputs): StandingVM {
  *
  * The tab sets the inputs to three of the phone agent's four tools
  * (`check_availability`, `send_booking_link`, `transfer_to_staff`) and has
- * never said a tool exists. An owner could not know their phone agent texts
- * the booking link to the number a caller rang from.
+ * never said a tool exists. An owner could not know their phone agent sends
+ * the booking link to a caller's WhatsApp.
  *
  * Computed from what the records show, never typed: an ability is ready only
- * when its channel is live and its input is filled.
+ * when its channel is live and its input is filled. Every sentence below was
+ * checked against the code it describes, because the first draft of three of
+ * them was not true: the link goes by WhatsApp and never by text, a transfer
+ * happens only during opening hours and stays on the line, and a hand-off is a
+ * pause that ends, not a stop.
  */
 export interface AbilityInputs {
   voiceLive: boolean;
   whatsappLive: boolean;
   hasCalendarFeed: boolean;
   hasBookingLink: boolean;
+  /** An approved booking-link template: the call sends the link as one (template-library bookingTemplate). */
+  hasBookingTemplate: boolean;
   hasHandoffNumber: boolean;
   hasEscalateWhen: boolean;
+  /** The Autonomy tab's pause after a hand-off, in hours. 24 unless the owner changed it. */
+  pauseHours: number;
   visionOn: boolean;
 }
 
@@ -167,26 +181,59 @@ export interface AbilityRowVM {
   on?: boolean;
 }
 
+/** How long a hand-off holds, in the words the page says it: "a day", "4 hours", "3 days". */
+function heldFor(pauseHours: number): string {
+  const hours = Math.max(1, Math.round(pauseHours));
+  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
+  return hours === 1 ? "an hour" : `${hours} hours`;
+}
+
 export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   // Nothing is ready on a channel that is not answering. An input filled against a
   // dead line is a setting, not an ability, and drawing it ready would tell an owner
   // the booking link goes out when there is nothing to send it.
   const answering = i.voiceLive || i.whatsappLive;
+
+  // The link goes out on WhatsApp on both channels: in the thread, or on a call as a
+  // template to the caller's own WhatsApp (retell-fn deliver({ channel: "whatsapp" })).
+  // So a phone-only workspace cannot send it at all, and a call cannot send it without
+  // an approved template -- whatever the booking link field holds.
+  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
+  const bookingDetail = !i.hasBookingLink
+    ? "No booking link yet, so there is nothing to send."
+    : !i.whatsappLive
+      ? i.voiceLive
+        ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead."
+        : "It goes out on WhatsApp, which isn't connected here."
+      : !i.voiceLive
+        ? "It sends it in the thread."
+        : callSendsLink
+          ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
+          : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+
+  // The base triggers hold with no reasons at all -- they asked for a person, or it
+  // cannot help -- so the owner's reasons widen the hand-off; they do not switch it on.
+  const handoffWhen = i.hasEscalateWhen
+    ? "On your reasons, or when a customer asks for a person, it"
+    : "When a customer asks for a person or it can't help, it";
+
   return [
     {
       id: "answer",
       title: "Answer from your facts",
-      detail: "Hours, address, services, your notes — and it records which facts it leaned on.",
+      // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
+      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
-      ready: i.voiceLive || i.whatsappLive,
+      ready: answering,
     },
     {
       id: "open_times",
       title: "Say which times are open",
+      // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
       detail: i.hasCalendarFeed
-        ? "On a call it asks the calendar at that moment. In chat it is handed the day's openings with each message. Up to three that fit, then the link."
+        ? "On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit, then the link."
         : "No calendar to read, so it does not guess at open times — it sends the link instead.",
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
@@ -195,38 +242,43 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
     {
       id: "booking_link",
       title: "Send the booking link",
-      detail: "On a call it texts it to the number they rang from and says so. In chat it sends it in the thread.",
-      channels: both,
+      detail: bookingDetail,
+      channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: answering && i.hasBookingLink,
+      ready: i.hasBookingLink && i.whatsappLive,
     },
     {
       id: "transfer",
       title: "Put a caller through",
+      // config.ts: "Use transfer_to_staff during opening hours -- it rings the line a person
+      // answers, and you stay on until they pick up."
       detail: i.hasHandoffNumber
-        ? "Dials the number you gave and steps out."
+        ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message."
         : "No number yet, so it takes a message instead — which is better than a number nobody picks up.",
       channels: { voice: i.voiceLive, whatsapp: false },
-      runsOn: { label: "The transfer number", row: "handoff_number" },
+      // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt.
+      runsOn: { label: "The transfer number", row: "handoff" },
       ready: i.voiceLive && i.hasHandoffNumber,
     },
     {
       id: "handoff",
       title: "Hand the thread to you",
-      detail:
-        "It stops answering, the thread turns Needs you in the Inbox, and your staff are emailed. It will not pick the thread back up on its own.",
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
+      // after that the receptionist answers the next message itself, Needs you or not.
+      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${heldFor(i.pauseHours)}, then answers the customer's next message itself.`,
       channels: { voice: false, whatsapp: i.whatsappLive },
-      runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: i.whatsappLive && i.hasEscalateWhen,
+      runsOn: { label: "Your reasons", row: "handoff" },
+      ready: i.whatsappLive,
     },
     {
       id: "vision",
       title: "Look at a photo",
       detail: i.visionOn
-        ? "It says what it sees and suggests the next step, under the rules above."
-        : "Off. A photo is acknowledged and passed to a person.",
+        ? "It says what it sees and suggests the next step, under the rules it always keeps."
+        : "Off. A photo is passed to a person.",
       channels: { voice: false, whatsapp: i.whatsappLive },
-      runsOn: { label: "Turn it on", row: "vision" },
+      // The switch sits with the rules it keeps, which is the row that opens it.
+      runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
       ready: i.whatsappLive && i.visionOn,
       on: i.visionOn,
     },
@@ -257,8 +309,9 @@ export const CANNOT_ROWS: readonly CannotRowVM[] = [
   {
     id: "outbound_call",
     title: "Ring a customer",
+    // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
     detail:
-      "It answers your line; it never dials out. A call back is a person's, and the receptionist tells you when one is wanted.",
+      "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and the receptionist tells you when one is wanted.",
   },
   {
     id: "sms",

@@ -1327,7 +1327,7 @@ function replyWhy(meta) {
   const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
   const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
   const source = typeof meta.source === "string" ? meta.source : null;
-  const heldFor = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
+  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
   const label = intent ? INTENT_LABELS[intent] : "Reply";
   return {
     intent: intent ?? "other",
@@ -1335,7 +1335,7 @@ function replyWhy(meta) {
     confidence: conf,
     reason,
     facts,
-    heldFor,
+    heldFor: heldFor2,
     summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
   };
 }
@@ -10553,7 +10553,7 @@ function registrationPreflight(f) {
 }
 
 // src/business-tab.ts
-var GUARDRAIL_KEYS = ["never_quote_prices", "never_confirm_booking", "disclose_ai", "no_health_advice"];
+var GUARDRAIL_KEYS = GuardrailsSchema.keyof().options;
 var STRENGTHS = {
   never_confirm_booking: {
     strength: "structural",
@@ -10567,7 +10567,9 @@ var STRENGTHS = {
     // The sentence says the rule. `checkedOn` says how it lands per channel, and the
     // page draws both -- so the sentence must not say the channels too, or an owner
     // reads the same fact twice, once in prose and once in the two boxes under it.
-    sentence: "A detector reads every reply for a currency figure. It offers a consult or the booking link instead.",
+    // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
+    // more: forty-five euros, or a pound sign, would pass it untouched.
+    sentence: "A detector reads every reply for a price in dollars or pesos. It offers a consult or the booking link instead.",
     checkedOn: [
       { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
       { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." }
@@ -10576,7 +10578,7 @@ var STRENGTHS = {
   disclose_ai: {
     strength: "instructed",
     chip: "Told, and trusted",
-    sentence: "A line in what it reads, and it follows it reliably \u2014 but nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    sentence: "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
     checkedOn: null
   },
   no_health_advice: {
@@ -10598,7 +10600,7 @@ function standingLine(i) {
   if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
   if (!has2(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
   if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
-  if (!has2(p.tone)) gaps.push({ sentence: "It has no voice of its own yet \u2014 it answers correctly, in nobody in particular's words.", row: "tone" });
+  if (!has2(p.tone)) gaps.push({ sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.", row: "tone" });
   const answers = [];
   if (has2(p.address)) answers.push("where you are");
   if (has2(p.hours)) answers.push("when you're open");
@@ -10609,22 +10611,32 @@ function standingLine(i) {
   const wont = quiet ? "It offers a consult instead of a price, by your rule." : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
+function heldFor(pauseHours) {
+  const hours = Math.max(1, Math.round(pauseHours));
+  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
+  return hours === 1 ? "an hour" : `${hours} hours`;
+}
 function abilityRows(i) {
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   const answering = i.voiceLive || i.whatsappLive;
+  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
+  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const handoffWhen = i.hasEscalateWhen ? "On your reasons, or when a customer asks for a person, it" : "When a customer asks for a person or it can't help, it";
   return [
     {
       id: "answer",
       title: "Answer from your facts",
-      detail: "Hours, address, services, your notes \u2014 and it records which facts it leaned on.",
+      // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
+      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
-      ready: i.voiceLive || i.whatsappLive
+      ready: answering
     },
     {
       id: "open_times",
       title: "Say which times are open",
-      detail: i.hasCalendarFeed ? "On a call it asks the calendar at that moment. In chat it is handed the day's openings with each message. Up to three that fit, then the link." : "No calendar to read, so it does not guess at open times \u2014 it sends the link instead.",
+      // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
+      detail: i.hasCalendarFeed ? "On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit, then the link." : "No calendar to read, so it does not guess at open times \u2014 it sends the link instead.",
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed
@@ -10632,33 +10644,39 @@ function abilityRows(i) {
     {
       id: "booking_link",
       title: "Send the booking link",
-      detail: "On a call it texts it to the number they rang from and says so. In chat it sends it in the thread.",
-      channels: both,
+      detail: bookingDetail,
+      channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: answering && i.hasBookingLink
+      ready: i.hasBookingLink && i.whatsappLive
     },
     {
       id: "transfer",
       title: "Put a caller through",
-      detail: i.hasHandoffNumber ? "Dials the number you gave and steps out." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.",
+      // config.ts: "Use transfer_to_staff during opening hours -- it rings the line a person
+      // answers, and you stay on until they pick up."
+      detail: i.hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.",
       channels: { voice: i.voiceLive, whatsapp: false },
-      runsOn: { label: "The transfer number", row: "handoff_number" },
+      // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt.
+      runsOn: { label: "The transfer number", row: "handoff" },
       ready: i.voiceLive && i.hasHandoffNumber
     },
     {
       id: "handoff",
       title: "Hand the thread to you",
-      detail: "It stops answering, the thread turns Needs you in the Inbox, and your staff are emailed. It will not pick the thread back up on its own.",
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
+      // after that the receptionist answers the next message itself, Needs you or not.
+      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${heldFor(i.pauseHours)}, then answers the customer's next message itself.`,
       channels: { voice: false, whatsapp: i.whatsappLive },
-      runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: i.whatsappLive && i.hasEscalateWhen
+      runsOn: { label: "Your reasons", row: "handoff" },
+      ready: i.whatsappLive
     },
     {
       id: "vision",
       title: "Look at a photo",
-      detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules above." : "Off. A photo is acknowledged and passed to a person.",
+      detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
       channels: { voice: false, whatsapp: i.whatsappLive },
-      runsOn: { label: "Turn it on", row: "vision" },
+      // The switch sits with the rules it keeps, which is the row that opens it.
+      runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
       ready: i.whatsappLive && i.visionOn,
       on: i.visionOn
     }
@@ -10673,7 +10691,8 @@ var CANNOT_ROWS = [
   {
     id: "outbound_call",
     title: "Ring a customer",
-    detail: "It answers your line; it never dials out. A call back is a person's, and the receptionist tells you when one is wanted."
+    // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
+    detail: "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and the receptionist tells you when one is wanted."
   },
   {
     id: "sms",

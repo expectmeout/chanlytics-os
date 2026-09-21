@@ -110,14 +110,16 @@ The vision toggle is separated by a dashed rule and labelled as an ability, not 
 
 Six abilities, each with which channel has it and what it runs on, computed from `capabilityStatus` and the tool list, never typed:
 
-- Answer from your facts — both
-- Say which times are open — phone asks the calendar mid-call; chat is handed the day's openings with each message
-- Send the booking link — phone **texts it to the number they rang from**; chat sends it in the thread
-- Put a caller through — phone only
-- Hand the thread to you — chat only
+- Answer from your facts — both; in chat it also records which facts it leaned on
+- Say which times are open — phone asks the calendar mid-call; chat is handed the next few days' openings with each message
+- Send the booking link — **by WhatsApp on both channels**: in the thread, or on a call as a template to the caller's own WhatsApp. So it needs WhatsApp connected, and the call side needs an approved booking-link template too
+- Put a caller through — phone only, during opening hours, staying on the line until someone picks up; otherwise it takes a message
+- Hand the thread to you — chat only; a pause for the Autonomy tab's `pause_hours` (a day by default), after which it answers the next message itself
 - Look at a photo — off
 
-And what it cannot: book, move or cancel an appointment (structural); ring a customer (it answers, never dials); send a text message (not sold until the carriers approve a line).
+And what it cannot: book, move or cancel an appointment (structural); call a customer (it answers, and the only number it rings is the owner's, to transfer); send a text message (not sold until the carriers approve a line).
+
+> **Corrected 20 Sep, by the Phase 1 review.** This section first said the phone "texts" the booking link, that a hand-off never resumes, that a transfer "steps out", and that the receptionist "never dials". None was true. The link is a WhatsApp template and never an SMS; a hand-off is a pause that ends; the transfer stays on the line and runs only during opening hours; and the transfer does dial — the owner's number. A redesign whose argument is that the old page said untrue things cannot ship an untrue sentence, so each one is pinned by a test that fails on the old wording.
 
 ## 5. The three gestures
 

@@ -114,6 +114,8 @@ test("an ability names its channels and the row it runs on", () => {
     hasHandoffNumber: true,
     hasEscalateWhen: true,
     visionOn: false,
+    hasBookingTemplate: true,
+    pauseHours: 24,
   });
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
@@ -121,7 +123,7 @@ test("an ability names its channels and the row it runs on", () => {
   assert.match(byId.open_times.detail, /at that moment/i, "the phone asks live; chat is handed a snapshot");
   assert.equal(byId.open_times.runsOn.row, "calendar");
 
-  assert.match(byId.booking_link.detail, /texts it to the number they rang from/i);
+  assert.match(byId.booking_link.detail, /caller's WhatsApp/i, "it goes by WhatsApp, never by text");
 
   assert.deepEqual(byId.transfer.channels, { voice: true, whatsapp: false });
   assert.deepEqual(byId.handoff.channels, { voice: false, whatsapp: true });
@@ -132,7 +134,7 @@ test("an ability names its channels and the row it runs on", () => {
 test("an ability whose input is missing says which row to fill", () => {
   const rows = abilityRows({
     voiceLive: true, whatsappLive: true, hasCalendarFeed: false,
-    hasBookingLink: true, hasHandoffNumber: false, hasEscalateWhen: true, visionOn: false,
+    hasBookingLink: true, hasHandoffNumber: false, hasEscalateWhen: true, visionOn: false, hasBookingTemplate: true, pauseHours: 24,
   });
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
   assert.equal(byId.open_times.ready, false);
@@ -146,13 +148,13 @@ test("nothing is ready on a channel that is not answering", () => {
   // its receptionist sends the booking link.
   const dark = abilityRows({
     voiceLive: false, whatsappLive: false, hasCalendarFeed: true,
-    hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true,
+    hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true, hasBookingTemplate: true, pauseHours: 24,
   });
   for (const r of dark) assert.equal(r.ready, false, `${r.id} cannot be ready with nothing answering`);
   // And a phone-only workspace has no chat abilities, whatever is filled in.
   const phoneOnly = abilityRows({
     voiceLive: true, whatsappLive: false, hasCalendarFeed: true,
-    hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true,
+    hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true, hasBookingTemplate: true, pauseHours: 24,
   });
   const byId = Object.fromEntries(phoneOnly.map((r) => [r.id, r]));
   assert.equal(byId.handoff.ready, false, "there is no thread to hand over");
@@ -164,7 +166,7 @@ test("what it cannot do is stated, and is not a setting", () => {
   const ids = CANNOT_ROWS.map((r) => r.id);
   assert.deepEqual(ids, ["book", "outbound_call", "sms"]);
   assert.match(CANNOT_ROWS[0].detail, /no appointments table/i);
-  assert.match(CANNOT_ROWS[1].detail, /never dials/i);
+  assert.match(CANNOT_ROWS[1].detail, /never calls a customer/i);
   assert.equal(CANNOT_ROWS[2].soon, true);
 });
 
@@ -427,4 +429,86 @@ test("every character belongs to exactly one block", () => {
       assert.equal(new Set(blocks.map((b) => b.id)).size, blocks.length, `${channel}: every id is its own`);
     }
   }
+});
+
+/* ---- The phase review's findings, each pinned so it cannot come back quietly ---- */
+
+const live = {
+  voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true,
+  hasBookingTemplate: true, hasHandoffNumber: true, hasEscalateWhen: true, pauseHours: 24, visionOn: false,
+};
+const idOf = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
+
+test("the booking link goes by WhatsApp, so a phone-only workspace cannot send it", () => {
+  // send_booking_link delivers a WhatsApp template to the caller's WhatsApp; it never
+  // sends an SMS, which is not sold. The first draft said "texts it", and drew it ready
+  // on a phone-only workspace with no way to send anything at all.
+  const phoneOnly = idOf(abilityRows({ ...live, whatsappLive: false })).booking_link;
+  assert.equal(phoneOnly.ready, false);
+  assert.equal(phoneOnly.channels.voice, false, "the call cannot send it without WhatsApp");
+  assert.match(phoneOnly.detail, /WhatsApp, which isn't connected/i);
+
+  const noTemplate = idOf(abilityRows({ ...live, hasBookingTemplate: false })).booking_link;
+  assert.equal(noTemplate.ready, true, "chat can still send it in the thread");
+  assert.equal(noTemplate.channels.voice, false, "but a call cannot, without an approved message");
+  assert.match(noTemplate.detail, /approved booking-link message/i);
+
+  const full = idOf(abilityRows(live)).booking_link;
+  assert.equal(full.channels.voice, true);
+  assert.match(full.detail, /caller's WhatsApp, when their number has one/i);
+
+  for (const shape of [live, { ...live, whatsappLive: false }, { ...live, hasBookingTemplate: false }]) {
+    assert.doesNotMatch(idOf(abilityRows(shape)).booking_link.detail, /\btexts?\b/i, "never 'text': texting is not sold");
+  }
+});
+
+test("a hand-off is a pause that ends, and it says how long", () => {
+  // It pauses the thread for pause_hours and no longer; after that the receptionist
+  // answers the next message itself, whatever the Inbox says. The first draft said it
+  // would never pick the thread back up.
+  const said = (h) => idOf(abilityRows({ ...live, pauseHours: h })).handoff.detail;
+  assert.match(said(24), /holds off for a day, then answers the customer's next message itself/i);
+  assert.match(said(4), /holds off for 4 hours/);
+  assert.match(said(72), /holds off for 3 days/);
+  assert.match(said(1), /holds off for an hour/);
+  assert.doesNotMatch(said(24), /will not pick/i);
+  // The reasons widen a hand-off; they do not switch it on.
+  const noReasons = idOf(abilityRows({ ...live, hasEscalateWhen: false })).handoff;
+  assert.equal(noReasons.ready, true, "it hands over on a request for a person with no reasons set");
+  assert.match(noReasons.detail, /asks for a person or it can't help/i);
+});
+
+test("a transfer happens during opening hours, and it stays on the line", () => {
+  const t = idOf(abilityRows(live)).transfer;
+  assert.match(t.detail, /during opening hours/i);
+  assert.match(t.detail, /stays on until someone picks up/i);
+  assert.match(t.detail, /outside them, or if nobody answers, it takes a message/i);
+  assert.doesNotMatch(t.detail, /steps out/i);
+});
+
+test("both halves of a hand-off open the one row the page draws for them", () => {
+  const rows = idOf(abilityRows(live));
+  assert.equal(rows.transfer.runsOn.row, "handoff");
+  assert.equal(rows.handoff.runsOn.row, "handoff");
+  assert.equal(rows.vision.runsOn.row, "guardrails", "the photo switch sits with the rules it keeps");
+  assert.equal(idOf(abilityRows({ ...live, visionOn: true })).vision.runsOn.label, "Turn it off");
+});
+
+test("what it records, and how far ahead chat looks, are said as they are", () => {
+  // facts_used is the chat brain's; describeOpenings hands chat up to five days.
+  assert.match(idOf(abilityRows(live)).answer.detail, /In chat it also records which facts it leaned on/);
+  assert.match(idOf(abilityRows(live)).open_times.detail, /next few days' openings/);
+});
+
+test("an owner's own rules heading does not start the rules block inside their words", () => {
+  // The fence's second mechanism, beside the carried headings: an owner who wrote a line
+  // that opens like the platform's rules must keep that line as theirs.
+  const mine = "Be warm.\nRules you must follow: always greet by name.";
+  const withRules = { ...profile, extra_instructions: mine };
+  const text = composeSystemPrompt(brain, withRules, "whatsapp", "America/New_York");
+  const blocks = promptBlocks(text, "whatsapp", { profile: withRules });
+  assert.match(blocks.find((b) => b.row === "extra_instructions").text, /Rules you must follow: always greet by name\./);
+  const rules = blocks.filter((b) => b.row === "guardrails");
+  assert.equal(rules.length, 1, "the platform's own rules block, once");
+  assert.doesNotMatch(rules[0].text, /always greet by name/);
 });

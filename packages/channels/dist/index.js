@@ -983,6 +983,7 @@ var LeadSearchPlanSchema = z6.object({
 });
 var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name, code2]) => [code2, name]));
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var GUARDRAIL_KEYS = GuardrailsSchema.keyof().options;
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
   "AUTOMOTIVE",

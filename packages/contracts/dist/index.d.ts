@@ -9590,8 +9590,12 @@ declare function registrationPreflight(f: PreflightFacts): PreflightProblem[];
  * sentence written in JSX cannot be tested, and the same sentence written
  * twice is one that will be edited once.
  */
-/** The guardrail keys the profile stores. The editor writes exactly these. */
-declare const GUARDRAIL_KEYS: readonly ["never_quote_prices", "never_confirm_booking", "disclose_ai", "no_health_advice"];
+/**
+ * The guardrail keys the profile stores, read off the schema rather than copied
+ * from it. A copy would let a new rule reach the schema without a strength here;
+ * derived, `STRENGTHS` below fails to compile until somebody says how far it goes.
+ */
+declare const GUARDRAIL_KEYS: ("never_quote_prices" | "never_confirm_booking" | "disclose_ai" | "no_health_advice")[];
 type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
 /**
  * How far a rule actually goes.
@@ -9643,7 +9647,7 @@ interface StandingVM {
  *
  * The gaps are ordered by what a customer notices: a receptionist with no name
  * cannot introduce itself, one with no hours cannot answer the commonest
- * question, and one with no voice answers correctly in nobody's words. Only
+ * question, and one with no voice answers in nobody's words. Only
  * the first gap is named — a list of six is a list nobody starts.
  */
 declare function standingLine(i: StandingInputs): StandingVM;
@@ -9652,19 +9656,27 @@ declare function standingLine(i: StandingInputs): StandingVM;
  *
  * The tab sets the inputs to three of the phone agent's four tools
  * (`check_availability`, `send_booking_link`, `transfer_to_staff`) and has
- * never said a tool exists. An owner could not know their phone agent texts
- * the booking link to the number a caller rang from.
+ * never said a tool exists. An owner could not know their phone agent sends
+ * the booking link to a caller's WhatsApp.
  *
  * Computed from what the records show, never typed: an ability is ready only
- * when its channel is live and its input is filled.
+ * when its channel is live and its input is filled. Every sentence below was
+ * checked against the code it describes, because the first draft of three of
+ * them was not true: the link goes by WhatsApp and never by text, a transfer
+ * happens only during opening hours and stays on the line, and a hand-off is a
+ * pause that ends, not a stop.
  */
 interface AbilityInputs {
     voiceLive: boolean;
     whatsappLive: boolean;
     hasCalendarFeed: boolean;
     hasBookingLink: boolean;
+    /** An approved booking-link template: the call sends the link as one (template-library bookingTemplate). */
+    hasBookingTemplate: boolean;
     hasHandoffNumber: boolean;
     hasEscalateWhen: boolean;
+    /** The Autonomy tab's pause after a hand-off, in hours. 24 unless the owner changed it. */
+    pauseHours: number;
     visionOn: boolean;
 }
 interface AbilityRowVM {
