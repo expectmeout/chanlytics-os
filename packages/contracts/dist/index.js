@@ -2409,6 +2409,14 @@ var GuardrailsSchema = z3.object({
    */
   no_health_advice: z3.boolean().optional()
 }).strict();
+function guardrailsInForce(g) {
+  return {
+    never_quote_prices: g?.never_quote_prices !== false,
+    never_confirm_booking: g?.never_confirm_booking !== false,
+    disclose_ai: g?.disclose_ai !== false,
+    no_health_advice: g?.no_health_advice === true
+  };
+}
 var NoteSchema = z3.object({
   title: z3.string().min(1).max(80),
   text: z3.string().min(1).max(1200)
@@ -2913,19 +2921,19 @@ ${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how t
     `
 ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link.`
   );
-  const g = profile.guardrails ?? {};
+  const g = guardrailsInForce(profile.guardrails);
   const rules = [];
-  if (g.never_quote_prices !== false) {
+  if (g.never_quote_prices) {
     rules.push("Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.");
   }
-  if (g.never_confirm_booking !== false) {
+  if (g.never_confirm_booking) {
     rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
   }
-  if (g.disclose_ai !== false) {
+  if (g.disclose_ai) {
     rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
   }
   rules.push("If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.");
-  if (g.no_health_advice === true) {
+  if (g.no_health_advice) {
     rules.push("Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
   }
   rules.push(...policyRules(policy, channel));
@@ -13879,6 +13887,7 @@ export {
   groundCitations,
   groupTemplates,
   guardSpokenTurns,
+  guardrailsInForce,
   guessName,
   guessSlotKind,
   handoffE164,

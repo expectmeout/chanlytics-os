@@ -490,3 +490,41 @@ test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the cu
   assert.equal(listed.total_matching, listed.threads.length);
   assert.ok(listed.threads.every((th) => typeof th.channel === "string" && th.channel.length > 0 && !("tags" in th)), "a wire on every row; no field that never carried anything");
 });
+
+test("the rules Ask says the receptionist follows are the ones the composer gave it: three are on until switched off, the health rule only once switched on", async () => {
+  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { composeSystemPrompt, guardrailsInForce } = await import("@chanlytics/contracts");
+  const brain = { business_name: "Harbor Moving", booking_link: "https://book.example/harbor", system_prompt: "Answer as the front desk of Harbor Moving: brief and warm.", fallbacks: { greeting: "g", error: "e", non_text: "n" } };
+  const config = (guardrails) => ({ brain: { ...brain, profile: { address: "1 Pier Rd", ...(guardrails ? { guardrails } : {}) } } });
+  const PRICE = "never quotes or confirms a price";
+  const BOOKING = "never confirms a booking itself";
+  const AI = "says it is an automated assistant when asked";
+  const HEALTH = "gives no health advice";
+
+  // No `guardrails` key at all: what every workspace that never opened the rules has.
+  const absent = workspaceFacts("Harbor", TZ, config(undefined));
+  assert.deepEqual(absent.guardrails, [PRICE, BOOKING, AI], "the three that default on, and not the one that is opt-in");
+  assert.doesNotMatch(factsBlock(absent), /health/, "Ask's context never claims a rule the receptionist was not given");
+
+  const on = workspaceFacts("Harbor", TZ, config({ no_health_advice: true }));
+  assert.deepEqual(on.guardrails, [PRICE, BOOKING, AI, HEALTH]);
+  assert.match(factsBlock(on), /The receptionist .*gives no health advice\./);
+
+  const off = workspaceFacts("Harbor", TZ, config({ never_quote_prices: false, never_confirm_booking: false, disclose_ai: false }));
+  assert.deepEqual(off.guardrails, [], "switched off is off, and the health rule is still not on");
+  assert.doesNotMatch(factsBlock(off), /The receptionist /);
+
+  // The same three configs through the composer: Ask lists the health rule exactly when the receptionist's prompt holds it.
+  for (const [guardrails, facts] of [[undefined, absent], [{ no_health_advice: true }, on], [{ never_quote_prices: false, never_confirm_booking: false, disclose_ai: false }, off]]) {
+    const composed = composeSystemPrompt(brain, { address: "1 Pier Rd", ...(guardrails ? { guardrails } : {}) }, "whatsapp");
+    assert.equal(facts.guardrails.includes(HEALTH), /Never give medical or health advice/.test(composed));
+    assert.equal(facts.guardrails.includes(PRICE), /Never quote or confirm a price/.test(composed));
+    assert.equal(facts.guardrails.includes(BOOKING), /Never promise or confirm an appointment yourself/.test(composed));
+    assert.equal(facts.guardrails.includes(AI), /say plainly that you are the business's automated assistant/.test(composed));
+  }
+
+  // The one reading both go through, with the defaults applied; null and undefined are a workspace with no rules stored.
+  assert.deepEqual(guardrailsInForce(undefined), { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: false });
+  assert.deepEqual(guardrailsInForce(null), guardrailsInForce({}));
+  assert.deepEqual(guardrailsInForce({ never_quote_prices: false, no_health_advice: true }), { never_quote_prices: false, never_confirm_booking: true, disclose_ai: true, no_health_advice: true });
+});
