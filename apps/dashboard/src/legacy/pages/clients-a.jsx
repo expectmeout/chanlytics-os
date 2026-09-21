@@ -1759,6 +1759,28 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // People's is views.people, the Leads scope's is views.leads, and the page is remounted when the scope changes.
   const viewSaver = React.useRef(null);
   if (!viewSaver.current) viewSaver.current = plViewSaver(scope);
+  // The workspace's copy of every view rides with the People surface. On a cold open of Leads that surface lands
+  // AFTER the page is up (the boot reads the page in the address first, and Leads' gate waits for Leads alone), so
+  // `remembered` above had only this device's copy to go on -- and the page then SAVED that copy, or its defaults,
+  // over what the member had chosen on another computer. Until the workspace's copy has been seen nothing is saved
+  // back, unless the owner chose a sort or a column here, which stands. When the copy arrives it is taken, once;
+  // taking it is not a change to save back either.
+  const peopleLanded = people !== PL_NO_PEOPLE;
+  const serverView = (peopleLanded && people.views && people.views[scope]) || null;
+  const viewKnown = React.useRef(peopleLanded);
+  const viewTouched = React.useRef(false);
+  React.useEffect(() => {
+    if (viewKnown.current || !peopleLanded) return;
+    viewKnown.current = true;
+    if (viewTouched.current || !serverView) return;
+    const by = plSortKeys(cols).includes(serverView.sortBy) ? serverView.sortBy : sortBy;
+    const dir = serverView.sortDir === "asc" || serverView.sortDir === "desc" ? serverView.sortDir : sortDir;
+    const columns = plColumnChoices(cols, serverView.columns);
+    savedView.current = JSON.stringify(onLeads ? { list: leadView.list, sortBy: by, sortDir: dir, columns } : { sortBy: by, sortDir: dir, columns });
+    setSortBy(by);
+    setSortDir(dir);
+    setColChoices(columns);
+  }, [peopleLanded]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     const view = onLeads ? { list: leadView.list, sortBy, sortDir, columns: colChoices } : { sortBy, sortDir, columns: colChoices };
     plSaveView(scope, view);
@@ -1766,6 +1788,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     // what they say does (pickColumn keeps them for Person), so this runs once per change.
     const key = JSON.stringify(view);
     if (key === savedView.current || !window.__saveView) return;
+    if (!viewKnown.current && !viewTouched.current) return;
     savedView.current = key;
     viewSaver.current(view);
   }, [sortBy, sortDir, colChoices, leadList]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1828,6 +1851,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   }, [onLeads]);
 
   const onSort = (key) => {
+    viewTouched.current = true;
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortBy(key); setSortDir(key === "name" || key === "visits" ? "asc" : "desc"); }
   };
@@ -1917,6 +1941,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
   // gives way to Visits once a calendar connects, as it does for everyone.
   const pickColumn = (key) => setColChoices((ch) => {
+    viewTouched.current = true;
     const c = cols.find((x) => x.key === key);
     if (!c || plLocked(c)) return ch;
     const on = !plShows(c, ch, colCtx);
