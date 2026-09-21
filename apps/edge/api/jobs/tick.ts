@@ -19,15 +19,14 @@ import { alertFor } from "../../lib/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms.js";
 import { emailWireFor, emailIntake } from "../../lib/email.js";
-import { deleteThread } from "../../lib/store.js";
-import { whatsappSender } from "../../lib/workspace/core.js";
+import { whatsappSender } from "../../lib/packages/core.js";
 import { pageOperator } from "../../lib/page-operator.js";
 import { provisionLineJob } from "../../lib/line-provision-job.js";
 import { leadPipeline } from "../../lib/lead-pipeline.js";
 import {
   runTick, claimNext, completeJob, failJob, deferJob, settleJob, dispatchJob, scheduleJob,
   CLAIM_FOR_MS, YIELD_AT_MS, LEAD_YIELD_AT_MS, LEASE_SECONDS,
-} from "../../lib/workspace/jobs.js";
+} from "../../lib/packages/jobs.js";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */
 const MASS_FAILURE_PAGE = 10;
@@ -83,8 +82,6 @@ export async function POST(request: Request): Promise<Response> {
               wire,
               alert: alertFor(db, job),
               page: (key, subject, body) => pageOperator({ db }, key, subject, body),
-              // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN.
-              eraseThread: deleteThread,
               provisionLine: (lineId, by) => provisionLineJob(db, lineId, by),
               ...(intake ? { email: intake } : {}),
               ...(leads ? { leads } : {}),

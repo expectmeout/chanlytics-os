@@ -30,7 +30,6 @@ import { fakeDb } from "./_fake-db.mjs";
 // is unset here and set per case. No Supabase credentials, so `setPg(null)`
 // really is no database.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
-process.env.BLOB_SHADOW = "off";
 process.env.STRIPE_SECRET_KEY = "sk_test_only";
 process.env.STRIPE_PRICE_ID = "price_1";
 process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_only";

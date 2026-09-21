@@ -25,9 +25,9 @@
  * argument, so a test hands it one in memory and the real functions run.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
-import { resolveChannelDetailed } from "./workspace/db.js";
-import type { RoutedChannel } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
+import { resolveChannelDetailed } from "./packages/db.js";
+import type { RoutedChannel } from "./packages/db.js";
 import {
   verifyTwilioSignature,
   smsBody,
@@ -36,8 +36,8 @@ import {
   mergeConsent,
   SMS_HELD_REASON,
   SMS_HELD_DETAILS,
-} from "./workspace/channels.js";
-import type { ProviderAccount, SmsInbound } from "./workspace/channels.js";
+} from "./packages/channels.js";
+import type { ProviderAccount, SmsInbound } from "./packages/channels.js";
 import { lineByNumber, lineAccount } from "./sms.js";
 import type { SmsLine, SmsSender } from "./sms.js";
 import type { InboundCarrier } from "./whatsapp/inbound.js";

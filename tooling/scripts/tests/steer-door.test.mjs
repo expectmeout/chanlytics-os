@@ -42,7 +42,6 @@ import { fakeDb } from "./_fake-db.mjs";
 // default answer over the captured wire below.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.ANTHROPIC_API_KEY = "model-key-the-door-checks-for-and-never-spends";
-process.env.BLOB_SHADOW = "off";
 for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_PHONE_ID", "WHATSAPP_ACCESS_TOKEN"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");

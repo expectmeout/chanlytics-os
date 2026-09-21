@@ -25,7 +25,7 @@
  *              to hear before a customer does.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 
 type Db = SupabaseClient<Database>;
 

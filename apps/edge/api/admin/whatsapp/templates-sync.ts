@@ -18,7 +18,7 @@ import { labelsOf, listTemplates, templateRow } from "../../../lib/meta-template
 
 /** Meta's own samples: on file, never offered. */
 const SAMPLE_TEMPLATES = new Set(["hello_world"]);
-import type { Json } from "../../../lib/workspace/db.js";
+import type { Json } from "../../../lib/packages/db.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -26,4 +26,13 @@ test("a run that claims to cover Postgres actually can", { skip: REQUIRED ? fals
     `REQUIRE_SERVICE_CREDENTIALS=1 but ${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} absent, ` +
     "so every integration suite would skip and this run would report success having touched no database at all",
   );
+  // The disaster-recovery profile is configuration (DR_FALLBACK_BRAIN_JSON),
+  // and control-plane.integration.test.mjs holds it against the stored row.
+  // Without the variable that golden skips, and a credentialed run would once
+  // again report success without the one check that catches a stale fallback.
+  assert.ok(
+    process.env.DR_FALLBACK_BRAIN_JSON,
+    "REQUIRE_SERVICE_CREDENTIALS=1 but DR_FALLBACK_BRAIN_JSON is absent, so the disaster-recovery golden would skip: " +
+    "set the nightly's secret to the same value the chanlytics-messaging project holds",
+  );
 });

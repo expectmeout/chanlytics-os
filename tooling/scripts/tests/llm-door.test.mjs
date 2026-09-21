@@ -33,7 +33,6 @@ import { fakeDb } from "./_fake-db.mjs";
 // Each test file is its own process: this is the whole environment. No
 // Supabase credentials, so `setPg(null)` really is no database.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
-process.env.BLOB_SHADOW = "off";
 process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
 for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 

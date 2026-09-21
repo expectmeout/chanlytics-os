@@ -2,18 +2,24 @@
  * Session A exit criteria, against REAL Postgres (smoke tenant, self-cleaning,
  * skips without service credentials — same contract as thread-state tests).
  *
- * The one that matters most is the GOLDEN: the seeded Melany brain profile
- * must be byte-identical to the quarantined DR fallback in tenant-fallback.ts.
- * If either changes without the other, the "flip day changes nothing"
+ * The one that matters most is the GOLDEN: the disaster-recovery fallback the
+ * deployment would answer with must be the stored brain config, field for
+ * field. If either moves without the other, the "flip day changes nothing"
  * guarantee is broken and CI says so.
+ *
+ * WHERE THE FALLBACK NOW LIVES. It used to be a literal in
+ * apps/edge/lib/tenant-fallback.ts, and this test evaluated that literal out
+ * of the TypeScript source — which is why a live workspace's name, link,
+ * greeting and published number were checked into the repository at all. The
+ * profile is configuration: the edge reads it from DR_FALLBACK_BRAIN_JSON, so
+ * the pin is held against that variable, in whatever environment holds it.
+ * Absent, there is nothing to compare and the test says so rather than
+ * passing quietly — the same contract as the credentials above it.
  */
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { parseTenantConfig } from "@chanlytics/contracts";
+import { parseTenantConfig, parseTenantConfigResult } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -21,13 +27,19 @@ const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
 // The DR fallback is held against the LIVE config. The database workflow
 // replays the migrations on this machine, and 00012's seed is not the live
 // config (its phone_display was retired from production on 2026-09-09, and the
-// owner edits the prompt from Settings); those two tests answer only there.
+// owner edits the prompt from Settings); that test answers only there.
 const liveOnly = !skip && /^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
   ? "the live config is production's; a replayed seed is not it"
   : false;
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const FALLBACK_SRC = path.join(here, "../../../apps/edge/lib/tenant-fallback.ts");
+// A skip, not a pass: an exit code cannot tell them apart, so the reason is
+// printed the way every credential-gated case in this suite prints one. A run
+// that is MEANT to hold the fallback — the nightly, or an operator checking a
+// change before a deploy — sets DR_FALLBACK_BRAIN_JSON to the same value the
+// chanlytics-messaging project holds, which is what refresh-dr-fallback.mjs
+// prints.
+const noFallback = !process.env.DR_FALLBACK_BRAIN_JSON
+  ? "DR_FALLBACK_BRAIN_JSON is not set: this environment holds no disaster-recovery fallback to hold the row against"
+  : false;
 
 let db;
 let melanyId;
@@ -41,52 +53,54 @@ before(async () => {
   smokeId = ts.find((t) => t.slug === "chanlytics-smoke-test").id;
 });
 
-/** Evaluate the FALLBACK_BRAIN literal out of the TS source without a TS
- *  toolchain: the object is plain data between known markers. */
-function fallbackBrainFromSource() {
-  const src = fs.readFileSync(FALLBACK_SRC, "utf8");
-  const m = src.match(/export const FALLBACK_BRAIN: BrainConfig = (\{[\s\S]*?\n\};)/);
-  assert.ok(m, "FALLBACK_BRAIN literal not found");
-  const body = m[1].replace(/^\};$/m, "}").replace(/\/\/ PROMPT-(START|END)\r?\n/g, "");
-  // `new Function` is deliberate: evaluating the literal is what makes this a
-  // faithful comparison. A raw byte diff would fail spuriously — the TS file is
-  // CRLF and the database row is LF, and ECMAScript normalises line endings
-  // inside template literals at parse time, so only the parsed values match.
-  return new Function(`return (${body});`)();
+/**
+ * The fallback the deployment would answer with, read the way the edge reads
+ * it: JSON out of DR_FALLBACK_BRAIN_JSON, through parseTenantConfigResult —
+ * the same helper tenant-runtime.ts parses the stored row with, and the same
+ * one tenant-fallback.ts uses. A variable that does not survive it is not a
+ * fallback at all: the edge logs it and answers with the neutral default, so
+ * a deployment that believes it is covered is not.
+ */
+function fallbackBrainFromEnv() {
+  let json;
+  try {
+    json = JSON.parse(process.env.DR_FALLBACK_BRAIN_JSON);
+  } catch (e) {
+    assert.fail(`DR_FALLBACK_BRAIN_JSON is not JSON, so the edge would answer with the neutral default: ${e.message}`);
+  }
+  const parsed = parseTenantConfigResult({ brain: json });
+  assert.ok(
+    parsed.ok,
+    `DR_FALLBACK_BRAIN_JSON does not parse as a brain config, so the edge would answer with the neutral default: ${parsed.ok ? "" : parsed.issues.join("; ")}`,
+  );
+  return parsed.config.brain;
 }
 
-test("GOLDEN: seeded Melany brain === the quarantined DR fallback, byte for byte", { skip: skip || liveOnly }, async () => {
-  // WHAT A FAILURE HERE MEANS. tenant-fallback.ts is what the receptionist
+test("GOLDEN: the stored brain === the disaster-recovery fallback this environment holds", { skip: skip || liveOnly || noFallback }, async () => {
+  // WHAT A FAILURE HERE MEANS. DR_FALLBACK_BRAIN_JSON is what the receptionist
   // answers with when the control plane cannot be read. If it has drifted from
   // the live config, a disaster-recovery event serves the OLD words -- which is
-  // not hypothetical: on 2026-09-09 this test was red because the fallback
-  // still carried the salon's transfer number as the number to publish, months
-  // after that was recognised as a defect and hours after it was fixed in the
-  // live config. A restore that day would have reinstated it.
+  // not hypothetical: on 2026-09-09 the fallback of the day still carried the
+  // workspace's transfer number as the number to publish, months after that was
+  // recognised as a defect and hours after it was fixed in the live config. A
+  // restore that day would have reinstated it.
   //
   // The remedy is mechanical and is named in every message below, because the
   // person who sees this red is not necessarily the person who moved the config.
-  const FIX = "run: node tooling/scripts/refresh-dr-fallback.mjs --apply";
+  const FIX = "run: node tooling/scripts/refresh-dr-fallback.mjs, then set what it prints on the chanlytics-messaging project and redeploy";
   const { data } = await db.from("tenant_config").select("config, version, updated_at").eq("tenant_id", melanyId).single();
-  const seeded = data.config.brain;
-  const fallback = fallbackBrainFromSource();
+  const stored = parseTenantConfigResult({ brain: data.config.brain });
+  assert.ok(stored.ok, `the stored brain does not parse: ${stored.ok ? "" : stored.issues.join("; ")}`);
+  const seeded = stored.config.brain;
+  const fallback = fallbackBrainFromEnv();
   assert.equal(seeded.system_prompt, fallback.system_prompt, `the system prompt drifted between the live config (v${data.version}, ${String(data.updated_at).slice(0, 16)}) and the DR fallback — ${FIX}`);
   assert.equal(seeded.business_name, fallback.business_name, FIX);
   assert.equal(seeded.phone_display, fallback.phone_display, `the DR fallback publishes a different number from the live config — the exact drift this test was red for on 2026-09-09 — ${FIX}`);
   assert.equal(seeded.booking_link, fallback.booking_link, FIX);
   assert.deepEqual(seeded.fallbacks, fallback.fallbacks, FIX);
-});
-
-test("the DR refresh is idempotent: running it twice leaves no diff", { skip: skip || liveOnly }, async () => {
-  // The script is only trustworthy if it converges. If a second run produced a
-  // diff, every refresh would be a fresh review of formatting noise and the
-  // real change would hide in it.
-  const { data } = await db.from("tenant_config").select("config").eq("tenant_id", melanyId).single();
-  const brain = data.config.brain;
-  const fallback = fallbackBrainFromSource();
-  for (const k of ["business_name", "phone_display", "booking_link", "system_prompt"]) {
-    assert.equal(fallback[k], brain[k], `${k}: the checked-in fallback already matches, so a refresh would change nothing`);
-  }
+  // Everything else the brain carries, in one comparison: a field added to the
+  // config and not to the variable is drift like any other.
+  assert.deepEqual(fallback, seeded, FIX);
 });
 
 test("the seeded config parses under the SAME zod schema the runtime uses", { skip }, async () => {

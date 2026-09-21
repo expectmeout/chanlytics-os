@@ -16,7 +16,7 @@ import { settleJob, saySettled } from "../../../packages/jobs/src/settle.ts";
 const TENANT = "11111111-1111-1111-1111-111111111111";
 
 test("a first run always runs", () => {
-  for (const kind of ["outbound_send", "broadcast_send", "blob_thread_erase"]) {
+  for (const kind of JOB_KINDS) {
     assert.equal(verdictFor({ kind, attempts: 1 }), "run", kind);
   }
 });
@@ -31,16 +31,16 @@ test("work that speaks to a person is never run a second time", () => {
 });
 
 test("internal work is tried again up to the cap, then given up", () => {
-  assert.equal(verdictFor({ kind: "blob_thread_erase", attempts: 2 }), "run");
-  assert.equal(verdictFor({ kind: "blob_thread_erase", attempts: MAX_ATTEMPTS }), "run");
-  assert.equal(verdictFor({ kind: "blob_thread_erase", attempts: MAX_ATTEMPTS + 1 }), "give_up");
+  assert.equal(verdictFor({ kind: "line_provision", attempts: 2 }), "run");
+  assert.equal(verdictFor({ kind: "line_provision", attempts: MAX_ATTEMPTS }), "run");
+  assert.equal(verdictFor({ kind: "line_provision", attempts: MAX_ATTEMPTS + 1 }), "give_up");
 });
 
 test("an intake that threw waits five minutes, then thirty, and its last try is not waited on", () => {
   assert.equal(retryWait({ kind: "email_ingest", attempts: 1 }), 5 * 60_000);
   assert.equal(retryWait({ kind: "email_ingest", attempts: 2 }), 30 * 60_000);
   assert.equal(retryWait({ kind: "email_ingest", attempts: MAX_ATTEMPTS }), null, "the last try fails the row and tells the owner");
-  for (const kind of ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision"]) {
+  for (const kind of ["outbound_send", "broadcast_send", "line_provision"]) {
     assert.equal(retryWait({ kind, attempts: 1 }), null, `${kind} fails on its first throw`);
   }
 });
@@ -258,7 +258,8 @@ test("a settlement that cannot be written, or has nothing to point at, says so",
     await settleJob(fakeDb({}), { id: "j", kind: "outbound_send", tenant_id: TENANT, payload: {} }, false),
     [{ what: "message", changed: false, error: "no message_id on the job" }],
   );
-  assert.deepEqual(await settleJob(fakeDb({}), { id: "j", kind: "blob_thread_erase", tenant_id: TENANT, payload: {} }, false), []);
+  // A kind with nothing to settle leaves nothing behind that says it is still going.
+  assert.deepEqual(await settleJob(fakeDb({}), { id: "j", kind: "line_provision", tenant_id: TENANT, payload: {} }, false), []);
 });
 
 test("the owner reads what the writes returned, not what they meant to do", () => {

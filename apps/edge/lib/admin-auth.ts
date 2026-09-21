@@ -19,7 +19,7 @@
  */
 import crypto from "node:crypto";
 import { json } from "./http.js";
-import { verifyEdgeToken } from "./workspace/channels.js";
+import { verifyEdgeToken } from "./packages/channels.js";
 
 export type AdminAuth =
   | { ok: true; via: "token" | "key"; workspace: string | null; user: string | null }

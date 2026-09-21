@@ -9,9 +9,9 @@
  * The job's own id is the owner of every claim and lease it takes, so a job
  * the ledger tries again finds its own claim (core runner.ts).
  */
-import { check, collect, startRound, type LeadPorts } from "./workspace/core.js";
-import { scheduleJobOnce, type ClaimedJob, type JobContext } from "./workspace/jobs.js";
-import type { Json } from "./workspace/db.js";
+import { check, collect, startRound, type LeadPorts } from "./packages/core.js";
+import { scheduleJobOnce, type ClaimedJob, type JobContext } from "./packages/jobs.js";
+import type { Json } from "./packages/db.js";
 import { leadDb } from "./lead-db.js";
 import { leadWires, type LeadWires } from "./lead-wires.js";
 

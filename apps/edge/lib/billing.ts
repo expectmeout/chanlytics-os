@@ -8,12 +8,12 @@
  */
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
-import { emitEvent } from "./workspace/db.js";
+import type { Database, Json } from "./packages/db.js";
+import { emitEvent } from "./packages/db.js";
 import {
   BILLING_STATUSES, BILLING_TRIAL_DAYS, billingAccountDto, planBilling,
   type BillingAccountDto, type BillingInvoiceDto, type BillingPriceDto, type BillingStatus, type SubscriptionFacts,
-} from "./workspace/contracts.js";
+} from "./packages/contracts.js";
 import { recordNotification } from "./notify.js";
 import { logger } from "./log.js";
 

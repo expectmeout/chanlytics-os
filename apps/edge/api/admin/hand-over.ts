@@ -23,8 +23,8 @@
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { updateLiveCall } from "../../lib/workspace/channels.js";
-import { frameHandOver } from "../../lib/workspace/contracts.js";
+import { updateLiveCall } from "../../lib/packages/channels.js";
+import { frameHandOver } from "../../lib/packages/contracts.js";
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 

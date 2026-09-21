@@ -13,7 +13,6 @@
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
     "@supabase/supabase-js": "^2.116.0",
-    "@vercel/blob": "^2",
     "stripe": "22.6.2"
   },
   "devDependencies": {

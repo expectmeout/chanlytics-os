@@ -28,9 +28,9 @@
  * the write throws, the door answers 503, and the receipt comes again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emitEvent, recordEmailStatus, stampEmailSent, suppressEmailOf, type Database, type Json } from "./workspace/db.js";
-import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "./workspace/channels.js";
-import { upsertEscalation } from "./workspace/jobs.js";
+import { emitEvent, recordEmailStatus, stampEmailSent, suppressEmailOf, type Database, type Json } from "./packages/db.js";
+import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "./packages/channels.js";
+import { upsertEscalation } from "./packages/jobs.js";
 
 type Db = SupabaseClient<Database>;
 

@@ -19,10 +19,10 @@
  * column reaches every member's browser.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
-import { fetchRecording } from "./workspace/channels.js";
-import { setCallRecording } from "./workspace/db.js";
-import { RECORDING_RETENTION_DAYS } from "./workspace/contracts.js";
+import type { Database, Json } from "./packages/db.js";
+import { fetchRecording } from "./packages/channels.js";
+import { setCallRecording } from "./packages/db.js";
+import { RECORDING_RETENTION_DAYS } from "./packages/contracts.js";
 
 export const RECORDING_MAX_ATTEMPTS = 3;
 /** The webhook's budget: the agent allows 20 s for the whole event and the upsert has already spent some. */

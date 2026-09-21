@@ -13,10 +13,10 @@
  * address to be written to, so nothing arrives and nothing is answered.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mailboxOfTenant, type Database } from "./workspace/db.js";
-import { emailSender, type Sender } from "./workspace/core.js";
-import { fetchReceivedEmail, sendsAs } from "./workspace/channels.js";
-import type { JobContext } from "./workspace/jobs.js";
+import { mailboxOfTenant, type Database } from "./packages/db.js";
+import { emailSender, type Sender } from "./packages/core.js";
+import { fetchReceivedEmail, sendsAs } from "./packages/channels.js";
+import type { JobContext } from "./packages/jobs.js";
 import { erasedBeforeEmail } from "./erased.js";
 import { notify, type NotifyMessage } from "./notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";

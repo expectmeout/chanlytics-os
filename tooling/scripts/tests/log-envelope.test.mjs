@@ -64,10 +64,10 @@ test("levels route to the stream an operator's tooling expects", () => {
 test("absent fields are omitted, not serialised as null", () => {
   // A field missing because it does not apply must not read as one known to be
   // empty — that distinction is the whole value of a structured log.
-  const [line] = capture(() => logger({ tenant_id: undefined }).info("wa_skip_dupe", { memory: undefined }));
+  const [line] = capture(() => logger({ tenant_id: undefined }).info("wa_skip_pg_dupe", { reason: undefined }));
   assert.equal("tenant_id" in line, false);
-  assert.equal("memory" in line, false);
-  assert.equal(line.event, "wa_skip_dupe");
+  assert.equal("reason" in line, false);
+  assert.equal(line.event, "wa_skip_pg_dupe");
 });
 
 test("every line is one parseable JSON object", () => {
@@ -98,10 +98,15 @@ test("the message path's event names are unchanged by the conversion", () => {
   // customers. A late message is now answered (`wa_late_but_answering`) or
   // escalated (`wa_stale_escalated`), so an event meaning "silently dropped"
   // would have nothing to describe.
+  //
+  // `wa_skip_dupe` went the same way. It named a hit on the `seen` array the
+  // Blob thread carried; Postgres carries no such list, and ingest_inbound's
+  // atomic is_new claim — `wa_skip_pg_dupe`, still here — is the dedupe. With
+  // the store gone there is no second gate left for it to name.
   // The message path and the webhook: the names span both files now.
   const src = fs.readFileSync(path.join(EDGE, "lib/whatsapp/inbound.ts"), "utf8") + fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
   const required = [
-    "wa_replied", "wa_skip_dupe", "wa_skip_pg_dupe", "wa_skip_paused",
+    "wa_replied", "wa_skip_pg_dupe", "wa_skip_paused",
     "wa_skip_ratecap", "wa_skip_opt_out", "wa_held_by_policy", "wa_state_unavailable",
     "policy_block_price", "brain_failed", "wa_unroutable", "wa_skip_unroutable",
     "wa_stale_escalated", "wa_late_but_answering",

@@ -7,15 +7,15 @@
  * writer of the google_* tables.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
-import { emitEvent, listPolicies } from "./workspace/db.js";
+import type { Database, Json } from "./packages/db.js";
+import { emitEvent, listPolicies } from "./packages/db.js";
 import {
   getPlace, placesFetch, planListingCheck, planProfileSync, searchPlaces,
   tokenExchangeRequest, tokenRefreshRequest, revokeRequest, parseTokenResponse, grantHasScope, idTokenClaims,
   listAccounts, listLocations, listReviews, replyToReview, reviewParent,
   type PlaceCandidate, type PlaceDetails, type OAuthClient, type GbpLocation, type PlacesHttp, type TokenGrant,
-} from "./workspace/channels.js";
-import { autoReplyBell, autoReplyCandidates, localDate, parseTenantConfig, reviewReplyModeOf, type GoogleAudience, type ReviewReplyFacts, type ReviewReplyMode } from "./workspace/contracts.js";
+} from "./packages/channels.js";
+import { autoReplyBell, autoReplyCandidates, localDate, parseTenantConfig, reviewReplyModeOf, type GoogleAudience, type ReviewReplyFacts, type ReviewReplyMode } from "./packages/contracts.js";
 import { draftReviewReply } from "./review-reply.js";
 import { recordNotification } from "./notify.js";
 import { logger } from "./log.js";

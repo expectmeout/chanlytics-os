@@ -18,8 +18,8 @@
 import { json } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
-import { emitEvent } from "../../../lib/workspace/db.js";
-import type { Json } from "../../../lib/workspace/db.js";
+import { emitEvent } from "../../../lib/packages/db.js";
+import type { Json } from "../../../lib/packages/db.js";
 import { alreadyRegistered, exchangeCode, metaAppId, newPin, phoneNumber, pinMismatch, registerNumber, subscribeWaba, toE164, wabaInfo } from "../../../lib/meta-graph.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -119,7 +119,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   assert.ok(wa.indexOf("const photo: { mime: string; base64: string } | null = null;") < 0, "the bytes are fetched, not declared and filled from two places");
   assert.ok(wa.indexOf("if (maySee) {\n    const got = await sink.media(n);") > wa.indexOf('if (rt?.paused) {'), "the download sits below every gate that would discard it");
   assert.ok((wa.match(/sink\.media\(n\)/g) ?? []).length === 2, "one download per message: the unreadable path's, or the vision path's");
-  assert.ok(wa.includes("await keepUnreadable(thread, pausedUntil, Promise.resolve(null));"), "a photo that could not be fetched is handed over, not answered from its caption");
+  assert.ok(wa.includes("await sayUnreadable(thread.pausedUntil);\n      await sink.processed();"), "a photo that could not be fetched is handed over, not answered from its caption");
   assert.ok(wa.includes('const bodyText: string = maySee ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");'), "the record keeps the caption, not the instruction");
   assert.ok(wa.includes("photo ? photoUserText(n.media?.caption) : bodyText,"));
   assert.ok(wa.includes("photo ?? undefined,\n      );"), "the image reaches the brain");

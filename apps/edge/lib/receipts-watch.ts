@@ -23,7 +23,7 @@
  * failed count as a receipt.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 
 /** How long a receipt may take before its absence is a condition. */
 export const NO_RECEIPT_AFTER_MS = 6 * 3600_000;

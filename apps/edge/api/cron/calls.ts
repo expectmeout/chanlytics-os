@@ -27,8 +27,8 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
-import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/workspace/channels.js";
-import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from "../../lib/workspace/db.js";
+import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/packages/channels.js";
+import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from "../../lib/packages/db.js";
 import { copyRecording, purgeExpiredRecordings, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
 
 /** Only look at rows that have had time to settle — a call that started

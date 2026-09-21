@@ -27,12 +27,12 @@
  * and the real memory read run.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
-import { resolveChannelDetailed, readLeadContext, describeLead } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
+import { resolveChannelDetailed, readLeadContext, describeLead } from "./packages/db.js";
 import { loadTenantRuntime, type TenantRuntime } from "./tenant-runtime.js";
 import { openingsFor, visitsFor } from "./availability.js";
-import { normalizePhone, resolveSystemPrompt, describeNow, pausedVoiceFacts } from "./workspace/contracts.js";
-import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "./workspace/channels.js";
+import { normalizePhone, resolveSystemPrompt, describeNow, pausedVoiceFacts } from "./packages/contracts.js";
+import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "./packages/channels.js";
 
 type Db = SupabaseClient<Database>;
 

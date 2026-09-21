@@ -383,7 +383,7 @@ export const BusinessProfileSchema = z
      * during opening hours; absent, it takes a message instead. Never the
      * receptionist's own line — that would ring itself.
      */
-    handoff_number: z.string().regex(E164, "E.164, like +16469325775").optional(),
+    handoff_number: z.string().regex(E164, "E.164, like +12125550143").optional(),
     website: z.string().url().max(500).optional(),
     notes: z.array(NoteSchema).max(10).optional(),
     booking_rules: BookingRulesSchema.optional(),

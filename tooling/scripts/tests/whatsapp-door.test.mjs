@@ -34,18 +34,36 @@ import { fakeDb } from "./_fake-db.mjs";
 /** The environment's own pilot line: the one number with a baked profile to fall back on. */
 const ENV_PHONE_ID = "109990000000001";
 
-// The door reads its secret and its token at the knock; the store reads its
-// flag at import. Each test file is its own process, so this is the whole
-// environment, set before the handler is imported below. The platform's
-// mailbox is set only inside the cases that listen for mail.
+// The door reads its secret and its token at the knock. Each test file is its
+// own process, so this is the whole environment, set before the handler is
+// imported below. The platform's mailbox is set only inside the cases that
+// listen for mail.
 process.env.META_APP_SECRET = "meta-app-secret-for-this-file";
 process.env.WHATSAPP_VERIFY_TOKEN = "verify-token-for-this-file";
 process.env.WHATSAPP_PHONE_ID = ENV_PHONE_ID;
-process.env.BLOB_SHADOW = "off";
 for (const k of [
   "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM", "ANTHROPIC_API_KEY", "WHATSAPP_ACCESS_TOKEN", "WHATSAPP_TEST_ALLOWLIST",
-  "PG_READS", "PG_DEDUPE", "BLOB_READ_WRITE_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
 ]) delete process.env[k];
+
+// The disaster-recovery fallback is CONFIGURATION now, not source: the edge
+// reads it from the environment once, at module load (lib/tenant-fallback.ts).
+// Set here, before the import below, so these cases run the real path — a
+// deployment that has been given the env-default workspace's profile, exactly
+// as production holds it. Unset, the module answers with its neutral default,
+// which states no business fact (dr-fallback.test.mjs covers that).
+process.env.DR_FALLBACK_BRAIN_JSON = JSON.stringify({
+  business_name: "Riverside Studio",
+  booking_link: "https://booking.example/riverside",
+  system_prompt: "You are the assistant for Riverside Studio, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
+  fallbacks: {
+    greeting: "Thanks for writing to Riverside Studio. Book anytime at https://booking.example/riverside, or reply here with any question.",
+    error: "Thanks for writing to Riverside Studio! A member of the team will reply here soon.",
+    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
+  },
+});
+process.env.DR_FALLBACK_ESCALATION_EMAILS = "owner@riverside.example";
+process.env.DR_FALLBACK_FROM = "Riverside Studio <hello@platform.test>";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -163,21 +181,21 @@ function world() {
   };
 }
 
-const blank = () => ({ history: [], seen: [], pausedUntil: 0, replies: [] });
+const blank = () => ({ history: [], pausedUntil: 0, replies: [], repliedBefore: false });
 
 /**
  * The receptionist's world, handed in through setInboundPorts and recording
  * what crosses it: the shape inbound-executed.test.mjs runs handleInbound
  * over, whose model throws so no model is ever reached. Its database is the
  * door's own, through pg(), exactly as realPorts() hands it over; its memory
- * is readable, so what the reply posture decides is what reaches the sink.
+ * -- Postgres, the only one -- is readable, so what the reply posture decides
+ * is what reaches the sink.
  * `ingest(n)` runs inside the ingest, so a case can make one message's throw.
  */
 function receptionist({ ingest = () => {} } = {}) {
   const seen = { runtimes: [], wires: [], ingested: [], sent: [], alerts: [] };
   setInboundPorts({
     db: pg,
-    store: { get: async () => blank(), save: async () => true, backend: () => "memory" },
     runtime: async (_db, routed) => {
       seen.runtimes.push(routed);
       return {
@@ -228,7 +246,7 @@ function receptionist({ ingest = () => {} } = {}) {
       return async () => ({ ok: true, wamid: "wamid.never", status: 200 });
     },
     brain: async () => { throw new Error("the model must not be reached in this test"); },
-    env: { pgReads: false, pgDedupe: false, allowlist: "", modelKey: undefined },
+    env: { allowlist: "", modelKey: undefined },
   });
   return seen;
 }

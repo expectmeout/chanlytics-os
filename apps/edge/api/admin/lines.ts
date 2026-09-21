@@ -18,20 +18,20 @@
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { emitEvent } from "../../lib/workspace/db.js";
-import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
-import { isAreaCode, isE164, LINE_COSTS } from "../../lib/workspace/channels.js";
+import { emitEvent } from "../../lib/packages/db.js";
+import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode, type BillingStatus } from "../../lib/packages/contracts.js";
+import { isAreaCode, isE164, LINE_COSTS } from "../../lib/packages/channels.js";
 import { lineProviderFromEnv, lineForClient, releaseRoutingRows, rowToLine } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
-import { scheduleJob } from "../../lib/workspace/jobs.js";
+import { scheduleJob } from "../../lib/packages/jobs.js";
 import { claimLineForResume, retryRequestedBy } from "../../lib/line-resume.js";
 import {
   businessTypeOf, companyTypeOf, industryOf, businessRecordProblems, businessRecordForPath,
   registrationPathOf, REGISTRATION_PATHS, type RegistrationPath,
-} from "../../lib/workspace/contracts.js";
+} from "../../lib/packages/contracts.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../lib/workspace/db.js";
+import type { Database } from "../../lib/packages/db.js";
 
 interface Body {
   op?: string;

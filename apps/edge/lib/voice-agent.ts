@@ -7,7 +7,7 @@
  * makes; a test proves it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database } from "./packages/db.js";
 import {
   voiceLlmCreateBody,
   voiceAgentCreateBody,
@@ -18,7 +18,7 @@ import {
   publishAgentVersion,
   type RetellConfig,
   type ProvisionSecrets,
-} from "./workspace/channels.js";
+} from "./packages/channels.js";
 
 export interface VoiceAgent {
   llmId: string;

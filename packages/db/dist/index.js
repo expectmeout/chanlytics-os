@@ -42,7 +42,6 @@ var EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -154,9 +153,9 @@ var DECISION_VERBS = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -437,7 +436,7 @@ var BusinessProfileSchema = z3.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z3.string().regex(E164, "E.164, like +16469325775").optional(),
+  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
   website: z3.string().url().max(500).optional(),
   notes: z3.array(NoteSchema).max(10).optional(),
   booking_rules: BookingRulesSchema.optional(),
@@ -1729,7 +1728,7 @@ async function claimCallNotification(db, tenantId, callId) {
 // src/repositories/thread.ts
 var DELIVERED = ["sent", "delivered", "read"];
 var DAY_MS2 = 24 * 3600 * 1e3;
-var BLOB_CALL_NOTE = /^\[voice call note /;
+var IMPORTED_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
 var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
@@ -1738,7 +1737,7 @@ function assembleHistory(rows, limit) {
     const body = (m.body ?? "").trim();
     if (!body) return false;
     if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
-    if (isBackfill(m) && BLOB_CALL_NOTE.test(body)) return false;
+    if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
     return true;
   });
   kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
@@ -1766,7 +1765,6 @@ async function readThreadState(db, tenantId, conversationId, pausedUntilIso, his
   return {
     history,
     repliedBefore,
-    seen: [],
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it

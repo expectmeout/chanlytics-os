@@ -181,7 +181,6 @@ var EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -293,9 +292,9 @@ var DECISION_VERBS = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -576,7 +575,7 @@ var BusinessProfileSchema = z3.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z3.string().regex(E164, "E.164, like +16469325775").optional(),
+  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
   website: z3.string().url().max(500).optional(),
   notes: z3.array(NoteSchema).max(10).optional(),
   booking_rules: BookingRulesSchema.optional(),
@@ -6464,7 +6463,6 @@ var EVENT_KINDS2 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -6576,9 +6574,9 @@ var DECISION_VERBS2 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -6860,7 +6858,7 @@ var BusinessProfileSchema2 = z32.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z32.string().regex(E1642, "E.164, like +16469325775").optional(),
+  handoff_number: z32.string().regex(E1642, "E.164, like +12125550143").optional(),
   website: z32.string().url().max(500).optional(),
   notes: z32.array(NoteSchema2).max(10).optional(),
   booking_rules: BookingRulesSchema2.optional(),
@@ -8824,7 +8822,6 @@ var EVENT_KINDS3 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -8936,9 +8933,9 @@ var DECISION_VERBS3 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -9220,7 +9217,7 @@ var BusinessProfileSchema3 = z33.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z33.string().regex(E1643, "E.164, like +16469325775").optional(),
+  handoff_number: z33.string().regex(E1643, "E.164, like +12125550143").optional(),
   website: z33.string().url().max(500).optional(),
   notes: z33.array(NoteSchema3).max(10).optional(),
   booking_rules: BookingRulesSchema3.optional(),
@@ -10212,7 +10209,6 @@ var EVENT_KINDS22 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -10324,9 +10320,9 @@ var DECISION_VERBS22 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -10621,7 +10617,7 @@ var BusinessProfileSchema22 = z322.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z322.string().regex(E16422, "E.164, like +16469325775").optional(),
+  handoff_number: z322.string().regex(E16422, "E.164, like +12125550143").optional(),
   website: z322.string().url().max(500).optional(),
   notes: z322.array(NoteSchema22).max(10).optional(),
   booking_rules: BookingRulesSchema22.optional(),
@@ -11596,7 +11592,6 @@ var EVENT_KINDS32 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -11708,9 +11703,9 @@ var DECISION_VERBS32 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -11991,7 +11986,7 @@ var BusinessProfileSchema32 = z332.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z332.string().regex(E16432, "E.164, like +16469325775").optional(),
+  handoff_number: z332.string().regex(E16432, "E.164, like +12125550143").optional(),
   website: z332.string().url().max(500).optional(),
   notes: z332.array(NoteSchema32).max(10).optional(),
   booking_rules: BookingRulesSchema32.optional(),
@@ -13124,18 +13119,6 @@ async function sendQueued(ports, cmd) {
     body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`
   });
 }
-async function eraseBlobThread(ports, cmd) {
-  const p = cmd.payload;
-  if (p.scrubbed) return;
-  if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
-  const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : []).filter((t2) => typeof t2 === "string" && t2.length > 0);
-  const failed = [];
-  for (const id of ids) if (!await ports.eraseThread(p.namespace, id)) failed.push(id);
-  if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
-  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
-  const scrubbed = { contact_id: p.contact_id ?? null, namespace: p.namespace, threads: ids.length, scrubbed: true };
-  await ports.scrub(cmd.tenantId, p.contact_id ? { contactId: p.contact_id } : { jobId: cmd.jobId }, scrubbed);
-}
 async function provisionLine(ports, cmd) {
   const lineId = typeof cmd.payload.line_id === "string" ? cmd.payload.line_id : "";
   const by = cmd.payload.by === "sweep" || cmd.payload.by === "support" ? cmd.payload.by : "owner";
@@ -13406,7 +13389,6 @@ var EVENT_KINDS4 = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -13518,9 +13500,9 @@ var DECISION_VERBS4 = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -13801,7 +13783,7 @@ var BusinessProfileSchema4 = z34.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z34.string().regex(E1644, "E.164, like +16469325775").optional(),
+  handoff_number: z34.string().regex(E1644, "E.164, like +12125550143").optional(),
   website: z34.string().url().max(500).optional(),
   notes: z34.array(NoteSchema4).max(10).optional(),
   booking_rules: BookingRulesSchema4.optional(),
@@ -14898,34 +14880,6 @@ async function outboundSend(ctx, job) {
     { tenantId: job.tenant_id, payload: job.payload }
   );
 }
-async function blobThreadErase(ctx, job) {
-  await eraseBlobThread(
-    {
-      eraseThread: ctx.eraseThread,
-      // A scrub that failed silently is the worst of both: the ledger row above
-      // says the erasure is done while the payload still holds the digits we
-      // were asked to erase, in a table whose rows are never deleted. It throws,
-      // so the job fails and the unscrubbed payload — the only handle that can
-      // retry this leg — is tried again.
-      scrub: async (tenantId, by, scrubbed) => {
-        const q = ctx.db.from("jobs").update({ payload: scrubbed });
-        must("blob_thread_erase: the erased number is still on the job", "contactId" in by ? await q.eq("tenant_id", tenantId).eq("kind", "blob_thread_erase").eq("payload->>contact_id", by.contactId) : await q.eq("id", by.jobId));
-      },
-      // actor_type 'system' with a null actor_user_id is what decisions_check
-      // requires; the service role is not subject to RLS here. An erasure whose
-      // ledger row was refused is an erasure nobody can prove, so it throws too.
-      recordErased: async (tenantId, contactId, threads, jobId) => {
-        const [decided, evented] = await Promise.all([
-          ctx.db.from("decisions").insert({ tenant_id: tenantId, subject_type: "contact", subject_id: contactId, verb: "erase", actor_type: "system", payload: { leg: "blob", threads, job_id: jobId } }),
-          ctx.db.from("events").insert({ tenant_id: tenantId, kind: "contact.blob_erased", category: "contact", subject_type: "contact", subject_id: contactId, data: { threads } })
-        ]);
-        must("blob_thread_erase: the erasure is not on the decisions ledger", decided);
-        must("blob_thread_erase: the erasure is not in the events", evented);
-      }
-    },
-    { tenantId: job.tenant_id, jobId: job.id, payload: job.payload }
-  );
-}
 async function broadcastSend(ctx, job) {
   const p = job.payload;
   const db = ctx.db;
@@ -15096,7 +15050,6 @@ async function leadCheck(ctx, job) {
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
-  blob_thread_erase: blobThreadErase,
   line_provision: lineProvision,
   email_ingest: emailIngest,
   lead_round_start: leadRoundStart,

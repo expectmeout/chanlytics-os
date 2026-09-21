@@ -19,7 +19,7 @@
  * broken decides whether the only alarm channel is flooded or silent, and
  * `judgeMailDomain` is a function over the provider's own words.
  */
-import { fetchMailDomains, type MailCapability, type MailDomainFacts } from "./workspace/channels.js";
+import { fetchMailDomains, type MailCapability, type MailDomainFacts } from "./packages/channels.js";
 
 /** The one status that means the DNS is in place. Everything else is judged by what it costs, never assumed benign. */
 const VERIFIED = "verified";

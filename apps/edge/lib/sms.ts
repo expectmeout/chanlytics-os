@@ -6,12 +6,12 @@
  * provider on a preview sends nothing and says so.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./workspace/db.js";
-import type { LineSecrets, ProviderAccount } from "./workspace/channels.js";
-import { smsStatusUrl } from "./workspace/channels.js";
+import type { Database, Json } from "./packages/db.js";
+import type { LineSecrets, ProviderAccount } from "./packages/channels.js";
+import { smsStatusUrl } from "./packages/channels.js";
 import { lineProviderFromEnv, edgeFnUrl } from "./lines.js";
 import { logger } from "./log.js";
-import { phoneTail } from "./workspace/contracts.js";
+import { phoneTail } from "./packages/contracts.js";
 
 type Db = SupabaseClient<Database>;
 export type SmsLine = Pick<Database["public"]["Tables"]["lines"]["Row"], "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state">;

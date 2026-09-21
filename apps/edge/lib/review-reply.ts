@@ -8,7 +8,7 @@
  * workspace, and a draft asked for from Reports has a person waiting.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { cleanDraft, reviewReplyPrompt, type ReviewReplyFacts, type ReviewToAnswer } from "./workspace/contracts.js";
+import { cleanDraft, reviewReplyPrompt, type ReviewReplyFacts, type ReviewToAnswer } from "./packages/contracts.js";
 
 export const REVIEW_REPLY_MODEL = "claude-sonnet-5";
 

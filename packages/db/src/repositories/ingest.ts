@@ -1,7 +1,7 @@
 /**
  * Ingestion repositories — the edge's write surface (service-role client).
- * ingest_inbound is the atomic concurrency gate (RPC); everything else is
- * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
+ * ingest_inbound is the atomic concurrency gate (RPC) and the receptionist's
+ * dedupe; everything else is plain row work.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EventKind } from "@chanlytics/contracts";
@@ -360,8 +360,8 @@ export async function recordStatusByExternalId(
 
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
- *  messaged yet) must still record the message and the pause, or PG diverges
- *  from the Blob pause forever. */
+ *  messaged yet) must still record the message and the pause, or the
+ *  receptionist answers over the person who just replied. */
 export async function recordEchoAndPause(
   db: Db,
   p: { tenantId: string; customerPhoneDigits: string; body: string | null; externalId: string | null; pausedUntilIso: string },
@@ -420,12 +420,13 @@ export async function recordEchoAndPause(
 }
 
 /**
- * Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation).
+ * The AI-side pause (non-text / escalation): the receptionist steps out of
+ * this thread until the given moment.
  *
  * Returns whether the pause actually landed, and the caller must care.
  *
- * This used to discard the result entirely, which under PG_READS makes it the
- * quietest way to break the product: `paused_until` on this row IS the answer
+ * This used to discard the result entirely, which is the quietest way to
+ * break the product: `paused_until` on this row IS the answer
  * to "may I speak?", so a transient PostgREST failure here means the bot opens
  * an escalation, emails staff, and then keeps answering the thread it just
  * handed to a human. supabase-js does not throw, so the surrounding try/catch

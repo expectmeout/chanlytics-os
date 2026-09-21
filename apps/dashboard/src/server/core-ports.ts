@@ -100,7 +100,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       const brain = (data?.config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
       return brain?.business_name && brain.booking_link ? { business_name: brain.business_name, booking_link: brain.booking_link } : null;
     },
-    // Under PG_READS this row IS the receptionist's answer to "may I speak?", so a
+    // This row IS the receptionist's answer to "may I speak?", so a
     // write that failed for any reason is "nothing was queued": the verb refuses
     // and the operator retries, instead of a text going out under a failure.
     claimForReply: async (id, until, userId, nowIso) => {

@@ -37,7 +37,6 @@ import { fakeDb } from "./_fake-db.mjs";
 // rather than reaching a model; no Supabase credentials, so `setPg(null)`
 // really is no database.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
-process.env.BLOB_SHADOW = "off";
 process.env.GOOGLE_PLACES_API_KEY = "places-key-for-this-file";
 process.env.GOOGLE_OAUTH_CLIENT_ID = "oauth-client-for-this-file";
 process.env.GOOGLE_OAUTH_CLIENT_SECRET = "oauth-secret-for-this-file";

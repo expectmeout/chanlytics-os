@@ -29,7 +29,6 @@ const SCOPE = [
 ];
 /** Files that may keep a trade's words, and why. */
 const ALLOWED = new Map([
-  ["apps/edge/lib/tenant-fallback.ts", "one workspace's disaster-recovery prompt, used only under the drFallback posture"],
   ["apps/dashboard/src/legacy/pages/calendar.jsx", "the seeded calendar of the design mockup; a real workspace renders calendar-real.jsx"],
   ["apps/dashboard/src/legacy/pages/broadcasts.jsx", "the seeded Broadcasts of the mockup; a real workspace renders broadcasts-real.jsx"],
   ["apps/dashboard/src/legacy/pages/segments.jsx", "the seeded Segments of the mockup; a real workspace's lists are a view of People (clients-a.jsx)"],

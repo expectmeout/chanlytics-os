@@ -32,9 +32,9 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/reply-posture.js";
-import { emitEvent, resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode, templatesFor } from "../lib/workspace/db.js";
-import { bookingTemplate, inboxSlots, normalizePhone, policyAskClass, purposeOfTemplate, renderTemplate, resolveFacts, resolveParams } from "../lib/workspace/contracts.js";
-import { deliver, whatsappSender } from "../lib/workspace/core.js";
+import { emitEvent, resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode, templatesFor } from "../lib/packages/db.js";
+import { bookingTemplate, inboxSlots, normalizePhone, policyAskClass, purposeOfTemplate, renderTemplate, resolveFacts, resolveParams } from "../lib/packages/contracts.js";
+import { deliver, whatsappSender } from "../lib/packages/core.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/outbound-gate.js";
 
 /**

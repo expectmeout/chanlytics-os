@@ -16,7 +16,7 @@ const { dispatchJob } = await import(pathToFileURL(path.join(ROOT, "packages/job
 
 const job = (kind, payload) => ({ id: "j1", tenant_id: "t1", kind, payload, due_at: "2026-09-19T12:00:00Z", attempts: 1 });
 const ctx = (leads) => ({
-  db: fakeDb({}), wire: null, alert: async () => {}, eraseThread: async () => true, schedule: async () => {}, deadline: Date.now() + 60_000,
+  db: fakeDb({}), wire: null, alert: async () => {}, schedule: async () => {}, deadline: Date.now() + 60_000,
   ...(leads ? { leads } : {}),
 });
 

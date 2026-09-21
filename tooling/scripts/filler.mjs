@@ -405,9 +405,9 @@ async function apply() {
   const existing = await select("contacts", `select=id,phone_e164&tenant_id=eq.${TENANT}&phone_e164=${inList(FILLER_PHONES)}`);
   if (existing.length) { console.error(`refusing: ${existing.length} filler contact(s) already exist — run --purge --apply first`); process.exit(1); }
   const tenant = (await select("tenants", `select=name&id=eq.${TENANT}`))[0];
-  const business = tenant?.name ?? "the salon";
+  const business = tenant?.name ?? "the business";
   const cfg = await select("tenant_config", `select=*&tenant_id=eq.${TENANT}&limit=1`).catch(() => []);
-  const link = String(JSON.stringify(cfg)).match(/https?:\/\/[^"\\\s]*booksy[^"\\\s]*|booksy\.com[^"\\\s]*/)?.[0] ?? "booksy.com/melanys";
+  const link = String(JSON.stringify(cfg)).match(/https?:\/\/[^"\\\s]*booksy[^"\\\s]*|booksy\.com[^"\\\s]*/)?.[0] ?? "booking.example/your-business";
   const templates = Object.fromEntries((await select("templates", `select=id,name,language,body_preview&tenant_id=eq.${TENANT}`)).map((t) => [t.name, t]));
   const ids = {};   // person key -> { contact, conversation, calls: {}, lastMessage }
   const ctxOf = (p) => ({ first: firstName(p), business, link });

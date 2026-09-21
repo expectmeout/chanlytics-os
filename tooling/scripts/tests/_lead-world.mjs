@@ -313,7 +313,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
 
 /** The JobContext the tick would build for one job, over the world: the fake database and the world's wires. */
 export function ctxFor(w, leads) {
-  return () => ({ db: w.db, wire: {}, alert: async () => {}, eraseThread: async () => true, schedule: async () => {}, deadline: Date.now() + 45_000, ...(leads ? { leads } : {}) });
+  return () => ({ db: w.db, wire: {}, alert: async () => {}, schedule: async () => {}, deadline: Date.now() + 45_000, ...(leads ? { leads } : {}) });
 }
 
 /**

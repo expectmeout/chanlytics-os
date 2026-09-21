@@ -48,8 +48,8 @@ export const SCHEMA_SETS = {
   "google_reviews.origin": ["places", "profile"],
   "invitations.role": ["operator", "viewer"],
   "jobs.kind": [
-    "outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest",
-    "lead_round_start", "lead_collect", "lead_check",
+    "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
+    "lead_collect", "lead_check",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],

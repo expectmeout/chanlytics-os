@@ -1,8 +1,9 @@
 /**
  * Shared verb machinery: every committing verb = decision row + subject
  * mutation (+ events implied by triggers/handlers), all on the SESSION client
- * so RLS is the enforcement (Blueprint §6). Jobs/Blob-mirror side effects go
- * through the server-only service module at the call sites.
+ * so RLS is the enforcement (Blueprint §6). Side effects that need the
+ * service role — scheduling a job, calling the edge — go through the
+ * server-only service module at the call sites.
  */
 import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, writtenChannelOf, type DecisionVerb, type DecisionSubject } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";

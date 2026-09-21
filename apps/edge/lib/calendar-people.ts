@@ -13,8 +13,8 @@
  * came from, so the profile can say "Added from your calendar".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
-import type { CalendarPerson } from "./workspace/contracts.js";
+import type { Database } from "./packages/db.js";
+import type { CalendarPerson } from "./packages/contracts.js";
 import { erasedTombstones } from "./erased.js";
 
 export interface AddedFromCalendar {

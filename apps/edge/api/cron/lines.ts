@@ -34,7 +34,7 @@ import { logger } from "../../lib/log.js";
 import { lineProviderFromEnv } from "../../lib/lines.js";
 import { notify } from "../../lib/notify.js";
 import { reportLineFailed } from "../../lib/provision.js";
-import { scheduleJob } from "../../lib/workspace/jobs.js";
+import { scheduleJob } from "../../lib/packages/jobs.js";
 import { sweepStuckLines } from "../../lib/line-resume.js";
 
 export const config = { maxDuration: 60 };

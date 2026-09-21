@@ -22,8 +22,8 @@
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { emitEvent } from "../../lib/workspace/db.js";
-import { PLACE_ID, cleanReply } from "../../lib/workspace/channels.js";
+import { emitEvent } from "../../lib/packages/db.js";
+import { PLACE_ID, cleanReply } from "../../lib/packages/channels.js";
 import {
   bindLocation, checkListing, connectProfile, connectionForClient, disconnectProfile, draftFor, findPlaces, googleReadiness, listingForClient,
   locationsFor, placesKey, profilePublic, readPlace, replyOnProfile, reviewReplyMode, syncProfile,
