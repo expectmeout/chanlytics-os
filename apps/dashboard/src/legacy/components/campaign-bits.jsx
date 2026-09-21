@@ -353,7 +353,7 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
  *   pool     out of how many
  *   of       what the pool is, after "of 36": "who said yes"
  *   held     how many of the pool are held back (the amber part of the bar)
- *   reasons  [{ t, tone }]: "12 heard from a playbook this week"
+ *   reasons  [{ t, tone, door? }]: "12 heard from a playbook this week"; a door is { words, to }
  */
 const CmReach = ({ will, pool, of = null, held = 0, reasons = [], size = "md", progress = null, label = null, testid = null }) => {
   const total = Math.max(pool, will + held, 1);
@@ -374,7 +374,12 @@ const CmReach = ({ will, pool, of = null, held = 0, reasons = [], size = "md", p
       {reasons.length > 0 && (
         <ul className="cm-reach-why">
           {reasons.map((r, i) => (
-            <li key={i}><span className="cm-reach-dot" data-tone={r.tone || "plain"} aria-hidden="true" />{r.t}</li>
+            <li key={i}>
+              <span className="cm-reach-dot" data-tone={r.tone || "plain"} aria-hidden="true" />
+              {r.t}
+              {/* The one reason an owner can act on opens where they act on it. */}
+              {r.door && <button type="button" className="cm-reach-door" onClick={() => window.CHANLY.nav(r.door.to)} data-testid={testid ? `${testid}-door` : undefined}>{r.door.words}</button>}
+            </li>
           ))}
         </ul>
       )}

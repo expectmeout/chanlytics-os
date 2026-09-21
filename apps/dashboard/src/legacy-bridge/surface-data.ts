@@ -1001,6 +1001,21 @@ export interface PlaybookCardVM extends PlaybookDto {
   candidates: number;
   /** How many more said yes but heard from a broadcast of any kind this week, and wait. */
   held: number;
+  /** Everyone its moment names, and who of them no run reaches whatever the week: the card's grey. Null when not read. */
+  named: PlaybookNamed | null;
+}
+
+/**
+ * Everyone a moment names -- the trigger's list, everyone, or the day's visits --
+ * and who of them no run reaches whatever the week: never said yes to what the
+ * playbook sends, asked to stop, no number. Counted on the server with the
+ * runner's own rules (contracts playbookRunReach), beside `candidates` and `held`.
+ */
+export interface PlaybookNamed {
+  pool: number;
+  noYes: number;
+  stopped: number;
+  noNumber: number;
 }
 
 export interface PlaybookTriggerOption {
@@ -1013,6 +1028,7 @@ export interface PlaybookTriggerOption {
   kind: string;
   candidates: number;
   held: number;
+  named: PlaybookNamed | null;
 }
 
 export interface PlaybooksSurface {
@@ -1060,6 +1076,11 @@ export const playbooksOverride: SurfaceOverride = {
     // the week's breath, over everyone in People with their visits.
     const pool = (trigger: string) => pb.pools?.[trigger]?.candidates ?? 0;
     const held = (trigger: string) => pb.pools?.[trigger]?.held ?? 0;
+    // And everyone each moment names, with who of them no run reaches whatever the week.
+    const named = (trigger: string): PlaybookNamed | null => {
+      const x = pb.pools?.[trigger];
+      return x && typeof x.pool === "number" ? { pool: x.pool, noYes: x.noYes ?? 0, stopped: x.stopped ?? 0, noNumber: x.noNumber ?? 0 } : null;
+    };
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
@@ -1077,11 +1098,12 @@ export const playbooksOverride: SurfaceOverride = {
           next: nextRunLabel(p, tz, now),
           candidates: pool(p.trigger),
           held: held(p.trigger),
+          named: named(p.trigger),
         };
       }),
       timezone: tz,
       calendar: pb.calendar ?? "none",
-      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id) })),
+      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id), named: named(t.id) })),
       templates: tpl instanceof Error
         ? null
         : (tpl.templates ?? [])

@@ -7662,6 +7662,12 @@ function visitDayWord(visit, tz, sendAt, assumed) {
     return delta > 0 ? "soon" : "recently";
   }
 }
+function poolWords(trigger) {
+  const t = triggerOf(trigger);
+  if (!t) return "";
+  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  return t.list ? "on the list" : "in People";
+}
 function reachLines(reach, p) {
   if (!reach || !Number.isFinite(reach.pool)) return null;
   const t = p ? triggerOf(p.trigger) : null;
@@ -14022,6 +14028,7 @@ export {
   policyClassOfIntent,
   policyLinks,
   policyRules,
+  poolWords,
   previewHorizon,
   priceWords,
   priorOf,

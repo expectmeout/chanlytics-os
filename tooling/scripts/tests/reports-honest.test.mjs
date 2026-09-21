@@ -241,6 +241,43 @@ test("A playbook is a card of the moment it does: its message and languages, who
   assert.ok(textOf(byTestId(tree, "pb-always")).includes("One a week, per person"));
 });
 
+test("A card's bar is everyone its moment names -- green reaches, amber waits, grey never will -- and the one reason an owner can change opens where it is changed", () => {
+  // As the playbooks bridge publishes them (legacy-bridge/playbooks.ts).
+  Object.assign(globalThis.window, { __reachLines: contracts.reachLines, __poolWords: contracts.poolWords });
+  const visitTrig = { id: "visit_tomorrow", label: "Visit tomorrow", hint: "a visit tomorrow", cls: "booking", list: null, kind: "visit", candidates: 30, held: 0, named: null };
+  globalThis.window.__PLAYBOOKS = playbooksSurface({
+    rows: [
+      playbook({ id: "pb-1", name: "Win-back", candidates: 24, held: 6, named: { pool: 130, noYes: 94, stopped: 4, noNumber: 2 } }),
+      playbook({ id: "pb-2", name: "Save our number", trigger: "phoned_only", state: "paused", template_name: "save_our_number", candidates: 10, held: 2, named: { pool: 40, noYes: 28, stopped: 0, noNumber: 0 } }),
+      playbook({ id: "pb-3", name: "Visit reminder", trigger: "visit_tomorrow", policy_class: "booking", template_name: "visit_reminder", cap_per_run: 25, candidates: 30, held: 0, named: { pool: 31, noYes: 1, stopped: 0, noNumber: 0 } }),
+    ],
+    triggers: [visitTrig],
+  });
+  fresh();
+  const tree = globalThis.window.OutboundPage({});
+  const card = (id) => all(tree, (n) => n.props?.["data-testid"] === "pb-card").find((c) => c.props.id === `pb-${id}`);
+  const reach = (id) => byTestId(card(id), "pb-tile-reach");
+  const lines = (id) => all(reach(id), (n) => n.type === "li").map((li) => textOf(li));
+  const parts = (id) => all(reach(id), (n) => /^cm-reach-bar-/.test(String(n.props?.className || ""))).map((n) => [n.props.className, n.props.style ? n.props.style.width : null]);
+
+  // Out of everyone on its list, not out of who said yes: the ninety-four who never
+  // did were in no number on the card, and they are the part an owner can change.
+  assert.ok(textOf(reach("pb-1")).includes("24of 130 on the list"), textOf(reach("pb-1")));
+  assert.deepEqual(lines("pb-1"), ["94 never said yes to offersGet their yes", "6 heard from a playbook this week", "4 asked you to stop"], "the most first, three at most: a card is a glance");
+  assert.deepEqual(parts("pb-1"), [["cm-reach-bar-will", "18%"], ["cm-reach-bar-held", "5%"], ["cm-reach-bar-rest", null]], "green reaches, amber waits, the rest is grey");
+  byTestId(reach("pb-1"), "pb-tile-reach-door").props.onClick();
+  assert.equal(went.at(-1), "broadcasts/get-yes", "and getting their yes is one press from the card");
+
+  // Paused: everyone it could reach waits on the pause -- the amber is all of them -- and the grey still says who never will.
+  assert.ok(textOf(reach("pb-2")).includes("0of 40 on the list"), textOf(reach("pb-2")));
+  assert.deepEqual(lines("pb-2"), ["paused — nothing goes out", "28 never said yes to offersGet their yes"]);
+  assert.deepEqual(parts("pb-2"), [["cm-reach-bar-held", "30%"], ["cm-reach-bar-rest", null]]);
+
+  // A reminder is owed to every visit: no cap, and its yes is to hearing from you.
+  assert.ok(textOf(reach("pb-3")).includes("30of 31 with a visit tomorrow"), textOf(reach("pb-3")));
+  assert.deepEqual(lines("pb-3"), ["1 never said yes to hearing from youGet their yes"]);
+});
+
 test("REGRESSION (C13): Playbooks opened on a playbook marks its card and brings it into view, and a playbook since deleted says so", () => {
   globalThis.window.__PLAYBOOKS = playbooksSurface();
   const scrolled = [];
