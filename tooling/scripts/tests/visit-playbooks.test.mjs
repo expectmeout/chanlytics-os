@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  PLAYBOOK_TRIGGERS, PLAYBOOK_CLASS_LABEL, eligibleForPlaybook, scheduleLine, triggerOf, visitFactsFor, toPersonRowVM,
+  PLAYBOOK_TRIGGERS, PLAYBOOK_CLASS_LABEL, eligibleForPlaybook, playbookRunReach, scheduleLine, triggerOf, visitFactsFor, toPersonRowVM,
   parseParamSpec, resolveParams, exampleParams, PARAM_SOURCE_LABELS, starterForTrigger, starterDraft, starterText, visitDateKey, visitStartTime,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
@@ -70,6 +70,15 @@ test("a visit's day is the calendar's day: eleven at night tomorrow is still tom
   // also asked for promotions.
   const noOffers = withVisits("g", visit("2026-09-07T15:00:00Z", "Cut"), null, { marketing_consent: "unknown" });
   assert.deepEqual(eligibleForPlaybook([noOffers], p, untouched, nowMs).map((r) => r.id), ["g"], "their own appointment reaches them without a yes about offers");
+});
+
+test("a reminder's yes with no number to send to is a yes: who said it is counted by the yes a reminder needs, the one about their visit", () => {
+  const p = { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+  // A visit tomorrow, a yes to messages and none to offers, and no number: the reminder cannot reach them.
+  const noNumber = withVisits("h", visit("2026-09-07T15:00:00Z", "Cut"), null, { marketing_consent: "unknown", phone_e164: null });
+  const drawn = playbookRunReach([noNumber], p, untouched, nowMs);
+  assert.deepEqual([drawn.reach.pool, drawn.reach.will, drawn.reach.noNumber], [1, 0, 1]);
+  assert.equal(drawn.saidYes, 1, "the yes it needs is theirs; what is missing is a number (#663's rule)");
 });
 
 test("after the visit: yesterday's visit with nothing booked next; the gap and the week's breath do not apply to either", () => {

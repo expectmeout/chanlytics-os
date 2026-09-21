@@ -12,7 +12,7 @@ import { POLICY_CLASS_WORDS } from "./config";
  */
 import { audienceMembers } from "./broadcasts";
 import { purposeOfPlaybook } from "./consent";
-import { GET_YES_ROUTE, whyNotReceive, type PersonRowVM } from "./people";
+import { GET_YES_ROUTE, saidYesTo, saidYesWords, whyNotReceive, type PersonRowVM } from "./people";
 import { PARAM_SOURCE_LABELS, type ParamSpec } from "./templates";
 import type { BroadcastDto, BroadcastRecipientDto } from "./broadcasts";
 import { visitStartTime, type VisitDto } from "./calendar-people";
@@ -144,15 +144,22 @@ export interface RunReach {
   overLimit: number;
 }
 
+/**
+ * The run as drawn: who it reaches, its reach, and `saidYes` -- how many the
+ * moment names who said the yes its messages need, a number to send to or not.
+ * `reach.noNumber` cannot say that, because no number is the first rule and it
+ * counts everyone without one, yes or no. A moment whose yes has no number
+ * reaches nobody while somebody on it said yes (#663's rule).
+ */
 export function playbookRunReach(
   rows: PersonRowVM[],
   p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
   touches: Touches,
   nowMs: number,
-): { eligible: PersonRowVM[]; reach: RunReach } {
+): { eligible: PersonRowVM[]; reach: RunReach; saidYes: number } {
   const reach: RunReach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return { eligible: [], reach };
+  if (!t) return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
   // Who the moment names, before anyone is left out.
   const named = t.kind === "visit"
@@ -164,6 +171,7 @@ export function playbookRunReach(
     })
     : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
+  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed: PersonRowVM[] = [];
   for (const r of named) {
     const why = whyNotReceive(r, purpose);
@@ -183,7 +191,7 @@ export function playbookRunReach(
     // reminder at all -- not deferred, dropped, since the run is once a day.
     // The number's own daily limit still applies, in run-playbook, and says so.
     reach.will = allowed.length;
-    return { eligible: allowed, reach };
+    return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
   const picked = allowed.filter((r) => {
@@ -197,7 +205,7 @@ export function playbookRunReach(
   const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
   reach.overCap = picked.length - eligible.length;
   reach.will = eligible.length;
-  return { eligible, reach };
+  return { eligible, reach, saidYes };
 }
 
 export type RunPlan =
@@ -314,6 +322,9 @@ export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_r
  * An empty pool has two different causes and they are not the same news:
  * nobody on the list has said yes to offers (a thing to go and fix), or
  * everybody has and they all heard from you this week (a thing to wait out).
+ * "nobody" also holds a list whose yes has no number to send to, and an empty
+ * list: nobody to send to is true of both, and only a missing yes is fixed by
+ * getting one (playbookReachDoor).
  */
 export type PlaybookReach = "waiting" | "paused" | "sends" | "nobody" | "all-heard";
 
@@ -325,13 +336,29 @@ export function playbookReach(p: { state: string; candidates: number; held: numb
 }
 
 /**
- * Where a reach that can be fixed is fixed. "nobody": nobody on the list has
- * said yes to offers, so getting that yes is the move. "all-heard" is waited
- * out, not fixed, and gets no door.
+ * Where a reach that can be fixed is fixed, or null. "nobody" is fixed by a yes
+ * only when the moment names somebody and not one of them said the yes the
+ * playbook needs (`named.saidYes`, playbookRunReach's): then getting it is the
+ * move. Not when the ones who said it have no number to send to -- the QR would
+ * ask them for an answer they gave (#663's rule) -- nor when the moment names
+ * nobody, nor when who it names could not be read. "all-heard" is waited out,
+ * not fixed, and gets no door.
  */
-export const PLAYBOOK_REACH_DOOR: Partial<Record<PlaybookReach, { label: string; to: string }>> = {
-  nobody: { label: "Get their yes", to: GET_YES_ROUTE },
-};
+export function playbookReachDoor(reach: PlaybookReach, named: { pool: number; saidYes: number } | null): { label: string; to: string } | null {
+  return reach === "nobody" && named !== null && named.pool > 0 && named.saidYes === 0 ? { label: "Get their yes", to: GET_YES_ROUTE } : null;
+}
+
+/**
+ * How many on a playbook's list said yes, as its card says it when nobody can be
+ * sent a run and somebody said the yes it needs: how many did, and what they are
+ * missing, in the send screen's words (saidYesWords). Null otherwise, and the
+ * card's own count stands -- who a run reaches now, the shorthand People uses.
+ * It read "0 people on the list said yes" about a list whose yes had no number.
+ */
+export function playbookNoNumberWords(p: Pick<PlaybookDto, "policy_class"> & { candidates: number; held: number }, named: { saidYes: number } | null): string | null {
+  if (!named || named.saidYes === 0 || p.candidates + p.held > 0) return null;
+  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
+}
 
 /** The few words beside the state, when the schedule is not the whole truth; null when it is. */
 export const PLAYBOOK_REACH_WORDS: Record<PlaybookReach, string | null> = {

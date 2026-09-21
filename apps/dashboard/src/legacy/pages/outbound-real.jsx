@@ -36,7 +36,10 @@ const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
 // playbook whose list is empty is not "running" in any sense the owner means.
 const pbReach = (p) => (window.__playbookReach ? window.__playbookReach(p) : "sends");
 const pbReachWords = (r) => (window.__playbookReachWords ? window.__playbookReachWords[r] : null);
-const pbReachDoor = (r) => (window.__playbookReachDoor ? window.__playbookReachDoor[r] || null : null);
+// The door only where a yes fixes it: somebody named and not one of them said it (contracts playbookReachDoor).
+const pbReachDoor = (r, named) => (window.__playbookReachDoor ? window.__playbookReachDoor(r, named) : null);
+// A list whose yes has no number to send to, in the send screen's words; null keeps the card's own count.
+const pbNoNumberWords = (p, named) => (window.__playbookNoNumberWords ? window.__playbookNoNumberWords(p, named) : null);
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
@@ -652,7 +655,10 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
   const wrongSlot = message ? pbWrongSlot(p, message.template) : null;
   const reach = pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting });
   const reachWords = pbReachWords(reach);
-  const reachDoor = pbReachDoor(reach);
+  // Everyone its moment names, as the tile reads it: whether anybody on it said the yes decides the door and the count.
+  const named = p.named || (trig && trig.named) || null;
+  const reachDoor = pbReachDoor(reach, named);
+  const noNumber = pbNoNumberWords(p, named);
   const act = async (fn, said) => {
     if (!V || busy) return;
     setBusy(true);
@@ -712,7 +718,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
                 leads, and the count follows it. */}
             {p.triggerHint} &mdash;{" "}
             <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
-              {pbPeople(p.candidates)} on the list said yes
+              {noNumber || `${pbPeople(p.candidates)} on the list said yes`}
             </button>
             {/* Why a list with people on it can still offer nobody: one message per
                 person per week, across playbooks. A bare "0 people" read as broken. */}

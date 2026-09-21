@@ -35,7 +35,9 @@ import {
   planSentence,
   SCHEMA_SETS,
   defaultParamSpecs,
-  eligibleForPlaybook,
+  playbookRunReach,
+  purposeOfPlaybook,
+  saidYesWords,
   scheduleLine,
   slotLabels,
   starterForTrigger,
@@ -530,14 +532,17 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
   ]);
   const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
-  const candidates = eligibleForPlaybook(rows, { trigger: trig.id, cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime()).length;
+  // Who a run reaches now, and who its moment names said the yes it needs: the card said "0 on the list said yes
+  // now" about a list whose yes had no number to send to. Said in the send screen's words (saidYesWords).
+  const drawn = playbookRunReach(rows, { trigger: trig.id, cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime());
+  const candidates = drawn.reach.will;
   const mode = policies.find((r) => r.class === trig.cls)?.mode ?? "ask";
   const words = renderTemplate(tpl.body_preview, exampleParams(specs, "the business"));
   return propose({
     kind: "playbook",
     needs: "operator",
     title: `Playbook: ${checked.name}`,
-    summary: `${trig.label} — ${trig.hint.toLowerCase()} · ${scheduleLine(checked)} · ${candidates} on the list said yes now · under “${PLAYBOOK_CLASS_LABEL[trig.cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${words.slice(0, 140)}${words.length > 140 ? "…" : ""}`,
+    summary: `${trig.label} — ${trig.hint.toLowerCase()} · ${scheduleLine(checked)} · ${saidYesWords("the list", purposeOfPlaybook(trig.cls), candidates, drawn.saidYes)} · under “${PLAYBOOK_CLASS_LABEL[trig.cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${words.slice(0, 140)}${words.length > 140 ? "…" : ""}`,
     payload: {
       trigger: trig.id, trigger_label: trig.label, template_id: tpl.id, template_name: tpl.name, params: specs,
       run_hour: checked.run_hour, cap_per_run: checked.cap_per_run, gap_days: checked.gap_days, cadence_days: checked.cadence_days,

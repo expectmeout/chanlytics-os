@@ -116,6 +116,12 @@ export interface TriggerPool {
   noYes: number;
   stopped: number;
   noNumber: number;
+  /**
+   * How many the moment names said the yes the playbook needs, a number or not.
+   * `noNumber` counts everyone without one, yes or no, so only this tells a
+   * list whose yes has no number from a list nobody said yes to (#663's rule).
+   */
+  saidYes: number;
 }
 
 /**
@@ -146,8 +152,8 @@ export async function triggerPools(ctx: RouteContext, tenantId: string, touched:
   // week's breath, and who it names and leaves out whatever the week.
   const pools: Record<string, TriggerPool> = {};
   for (const t of PLAYBOOK_TRIGGERS) {
-    const { reach } = playbookRunReach(vms, { trigger: t.id as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, breath, now.getTime());
-    pools[t.id] = { candidates: reach.will, held: reach.heardAny, pool: reach.pool, noYes: reach.noYes, stopped: reach.stopped, noNumber: reach.noNumber };
+    const { reach, saidYes } = playbookRunReach(vms, { trigger: t.id as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, breath, now.getTime());
+    pools[t.id] = { candidates: reach.will, held: reach.heardAny, pool: reach.pool, noYes: reach.noYes, stopped: reach.stopped, noNumber: reach.noNumber, saidYes };
   }
   return { pools, calendar };
 }

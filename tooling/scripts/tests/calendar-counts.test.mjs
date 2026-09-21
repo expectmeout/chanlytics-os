@@ -117,6 +117,15 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   assert.equal(out.pools.everyone_monthly.held, 1);
 });
 
+test("REGRESSION: the pools say how many each moment names said the yes it needs, a number or not -- no number counted a yes and a no alike", async () => {
+  // Wrote in by email and said yes to offers: no number. Said yes with one. Has a number and said nothing to offers.
+  const all = [person(1, { phone_e164: null }), person(2), person(3, { marketing_consent: "unknown" })];
+  const { pools } = await triggerPools(ctxFor(tables(null), { people_list: pagedList(all) }), T, {}, TZ, NOW);
+  const e = pools.everyone_monthly;
+  assert.deepEqual([e.pool, e.candidates, e.noNumber, e.noYes], [3, 1, 1, 1]);
+  assert.equal(e.saidYes, 2, "REGRESSION: the card could not tell the yes with no number from nobody's yes");
+});
+
 test("with a calendar, a visit tomorrow is counted from the feed, over everyone", async () => {
   const url = "https://cal.example/visits.ics";
   answers.set(url, { body: ["BEGIN:VCALENDAR",

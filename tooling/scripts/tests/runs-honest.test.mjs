@@ -486,6 +486,60 @@ test("A card leads with what it sends, not with how it is configured", () => {
   assert.match(went.at(-1), /^clients\/seg:/);
 });
 
+test("REGRESSION: a playbook whose yes has no number says so and offers no QR -- its card said '0 people on the list said yes' and sent the owner for an answer they had", async () => {
+  // The chain, run: the route's pools (server/playbooks.ts triggerPools), the surface the bridge builds from them,
+  // the words and the door it publishes (installPlaybooks), and the card that draws them.
+  const { installPlaybooks } = await import("../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
+  const { playbooksOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
+  const pools = {
+    ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
+    // One wrote by email and said yes to offers; the other has a number and never said it: nobody can be sent a run.
+    quiet_30: { ...empty, pool: 2, noYes: 1, noNumber: 1, saidYes: 1 },
+    // Two with numbers, and neither said yes to offers.
+    new_week: { ...empty, pool: 2, noYes: 2 },
+  };
+  // The route's row: the fixture less what the surface adds to it (its words and its pools).
+  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
+  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
+  const rows = [
+    { ...route, id: "pb-quiet", trigger: "quiet_30" },
+    { ...route, id: "pb-new", name: "Welcome", trigger: "new_week", policy_class: "campaign" },
+    // Nobody the moment names at all.
+    { ...route, id: "pb-phoned", name: "Save our number", trigger: "phoned_only" },
+  ];
+  const answer = (data) => new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+  const kept = globalThis.window.fetch;
+  globalThis.window.fetch = async (url) => {
+    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+    if (path === "/api/v1/playbooks") return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none" });
+    if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
+    if (path === "/api/v1/channels") return answer({ channels: [] });
+    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
+  };
+  const installed = ["__playbooks", "__refreshPlaybooks", "__playbookReach", "__playbookReachWords", "__playbookReachDoor", "__playbookNoNumberWords", "__reachLines", "__poolWords", "__playbookName"];
+  installPlaybooks();
+  try {
+    await playbooksOverride.apply();
+    const drawn = (id) => card(globalThis.window.__PLAYBOOKS.rows.find((p) => p.id === id));
+    const sentence = (tree) => textOf(find(tree, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
+    const hint = PLAYBOOK_TRIGGERS.find((t) => t.id === "quiet_30").hint;
+    const noNumber = drawn("pb-quiet");
+    assert.ok(sentence(noNumber).includes(`${hint} — 1 person on the list said yes to offers, with no number to send to.`), `REGRESSION: ${sentence(noNumber)}`);
+    assert.ok(/Next run .+ — nobody to send to\./.test(sentence(noNumber)), sentence(noNumber));
+    assert.equal(byTestId(noNumber, "pb-reach-door"), null, "REGRESSION: the QR asked for an answer they had given");
+    // Nobody on it said yes: its count is true, and the door to that yes stands.
+    const noYes = drawn("pb-new");
+    assert.ok(sentence(noYes).includes("— 0 people on the list said yes."), sentence(noYes));
+    assert.equal(textOf(byTestId(noYes, "pb-reach-door")), "Get their yes");
+    // Nobody on it at all: there is no yes to get.
+    assert.equal(byTestId(drawn("pb-phoned"), "pb-reach-door"), null);
+  } finally {
+    for (const k of installed) delete globalThis.window[k];
+    globalThis.window.fetch = kept;
+  }
+});
+
 test("A paused playbook says it is paused, and a run's day is words", () => {
   globalThis.window.__PLAYBOOKS = playbooksSurface();
   // `nextRunLabel` returns the literal "paused" when it is, and the card read

@@ -3846,7 +3846,7 @@ function triggerOf(id) {
 function playbookRunReach(rows, p, touches, nowMs) {
   const reach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return { eligible: [], reach };
+  if (!t) return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
   const named = t.kind === "visit" ? rows.filter((r) => {
     if (!r.calendarTz) return false;
@@ -3854,6 +3854,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
     return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS62)) && !r.booked;
   }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
+  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed = [];
   for (const r of named) {
     const why = whyNotReceive(r, purpose);
@@ -3865,7 +3866,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
   if (t.kind === "visit") {
     allowed.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
     reach.will = allowed.length;
-    return { eligible: allowed, reach };
+    return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS62;
   const picked = allowed.filter((r) => {
@@ -3885,7 +3886,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
   const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
   reach.overCap = picked.length - eligible.length;
   reach.will = eligible.length;
-  return { eligible, reach };
+  return { eligible, reach, saidYes };
 }
 function planRun(mode, now) {
   switch (mode) {
