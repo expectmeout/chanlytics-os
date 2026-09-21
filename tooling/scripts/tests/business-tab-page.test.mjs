@@ -8,7 +8,7 @@
  * (legacy-bridge/business-tab.ts), installed here from the real module. A save goes through a stand-in for the bridge's
  * versioned PUT that records what it was sent and says the server accepted it.
  */
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   stateOf, standingLine, roleGate, formatPhoneDisplay, whyNotAPhone, whyNotAHandoff, samePhone, handoffE164,
@@ -51,6 +51,9 @@ await import(`${L}/components/record-row.jsx`);
 await import(`${L}/components/record-field.jsx`);
 await import(`${L}/components/record-fold.jsx`);
 await import(`${L}/components/record-sheet.jsx`);
+// The Calendar page, which loads before the tab in both lists: it publishes how long it keeps a read and its words for
+// a read that gives no reason (window.__calendarPage), which the tab's calendar row keeps too.
+await import(`${L}/pages/calendar-real.jsx`);
 // What the tab's saves write and the one saver they go through, before the page, as both load lists have them.
 await import(`${L}/pages/business-tab-save.jsx`);
 await import(`${L}/pages/business-tab-folds.jsx`);
@@ -139,6 +142,9 @@ const drawTab = ({ profile = melany, conflicts = [], flash = () => {}, brain = {
   W.__businessTabSave.saver.reset();
   return W.React.createElement(W.BusinessTab, { flash });
 };
+// The last page drawn goes as React would take it away: the calendar row keeps one timer for as long as the Calendar
+// page keeps a read (five minutes), and left on, it holds this file's process open for as long.
+after(() => unmount());
 /** The same page again, over the same hook cells, as React draws it after a state change. */
 const redrawTab = (flash = () => {}) => again(() => W.React.createElement(W.BusinessTab, { flash }));
 /** Press a row's act, which is what opens it. */
@@ -2062,7 +2068,7 @@ test("the calendar row states its last read, and there is no button for it", () 
   }
 });
 
-test("a calendar that could not be read says so in the Calendar page's words; with no read, or a stale one, the row says nothing of one and asks", () => {
+test("a calendar that could not be read says so in the Calendar page's words; with no read, the row says nothing of one and asks", () => {
   const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
   try {
     // The last read failed: the pill, the reason as the owner can act on it, and when it was tried.
@@ -2077,6 +2083,15 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     row = byTestId(drawTab(), "rec-row-calendar");
     assert.equal(textOf(byTestId(row, "rec-calendar-state")), CALENDAR_FEED_WORDS.stale);
     assert.match(textOf(row), /The calendar could not be reached\./);
+    // With no reason given, each state is said in the Calendar page's own words for it, from where that page keeps
+    // them: a last good read could not be REFRESHED, which is not the sentence for a calendar that could not be read.
+    W.__CALENDAR = calendarRead(readOk({ stale: true, reason: "unreachable", problem: null }));
+    row = byTestId(drawTab(), "rec-row-calendar");
+    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), W.__calendarPage.words.stale);
+    assert.equal(W.__calendarPage.words.stale, "The calendar could not be refreshed.");
+    W.__CALENDAR = calendarRead(readOk({ state: "unavailable", read_at: null, events: 0, reason: null, problem: null }));
+    row = byTestId(drawTab(), "rec-row-calendar");
+    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), W.__calendarPage.words.unavailable);
 
     // No read in this tab: nothing is invented. The address is still stated.
     delete W.__CALENDAR;
@@ -2087,17 +2102,12 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     assert.equal(byTestId(row, "rec-calendar-read"), null);
     assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-val"))), "app.chanlytics.com/…/filler.ics", "REGRESSION guard: the address, and never a read it does not have");
     assert.deepEqual(asked, ["refresh"], "it asks for one as it mounts");
-    // A read from long before this page was opened is the morning's words ("read 4m ago", counted from then): not
-    // stated, and asked for again; stated when it lands.
-    W.__CALENDAR = calendarRead(readOk(), 10 * 60000);
-    tree = drawTab();
-    assert.equal(byTestId(tree, "rec-calendar-read"), null);
-    assert.equal(asked.length, 2);
+    // And says what that finds when it lands.
     W.__CALENDAR = calendarRead(readOk({ events: 3 }));
     W.dispatchEvent({ type: "surface:calendar" });
     tree = redrawTab();
     assert.match(textOf(byTestId(tree, "rec-calendar-read")), /3 events/);
-    assert.equal(asked.length, 2, "fresh, it is not asked for again");
+    assert.equal(asked.length, 1, "fresh, it is not asked for again");
     // The surface itself could not be read: said where the line would be, with the one Retry.
     delete W.__CALENDAR;
     W.__surfaceFailed = (key) => key === "calendar";
@@ -2391,4 +2401,157 @@ test("a day switched on with no times is said under its day, and the week is not
   assert.equal(byTestId(tree, "rec-hours-problem-sun"), null);
   saveFoldOf(tree, "hours");
   assert.deepEqual(sent.map((s) => s.config.brain.profile.hours.sun), [{ open: "10:00", close: "14:00" }]);
+});
+
+/** The page's clock and its timers, held by the test: what is scheduled is recorded, and runs when the test says. */
+const clock = () => {
+  const real = { now: Date.now, set: globalThis.setTimeout, clear: globalThis.clearTimeout };
+  const timers = [];
+  let at = real.now();
+  Date.now = () => at;
+  globalThis.setTimeout = (fn, ms) => { const t = { fn, ms, at: at + ms, cleared: false }; timers.push(t); return t; };
+  globalThis.clearTimeout = (t) => { if (t && typeof t === "object") t.cleared = true; };
+  return {
+    timers,
+    live: () => timers.filter((t) => !t.cleared && !t.fired),
+    /** Time passes, and every timer due by then fires, in order. */
+    pass(ms) { at += ms; for (const t of timers.filter((x) => !x.cleared && !x.fired && x.at <= at)) { t.fired = true; t.fn(); } },
+    restore() { Date.now = real.now; globalThis.setTimeout = real.set; globalThis.clearTimeout = real.clear; },
+  };
+};
+
+test("an idle page stops stating a read when the Calendar page would have read again: one timer, at the read's own age", () => {
+  // The spec review's probe: `fresh` was worked out as the row drew and nothing looked again, so a page left open said
+  // "read 4m ago" for forty minutes.
+  const was = { calendar: W.__calendar };
+  const time = clock();
+  const asked = [];
+  W.__calendar = { refresh: () => { asked.push("refresh"); return new Promise(() => {}); } };
+  try {
+    const keeps = W.__calendarPage.refreshMs;
+    assert.equal(keeps, 5 * 60 * 1000, "the Calendar page's own window, never a second number");
+    W.__CALENDAR = calendarRead(readOk(), 60000);
+    let tree = drawTab();
+    assert.equal(byTestId(tree, "rec-calendar-read").props["data-reading"], undefined, "a minute old: stated as it stands");
+    assert.deepEqual(time.live().map((t) => t.ms), [keeps - 60000], "ONE timer, for the moment this read stops being fresh");
+    assert.equal(asked.length, 0);
+    // Drawn again for any reason, it schedules no second one.
+    tree = redrawTab();
+    tree = redrawTab();
+    assert.equal(time.live().length, 1);
+
+    // Forty minutes pass with nothing pressed. The timer is what draws the row again.
+    time.pass(40 * 60000);
+    tree = redrawTab();
+    assert.equal(asked.length, 1, "it asks for a new read");
+    assert.equal(byTestId(tree, "rec-calendar-read").props["data-reading"], "true", "and no longer states the old one as it stands");
+    assert.equal(time.live().length, 0, "nothing is scheduled for a read that is not fresh");
+
+    // The new read lands: stated, and the next timer is for ITS age.
+    W.__CALENDAR = { ...calendarRead(readOk({ events: 3 })), fetchedAt: Date.now() };
+    W.dispatchEvent({ type: "surface:calendar" });
+    tree = redrawTab();
+    assert.deepEqual([byTestId(tree, "rec-calendar-read").props["data-reading"], /3 events/.test(textOf(byTestId(tree, "rec-calendar-read")))], [undefined, true]);
+    assert.deepEqual(time.live().map((t) => t.ms), [keeps]);
+    // The page goes: its timer goes with it.
+    unmount();
+    assert.equal(time.live().length, 0, "cleared as the row unmounts");
+  } finally {
+    time.restore();
+    delete W.__CALENDAR;
+    if (was.calendar) W.__calendar = was.calendar; else delete W.__calendar;
+  }
+});
+
+test("while a new read is on its way the last one stays where it is, dimmed; it does not vanish and move the rows under it", async () => {
+  const was = { calendar: W.__calendar };
+  let land = null;
+  W.__calendar = { refresh: () => new Promise((resolve) => { land = resolve; }) };
+  try {
+    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    let tree = drawTab();
+    const read = byTestId(tree, "rec-calendar-read");
+    assert.ok(read, "the last read is still drawn");
+    assert.deepEqual([read.props["data-reading"], read.props["aria-busy"]], ["true", true], "dimmed (spec 9: a read in flight dims the last value), and said to be busy");
+    assert.match(textOf(read), /12 events/, "the same words, not a skeleton and not a gap");
+    assert.equal(byTestId(tree, "rec-calendar-unread"), null);
+    // Landed, it is stated plainly.
+    W.__CALENDAR = calendarRead(readOk({ events: 9 }));
+    W.dispatchEvent({ type: "surface:calendar" });
+    land(true);
+    await settle();
+    tree = redrawTab();
+    assert.deepEqual([byTestId(tree, "rec-calendar-read").props["data-reading"], byTestId(tree, "rec-calendar-read").props["aria-busy"]], [undefined, undefined]);
+    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /9 events/);
+
+    // No read is asked for from a tab nobody is looking at, as the Calendar page's own timer holds off; back in view,
+    // the row looks again and asks.
+    const asked = [];
+    W.__calendar = { refresh: () => { asked.push("refresh"); return new Promise(() => {}); } };
+    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    globalThis.document.visibilityState = "hidden";
+    tree = drawTab();
+    assert.equal(asked.length, 0);
+    globalThis.document.visibilityState = "visible";
+    tree = redrawTab();
+    assert.equal(asked.length, 1);
+  } finally {
+    delete globalThis.document.visibilityState;
+    delete W.__CALENDAR;
+    if (was.calendar) W.__calendar = was.calendar; else delete W.__calendar;
+  }
+});
+
+test("a stale read whose refresh failed says so where the read would be, with a Retry, and never goes on stating the old one", async () => {
+  // The spec review's probe: FailedRead drew only when there was no surface at all, so a read from half an hour ago
+  // whose refresh had failed was stated as if nothing had happened, or not stated and not explained.
+  const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
+  const answers = [];
+  W.__calendar = { refresh: () => new Promise((resolve) => answers.push(resolve)) };
+  try {
+    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    let tree = drawTab();
+    assert.equal(byTestId(tree, "rec-calendar-read").props["data-reading"], "true", "asked, and on its way");
+    answers[0](false);
+    await settle();
+    tree = redrawTab();
+    const row = byTestId(tree, "rec-row-calendar");
+    assert.equal(byTestId(row, "rec-calendar-read"), null, "the old read is not stated as if it were the latest");
+    assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what its last read found/);
+    assert.doesNotMatch(textOf(row), /12 events|read 4m ago/);
+    assert.match(textOf(row), /filler\.ics/, "the address is still the settings read's, and still stated");
+    // Its Retry asks again, the last read comes back dimmed meanwhile, and a read that lands is stated.
+    press(byTestId(row, "rec-calendar-unread-retry"));
+    tree = redrawTab();
+    assert.equal(answers.length, 2);
+    assert.equal(byTestId(tree, "rec-calendar-read").props["data-reading"], "true");
+    W.__CALENDAR = calendarRead(readOk({ events: 5 }));
+    W.dispatchEvent({ type: "surface:calendar" });
+    answers[1](true);
+    await settle();
+    tree = redrawTab();
+    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /5 events/);
+    assert.equal(byTestId(tree, "rec-calendar-unread"), null);
+    // A refresh that throws is a refresh that failed.
+    W.__calendar = { refresh: () => Promise.reject(new Error("offline")) };
+    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    tree = drawTab();
+    await settle();
+    tree = redrawTab();
+    assert.ok(byTestId(tree, "rec-calendar-unread"));
+    // And the runner's own word for it counts too: the surface is marked failed, with a stale read still in the window.
+    W.__calendar = { refresh: () => new Promise(() => {}) };
+    W.__surfaceFailed = (key) => key === "calendar";
+    W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
+    tree = drawTab();
+    assert.deepEqual([!!byTestId(tree, "rec-calendar-unread"), byTestId(tree, "rec-calendar-read")], [true, null]);
+    // A fresh read is stated whatever the surface's status says of an earlier try.
+    W.__CALENDAR = calendarRead(readOk());
+    tree = drawTab();
+    assert.deepEqual([byTestId(tree, "rec-calendar-unread"), !!byTestId(tree, "rec-calendar-read")], [null, true]);
+  } finally {
+    delete W.__CALENDAR;
+    if (was.calendar) W.__calendar = was.calendar; else delete W.__calendar;
+    if (was.failed) W.__surfaceFailed = was.failed; else delete W.__surfaceFailed;
+  }
 });

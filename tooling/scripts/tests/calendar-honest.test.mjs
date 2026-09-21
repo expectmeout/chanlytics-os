@@ -853,3 +853,19 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   tree = page();
   assert.deepEqual([stats(tree)[1].props.value, stats(tree)[1].props.meta], [1, "that fit Balayage"]);
 });
+
+test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {
+  // Settings › Business states the same calendar's last read in a row of its own (business-tab-open.jsx), for as long
+  // as this board keeps one, and in these words: one number and one spelling, this page's.
+  const keeps = globalThis.window.__calendarPage;
+  assert.equal(keeps.refreshMs, 5 * 60 * 1000, "the five minutes after which the board reads itself again");
+  assert.deepEqual(Object.keys(keeps.words).sort(), ["stale", "unavailable"]);
+  fresh(dto({ feed: { ...dto().feed, stale: true, reason: "unreachable", problem: null } }));
+  assert.ok(textOf(byTestId(page(), "cal-feed-stale")).includes(keeps.words.stale), "the card over a last good read says them");
+  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0, problem: null } }));
+  assert.ok(textOf(byTestId(page(), "cal-feed-card")).includes(keeps.words.unavailable), "and the card over a calendar that could not be read");
+  // A reason of the read's own wins over both.
+  fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }));
+  const said = textOf(byTestId(page(), "cal-feed-stale"));
+  assert.ok(said.includes("The calendar answered 503.") && !said.includes(keeps.words.stale), said);
+});

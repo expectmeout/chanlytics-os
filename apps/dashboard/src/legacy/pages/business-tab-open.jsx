@@ -487,11 +487,6 @@ const BtoClosures = ({ draft: rows, update, undo, press, problems, readOnly, fla
 
 /* ------------------------------------ the calendar it reads ------------------------------------ */
 
-// How long a read of the Calendar surface may be stated as it stands. Its words are written when it is read ("read 4m
-// ago" is counted from that moment, contracts toCalendarVM), so on a tab open since the morning they would be the
-// morning's. Older than this, the row says nothing of a read, asks for a new one, and says what that finds.
-const BTO_READ_FRESH_MS = 2 * 60 * 1000;
-
 /**
  * The address as the row states it: where it points, never the whole of it. A private feed's address is a long secret
  * (…/ical/<account>/private-<key>/basic.ics), and the row is read over a shoulder. A non-owner's arrives masked by the
@@ -513,41 +508,83 @@ const btoShortFeed = (url) => {
 /**
  * What the calendar's last read found, in the words the Calendar page says it in: the same pill (contracts
  * CALENDAR_FEED_WORDS, through StatePill's `calendar` kind) and the same line (toCalendarVM's feed.detail: where it was
- * read from, when, how many events; feed.problem when it could not be). The form had a "Check the address" button for
- * this; a row that can say it needs no button (spec §4.3).
+ * read from, when, how many events; feed.problem when it could not be, or that page's own words where the read gives no
+ * reason, window.__calendarPage.words). The form had a "Check the address" button for this; a row that can say it needs
+ * no button (spec §4.3).
  *
- * Only a read this tab HAS is stated, and only while it is fresh: the Calendar surface is read as the app boots on
- * every route, so it is here, but its "read 4m ago" is counted from the moment IT was read. Stale or missing, the row
- * says nothing of a read and asks for one as it mounts (window.__calendar.refresh, which reads the route's few
- * minutes' cache, never the calendar itself), and says what that finds when it lands (surface:calendar). A read that
- * failed says so where its line would be.
+ * Only a read this tab HAS is stated, and only while it is fresh. The Calendar surface is read as the app boots on
+ * every route, so it is here; but its "read 4m ago" is counted from the moment IT was read (contracts toCalendarVM),
+ * so on a tab open since the morning the words would be the morning's. Fresh is as long as the Calendar page itself
+ * keeps a read before it reads again (its CR_REFRESH_MS, window.__calendarPage.refreshMs: one number, that page's).
+ *   fresh                 stated as it stands, and ONE timer is set for the moment it stops being fresh, which draws
+ *                         the row again: worked out only as the row drew, an idle page said "read 4m ago" for forty
+ *                         minutes;
+ *   not fresh             a new read is asked for (window.__calendar.refresh: the route's few minutes' cache, never the
+ *                         calendar itself; not from a tab nobody is looking at, as that page's own timer holds off),
+ *                         and while it is on its way the last read stays where it is, dimmed (spec §9: a read in
+ *                         flight dims the last value): it does not vanish and move the rows under it;
+ *   that read failed      said where the read would be (spec §3), with a Retry, by the refresh's own answer or the
+ *                         runner's (window.__surfaceFailed): the old read is never stated as if it were the latest;
+ *   no way to ask         nothing is said of a read that is not fresh (the standalone mockup has no bridge to ask).
+ * A read that says no calendar is connected, under an address that is stored, is said nothing of: it is from before
+ * the address was saved, and the save reads the calendar again (refresh-map.ts). The surface carries no address to hold
+ * a read against (the address never leaves the server), so that is the one such case the row can know.
  */
 const BtoFeedRead = ({ stored }) => {
   const [, setTick] = useBtoState(0);
+  const bump = () => setTick((n) => n + 1);
+  // Whether the read this row last asked for failed, and whether the row is still on the page to hear its answer.
+  const flight = useBtoRef({ failed: false, gone: false });
   useBtoEffect(() => {
-    const bump = () => setTick((n) => n + 1);
+    flight.current.gone = false;
     window.addEventListener("surface:calendar", bump);
-    return () => window.removeEventListener("surface:calendar", bump);
+    // Back in view, the row looks again: a read that went stale in a tab nobody was looking at is asked for then.
+    document.addEventListener("visibilitychange", bump);
+    return () => {
+      flight.current.gone = true;
+      window.removeEventListener("surface:calendar", bump);
+      document.removeEventListener("visibilitychange", bump);
+    };
   }, []);
+  const keeps = window.__calendarPage || {};
   const C = window.__CALENDAR || null;
-  const fresh = !!(C && typeof C.fetchedAt === "number" && Date.now() - C.fetchedAt < BTO_READ_FRESH_MS);
+  const at = C && typeof C.fetchedAt === "number" ? C.fetchedAt : null;
+  const fresh = at != null && typeof keeps.refreshMs === "number" && Date.now() - at < keeps.refreshMs;
+  const canAsk = !!(window.__calendar && typeof window.__calendar.refresh === "function");
+  const visible = document.visibilityState !== "hidden";
+  const ask = () => {
+    flight.current.failed = false;
+    const settled = (landed) => { if (flight.current.gone) return; flight.current.failed = !landed; bump(); };
+    let sent;
+    try { sent = window.__calendar.refresh(); } catch (e) { sent = Promise.reject(e); }
+    Promise.resolve(sent).then((landed) => settled(landed !== false), () => settled(false));
+    bump();
+  };
   useBtoEffect(() => {
-    if (!stored || fresh || !window.__calendar || typeof window.__calendar.refresh !== "function") return;
-    Promise.resolve(window.__calendar.refresh()).catch(() => {});
-  }, [stored, fresh]);
+    if (!stored || !fresh) return undefined;
+    const timer = window.setTimeout(bump, at + keeps.refreshMs - Date.now());
+    return () => window.clearTimeout(timer);
+  }, [stored, at, keeps.refreshMs]);
+  useBtoEffect(() => {
+    if (stored && !fresh && canAsk && visible) ask();
+  }, [stored, fresh, canAsk, visible]);
+
   if (!stored) return null;
-  if (!C && window.__surfaceFailed && window.__surfaceFailed("calendar")) {
-    return <window.FailedRead kind="line" what="what its last read found" surface="calendar" testid="rec-calendar-unread" />;
+  const failed = !fresh && (flight.current.failed || !!(window.__surfaceFailed && window.__surfaceFailed("calendar")));
+  if (failed) {
+    return <window.FailedRead kind="line" what="what its last read found" onRetry={canAsk ? ask : null} surface="calendar" testid="rec-calendar-unread" />;
   }
-  const feed = fresh && C.vm ? C.vm.feed : null;
-  // Nothing read, or a read from before this address was saved: nothing is said of one.
+  // Not fresh, and no way to ask for a new one: nothing is said of it.
+  if (!fresh && !canAsk) return null;
+  const feed = C && C.vm ? C.vm.feed : null;
   if (!feed || feed.state === "none") return null;
+  const words = keeps.words || {};
   return (
-    <span className="bt-feed" data-testid="rec-calendar-read" data-state={feed.health}>
+    <span className="bt-feed" data-testid="rec-calendar-read" data-state={feed.health} data-reading={fresh ? undefined : "true"} aria-busy={fresh ? undefined : true}>
       <window.StatePill kind="calendar" value={feed.health} testid="rec-calendar-state" />
       {feed.detail ? <span className="bt-feed-detail">{feed.detail}</span> : null}
       {feed.state !== "ok" || feed.stale ? (
-        <span className="bt-feed-problem">{feed.problem || "The address is saved; check it here if this keeps happening."}</span>
+        <span className="bt-feed-problem">{feed.problem || (feed.stale ? words.stale : words.unavailable) || null}</span>
       ) : null}
     </span>
   );
