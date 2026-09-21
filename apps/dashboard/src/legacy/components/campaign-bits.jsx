@@ -85,7 +85,7 @@ const CmLangGlyph = ({ status = null, size = 12 }) => {
  *   held     how many of the pool are held back (the amber part of the bar)
  *   reasons  [{ t, tone }]: "12 heard from a playbook this week"
  */
-const CmReach = ({ will, pool, of = null, held = 0, reasons = [], size = "md", testid = null }) => {
+const CmReach = ({ will, pool, of = null, held = 0, reasons = [], size = "md", progress = null, label = null, testid = null }) => {
   const total = Math.max(pool, will + held, 1);
   const w = Math.round((Math.min(will, total) / total) * 100);
   const h = Math.round((Math.min(held, total - will) / total) * 100);
@@ -95,7 +95,8 @@ const CmReach = ({ will, pool, of = null, held = 0, reasons = [], size = "md", t
         <span className="cm-reach-will tabular">{will}</span>
         <span className="cm-reach-of">of <span className="tabular">{pool}</span>{of ? ` ${of}` : ""}</span>
       </div>
-      <div className="cm-reach-bar" aria-hidden="true">
+      {/* A send in flight is a progress bar a screen reader can hear; otherwise the bar is a picture of the numbers above it. */}
+      <div className="cm-reach-bar" {...(progress === null ? { "aria-hidden": "true" } : { role: "progressbar", "aria-label": label || "Sent so far", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(progress * 100) })}>
         {w > 0 && <span className="cm-reach-bar-will" style={{ width: `${w}%` }} />}
         {h > 0 && <span className="cm-reach-bar-held" style={{ width: `${h}%` }} />}
         <span className="cm-reach-bar-rest" />

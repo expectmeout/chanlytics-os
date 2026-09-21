@@ -239,8 +239,8 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- under its own r
 
   press(byTestId(details[0], "bc-detail-close"));
   assert.deepEqual(went, ["broadcasts"], "closing is a link too, so the address never names a run that is not open");
-  press(row);
-  assert.deepEqual(went, ["broadcasts", "broadcasts"], "and so is pressing the open row");
+  press(byTestId(row, "bc-open-who"));
+  assert.deepEqual(went, ["broadcasts", "broadcasts"], "and so is pressing the open card's name");
   press(byTestId(tree, "bc-open-who"));
   assert.deepEqual(went.at(-1), "broadcasts/run:b-sending", "a scheduled or sending broadcast opens by its link");
 
@@ -252,8 +252,8 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- under its own r
   const solo = byTestId(tree, "bc-run-solo");
   assert.ok(solo && textOf(solo).includes("Win-back · 2026-06-01"), "a run past the newest fifty is read by its id and shown");
   assert.ok(find(solo, (n) => n.props?.["data-state"] === "sent"), "with its state, since no row above it says so");
-  const order = all(tree, (n) => ["bc-run-solo", "bc-composer"].includes(n.props?.["data-testid"])).map((n) => n.props["data-testid"]);
-  assert.deepEqual(order, ["bc-run-solo", "bc-composer"], "first, where a link lands, not under the composer");
+  const order = all(tree, (n) => ["bc-run-solo", "bc-head"].includes(n.props?.["data-testid"])).map((n) => n.props["data-testid"]);
+  assert.deepEqual(order, ["bc-run-solo", "bc-head"], "first, where a link lands, above the ledger");
 });
 
 test("the page follows its link rather than starting again: opening a run keeps the audience chosen, and a link to a list picks it", () => {
