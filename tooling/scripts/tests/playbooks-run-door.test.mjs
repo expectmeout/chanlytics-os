@@ -190,7 +190,8 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
   assert.equal(run.state, "scheduled");
   assert.ok(Date.parse(run.scheduled_for) >= t0 && Date.parse(run.scheduled_for) <= Date.now(), "now: not the veto's half hour, not the ask's wait");
   assert.equal(run.name, `Win-back · ${today}`);
-  assert.deepEqual(run.audience, { kind: "playbook", id: P, label: "Win-back" });
+  // Who the moment named and why the rest were left out, stored with the run: Run now keeps it as the sweep does.
+  assert.deepEqual(run.audience, { kind: "playbook", id: P, label: "Win-back", reach: { pool: 3, will: 2, noNumber: 0, stopped: 0, noYes: 1, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 } });
   assert.deepEqual(run.params, [{ kind: "first_name" }]);
   assert.equal(run.recipient_count, 2);
   assert.equal(run.created_by, U, "the person who asked, not the playbook's owner");
@@ -201,7 +202,7 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
   assert.deepEqual(w.tables.decisions[0].payload, { playbook_id: P, playbook: "Win-back", mode: "ask", recipients: 2, scheduled_for: run.scheduled_for, run_now: true }, "and says it was a Run now under the mode the owner chose");
   assert.deepEqual(
     w.tables.events.map((e) => [e.tenant_id, e.kind, e.category, e.subject_type, e.subject_id, e.data]),
-    [[A, "playbook.run", "message", "playbook", P, { run_for: today, by: "user", mode: "ask", eligible: 2, broadcast_id: run.id, state: "scheduled" }]],
+    [[A, "playbook.run", "message", "playbook", P, { run_for: today, by: "user", mode: "ask", eligible: 2, reach: { pool: 3, will: 2, noNumber: 0, stopped: 0, noYes: 1, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 }, broadcast_id: run.id, state: "scheduled" }]],
     "every run is recorded, and this one says a person asked",
   );
   assert.equal(w.tables.playbooks[0].last_run_for, today, "the playbook remembers the day");

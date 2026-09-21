@@ -421,6 +421,7 @@ var RETENTION_DAYS = {
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
 var RECORDING_NOTE = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
@@ -1279,6 +1280,9 @@ var LEAD_WORDS = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -6700,6 +6704,7 @@ var RETENTION_DAYS2 = {
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
 var RECORDING_NOTE2 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS2} days`
@@ -7546,6 +7551,9 @@ var LEAD_WORDS2 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -9055,6 +9063,7 @@ var RETENTION_DAYS3 = {
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
 var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
 var RECORDING_NOTE3 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS3} days`
@@ -9901,6 +9910,9 @@ var LEAD_WORDS3 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -10451,6 +10463,7 @@ var RETENTION_DAYS22 = {
 var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
 var RECORDING_PURGED_WORDS22 = `Recording removed after ${RECORDING_RETENTION_DAYS22} days; the transcript is kept`;
 var RECORDING_NOTE22 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS22} days`
@@ -11024,16 +11037,6 @@ var WHATSAPP_LANGUAGES22 = [
   L22("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID22 = new Map(WHATSAPP_LANGUAGES22.map((l2) => [l2.id.toLowerCase(), l2]));
-var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES22 = { ...FIRST22, label: "Nombre" };
-var BUSINESS_ES22 = { ...BUSINESS22, label: "Nombre del negocio" };
-var LINK_ES22 = { ...LINK22, label: "Enlace de reservas" };
-var WHEN32 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE22 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
     const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
@@ -11074,6 +11077,16 @@ function resolveParams(specs, f) {
     }
   });
 }
+var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES22 = { ...FIRST22, label: "Nombre" };
+var BUSINESS_ES22 = { ...BUSINESS22, label: "Nombre del negocio" };
+var LINK_ES22 = { ...LINK22, label: "Enlace de reservas" };
+var WHEN32 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE22 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 var REPLY_WINDOW_HOURS22 = 72;
@@ -11346,6 +11359,9 @@ var LEAD_WORDS22 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -11816,6 +11832,7 @@ var RETENTION_DAYS32 = {
 var RECORDING_RETENTION_DAYS32 = RETENTION_DAYS32.call_recordings;
 var RECORDING_PURGED_WORDS32 = `Recording removed after ${RECORDING_RETENTION_DAYS32} days; the transcript is kept`;
 var RECORDING_NOTE32 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS32} days`
@@ -12662,6 +12679,9 @@ var LEAD_WORDS32 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -13609,6 +13629,7 @@ var RETENTION_DAYS4 = {
 var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
 var RECORDING_PURGED_WORDS4 = `Recording removed after ${RECORDING_RETENTION_DAYS4} days; the transcript is kept`;
 var RECORDING_NOTE4 = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS4} days`
@@ -14455,6 +14476,9 @@ var LEAD_WORDS4 = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",

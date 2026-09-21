@@ -49,6 +49,8 @@ const context = (over = {}) => ({
   touches: { byThis: new Map(), byAny: new Map() }, calendar: "none", visits: new Map(), ...over,
 });
 const cmd = (over = {}) => ({ playbook: playbook(), ctx: context(), runFor: "2026-09-06", by: { kind: "system" }, ...over });
+/** A run's reach with nobody named and nobody left out: every count a run keeps, at zero. */
+const NOBODY_LEFT = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
 
 /** Every port answers a value or a function of its arguments; the writes log their call as [name, ...args]. */
 function fakes(over = {}) {
@@ -114,12 +116,39 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
   assert.equal(r.outcome, "sent");
   assert.deepEqual(of("enrol")[0], ["enrol", "b1", [{ contact_id: "b", facts: null }, { contact_id: "a", facts: null }]]);
   assert.equal(of("create")[0][1].recipient_count, 2);
+  // And who it left out, kept on the run: three on the list, one of them never said yes.
+  assert.deepEqual(of("create")[0][1].audience.reach, { ...NOBODY_LEFT, pool: 3, will: 2, noYes: 1 });
   const capped = fakes();
   await runPlaybook(capped.ports, cmd({ ctx: context({ people: rows, health: { canSend: true, tone: "ok", label: "", limitPerDay: 1, refusal: null } }) }));
   assert.deepEqual(capped.of("enrol")[0][2].map((x) => x.contact_id), ["b"], "the day's limit is a ceiling, not a refusal");
+  assert.deepEqual(capped.of("create")[0][1].audience.reach, { ...NOBODY_LEFT, pool: 3, will: 1, noYes: 1, overLimit: 1 }, "and the one past it is counted, not dropped");
   const nobody = fakes();
   assert.deepEqual(await runPlaybook(nobody.ports, cmd({ ctx: context({ people: [person("d", { state: "active" })] }) })), { outcome: "empty", eligible: 0, mode: "auto" });
-  assert.deepEqual(nobody.log, [["record", "p1", "2026-09-06", NOW, { run_for: "2026-09-06", by: "system", mode: "auto", eligible: 0 }]]);
+  assert.deepEqual(nobody.log, [["record", "p1", "2026-09-06", NOW, { run_for: "2026-09-06", by: "system", mode: "auto", eligible: 0, reach: NOBODY_LEFT }]]);
+});
+
+test("a run counts everyone its moment named, each once, under the first rule that left them out -- so the counts add up to the list", async () => {
+  const quiet = (id, daysAgo, over = {}) => person(id, { lastContact: { ts: NOW.getTime() - daysAgo * D, label: "" }, ...over });
+  const rows = [
+    quiet("a", 90),
+    quiet("b", 80, { phone: null }),
+    quiet("c", 80, { consent: { state: "opted_in", dnc: true, marketing: "opted_in" } }),
+    quiet("d", 80, { consent: { state: "opted_in", dnc: false, marketing: "unknown" } }),
+    quiet("e", 80),
+    quiet("f", 80),
+    quiet("g", 60),
+    quiet("h", 45),
+    // No number AND no yes: counted once, under the first rule the run applies.
+    quiet("i", 80, { phone: null, consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
+    person("j", { state: "active" }),
+  ];
+  const touches = { byThis: new Map([["p1", new Map([["e", NOW.getTime() - 10 * D]])]]), byAny: new Map([["f", NOW.getTime() - 2 * D]]) };
+  const { ports, of } = fakes();
+  await runPlaybook(ports, cmd({ playbook: playbook({ cap_per_run: 2 }), ctx: context({ people: rows, touches }) }));
+  const reach = of("create")[0][1].audience.reach;
+  assert.deepEqual(reach, { pool: 9, will: 2, noNumber: 2, stopped: 1, noYes: 1, heardThis: 1, heardAny: 1, overCap: 1, overLimit: 0 });
+  assert.equal(reach.will + reach.noNumber + reach.stopped + reach.noYes + reach.heardThis + reach.heardAny + reach.overCap + reach.overLimit, reach.pool, "the whole list, every person once");
+  assert.deepEqual(of("enrol")[0][2].map((x) => x.contact_id), ["a", "g"], "and who it reaches is what it always was: the longest unheard, to the cap");
 });
 
 test("auto: the row, the people, the send now, the system's decision, the run recorded; veto: the send half an hour ahead with the same row", async () => {
@@ -129,11 +158,11 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   assert.deepEqual(ops(), ["create", "enrol", "schedule", "decide", "record"]);
   assert.deepEqual(of("create")[0][1], {
     name: "Win-back · 2026-09-06", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US", params: [{ kind: "first_name" }],
-    audience: { kind: "playbook", id: "p1", label: "Win-back" }, state: "scheduled", scheduled_for: NOW.toISOString(), recipient_count: 2, created_by: "owner", playbook_id: "p1", run_for: "2026-09-06",
+    audience: { kind: "playbook", id: "p1", label: "Win-back", reach: { ...NOBODY_LEFT, pool: 2, will: 2 } }, state: "scheduled", scheduled_for: NOW.toISOString(), recipient_count: 2, created_by: "owner", playbook_id: "p1", run_for: "2026-09-06",
   });
   assert.deepEqual(of("schedule")[0], ["schedule", "b1", NOW]);
   assert.deepEqual(of("decide")[0][1], { broadcastId: "b1", by: { kind: "system" }, payload: { playbook_id: "p1", playbook: "Win-back", mode: "auto", recipients: 2, scheduled_for: NOW.toISOString(), run_now: false } });
-  assert.deepEqual(log.at(-1), ["record", "p1", "2026-09-06", NOW, { run_for: "2026-09-06", by: "system", mode: "auto", eligible: 2, broadcast_id: "b1", state: "scheduled" }]);
+  assert.deepEqual(log.at(-1), ["record", "p1", "2026-09-06", NOW, { run_for: "2026-09-06", by: "system", mode: "auto", eligible: 2, reach: { ...NOBODY_LEFT, pool: 2, will: 2 }, broadcast_id: "b1", state: "scheduled" }]);
   const veto = fakes();
   await runPlaybook(veto.ports, cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
   const at = new Date(NOW.getTime() + PLAYBOOK_VETO_DELAY_MS);

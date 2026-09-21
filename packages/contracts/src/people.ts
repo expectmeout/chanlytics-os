@@ -639,15 +639,33 @@ export function mayReceive(
   r: Pick<PersonRowVM, "consent" | "phone">,
   purpose: SendPurpose,
 ): boolean {
+  return whyNotReceive(r, purpose) === null;
+}
+
+/**
+ * Why a broadcast may not reach this person, or null when it may: the same one
+ * rule as `mayReceive`, with its answer kept. A run that leaves someone out can
+ * then say which of three things it was -- no number to send to, a stop (asked
+ * to, or on the do-not-contact list), or never having said yes -- instead of
+ * one count that hides the one an owner can do something about.
+ */
+export type NotReceived = "no_number" | "stopped" | "no_yes";
+
+export function whyNotReceive(
+  r: Pick<PersonRowVM, "consent" | "phone">,
+  purpose: SendPurpose,
+): NotReceived | null {
   // Every audience today leaves by WhatsApp or text, and both need a number. A
   // person with an address and none is reached when the email wire carries
   // reminders (docs/plans/2026-09-17-email-channel.md, §11), not before.
-  if (!r.phone) return false;
-  return mayMessageFor(
+  if (!r.phone) return "no_number";
+  const said = mayMessageFor(
     { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
     purpose,
     { proactive: true },
-  ).ok;
+  );
+  if (said.ok) return null;
+  return said.reason === "opted_out" ? "stopped" : "no_yes";
 }
 
 export type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";

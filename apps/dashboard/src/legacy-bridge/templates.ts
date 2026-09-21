@@ -11,7 +11,7 @@
  * the server; a viewer's click returns the server's refusal.
  */
 import { api } from "./api";
-import { LANGUAGE_GROUP_WORDS, PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, WHATSAPP_LANGUAGES, compareTemplates, defaultSlotKinds, defaultTemplate, findLanguages, groupTemplates, languageLabel, languageTag, languageWords, messageLanguageChoices, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, sendableTemplates, templateFooter, templatePreview, templatePreviewValues, templateTitle, templateUntranslatable } from "@chanlytics/contracts";
+import { LANGUAGE_GROUP_WORDS, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, WHATSAPP_LANGUAGES, compareTemplates, defaultSlotKinds, defaultTemplate, findLanguages, groupTemplates, languageLabel, languageTag, languageWords, messageLanguageChoices, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, sendableTemplates, slotChoices, templateFooter, templatePreview, templatePreviewValues, templateSlots, templateTitle, templateUntranslatable } from "@chanlytics/contracts";
 
 /**
  * A draft from a brief, or a message the workspace has written again in
@@ -78,6 +78,12 @@ export interface StarterLibrary {
   defaultFor: typeof defaultTemplate;
   /** What fills a slot, in the composers' words (contracts PARAM_SOURCE_LABELS): all six, a visit's included. */
   sources: typeof PARAM_SOURCE_LABELS;
+  /** Where a filled slot's words come from, beside them: "Each person's own". */
+  sourceHints: typeof PARAM_SOURCE_HINTS;
+  /** What may fill one slot, its default first: a first name only ever each person's own. */
+  slotChoices: typeof slotChoices;
+  /** The same for every slot of a template on a moment, or null when one can take nothing there. */
+  slots: typeof templateSlots;
   /** Which running playbooks still send a message, in the words the delete route refuses with. */
   stillSends: typeof playbooksStillSending;
   /** A language code as a person reads it ("en_US" -> "English"): a send names the language it goes out in. */
@@ -129,6 +135,9 @@ export function installTemplates(): void {
     group: groupTemplates,
     defaultFor: defaultTemplate,
     sources: PARAM_SOURCE_LABELS,
+    sourceHints: PARAM_SOURCE_HINTS,
+    slotChoices,
+    slots: templateSlots,
     stillSends: playbooksStillSending,
     langWords: languageWords,
     langLabel: languageLabel,

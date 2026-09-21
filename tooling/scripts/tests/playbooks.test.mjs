@@ -153,10 +153,10 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   assert.ok(reg.includes('outbound: "real"') && reg.includes('outbound: "playbooks"'), "flipped, and the gate waits on its surface");
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
-  for (const id of ["playbooks-real", "pb-card", "pb-composer", "pb-trigger", "pb-save", "pb-cancel", "pb-run-now", "pb-pause", "pb-approve", "pb-skip", "pb-edit", "pb-delete"]) {
+  for (const id of ["playbooks-real", "pb-card", "pb-save", "pb-cancel", "pb-run-now", "pb-pause", "pb-approve", "pb-skip", "pb-edit", "pb-delete"]) {
     assert.ok(page.includes(`data-testid="${id}"`), id);
   }
-  assert.ok(page.includes('testid="pb-template"') && page.includes("<window.TemplateChips"), "pb-template: the same picker Broadcasts draws");
+  assert.ok(page.includes('testid="pb-composer"') && page.includes('testid="pb-moment"') && page.includes('testid="pb-template"') && page.includes("<window.CmPicker"), "the composer: its moment and its message open the one list Campaigns opens (playbook-composer.test.mjs runs it)");
   assert.ok(page.includes('testid="pb-empty"'), "the empty state, through the one EmptyState, with the verb on it");
   assert.ok(page.includes("window.OutboundPage = (props) =>") && readCode("apps/dashboard/src/legacy/pages/outbound.jsx").includes("window.OutboundSeed = OutboundPage;"));
   assert.ok(!/\$[\d,]+|revenue|Attributed|booked/.test(page.replace(/\/\/[^\n]*/g, "")), "no number the schema has no column for");
@@ -175,7 +175,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
   for (const k of ["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]", "POST playbooks/[id]/run", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"]) assert.deepEqual(AFTER[k]().map((o) => o.key), ["playbooks", "broadcasts"], `${k}: every write re-fetches both surfaces`);
   const pools = readCode("apps/dashboard/src/server/playbooks.ts");
-  assert.ok(pools.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length"), "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program; on the server over everyone since Calendar 3 (run in calendar-counts.test.mjs)");
+  assert.ok(pools.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, breath, now.getTime());"), "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program; on the server over everyone since Calendar 3 (run in calendar-counts.test.mjs)");
   assert.ok(readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx").includes('{ id: "outbound", label: "Playbooks", to: "outbound" }'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("broadcastsOverride, playbooksOverride"), "booted with the rest");
   // "Running · next run tomorrow 10:00" is a promise the run cannot keep when

@@ -402,10 +402,12 @@ export async function POST(request: Request): Promise<Response> {
         // audio into the private bucket so a customer's call isn't one guessed
         // link away, and so it survives provider retention. On a short budget:
         // this handler has the agent's 20 s delivery timeout over its head, and
-        // a copy that does not finish is retried by the reconcile sweep.
+        // a copy that does not finish is retried by the reconcile sweep. Never
+        // again once stored, given up on, or removed on schedule: a purged
+        // call's audio was taken out after its retention and must stay out.
         if (
           n.recordingUrl &&
-          res.recording_state !== "stored" && res.recording_state !== "failed" &&
+          res.recording_state !== "stored" && res.recording_state !== "failed" && res.recording_state !== "purged" &&
           (event === "call_analyzed" || n.status === "ended")
         ) {
           await copyRecording(db, {

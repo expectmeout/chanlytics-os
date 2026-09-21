@@ -60,7 +60,7 @@ const WORDS: Record<string, string> = {
   "message.send_blocked": "A message was held at the wire", "message.send_raced_cancel": "A send raced a cancel",
   "contact.consent_changed": "A consent answer changed", "contact.added": "A person was added", "contact.named": "A person was named",
   "contact.noted": "A note was written", "contact.email_set": "A person's email address changed", "contact.email_suppressed": "A person's email address stopped being sent to", "contact.erased": "A person was erased",
-  // Retired with the Blob store (00148): nothing writes it, but rows written before survive in `events` and still need their sentence.
+  // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened", "conversation.pause_expired": "A pause ended", "conversation.snooze_expired": "A snooze ended",
   "call.recorded": "A call was recorded", "broadcast.sent": "A broadcast finished", "playbook.run": "A playbook ran",

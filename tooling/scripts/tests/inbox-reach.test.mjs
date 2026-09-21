@@ -115,7 +115,8 @@ test("the Needs you line keeps its words and its buttons apart: the words take t
   assert.equal(textOf(call).trim(), "Call back");
   assert.deepEqual(buttonsOf(actions), ["Hand back"], "and the way out, in two words");
   assert.equal(find(find(take, hasClass("ix-state-says")), hasClass("ix-state-acts")), undefined, "beside the pill, never inside the words");
-  assert.match(textOf(find(take, byTestId("ix-take-ask"))), /Call Rosa back to confirm the bridal trial/);
+  // The to-do is the line's own words, said once (calls you can follow).
+  assert.match(textOf(find(take, hasClass("ix-state-says"))), /Call Rosa back to confirm the bridal trial/);
 });
 
 test("a thread you have shows what they asked, where you answer it", () => {

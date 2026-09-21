@@ -1,4 +1,4 @@
--- 00148 · The Blob thread erase goes.
+-- 00151 · The Blob thread erase goes.
 --
 -- The receptionist's memory used to be a Vercel Blob object per thread, and
 -- `blob_thread_erase` was the job that deleted one when a person asked to be
@@ -162,7 +162,7 @@ begin
      NO KIND IS SPARED. One was: the route used to queue a blob_thread_erase
      job before calling this function, and cancelling it would have cancelled
      the leg that removed the second copy of the conversation. There is no
-     second copy and no such kind (00148), so every scheduled job that names
+     second copy and no such kind (00151), so every scheduled job that names
      this person is withdrawn -- and its payload scrubbed in the same
      statement (jobs_guard allows a payload change on any row): the number it
      carried must not outlive the row, and a re-driven erasure has no digits

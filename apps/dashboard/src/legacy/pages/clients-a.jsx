@@ -2052,6 +2052,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     plCopy(l.email);
     plFlash({ msg: <>Copied <b>{l.email}</b></> });
   };
+  // The peek's phone line copies the number as it dials (the stored number), and names it as the peek draws it
+  // (contracts' formatPhoneDisplay, published as __phoneDisplay).
+  const copyPhone = (id) => {
+    const l = leadById(id);
+    if (!l || !l.phone) return;
+    plCopy(l.phone);
+    plFlash({ msg: <>Copied <b>{(window.__phoneDisplay && window.__phoneDisplay(l.phone)) || l.phone}</b></> });
+  };
   // Copy emails says how many of the selection had none you can use, because a silent 12-of-15 is a lie.
   const copyEmails = (picked) => {
     const usable = picked.filter((l) => l.email && l.emailState !== "invalid");
@@ -2418,6 +2426,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onExclude={excludeLead}
         onPutBack={putBackLead}
         onCopy={copyLead}
+        onCopyPhone={copyPhone}
         onStripAction={onStripAction}
         onMore={() => window.__leadsMore && window.__leadsMore()}
         loadingMore={leadBusy}

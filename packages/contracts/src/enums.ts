@@ -42,7 +42,7 @@ export type ConsentState = (typeof CONSENT_STATES)[number];
  * is an outbound_send with a delay, the deadman is a pg_cron sweep, media is
  * fetched inline — and so are the two timers (snooze_wake, pause_expire): a
  * snooze or a pause wakes from its own timestamp on the conversation (00098).
- * `blob_thread_erase` is gone too (00148): it erased the Vercel Blob copy of
+ * `blob_thread_erase` is gone too (00151): it erased the Vercel Blob copy of
  * a conversation, and there is no such copy — Postgres is the receptionist's
  * only memory, and an erasure deletes rows.
  * A new kind arrives with its handler, its caller and the jobs.kind CHECK,

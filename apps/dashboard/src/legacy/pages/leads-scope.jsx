@@ -16,13 +16,15 @@
 // (§8.7, S9): Keep and Exclude move a place out of Needs review, Put back is the owner's override of an
 // exclusion. All three count, so all three are the owner's permission `find`; anyone else sees them on the page,
 // in the tab order, saying why when pressed (window.gate, data-bits.jsx), never disabled and never silent.
+// They are the system's small buttons, 26px like People's row acts: Call and Copy square (`btn-icon btn-sm`), the
+// words `btn-sm`. On a phone's card, leads.css draws Call at 44px.
 const LeadRowActions = ({ l, onCall, onCopy, onKeep, onExclude, onPutBack, canFind }) => (
   <span className="cl-row-actions ld-row-actions">
-    {l.phone && !l.phoneWrong && <button type="button" className="btn btn-ghost btn-xs ld-call" onClick={(e) => { e.stopPropagation(); onCall(l.id); }} title="Call from your phone" aria-label={`Call ${l.name}`} data-testid="lead-call"><Icon name="phone" size={11} /></button>}
-    {l.email && l.emailState !== "invalid" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onCopy(l.id); }} title="Copy the email" aria-label={`Copy the email for ${l.name}`} data-testid="lead-copy"><Icon name="copy" size={11} /></button>}
-    {l.cls === "review" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onKeep(l.id); }} data-testid="lead-keep" {...(canFind ? {} : window.gate("find", "keep this lead"))}>Keep</button>}
-    {l.cls === "review" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onExclude(l.id); }} data-testid="lead-exclude" {...(canFind ? {} : window.gate("find", "exclude this lead"))}>Exclude</button>}
-    {l.cls === "excluded" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onPutBack(l.id); }} data-testid="lead-put-back" {...(canFind ? {} : window.gate("find", "put this lead back"))}>Put back</button>}
+    {l.phone && !l.phoneWrong && <button type="button" className="btn btn-ghost btn-icon btn-sm ld-call" onClick={(e) => { e.stopPropagation(); onCall(l.id); }} title="Call from your phone" aria-label={`Call ${l.name}`} data-testid="lead-call"><Icon name="phone" size={11} /></button>}
+    {l.email && l.emailState !== "invalid" && <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={(e) => { e.stopPropagation(); onCopy(l.id); }} title="Copy the email" aria-label={`Copy the email for ${l.name}`} data-testid="lead-copy"><Icon name="copy" size={11} /></button>}
+    {l.cls === "review" && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onKeep(l.id); }} data-testid="lead-keep" {...(canFind ? {} : window.gate("find", "keep this lead"))}>Keep</button>}
+    {l.cls === "review" && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onExclude(l.id); }} data-testid="lead-exclude" {...(canFind ? {} : window.gate("find", "exclude this lead"))}>Exclude</button>}
+    {l.cls === "excluded" && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onPutBack(l.id); }} data-testid="lead-put-back" {...(canFind ? {} : window.gate("find", "put this lead back"))}>Put back</button>}
   </span>
 );
 
@@ -257,7 +259,9 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
     // opens rightward over the table at a menu's full width.
     escape
     align="left"
-    title={`What ${s.name} asked for`}
+    // Its name is what it holds, for a screen reader and on hover: "What independent bookstores asked for" read as
+    // if the bookstores had asked. What the search asked for is the row's own tip (LeadsRailRows).
+    title={`More for ${s.name}`}
     btnClass="btn btn-ghost btn-icon btn-sm ld-search-more"
     items={[
       { header: words.askedLine },
@@ -296,6 +300,8 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
           count={s.count}
           active={searchId === s.id}
           onPick={() => onPickSearch(s.id)}
+          // Most names are cut off at the rail's width; the row names the whole ask, and when, on hover (the shared tip).
+          tip={wordsFor(s.id).askedLine || null}
           testid={`leads-search-${s.id}`}
           mark={s.mark === "live" ? <span className="live-dot" aria-hidden="true" /> : s.mark === "question" ? <span className="rail-q" title="This search needs you">?</span> : null}
           menu={<LeadSearchMenu s={s} words={wordsFor(s.id)} canFind={canFind} onRename={onRename} onMore={onMore} onAgain={onAgain} onRemove={onRemoveAsk} onUndo={onUndo} exportHref={hrefFor(s)} />}
@@ -443,8 +449,8 @@ const LeadReviewBench = ({ groups, rows, groupKey, onGroup, search, month, revie
                   <LeadSlot id={l.id} kind="mailbox" slot={l.slots.mailbox} values onPress={l.slots.mailbox.copy ? () => x.onCopy(l.id) : null} pressLabel="press to copy" />
                 </span>
                 <span className="ld-bench-card-acts">
-                  <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); x.onKeep(l.id); }} data-testid="bench-card-keep" {...(x.canFind ? {} : window.gate("find", "keep this lead"))}>{words.keep || "Keep"}</button>
-                  <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); x.onExclude(l.id); }} data-testid="bench-card-exclude" {...(x.canFind ? {} : window.gate("find", "exclude this lead"))}>{words.exclude || "Exclude"}</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); x.onKeep(l.id); }} data-testid="bench-card-keep" {...(x.canFind ? {} : window.gate("find", "keep this lead"))}>{words.keep || "Keep"}</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); x.onExclude(l.id); }} data-testid="bench-card-exclude" {...(x.canFind ? {} : window.gate("find", "exclude this lead"))}>{words.exclude || "Exclude"}</button>
                 </span>
               </div>
             </div>
@@ -967,6 +973,7 @@ const LeadsScope = (p) => {
             exclude: p.onExclude,
             putBack: p.onPutBack,
             copyEmail: p.onCopy,
+            copyPhone: p.onCopyPhone,
             draft: p.draft,
             armed: p.armed,
             setMode: p.onPeekMode,

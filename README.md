@@ -135,7 +135,7 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
   and stay as they are; nothing new follows them.
 - **Commits.** An imperative subject under 72 characters that names the change;
   the reasoning goes in the body, not the subject.
-- **Migrations.** Named for the schema change (`00148_jobs_drop_blob_thread_erase.sql`),
+- **Migrations.** Named for the schema change (`00151_jobs_drop_blob_thread_erase.sql`),
   re-runnable statements, a header of a few lines saying what changed. An applied
   migration is never edited or renamed. The lesson behind a change goes in the
   commit body or `docs/decisions/`.

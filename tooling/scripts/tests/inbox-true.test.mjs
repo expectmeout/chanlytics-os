@@ -81,10 +81,20 @@ test("every message of ours carries what became of it, the receptionist's as muc
   assert.deepEqual([note.channel, note.from], ["phone", "agent"]);
 });
 
-test("the flag's details are said whole, or cut at a word with an ellipsis -- never mid-word inside their quotes", () => {
-  const flag = (details) => vmOf(quiet([callNote("m1", 60)], { state: "needs_human", last_wa_inbound_at: null }), asked({ reason: "callback", details })).timeline.find((e) => e.type === "event").body;
-  assert.equal(flag("Call Emily back"), "Flagged for a human — Needs a call back — the phone receptionist could not finish it · “Call Emily back”");
+test("a call back's flag says why it was flagged, and its to-do is said once, whole, as the band's sentence", () => {
+  const vm = (details) => vmOf(quiet([callNote("m1", 60)], { state: "needs_human", last_wa_inbound_at: null }), asked({ reason: "callback", details }));
   const long = "Call Emily back to confirm the bridal trial on October 3 — she needs a quote for three people and asked to speak with Melany directly";
+  const flag = vm(long).timeline.find((e) => e.type === "event").body;
+  // It quoted the to-do (cut at 120 characters), under the band that said it again beside "From the call".
+  assert.equal(flag, "Flagged for a human — Needs a call back — the phone receptionist could not finish it", "REGRESSION: the flag quoted the to-do a third time");
+  assert.equal(vm(long).summary, long, "said whole, where it is acted on");
+});
+
+test("any other flag's details are said there, whole, or cut at a word with an ellipsis -- never mid-word inside their quotes", () => {
+  // The cause of a failed send is said only on the flag (thread.spec.ts reads it there).
+  const flag = (details) => vmOf(quiet([wrote("m1", "Can I book at 3?", 60)], { state: "needs_human" }), asked({ reason: "send_failed", details })).timeline.find((e) => e.type === "event").body;
+  assert.match(flag("the WhatsApp number is not connected"), /^Flagged for a human — .* · “the WhatsApp number is not connected”$/);
+  const long = "The reply could not be delivered because the WhatsApp number is not connected to this workspace any more, so reconnect it from Settings before anything else";
   const cut = flag(long);
   assert.match(cut, /…”$/, "REGRESSION: cut at 120 characters, mid-word, with nothing to say so");
   const kept = cut.slice(cut.indexOf("“") + 1, -2);
@@ -164,9 +174,10 @@ test("the pane: a quiet thread says its last word once, in its tone; the reply t
   const failed = bubbles.find((b) => textOf(b).includes("3pm works"));
   assert.ok(hasClass("undelivered")(failed), "REGRESSION: drawn as a reply the customer read");
   assert.match(textOf(failed), /Didn't send/);
-  // A call is drawn as the call, where it happened (calls-in-the-thread.test.mjs) -- never as a bubble of words.
+  // A call is part of the conversation, where it happened (calls-in-the-thread.test.mjs) -- never a bubble of words.
   assert.equal(bubbles.find((b) => textOf(b).includes("bridal trial")), undefined, "REGRESSION: a call note was drawn as words the receptionist sent");
-  assert.match(textOf(find(tree, byTestId("tl-call"))), /^Inbound call · 3 min.*asked about a bridal trial$/);
+  const call = find(tree, byTestId("tl-call"));
+  assert.deepEqual([textOf(find(call, hasClass("tl-call-kind"))), textOf(find(call, hasClass("tl-call-length"))), textOf(find(call, hasClass("tl-call-about")))], ["Inbound call", "3 min", "asked about a bridal trial"]);
 
   const answered = find(paneOf(vmOf(quiet([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29, "read")]))), byTestId("ix-last-word"));
   assert.equal(textOf(answered), "Answered by the receptionist — no one asked for you.");

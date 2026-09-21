@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
-import { consentPageMetadata, consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES } from "@chanlytics/contracts";
+import { businessPageVM, consentPageMetadata, consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES } from "@chanlytics/contracts";
 import { consentPageFor } from "@/server/consent-page";
+import { businessPageFor } from "@/server/business-page";
+
+/** How many services the page names before it sends the reader to the business's own page for the rest. */
+const SERVICES_SHOWN = 6;
 
 /**
  * A workspace's public "say yes" page.
@@ -38,6 +42,10 @@ export default async function ConsentPage({ params }: { params: Promise<{ slug: 
   const facts = await consentPageFor(slug);
   if (!facts) notFound();
   const vm = consentPageVM(facts);
+  // The business's own facts, by the rule `/b/<slug>` publishes by: a record too thin to identify anybody shows nothing.
+  const record = await businessPageFor(slug);
+  const who = record ? businessPageVM(record) : null;
+  const business = who && !who.empty ? who : null;
   const qr = vm.qrLink ? await QRCode.toString(vm.qrLink, { type: "svg", margin: 1, width: 190, errorCorrectionLevel: "M" }) : null;
 
   return (
@@ -87,6 +95,43 @@ export default async function ConsentPage({ params }: { params: Promise<{ slug: 
           <li key={t}>{t}</li>
         ))}
       </ul>
+
+      {/*
+        WHO IS ASKING, as a reviewer reads it. This URL is what a carrier opens as
+        the business's website as well as its opt-in page, and the eighth refusal
+        of the live campaign (30919, 21 Sep 2026) was for exactly this page: it
+        "does not clearly identify the business, such as the business name,
+        contact details, or a description of the services you provide". All three
+        were one link away on `/b/<slug>`, and a reviewer does not follow links.
+        So they are here too, from the same view model, under the asks: a customer
+        came to say yes and reads that first.
+      */}
+      {business && (
+        <section className="yes-who" data-testid="yes-who">
+          <h2 className="yes-ask-title">Who we are</h2>
+          <ul data-testid="yes-who-identity">
+            {business.identity.map((f) => (
+              <li key={f.label}>
+                <b>{f.label}</b>:{" "}
+                {f.href ? <a href={f.href} {...(f.href.startsWith("http") ? { rel: "noreferrer" } : {})}>{f.value}</a> : f.value}
+              </li>
+            ))}
+          </ul>
+          {business.services.length > 0 && (
+            <>
+              <h2 className="yes-ask-title">What we do</h2>
+              <ul data-testid="yes-who-services">
+                {business.services.slice(0, SERVICES_SHOWN).map((s) => (
+                  <li key={s.name}>{s.name}{s.detail ? ` — ${s.detail}` : ""}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          <p className="yes-who-more">
+            <a href={vm.links.privacy} data-testid="yes-who-more">More about {business.title}</a>
+          </p>
+        </section>
+      )}
 
       {/*
         The same two questions on paper, for a customer who would rather sign than

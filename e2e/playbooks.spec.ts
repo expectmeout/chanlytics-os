@@ -7,9 +7,9 @@ import { apiGet } from "./workspace";
  *
  * The route renders the real page, not the Coming Soon card or the mockup's
  * six invented campaigns: the cards are the workspace's playbooks with what
- * their runs earned, the composer offers the four triggers with the count
- * of people on each list who said yes, and the templates are the approved
- * ones the workspace holds (or the honest line). Nothing is made here — the
+ * their runs earned, the composer offers the six moments with who each
+ * reaches today, and the messages are the approved ones the workspace holds
+ * that fit the moment (or the honest line). Nothing is made here — the
  * workspace keeps no test playbook.
  */
 const INVENTED = ["Birthday offer", "Recovery Agent", "Review Bot", "Referral thank-you", "Attributed", "Spring couples"];
@@ -42,24 +42,30 @@ test.describe("Playbooks on a real workspace", () => {
     const text = await real.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
 
-    // The composer: the four triggers, each with a count; the approved
-    // templates or the honest line; the clock in the business's zone.
-    // Cancelled — nothing is saved.
+    // The composer, in a sheet beside the page: the six moments behind its
+    // moment, each with who it reaches today; the approved messages that fit
+    // it, or the honest line; the clock in the business's zone, and the
+    // rules every run keeps. Cancelled — nothing is saved.
     await page.getByTestId("pb-new").click();
-    const composer = real.getByTestId("pb-composer");
+    const composer = page.getByTestId("pb-composer");
     await expect(composer).toBeVisible();
-    await expect(composer.getByTestId("pb-trigger")).toHaveCount(6);
-    await expect(composer.getByTestId("pb-trigger").first()).toContainText("Win-back");
-    await expect(composer.getByTestId("pb-trigger-hint")).toContainText("Settings › Autonomy");
+    await composer.getByTestId("pb-moment").click();
+    await expect(page.getByTestId("pb-moment-pop")).toBeVisible();
+    await expect(page.getByTestId("pb-moment-option")).toHaveCount(6);
+    await expect(page.getByTestId("pb-moment-option").first()).toContainText("Win-back");
+    // Escape closes the list, and only the list.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("pb-moment-pop")).toHaveCount(0);
+    await expect(composer).toBeVisible();
+    await expect(composer.getByTestId("pb-guard")).toBeVisible();
     if (approved.length === 0) {
       await expect(composer.getByTestId("pb-no-template")).toBeVisible();
     } else {
-      await expect(composer.getByTestId("pb-template")).toHaveCount(approved.length);
-      await expect(composer.getByTestId("pb-preview")).toBeVisible();
+      await expect(composer.getByTestId("pb-message")).toBeVisible();
     }
     await expect(composer.getByTestId("pb-hour")).toBeVisible();
     await composer.getByTestId("pb-cancel").click();
-    await expect(real.getByTestId("pb-composer")).toHaveCount(0);
+    await expect(page.getByTestId("pb-composer")).toHaveCount(0);
   });
 
   test("the Campaigns tab is Playbooks, and Today shows a run only when one is waiting", async ({ page }) => {

@@ -1769,13 +1769,16 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       type: "event",
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
+      // Why it was flagged, and the details that say more -- except a call back's, which are the band's own sentence (the
+      // to-do): quoted here as well, they were said a third time. Any other reason's details, the cause of a failed send,
+      // are said only here.
+      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 6e4)) : void 0;
-  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageWords(lastInbound), quoted: lastInbound.type === "text" } : null;
+  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { kind: "call", label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? lastInbound.type === "text" ? { kind: "wrote", label: "They wrote", text: messageWords(lastInbound), quoted: true } : { kind: "sent", label: "They sent", text: messageWords(lastInbound), quoted: false } : null;
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
   return {
     id: `th-${dto.id}`,
@@ -1824,7 +1827,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     preview: last ? messageWords(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
-    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
+    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
@@ -1988,6 +1991,7 @@ function spokenDuration(ms2) {
 }
 var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
 var RECORDING_NOTE = {
+  none: "No recording",
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
@@ -2023,15 +2027,28 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     );
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
-  const transcript = (dto.transcript_object ?? []).map((turn) => {
-    const start = turn.start ?? turn.words?.[0]?.start;
+  const turns = dto.transcript_object ?? [];
+  const given = turns.map((turn) => turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null);
+  const starts = given.map((s, i) => {
+    if (s != null || turns[i].role === "injected") return s;
+    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
+    const after = given.slice(i + 1).find((x) => x != null) ?? null;
+    return before != null && after != null ? (before + after) / 2 : before ?? after;
+  });
+  const transcript = turns.map((turn, i) => {
     if (turn.role === "injected") {
-      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content) };
+      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content), start: null, end: null };
     }
+    const own = given[i];
+    const start = starts[i];
+    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
+    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
     return {
-      t: typeof start === "number" ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : "\u2014",
+      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "\u2014",
       speaker: turn.role === "agent" ? "agent" : "client",
-      text: turn.content ?? ""
+      text: turn.content ?? "",
+      start,
+      end
     };
   });
   const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
@@ -2053,6 +2070,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
     transcript,
+    durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
     recordingState: recState,
     ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
     ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {},
@@ -3962,12 +3980,17 @@ function consentOf(r, tz, nowMs) {
   };
 }
 function mayReceive(r, purpose) {
-  if (!r.phone) return false;
-  return mayMessageFor(
+  return whyNotReceive(r, purpose) === null;
+}
+function whyNotReceive(r, purpose) {
+  if (!r.phone) return "no_number";
+  const said = mayMessageFor(
     { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
     purpose,
     { proactive: true }
-  ).ok;
+  );
+  if (said.ok) return null;
+  return said.reason === "opted_out" ? "stopped" : "no_yes";
 }
 function receptionistOf(r, tz, nowMs) {
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
@@ -6462,6 +6485,212 @@ function findLanguages(query, list2 = WHATSAPP_LANGUAGES) {
   return scored.sort((a, b) => a.score - b.score || a.at - b.at).map((x) => x.l);
 }
 
+// src/templates.ts
+var TEMPLATE_LANGUAGES = WHATSAPP_LANGUAGES;
+var TEMPLATE_CATEGORIES = ["marketing", "utility"];
+var TEMPLATE_BODY_MAX = 1024;
+var TEMPLATE_FOOTER_MAX = 60;
+var TEMPLATE_EXAMPLE_MAX = 100;
+var TEMPLATE_NAME_MAX = 60;
+var TEMPLATE_BUTTON_TEXT_MAX = 25;
+var NAME = /^[a-z0-9_]{1,512}$/;
+function templateNameOk(name) {
+  return NAME.test(name);
+}
+function slugTemplateName(raw) {
+  return String(raw ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, TEMPLATE_NAME_MAX).replace(/_+$/g, "");
+}
+function placeholdersOf(body) {
+  const set = /* @__PURE__ */ new Set();
+  for (const m of String(body ?? "").matchAll(/\{\{(\d+)\}\}/g)) set.add(Number(m[1]));
+  return [...set].sort((a, b) => a - b);
+}
+function placeholdersSequential(positions) {
+  return positions.every((n, i) => n === i + 1);
+}
+function validateTemplateDraft(d) {
+  const name = slugTemplateName(d.name);
+  if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
+  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language)) return { ok: false, error: "Pick a language from the list." };
+  if (!TEMPLATE_CATEGORIES.includes(d.category)) return { ok: false, error: "A template is marketing or utility." };
+  const body = String(d.body ?? "").replace(/\r\n/g, "\n").trim();
+  if (!body) return { ok: false, error: "Write the message." };
+  if (body.length > TEMPLATE_BODY_MAX) return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
+  const slots = placeholdersOf(body);
+  if (!placeholdersSequential(slots)) return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
+  const examples = (d.examples ?? []).map((e) => String(e ?? "").trim());
+  if (examples.length !== slots.length) return { ok: false, error: slots.length === 0 ? "This message takes no values, so it needs no examples." : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} \u2014 WhatsApp's reviewers read them.` };
+  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX)) return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
+  const footer = d.footer ? String(d.footer).trim() : "";
+  if (footer.length > TEMPLATE_FOOTER_MAX) return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
+  if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
+  let button = null;
+  if (d.button) {
+    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
+    const url = String(d.button.url ?? "").trim();
+    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
+    if (text.length > TEMPLATE_BUTTON_TEXT_MAX) return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
+    if (/\{\{/.test(text) || /\{\{/.test(url)) return { ok: false, error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send." };
+    let parsed = null;
+    try {
+      parsed = new URL(url);
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || !/^https?:$/.test(parsed.protocol)) return { ok: false, error: "The button needs a web address to open, starting with https://." };
+    button = { text, url };
+  }
+  const warnings = [];
+  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body)) warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
+  if (d.category === "marketing" && !/stop/i.test(body + " " + footer)) warnings.push("A marketing message should say how to opt out, such as \u201CReply STOP to opt out\u201D.");
+  if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
+  return { ok: true, value: { name, language: d.language, category: d.category, body, footer: footer || null, examples, button }, warnings };
+}
+function templateComponents(v) {
+  const body = { type: "BODY", text: v.body };
+  if (v.examples.length) body.example = { body_text: [v.examples] };
+  const out = [body];
+  if (v.footer) out.push({ type: "FOOTER", text: v.footer });
+  if (v.button) out.push({ type: "BUTTONS", buttons: [{ type: "URL", text: v.button.text, url: v.button.url }] });
+  return out;
+}
+var PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"];
+var PARAM_SOURCE_LABELS = {
+  text: "Type it",
+  first_name: "Their first name",
+  business_name: "The business name",
+  booking_link: "The booking link",
+  visit_when: "Their visit's time",
+  visit_service: "Their visit's service"
+};
+var PARAM_SOURCE_HINTS = {
+  first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
+  business_name: "From Settings \u203A Business",
+  booking_link: "From Settings \u203A Business",
+  visit_when: "Each visit's own, from the calendar",
+  visit_service: "Each visit's own, from the calendar"
+};
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
+  }
+  return null;
+}
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
+function paramLabel(spec) {
+  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
+}
+function playbooksStillSending(names) {
+  const quoted = names.map((n) => `\u201C${n}\u201D`);
+  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
+}
+function firstNameOf(displayName, waProfileName) {
+  const raw = (displayName || waProfileName || "").trim();
+  if (!raw || /^[+\d(]/.test(raw)) return null;
+  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  return first ? first.slice(0, 30) : null;
+}
+function resolveParams(specs, f) {
+  return specs.map((s) => {
+    switch (s.kind) {
+      case "text":
+        return s.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
+    }
+  });
+}
+function exampleParams(specs, businessName) {
+  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
+}
+var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
+function templateUsage(src) {
+  const out = {};
+  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false };
+  const asking = new Set(src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id));
+  for (const p of src.playbooks) {
+    if (!p.template_name) continue;
+    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused", waiting: asking.has(p.id), runs: p.runs ?? null });
+  }
+  const byHand = src.broadcasts.filter((b) => b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  for (const b of byHand) {
+    const u = at2(b.template_name);
+    u.broadcasts += 1;
+    if (b.name && u.recent.length < 2) u.recent.push(b.name);
+  }
+  if (src.bookingName) at2(src.bookingName).booking = true;
+  return out;
+}
+var sayList = (parts2) => parts2.length < 2 ? parts2[0] ?? "" : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function templateUseWords(use) {
+  const u = use ?? NOTHING;
+  const parts2 = [];
+  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
+  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  if (u.booking) parts2.push("the Inbox");
+  if (parts2.length === 0) return "Nothing sends it";
+  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
+  return capital(sayList(parts2));
+}
+function templateUseNote(use) {
+  const u = use ?? NOTHING;
+  if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
+  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused \u2014 nothing goes out" : u.playbooks[0].runs;
+  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : null;
+  if (u.recent.length > 0) return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
+  if (u.booking) return "what the receptionist sends to book";
+  return null;
+}
+function templateUnused(use) {
+  const u = use ?? NOTHING;
+  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}
+function templateSends(src) {
+  const out = {};
+  const nameOf = new Map(src.runs.map((r) => [r.id, r.template_name]));
+  const went = (name, at2) => {
+    const s = out[name] ??= { count: 0, lastAt: null };
+    s.count += 1;
+    const ms2 = at2 === null ? NaN : Date.parse(at2);
+    if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at2;
+  };
+  for (const r of src.recipients) {
+    const name = r.state === "sent" ? nameOf.get(r.broadcast_id) : void 0;
+    if (name) went(name, r.sent_at);
+  }
+  for (const m of src.inbox) {
+    if (m.template_name && m.external_id) went(m.template_name, m.created_at);
+  }
+  return out;
+}
+function templateSentWords(s, tz, nowMs) {
+  if (!s || s.count === 0) return { count: null, when: "Never sent" };
+  const at2 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
+  return {
+    count: s.count.toLocaleString("en-US"),
+    when: Number.isFinite(at2) ? agoWords(at2, nowMs, { date: (ms2) => clockDate(ms2, tz, nowMs) }) : null
+  };
+}
+
 // src/template-library.ts
 var STARTER_LANGUAGES = [
   { id: "en_US", label: "English" },
@@ -6855,6 +7084,31 @@ function defaultSlotKinds(t) {
 function defaultParamSpecs(t) {
   return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
 }
+function slotChoices(kind, o) {
+  const may = (k) => k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : true;
+  if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
+  switch (kind) {
+    case "first_name":
+      return ["first_name"];
+    case "business_name":
+      return ["business_name", "text"];
+    case "booking_link":
+      return o.bookingLink ? ["booking_link", "text"] : ["text"];
+    case "visit_when":
+    case "visit_service":
+      return o.visits ? [kind] : [];
+    default:
+      return ["text"];
+  }
+}
+function templateSlots(t, o) {
+  const known = starterByName(t.name) !== null;
+  const each = defaultSlotKinds(t).map((k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink }));
+  return each.every((c) => c.length > 0) ? each : null;
+}
+function playbookName(trigger, tpl) {
+  return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
+}
 function starterIndex(name) {
   const i = STARTER_TEMPLATES.findIndex((s) => s.name === name);
   return i === -1 ? STARTER_TEMPLATES.length : i;
@@ -6977,205 +7231,6 @@ function slotToWrite(t) {
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
 
-// src/templates.ts
-var TEMPLATE_LANGUAGES = WHATSAPP_LANGUAGES;
-var TEMPLATE_CATEGORIES = ["marketing", "utility"];
-var TEMPLATE_BODY_MAX = 1024;
-var TEMPLATE_FOOTER_MAX = 60;
-var TEMPLATE_EXAMPLE_MAX = 100;
-var TEMPLATE_NAME_MAX = 60;
-var TEMPLATE_BUTTON_TEXT_MAX = 25;
-var NAME = /^[a-z0-9_]{1,512}$/;
-function templateNameOk(name) {
-  return NAME.test(name);
-}
-function slugTemplateName(raw) {
-  return String(raw ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, TEMPLATE_NAME_MAX).replace(/_+$/g, "");
-}
-function placeholdersOf(body) {
-  const set = /* @__PURE__ */ new Set();
-  for (const m of String(body ?? "").matchAll(/\{\{(\d+)\}\}/g)) set.add(Number(m[1]));
-  return [...set].sort((a, b) => a - b);
-}
-function placeholdersSequential(positions) {
-  return positions.every((n, i) => n === i + 1);
-}
-function validateTemplateDraft(d) {
-  const name = slugTemplateName(d.name);
-  if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
-  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language)) return { ok: false, error: "Pick a language from the list." };
-  if (!TEMPLATE_CATEGORIES.includes(d.category)) return { ok: false, error: "A template is marketing or utility." };
-  const body = String(d.body ?? "").replace(/\r\n/g, "\n").trim();
-  if (!body) return { ok: false, error: "Write the message." };
-  if (body.length > TEMPLATE_BODY_MAX) return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
-  const slots = placeholdersOf(body);
-  if (!placeholdersSequential(slots)) return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
-  const examples = (d.examples ?? []).map((e) => String(e ?? "").trim());
-  if (examples.length !== slots.length) return { ok: false, error: slots.length === 0 ? "This message takes no values, so it needs no examples." : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} \u2014 WhatsApp's reviewers read them.` };
-  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX)) return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
-  const footer = d.footer ? String(d.footer).trim() : "";
-  if (footer.length > TEMPLATE_FOOTER_MAX) return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
-  if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
-  let button = null;
-  if (d.button) {
-    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
-    const url = String(d.button.url ?? "").trim();
-    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
-    if (text.length > TEMPLATE_BUTTON_TEXT_MAX) return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
-    if (/\{\{/.test(text) || /\{\{/.test(url)) return { ok: false, error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send." };
-    let parsed = null;
-    try {
-      parsed = new URL(url);
-    } catch {
-      parsed = null;
-    }
-    if (!parsed || !/^https?:$/.test(parsed.protocol)) return { ok: false, error: "The button needs a web address to open, starting with https://." };
-    button = { text, url };
-  }
-  const warnings = [];
-  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body)) warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
-  if (d.category === "marketing" && !/stop/i.test(body + " " + footer)) warnings.push("A marketing message should say how to opt out, such as \u201CReply STOP to opt out\u201D.");
-  if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
-  return { ok: true, value: { name, language: d.language, category: d.category, body, footer: footer || null, examples, button }, warnings };
-}
-function templateComponents(v) {
-  const body = { type: "BODY", text: v.body };
-  if (v.examples.length) body.example = { body_text: [v.examples] };
-  const out = [body];
-  if (v.footer) out.push({ type: "FOOTER", text: v.footer });
-  if (v.button) out.push({ type: "BUTTONS", buttons: [{ type: "URL", text: v.button.text, url: v.button.url }] });
-  return out;
-}
-var PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"];
-var PARAM_SOURCE_LABELS = {
-  text: "Type it",
-  first_name: "Their first name",
-  business_name: "The business name",
-  booking_link: "The booking link",
-  visit_when: "Their visit's time",
-  visit_service: "Their visit's service"
-};
-function parseParamSpec(raw) {
-  if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
-    if (m) return { kind: m[1] };
-    return { kind: "text", value: raw };
-  }
-  if (raw && typeof raw === "object") {
-    const o = raw;
-    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
-  }
-  return null;
-}
-function parseParamSpecs(raw) {
-  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
-}
-function paramLabel(spec) {
-  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
-}
-function playbooksStillSending(names) {
-  const quoted = names.map((n) => `\u201C${n}\u201D`);
-  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
-  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
-}
-function firstNameOf(displayName, waProfileName) {
-  const raw = (displayName || waProfileName || "").trim();
-  if (!raw || /^[+\d(]/.test(raw)) return null;
-  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
-  return first ? first.slice(0, 30) : null;
-}
-function resolveParams(specs, f) {
-  return specs.map((s) => {
-    switch (s.kind) {
-      case "text":
-        return s.value;
-      case "first_name":
-        return f.firstName || "there";
-      case "business_name":
-        return f.businessName;
-      case "booking_link":
-        return f.bookingLink ?? "";
-      case "visit_when":
-        return f.visitWhen ?? "";
-      case "visit_service":
-        return f.visitService ?? "";
-    }
-  });
-}
-function exampleParams(specs, businessName) {
-  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
-}
-var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
-function templateUsage(src) {
-  const out = {};
-  const at2 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false };
-  const asking = new Set(src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id));
-  for (const p of src.playbooks) {
-    if (!p.template_name) continue;
-    at2(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused", waiting: asking.has(p.id), runs: p.runs ?? null });
-  }
-  const byHand = src.broadcasts.filter((b) => b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-  for (const b of byHand) {
-    const u = at2(b.template_name);
-    u.broadcasts += 1;
-    if (b.name && u.recent.length < 2) u.recent.push(b.name);
-  }
-  if (src.bookingName) at2(src.bookingName).booking = true;
-  return out;
-}
-var sayList = (parts2) => parts2.length < 2 ? parts2[0] ?? "" : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function templateUseWords(use) {
-  const u = use ?? NOTHING;
-  const parts2 = [];
-  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
-  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
-  if (u.booking) parts2.push("the Inbox");
-  if (parts2.length === 0) return "Nothing sends it";
-  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
-  return capital(sayList(parts2));
-}
-function templateUseNote(use) {
-  const u = use ?? NOTHING;
-  if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
-  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused \u2014 nothing goes out" : u.playbooks[0].runs;
-  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : null;
-  if (u.recent.length > 0) return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
-  if (u.booking) return "what the receptionist sends to book";
-  return null;
-}
-function templateUnused(use) {
-  const u = use ?? NOTHING;
-  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
-}
-function templateSends(src) {
-  const out = {};
-  const nameOf = new Map(src.runs.map((r) => [r.id, r.template_name]));
-  const went = (name, at2) => {
-    const s = out[name] ??= { count: 0, lastAt: null };
-    s.count += 1;
-    const ms2 = at2 === null ? NaN : Date.parse(at2);
-    if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at2;
-  };
-  for (const r of src.recipients) {
-    const name = r.state === "sent" ? nameOf.get(r.broadcast_id) : void 0;
-    if (name) went(name, r.sent_at);
-  }
-  for (const m of src.inbox) {
-    if (m.template_name && m.external_id) went(m.template_name, m.created_at);
-  }
-  return out;
-}
-function templateSentWords(s, tz, nowMs) {
-  if (!s || s.count === 0) return { count: null, when: "Never sent" };
-  const at2 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
-  return {
-    count: s.count.toLocaleString("en-US"),
-    when: Number.isFinite(at2) ? agoWords(at2, nowMs, { date: (ms2) => clockDate(ms2, tz, nowMs) }) : null
-  };
-}
-
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
 var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
@@ -7199,28 +7254,21 @@ var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
-  let pool = rows;
+  return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
+}
+function audienceMembers(rows, kind, id, savedIds) {
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
-    if (!l) return [];
-    pool = rows.filter(l.test);
-  } else if (kind === "saved") {
-    if (!savedIds) return [];
-    pool = rows.filter((r) => savedIds.has(r.id));
+    return l ? rows.filter(l.test) : [];
   }
-  return pool.filter((r) => mayReceive(r, purpose));
+  if (kind === "saved") return savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
+  return rows;
 }
 function previewPerson(r, refusal) {
   return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
 }
 function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5) {
-  let pool = rows;
-  if (kind === "list") {
-    const l = PEOPLE_LISTS.find((x) => x.id === id);
-    pool = l ? rows.filter(l.test) : [];
-  } else if (kind === "saved") {
-    pool = savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
-  }
+  const pool = audienceMembers(rows, kind, id, savedIds);
   const sending = pool.filter((r) => mayReceive(r, purpose));
   const held = pool.filter((r) => !mayReceive(r, purpose));
   const named = sending.filter((r) => firstNameOf(r.givenName, r.waName) !== null);
@@ -7505,29 +7553,51 @@ function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 function eligibleForPlaybook(rows, p, touches, nowMs) {
+  return playbookRunReach(rows, p, touches, nowMs).eligible;
+}
+function playbookRunReach(rows, p, touches, nowMs) {
+  const reach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return [];
+  if (!t) return { eligible: [], reach };
   const purpose = purposeOfPlaybook(t.cls);
-  if (t.kind === "visit") {
-    const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
-    });
-    pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
-    return pool2;
+  const named = t.kind === "visit" ? rows.filter((r) => {
+    if (!r.calendarTz) return false;
+    if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
+    return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
+  }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  reach.pool = named.length;
+  const allowed = [];
+  for (const r of named) {
+    const why = whyNotReceive(r, purpose);
+    if (why === "no_number") reach.noNumber += 1;
+    else if (why === "stopped") reach.stopped += 1;
+    else if (why === "no_yes") reach.noYes += 1;
+    else allowed.push(r);
   }
-  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
+  if (t.kind === "visit") {
+    allowed.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
+    reach.will = allowed.length;
+    return { eligible: allowed, reach };
+  }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS6;
-  const picked = pool.filter((r) => {
+  const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
-    if (mine !== void 0 && nowMs - mine < gapMs) return false;
+    if (mine !== void 0 && nowMs - mine < gapMs) {
+      reach.heardThis += 1;
+      return false;
+    }
     const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) return false;
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) {
+      reach.heardAny += 1;
+      return false;
+    }
     return true;
   });
   picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
-  return picked.slice(0, Math.max(1, p.cap_per_run));
+  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
+  reach.overCap = picked.length - eligible.length;
+  reach.will = eligible.length;
+  return { eligible, reach };
 }
 function planRun(mode, now) {
   switch (mode) {
@@ -7635,6 +7705,30 @@ function visitDayWord(visit, tz, sendAt, assumed) {
     return delta > 0 ? "soon" : "recently";
   }
 }
+function poolWords(trigger) {
+  const t = triggerOf(trigger);
+  if (!t) return "";
+  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  return t.list ? "on the list" : "in People";
+}
+function reachLines(reach, p) {
+  if (!reach || !Number.isFinite(reach.pool)) return null;
+  const t = p ? triggerOf(p.trigger) : null;
+  const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
+  const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
+  const one = (n, singular, plural7) => n === 1 ? singular : plural7;
+  const reasons = [
+    { n: reach.noYes, words: `never said yes to ${offers ? "offers" : "hearing from you"}`, tone: "plain", door: { words: "Get their yes", to: GET_YES_ROUTE } },
+    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    { n: reach.heardThis, words: gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately", tone: "warn", door: null },
+    { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
+    { n: reach.noNumber, words: one(reach.noNumber, "has no number on file", "have no number on file"), tone: "plain", door: null },
+    { n: reach.overCap, words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` \u2014 ${p.cap_per_run} a run, the longest unheard first` : ""}`, tone: "plain", door: null },
+    { n: reach.overLimit, words: one(reach.overLimit, "is past what the number may start today", "are past what the number may start today"), tone: "warn", door: null }
+  ];
+  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words2, tone, door }) => ({ n, words: `${n} ${words2}`, tone, door }));
+  return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
+}
 function toApprovalVM(d, opts) {
   const b = d.broadcast;
   const will = b.recipient_count;
@@ -7672,6 +7766,7 @@ function toApprovalVM(d, opts) {
   return {
     will,
     rules,
+    of: reachLines(b.audience?.reach ?? null, opts.playbook),
     values,
     reader: reader ? reader.name : null,
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
@@ -10737,7 +10832,7 @@ var WORDS = {
   "contact.email_set": "A person's email address changed",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
-  // Retired with the Blob store (00148): nothing writes it, but rows written before survive in `events` and still need their sentence.
+  // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
   "conversation.pause_expired": "A pause ended",
@@ -11986,6 +12081,9 @@ var LEAD_WORDS = {
   call: "Call",
   copy: "Copy",
   copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
   draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
@@ -12559,7 +12657,8 @@ var LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
 function leadSearchWords(s, tz) {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
   const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
-  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter(Boolean);
+  const asked = s.asked.toLowerCase();
+  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter((t) => t && !asked.includes(t.toLowerCase()));
   const leaving = left.length ? ` Leaving out ${left.join(" and ")}.` : "";
   return { askedLine: `You asked on ${day}: \u201C${s.asked}\u201D.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
 }
@@ -13477,6 +13576,7 @@ export {
   OUTCOME_UNKNOWN,
   OWN_MESSAGE_REFUSALS,
   PARAM_SOURCES,
+  PARAM_SOURCE_HINTS,
   PARAM_SOURCE_LABELS,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN,
@@ -13627,6 +13727,7 @@ export {
   askJump,
   askUndoOpen,
   attentionRow,
+  audienceMembers,
   audiencePreview,
   autoReplyBell,
   autoReplyCandidates,
@@ -13964,13 +14065,16 @@ export {
   platformQueue,
   platformRows,
   platformSummary,
+  playbookName,
   playbookReach,
+  playbookRunReach,
   playbooksStillSending,
   pointsDelta,
   policyAskClass,
   policyClassOfIntent,
   policyLinks,
   policyRules,
+  poolWords,
   previewHorizon,
   priceWords,
   priorOf,
@@ -13981,6 +14085,7 @@ export {
   quantile,
   questionAfterProbe,
   ratingWords,
+  reachLines,
   reachedCustomer,
   readAgoLabel,
   reasonShort,
@@ -14041,6 +14146,7 @@ export {
   shouldLandOnSetup,
   signupPosture,
   siteHost,
+  slotChoices,
   slotLabels,
   slotToWrite,
   slugTemplateName,
@@ -14084,6 +14190,7 @@ export {
   templatePreviewValues,
   templateSends,
   templateSentWords,
+  templateSlots,
   templateTitle,
   templateUntranslatable,
   templateUnused,
@@ -14168,6 +14275,7 @@ export {
   whyNotALocalPart,
   whyNotAPhone,
   whyNotAnEmail,
+  whyNotReceive,
   windowFor,
   workspaceHotkey,
   writtenChannelOf,

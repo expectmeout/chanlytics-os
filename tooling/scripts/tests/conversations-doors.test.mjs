@@ -124,7 +124,7 @@ await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
 globalThis.InboxThread = globalThis.window.InboxThread;
 globalThis.ThreadPane = globalThis.window.ThreadPane;
-globalThis.CallCard = globalThis.window.CallCard;
+globalThis.ThreadCall = globalThis.window.ThreadCall;
 await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 const { InboxThread, ConversationsPage, OutcomePill } = globalThis.window;
 
@@ -214,37 +214,34 @@ test("REGRESSION (A26): a link to a conversation not in view says so inside the 
   assert.equal(find(tree, (n) => n.type === InboxThread), undefined, "REGRESSION: someone else's conversation opened in its place");
 });
 
-test("REGRESSION (A14): a recording that will not load says why, and Play tries again -- through the client, which names the workspace", async () => {
+test("REGRESSION (A14): a recording that will not play says why where you listen, and play tries again -- from the route's own address, which names the workspace", () => {
   const rec = toCallVM(call(), ZONE, NOW);
   assert.equal(rec.recordingState, "ready", "the fixture is a call with its audio stored");
-  // The call opens its thread at its card, and the card plays it (calls-in-the-thread.test.mjs).
+  // The call opens its thread at the call, and the call plays there (calls-in-the-thread.test.mjs).
   const note = msg({ id: "m7", sender: "system", type: "call_summary", channel: "voice", body: "Inbound call · 3 min — Wants to book a bridal trial on October 3" });
   globalThis.window.INBOX_DATA = { THREADS: [toInboxThreadVM(conv([note], { id: "cv7" }), null, ZONE, NOW)], CHANNEL_LABELS: { whatsapp: "WhatsApp", phone: "Phone" } };
-  const asked = [];
-  let answer = { ok: false, message: "No recording stored for this call yet." };
-  globalThis.window.__recording = async (id) => { asked.push(id); return answer; };
-  const fetched = [];
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => { fetched.push(String(url)); throw new Error("a bare fetch"); };
+  // The route's address as the client builds it, with the workspace named (inbox-verbs.ts window.__href).
+  globalThis.window.__href = (route, p) => `${route}|${p.id}|workspace=melanys`;
   try {
     withRows([rec]);
     cells = [];
-    const audio = { src: "", played: 0, play() { this.played += 1; return Promise.resolve(); }, pause() {} };
+    const el = { src: "", played: 0, loaded: 0, paused: true, play() { this.played += 1; this.paused = false; return Promise.resolve(); }, pause() { this.paused = true; }, load() { this.loaded += 1; } };
     const opened = page();
     assert.equal(find(opened, (n) => n.type === InboxThread).props.thread.id, "th-cv7", "the call's own thread");
-    find(opened, (n) => n.type === "audio").props.ref.current = audio;
-    const play = () => find(page(), byTestId("tl-call-play"));
-    await play().props.onClick();
-    assert.deepEqual(fetched, [], "REGRESSION: the recording was read by a bare fetch that named no workspace");
-    assert.deepEqual(asked, [rec.callId]);
-    assert.match(textOf(find(page(), byTestId("tl-call-failed"))), /No recording stored for this call yet\. Press play to try again\./);
-    assert.equal(play().props.disabled, false, "REGRESSION: one failure disabled Play for good");
-    answer = { ok: true, data: { url: "https://media.example/rec.mp3?sig=1" } };
-    await play().props.onClick();
-    assert.deepEqual([asked.length, audio.src, audio.played], [2, "https://media.example/rec.mp3?sig=1", 1], "the second press reads it again and plays");
+    const node = find(opened, (n) => n.type === "audio");
+    // It was a bare fetch that named no workspace, then a link read once and signed for five minutes.
+    assert.equal(node.props.src, `GET calls/[id]/recording|${rec.callId}|workspace=melanys`, "REGRESSION: the recording was not the route's own address");
+    node.props.ref.current = el;
+    find(page(), byTestId("tl-call-play")).props.onClick();
+    node.props.onError();
+    assert.equal(textOf(find(page(), byTestId("tl-listen-failed"))), "Couldn't play the recording.");
+    const again = find(page(), byTestId("tl-listen-play"));
+    assert.equal(again.props.disabled, undefined, "REGRESSION: one failure disabled Play for good");
+    assert.equal(again.props["aria-label"], "Try the recording again");
+    again.props.onClick();
+    assert.deepEqual([el.loaded, el.played], [1, 2], "the second press asks the route again, and plays");
   } finally {
-    globalThis.fetch = realFetch;
-    delete globalThis.window.__recording;
+    delete globalThis.window.__href;
     delete globalThis.window.INBOX_DATA;
   }
 });

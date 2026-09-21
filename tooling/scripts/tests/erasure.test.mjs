@@ -8,7 +8,7 @@
  *
  * There was a fourth, a Vercel Blob object holding the verbatim conversation
  * outside the database, erased by a `blob_thread_erase` job queued before
- * anything was destroyed. The store is gone, the job kind with it (00148), and
+ * anything was destroyed. The store is gone, the job kind with it (00151), and
  * the assertions that pinned that leg go with them rather than being loosened.
  */
 import { test } from "node:test";
@@ -20,10 +20,10 @@ import { readRaw } from "./_source.mjs";
 // ("the customer's phone digits") opens a phantom string literal that swallows
 // real SQL up to the next apostrophe.
 //
-// 00148 holds the CURRENT text of erase_contact; 00027 declared it and is
+// 00151 holds the CURRENT text of erase_contact; 00027 declared it and is
 // history. Reading the older file would pin a definition the database does
 // not run.
-const sql = readRaw("supabase/migrations/00148_jobs_drop_blob_thread_erase.sql");
+const sql = readRaw("supabase/migrations/00151_jobs_drop_blob_thread_erase.sql");
 const statements = sql.replace(/^\s*--.*$/gm, "");
 
 test("the destructive order is collect, then calls, then messages, then the cascade", () => {
@@ -71,7 +71,7 @@ test("erasure withdraws every scheduled job that names the person, sparing no ki
   // One kind used to be spared: the route queued a blob_thread_erase job
   // before the RPC ran, and cancelling it would have cancelled the leg that
   // removed the second copy of the conversation. That store and that kind are
-  // gone (00148), so nothing scheduled may still speak to an erased person.
+  // gone (00151), so nothing scheduled may still speak to an erased person.
   assert.ok(!/and kind <> /.test(statements), "no kind survives the cancellation now");
   assert.ok(
     statements.includes("set state = 'canceled', last_error = 'contact erased'"),

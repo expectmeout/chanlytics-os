@@ -27,6 +27,7 @@ import { clockDate, clockWhen } from "./clock";
 import { PEOPLE_LISTS, mayReceive, type PersonRowVM } from "./people";
 import { firstNameOf, type ParamSpec } from "./templates";
 import { mayMessageFor, PURPOSE_REFUSALS, type SendPurpose } from "./consent";
+import type { RunReach } from "./playbooks";
 
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
@@ -69,6 +70,12 @@ export interface Audience {
   /** A People list id (kind "list") or a saved list id (kind "saved"). */
   id: string | null;
   label: string;
+  /**
+   * A playbook's run: who its moment named and why each of the rest was left
+   * out (contracts playbookRunReach), kept by the run as it was drawn. Absent
+   * on a broadcast a person sent, and on a run made before runs kept it.
+   */
+  reach?: RunReach;
 }
 
 export const EVERYONE_LABEL = "Everyone who said yes";
@@ -88,16 +95,26 @@ export function eligibleFor(
   /** What kind of message this audience is for. From the template's category, never assumed. */
   purpose: SendPurpose,
 ): PersonRowVM[] {
-  let pool: PersonRowVM[] = rows;
+  return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
+}
+
+/**
+ * Everyone an audience names, before anyone is left out: a list's members, a
+ * saved list's people, or everyone. `eligibleFor` is these, crossed with who
+ * may receive -- and a run that says who it left out counts from here.
+ */
+export function audienceMembers(
+  rows: PersonRowVM[],
+  kind: AudienceKind,
+  id: string | null | undefined,
+  savedIds: ReadonlySet<string> | null,
+): PersonRowVM[] {
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
-    if (!l) return [];
-    pool = rows.filter(l.test);
-  } else if (kind === "saved") {
-    if (!savedIds) return [];
-    pool = rows.filter((r) => savedIds.has(r.id));
+    return l ? rows.filter(l.test) : [];
   }
-  return pool.filter((r) => mayReceive(r, purpose));
+  if (kind === "saved") return savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
+  return rows;
 }
 
 /**
@@ -144,13 +161,7 @@ export function audiencePreview(
   purpose: SendPurpose,
   limit = 5,
 ): AudiencePreview {
-  let pool: PersonRowVM[] = rows;
-  if (kind === "list") {
-    const l = PEOPLE_LISTS.find((x) => x.id === id);
-    pool = l ? rows.filter(l.test) : [];
-  } else if (kind === "saved") {
-    pool = savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
-  }
+  const pool = audienceMembers(rows, kind, id, savedIds);
   const sending = pool.filter((r) => mayReceive(r, purpose));
   const held = pool.filter((r) => !mayReceive(r, purpose));
   const named = sending.filter((r) => firstNameOf(r.givenName, r.waName) !== null);

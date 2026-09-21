@@ -115,7 +115,7 @@ test("the retired kind is withdrawn from the database too, rows first", () => {
   // A CHECK tightened over rows that still hold the value fails the migration,
   // so the delete has to come first -- and those rows are finished erasures of
   // a store that no longer exists, not work anybody is waiting on.
-  const m = readRaw("supabase/migrations/00148_jobs_drop_blob_thread_erase.sql");
+  const m = readRaw("supabase/migrations/00151_jobs_drop_blob_thread_erase.sql");
   const del = m.indexOf("delete from public.jobs where kind = 'blob_thread_erase';");
   const check = m.indexOf("add constraint jobs_kind_check");
   assert.ok(del > -1 && check > del, "the rows go before the CHECK that would refuse them");

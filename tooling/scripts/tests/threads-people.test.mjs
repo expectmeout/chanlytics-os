@@ -139,7 +139,7 @@ test("the API attaches the mode in force, and an erasure scrubs the jobs that ca
   // No kind is spared any more. One was -- the blob_thread_erase job that
   // removed the second copy of the conversation, which the scrub would
   // otherwise have wiped the digits off before it could run. That store and
-  // that kind are gone (00148), so every job carrying the number is scrubbed.
+  // that kind are gone (00151), so every job carrying the number is scrubbed.
   assert.ok(!service.includes(".neq(\"kind\""), "nothing carrying the number is left alone");
   assert.ok(service.includes('reason: "contact erased"'));
 });

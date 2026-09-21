@@ -108,7 +108,7 @@
    stacking of these is in the 900px block at the foot of this file. */
 
 .lf-strip {
-  position: relative; margin: 12px 28px 0; display: flex; align-items: center; gap: 10px;
+  position: relative; margin: 12px var(--gutter-page) 0; display: flex; align-items: center; gap: 10px;
   padding: 0 6px 0 14px; height: 42px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--bg-raised); font-size: 12.5px; overflow: hidden; flex: none;
   animation: lf-in 200ms var(--ease-out) backwards;
@@ -181,14 +181,14 @@
 .pk-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 20px; }
 /* The verdict (D8): the fit's word and the evidence as a pipeline on one line, and the why under it. */
 .pk-verdict-head { display: flex; align-items: center; gap: 10px; }
-.pk-fit-word { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
-.pk-fit-word.strong { color: var(--ok-ink); }
-.pk-fit-word.long, .pk-fit-word.out { color: var(--ink-muted); }
-.pk-fit-word.review { color: var(--warn-ink); }
+/* The fit's word is the shared pill (StatePill), whose tone is the tone registry's: never restyled here. */
 .pk-verdict-head > .pk-hint { margin-left: auto; }
-.pk-fit { font-size: 13px; line-height: 1.5; color: var(--ink-muted); margin: 6px 0 0; text-wrap: pretty; }
+.pk-fit { font-size: 13px; line-height: 1.5; color: var(--ink-muted); margin: 8px 0 0; text-wrap: pretty; }
 .pk-bar { display: block; flex: none; }
-.pk-seg { fill: var(--ok); }
+/* A pipeline running once: each segment fills from its left edge, one after another (the delay is the page's). */
+.pk-seg { fill: var(--ok); transform-box: fill-box; transform-origin: left center; animation: pk-seg-in 360ms var(--ease-out) backwards; }
+@keyframes pk-seg-in { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .pk-seg { animation: none; } }
 .pk-seg.unknown { fill: var(--warn); }
 .pk-seg.no { fill: var(--ink-faint); }
 
@@ -239,7 +239,8 @@
 .pk-rv.wrong { text-decoration: line-through; color: var(--ink-muted); }
 .pk-rr.none .pk-rv { color: var(--ink-dim); font-weight: 400; }
 .pk-rn { font-size: 11.5px; color: var(--ink-dim); margin-top: 1px; }
-.pk-rr-acts { display: flex; gap: 6px; }
+/* A line's acts are quiet marks (icon buttons named on hover), close together at its end. */
+.pk-rr-acts { display: flex; gap: 2px; margin-right: -4px; }
 .pk-rr.locked .pk-rv { color: var(--ink-muted); font-weight: 400; }
 .pk-rr.locked > .icon { color: var(--ink-faint); }
 
@@ -339,6 +340,17 @@
 .ld-reach-email:hover { text-decoration: underline; }
 .ld-reach-phone.wrong { text-decoration: line-through; color: var(--ink-faint); }
 .ld-biz-name { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: left; cursor: pointer; }
+/* A thumb's reach without a thumb's height. Every button on a touch screen is 44px tall (legacy.css), so a lead's
+   one-line name stood in a 44px box, with the air between it and its sub-line: on the review card and on the
+   table's phone card alike. The height comes off the box. The review card's name keeps its reach in an ::after that
+   takes no room: 44px, from the card's top edge (its 11px of padding, so a press on the card above stays that
+   card's) down over the name's own sub-line. The table's name takes none: a press anywhere on its row opens the same
+   lead, Call is the card's 44px act, and the ellipsis that shortens the name clips anything drawn outside its box. */
+@media (pointer: coarse) {
+  html.legacy-on .ld-biz-name { min-height: 0; }
+  html.legacy-on .ld-bench-card .ld-biz-name { position: relative; }
+  .ld-bench-card .ld-biz-name::after { content: ""; position: absolute; inset: -11px -8px -13px; }
+}
 .ld-badge { margin-left: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-fit-cell.qualified { color: var(--ink-muted); }
 .ld-fit-cell.review { color: var(--warn-ink); }
@@ -422,6 +434,13 @@
 .ld-bar { display: none; }
 
 @media (max-width: 900px) {
+  /* One gutter for the pane, owned by the scope. The bar, the strip, the band, the chips, the bench, the map and the
+     first day read --gutter-page, and at this width the pane's is People's 16px (the cards' wrap, the standing line
+     and the controls row, clients.css and mobile.css). At the page's 28px those rows stood 12px further in than the
+     cards under them, and the bar's search, the one control in it that flexes, paid for both sides: 40px wide on a
+     touch phone at 375. */
+  .leads-scope { --gutter-page: 16px; }
+
   /* One bar replaces the rail and the controls row. The rail is already
      display: none at this width (mobile.css) and the Leads scope draws
      neither of them here; the rule stands for a window dragged past the band
@@ -457,47 +476,9 @@
   .lf-strip.ask .lf-acts .btn { flex: 1; min-height: 44px; justify-content: center; }
   .lf-strip.ask .lf-acts .lnk { flex-basis: 100%; text-align: left; }
 
-  /* Rows are cards on the lead grid areas: the three rows the design draws,
-     with the actions cell as a fourth column holding the 44px Call. */
-  .clients .cl-table tbody tr:has(td.ld-fit-cell) {
-    grid-template-columns: 28px minmax(0, 1fr) auto 44px;
-    grid-template-areas:
-      "sel business fit  call"
-      "sel email    phone call"
-      "sel stage    found call";
-    column-gap: 8px;
-    row-gap: 2px;
-    align-items: start;
-  }
-  .cl-table td.ld-biz-cell { grid-area: business; }
-  .cl-table td.ld-fit-cell { grid-area: fit; justify-self: end; }
-  .cl-table td.ld-email-cell { grid-area: email; }
-  .cl-table td.ld-phone-cell { grid-area: phone; justify-self: end; }
-  .cl-table td.ld-stage-cell { grid-area: stage; }
-  .cl-table td.ld-found-cell { grid-area: found; justify-self: end; }
-  /* A card keeps its few facts: the judge's reason, the rating, the distance,
-     the source, the site and the search are the desktop's columns. */
-  .cl-table td.ld-why-cell, .cl-table td.ld-rating-cell, .cl-table td.ld-distance-cell,
-  .cl-table td.ld-source-cell, .cl-table td.ld-website-cell, .cl-table td.ld-search-cell { display: none; }
-  /* clients.css hides the actions cell on a card; a lead's Call is the one
-     thing a phone is for, so it comes back at 44px, and Copy, Keep, Exclude
-     and Put back stay in the lead's own screen. */
-  .cl-table td.cl-actions-cell:has(.ld-row-actions) { display: grid; place-items: center; grid-area: call; align-self: center; }
-  .ld-row-actions { display: contents; }
-  .ld-row-actions > :not(.ld-call) { display: none; }
-  .ld-row-actions .ld-call { width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); display: grid; place-items: center; }
-  /* An excluded card has no stage and nothing checked to say: its second row
-     is why it was left out. */
-  .clients .cl-table tbody tr:has(td.ld-fit-cell.excluded) {
-    grid-template-areas:
-      "sel business fit  call"
-      "sel why      why  call";
-  }
-  .clients .cl-table tbody tr:has(td.ld-fit-cell.excluded) td.ld-why-cell { display: block; grid-area: why; max-width: none; white-space: normal; }
-  .clients .cl-table tbody tr:has(td.ld-fit-cell.excluded) td.ld-email-cell,
-  .clients .cl-table tbody tr:has(td.ld-fit-cell.excluded) td.ld-phone-cell,
-  .clients .cl-table tbody tr:has(td.ld-fit-cell.excluded) td.ld-stage-cell,
-  .clients .cl-table tbody tr:has(td.ld-fit-cell.excluded) td.ld-found-cell { display: none; }
+  /* Rows are cards on the lead grid areas, with the actions cell as a fourth
+     column holding the 44px Call: the row's own phone block draws them, every
+     cell in one place (the row, re-cut, D5, below). */
 
   /* A lead opens full screen, not beside the table (.pk is the desktop pane,
      .pl-peek the name PL_OVERLAY knows it by; both are on the one element). */
@@ -682,8 +663,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-card-count { font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-bar-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) 40px; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-dim); margin-top: 3px; }
 .ld-bar-row .n { text-align: right; }
-.ld-bar { display: block; height: 5px; border-radius: 3px; background: var(--bg-active); overflow: hidden; }
-.ld-bar span { display: block; height: 100%; border-radius: 3px; background: var(--warn); }
+/* One star's track, named through its row: .ld-bar alone is also the phone's bar (the switch, search and Find), and
+   this rule, later and unconditional, drew that bar as a 5px track with all four clipped out of sight. */
+.ld-bar-row .ld-bar { display: block; height: 5px; border-radius: 3px; background: var(--bg-active); overflow: hidden; }
+.ld-bar-row .ld-bar span { display: block; height: 100%; border-radius: 3px; background: var(--warn); }
 
 /* The band: the search's whole shape in one line, which is also the tabs; the fit split only when the fits differ. */
 .ld-band { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 6px var(--gutter-page) 0; flex: none; }
@@ -701,7 +684,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-band-fit.on .count { color: var(--accent); }
 
 /* The phone (900px and under): the D5 row as a card -- the tile and the name, the two slots and the rating
-   under them, the 44px Call at the end. The old fit/email/phone/stage areas are gone with their columns. */
+   under them, the 44px Call at the end. A phone draws every column, the ones switched off too (plDrawnColumns: a
+   member's choices are a desktop's), so each cell is placed on an area here or hidden here. A cell naming an area
+   the template lacks is not dropped: it opens implicit tracks past the grid. Fit and Stage still named the areas
+   of the card before D5, and those tracks squeezed the name to a few letters and put Call mid-card. */
 @media (max-width: 900px) {
   .clients .cl-table tbody tr:has(td.ld-biz-cell) {
     grid-template-columns: 28px minmax(0, 1fr) auto 44px;
@@ -716,11 +702,27 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .cl-table td.ld-biz-cell { grid-area: business; }
   .cl-table td.ld-reach-cell { grid-area: reach; }
   .cl-table td.ld-rated-cell { grid-area: rated; justify-self: end; }
-  .cl-table td.ld-found-cell { display: none; }
+  /* The rest are the desktop's columns: the fit and why it fits (the band and the name's card say them), the stage
+     (the row wears it as a tag), when it was found, the distance, the source, the site and the search. */
+  .cl-table td.ld-fit-cell, .cl-table td.ld-why-cell, .cl-table td.ld-stage-cell, .cl-table td.ld-found-cell,
+  .cl-table td.ld-distance-cell, .cl-table td.ld-source-cell, .cl-table td.ld-website-cell, .cl-table td.ld-search-cell { display: none; }
+  /* clients.css hides the actions cell on a card; a lead's Call is the one thing a phone is for, so it comes back
+     at 44px, and Copy, Keep, Exclude and Put back stay in the lead's own screen. */
+  .cl-table td.cl-actions-cell:has(.ld-row-actions) { display: grid; place-items: center; grid-area: call; align-self: center; }
+  .ld-row-actions { display: contents; }
+  .ld-row-actions > :not(.ld-call) { display: none; }
+  .ld-row-actions .ld-call { width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); display: grid; place-items: center; }
+  /* A left-out card is its name and, under it, what left it out: nothing about it was checked. */
   .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) { grid-template-areas: "sel business business call"; }
   .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-reach-cell,
   .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-rated-cell { display: none; }
   .ld-tile { width: 40px !important; height: 40px !important; }
+  /* The table's tile is a button, the one thing on the card that opens the photo, and on a touch screen legacy.css
+     makes every button at least 44px tall: this square stood 40 wide and 44 tall, with the photo cropped to fit. It
+     takes the width to match, as the chart kit's icon buttons do, and is a 44px square like Call at the card's other
+     end. A smaller target hands a thumb that misses it to the row, which opens the lead instead. The review bench's
+     tile is a picture, not a button, and stays 40px. */
+  @media (pointer: coarse) { button.ld-tile { width: 44px !important; height: 44px !important; } }
   .ld-card, .ld-tip, .ld-hover:hover > .ld-card, .ld-hover:hover > .ld-tip { display: none !important; }
   .ld-values { display: none; }
 }
@@ -755,9 +757,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-identity .pk-about { margin-top: 2px; }
 .pk-identity .pk-where { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .pk-distance { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
-.pk-verdict { padding: 12px 14px; border-radius: var(--radius-lg); border: 1px solid var(--line); background: var(--bg-sunken); }
-.pk-verdict.strong { border-color: oklch(from var(--ok) l c h / 0.35); background: var(--ok-soft); }
-.pk-verdict.review { border-color: oklch(from var(--warn) l c h / 0.4); background: var(--warn-soft); }
+/* The verdict is not a box (D8, 21 Sep): the pill carries its tone and the pipeline its evidence, so a tinted card
+   round them read as an alert. It stands in the body's own rhythm, first. */
 .pk-box { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 0 13px 11px; }
 /* The head is the summary; the ROW is the span inside it. A <summary> is a disclosure widget before it is a box and
    not every engine lets it be a flex container, so nothing here depends on that: the summary only hides its marker
@@ -843,7 +844,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-t .count { font-family: var(--font-mono); font-size: var(--text-base); color: var(--ink-dim); }
 .ld-bench-why { margin: 5px 0 0; font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.5; max-width: 66ch; }
 .ld-bench-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
-.ld-bench-cards { display: flex; flex-direction: column; }
+/* A container: the cards fold by their own width (the rule after the card's), never the window's. */
+.ld-bench-cards { display: flex; flex-direction: column; container-type: inline-size; }
 .ld-bench-card { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
 .ld-bench-card:last-child { border-bottom: 0; }
 .ld-bench-card:hover { background: var(--bg-hover); }
@@ -854,6 +856,20 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-card .r { display: flex; align-items: center; gap: 14px; }
 .ld-bench-card-acts { display: inline-flex; gap: 2px; opacity: 0; }
 .ld-bench-card:hover .ld-bench-card-acts, .ld-bench-card:focus-within .ld-bench-card-acts { opacity: 1; }
+/* After the card's rules, so it wins by order. A card too narrow for its words and its values side by side puts the
+   values under the words. The values' `auto` column is as wide as its unbroken number and address (313-379px on
+   production's cards), and at 1280 the sidebar, the rail and the pile leave a card 484px, so the name had 9-75px: a
+   word a line. At 800px the words still keep 248px beside a number, a 30-letter address and the acts. Folded, the
+   number and the address take a line each when they must, an address longer than its line gives way at its end, and
+   Keep and Exclude hold the right edge. */
+@container (max-width: 800px) {
+  .ld-bench-card { grid-template-columns: 40px minmax(0, 1fr); }
+  .ld-bench-card .r { grid-column: 2; flex-wrap: wrap; gap: 6px 14px; }
+  .ld-bench-card .ld-slots { flex-wrap: wrap; row-gap: 6px; }
+  .ld-bench-card .ld-slots, .ld-bench-card .ld-slot, .ld-bench-card .ld-slot-btn { min-width: 0; }
+  .ld-bench-card .ld-slot-value { overflow: hidden; text-overflow: ellipsis; }
+  .ld-bench-card-acts { margin-left: auto; }
+}
 
 .ld-bench-side { flex: 1 1 260px; min-width: 240px; display: flex; flex-direction: column; gap: 16px; }
 .ld-bench-block { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; }
@@ -874,7 +890,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-bench-g { flex: none; border: 1px solid var(--line); border-radius: var(--radius-full); padding: 7px 12px; grid-template-columns: auto auto; align-items: center; }
   .ld-bench-g .a { display: none; }
   .ld-bench-card-acts { opacity: 1; }
-  .ld-bench-card .r { flex-direction: column; align-items: flex-end; gap: 6px; }
 }
 
 /* --------------------------- one lead at a time, on a phone (D5) -- */

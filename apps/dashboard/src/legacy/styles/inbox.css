@@ -1050,53 +1050,109 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
   overflow-wrap: anywhere;
 }
 
-/* A call, where it happened in the thread (inbox-thread.jsx CallCard). A card, not a bubble -- it is neither side's
-   words -- raised a step off the page, on the side it came from. Its note was a dashed bubble reading "Phone · call
-   note", and the call itself was a second screen in Conversations. */
-.tl-call { display: flex; }
-.tl-call.inbound { justify-content: flex-start; }
-.tl-call.outbound { justify-content: flex-end; }
-.tl-call-card {
-  width: min(88%, 420px);
+/* A call, in its conversation (inbox-thread.jsx ThreadCall): a quiet line where it began, its lines as the thread's own
+   bubbles, a quiet line where it ended, and a slim player floating at the top while you listen. It was a 420px card on
+   the conversation, with its transcript behind a tap (#775), and before that a second screen in Conversations. */
+.tl-call { display: flex; flex-direction: column; gap: 10px; }
+
+/* Where it began and where it ended: a line across the thread, as a day's divider would be. */
+.tl-call-mark {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 11px 14px 12px;
-  border-radius: 14px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
-  container-type: inline-size;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink-dim);
 }
-.tl-call-head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; line-height: 1.3; }
-.tl-call-glyph {
+.tl-call-mark::before, .tl-call-mark::after { content: ""; flex: 1 1 16px; min-width: 16px; height: 1px; background: var(--line); }
+/* What it was, then when -- set apart by space, not a dot, so a narrow phone that puts the when on a line of its own
+   does not begin that line with a dot. */
+.tl-call-words { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 2px 14px; min-width: 0; text-align: center; }
+.tl-call-what > span + span::before { content: "·"; margin: 0 6px; }
+.tl-call-kind { font-weight: 550; color: var(--ink-muted); }
+.tl-call-length, .tl-call-at { white-space: nowrap; }
+.tl-call-ended { min-width: 0; text-align: center; }
+.tl-call-play, .tl-call-glyph {
+  position: relative;
   flex: none;
   display: grid;
   place-items: center;
   width: 22px;
   height: 22px;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
   background: color-mix(in oklab, var(--ink) 7%, transparent);
   color: var(--ink-muted);
 }
-.tl-call-kind { min-width: 0; font-weight: 550; color: var(--ink); white-space: nowrap; }
-.tl-call-length { font-weight: 400; color: var(--ink-dim); }
-/* --ink-dim, not the bubbles' --ink-faint: faint reads at 2.1-2.7:1, and this is the only time the card says. */
-.tl-call-at { margin-left: auto; flex: none; font-size: 11px; color: var(--ink-dim); }
-.tl-call-about { font-size: 13px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
-/* How it went: one quiet line, never a list of eight facts. */
-.tl-call-facts { margin-top: -3px; font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
-/* A narrow card -- any phone -- gives the time its own line under the words, past the glyph: sharing one, the words
-   broke instead, "Inbound" over "call · 3:10". The longest head, "Outbound call · 12:34" beside "Sep 20 · 12:56 PM",
-   is 258px. After the rules it overrides, which win a tie of specificity. */
-@container (max-width: 260px) {
-  .tl-call-head { flex-wrap: wrap; row-gap: 2px; }
-  .tl-call-at { flex: 0 0 calc(100% - 30px); margin-left: 30px; }
-}
+.tl-call-play { color: var(--ink); cursor: pointer; transition: background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out); }
+.tl-call-play .icon { margin-left: 1px; } /* a triangle's weight sits to its left */
+.tl-call-play:hover { background: color-mix(in oklab, var(--ink) 14%, transparent); transform: scale(1.06); }
+.tl-call-play:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* A finger's reach without a finger's size: 44px to press, 22px to see. */
+.tl-call-play::after { content: ""; position: absolute; inset: -11px; border-radius: 999px; }
+.tl-call-file { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 999px; color: var(--ink-dim); }
+.tl-call-file:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 7%, transparent); }
+.tl-call-file:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-/* The recording: a soft round Play, a hairline of progress, the clock. There is no Play without a recording. */
-.tl-call-player { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
-.tl-call-play {
+/* A call the conversation moved on from, folded to what it was about. */
+.tl-call-folded { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.tl-call-about { max-width: min(100%, 520px); margin: 0 auto; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); text-align: center; overflow-wrap: anywhere; }
+.tl-call-open {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
+  text-underline-offset: 2px;
+}
+.tl-call-open:hover { color: var(--ink); }
+.tl-call-open::after { content: ""; position: absolute; inset: -12px -8px; }
+.tl-call-open:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
+
+/* Its lines are the thread's own bubbles. The line being said is outlined, never striped, and the rest step back. */
+.tl-call-turns { display: flex; flex-direction: column; gap: 10px; }
+.tl-msg.tl-spoken.playable .tl-msg-body { cursor: pointer; }
+.tl-msg.tl-spoken .tl-msg-body { transition: box-shadow var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out); }
+.tl-msg.tl-spoken.now .tl-msg-body { box-shadow: 0 0 0 2px color-mix(in oklab, var(--ink) 26%, transparent), var(--shadow-sm); }
+.tl-call.listening .tl-msg.tl-spoken:not(.now) .tl-msg-body { opacity: 0.72; }
+.tl-msg.tl-spoken.whisper .tl-msg-body { font-style: italic; }
+.tl-spoken-whisper { color: var(--ink-dim); }
+.tl-spoken-t { position: relative; padding: 0; border: 0; background: none; font: inherit; font-size: 10.5px; color: var(--ink-dim); cursor: pointer; }
+.tl-spoken-t:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.tl-spoken-t:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
+.tl-spoken-t::after { content: ""; position: absolute; inset: -12px -10px; }
+.tl-msg.tl-spoken.now .tl-spoken-t { color: var(--ink); font-weight: 600; }
+/* Who spoke, for a screen reader: the side says it to the eye. */
+.tl-spoken-who { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+html.legacy-on .tl-call-play, html.legacy-on .tl-call-open, html.legacy-on .tl-spoken-t, html.legacy-on .tl-call-file,
+html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on .tl-listen-close { min-height: 0; }
+
+/* While you listen: one slim capsule floating at the top of the thread, the call's lines passing under it. */
+.tl-listen {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  align-self: center;
+  width: min(100%, 560px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--line) 80%, transparent);
+  background: color-mix(in oklab, var(--bg-raised) 92%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: var(--shadow-md);
+}
+.tl-listen-play {
   position: relative;
   flex: none;
   display: grid;
@@ -1106,68 +1162,67 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--ink) 8%, transparent);
+  background: color-mix(in oklab, var(--ink) 9%, transparent);
   color: var(--ink);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
 }
-.tl-call-play:hover { background: color-mix(in oklab, var(--ink) 14%, transparent); }
-.tl-call-play:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.tl-call-play:disabled { opacity: 0.6; cursor: default; }
-.tl-call-track { flex: 1 1 auto; min-width: 40px; height: 3px; border-radius: 999px; background: color-mix(in oklab, var(--ink) 10%, transparent); overflow: hidden; }
-.tl-call-fill { height: 100%; border-radius: inherit; background: var(--ink-muted); transition: width 250ms linear; }
-.tl-call-clock { flex: none; font-size: 11px; color: var(--ink-dim); }
-.tl-call-failed { font-size: 11.5px; line-height: 1.4; color: var(--warn-ink); }
-
-/* The transcript, on a tap: who said it over what they said, the caller's words in full ink. */
-.tl-call-open {
+.tl-listen-play:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); }
+.tl-listen-play::after { content: ""; position: absolute; inset: -7px; border-radius: 999px; }
+.tl-listen-who { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 550; color: var(--ink); }
+.tl-listen-clock { flex: none; font-size: 11px; color: var(--ink-dim); }
+.tl-listen-failed { flex: none; font-size: 11.5px; color: var(--warn-ink); }
+.tl-listen-speed, .tl-listen-close {
   position: relative;
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 2px;
-  padding: 0;
+  flex: none;
+  display: grid;
+  place-items: center;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 6px;
   border: 0;
+  border-radius: 999px;
   background: none;
   font: inherit;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11.5px;
   color: var(--ink-muted);
   cursor: pointer;
 }
-.tl-call-open:hover { color: var(--ink); }
-.tl-call-open:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
-.tl-call-open .icon { transition: transform var(--duration-fast) var(--ease-out); }
-.tl-call-open[aria-expanded="true"] .icon { transform: rotate(180deg); }
-/* A thumb's reach without a thumb's height: a touch screen's buttons are 44px tall (legacy.css). */
-html.legacy-on .tl-call-open, html.legacy-on .tl-call-play { min-height: 0; }
-.tl-call-open::after { content: ""; position: absolute; inset: -12px -8px; }
-.tl-call-play::after { content: ""; position: absolute; inset: -7px; border-radius: 999px; }
-.tl-call-lines { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
-.tl-call-line { display: flex; flex-direction: column; gap: 1px; font-size: 12.5px; line-height: 1.5; }
-.tl-call-who { font-size: 11px; font-weight: 600; color: var(--ink-dim); }
-.tl-call-said { color: var(--ink); overflow-wrap: anywhere; }
-.tl-call-line.agent .tl-call-said { color: var(--ink-muted); }
-.tl-call-line.whisper .tl-call-said { color: var(--ink-muted); font-style: italic; }
-.tl-call-file {
-  align-self: flex-start;
-  font-size: 12px;
-  color: var(--ink-muted);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
+.tl-listen-speed:hover, .tl-listen-close:hover { background: color-mix(in oklab, var(--ink) 8%, transparent); color: var(--ink); }
+.tl-listen-speed::after, .tl-listen-close::after { content: ""; position: absolute; inset: -10px -4px; }
+.tl-listen-play:focus-visible, .tl-listen-speed:focus-visible, .tl-listen-close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The track: pressed, dragged, or moved by the keyboard's arrows. */
+.tl-listen-track { flex: 1 1 auto; min-width: 48px; height: 20px; margin: 0; background: transparent; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.tl-listen-track::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--ink-muted) var(--fill, 0%), color-mix(in oklab, var(--ink) 12%, transparent) var(--fill, 0%));
 }
-.tl-call-file:hover { color: var(--ink); }
-.tl-call-acts { display: flex; gap: 8px; margin-top: 4px; }
+.tl-listen-track::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; margin-top: -4px; border-radius: 999px; background: var(--ink); }
+.tl-listen-track::-moz-range-track { height: 3px; border-radius: 999px; background: color-mix(in oklab, var(--ink) 12%, transparent); }
+.tl-listen-track::-moz-range-progress { height: 3px; border-radius: 999px; background: var(--ink-muted); }
+.tl-listen-track::-moz-range-thumb { width: 11px; height: 11px; border: 0; border-radius: 999px; background: var(--ink); }
+.tl-listen-track:focus-visible { outline: none; }
+.tl-listen-track:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring); }
+.tl-listen-track:focus-visible::-moz-range-thumb { box-shadow: var(--focus-ring); }
+@media (max-width: 720px) {
+  .tl-listen { gap: 8px; }
+  .tl-listen-who { display: none; }
+}
 
-/* Opened at the call, from Conversations: a moment's ring says which card it is. */
-.tl-call.focus .tl-call-card { animation: tl-call-here 2.4s var(--ease-out) 0.2s both; }
+/* Opened at the call, from Conversations: a moment's light on where it began. */
+.tl-call.focus > .tl-call-mark .tl-call-words { border-radius: 999px; animation: tl-call-here 2.4s var(--ease-out) 0.2s both; }
 @keyframes tl-call-here {
-  from { box-shadow: 0 0 0 3px color-mix(in oklab, var(--ink) 16%, transparent), var(--shadow-sm); }
-  to { box-shadow: 0 0 0 0 transparent, var(--shadow-sm); }
+  from { background: color-mix(in oklab, var(--ink) 10%, transparent); box-shadow: 0 0 0 6px color-mix(in oklab, var(--ink) 10%, transparent); }
+  to { background: transparent; box-shadow: 0 0 0 6px transparent; }
 }
-@media (prefers-reduced-motion: reduce) { .tl-call.focus .tl-call-card { animation: none; } }
+
+/* A call still going, drawn alone (conversations.jsx CallPane): the line, and Live to hear it. */
+.tl-call-live-acts { display: flex; justify-content: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-call-play, .tl-msg.tl-spoken .tl-msg-body { transition: none; }
+  .tl-call.focus > .tl-call-mark .tl-call-words { animation: none; }
+}
 
 /* System events */
 /* The bullet belongs beside the first line, not halfway down a four-line paragraph. */

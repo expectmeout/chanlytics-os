@@ -105,7 +105,11 @@ const lpTone = (status) => {
   const said = status && window.__chrome && window.__chrome.state ? window.__chrome.state("template", status) : null;
   return said ? said.tone : "none";
 };
-const lpPortal = (node) => (window.ReactDOM && window.ReactDOM.createPortal && document.body ? window.ReactDOM.createPortal(node, document.body) : node);
+// The list goes on the document's body, so nothing it opens from can clip it -- or, opened inside a modal (the
+// playbook composer's sheet), on the modal: a screen reader keeps to a modal dialog, and a list drawn outside it
+// could not be reached.
+const lpHost = (el) => (el && el.closest ? el.closest('[aria-modal="true"]') : null) || document.body;
+const lpPortal = (node, host) => (window.ReactDOM && window.ReactDOM.createPortal && host ? window.ReactDOM.createPortal(node, host) : node);
 let lpSeq = 0;
 
 /**
@@ -121,8 +125,17 @@ let lpSeq = 0;
  * search    whether to offer the search box; by default when there are more than seven
  * note      one line under the list: why something is not offered
  * size      "md", or "sm" for a chip inside a chip
+ *
+ * It is the one list that opens from a control on Campaigns, so it lists more
+ * than languages -- a playbook's moment and its message open it too:
+ *
+ * face         what the control shows instead of the letters: a moment with its glyph, a message's title
+ * fit          "trigger": the list as wide as its control, under it
+ * triggerClass the control's own class beside the picker's
+ * searchWords  { placeholder, empty(q) } for a list of something other than languages
+ * and a choice may carry `icon` (a glyph in place of the language's state) and `sub` (a line under its label).
  */
-const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag = null, more = 0, display = "tag", label = "Language", search = null, note = null, size = "md", disabled = false, testid = null }) => {
+const CmPicker = ({ value, choices = [], groups = {}, onPick, status, tag = null, more = 0, display = "tag", label = "Language", search = null, searchWords = null, note = null, size = "md", face = null, fit = null, triggerClass = "", disabled = false, testid = null }) => {
   const [open, setOpen] = React.useState(false);
   const [typed, setQ] = React.useState("");
   // Always words: the node tests' stub React keys hooks by one global order, so a
@@ -168,8 +181,8 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
     const r = t.getBoundingClientRect();
     const vw = window.innerWidth || 1024;
     const vh = window.innerHeight || 768;
-    const width = Math.min(size === "sm" ? 256 : 304, vw - 16);
-    const left = Math.max(8, Math.min(display === "label" ? r.left : r.left - 6, vw - width - 8));
+    const width = Math.min(fit === "trigger" ? Math.max(r.width, 260) : size === "sm" ? 256 : 304, vw - 16);
+    const left = Math.max(8, Math.min(display === "label" || fit === "trigger" ? r.left : r.left - 6, vw - width - 8));
     const below = vh - r.bottom - 16;
     const above = r.top - 16;
     const up = below < 260 && above > below;
@@ -219,7 +232,7 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
       window.removeEventListener("keydown", onEsc);
       document.removeEventListener("pointerdown", onDown, true);
     };
-  }, [open, display, searching, size]); // eslint-disable-line react-hooks/exhaustive-deps -- measure is this draw's; the listeners live while it is open
+  }, [open, display, searching, size, fit]); // eslint-disable-line react-hooks/exhaustive-deps -- measure is this draw's; the listeners live while it is open
 
   // The option the keys are on stays in sight as the arrows walk the list.
   React.useEffect(() => {
@@ -237,7 +250,8 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
     else if ((e.key === "Home" || e.key === "End") && e.target !== input.current) { e.preventDefault(); setActive(e.key === "Home" ? 0 : last); }
     else if (e.key === "Enter") { e.preventDefault(); choose(shown[Math.min(active, last)]); }
     else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
-    else if (e.key === "Tab") close(false);
+    // Back to its control, and the key goes on from there: the next stop is the one after the control, as a select's is.
+    else if (e.key === "Tab") close(true);
   };
 
   const sections = [];
@@ -256,19 +270,31 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
       <button
         ref={trigger}
         type="button"
-        className={`lp-trigger lp-${size}${display === "label" ? " lp-as-label" : ""}${open ? " is-open" : ""}`}
+        className={`lp-trigger lp-${size}${display === "label" ? " lp-as-label" : ""}${face ? " lp-as-face" : ""}${triggerClass ? ` ${triggerClass}` : ""}${open ? " is-open" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`${label}: ${current ? current.label : words}${more > 0 ? `, and ${more} more` : ""}`}
         disabled={disabled}
         onClick={(e) => { if (e && e.stopPropagation) e.stopPropagation(); toggle(); }}
-        onKeyDown={(e) => { if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); toggle(); } }}
+        onKeyDown={(e) => {
+          // Open, the list takes the keys once it has the focus; a key pressed on the control before then is still
+          // the list's. Escape here closed the sheet the control sits in, and Tab left the list open behind it.
+          if (open) {
+            if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); } else if (e.key === "Tab") close(false);
+            return;
+          }
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); toggle(); }
+        }}
         data-tone={lpTone(status)}
         data-testid={testid || undefined}
       >
-        {display === "label" ? <Icon name="globe" size={13} /> : status !== undefined ? <CmLangGlyph status={status} size={12} /> : null}
-        <span className="lp-words">{words}</span>
-        {more > 0 && <span className="lp-more" aria-hidden="true">+{more}</span>}
+        {face || (
+          <>
+            {display === "label" ? <Icon name="globe" size={13} /> : status !== undefined ? <CmLangGlyph status={status} size={12} /> : null}
+            <span className="lp-words">{words}</span>
+            {more > 0 && <span className="lp-more" aria-hidden="true">+{more}</span>}
+          </>
+        )}
         <span className="lp-caret" aria-hidden="true"><Icon name="chevron-down" size={10} /></span>
       </button>
       {open && lpPortal(
@@ -295,8 +321,8 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
                   aria-controls={`${uid.current}-list`}
                   aria-autocomplete="list"
                   aria-activedescendant={onActive}
-                  aria-label="Search languages"
-                  placeholder="Search languages"
+                  aria-label={(searchWords && searchWords.placeholder) || "Search languages"}
+                  placeholder={(searchWords && searchWords.placeholder) || "Search languages"}
                   value={q}
                   onChange={(e) => { setQ(e.target.value); setActive(0); }}
                   spellCheck={false}
@@ -318,15 +344,15 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
                         id={optId(i)}
                         role="option"
                         aria-selected={c.id === value}
-                        className={`lp-opt${i === active ? " is-active" : ""}${c.id === value ? " is-on" : ""}`}
+                        className={`lp-opt${i === active ? " is-active" : ""}${c.id === value ? " is-on" : ""}${c.sub ? " has-sub" : ""}`}
                         onMouseMove={() => { if (i !== active) setActive(i); }}
                         onClick={() => choose(c)}
                         data-lang={c.id}
                         data-group={c.group || undefined}
                         data-testid={testid ? `${testid}-option` : undefined}
                       >
-                        <span className="lp-opt-mark" aria-hidden="true">{c.status !== undefined ? <CmLangGlyph status={c.status} size={12} /> : null}</span>
-                        <span className="lp-opt-label">{c.label}</span>
+                        <span className="lp-opt-mark" aria-hidden="true">{c.icon ? <Icon name={c.icon} size={14} /> : c.status !== undefined ? <CmLangGlyph status={c.status} size={12} /> : null}</span>
+                        <span className="lp-opt-label">{c.sub ? <><span className="lp-opt-main">{c.label}</span><span className="lp-opt-sub">{c.sub}</span></> : c.label}</span>
                         {hint && <span className="lp-opt-hint" data-tone={c.status ? lpTone(c.status) : undefined}>{hint}</span>}
                         <span className="lp-opt-check" aria-hidden="true">{c.id === value ? <Icon name="check" size={14} /> : null}</span>
                       </div>
@@ -334,11 +360,12 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
                   })}
                 </div>
               ))}
-              {shown.length === 0 && <div className="lp-empty" role="status">No language called “{q.trim()}”</div>}
+              {shown.length === 0 && <div className="lp-empty" role="status">{searchWords && searchWords.empty ? searchWords.empty(q.trim()) : <>No language called “{q.trim()}”</>}</div>}
             </div>
             {note && <p className="lp-note" data-testid={testid ? `${testid}-note` : undefined}>{note}</p>}
           </div>
         </>,
+        lpHost(trigger.current),
       )}
     </>
   );
@@ -353,7 +380,7 @@ const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag 
  *   pool     out of how many
  *   of       what the pool is, after "of 36": "who said yes"
  *   held     how many of the pool are held back (the amber part of the bar)
- *   reasons  [{ t, tone }]: "12 heard from a playbook this week"
+ *   reasons  [{ t, tone, door? }]: "12 heard from a playbook this week"; a door is { words, to }
  */
 const CmReach = ({ will, pool, of = null, held = 0, reasons = [], size = "md", progress = null, label = null, testid = null }) => {
   const total = Math.max(pool, will + held, 1);
@@ -374,7 +401,12 @@ const CmReach = ({ will, pool, of = null, held = 0, reasons = [], size = "md", p
       {reasons.length > 0 && (
         <ul className="cm-reach-why">
           {reasons.map((r, i) => (
-            <li key={i}><span className="cm-reach-dot" data-tone={r.tone || "plain"} aria-hidden="true" />{r.t}</li>
+            <li key={i}>
+              <span className="cm-reach-dot" data-tone={r.tone || "plain"} aria-hidden="true" />
+              {r.t}
+              {/* The one reason an owner can act on opens where they act on it. */}
+              {r.door && <button type="button" className="cm-reach-door" onClick={() => window.CHANLY.nav(r.door.to)} data-testid={testid ? `${testid}-door` : undefined}>{r.door.words}</button>}
+            </li>
           ))}
         </ul>
       )}
@@ -393,4 +425,7 @@ const CmSpark = ({ values = [], label = null }) => {
   );
 };
 
-Object.assign(window, { CmHead, CmDot, CmFlag, CmBanner, CmLangGlyph, LanguagePicker, CmReach, CmSpark });
+// The picker was made for a message's languages, and a language is still what it opens on by default.
+const LanguagePicker = CmPicker;
+
+Object.assign(window, { CmHead, CmDot, CmFlag, CmBanner, CmLangGlyph, CmPicker, LanguagePicker, CmReach, CmSpark });

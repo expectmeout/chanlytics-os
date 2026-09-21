@@ -38,9 +38,15 @@ const bcDefault = (list) => ((window.__starters ? window.__starters.defaultFor(l
 // before, so a template a workspace wrote here showed its footer while it was
 // being drafted and never again -- on this page, on Playbooks, and on Messages.
 const bcFooter = (t) => (t && window.__starters && window.__starters.footer ? window.__starters.footer(t) : null);
-// What fills a slot on a broadcast: the composers' words (contracts PARAM_SOURCE_LABELS) less a visit's time and
-// service, which only a visit playbook's run carries for each person.
-const bcSources = () => Object.fromEntries(Object.entries((window.__starters && window.__starters.sources) || { text: "Type it" }).filter(([k]) => !k.startsWith("visit_")));
+// What each slot of a template may take on a broadcast, its default first (contracts templateSlots): a starter's
+// first name is each person's own, its business name and booking link may be typed over, and a slot on a template
+// written elsewhere may take anything, its guess first. Every slot took any source, so a first name could be set to
+// the booking link and a broadcast greeted everyone "Hi your booking link". A broadcast has no visit, so a visit's
+// time and service are nobody's here: null when a slot can take nothing. With no library, every slot is typed.
+const BC_TEXT = ["text"];
+const bcSlots = (t, bookingLink) => (window.__starters && window.__starters.slots
+  ? window.__starters.slots(t, { visits: false, bookingLink })
+  : (Array.isArray(t.variables) ? t.variables : BC_NONE).map(() => BC_TEXT));
 // What is still to come, by state -- "1 sending · 2 scheduled · 1 waiting for you" -- where "N queued" counted runs waiting for a person.
 // Stable empties, so a workspace without lists or templates does not re-run
 // the effects on every render.
@@ -85,6 +91,9 @@ const bcPersonRow = (p) => (
 // them; and the act alone at the foot, pinned, with the skip and the list beside it. The words are the contracts'
 // (toApprovalVM, through window.__broadcasts.approval); the acts are the page's, and when one lands the next run
 // waiting opens, so a queue of two is two presses.
+// A part of a bar, as a width: never under a sliver for a part that exists, so one person out of three hundred still shows.
+const bcShare = (n, of) => (of > 0 ? Math.max(1.5, Math.round((n / of) * 1000) / 10) : 0);
+
 const BcSheet = ({ d, people, avm, sheet, onClose, seeAll, onSeeAll }) => {
   const b = d.broadcast;
   const pb = sheet.playbook;
@@ -110,10 +119,41 @@ const BcSheet = ({ d, people, avm, sheet, onClose, seeAll, onSeeAll }) => {
           </div>
           <div className="bc-sheet-sub">Playbook · {hint} · {avm.goes}</div>
         </div>
+        {/* Who it reaches out of everyone its moment named, as the run counted
+            them when it was drawn: green reaches, amber waits only for time,
+            grey was left out -- and a line for each reason, the most first. A
+            run made before runs kept that count says the rules that made its
+            list instead, which are true of everyone on it. */}
         <div className="bc-sheet-reach" data-testid="bc-sheet-reach">
-          <div className="bc-sheet-n"><span className="bc-sheet-v tabular">{avm.will}</span><span className="bc-sheet-will">will get it</span></div>
-          <div className="bc-sheet-bar" aria-hidden="true"><span /></div>
-          {avm.rules.length > 0 && <div className="bc-sheet-rules">{avm.rules.map((r) => <div key={r}>{r}</div>)}</div>}
+          <div className="bc-sheet-n">
+            <span className="bc-sheet-v tabular">{avm.will}</span>
+            <span className="bc-sheet-will">{avm.of ? <>will get it, of <span className="tabular" data-testid="bc-sheet-pool">{avm.of.pool}</span></> : "will get it"}</span>
+          </div>
+          {avm.of ? (
+            <>
+              <div className="bc-sheet-bar is-parts" aria-hidden="true">
+                {avm.will > 0 && <span className="bc-sheet-bar-will" style={{ width: `${bcShare(avm.will, avm.of.pool)}%` }} />}
+                {avm.of.held > 0 && <span className="bc-sheet-bar-held" style={{ width: `${bcShare(avm.of.held, avm.of.pool)}%` }} />}
+                {avm.of.pool - avm.will - avm.of.held > 0 && <span className="bc-sheet-bar-rest" />}
+              </div>
+              {avm.of.lines.length > 0 && (
+                <ul className="bc-sheet-why" data-testid="bc-sheet-why">
+                  {avm.of.lines.map((l) => (
+                    <li key={l.words}>
+                      <span className="cm-reach-dot" data-tone={l.tone} aria-hidden="true" />
+                      <span>{l.words}</span>
+                      {l.door && <button type="button" className="bc-sheet-door" onClick={() => window.CHANLY.nav(l.door.to)} data-testid="bc-sheet-door">{l.door.words}</button>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="bc-sheet-bar" aria-hidden="true"><span /></div>
+              {avm.rules.length > 0 && <div className="bc-sheet-rules">{avm.rules.map((r) => <div key={r}>{r}</div>)}</div>}
+            </>
+          )}
         </div>
         {parts.length > 0 && (
           <div className="bc-sheet-words" data-testid="bc-sheet-words">
@@ -716,7 +756,10 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const offered = React.useMemo(() => (window.__starters && window.__starters.sendable
     ? window.__starters.sendable((data.templates || BC_NONE).slice().sort(bcOrder))
     : { sendable: (data.templates || BC_NONE).slice().sort(bcOrder), blocked: BC_NONE, why: null }), [data.templates]);
-  const templates = offered.sendable;
+  // And of those, only one whose every slot a broadcast can fill (bcSlots). The visit's reminder is a visit
+  // playbook's: offered here, its time and service were typed once for everyone.
+  const link = !!data.bookingLink;
+  const templates = React.useMemo(() => offered.sendable.filter((t) => bcSlots(t, link) !== null), [offered, link]);
   const [aud, setAud] = React.useState(() => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
     return first ? bcKey(first) : "everyone:";
@@ -812,16 +855,28 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const numberOk = !!(number && number.present && number.health.canSend);
   const overLimit = !!(active && number && number.health.limitPerDay !== null && activeCount > number.health.limitPerDay);
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
-  const SRC = bcSources();
-  // A starter's slots come filled in; a template written elsewhere gets a
-  // guess from its labels. A booking link the workspace has not set falls
-  // back to typed text, so nothing is offered that cannot be sent.
-  const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => ((k === "booking_link" && !data.bookingLink) || k.startsWith("visit_") ? "text" : k)) : BC_NONE;
-  const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
+  const SRC = (window.__starters && window.__starters.sources) || { text: "Type it" };
+  const HINTS = (window.__starters && window.__starters.sourceHints) || {};
+  // What each slot may take, its default first: a starter's slots come filled in,
+  // and a template written elsewhere gets a guess from its labels. A booking link
+  // the workspace has not set can only be typed, so nothing is offered that
+  // cannot be sent.
+  const choices = tpl ? bcSlots(tpl, link) || BC_NONE : BC_NONE;
+  // A slot's source: the one chosen when the slot may take it, else its first. A
+  // source kept from before that the slot may not take -- a run sent again, a
+  // link since removed -- is not kept.
+  const srcOf = (i) => { const c = choices[i] || BC_TEXT; const s = (sources[tplId] || BC_NONE)[i]; return c.includes(s) ? s : c[0]; };
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
   // Each slot's words: a starter's own, else the labels the row carries.
   const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   const typed = vars.map((v, i) => ((params[tplId] || [])[i] || ""));
+  const setTyped = (i, words) => setParams((p) => { const next = [...(p[tplId] || [])]; next[i] = words; return { ...p, [tplId]: next }; });
+  const chooseSource = (i, kind) => {
+    const was = srcOf(i);
+    setSources((s) => { const next = [...(s[tplId] || [])]; next[i] = kind; return { ...s, [tplId]: next }; });
+    // Typing over the business name starts from it, as on a playbook.
+    if (kind === "text" && was === "business_name" && !typed[i].trim() && data.businessName) setTyped(i, data.businessName);
+  };
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))));
   // The preview shows an unfilled slot by its name, never as {{n}}.
   const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (typed[i].trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
@@ -946,8 +1001,9 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // the newest fifty is read by its id alone, and has finished.
   const openRow = openId ? rows.find((r) => r.id === openId) || null : null;
   // Send it again: the send screen, filled with what this run sent -- its template, its list and its values -- when
-  // all three can still go. A template WhatsApp no longer approves, a list since deleted, or a playbook's run (whose
-  // playbook sends it again) offers no button rather than a composer quietly filled with something else.
+  // all three can still go. A template WhatsApp no longer approves or a broadcast cannot fill, a list since deleted, or
+  // a playbook's run (whose playbook sends it again) offers no button rather than a composer quietly filled with
+  // something else.
   // A run waiting on you, open: its sheet. Where it sits among the runs waiting (the ledger's order), its playbook
   // and its template for the words, and the acts -- which, when they land, open the next run waiting, or the ledger.
   const sheetFor = (row) => {
@@ -979,8 +1035,10 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     const t = templates.find((x) => x.id === b.template_id);
     const a = audiences.find((x) => bcKey(x) === bcKey(b.audience || {}));
     if (!t || !a) return null;
-    const offered = Object.keys(SRC).filter((k) => k !== "booking_link" || data.bookingLink);
-    const kinds = (b.params || []).map((p) => (p && offered.includes(p.kind) ? p.kind : "text"));
+    // What filled each slot, where the slot may still take it; else its first choice. A run whose first name was
+    // filled by the booking link is sent again with each person's own.
+    const may = bcSlots(t, link) || BC_NONE;
+    const kinds = (b.params || []).map((p, i) => { const c = may[i] || BC_TEXT; return p && c.includes(p.kind) ? p.kind : c[0]; });
     const typedBack = (b.params || []).map((p, i) => (kinds[i] === "text" && p && p.kind === "text" ? p.value : ""));
     return (
       <button
@@ -1101,29 +1159,36 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
               )}
             </div>
             {offered.why && <div className="bc-excl-hint warn" data-testid="bc-blocked">{offered.why}</div>}
+            {/* Each slot on one line, as on a playbook: what it is, what fills it, and
+                a choice only where it has one. */}
             {tpl && vars.length > 0 && (
-              <div className="bc-vars" data-testid="bc-vars">
-                {vars.map((v, i) => (
-                  <label key={v.position || i} className="bc-var">
-                    <span className="bc-var-label">{labels[i]}</span>
-                    <span className="bc-var-row">
-                      <select
-                        className="tpl-select"
-                        value={srcOf(i)}
-                        data-testid="bc-var-source"
-                        onChange={(e) => setSources((s) => { const next = [...(s[tplId] || [])]; next[i] = e.target.value; return { ...s, [tplId]: next }; })}
-                      >
-                        {Object.keys(SRC).filter((k) => k !== "booking_link" || data.bookingLink).map((k) => <option key={k} value={k}>{SRC[k]}</option>)}
-                      </select>
-                      <input
-                        value={srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))}
-                        disabled={srcOf(i) !== "text"}
-                        placeholder={v.example || ""}
-                        onChange={(e) => setParams((p) => { const next = [...(p[tplId] || [])]; next[i] = e.target.value; return { ...p, [tplId]: next }; })}
-                      />
-                    </span>
-                  </label>
-                ))}
+              <div className="pb-fills" data-testid="bc-vars">
+                {vars.map((v, i) => {
+                  const src = srcOf(i);
+                  const c = choices[i] || BC_TEXT;
+                  const hint = src !== "text" ? HINTS[src] : null;
+                  return (
+                    <div key={v.position || i} className={`pb-fill${src === "text" ? " is-typed" : ""}`} data-kind={src} data-testid="bc-var">
+                      <span className="pb-fill-key" id={`bc-var-${i}`}>{labels[i]}</span>
+                      {src === "text"
+                        ? <input className="pb-fill-input" value={typed[i]} placeholder={c[0] === "business_name" ? data.businessName || "" : v.example ? String(v.example) : ""} maxLength={1024} onChange={(e) => setTyped(i, e.target.value)} aria-labelledby={`bc-var-${i}`} data-testid="bc-var-input" />
+                        : (
+                          <span className="pb-fill-val" data-tip={hint || undefined}>
+                            <span className="pb-fill-words">{src === "business_name" && data.businessName ? data.businessName : SRC[src] || src}</span>
+                            {hint && <span className="pb-fill-hint">{hint}</span>}
+                          </span>
+                        )}
+                      {c.length > 1 && (
+                        <span className="pb-fill-src" data-tip="What fills it">
+                          <Icon name={src === "text" ? "pencil" : "chevrons"} size={12} />
+                          <select value={src} onChange={(e) => chooseSource(i, e.target.value)} aria-label={`What fills ${labels[i]}`} data-testid="bc-var-source">
+                            {c.map((k) => <option key={k} value={k}>{SRC[k] || k}</option>)}
+                          </select>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
             {tpl && (

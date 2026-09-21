@@ -12,9 +12,10 @@
  *   calls          a call left 'ongoing' is asked about and the provider's word
  *                  is written; a pending recording copy is retried on the
  *                  sweep's budget with a fresh URL, three times, then left;
- *                  recordings past their retention are removed; a call that
- *                  ended -- or errored -- without an analysis gets its line in
- *                  the thread, once.
+ *                  recordings past their retention are removed, and a removal
+ *                  that fails is a 500 once the other legs have run; a call
+ *                  that ended -- or errored -- without an analysis gets its
+ *                  line in the thread, once.
  *   google         listings not read for twenty hours, never-read first, forty
  *                  a tick; a read writes the listing, the day (by the workspace's
  *                  own clock), the reviews, and rings the bell; a connected
@@ -385,6 +386,34 @@ test("calls: a CDN that refuses a recording for good (401, 403, 410) fails the c
   assert.equal(rec("unpublished").attempts, 2);
 });
 
+test("calls: a recording the provider never hands over is a try like any other, counted on the row, so it ends as couldn't-be-saved instead of processing for ever", async () => {
+  // It used to be skipped and left unwritten: the row said "Recording still
+  // processing" for good, and since nothing moved its updated_at it stood
+  // first in line on every run, two of them holding both of a tick's places.
+  const T = tenant(4);
+  const pending = (id, attempts, over = {}) => callRow(T, id, { status: "ended", ended_at: ago(20 * MIN), updated_at: ago(10 * MIN), recording: { fetch_state: "pending", attempts }, ...over });
+  const tables = { calls: [pending("spent", RECORDING_MAX_ATTEMPTS - 1), pending("fresh", 0, { updated_at: ago(9 * MIN) })], messages: [], events: [] };
+  use(tables, { ingest_call: ingestRpc(tables) });
+  const GET_CALL = "https://api.retellai.com/v2/get-call/";
+  const net = wired((req) => {
+    // The provider knows the call and has no recording to give.
+    if (req.url.startsWith(GET_CALL)) return { status: 200, body: { call_id: req.url.slice(GET_CALL.length), call_status: "ended" } };
+    throw new Error("unexpected " + req.method + " " + req.url);
+  });
+  const rec = (id) => tables.calls.find((c) => c.id === id).recording;
+
+  let [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.recordings, { candidates: 2, stored: 0, retry: 1, failed: 1 });
+  assert.deepEqual(rec("spent"), { fetch_state: "failed", attempts: RECORDING_MAX_ATTEMPTS, error: "provider_no_url" }, "the last try spent: it reads as couldn't be saved");
+  assert.deepEqual(rec("fresh"), { fetch_state: "pending", attempts: 1, error: "provider_no_url" }, "a first miss is counted and waits for the next try");
+  assert.equal(net.to("cdn.retell.test").length, 0, "there was nothing to fetch");
+
+  [status, body] = await answer(await knock("calls"));
+  assert.deepEqual(body.recordings, { candidates: 1, stored: 0, retry: 1, failed: 0 }, "the failed copy is no longer a candidate");
+  assert.equal(rec("fresh").attempts, 2);
+});
+
 test("calls: recordings past the ninety days the privacy page states are removed from the bucket and the row says so — before the provider is asked, so a deployment without the key still keeps that promise; a call that ended, or errored, without an analysis still gets its line in the customer's thread, once", async () => {
   const T = tenant(3);
   const CONV = uuid(31);
@@ -450,6 +479,50 @@ test("calls: recordings past the ninety days the privacy page states are removed
   assert.deepEqual(b3.notes, { candidates: 0, written: 0 }, "the sweep reads the link on the row, not the thread");
   assert.equal(tables.messages.length, 2);
   assert.equal(net.calls.length, 0);
+});
+
+test("calls: a purge the bucket refuses marks nothing and stops no other leg, then the sweep answers 500 in the bucket's own words, where its watcher reads them; the tick that removes the audio answers 200", async () => {
+  const T = tenant(4);
+  const CONV = uuid(41);
+  const old = NOW - (RECORDING_RETENTION_DAYS + 1) * DAY;
+  const tables = {
+    calls: [
+      callRow(T, "old", {
+        status: "ended", started_at: iso(old), ended_at: iso(old + 2 * MIN), updated_at: iso(old), conversation_id: CONV, message_id: uuid(42),
+        recording: { fetch_state: "stored", storage_path: `${T}/calls/old.wav`, mime: "audio/wav", bytes: 10 },
+      }),
+      callRow(T, "unnoted", { status: "ended", started_at: ago(25 * MIN), ended_at: ago(20 * MIN), updated_at: ago(20 * MIN), duration_ms: 65_000, in_voicemail: false, conversation_id: CONV }),
+    ],
+    messages: [], events: [],
+  };
+  const db = use(tables, { ingest_call: ingestRpc(tables) });
+  const net = silent("nothing here needs the provider");
+  const call = (id) => tables.calls.find((c) => c.id === id);
+  let refusing = true;
+  const bucketOf = db.storage.from;
+  db.storage.from = (name) => {
+    const b = bucketOf(name);
+    return { ...b, remove: async (paths) => (refusing ? { data: null, error: { message: "the storage service is unavailable" } } : b.remove(paths)) };
+  };
+
+  const res = await knock("calls");
+  const text = await res.text();
+  const body = JSON.parse(text);
+  assert.equal(res.status, 500, text);
+  assert.deepEqual([body.ok, body.error, body.purge], [false, "purge_failed", { candidates: 1, purged: 0, error: "the storage service is unavailable" }], "which leg failed, and why");
+  // sweep_health() quotes the first 200 characters of the answer in the platform's mail.
+  assert.match(text.slice(0, 200), /the storage service is unavailable/, "the cause is inside what the alert quotes");
+  assert.equal(call("old").recording.fetch_state, "stored", "a removal that failed marks nothing, so the row still owes the purge and the clock asks again in five minutes");
+  assert.deepEqual(body.notes, { candidates: 1, written: 1 }, "the purge failing stopped no other leg");
+  assert.deepEqual(tables.messages.map((m) => m.external_id), ["call:call_unnoted"]);
+
+  refusing = false;
+  const [status, again] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(again));
+  assert.deepEqual(again.purge, { candidates: 1, purged: 1, error: null });
+  assert.deepEqual(db.bucket.removed, [`${T}/calls/old.wav`]);
+  assert.equal(call("old").recording.fetch_state, "purged");
+  assert.equal(net.calls.length, 0, "no ongoing call, no pending copy: the provider was never asked");
 });
 
 /* ----------------------------------------------------------------- google */

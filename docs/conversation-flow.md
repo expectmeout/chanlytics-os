@@ -26,7 +26,7 @@ A conversation is not one table. It is five, and knowing which one owns which fa
 
 Two ledgers sit beside them: `events` (what happened) and `decisions` (who decided it). A path that writes neither is invisible to Activity and to the owner's audit, and that absence is a finding below.
 
-The model's memory used to be a sixth store — Vercel Blob threads, behind a flag. Both are gone: the store's code was deleted and `blob_thread_erase` with it (00148). **Postgres is the receptionist's only memory**, and `readLeadContext` (`packages/db/src/repositories/thread.ts`) is the one function both agents read it through — "the WhatsApp receptionist and the voice agent are meant to be the same receptionist."
+The model's memory used to be a sixth store — Vercel Blob threads, behind a flag. Both are gone: the store's code was deleted and `blob_thread_erase` with it (00151). **Postgres is the receptionist's only memory**, and `readLeadContext` (`packages/db/src/repositories/thread.ts`) is the one function both agents read it through — "the WhatsApp receptionist and the voice agent are meant to be the same receptionist."
 
 ---
 

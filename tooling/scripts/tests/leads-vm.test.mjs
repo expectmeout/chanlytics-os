@@ -269,6 +269,12 @@ test("a kept search says what was asked, in the owner's words and the date they 
   });
   assert.deepEqual(leadSearchWords({ ...s, plan: { criteria: [], exclusions: [] } }, "America/Chicago").askedLine, "You asked on Sep 18: “personal trainers in Austin with a website, about 200”.", "nothing left out, nothing said about it");
   assert.deepEqual(leadSearchWords(null, "America/Chicago"), { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS }, "a search the page does not hold says nothing about what was asked");
+  // Production, 21 Sep: "… a phone is enough, leaving out Starbucks and other chains”. Leaving out Starbucks and other
+  // chains." What the owner's words already leave out is said once; what Claude added is still said after them.
+  const coffee = { ...s, asked: "coffee shops in Portland, a phone is enough, leaving out Starbucks and other chains", plan: { criteria: [], exclusions: [{ key: "chain", text: "Starbucks and other chains", origin: "owner" }, { key: "kiosk", text: "kiosks in malls", origin: "claude" }] } };
+  assert.equal(leadSearchWords(coffee, "America/Chicago").askedLine, "You asked on Sep 18: “coffee shops in Portland, a phone is enough, leaving out Starbucks and other chains”. Leaving out kiosks in malls.");
+  const named = { ...coffee, plan: { criteria: [], exclusions: [coffee.plan.exclusions[0]] } };
+  assert.equal(leadSearchWords(named, "America/Chicago").askedLine, "You asked on Sep 18: “coffee shops in Portland, a phone is enough, leaving out Starbucks and other chains”.", "nothing is said twice");
 });
 
 /* ------------------------------------------------- the plan card's words (Task 9) */

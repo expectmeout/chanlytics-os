@@ -3,6 +3,8 @@
  *
  * - A broadcast's composer could pick a visit's time a broadcast does not have, a visit playbook's composer held a
  *   value its select had no option for, and a run's detail printed "visit_when" (the wiring audit's C6, C24).
+ * - Every slot of a broadcast took any source, so a starter's first name could be set to the booking link and a
+ *   broadcast greeted everyone "Hi your booking link"; Send it again kept a run's sources as they were.
  * - Deleting a message a running playbook sends went through, and its runs skipped from then on (C8).
  * - A failed broadcast read "· failed" with its reason on file (C12); a send in flight was prose with no bar, an
  *   Approve could be pressed twice, and "N queued" counted runs waiting for a person (C14).
@@ -16,7 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 
-const { toBroadcastVM, stateOf, numberHealth, POLICY_CLASS_WORDS } = contracts;
+const { toBroadcastVM, stateOf, numberHealth } = contracts;
 const TID = "t-studio";
 const ZONE = "America/New_York";
 const H = 3_600_000;
@@ -62,7 +64,7 @@ const playbook = (over = {}) => ({
 const playbooksSurface = (over = {}) => ({
   rows: [playbook()], templates: [],
   triggers: [{ id: "quiet_30", label: "Quiet 30 days", hint: "anyone quiet for a month", cls: "reengage", list: "quiet_30", kind: "list", candidates: 4, held: 0 }],
-  classWords: POLICY_CLASS_WORDS, timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
+  timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio", bookingLink: false, fetchedAt: NOW, ...over,
 });
 
@@ -141,6 +143,7 @@ Object.assign(globalThis.window, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
+await import("../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
@@ -233,16 +236,36 @@ const visitTemplate = () => {
     },
   };
 };
+/** A starter as WhatsApp holds it once approved: the library's words and slots. */
+const starterTemplate = (name) => {
+  const S = globalThis.window.__starters;
+  const s = S.byName(name);
+  const t = S.text(s, "en_US");
+  return templateRow({ id: `tpl-${name}`, name, category: s.category, purpose: s.category === "utility" ? "conversational" : "marketing",
+    body_preview: t.body, variables: t.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })) });
+};
+/** Each slot as the composer lists it: what fills it, and what else it offers (nothing, when it has no choice). */
+const slotsOf = (tree) => all(tree, (n) => n.props?.["data-testid"] === "bc-var").map((f) => {
+  const sel = find(f, (n) => n.props?.["data-testid"] === "bc-var-source");
+  return { kind: f.props["data-kind"], offers: sel ? all(sel, (n) => n.type === "option").map((o) => o.props.value) : [] };
+});
 
 /* ------------------------------ a slot's words ------------------------------ */
 
 test("REGRESSION (C6): a broadcast offers no visit's words, and a run's values say what fills them -- a broadcast could name a visit it does not have, and the detail printed visit_when", async () => {
   const { row, slots } = visitTemplate();
   assert.ok(slots.some((s) => s.kind.startsWith("visit_")), "the fixture is the starter that names a visit");
-  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [row], number: healthyNumber });
+  // Beside it, a message written elsewhere: each of its slots a guess, so each may take any source a broadcast has.
+  const own = templateRow({ id: "tpl-own", name: "autumn_offer", purpose: "marketing", body_preview: "Hi {{1}}, {{2}} {{3}}.",
+    variables: [{ position: 1, label: "Name", example: "Dani" }, { position: 2, label: "The offer", example: "20% off" }, { position: 3, label: "When", example: "tomorrow at 2" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [row, own], number: healthyNumber });
   let tree = writing({ initialSegment: null, initialRun: null });
+  // The visit reminder is a visit playbook's: a broadcast has no visit to fill its time and service with, so it is
+  // not offered. It was, with those two slots typed once for everyone.
+  const chips = all(tree, (n) => n.props?.["data-testid"] === "bc-template");
+  assert.deepEqual(chips.map((c) => textOf(c).toLowerCase().includes("autumn")), [true], `REGRESSION: ${chips.map(textOf).join(" | ")}`);
   const selects = all(tree, (n) => n.props?.["data-testid"] === "bc-var-source");
-  assert.equal(selects.length, slots.length);
+  assert.equal(selects.length, own.variables.length);
   for (const sel of selects) {
     const offered = all(sel, (n) => n.type === "option").map((o) => o.props.value);
     assert.ok(!offered.some((k) => k.startsWith("visit_")), `REGRESSION: a broadcast offered ${offered.join(", ")}`);
@@ -258,16 +281,63 @@ test("REGRESSION (C6): a broadcast offers no visit's words, and a run's values s
   assert.equal(textOf(values), "Values: their visit's time · their first name", "REGRESSION: visit_when");
 });
 
-test("REGRESSION (C6): a visit playbook's composer offers its visit's words -- the starter's slot held a value its select had no option for", () => {
+test("REGRESSION (C6): a visit playbook's composer fills its visit's words -- the starter's slot held a value its select had no option for", () => {
   const { row, slots } = visitTemplate();
   const tree = composerOf(playbooksSurface({
     rows: [], templates: [row], calendar: "ok",
     triggers: [{ id: "visit_tomorrow", label: "Visit reminder", hint: "The day before an appointment on the calendar", cls: "booking", list: null, kind: "visit", candidates: 2, held: 0 }],
   }));
-  const selects = all(tree, (n) => n.props?.["data-testid"] === "pb-var-source");
-  assert.deepEqual(selects.map((s) => s.props.value), slots.map((s) => (s.kind === "booking_link" ? "text" : s.kind)), "the starter's own slots, a link the workspace lacks typed");
-  for (const sel of selects) assert.ok(find(sel, (n) => n.type === "option" && n.props.value === sel.props.value), `REGRESSION: ${sel.props.value} had no option`);
-  assert.equal(textOf(find(tree, (n) => n.type === "option" && n.props.value === "visit_when")), "Their visit's time");
+  // The sheet draws what it is given, so a walk of the page meets each slot twice: once is one slot.
+  const fills = [...new Map(all(tree, (n) => n.props?.["data-testid"] === "pb-fill").map((f) => [f.props.key, f])).values()];
+  assert.deepEqual(fills.map((f) => f.props["data-kind"]), slots.map((s) => (s.kind === "booking_link" ? "text" : s.kind)), "the starter's own slots, a link the workspace lacks typed");
+  for (const f of fills) {
+    const sel = find(f, (n) => n.props?.["data-testid"] === "pb-fill-source");
+    if (sel) assert.ok(find(sel, (n) => n.type === "option" && n.props.value === f.props["data-kind"]), `REGRESSION: ${f.props["data-kind"]} had no option`);
+  }
+  assert.ok(textOf(fills[slots.findIndex((s) => s.kind === "visit_when")]).includes("Their visit's time"));
+});
+
+test("REGRESSION: a starter's first name is each person's own on a broadcast and offers no other source -- it could be set to the booking link, and a broadcast greeted everyone 'Hi your booking link'", async () => {
+  const sent = [];
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [starterTemplate("winback_offer")], number: healthyNumber, bookingLink: true });
+  globalThis.window.__broadcasts.send = async (body) => { sent.push(body); return { ok: true, data: { id: "b-new", name: "Win-back", recipient_count: 2, scheduled_for: new Date().toISOString(), moved_from: null } }; };
+  let tree = writing({ initialSegment: null, initialRun: null });
+  assert.deepEqual(slotsOf(tree), [
+    { kind: "first_name", offers: [] },
+    { kind: "business_name", offers: ["business_name", "text"] },
+    { kind: "booking_link", offers: ["booking_link", "text"] },
+  ], "a first name has no choice; the business name and the link may be typed over, and nothing else");
+  const first = all(tree, (n) => n.props?.["data-testid"] === "bc-var")[0];
+  assert.ok(textOf(first).includes("Their first name") && textOf(first).includes("“there” when none is on file"), `the words, and what a person with no name on file reads: ${textOf(first)}`);
+  assert.equal(byTestId(tree, "bc-var-input"), null, "nothing to type on a starter that knows every slot");
+
+  // Typed over, the business name starts from it; what goes out greets each person by their own name.
+  find(all(tree, (n) => n.props?.["data-testid"] === "bc-var")[1], (n) => n.props?.["data-testid"] === "bc-var-source").props.onChange({ target: { value: "text" } });
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(byTestId(tree, "bc-var-input").props.value, "Northside Studio");
+  press(byTestId(tree, "bc-send"));
+  await press(byTestId(again({ initialSegment: null, initialRun: null }), "bc-send-yes"));
+  assert.deepEqual(sent.at(-1).params, [{ kind: "first_name" }, "Northside Studio", { kind: "booking_link" }]);
+});
+
+test("REGRESSION: Send it again puts right a slot a run filled with what it cannot take -- the composer took a run's sources as they were", async () => {
+  // Sent by hand with the old free choice: the first name filled by the booking link, the business name typed, and a link the workspace has since removed.
+  const wrong = dto({ id: "b-wrong", name: "Win-back by hand", playbook_id: null, run_for: null, template_id: "tpl-winback_offer", template_name: "winback_offer",
+    audience: { kind: "saved", id: "s1", label: "Regulars" }, params: [{ kind: "booking_link" }, { kind: "text", value: "Northside" }, { kind: "booking_link" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [starterTemplate("winback_offer")], number: healthyNumber, rows: [toBroadcastVM(wrong, ZONE)] });
+  answers.set("b-wrong", [{ ok: true, data: detailOf(wrong) }]);
+  const props = { initialSegment: null, initialRun: "b-wrong" };
+  page(props);
+  await settle();
+  press(byTestId(again(props), "bc-again"));
+  again({ initialSegment: null, initialRun: null });
+  const tree = again({ initialSegment: null, initialRun: null });
+  assert.deepEqual(slotsOf(tree), [
+    { kind: "first_name", offers: [] },
+    { kind: "text", offers: ["business_name", "text"] },
+    { kind: "text", offers: [] },
+  ], "each person's own name; the words it said, where words may go; a link with none on file can only be typed");
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "bc-var-input").map((x) => x.props.value), ["Northside", ""]);
 });
 
 /* ------------------------------ a broadcast's state ------------------------------ */
@@ -310,7 +380,7 @@ test("an opened run is sent again from its own head: the send screen, filled wit
   assert.ok(textOf(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && String(n.props.className).includes("active"))).startsWith("Regulars"), "its list");
   assert.ok(find(tree, (n) => n.props?.["data-testid"] === "bc-template" && n.props["aria-pressed"] === true && textOf(n).toLowerCase().includes("autumn")), "its template, not the one the screen opens on");
   assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "bc-var-source").map((x) => x.props.value), ["first_name", "text"], "its values, by what fills them");
-  assert.equal(all(byTestId(tree, "bc-vars"), (n) => n.type === "input")[1].props.value, "20% off colour", "and the words it said");
+  assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "20% off colour", "and the words it said");
 
   // A playbook's run is sent again by its playbook, and a template WhatsApp no longer approves cannot go at all.
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
@@ -391,6 +461,31 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     delete globalThis.window.__broadcasts.approve;
     delete globalThis.window.__broadcasts.cancel;
   }
+});
+
+test("a run that kept who it left out opens as the board's card: of how many, the grey and the amber, a line per reason, and the door to getting their yes", async () => {
+  const today = globalThis.window.__clock.dayKey(Date.now());
+  const offer = { id: "tpl-offer", channel: "whatsapp", name: "monthly_offer", language: "en_US", meta_status: "approved", category: "marketing", purpose: "marketing", body_preview: "Hi {{1}}, a free gloss with any cut.", variables: [] };
+  const reach = { pool: 312, will: 186, noNumber: 0, stopped: 0, noYes: 94, heardThis: 0, heardAny: 32, overCap: 0, overLimit: 0 };
+  const waiting = dto({ id: "b-kept", name: "The month's offer", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(-H), counts: quiet, recipient_count: 186,
+    playbook_id: "pb-offer", run_for: today, template_id: "tpl-offer", template_name: "monthly_offer", params: [{ kind: "first_name" }], audience: { kind: "playbook", id: "pb-offer", label: "The month's offer", reach } });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], rows: [toBroadcastVM(waiting, ZONE)] });
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ rows: [playbook({ id: "pb-offer", name: "The month's offer", trigger: "everyone_monthly", policy_class: "campaign", cap_per_run: 250, cadence_days: 30 })] });
+  answers.set("b-kept", [{ ok: true, data: detailOf(waiting, [person({ state: "queued", sent_at: null, message_status: null, delivered_at: null })]) }]);
+  const props = { initialSegment: null, initialRun: "b-kept" };
+  page(props);
+  await settle();
+  const tree = again(props);
+  const card = byTestId(byTestId(tree, "bc-sheet"), "bc-sheet-reach");
+  assert.equal(textOf(byTestId(card, "bc-sheet-pool")), "312", "out of everyone its moment named");
+  assert.deepEqual(all(byTestId(card, "bc-sheet-why"), (n) => n.type === "li").map((li) => textOf(li)), ["94 never said yes to offersGet their yes", "32 heard from a playbook this week"]);
+  // The bar is the whole list: green reaches, amber waits, and the grey is the rest.
+  const parts = all(card, (n) => /^bc-sheet-bar-/.test(String(n.props?.className || ""))).map((n) => [n.props.className, n.props.style ? n.props.style.width : null]);
+  assert.deepEqual(parts, [["bc-sheet-bar-will", "59.6%"], ["bc-sheet-bar-held", "10.3%"], ["bc-sheet-bar-rest", null]]);
+  assert.equal(textOf(card).includes("each said yes to offers"), false, "the counts stand where the rules stood");
+  // Of every reason, the one an owner can change opens where it is changed.
+  press(byTestId(card, "bc-sheet-door"));
+  assert.equal(went.at(-1), "broadcasts/get-yes");
 });
 
 test("Broadcasts is one ledger: the runs waiting on you said at the head, a band bar whose legend filters the runs, the week ahead, and the composer its own screen", () => {
@@ -1251,8 +1346,11 @@ test("A template this product cannot send is not offered, and its card says why"
   globalThis.window.dispatchEvent({ type: "playbooks:new" });
   seq = 0;
   const pb = globalThis.window.OutboundPage({});
-  assert.equal(all(pb, (n) => n.props?.["data-testid"] === "pb-template").length, 1);
-  assert.ok(textOf(byTestId(pb, "pb-blocked")).includes("a picture for a heading"));
+  press(byTestId(pb, "pb-template"));
+  seq = 0;
+  const list = globalThis.window.OutboundPage({});
+  assert.deepEqual([...new Set(all(list, (n) => n.props?.["data-testid"] === "pb-template-option").map((o) => o.props["data-lang"]))], ["offer"], "its list offers what can go on the wire");
+  assert.ok(textOf(byTestId(list, "pb-template-note")).includes("a picture for a heading"), "and says, under it, why the rest is not there");
 
   // And the library says why rather than leaving it looking available.
   const card = messages({ __TEMPLATES_ALL: [picture] });

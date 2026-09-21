@@ -1460,6 +1460,8 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .ob-words-name:hover { color: var(--ink); }
 .ob-words-name .dim { color: var(--ink-dim); }
 .ob-facts { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+/* A warning under the sentence starts where the sentence does: the hint's own centring is for a line beside a control. */
+.ob-facts > .bc-excl-hint { align-self: flex-start; }
 /* 68ch, the measure the clamped line used: on a 1280 page the facts column is
    782px, which is about 120 characters -- half again past where the eye stops
    tracking a line reliably. */
@@ -2104,9 +2106,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .tpl-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin: 8px 0; }
 .tpl-fields .tpl-body { grid-column: 1 / -1; }
 .tpl-fields textarea { font: inherit; font-size: 13px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); resize: vertical; }
-.bc-var-row { display: flex; gap: 6px; }
-.bc-var-row input { flex: 1; min-width: 0; }
-.bc-var-row input:disabled { color: var(--ink-faint); }
 
 /* ---- The message as the customer sees it, and the starter set ---- */
 .bc-preview-wrap { display: flex; margin-bottom: 8px; }
@@ -2358,9 +2357,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .cm-reach-bar-held { background: var(--warn); }
 .cm-reach-bar-rest { flex: 1 1 auto; background: var(--line-strong); border-radius: 0 3px 3px 0; }
 .cm-reach-why { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.cm-reach-why li { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.cm-reach-why li { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
 .cm-reach-dot { width: 5px; height: 5px; border-radius: 50%; flex: none; background: var(--line-strong); }
 .cm-reach-dot[data-tone="warn"] { background: var(--warn); }
+/* The one reason an owner can act on ("never said yes") opens where they act on it: a quiet underlined word, as on the sheet. */
+.cm-reach-door { flex: none; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line-strong); cursor: pointer; }
+.cm-reach-door:hover { text-decoration-color: currentColor; }
+.cm-reach-door:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 .cm-reach-sm .cm-reach-will { font-size: var(--text-base); }
 .cm-reach-sm .cm-reach-bar { height: 4px; margin-top: 5px; }
 .cm-reach-sm .cm-reach-why { margin-top: 4px; }
@@ -2425,6 +2428,95 @@ button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2
 .pb-rule > .icon { flex: none; color: var(--ink-faint); }
 .pb-rule b { display: block; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); }
 .pb-rule span { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
+/* ---- The playbook composer (outbound-real.jsx PlaybookComposer) ----
+   The record kit's sheet beside the page, read as a playbook is: who it is for,
+   what it says, when it runs. Two controls open lists (a moment, a message),
+   the numbers are chosen inside the sentence that says them, and nothing on it
+   changes height as it is filled in: a slot typed over keeps its row's height,
+   a number picked keeps its select's width. */
+@media (min-width: 761px) { .rec-sheet.pb-sheet { width: min(580px, 94vw); } }
+/* The name is the sheet's title, and it is written where it is read. */
+.pb-title-wrap { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); }
+.pb-title { flex: 0 1 auto; min-width: 4ch; max-width: 100%; field-sizing: content; margin: -2px -6px; padding: 1px 5px; border: 1px solid transparent; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--ink); text-overflow: ellipsis; transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+@supports not (field-sizing: content) { .pb-title { flex: 1 1 auto; width: 100%; } }
+.pb-title:hover { border-color: var(--line); }
+.pb-title:focus-visible { outline: none; border-color: var(--accent); background: var(--bg); box-shadow: var(--focus-ring); }
+.pb-title::placeholder { color: var(--ink-dim); }
+.pb-title-wrap > .icon { flex: none; opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
+.pb-title-wrap:hover > .icon, .pb-title-wrap:focus-within > .icon { opacity: 1; }
+@media (hover: none) { .pb-title-wrap > .icon { opacity: 1; } }
+.pb-compose { display: flex; flex-direction: column; gap: 24px; padding: 20px 0 26px; }
+.pb-sec { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pb-sec-k { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+/* A choice drawn as the thing chosen: the moment with its glyph, the message with what it is. */
+.lp-trigger.pb-pick { display: flex; align-items: center; width: 100%; height: auto; min-height: 58px; padding: 10px 12px; gap: 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--bg); font-size: var(--text-sm); color: var(--ink); text-align: left; white-space: normal; }
+.lp-trigger.pb-pick:hover:not(:disabled) { border-color: var(--ink-faint); background: var(--bg-hover); }
+.lp-trigger.pb-pick.is-open { border-color: var(--ink-faint); background: var(--bg-raised); }
+.lp-trigger.pb-pick .lp-caret { width: 16px; margin-left: auto; }
+.pb-pick-mark { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--ok-soft); color: var(--ok-ink); }
+.pb-pick-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pb-pick-title { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-pick-title.is-empty { font-weight: var(--weight-medium); color: var(--ink-muted); }
+.pb-pick-sub { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The message and the language it goes out in: one control and the one beside it, the same height. */
+.pb-msg-head { display: flex; align-items: stretch; gap: 8px; min-width: 0; }
+.pb-msg-head > .lp-trigger.pb-pick { flex: 1 1 auto; min-width: 0; }
+.pb-msg-head > .lp-trigger:not(.pb-pick) { flex: none; height: auto; padding: 0 10px 0 12px; gap: 7px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--bg); font-size: var(--text-sm); }
+.pb-msg-head > .lp-trigger:not(.pb-pick):hover:not(:disabled) { border-color: var(--ink-faint); background: var(--bg-hover); }
+.pb-preview { display: flex; justify-content: center; padding: 18px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: repeating-linear-gradient(135deg, transparent 0 7px, var(--bg-sunken) 7px 8px), var(--bg); }
+.pb-preview .mp { width: 100%; max-width: 360px; }
+.pb-preview .mp-frame { max-width: none; box-shadow: var(--shadow-sm); }
+.pb-preview .mp-bubble { max-width: 90%; }
+/* Each slot on one line: what it is, what fills it, and -- where there is a choice -- the choice. */
+.pb-fills { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden; }
+.pb-fill { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 8px 6px 13px; }
+.pb-fill + .pb-fill { border-top: 1px solid var(--line); }
+.pb-fill-key { flex: 0 0 112px; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-fill-val { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.pb-fill-words { flex: 0 1 auto; min-width: 0; max-width: 65%; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-fill-hint { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-fill-input { flex: 1 1 auto; min-width: 0; height: 30px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg); font: inherit; font-size: var(--text-sm); color: var(--ink); }
+.pb-fill-input::placeholder { color: var(--ink-faint); }
+.pb-fill-input:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+/* The choice of what fills a slot, where it has one: a select under its glyph, so the list is the device's own. */
+.pb-fill-src { position: relative; flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--radius-sm); color: var(--ink-dim); transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
+.pb-fill-src:hover { background: var(--bg-hover); color: var(--ink); }
+.pb-fill-src:focus-within { color: var(--ink); box-shadow: var(--focus-ring); }
+.pb-fill-src > select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; font-size: 16px; cursor: pointer; }
+/* The clock, as one sentence with its numbers in it. */
+.pb-when { margin: 0; font-size: var(--text-base); line-height: 2.05; color: var(--ink-muted); text-wrap: pretty; }
+.pb-tok { position: relative; display: inline-flex; align-items: center; vertical-align: baseline; color: var(--ink); }
+.pb-tok > select { appearance: none; -webkit-appearance: none; margin: 0; padding: 1px 19px 1px 7px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg); font: inherit; font-weight: var(--weight-medium); line-height: 1.45; color: var(--ink); font-variant-numeric: tabular-nums; cursor: pointer; transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+.pb-tok > select:hover { border-color: var(--ink-faint); background: var(--bg-hover); }
+.pb-tok > select:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.pb-tok > .icon { position: absolute; right: 6px; color: var(--ink-dim); pointer-events: none; }
+.pb-rules-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; font-size: var(--text-xs); color: var(--ink-dim); }
+.pb-runs-under { display: inline-flex; align-items: center; gap: 7px; }
+.pb-guard { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px; border-radius: var(--radius-full); background: var(--bg-sunken); color: var(--ink-muted); cursor: help; }
+.pb-guard:hover { color: var(--ink); background: var(--bg-active); }
+.pb-guard:focus-visible { outline: none; color: var(--ink); box-shadow: var(--focus-ring); }
+/* What is missing where the message would be: dashed, as an unset moment is on the page. */
+.pb-empty { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--bg-sunken); }
+.pb-empty-line { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
+.pb-empty-line > .icon { flex: none; margin-top: 3px; color: var(--ink-dim); }
+.pb-empty-line.is-warn { color: var(--warn-ink); }
+.pb-warn { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--warn-ink); }
+.pb-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pb-foot-say { flex: 1 1 auto; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.pb-foot-say[data-tone="danger"] { color: var(--danger-ink); }
+.pb-foot-say[data-tone="plain"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-foot > .btn { flex: none; height: 34px; padding: 0 15px; border-radius: var(--radius-md); }
+@media (max-width: 760px) {
+  .pb-sheet .rec-sheet-sub { display: none; }
+  .pb-compose { gap: 20px; padding-top: 16px; }
+  .pb-fill-key { flex-basis: 92px; }
+  .pb-fill-hint { display: none; }
+  .pb-preview { padding: 12px 10px; }
+  .pb-foot-say { font-size: var(--text-xs); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pb-title, .pb-title-wrap > .icon, .pb-fill-src, .pb-tok > select { transition: none; }
+}
 /* The grid follows the pane, not the window (#735): three across where three fit,
    two, then one; the rules stack under their heading. */
 @container (max-width: 980px) {
@@ -2641,6 +2733,22 @@ button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2
 .bc-sheet-bar { display: flex; height: 6px; margin-top: 9px; }
 .bc-sheet-bar > span { flex: 1 1 auto; border-radius: 3px; background: var(--ok); }
 .bc-sheet-rules { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; font-size: var(--text-xs); color: var(--ink-dim); }
+/* Out of everyone the moment named, as the run counted them: green reaches, amber
+   waits only for time, grey was left out -- the reach bars' own colours
+   (.cm-reach-bar) at the sheet's size, and a line per reason under them. */
+.bc-sheet-bar.is-parts { gap: 2px; }
+.bc-sheet-bar.is-parts > span { flex: none; border-radius: 0; }
+.bc-sheet-bar.is-parts > span:first-child { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
+.bc-sheet-bar.is-parts > span:last-child { border-top-right-radius: 3px; border-bottom-right-radius: 3px; }
+.bc-sheet-bar.is-parts > .bc-sheet-bar-will { background: var(--ok); }
+.bc-sheet-bar.is-parts > .bc-sheet-bar-held { background: var(--warn); }
+.bc-sheet-bar.is-parts > .bc-sheet-bar-rest { flex: 1 1 auto; background: var(--line-strong); border-radius: 0 3px 3px 0; }
+.bc-sheet-why { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.bc-sheet-why li { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.bc-sheet-why .cm-reach-dot { width: 6px; height: 6px; }
+.bc-sheet-door { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line-strong); cursor: pointer; }
+.bc-sheet-door:hover { text-decoration-color: currentColor; }
+.bc-sheet-door:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 /* The words, as its first person reads them: what varies tinted as the preview tints it. */
 .bc-sheet-words { padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
 .bc-sheet-quote { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
@@ -2790,7 +2898,7 @@ html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
 /* The list, lifted off the page the way the action menu is: the search on top,
    the groups under their headings, the one in view ticked. It lives on the
    document's body, so no list it opens from can clip it. */
-.lp-pop { position: fixed; z-index: 260; display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 1px 2px oklch(0 0 0 / 0.08), 0 18px 44px -12px oklch(0 0 0 / 0.36); animation: more-in 140ms var(--ease-out); transform-origin: top left; }
+.lp-pop { position: fixed; z-index: 420; display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 1px 2px oklch(0 0 0 / 0.08), 0 18px 44px -12px oklch(0 0 0 / 0.36); animation: more-in 140ms var(--ease-out); transform-origin: top left; }
 .lp-search { display: flex; align-items: center; gap: 8px; flex: none; height: 42px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--line); color: var(--ink-dim); }
 .lp-search input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: none; font: inherit; font-size: 13px; color: var(--ink); }
 .lp-search input::placeholder { color: var(--ink-dim); }
@@ -2805,6 +2913,12 @@ html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
 .lp-opt-check { display: grid; place-items: center; }
 .lp-opt-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lp-opt.is-on .lp-opt-label { font-weight: var(--weight-medium); }
+/* A choice with a line under it: a moment and what starts it, a message and its first words. */
+.lp-opt.has-sub { min-height: 46px; padding-block: 6px; }
+.lp-opt-main, .lp-opt-sub { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-opt-sub { margin-top: 1px; font-size: 11.5px; font-weight: var(--weight-regular); color: var(--ink-dim); }
+.lp-opt-mark > .icon { color: var(--ink-dim); }
+.lp-opt.is-on .lp-opt-mark > .icon { color: var(--ink); }
 .lp-opt-hint { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
 .lp-opt-hint[data-tone="info"] { color: var(--info-ink); }
 .lp-opt-hint[data-tone="danger"] { color: var(--danger-ink); }
@@ -2814,7 +2928,7 @@ html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
 .lp-note { flex: none; margin: 0; padding: 9px 14px 11px; border-top: 1px solid var(--line); font-size: 11.5px; line-height: 1.45; color: var(--ink-dim); }
 /* Under a thumb: a sheet from the foot of the screen, with the page stepped back
    behind it and every language at a finger's height. */
-.lp-backdrop { position: fixed; inset: 0; z-index: 259; background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); animation: lp-fade 180ms var(--ease-out); }
+.lp-backdrop { position: fixed; inset: 0; z-index: 419; background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); animation: lp-fade 180ms var(--ease-out); }
 .lp-pop.is-sheet { inset: auto 0 0 0; max-height: min(78vh, 640px); border-bottom: 0; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); animation: lp-sheet-in 220ms var(--ease-out); }
 .lp-pop.is-sheet::before { content: ""; flex: none; display: block; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: 999px; background: var(--line-strong); }
 .lp-pop.is-sheet .lp-search { height: 50px; margin: 0 8px; padding: 0 6px; }
@@ -2822,6 +2936,8 @@ html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
 .lp-pop.is-sheet .lp-list { padding: 6px 10px 10px; }
 .lp-pop.is-sheet .lp-opt { min-height: 48px; padding: 0 12px; border-radius: 12px; font-size: 15px; }
 .lp-pop.is-sheet .lp-group-head { padding: 10px 12px 4px; font-size: 12.5px; }
+.lp-pop.is-sheet .lp-opt.has-sub { min-height: 58px; padding-block: 8px; }
+.lp-pop.is-sheet .lp-opt-sub { font-size: 13px; }
 @keyframes lp-fade { from { opacity: 0; } }
 @keyframes lp-sheet-in { from { opacity: 0; transform: translateY(28px); } }
 @media (prefers-reduced-motion: reduce) {

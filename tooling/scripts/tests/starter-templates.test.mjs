@@ -136,14 +136,14 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"'));
-  assert.ok(b.includes("const srcOf = (i) => ((sources[tplId] || defaults)[i] || \"text\");"), "a starter's slots come filled in");
+  assert.ok(b.includes("const srcOf = (i) => { const c = choices[i] || BC_TEXT; const s = (sources[tplId] || BC_NONE)[i]; return c.includes(s) ? s : c[0]; };"), "a starter's slots come filled in, each with what it may take");
   assert.ok(b.includes("<window.MessagePreview") && b.includes('data-testid="bc-preview"'), "the preview is the message as the customer sees it");
   assert.ok(b.includes("<window.PreviewStepper"), "and it walks the real people the count is a length of, not an example");
   assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");
   const p = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
   assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
-  assert.ok(p.includes("window.__starters.forTrigger(trigger)") && p.includes("if (starterRow) setTplId(starterRow.id);"), "the trigger's starter is picked for you");
-  assert.ok(p.includes("<window.TemplateChips") && p.includes("<window.MessagePreview"));
+  assert.ok(p.includes("window.__starters.forTrigger(trigger)") && p.includes("const tpl = picked ? usable.find((t) => t.id === tplId) || null : rowIn(starterGroup, null);"), "the trigger's starter is picked for you");
+  assert.ok(p.includes("<window.CmPicker") && p.includes("<window.MessagePreview"));
   const t = readCode("apps/dashboard/src/legacy/pages/templates-real.jsx");
   assert.ok(t.includes('data-testid="tpl-start-from"') && t.includes("window.starterWords = starterWords;") && !t.includes("WaBubble"));
   const css = readCode("apps/dashboard/src/legacy/styles/components.css");

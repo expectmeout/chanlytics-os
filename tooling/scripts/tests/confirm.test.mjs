@@ -60,7 +60,7 @@ globalThis.window = {
   __teamInvite: async () => ({ ok: true }),
   __broadcasts: { cancel: async (id) => { calls.cancel.push(id); return { ok: true, data: { was: "sending" } }; } },
   __playbooks: { remove: async (id) => { calls.pbRemove.push(id); return { ok: true, data: {} }; } },
-  __PLAYBOOKS: { triggers: [], classWords: {} },
+  __PLAYBOOKS: { triggers: [] },
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   location: { origin: "https://app.chanlytics.com", reload() {} },
   gate: () => ({}),

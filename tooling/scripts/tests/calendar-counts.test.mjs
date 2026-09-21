@@ -98,6 +98,13 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   assert.equal(pools.everyone_monthly.held, 2, "the two wait for the week's breath: held, not hidden");
   assert.deepEqual(Object.keys(pools).sort(), ["everyone_monthly", "new_week", "phoned_only", "quiet_30", "visit_tomorrow", "visited"]);
   assert.equal(pools.visit_tomorrow.candidates, 0, "no calendar, nobody has a visit tomorrow");
+  // And everyone the moment names, with who of them no run reaches whatever the
+  // week: the card's grey. The chips counted only who said yes, so the one who
+  // never did and the one who asked to stop were in no number on the page.
+  assert.equal(pools.everyone_monthly.pool, PEOPLE_PAGE + 3, "everyone in People, past the first page");
+  assert.deepEqual([pools.everyone_monthly.noYes, pools.everyone_monthly.stopped, pools.everyone_monthly.noNumber], [1, 1, 0]);
+  const e = pools.everyone_monthly;
+  assert.equal(e.candidates + e.held + e.noYes + e.stopped + e.noNumber, e.pool, "every person on it, once");
 
   // The route hands the same numbers to the page. It reads the WALL CLOCK for
   // "this week", not the NOW pinned above, so its fixture must be relative to
