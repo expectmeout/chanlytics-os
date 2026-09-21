@@ -133,15 +133,42 @@ const btSaver = () => {
       try { fn(); } catch (err) { if (window.console) window.console.error(err); }
     }
   };
-  const base = () => {
+  // What the server holds, as far as this tab knows: its answer to the last save it took, or the settings read when
+  // that is newer.
+  const held = () => {
     const read = window.__SETTINGS || null;
-    const held = read && read.config ? { config: read.config, version: read.version } : null;
-    return last && (!held || last.version > held.version) ? last : held;
+    const r = read && read.config ? { config: read.config, version: read.version } : null;
+    return last && (!r || last.version > r.version) ? last : r;
+  };
+  // What base() last worked out, and from what: kept while nothing it was worked out from moves.
+  let memo = null;
+  /**
+   * The config the next save goes on: what the server holds, with the save out and each one waiting its turn applied
+   * to it in order, as if taken. A refused one drops out of it as it is refused, and a save the server has taken is in
+   * what it holds (its answer) before the settings read brings it back.
+   *
+   * What a row or a fold will say, and whether its save crosses the resolver's line, are worked out on this, since it
+   * is what their save will be applied to. Worked out on the settings read, as they first were, they described a brain
+   * that was not the one saved whenever another save was out or taken and not yet read back: with the website's save
+   * out, emptying the address said nothing, and its save, landing on a record with no website, stopped the prompt
+   * composing. The same object comes back while nothing moves, so what a row will say is worked out once for it
+   * rather than on every keystroke. Null with nothing read to save onto. Never change what it returns: apply a patch
+   * with patched(), which works on a copy.
+   */
+  const base = () => {
+    const from = held();
+    if (!from) return null;
+    const ahead = out ? [out].concat(queue) : queue.slice();
+    const key = [from.config].concat(ahead);
+    if (memo && memo.key.length === key.length && memo.key.every((k, i) => k === key[i])) return memo.config;
+    const config = ahead.reduce((cfg, job) => btPatched(cfg, job), from.config);
+    memo = { key, config };
+    return config;
   };
   const next = () => {
     if (out || !queue.length) return;
     const job = queue.shift();
-    const from = base();
+    const from = held();
     // No door to save through, or nothing read to save onto: nothing goes, and nothing waits on a save that never lands.
     if (!from || typeof window.__saveSettings !== "function") { onChange(); next(); return; }
     const cfg = from.config;
@@ -180,9 +207,10 @@ const btSaver = () => {
     save(job) { queue.push(job); onChange(); next(); },
     // A row's save is in hand while it waits its turn or is out: its Save says so, and takes no second press.
     pending(row) { return !!((out && out.row === row) || queue.some((j) => j.row === row)); },
+    base,
     // A page hears every move while it is on screen; call what this returns as it goes.
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
-    reset() { last = null; out = null; queue.length = 0; onChange(); },
+    reset() { last = null; out = null; queue.length = 0; memo = null; onChange(); },
   };
 };
 
@@ -303,10 +331,10 @@ const BT_PATCH_OF = {
   handoff_number: btPatchProfile("handoff_number"),
 };
 
-// window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), subscribe(fn), reset() }), how a
-// job's patch is applied (`patched`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a brain's
-// prompt is the product's own lines under its stored name (`isBaseline`), and each row's STORED_AS, CHECK_OF and
-// PATCH_OF by its id. Task 3.6 adds the folds'.
+// window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), base(), subscribe(fn), reset() }),
+// how a job's patch is applied (`patched`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
+// brain's prompt is the product's own lines under its stored name (`isBaseline`), and each row's STORED_AS, CHECK_OF
+// and PATCH_OF by its id. Task 3.6 adds the folds'.
 Object.assign(window, {
   phoneShown: btPhoneShown,
   useFieldSave: useBtFieldSave,

@@ -71,12 +71,16 @@ const btChangedLines = (before, after) => {
  * own, that too. `channel` is the one the row's words are read on; the transfer number is a call's, and changes nothing
  * on WhatsApp. Null is no channel that reads them on this workspace, and the row says nothing it will say.
  *
+ * `brain` is the settings read's, which the row states and opens from; `base` is the config its save will go on (the
+ * saver's base()), which is what it will say is worked out on. The two differ while another save is out, or taken and
+ * not read back yet.
+ *
  * `named` is what the row holds, said as a thing, where its label is a phrase: a screen reader hears the act as its
  * words and the label together, and "Change Tells customers to call" says nothing, where "Change the number customers
  * are told to call" does. A row whose label is a noun needs none ("Change Website", "Add one Address").
  */
 const BtRow = ({
-  id, section = null, label, named = null, brain, value = null, empty = null, hint = null, source = null,
+  id, section = null, label, named = null, brain, base = null, value = null, empty = null, hint = null, source = null,
   disputed = null, wrong = null, initial, storedAs: stores = null, check = btNoCheck, commit, body,
   channel = "whatsapp", canEdit = true, gate = null, flash = () => {}, saver = null,
 }) => {
@@ -106,7 +110,8 @@ const BtRow = ({
   // config current then.
   const busy = saver ? saver.pending(id) : false;
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
-  // Each block as the stored brain writes it, resolved once per stored brain rather than on every keystroke.
+  // Each block as the brain this row's save goes on writes it, resolved once per such brain rather than on every
+  // keystroke (the saver hands back the same base while nothing moves).
   const before = useBizRef({ brain: null, blocks: {} });
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
@@ -144,19 +149,23 @@ const BtRow = ({
   let says = null;
   const tab = window.__businessTab;
   if (dirty && !check(now) && tab) {
-    // Applied as the saver applies it (patched), on a copy: a patch that edits a nested object in place leaves the
-    // stored brain it is compared with as it was.
-    const next = S.patched({ brain }, { change: commit(now).change }).brain;
-    const crossing = tab.profileCrossing ? tab.profileCrossing(next) : null;
+    // Both brains are the saver's: the one this row's save will go on (its base, which is the settings read until a
+    // save is out, or taken and not read back yet), and that one with this row's patch applied as the saver will apply
+    // it (patched), on a copy, so a patch that edits a nested object in place leaves the base as it was. Read off the
+    // settings read instead, they described a save that was not the one sent whenever another went first.
+    const on = base && base.brain ? base : { brain };
+    const was = on.brain;
+    const next = S.patched(on, { change: commit(now).change }).brain;
+    const crossing = tab.profileCrossing ? tab.profileCrossing(was, next) : null;
     const added = [];
     const removed = [];
     if (channel && tab.consequenceOf) {
-      if (before.current.brain !== brain) before.current = { brain, blocks: {} };
+      if (before.current.brain !== was) before.current = { brain: was, blocks: {} };
       const stored = before.current.blocks;
       for (const block of [].concat(section || id)) {
         const after = tab.consequenceOf(block, next, channel);
         if (!after) continue;
-        if (!(block in stored)) stored[block] = tab.consequenceOf(block, brain, channel);
+        if (!(block in stored)) stored[block] = tab.consequenceOf(block, was, channel);
         const changed = btChangedLines(stored[block], after);
         added.push(...changed.added);
         removed.push(...changed.removed);
@@ -351,17 +360,19 @@ const btOpenRow = (id) => {
  * The Workspace row is gone. It printed the business's name a second time whenever the workspace's name differed: two
  * names for one business, on the one card that exists to say which name customers hear.
  */
-const BtWho = ({ brain, canEdit, flash, saver }) => {
+const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
   const F = ((window.__FACTS || {}).facts) || {};
   const conflicts = ((window.__FACTS || {}).conflicts) || [];
   const conflictOn = (key) => conflicts.find((k) => k.fact === key) || null;
   const profile = brain.profile || {};
+  // The brain the rows' saves go on (the saver's base), which is what they will say is worked out on.
+  const goesOn = (base && base.brain) || brain;
   // A fact as the settings read resolved it. A read that carried no facts (an older server) falls back to what is
   // typed in the brain, with no source claimed for it: a fact with no source is not a fact, but a stored value is
   // still what the receptionist says.
   const factOf = (key, typed) => F[key] || (typed ? { value: typed, source: null } : { value: null, source: null });
   const chip = (f) => (f.value ? f.source : null);
-  const shared = { brain, canEdit, flash, saver };
+  const shared = { brain, base, canEdit, flash, saver };
   const gate = (thing) => window.gate("settings", `change the ${thing}`);
   // Each row's check and patch, and what its draft stores (business-tab-save.jsx).
   const S = window.__businessTabSave;
@@ -394,8 +405,9 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
       <BtRow
         {...shared}
         id="name"
-        // The line the prompt opens with, and the product's own lines where a rename writes them again (the name's patch).
-        section={S.isBaseline(brain) ? ["business_name", "system_prompt"] : "business_name"}
+        // The line the prompt opens with, and the product's own lines where a rename writes them again (the name's patch),
+        // decided on the brain the rename goes on, as the patch decides it.
+        section={S.isBaseline(goesOn) ? ["business_name", "system_prompt"] : "business_name"}
         label="Name"
         value={name.value}
         empty="Not set"
@@ -600,6 +612,8 @@ const BusinessTab = ({ flash = () => {} }) => {
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) return null;
   const canEdit = !window.canDo || window.canDo("settings");
+  // The config the next save goes on: what every row's "It will say" is worked out on.
+  const base = saver.base();
   return (
     <>
       <BtHead />
@@ -611,7 +625,7 @@ const BusinessTab = ({ flash = () => {} }) => {
         </p>
       )}
       <BtStanding brain={brain} door={canEdit ? btOpenRow : null} />
-      <BtWho brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
+      <BtWho brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} />
     </>
   );
 };

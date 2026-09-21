@@ -246,8 +246,7 @@ test("a save that crosses the resolver's line between composing and not says whi
   assert.deepEqual([hasProfile(SPARSE.profile), hasProfile(BARE.profile)], [true, false], "the fixtures stand either side of the line");
 
   // Emptying the last field it composes from: the prompt the edge would send falls back to the stored one.
-  settle(SPARSE);
-  const stops = tab.profileCrossing(BARE);
+  const stops = tab.profileCrossing(SPARSE, BARE);
   assert.deepEqual(stops, { crossing: "stops", sentence: PROFILE_CROSSING_WORDS.stops });
   const before = preview(SPARSE).whatsapp;
   const after = preview(BARE).whatsapp;
@@ -255,17 +254,21 @@ test("a save that crosses the resolver's line between composing and not says whi
   assert.ok(after.length < before.length / 2, `${before.length} characters to ${after.length}`);
 
   // Typing the first: the prompt starts composing, with the stored one carried in beneath.
-  settle(BARE);
-  assert.deepEqual(tab.profileCrossing(SPARSE), { crossing: "starts", sentence: PROFILE_CROSSING_WORDS.starts });
+  assert.deepEqual(tab.profileCrossing(BARE, SPARSE), { crossing: "starts", sentence: PROFILE_CROSSING_WORDS.starts });
   assert.ok(preview(SPARSE).whatsapp.includes(SPARSE.system_prompt), "the instructions it follows today, carried in");
 
   // Nothing crossed, nothing said; and nothing said of a save that will not go, or with no stored brain to compare.
-  assert.equal(tab.profileCrossing(profile(BARE, { handoff_number: "+16465550199" })), null);
-  settle(STORED);
-  assert.equal(tab.profileCrossing(profile(STORED, { address: "10 Pier St" })), null, "still composing");
-  assert.equal(tab.profileCrossing({ ...STORED, system_prompt: undefined }), null, "a brain the save refuses");
-  W.__SETTINGS = { config: {}, prompt: null };
-  assert.equal(tab.profileCrossing(STORED), null, "no stored brain");
+  assert.equal(tab.profileCrossing(BARE, profile(BARE, { handoff_number: "+16465550199" })), null);
+  assert.equal(tab.profileCrossing(STORED, profile(STORED, { address: "10 Pier St" })), null, "still composing");
+  assert.equal(tab.profileCrossing(STORED, { ...STORED, system_prompt: undefined }), null, "a brain the save refuses");
+  for (const none of [null, undefined]) assert.equal(tab.profileCrossing(none, STORED), null, "no stored brain");
+
+  // Judged against the brain it is handed, which is the one the save goes on (the page's saver's base), and never the
+  // settings read: that is an older brain whenever another save is out, or taken and not read back yet.
+  settle(SPARSE);
+  assert.deepEqual(tab.profileCrossing(BARE, SPARSE), { crossing: "starts", sentence: PROFILE_CROSSING_WORDS.starts }, "the read composes; the brain handed does not");
+  settle(BARE);
+  assert.deepEqual(tab.profileCrossing(SPARSE, BARE), stops);
 });
 
 test("a fold it does not know, or a channel that is not one, is refused by name", () => {

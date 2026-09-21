@@ -67,9 +67,9 @@ export const FOLD_BLOCK = {
 
 export type FoldSection = keyof typeof FOLD_BLOCK;
 
-/** What consequenceFor and crossingFor read off the window: the settings read's preview with its inputs, and its brain. */
+/** What consequenceFor reads off the window: the settings read's preview, with the inputs it was resolved with. */
 export interface ConsequenceWindow {
-  __SETTINGS?: { prompt?: PromptPreviewDto | null; config?: { brain?: { profile?: unknown } | null } | null } | null;
+  __SETTINGS?: { prompt?: PromptPreviewDto | null } | null;
 }
 
 /**
@@ -141,30 +141,29 @@ function consequenceOf(section: FoldSection, next: unknown, channel: "whatsapp" 
 }
 
 /**
- * Whether saving the brain `next` crosses the line the resolver draws, and the words for it (contracts
- * PROFILE_CROSSING_WORDS). The resolver composes a prompt from the profile only while it holds something it composes
- * from (hasProfile), and answers with the stored prompt otherwise, so a save that empties the last such field, or fills
- * the first, changes far more than its own line. Decided here, over the stored brain and the one the save would send,
- * with the resolver's own test and never a copy of it, so the page only draws the sentence.
+ * Whether saving the brain `next` over the brain `stored` crosses the line the resolver draws, and the words for it
+ * (contracts PROFILE_CROSSING_WORDS). The resolver composes a prompt from the profile only while it holds something it
+ * composes from (hasProfile), and answers with the stored prompt otherwise, so a save that empties the last such field,
+ * or fills the first, changes far more than its own line. Decided here, over the two brains, with the resolver's own
+ * test and never a copy of it, so the page only draws the sentence.
+ *
+ * `stored` is the brain the save goes on, which the page takes from its saver (business-tab-save.jsx, `base()`): the
+ * settings read, until a save is out, or taken and not read back yet. This read the settings read itself, as it once
+ * did, and a save that went on a newer brain was judged against an older one: with the website's save out, emptying
+ * the address said nothing, though its save, landing on a record with no website, stopped the prompt composing.
  *
  * Null when the save crosses nothing; and, as consequenceFor is, for a draft the save's schema refuses, since nothing
  * true can be said of a save that will not go, or when there is no stored brain to compare it with.
  */
-export function crossingFor(w: ConsequenceWindow, next: unknown): { crossing: ProfileCrossing; sentence: string } | null {
-  const stored = w.__SETTINGS?.config?.brain ?? null;
-  if (!stored) return null;
+export function profileCrossing(stored: unknown, next: unknown): { crossing: ProfileCrossing; sentence: string } | null {
+  if (!stored || typeof stored !== "object") return null;
   const parsed = TenantConfigWriteSchema.safeParse({ brain: next });
   if (!parsed.success || !parsed.data.brain) return null;
-  const was = hasProfile((stored.profile ?? null) as BusinessProfile | null);
+  const was = hasProfile(((stored as { profile?: unknown }).profile ?? null) as BusinessProfile | null);
   const now = hasProfile(parsed.data.brain.profile ?? null);
   if (was === now) return null;
   const crossing: ProfileCrossing = was ? "stops" : "starts";
   return { crossing, sentence: PROFILE_CROSSING_WORDS[crossing] };
-}
-
-/** crossingFor over this tab's window: the one the page calls, with the brain its save would send. */
-function profileCrossing(next: unknown): { crossing: ProfileCrossing; sentence: string } | null {
-  return crossingFor(window as unknown as ConsequenceWindow, next);
 }
 
 export const BUSINESS_TAB = { standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing };

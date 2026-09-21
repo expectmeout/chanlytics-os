@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   stateOf, standingLine, roleGate, formatPhoneDisplay, whyNotAPhone, whyNotAHandoff, samePhone, handoffE164,
-  resolveFacts, factConflicts, newReceptionistDefaults, PROFILE_CROSSING_WORDS,
+  resolveFacts, factConflicts, newReceptionistDefaults, PROFILE_CROSSING_WORDS, hasProfile,
 } from "@chanlytics/contracts";
 import { installLegacyReact, again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
@@ -896,6 +896,146 @@ test("a page drawn again finds the tab's one saver: the answer to the last save,
   held[0]();
   assert.deepEqual(sent.map((s) => s.version), [7, 8], "and it goes on the first's answer when the first is taken");
   assert.equal(sent[1].config.brain.profile.website, "https://melanys.example");
+});
+
+/** Stand in for the bridge's PUT, holding each save until the test takes it (`accept`) or answers it (`answer`). */
+const holding = () => {
+  const sent = [];
+  W.__saveSettings = (config, version, accepted) => new Promise((answer) => {
+    sent.push({ config: structuredClone(config), version, accept: () => accepted({ config: structuredClone(config), version: version + 1 }), answer });
+  });
+  return sent;
+};
+
+test("the saver's base is the config the next save goes on: the read, with each save out or waiting applied as if taken", async () => {
+  const S = W.__businessTabSave;
+  const sent = holding();
+  drawTab();
+  const read = W.__SETTINGS.config;
+  const stored = structuredClone(read);
+  assert.equal(S.saver.base(), read, "nothing out: what the settings read holds");
+  const job = (row, change) => ({ row, change, said: "Saved", done: () => {}, flash: () => {} });
+  S.saver.save(job("address", S.PATCH_OF.address("10 Pier St")));
+  S.saver.save(job("website", S.PATCH_OF.website("")));
+  assert.equal(sent.length, 1, "one out, one waiting");
+  const both = S.saver.base();
+  assert.equal(both.brain.profile.address, "10 Pier St", "the save out, as if taken");
+  assert.equal("website" in both.brain.profile, false, "and the one waiting its turn after it");
+  assert.equal(S.saver.base(), both, "the same config while nothing moves, so what a row will say is worked out once");
+  assert.deepEqual(read, stored, "and the read is left as it was");
+
+  // Refused, a save drops out of the base: the next goes on what the server holds.
+  sent[0].answer({ ok: false, code: "conflict", message: "Someone else saved settings after you loaded them — reload and reapply." });
+  await settle();
+  assert.equal(sent.length, 2, "the website's turn");
+  assert.equal(S.saver.base().brain.profile.address, stored.brain.profile.address, "the refused address is not in it");
+  assert.equal("website" in S.saver.base().brain.profile, false);
+  // Taken, the server's answer is the base, until a newer read.
+  sent[1].accept();
+  assert.equal(S.saver.base().brain.profile.address, stored.brain.profile.address);
+  assert.equal("website" in S.saver.base().brain.profile, false, "the answer, before the re-read brings it back");
+});
+
+test("what a row will say is worked out on the brain its save goes on: a save still out, or taken and not read back", async () => {
+  // Task 3.2's review, and its probe. What a row would say, and whether it crossed the resolver's line, were worked
+  // out on the settings read, while the saver applies each patch to the config the saves before it leave. With the
+  // website's save still out, emptying the address said nothing of the line it crossed, and its save, landing on a
+  // record with no website, stopped the prompt composing.
+  const bare = { handoff_number: "+16465550100", booking_rules: { lead_hours: 2 }, guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true } };
+  const sparse = { ...bare, website: "https://bella.example", address: "12 Main St, Brooklyn, NY" };
+  assert.deepEqual([hasProfile(sparse), hasProfile({ ...bare, address: sparse.address }), hasProfile(bare)], [true, true, false], "only the website and the address compose");
+
+  const empty = (tree, row) => {
+    openFold(tree, row);
+    tree = redrawTab();
+    typeInto(tree, row, "");
+    return redrawTab();
+  };
+  // Still out.
+  let sent = holding();
+  let tree = drawTab({ profile: sparse, resolved: KNOWN });
+  tree = empty(tree, "website");
+  assert.equal(byTestId(tree, "rec-inline-says-website-note"), null, "the address still composes: emptying the website crosses nothing");
+  saveRow(tree, "website");
+  assert.equal(sent.length, 1);
+  openFold(tree, "address");
+  tree = redrawTab();
+  // The website's editor still holds its draft, so the registry asks; its save goes on whatever the answer.
+  press(byTestId(tree, "rec-inline-website-ask-yes"));
+  tree = redrawTab();
+  typeInto(tree, "address", "");
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-inline-says-address-note")), PROFILE_CROSSING_WORDS.stops, "said before the address's save goes");
+  saveRow(tree, "address");
+  sent[0].accept();
+  assert.equal(sent.length, 2);
+  assert.equal(hasProfile(sent[1].config.brain.profile), false, "which is what its save did");
+
+  // Taken, and not read back yet: the saver goes on the server's answer, and so does what the next row will say.
+  sent = saving();
+  tree = drawTab({ profile: sparse, resolved: KNOWN });
+  tree = empty(tree, "website");
+  saveRow(tree, "website");
+  tree = redrawTab();
+  assert.deepEqual(openRows(tree), [], "taken: its editor closed");
+  tree = empty(tree, "address");
+  assert.equal(textOf(byTestId(tree, "rec-inline-says-address-note")), PROFILE_CROSSING_WORDS.stops);
+  saveRow(tree, "address");
+  assert.deepEqual(sent.map((s) => s.version), [7, 8]);
+  assert.equal(hasProfile(sent[1].config.brain.profile), false);
+
+  // And the other way: with the first field's save out, the second is not said to start what the first already has.
+  sent = holding();
+  tree = drawTab({ profile: bare, resolved: KNOWN });
+  openFold(tree, "website");
+  tree = redrawTab();
+  typeInto(tree, "website", "https://bella.example");
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-inline-says-website-note")), PROFILE_CROSSING_WORDS.starts);
+  saveRow(tree, "website");
+  openFold(tree, "address");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-inline-website-ask-yes"));
+  tree = redrawTab();
+  typeInto(tree, "address", "12 Main St, Brooklyn, NY");
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-inline-says-address"), "it says the address line it adds");
+  assert.equal(byTestId(tree, "rec-inline-says-address-note"), null, "and nothing of a line the website's save already crossed");
+  await settle();
+});
+
+test("a rename made while another is out is told against the name that one saves", () => {
+  // The Name row's blocks, and the product's own lines it writes again, are read on the saver's base too: with Google's
+  // name still being saved, a second rename replaces that name, not the one the page was drawn with.
+  const was = "Melany's Beauty Salon";
+  const google = "Melany's Salon & Spa";
+  const now = "Melany's Studio";
+  const baselineOf = (name) => newReceptionistDefaults(name).system_prompt;
+  const naming = (brain, name) => [
+    ...composed("business_name", brain).filter((l) => l.includes(name)),
+    ...composed("system_prompt", brain).filter((l) => l.includes(name)),
+  ].join("\n");
+  const sent = holding();
+  let tree = drawTab({ brain: { system_prompt: baselineOf(was) }, resolved: { ...KNOWN, listing: { name: google, address: null } } });
+  const stored = W.__SETTINGS.config.brain;
+  press(find(byTestId(tree, "rec-row-name"), (n) => n.type === "button" && textOf(n) === "Use Google's"));
+  assert.equal(sent.length, 1, "Google's name is out");
+  tree = redrawTab();
+  openFold(tree, "name");
+  tree = redrawTab();
+  typeInto(tree, "name", now);
+  tree = redrawTab();
+  const saving = { ...stored, business_name: google, system_prompt: baselineOf(google) };
+  const after = { ...stored, business_name: now, system_prompt: baselineOf(now) };
+  assert.equal(naming(after, now).split("\n").length, 2, "the line it opens with, and the product's lines");
+  assert.deepEqual(partsOf(byTestId(tree, "rec-inline-says-name")), [["It will say", naming(after, now)], ["It will no longer say", naming(saving, google)]]);
+  assert.equal(naming(stored, was).split("\n").length, 2);
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-inline-says-name")), new RegExp(escape(was)), "the name the page was drawn with is already going");
+  assert.equal(byTestId(tree, "rec-inline-save-name").props["aria-busy"], true, "the row's own name is out, so its Save waits");
+  sent[0].accept();
+  tree = redrawTab();
+  saveRow(tree, "name");
+  assert.deepEqual(sent[1].config.brain, after, "and the save writes what it said");
 });
 
 test("a save the server refuses is said in its words, and the editor stays open with what was typed", async () => {
