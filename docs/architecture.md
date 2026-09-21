@@ -1,9 +1,11 @@
 # Architecture
 
 How Chanlytics OS is put together, for someone reading the repository for the
-first time. `docs/glossary.md` has the words; `docs/system-prd.md` is the
-as-built reference, sheet by sheet; `docs/decisions/` holds the designs that
-are decided and not yet built. Where this page and the code disagree, the code
+first time. `docs/glossary.md` has the words; `docs/runbook.md` says what to
+type to run, deploy and roll back; `docs/system-prd.md` is the as-built
+reference, sheet by sheet; `docs/decisions/` holds the designs that are
+decided and not yet built; `docs/takeover.md` scores the codebase against the
+properties a takeover needs. Where this page and the code disagree, the code
 is right and this page is stale.
 
 ## What it is

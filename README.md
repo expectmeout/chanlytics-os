@@ -27,10 +27,12 @@ and the code still uses it as its worked example in comments; the product is
 not for salons, and `tooling/scripts/tests/trade-neutral.test.mjs` fails a
 build that puts one trade's words in front of a customer of another.
 
-**Read next.** `docs/glossary.md` for the words (and the one rule about
-*tenant* versus *workspace*), `docs/architecture.md` for how it is put
-together, `docs/system-prd.md` for the as-built reference sheet by sheet,
-`docs/decisions/` for what is decided and not yet built.
+**Read next.** `CLAUDE.md` for the rules and the canonical example of each
+thing, `docs/glossary.md` for the words (and the one rule about *tenant*
+versus *workspace*), `docs/architecture.md` for how it is put together,
+`docs/runbook.md` to run, deploy and roll back, `docs/system-prd.md` for the
+as-built reference sheet by sheet, `docs/decisions/` for what is decided and
+not yet built, `docs/takeover.md` for the codebase quality checklist, scored.
 
 ---
 
