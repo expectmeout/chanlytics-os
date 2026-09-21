@@ -23,6 +23,18 @@ const inChannel = (c, id) => id === "all" || (CV_TAB_KEYS[id] || [id]).includes(
 // reading this file tells you.
 window.CV_IN_CHANNEL = inChannel;
 
+// ONE rule for the word after "conversations/", which the shell asks: a tab either kind of workspace draws -- a wire a
+// row can be on, in the view model's words (CV_ICON's keys; a real workspace draws one tab per wire, surface-data.ts
+// conversationTabs), or one of the mockup's grouped tabs -- or else a row's id, a conversation's or a call's (cv-).
+// The shell knew only the mockup's three tabs, so on a real workspace WhatsApp and Email were read as the ids of
+// conversations nobody could find: the list stayed on All, and the pane said the conversation wasn't shown.
+const cvOwn = (map, key) => Object.prototype.hasOwnProperty.call(map, key);
+const cvRoute = (word) => {
+  if (!word || word === "all") return { channel: "all", id: null };
+  return cvOwn(CV_ICON, word) || cvOwn(CV_TAB_KEYS, word) ? { channel: word, id: null } : { channel: "all", id: word };
+};
+window.CV_ROUTE = cvRoute;
+
 // The row's outcome as the one pill draws it. The words a page knows better
 // stay here (which channel answered, what you chose); the tones are the map's,
 // so "Needs you" is amber here as it is in the Inbox and on a playbook.
@@ -220,7 +232,10 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
             {CV_CHANNELS.map(ch => (
               <button
                 key={ch.id}
+                type="button"
                 className={`fleet-filter-chip ${channel === ch.id ? "active" : ""}`}
+                aria-pressed={channel === ch.id}
+                data-testid={`cv-tab-${ch.id}`}
                 onClick={() => window.CHANLY.nav(ch.id === "all" ? "conversations" : `conversations/${ch.id}`)}
               >
                 {ch.label}
