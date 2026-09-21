@@ -903,16 +903,20 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-pin.on { transform: translate(-50%, -50%) scale(1.6); z-index: 3; background: var(--ink); opacity: 1; box-shadow: 0 0 0 4px oklch(from var(--ink) l c h / 0.18); }
 .ld-pin:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .ld-pin-dot { display: inline-block; }
-/* A pin says the same thing a row dot says. These disagreed on two states: ready was healthy green on the map and
-   the accent on a row, talking was blue on the map and green on a row. Both now read from the registry, and a pin
-   never wears the accent, because a pin is data (the chart kit's rule). */
-.tone-strong, .tone-ok, .tone-talking { background: var(--ok); }
-.tone-look, .tone-part, .tone-review, .tone-unknown { background: var(--warn); }
-.tone-long, .tone-none, .tone-ready, .tone-out { background: var(--ink-faint); }
-.tone-bad { background: var(--danger); }
-.tone-contacted { background: var(--info); }
-/* Left out is plain like a long shot, so it steps back instead by being quieter. */
-.ld-pin.tone-out, .ld-pin-dot.tone-out { opacity: .55; }
+/* A pin says the same thing a row dot says, and it is contracts that decides which (leadPinTone, tone.ts). What
+   stood here was a second table, keyed by the map's own words -- `strong`, `part`, `talking` -- which no tone
+   vocabulary knows, so the registry could not reach it and it had drifted: a `look` fit drew amber here and plain
+   everywhere else. It also named NO ELEMENT. legacy.css imports this file after clients.css, so `.tone-ok` was
+   painting every `tone-ok` in the app solid green: a Today attention row, and the peek's own Interested chip.
+   These are the six tones, on the pin and nothing else. There is no `.tone-accent`: a pin is data, and by the
+   chart kit's rule data never wears the accent -- it keeps the plain base above. */
+.ld-pin.tone-ok, .ld-pin-dot.tone-ok { background: var(--ok); }
+.ld-pin.tone-warn, .ld-pin-dot.tone-warn { background: var(--warn); }
+.ld-pin.tone-info, .ld-pin-dot.tone-info { background: var(--info); }
+.ld-pin.tone-danger, .ld-pin-dot.tone-danger { background: var(--danger); }
+.ld-pin.tone-plain, .ld-pin-dot.tone-plain { background: var(--ink-faint); }
+/* Left out is plain like a long shot, so it steps back by being quieter rather than by being another colour. */
+.ld-pin.is-out, .ld-pin-dot.is-out { opacity: .55; }
 .ld-map-card { position: absolute; left: 12px; bottom: 12px; right: 12px; max-width: 380px; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-md); }
 .ld-map-card .b { min-width: 0; flex: 1; }
 .ld-map-card .n { font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

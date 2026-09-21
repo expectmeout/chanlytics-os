@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
 import { leadEndingLine, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross, leadMapNote, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { leadPinTone } from "../../../packages/contracts/src/tone.ts";
 import { planArea, planMinutes, planVersionOf, planWhere, planWho } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------- the fixtures */
@@ -258,7 +259,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadsStanding: leadsStanding,
     // The derivations bag seed-globals.ts publishes. Every word in it is contracts' own -- including
     // `leadEndingLine`, which is where all nine of the strip's ending sentences come from.
-    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross, leadMapNote },
+    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross, leadMapNote, leadPinTone },
     __ask: { language: () => "en", send: async () => { uploads.push("ask.send"); }, commit: async () => { uploads.push("ask.commit"); return { ok: false, message: "no" }; } },
     __leadPeekVM: (id) => { const r = ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; },
     __leadSearchWords: (s) => (s ? { askedLine: `You asked on Sep 18: “${s.asked}”.`, keepsLine: "Keeps the ones you contacted or are talking to." } : { askedLine: "", keepsLine: "" }),
@@ -1100,7 +1101,7 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   assert.equal(byTestId(map, "lead-map-toowide"), null, "one city's leads are one place, so the square is drawn");
   assert.equal(all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length, 5, "the same leads beside it, nearest the middle first");
   assert.match(pins[0].props["aria-label"], /^Zilker Strength Lab — /, "a pin says who it is and what it is");
-  assert.match(String(pins[0].props.className), /tone-strong/, "coloured by fit, to start");
+  assert.match(String(pins[0].props.className), /tone-ok/, "coloured by fit, to start: a strong fit is a good outcome, in the registry's own tone");
 
   pins[0].props.onMouseEnter();
   tree = at();
@@ -1108,7 +1109,7 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   click(byTestId(tree, "map-by-reach"));
   tree = at();
   assert.match(String(byTestId(tree, "lead-pin-l1").props.className), /tone-ok/, "coloured by reach: a checked mailbox and a number two sources agree on");
-  assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /tone-part/, "and one with only a number");
+  assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /tone-warn/, "and one with only a number is part-way there, which is worth a look");
 
   click(byTestId(tree, "lead-pin-l1"));
   tree = at();

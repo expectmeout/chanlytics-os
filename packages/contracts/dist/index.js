@@ -11998,7 +11998,10 @@ var TONE_OF = {
   lead_fit: { strong: "ok", look: "plain", long: "plain" },
   // A check still running is in progress; a server that accepts every address is a caveat; a bounce is a failure.
   reach: { ok: "ok", catch_all: "warn", checking: "info", unknown: "warn", invalid: "danger", none: "plain" },
-  lead_call_outcome: LEAD_CALL_OUTCOME_TONES
+  lead_call_outcome: LEAD_CALL_OUTCOME_TONES,
+  // `contacted` and `talking` are `nurture` and `converted` in the owner's words, so they take those tones.
+  // Review is the one state that wants a person. Ready and left-out are both silent, for opposite reasons.
+  lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" }
 };
 var LABEL_OF = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
@@ -12020,6 +12023,11 @@ var LABEL_OF = {
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
+  // `lead_row_state` is a tone and no words: the row composes its own tag (`Contacted · 2m`) in toLeadRowVM,
+  // and nothing ever asks this map for it. Words here would be a second set of the same five -- and a map
+  // whose values are read off another map (`LEAD_STAGE_WORDS.ready`) cannot be dropped by the bundler, which
+  // pulled this whole registry and its five label maps into channels, core, db and jobs: +693 lines for
+  // words nobody reads. A bare identifier is free; a property read is not.
 };
 function stateTone(kind, value) {
   return typeof value === "string" && TONE_OF[kind][value] || "plain";
@@ -12030,6 +12038,15 @@ function stateLabel(kind, value) {
 }
 function stateOf(kind, value) {
   return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
+}
+function leadPinTone(lead, by) {
+  if (by === "reach") {
+    const { phone, mailbox } = lead.slots;
+    if (phone.state === "ok" || mailbox.state === "ok") return "ok";
+    return phone.state === "none" && mailbox.state === "none" ? "plain" : "warn";
+  }
+  if (by === "stage") return stateTone("lead_row_state", lead.state);
+  return lead.cls === "qualified" ? stateTone("lead_fit", lead.fit ?? "look") : stateTone("lead_class", lead.cls);
 }
 
 // src/erasure.ts
@@ -12911,6 +12928,7 @@ export {
   leadNoCardLine,
   leadNotBusinessesLine,
   leadNoteLeft,
+  leadPinTone,
   leadPlanAsk,
   leadPlanFacts,
   leadPlanLikely,
