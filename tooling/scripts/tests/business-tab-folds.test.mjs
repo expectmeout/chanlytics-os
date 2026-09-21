@@ -528,3 +528,231 @@ test("a fold's save goes through the tab's one saver as a patch of the whole con
     delete W.__saveSettings;
   }
 });
+
+/* ------------------------------------ a fold's save, through the tab's one saver ------------------------------------ */
+
+const settle = () => new Promise((r) => setImmediate(r));
+/** The door the saver sends through, held open: each send waits to be accepted or refused by the test. */
+const door = () => {
+  const sent = [];
+  W.__saveSettings = (config, version, onAccepted) => {
+    const call = { config, version };
+    sent.push(call);
+    return new Promise((resolve) => {
+      call.accept = () => { W.__SETTINGS = { config, version: version + 1 }; onAccepted({ config, version: version + 1 }); resolve({ ok: true }); };
+      call.refuse = (message) => resolve({ ok: false, message });
+    });
+  };
+  return sent;
+};
+const read = (config, version = 7) => { S.saver.reset(); W.__SETTINGS = { config: structuredClone(config), version }; };
+const said = () => { const toasts = []; return { toasts, flash: (t) => toasts.push(t) }; };
+const wordsOf = (n) => (n == null || typeof n === "boolean" ? "" : typeof n === "string" || typeof n === "number" ? String(n) : Array.isArray(n) ? n.map(wordsOf).join("") : wordsOf(n.props?.children));
+
+/** A record with a hand-written prompt and nothing the resolver composes from: the class of record that lost its prompt. */
+const PROMPT_ONLY = {
+  brain: {
+    business_name: "Northside Studio",
+    booking_link: "https://northside.example/book",
+    system_prompt: "You are the front desk of Northside Studio. ".repeat(30).trim(),
+    fallbacks: { greeting: "Hi!", error: "Sorry.", non_text: "Thanks." },
+  },
+};
+
+for (const record of [["a full record", STORED], ["a record that is only its hand-written prompt", PROMPT_ONLY]]) {
+  test(`opened and saved with nothing changed, no fold sends anything, on ${record[0]}`, async () => {
+    for (const fold of FOLDS) {
+      read(record[1]);
+      const sent = door();
+      const base = S.saver.base();
+      const opened = S.draftOf(fold, base);
+      assert.equal(S.holdsChanges(fold, base, S.draftOf(fold, base)), false, `${fold}: a draft as it opened holds no changes`);
+      let closed = 0;
+      S.saver.save(S.foldJob(fold, S.draftOf(fold, base), { opened, said: "Saved", done: () => { closed += 1; }, flash: () => {} }));
+      await settle();
+      assert.equal(sent.length, 0, `${fold}: nothing to send, so nothing sent -- no new version, no "last changed by"`);
+      assert.equal(closed, 1, `${fold}: and the fold closes, as after any save`);
+    }
+  });
+}
+
+test("a fold with a change holds changes, and its save goes on the config as it is when it is sent", async () => {
+  read(STORED);
+  const sent = door();
+  const base = S.saver.base();
+  const tone = "Bright, and quick to the point.";
+  assert.equal(S.holdsChanges("tone", base, tone), true);
+  S.saver.save(S.foldJob("tone", tone, { opened: S.draftOf("tone", base), said: "Saved", flash: () => {} }));
+  // Opened while the first is out, on the saver's base, which already holds the new voice.
+  const base2 = S.saver.base();
+  assert.equal(base2.brain.profile.tone, tone);
+  const langs = [...S.draftOf("languages", base2), "Portuguese"];
+  S.saver.save(S.foldJob("languages", langs, { opened: S.draftOf("languages", base2), said: "Saved", flash: () => {} }));
+  assert.equal(sent.length, 1, "one at a time");
+  sent[0].accept();
+  await settle();
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].version, 8, "on the version the server answered with");
+  assert.equal(sent[1].config.brain.profile.tone, tone, "REGRESSION guard: built on the config at send time, never on the one the fold opened with");
+  assert.deepEqual(sent[1].config.brain.profile.languages, ["English", "Spanish", "Portuguese"]);
+});
+
+test("a fold whose part of the settings changed after it opened is refused, and says so; another part changing is no refusal", async () => {
+  read(STORED);
+  let sent = door();
+  const base = S.saver.base();
+  const opened = S.draftOf("services", base);
+  const draft = opened.map((s, i) => (i === 0 ? { ...s, name: "Full balayage" } : s));
+  // A colleague adds a service, and the re-read lands in this tab.
+  const theirs = structuredClone(STORED);
+  theirs.brain.profile.services.push({ name: "Keratin", duration_min: 120 });
+  W.__SETTINGS = { config: theirs, version: 8 };
+  const a = said();
+  let closed = 0;
+  S.saver.save(S.foldJob("services", draft, { opened, said: "Saved", done: () => { closed += 1; }, flash: a.flash }));
+  await settle();
+  assert.equal(sent.length, 0, "REGRESSION guard: sent, it would have put the list back as it was and taken Keratin with it");
+  assert.equal(closed, 0, "the fold stays open with what was typed");
+  assert.equal(a.toasts.length, 1);
+  assert.equal(a.toasts[0].tone, "danger");
+  assert.match(wordsOf(a.toasts[0].msg), /changed after you opened it/);
+  assert.equal(S.saver.pending("services"), false, "and the fold can be saved again once it is opened again");
+
+  // The colleague changed the voice instead: not this fold's part, so its save goes, on their version, keeping theirs.
+  read(STORED);
+  sent = door();
+  const opened2 = S.draftOf("services", S.saver.base());
+  const voiced = structuredClone(STORED);
+  voiced.brain.profile.tone = "Formal.";
+  W.__SETTINGS = { config: voiced, version: 8 };
+  S.saver.save(S.foldJob("services", draft, { opened: opened2, said: "Saved", flash: () => {} }));
+  await settle();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].version, 8);
+  assert.equal(sent[0].config.brain.profile.tone, "Formal.");
+  assert.equal(sent[0].config.brain.profile.services[0].name, "Full balayage");
+});
+
+test("a fold's job needs the draft it opened with, and a fold's name", () => {
+  assert.throws(() => S.foldJob("services", [], { said: "Saved", flash: () => {} }), { name: "TypeError", message: /opened/ });
+  assert.throws(() => S.foldJob("not_a_fold", [], { opened: [], flash: () => {} }), { name: "TypeError", message: /"not_a_fold"/ });
+});
+
+test("a patch that cannot run is said and dropped: it never throws to the page drawing or to the save behind it", async () => {
+  read(STORED);
+  const sent = door();
+  const a = said();
+  // Nothing out: the caller is not thrown at, the owner is told, and the job is gone.
+  assert.doesNotThrow(() => S.saver.save({ row: "services", patch: () => { throw new Error("boom"); }, said: "Saved", flash: a.flash }));
+  assert.equal(sent.length, 0);
+  assert.equal(a.toasts.length, 1);
+  assert.equal(a.toasts[0].tone, "danger");
+  assert.equal(S.saver.pending("services"), false);
+
+  // Queued behind a save that is out: the page can still draw (base() skips it), and once the first is taken the bad
+  // one is said and dropped, and the one behind it still goes.
+  const b = said();
+  S.saver.save(S.foldJob("tone", "Bright.", { opened: S.draftOf("tone", S.saver.base()), said: "Saved", flash: () => {} }));
+  S.saver.save({ row: "services", patch: () => null, said: "Saved", flash: b.flash });
+  S.saver.save(S.foldJob("languages", ["English"], { opened: S.draftOf("languages", S.saver.base()), said: "Saved", flash: () => {} }));
+  assert.doesNotThrow(() => S.saver.base(), "REGRESSION guard: base() ran every queued patch on every render, and one that threw took the page down");
+  assert.equal(S.saver.base().brain.profile.tone, "Bright.");
+  assert.deepEqual(S.saver.base().brain.profile.languages, ["English"]);
+  sent[0].accept();
+  await settle();
+  assert.equal(b.toasts.length, 1, "a patch that returns no config is said, the same way");
+  assert.equal(b.toasts[0].tone, "danger");
+  assert.equal(sent.length, 2, "REGRESSION guard: the throw inside the accepted save's callback stopped the queue and skipped the re-read");
+  assert.deepEqual(sent[1].config.brain.profile.languages, ["English"]);
+});
+
+test("a fold that throws as it closes, or a toast that throws, does not stop the queue", async () => {
+  read(STORED);
+  const sent = door();
+  S.saver.save(S.foldJob("tone", "Bright.", { opened: S.draftOf("tone", S.saver.base()), said: "Saved", done: () => { throw new Error("closing"); }, flash: () => { throw new Error("toast"); } }));
+  S.saver.save(S.foldJob("languages", ["English"], { opened: S.draftOf("languages", S.saver.base()), said: "Saved", flash: () => {} }));
+  sent[0].accept();
+  await settle();
+  assert.equal(sent.length, 2);
+});
+
+test("a reset forgets a save that is out: its answer closes nothing and says nothing afterwards", async () => {
+  read(STORED);
+  const sent = door();
+  const a = said();
+  let closed = 0;
+  S.saver.save(S.foldJob("tone", "Bright.", { opened: S.draftOf("tone", S.saver.base()), said: "Saved", done: () => { closed += 1; }, flash: a.flash }));
+  S.saver.reset();
+  sent[0].accept();
+  await settle();
+  assert.equal(closed, 0);
+  assert.equal(a.toasts.length, 0);
+});
+
+/* ------------------------------------ what a draft may not be ------------------------------------ */
+
+test("a rules draft, or a messages draft, with a part missing is a TypeError naming it: absent is never written as off", () => {
+  const rules = S.draftOf("guardrails", stored());
+  assert.throws(() => S.saveFold("guardrails", stored(), without(rules, "never_quote_prices")), { name: "TypeError", message: /never_quote_prices/ });
+  assert.throws(() => S.saveFold("guardrails", stored(), without(rules, "vision")), { name: "TypeError", message: /vision/ });
+  const messages = S.draftOf("fallbacks", stored());
+  assert.throws(() => S.saveFold("fallbacks", stored(), without(messages, "error")), { name: "TypeError", message: /error/ });
+});
+
+test("a booking rule typed as anything but a whole number is refused with its rule's sentence, never read as its first digits", () => {
+  const draft = S.draftOf("booking_rules", stored());
+  for (const typed of ["2.5", "30min", "1e2", "-1"]) {
+    const found = S.problemsOf("booking_rules", { ...draft, lead_hours: typed });
+    assert.equal(found.lead_hours, "Least notice is 0 to 168 hours; leave it empty for no rule.", typed);
+  }
+  assert.deepEqual(S.problemsOf("booking_rules", { ...draft, lead_hours: " 24 " }), {});
+});
+
+test("a day stored both ways opens with every stretch it states, and a shift typed half-way is said under its day", () => {
+  const both = stored();
+  both.brain.profile.hours.mon = { open: "09:30", close: "13:00", intervals: [{ open: "14:00", close: "18:00" }] };
+  const week = S.draftOf("hours", both);
+  assert.deepEqual(week.mon.shifts, [{ open: "09:30", close: "13:00" }, { open: "14:00", close: "18:00" }], "REGRESSION guard: the intervals won, and the morning went on an unchanged save");
+  const next = S.saveFold("hours", both, week);
+  assert.deepEqual(told(next.brain), told(both.brain), "what the receptionist is told about Monday is unchanged");
+
+  const half = S.draftOf("hours", stored());
+  half.tue = { isOpen: true, shifts: [{ open: "09:00", close: "" }] };
+  assert.deepEqual(S.problemsOf("hours", half), { "hours-tue": "Tuesday needs both an opening and a closing time, or neither." });
+  // A row opened and left empty is a row nobody filled in: dropped, as before.
+  half.tue = { isOpen: true, shifts: [{ open: "", close: "" }] };
+  assert.deepEqual(S.problemsOf("hours", half), {});
+});
+
+test("what the save's schema would refuse for its length or count is said first, under its field, in the page's words", () => {
+  const L = S.LIMITS;
+  assert.deepEqual([L.notes, L.services, L.languages, L.reasons], [10, 60, 8, 20], "the counts the schema allows, published once for the folds");
+  const services = S.draftOf("services", stored());
+  services[1] = { name: "x".repeat(81), duration_min: "2000", price_note: "y".repeat(121) };
+  assert.deepEqual(Object.keys(S.problemsOf("services", services)).sort(), ["service-1-duration_min", "service-1-name", "service-1-price_note"]);
+  assert.deepEqual(Object.keys(S.problemsOf("tone", "t".repeat(201))), ["tone"]);
+  assert.deepEqual(Object.keys(S.problemsOf("languages", ["English", "E"])), ["languages"]);
+  assert.deepEqual(Object.keys(S.problemsOf("languages", Array.from({ length: 9 }, (_, i) => `Language ${i}`))), ["languages"]);
+  assert.deepEqual(Object.keys(S.problemsOf("escalate_when", Array.from({ length: 21 }, (_, i) => `Reason ${i}`).join("\n"))), ["escalate_when"]);
+  assert.deepEqual(Object.keys(S.problemsOf("consult_first", "c".repeat(81))), ["consult_first"]);
+  assert.deepEqual(Object.keys(S.problemsOf("notes", Array.from({ length: 11 }, (_, i) => ({ title: `Note ${i}`, text: "Words." })))), ["notes"]);
+  for (const fold of FOLDS) assert.deepEqual(S.problemsOf(fold, S.draftOf(fold, stored())), {}, `${fold}: the stored record has no problems`);
+});
+
+test("the calendar's address is written onto its section, never in place of it", () => {
+  const withMore = stored();
+  withMore.calendar.a_setting_added_later = "keep me";
+  const next = S.saveFold("calendar", withMore, "webcal://calendar.example.com/new.ics");
+  assert.deepEqual(next.calendar, { ical_url: "webcal://calendar.example.com/new.ics", a_setting_added_later: "keep me" });
+  assert.equal(S.saveFold("calendar", stored(), "").calendar, undefined, "emptied, with nothing else in it, the section goes");
+  assert.deepEqual(S.PATHS_OF.calendar, ["calendar.ical_url"]);
+});
+
+test("a fold saved onto a config with no brain, or no profile, writes nothing it has no value for", () => {
+  assert.deepEqual(S.saveFold("tone", {}, ""), {}, "REGRESSION guard: an emptied voice wrote { brain: {} } onto a config with no brain");
+  assert.deepEqual(S.saveFold("services", { brain: { business_name: "N" } }, []), { brain: { business_name: "N" } }, "and no empty profile is left behind");
+  const draft = S.draftOf("services", stored());
+  const next = S.saveFold("services", stored(), draft);
+  draft[0].name = "changed after the save was built";
+  assert.equal(next.brain.profile.services[0].name, "Balayage", "what was built holds nothing of the draft it was built from");
+});

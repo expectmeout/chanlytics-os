@@ -29,26 +29,45 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  *   saveFold(fold, base, draft)  the next config: `base` with the fold's own paths (PATHS_OF) written from the draft, and
  *                                everything else exactly as it was, down to the order of its keys. `base` is not changed.
  *
- * Its save goes through the tab's one saver as a patch of the whole config, run on whatever config is current when it
- * goes, and what it will say is worked out on the saver's base with the same helper, so it describes that save:
+ * Its save goes through the tab's one saver as ONE job, which foldJob builds, and what it will say is worked out on
+ * the saver's base with the same helper, so it describes that save:
  *
- *   saver.save({ row: fold, patch: (config) => saveFold(fold, config, draft), said, done, flash })
+ *   const opened = draftOf(fold, saver.base())                      kept from the moment the fold opened
+ *   saver.save(foldJob(fold, draft, { opened, said, done, flash }))
  *   consequenceOf(fold, saveFold(fold, saver.base(), draft).brain, channel)
  *
- * It holds changes when what it would write is not what the draft it opened with would write, the rows' rule
- * (storedAs): same(saveFold(fold, base, draft), saveFold(fold, base, draftOf(fold, base))). Three folds do not write
- * back exactly what they opened on every record, and say the same thing when they do not: the hours write a day the
- * record left out as {}, the rules write all four switches out, and the instructions keep a carried prompt as the
- * owner's words (S4). Judged the rows' way, opening one of them and pressing Save with nothing changed sends nothing.
+ * foldJob's patch runs on whatever config is current when the save goes, never on the one the fold opened with: a
+ * fold that closed over its own copy would put back everything a save ahead of it in the queue had just written. And
+ * it refuses to go when draftOf(fold, thatConfig) is no longer `opened`: the fold's own part of the settings changed
+ * after it opened (a colleague's save, read back into this tab), and sending the draft would put their change back
+ * as it was without a word. The owner is told, nothing is sent, and the fold stays open with what was typed.
  *
- * The field keys problemsOf names, for each fold to say a problem under its own field:
- *   booking_rules       lead_hours, slot_min, buffer_min, max_days_ahead, party_max: the draft's own keys
- *   notes               note-<i>, where i is the note's place in the draft
+ * holdsChanges(fold, base, draft): what it would write is not what the draft it would open with writes, the rows'
+ * rule (storedAs). Some records are stored the way no fold writes them back -- a day the hours leave out (written as
+ * {}), two of the four rules left to their defaults (all four written out), a prompt carried into the instructions
+ * (kept as the owner's words, S4), a voice or a message stored with space around it, a closure whose `until` is its
+ * `date` -- so "the config would change" is the wrong test, and was the saver's only one: opening the instructions of
+ * a record that is only its hand-written prompt and pressing Save with nothing typed sent a save that doubled the
+ * prompt. foldJob's patch hands the config back untouched when the draft holds no changes, and the saver sends nothing.
+ *
+ * The field keys problemsOf names, for each fold to say a problem under its own field (i is a row's place in the draft):
+ *   tone                tone
+ *   hours               hours-<day>
+ *   closures            closure-<i>-note, closures (too many)
+ *   services            service-<i>-name, service-<i>-duration_min, service-<i>-price_note, services (too many)
+ *   languages           languages
+ *   escalate_when       escalate_when
+ *   booking_rules       lead_hours, slot_min, buffer_min, max_days_ahead, party_max, notes: the draft's own keys
+ *   consult_first       consult_first
+ *   notes               note-<i>, notes (too many)
  *   extra_instructions  extra_instructions
  *   fallbacks           greeting, error, non_text: the draft's own keys
  *   calendar            ical_url
- * The other folds refuse nothing, as the old form's sections did not. Its sentences are word for word, which the
- * settings tests pin; where a sentence was JSX only for its fragment or its braces, it is a plain string here.
+ * The old form's sentences are word for word, which the settings tests pin; where one was JSX only for its fragment or
+ * its braces, it is a plain string here. The rest are new: the save's schema (contracts BusinessProfileSchema) refuses
+ * a length or a count the old form never checked, and the server's refusal named no field the owner could see, so each
+ * is said here first, from the one table of limits (LIMITS). What only the schema can judge -- overlapping shifts, a
+ * date that is not on the calendar, an address the receptionist may not read -- stays the schema's to say.
  */
 
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
@@ -71,10 +90,13 @@ const BT_RULES = [
   ["max_days_ahead", 1, 90, "Times are offered 1 to 90 days ahead; leave it empty for no rule."],
   ["party_max", 1, 20, "A booking is for 1 to 20 people; leave it empty for no rule."],
 ];
-// A blank box is "no rule", never zero; so is a number outside the rule's range, which problemsOf refuses first.
+// A blank box is "no rule", never zero; so is anything that is not a whole number in the rule's range, which problemsOf
+// refuses first. Digits only: parseInt read "2.5" as 2, "30min" as 30 and "1e2" as 1, and stored a rule nobody typed.
 const btRuleNumber = (v, lo, hi) => {
-  const n = parseInt(btfTrimmed(v), 10);
-  return Number.isFinite(n) && n >= lo && n <= hi ? n : undefined;
+  const typed = btfTrimmed(v);
+  if (!/^[0-9]+$/.test(typed)) return undefined;
+  const n = parseInt(typed, 10);
+  return n >= lo && n <= hi ? n : undefined;
 };
 
 // The four rules it always keeps (contracts GUARDRAIL_KEYS), and the three messages sent in the business's name (S5).
@@ -82,10 +104,31 @@ const BT_GUARDRAILS = ["never_quote_prices", "never_confirm_booking", "disclose_
 const BT_FALLBACKS = ["greeting", "error", "non_text"];
 
 /**
+ * How much of each thing the save's schema takes (contracts BusinessProfileSchema and its parts), once, for the folds:
+ * a list offers no "Add" past its count, a box says its length before a round trip, and a number input takes its range
+ * from RULES. The old form enforced one of these in its own markup (ten notes) and none of the rest, so a name of 81
+ * characters was refused by the server under no field at all. The closures and shifts caps are the bridge's
+ * (window.__configLimits), which the old form read too.
+ */
+const BT_LIMITS = {
+  tone: 200,
+  services: 60, serviceName: 80, serviceMinutes: 1440, servicePrice: 120,
+  languages: 8, languageMin: 2, languageMax: 40,
+  reasons: 20, reason: 200,
+  consultFirst: 20, consultFirstLine: 80,
+  ruleNotes: 10, ruleNote: 200,
+  notes: 10, noteTitle: 80, noteText: 1200,
+  closureNote: 200,
+};
+const BT_DAY_NAMES = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+const btCount = (n) => n.toLocaleString("en-US");
+
+/**
  * Exactly what each fold writes, as dotted paths into the whole config: nothing outside them is the fold's to change.
  * Two folds share booking_rules, each with only its own of its keys, and three write beside the profile: the rules
  * write the photos switch (features.vision), the instructions write the stored prompt, and the fallbacks and the
- * calendar write nothing in the profile at all.
+ * calendar write nothing in the profile at all. The calendar's is its address alone: whatever else its section comes
+ * to hold is kept, as it is under the rules, the messages and the features.
  */
 const BT_PATHS_OF = {
   tone: ["brain.profile.tone"],
@@ -100,7 +143,7 @@ const BT_PATHS_OF = {
   guardrails: BT_GUARDRAILS.map((key) => `brain.profile.guardrails.${key}`).concat(["features.vision"]),
   extra_instructions: ["brain.profile.extra_instructions", "brain.system_prompt"],
   fallbacks: BT_FALLBACKS.map((key) => `brain.fallbacks.${key}`),
-  calendar: ["calendar"],
+  calendar: ["calendar.ical_url"],
 };
 
 // The keys of the profile each fold writes into, read off its paths so the two maps never disagree.
@@ -126,8 +169,12 @@ const BT_DRAFT_OF = {
     const week = {};
     BT_DAYS.forEach((d) => {
       const x = (p.hours || {})[d] || {};
-      const shifts = (x.intervals || []).filter((s) => s && s.open && s.close).map((s) => ({ open: s.open, close: s.close }));
-      if (!shifts.length && x.open && x.close) shifts.push({ open: x.open, close: x.close });
+      // BOTH shapes, when a stored day holds both, as the composer reads them (contracts dayIntervals unions them, and
+      // says why: dropping either makes a fact disappear from the prompt with nothing to show it had). The old form let
+      // the intervals win, so opening such a day and pressing Save took its open/close stretch away.
+      const shifts = [];
+      if (x.open && x.close) shifts.push({ open: x.open, close: x.close });
+      (x.intervals || []).forEach((s) => { if (s && s.open && s.close) shifts.push({ open: s.open, close: s.close }); });
       week[d] = { isOpen: shifts.length > 0, shifts };
     });
     return week;
@@ -187,10 +234,17 @@ const btPut = (o, key, value) => { if (value === undefined) delete o[key]; else 
 // The same, for a key of the profile. A profile is made only to hold a value, so a fold that empties a field of a
 // brain with no profile writes nothing at all.
 const btPutProfile = (next, key, value) => {
+  if (value === undefined) { if (next.brain && next.brain.profile) delete next.brain.profile[key]; return; }
   if (!next.brain) next.brain = {};
-  if (value === undefined) { if (next.brain.profile) delete next.brain.profile[key]; return; }
   if (!next.brain.profile) next.brain.profile = {};
   next.brain.profile[key] = value;
+};
+// A draft the page built with a part missing is said, naming the part: written as it stood, a missing switch was stored
+// as off, the opposite of the schema's "absent means on", and a missing message as "", which the save refuses.
+const btWhole = (fold, draft, parts, kind) => {
+  parts.forEach((key) => {
+    if (typeof (draft || {})[key] !== kind) throw new TypeError(`The ${fold} fold's draft needs ${JSON.stringify(key)} as a ${kind}; it holds ${JSON.stringify((draft || {})[key])}.`);
+  });
 };
 const btProfileOf = (next) => (next.brain && next.brain.profile) || {};
 
@@ -271,7 +325,8 @@ const BT_WRITE = {
   // The four switches written onto what is stored beside them, where the old form wrote the four alone: a switch a
   // newer form adds is kept by an older tab's save, as a rule added later is kept under booking_rules.
   guardrails: (next, draft) => {
-    const d = draft || {};
+    btWhole("guardrails", draft, BT_GUARDRAILS.concat(["vision"]), "boolean");
+    const d = draft;
     const guardrails = { ...(btProfileOf(next).guardrails || {}) };
     BT_GUARDRAILS.forEach((key) => { guardrails[key] = d[key] === true; });
     btPutProfile(next, "guardrails", guardrails);
@@ -282,6 +337,7 @@ const BT_WRITE = {
   },
   extra_instructions: (next, draft) => {
     btPutProfile(next, "extra_instructions", btfTrimmed(draft && draft.text) || undefined);
+    if (!next.brain) next.brain = {};
     // The product's own opening lines, on every save (S4). The box showed the prompt written before the form, and
     // what the owner kept of it is now their instructions; left in the prompt as well it was stored twice, and an
     // emptied box carried it straight back. Built in contracts, under the name the brain holds when the save goes.
@@ -290,16 +346,20 @@ const BT_WRITE = {
   // The three messages as the fold holds them (S5), trimmed, onto what is stored beside them. An existing workspace's
   // open with its own words, never replaced because somebody opened a fold.
   fallbacks: (next, draft) => {
-    const d = draft || {};
+    btWhole("fallbacks", draft, BT_FALLBACKS, "string");
+    const d = draft;
     if (!next.brain) next.brain = {};
     const messages = { ...(next.brain.fallbacks || {}) };
     BT_FALLBACKS.forEach((key) => { messages[key] = btfTrimmed(d[key]); });
     next.brain.fallbacks = messages;
   },
-  // A top-level section, read by the edge; an emptied field removes it.
+  // A top-level section, read by the edge. The address is written onto what the section holds, and an emptied one
+  // removes it, and the section with it once nothing else is in it.
   calendar: (next, draft) => {
     const feed = btfTrimmed(draft);
-    if (feed) next.calendar = { ical_url: feed }; else delete next.calendar;
+    const section = { ...(next.calendar || {}) };
+    btPut(section, "ical_url", feed || undefined);
+    if (Object.keys(section).length) next.calendar = section; else delete next.calendar;
   },
 };
 
@@ -323,6 +383,63 @@ const btSaveFold = (fold, stored, draft) => {
 
 /** What stops each fold's save, by the field it is under: BusinessEditor's `save` checks, word for word. */
 const BT_PROBLEMS_OF = {
+  tone: (draft) => {
+    const n = btfTrimmed(draft).length;
+    return n > BT_LIMITS.tone ? { tone: `At most ${btCount(BT_LIMITS.tone)} characters — this is ${btCount(n)}.` } : {};
+  },
+  // A shift with one of its two times is said under its day, in the words the save's own rule has for it (contracts
+  // hoursProblems): written as it stood it was dropped, and a day with no other shift was saved as closed. A shift with
+  // neither is a row nobody filled in, and is dropped as it always was.
+  hours: (draft) => {
+    const found = {};
+    BT_DAYS.forEach((d) => {
+      const x = (draft || {})[d];
+      if (!x || !x.isOpen) return;
+      if ((x.shifts || []).some((s) => !!btfTrimmed(s.open) !== !!btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} needs both an opening and a closing time, or neither.`;
+    });
+    return found;
+  },
+  closures: (draft) => {
+    const found = {};
+    const rows = draft || [];
+    const max = (window.__configLimits && window.__configLimits.maxClosures) || 60;
+    if (rows.filter((c) => btfTrimmed(c.date)).length > max) found.closures = `At most ${btCount(max)} closed days. Dates that have passed can go.`;
+    rows.forEach((c, i) => {
+      const n = btfTrimmed(c.note).length;
+      if (n > BT_LIMITS.closureNote) found[`closure-${i}-note`] = `At most ${btCount(BT_LIMITS.closureNote)} characters — this is ${btCount(n)}.`;
+    });
+    return found;
+  },
+  services: (draft) => {
+    const found = {};
+    const rows = draft || [];
+    if (rows.filter((x) => btfTrimmed(x.name)).length > BT_LIMITS.services) found.services = `At most ${btCount(BT_LIMITS.services)} services.`;
+    rows.forEach((x, i) => {
+      const name = btfTrimmed(x.name).length;
+      if (name > BT_LIMITS.serviceName) found[`service-${i}-name`] = `At most ${btCount(BT_LIMITS.serviceName)} characters — this is ${btCount(name)}.`;
+      const minutes = parseInt(x.duration_min, 10);
+      if (Number.isFinite(minutes) && minutes > BT_LIMITS.serviceMinutes) found[`service-${i}-duration_min`] = `At most ${btCount(BT_LIMITS.serviceMinutes)} minutes, a whole day.`;
+      const price = btfTrimmed(x.price_note).length;
+      if (price > BT_LIMITS.servicePrice) found[`service-${i}-price_note`] = `At most ${btCount(BT_LIMITS.servicePrice)} characters — this is ${btCount(price)}.`;
+    });
+    return found;
+  },
+  languages: (draft) => {
+    const list = draft || [];
+    if (list.length > BT_LIMITS.languages) return { languages: `At most ${btCount(BT_LIMITS.languages)} languages.` };
+    const odd = list.find((l) => String(l).length < BT_LIMITS.languageMin || String(l).length > BT_LIMITS.languageMax);
+    return odd !== undefined ? { languages: `“${odd}” is not a language's name: ${BT_LIMITS.languageMin} to ${BT_LIMITS.languageMax} characters.` } : {};
+  },
+  escalate_when: (draft) => {
+    const reasons = btLines(draft);
+    if (reasons.length > BT_LIMITS.reasons) return { escalate_when: `At most ${btCount(BT_LIMITS.reasons)} reasons, one to a line — this is ${btCount(reasons.length)}.` };
+    return reasons.some((r) => r.length > BT_LIMITS.reason) ? { escalate_when: `Each reason is at most ${btCount(BT_LIMITS.reason)} characters.` } : {};
+  },
+  consult_first: (draft) => {
+    const list = btLines(draft);
+    if (list.length > BT_LIMITS.consultFirst) return { consult_first: `At most ${btCount(BT_LIMITS.consultFirst)} services, one to a line — this is ${btCount(list.length)}.` };
+    return list.some((l) => l.length > BT_LIMITS.consultFirstLine) ? { consult_first: `Each service is at most ${btCount(BT_LIMITS.consultFirstLine)} characters.` } : {};
+  },
   // A number outside what a rule allows is said under its box; it used to be dropped without a word (S22).
   booking_rules: (draft) => {
     const d = draft || {};
@@ -330,15 +447,22 @@ const BT_PROBLEMS_OF = {
     BT_RULES.forEach(([key, lo, hi, words]) => {
       if (btfTrimmed(d[key]) !== "" && btRuleNumber(d[key], lo, hi) === undefined) found[key] = words;
     });
+    const notes = btLines(d.notes);
+    if (notes.length > BT_LIMITS.ruleNotes) found.notes = `At most ${btCount(BT_LIMITS.ruleNotes)} notes, one to a line — this is ${btCount(notes.length)}.`;
+    else if (notes.some((n) => n.length > BT_LIMITS.ruleNote)) found.notes = `Each note is at most ${btCount(BT_LIMITS.ruleNote)} characters.`;
     return found;
   },
   // Half a note is refused; a note with neither half is dropped on save, as a row somebody started and left.
   notes: (draft) => {
     const found = {};
-    (draft || []).forEach((n, i) => {
+    const rows = draft || [];
+    if (rows.filter((n) => btfTrimmed(n.title) || btfTrimmed(n.text)).length > BT_LIMITS.notes) found.notes = `At most ${btCount(BT_LIMITS.notes)} notes.`;
+    rows.forEach((n, i) => {
       const title = btfTrimmed(n.title);
       const text = btfTrimmed(n.text);
       if ((title || text) && (!title || !text)) found[`note-${i}`] = "Each note needs both a title and the text to say.";
+      else if (title.length > BT_LIMITS.noteTitle) found[`note-${i}`] = `A note's title is at most ${btCount(BT_LIMITS.noteTitle)} characters — this is ${btCount(title.length)}.`;
+      else if (text.length > BT_LIMITS.noteText) found[`note-${i}`] = `A note's text is at most ${btCount(BT_LIMITS.noteText)} characters — this is ${btCount(text.length)}.`;
     });
     return found;
   },
@@ -376,8 +500,43 @@ const btProblemsOf = (fold, draft) => {
   return Object.prototype.hasOwnProperty.call(BT_PROBLEMS_OF, fold) ? BT_PROBLEMS_OF[fold](draft) : {};
 };
 
+/** Whether a fold's draft holds changes: what it would write onto `base` is not what the draft it would open with writes. */
+const btHoldsChanges = (fold, base, draft) => !btfSame(btSaveFold(fold, base, draft), btSaveFold(fold, base, btDraftOf(fold, base)));
+
+const BT_FOLD_MOVED = "Not saved — this changed after you opened it. Close it and open it again to see what is there now.";
+
+/**
+ * A fold's save, as the one job the tab's saver takes: { row, patch, said, done, flash }. `opened` is the draft the
+ * fold opened with (draftOf on the saver's base, kept from that moment), and it is required: a fold that left it out
+ * would lose the refusal below with nothing to say so, on a page with no types.
+ *
+ * The patch runs on whatever config is current when the save goes. There it refuses (the saver's refusal) when the
+ * fold's own part of that config no longer opens as `opened`: a colleague's save changed it, the re-read brought it
+ * into this tab, and the draft, typed over the list as it was, would put their change back. A services list opened
+ * before a colleague added one and saved after would have removed theirs without a word; the old form did the same,
+ * and a sheet of thirty-three rows held open is where it happens. Another fold's part changing is no refusal: this
+ * one's draft never held it, and saveFold keeps it. And a draft that holds no changes hands the config back as it was,
+ * so the saver sends nothing (holdsChanges says why "the config would change" is the wrong test).
+ */
+const btFoldJob = (fold, draft, job) => {
+  btFoldNamed(fold);
+  const j = job || {};
+  if (j.opened === undefined) throw new TypeError(`The ${fold} fold's job needs \`opened\`, the draft it opened with (draftOf on the saver's base).`);
+  return {
+    row: fold,
+    said: j.said,
+    done: j.done,
+    flash: j.flash,
+    patch: (config) => {
+      if (!btfSame(btDraftOf(fold, config), j.opened)) throw window.__businessTabSave.refusal(BT_FOLD_MOVED);
+      return btHoldsChanges(fold, config, draft) ? btSaveFold(fold, config, draft) : config;
+    },
+  };
+};
+
 // Added to window.__businessTabSave, the object business-tab-save.jsx published: each fold's paths and keys (PATHS_OF,
-// KEYS_OF) and its helpers (draftOf, problemsOf, saveFold).
+// KEYS_OF), its helpers (draftOf, problemsOf, saveFold, holdsChanges, foldJob), and how much of each thing the save
+// takes (LIMITS, and RULES: each booking rule's key, least, most and sentence).
 if (!window.__businessTabSave) throw new Error("business-tab-folds.jsx loads after business-tab-save.jsx: window.__businessTabSave is not there.");
 Object.assign(window.__businessTabSave, {
   PATHS_OF: BT_PATHS_OF,
@@ -385,4 +544,8 @@ Object.assign(window.__businessTabSave, {
   draftOf: btDraftOf,
   problemsOf: btProblemsOf,
   saveFold: btSaveFold,
+  holdsChanges: btHoldsChanges,
+  foldJob: btFoldJob,
+  LIMITS: BT_LIMITS,
+  RULES: BT_RULES,
 });
