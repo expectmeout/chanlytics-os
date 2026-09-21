@@ -489,6 +489,53 @@ test("a fold takes focus as it opens, and gives it back to its row as it closes"
   assert.equal(find(row, (n) => classes(n).includes("rec-row-act")).props["data-rec-act"], "booking_rules", "which is where the row's act says it is");
 });
 
+test("an ask that goes gives focus back only when it was lost, and to the field the person was in", () => {
+  // Task 3.2's review. The refocus fired whenever an ask went away, typing included (the page takes its question back
+  // at a keystroke), so the caret jumped to the end of the FIRST field after one letter; and "Keep editing" returned
+  // to the first field, which is the wrong place in a fold of many.
+  const focused = [];
+  const field = (name) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: () => false }, closest: (sel) => (sel === ".rec-fold-inner" ? {} : null), focus: () => focused.push(name) });
+  const first = field("least notice");
+  const second = field("slot length");
+  const inFoot = { ...field("cancel"), closest: (sel) => (sel === ".rec-fold-inner" || sel === ".rec-foot" ? {} : null) };
+  const inAsk = { ...field("yes, discard"), closest: (sel) => (sel === ".rec-fold-inner" || sel === ".confirm" ? {} : null) };
+  const inHead = { ...field("close"), closest: () => null };
+  const inner = { querySelectorAll: () => [first, second] };
+  const ask = W.React.createElement("span", { className: "confirm" }, "Discard your changes?");
+  let tree = draw(W.RecordFold, bookingRules({ open: false }));
+  const fold = () => find(tree, (n) => classes(n).includes("rec-fold"));
+  fold().props.ref.current = { querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null), contains: () => true };
+  tree = redraw(W.RecordFold, bookingRules({ open: true }));
+  assert.deepEqual(focused, ["least notice"], "opened: the first field");
+
+  const doc = globalThis.document;
+  const was = doc.activeElement;
+  try {
+    // The person moves to the second field, then presses Cancel; the ask's Yes takes focus, and goes with the ask.
+    for (const target of [second, inFoot, inAsk, inHead]) fold().props.onFocus({ target });
+    tree = redraw(W.RecordFold, bookingRules({ open: true, confirm: ask }));
+    doc.activeElement = null;
+    tree = redraw(W.RecordFold, bookingRules({ open: true }));
+    assert.deepEqual(focused, ["least notice", "slot length"], "back to where they were: not the first field, not Cancel, not the ask");
+
+    // Typing takes the ask away too, and focus is in the box being typed in: nothing moves it.
+    tree = redraw(W.RecordFold, bookingRules({ open: true, confirm: ask }));
+    doc.activeElement = second;
+    tree = redraw(W.RecordFold, bookingRules({ open: true }));
+    assert.deepEqual(focused, ["least notice", "slot length"], "focus that was never lost is left where it is");
+
+    // Closed and opened again, it starts from the first field: where the person was is forgotten with the draft.
+    doc.activeElement = null;
+    tree = redraw(W.RecordFold, bookingRules({ open: false }));
+    tree = redraw(W.RecordFold, bookingRules({ open: true }));
+    tree = redraw(W.RecordFold, bookingRules({ open: true, confirm: ask }));
+    tree = redraw(W.RecordFold, bookingRules({ open: true }));
+    assert.deepEqual(focused.slice(2), ["least notice", "least notice"], "opened, and then an ask answered with nowhere remembered");
+  } finally {
+    doc.activeElement = was;
+  }
+});
+
 test("a fold draws the page's ask above its foot, where the changes it asks about are", () => {
   const ask = W.React.createElement("span", { className: "confirm", "data-testid": "ask" }, "Discard your changes?");
   const inner = find(draw(W.RecordFold, bookingRules({ confirm: ask })), (n) => classes(n).includes("rec-fold-inner"));

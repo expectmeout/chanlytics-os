@@ -755,6 +755,23 @@ test("answered with Keep editing, an ask gives focus back to the box, whichever 
   tree = redrawTab();
   assert.deepEqual(focused, ["box", "box"]);
   assert.deepEqual(openRows(tree), ["website"]);
+
+  // Typing takes Cancel's ask away too, with focus in the box being typed in: it is left there, its caret with it. The
+  // refocus once fired whenever an ask went, so the caret jumped to the end after one keystroke.
+  const doc = globalThis.document;
+  const was = doc.activeElement;
+  try {
+    cancelRow(tree, "website");
+    tree = redrawTab();
+    assert.ok(byTestId(tree, "rec-inline-website-cancel-confirm"));
+    doc.activeElement = box;
+    typeInto(tree, "website", "https://melanys.example/h");
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "rec-inline-website-cancel-confirm"), null, "a keystroke is an answer: keep editing");
+    assert.deepEqual(focused, ["box", "box"], "and focus that was never lost is not moved");
+  } finally {
+    doc.activeElement = was;
+  }
 });
 
 test("Save stays a button focus can rest on while it saves, and a press meanwhile sends nothing more", () => {
