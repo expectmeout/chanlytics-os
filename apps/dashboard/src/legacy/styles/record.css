@@ -11,8 +11,9 @@
    ============================================================ */
 
 /* ---------- The card a page's rows sit in ---------- */
-/* Named once: --rec-gutter is the card's side padding, which an open fold reaches through to the card's edge;
-   --rec-key is the label column every row and fold head keeps, and the indent a fold's fields start at. */
+/* Named once, on the two things rows sit in, the card and a sheet's body: --rec-gutter is its side padding, which an
+   open fold reaches through to its edge; --rec-key is the label column every row and fold head keeps, and the indent
+   a fold's fields start at. */
 .rec-card { --rec-gutter: 18px; --rec-key: 168px; isolation: isolate; padding: 18px var(--rec-gutter) 6px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
 .rec-card-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; }
 /* Two classes deep, so a page's own heading reset (settings.css flattens every .settings h2) cannot undo it. */
@@ -22,7 +23,7 @@
 /* ---------- A row: label, value, where it came from, one act ---------- */
 .rec-row { position: relative; display: flex; align-items: baseline; gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); }
 .rec-row-top { align-items: flex-start; }
-.rec-row-key { flex: 0 0 var(--rec-key, 168px); font-size: var(--text-sm); color: var(--ink-dim); }
+.rec-row-key { flex: 0 0 var(--rec-key); font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-row-val { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--ink); }
 .rec-row-value { min-width: 0; overflow-wrap: anywhere; }
 .rec-row-empty { color: var(--ink-dim); }
@@ -61,9 +62,9 @@
 /* ---------- A fold: a set of fields, opened under its row ---------- */
 /* The accent left edge is the page's one accent, and it marks the fold that is open. The fold reaches both edges of
    the card, so its head and its fields line up with the rows above and below it. */
-.rec-fold { margin-inline: calc(-1 * var(--rec-gutter, 18px)); padding-inline: calc(var(--rec-gutter, 18px) - 2px) var(--rec-gutter, 18px); border-top: 1px solid var(--line); border-left: 2px solid var(--accent); background: linear-gradient(to right, var(--bg-sunken), var(--bg-raised) 380px); }
+.rec-fold { margin-inline: calc(-1 * var(--rec-gutter)); padding-inline: calc(var(--rec-gutter) - 2px) var(--rec-gutter); border-top: 1px solid var(--line); border-left: 2px solid var(--accent); background: linear-gradient(to right, var(--bg-sunken), var(--bg-raised) 380px); }
 .rec-fold-head { display: flex; align-items: baseline; gap: 16px; padding: 11px 0 4px; }
-.rec-fold-label { flex: 0 0 var(--rec-key, 168px); font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
+.rec-fold-label { flex: 0 0 var(--rec-key); font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
 .rec-fold-hint { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-fold-close { flex: none; font-size: var(--text-sm); color: var(--ink-dim); border-radius: var(--radius-xs); transition: color var(--duration-fast) var(--ease-out); }
 .rec-fold-close:hover { color: var(--ink); }
@@ -78,10 +79,10 @@
    `padding: 8px 18px 0 168px`); 4px more either side, so the clip that folds the body never cuts a focused field's
    ring. A fold whose own grid carries a label column (a week, its days named) is wide: its fields take the whole
    width, and what saving writes and the foot keep the indent. */
-.rec-fold-inner { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px 0 calc(var(--rec-key, 168px) + 4px); margin-inline: -4px; }
+.rec-fold-inner { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px 0 calc(var(--rec-key) + 4px); margin-inline: -4px; }
 .rec-fold[data-wide="true"] .rec-fold-inner { padding-left: 4px; }
-.rec-fold[data-wide="true"] .rec-fold-says { margin-inline-start: var(--rec-key, 168px); }
-.rec-fold[data-wide="true"] .rec-fold-foot { padding-inline-start: var(--rec-key, 168px); }
+.rec-fold[data-wide="true"] .rec-fold-says { margin-inline-start: var(--rec-key); }
+.rec-fold[data-wide="true"] .rec-fold-foot { padding-inline-start: var(--rec-key); }
 .rec-fold-says { display: flex; flex-direction: column; gap: 6px; padding: 11px 12px; background: var(--bg-sunken); border-radius: var(--radius-md); }
 .rec-fold-says-eyebrow { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
 .rec-fold-says pre { margin: 0; font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -105,7 +106,7 @@
 .rec-sheet-close { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
 .rec-sheet-close:hover { color: var(--ink); background: var(--bg-hover); }
 .rec-sheet-tools { flex: none; display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
-.rec-sheet-body { isolation: isolate; flex: 1; min-height: 0; overflow: auto; padding: 0 22px; }
+.rec-sheet-body { --rec-gutter: 22px; --rec-key: 168px; isolation: isolate; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 var(--rec-gutter); }
 .rec-sheet-foot { flex: none; display: flex; flex-direction: column; gap: 11px; padding: 14px 22px 18px; border-top: 1px solid var(--line); background: var(--bg-raised); }
 
 /* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
@@ -175,6 +176,17 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
   html.legacy-on .rec-tip { width: 28px; height: 28px; min-height: 0; }
   html.legacy-on .rec-tip::after { content: ""; position: absolute; inset: -8px; }
   html.legacy-on .rec-sheet-close { min-width: 44px; }
+}
+/* A word that is a button keeps the word's box under that 44px floor, and takes a thumb's reach from an ::after
+   instead (#748's pattern, components.css .tl-msg-why): a fold's Close, a tip card's act. Grown to 44px they swelled
+   the fold's head from 56px to 81px. A row's act is such a word wherever a row is not a phone's: there, its ::after is
+   the whole row, and its box stays where the row can hold it. */
+html.legacy-on .rec-fold-close, html.legacy-on .rec-card-tip-act { position: relative; min-height: 0; }
+.rec-fold-close::after, .rec-card-tip-act::after { content: ""; position: absolute; inset: -14px -8px; }
+html.legacy-on .rec-row-act { min-height: 0; }
+@media (min-width: 761px) {
+  .rec-row-act { position: relative; }
+  .rec-row-act::after { content: ""; position: absolute; inset: -14px -8px; }
 }
 /* Nothing hovers under a finger, so every act is drawn: told by the input, not the width, because a touch screen
    wider than a phone has no hover either. And no wash lingers on the row a finger last touched. */
