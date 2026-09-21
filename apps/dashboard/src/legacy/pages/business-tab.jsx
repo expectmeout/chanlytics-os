@@ -10,7 +10,7 @@
 // The page composes and never derives. Every sentence with a number or a judgement in it is contracts', through
 // window.__businessTab (legacy-bridge/business-tab.ts); every fact is the settings read's (window.__SETTINGS,
 // window.__FACTS), read as the page draws. What a save writes is pages/business-tab-save.jsx's, through
-// window.__businessTabSave: each row's check and patch, and the page's one saver. That file loads before this one.
+// window.__businessTabSave: each row's check and patch, and the tab's one saver. That file loads before this one.
 //
 // The tests' stub React (tooling/scripts/tests/_legacy-react.mjs) keeps every hook on the page as a cell in one order,
 // so a component holding hooks that is drawn on one render and not the next moves every cell after it. So every
@@ -45,7 +45,7 @@ const btChangedLines = (before, after) => {
 /**
  * One of this page's rows: at rest a RecordRow, and while it is edited the kit's inline editor (RecordInline,
  * record-fold.jsx), which holds the gesture itself -- its focus, its keys, what saving writes and its foot. What is the
- * page's is here: the draft, what stops a save, the save through the page's one saver, what the receptionist will be
+ * page's is here: the draft, what stops a save, the save through the tab's one saver, what the receptionist will be
  * told, and the row's disagreement with its press.
  *
  * At rest the row is its value, where the value came from, and one act. The act opens the editor in the row's place.
@@ -102,7 +102,7 @@ const BtRow = ({
   live.current.open = open;
   const now = open && draft != null ? draft : initial;
   const dirty = open && !S.same(storedAs(now), storedAs(initial));
-  // The page's one saver (business-tab-save.jsx): this row's save waits its turn behind any other, and goes on the
+  // The tab's one saver (business-tab-save.jsx): this row's save waits its turn behind any other, and goes on the
   // config current then.
   const busy = saver ? saver.pending(id) : false;
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
@@ -588,11 +588,12 @@ const BtWho = ({ brain, canEdit, flash, saver }) => {
  * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
  */
 const BusinessTab = ({ flash = () => {} }) => {
-  // The page's one saver, for its life (business-tab-save.jsx); a save moving through it draws the page again, busy or
-  // done.
+  // The tab's one saver (business-tab-save.jsx), which outlives the page: a page drawn again on coming back to this tab
+  // finds the save still out and the answer to the last one. A save moving through it draws the page again, busy or
+  // done, for as long as the page is on screen.
   const [, setTick] = useBizState(0);
-  const saver = useBizRef(null);
-  if (!saver.current) saver.current = window.__businessTabSave.saver(() => setTick((n) => n + 1));
+  const saver = window.__businessTabSave.saver;
+  useBizEffect(() => saver.subscribe(() => setTick((n) => n + 1)), [saver]);
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) return null;
@@ -608,7 +609,7 @@ const BusinessTab = ({ flash = () => {} }) => {
         </p>
       )}
       <BtStanding brain={brain} door={canEdit ? btOpenRow : null} />
-      <BtWho brain={brain} canEdit={canEdit} flash={flash} saver={saver.current} />
+      <BtWho brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
     </>
   );
 };

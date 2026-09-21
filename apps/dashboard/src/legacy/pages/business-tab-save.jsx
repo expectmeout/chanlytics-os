@@ -3,7 +3,7 @@
 //
 // The page (pages/business-tab.jsx) draws; this file decides what its saves write. Here: each row's check (the
 // sentence that stops a save before any round trip, or null), what a row's draft stores, and its patch (the one-key
-// change a save makes: a pure function of the stored brain and profile that returns the brain); the page's one saver,
+// change a save makes: a pure function of the stored brain and profile that returns the brain); the tab's one saver,
 // which every row, and every fold after them, saves through; how a number is written for people (phoneShown); and the
 // old card's one-key save (useFieldSave), until Task 3.7 retires that card. Task 3.6 adds the folds' own helpers here.
 //
@@ -43,7 +43,7 @@ const btPhoneShown = (v) => (v && window.__phoneDisplay && /^\+[1-9][0-9]{6,14}$
  *
  * Moved from settings.jsx when the Business tab became a record (Task 3.2). On window as `useFieldSave`: the old
  * card's two number rows take it from there until Task 3.7 retires them. The Business tab's rows save through the
- * page's one saver (btSaver) instead. Since the move it also lets go when the save fails before the server has taken
+ * tab's one saver (btSaver) instead. Since the move it also lets go when the save fails before the server has taken
  * it (the promise rejects, or the call throws), as btSaver does: it said nothing then, and stayed busy for good, its
  * row's Save and Cancel pressing nothing.
  */
@@ -86,7 +86,7 @@ const btSame = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.str
 const btTrimmed = (d) => String(d == null ? "" : d).trim();
 
 /**
- * One saver for the page, so saves made close together go one at a time, and each builds on the one before.
+ * One saver for the browser tab, so saves made close together go one at a time, and each builds on the one before.
  *
  * PUT /settings is a versioned compare-and-swap of the whole config (useFieldSave says why), and the settings re-read
  * that brings the new version lands about half a second after the server accepts. Each row saving on its own sent the
@@ -94,16 +94,30 @@ const btTrimmed = (d) => String(d == null ? "" : d).trim();
  * twice, and the server refused the second as a colleague's save that never happened. So every row asks this saver:
  * a patch waits while another is out, and goes on the config the server answered the last one with (the bridge hands
  * it to onAccepted), or on the settings read when that is newer. A patch is a pure function of (brain, profile), so it
- * applies to whatever is current when it goes, and one that would change nothing is not sent. One saver for the page's
- * life, the next waiting while one is out: plViewSaver's shape (clients-a.jsx).
+ * applies to whatever is current when it goes, and one that would change nothing is not sent. The next waits while one
+ * is out: plViewSaver's shape (clients-a.jsx).
+ *
+ * One for the tab rather than one for each page drawn (btTabSaver, below, is the one): the page goes when the Settings
+ * rail shows another tab, and a page drawn on coming back held a new saver on the settings read it was drawn with. Back
+ * before the re-read landed, its next save went out on the version the server had moved past, and was refused as a
+ * colleague's; and a save still waiting its turn was one the new page's row could not see. A page subscribes as it
+ * mounts, and is drawn again whenever a save moves (queued, sent, taken, refused).
  *
  * A job is { row, change, said, done, flash }: `said` is the toast once the server takes it, `done` runs then too (the
- * row closes), and a refusal, or a promise that fails before the server took it, is said in the danger tone.
+ * row closes), and a refusal, or a promise that fails before the server took it, is said in the danger tone. `reset()`
+ * is for tests: it forgets the queue, the save out and the last answer, as a new browser tab would start.
  */
-const btSaver = (onChange) => {
+const btSaver = () => {
   let last = null;
   let out = null;
   const queue = [];
+  const subs = new Set();
+  // Each page listening hears every move, whatever another does: one that throws is reported and the rest still hear.
+  const onChange = () => {
+    for (const fn of [...subs]) {
+      try { fn(); } catch (err) { if (window.console) window.console.error(err); }
+    }
+  };
   const base = () => {
     const read = window.__SETTINGS || null;
     const held = read && read.config ? { config: read.config, version: read.version } : null;
@@ -128,7 +142,8 @@ const btSaver = (onChange) => {
     try {
       sent = window.__saveSettings(patched, from.version, (saved) => {
         accepted = true;
-        if (saved && saved.config && typeof saved.version === "number") last = { config: saved.config, version: saved.version };
+        // Only while this save is the one out: after a reset, an answer from before it is no answer to anything now.
+        if (out === job && saved && saved.config && typeof saved.version === "number") last = { config: saved.config, version: saved.version };
         if (job.done) job.done();
         job.flash({ msg: job.said });
         // With the server's answer in hand the next patch goes on it now; without one, it waits for the re-read,
@@ -150,8 +165,15 @@ const btSaver = (onChange) => {
     save(job) { queue.push(job); onChange(); next(); },
     // A row's save is in hand while it waits its turn or is out: its Save says so, and takes no second press.
     pending(row) { return !!((out && out.row === row) || queue.some((j) => j.row === row)); },
+    // A page hears every move while it is on screen; call what this returns as it goes.
+    subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
+    reset() { last = null; out = null; queue.length = 0; onChange(); },
   };
 };
+
+// The tab's one saver: made once, as this file loads, and kept on window (window.__businessTabSave.saver) for as long
+// as the tab is open, so every page drawn in it finds the queue and the last answer.
+const btTabSaver = btSaver();
 
 /* ------------------------------------ what each row stores ------------------------------------ */
 
@@ -266,14 +288,14 @@ const BT_PATCH_OF = {
   handoff_number: btPatchProfile("handoff_number"),
 };
 
-// window.__businessTabSave: the page's one saver (`saver(onChange)`, which answers { save(job), pending(row) }), the
+// window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), subscribe(fn), reset() }), the
 // two helpers a row's draft is judged by (`same`, `trimmed`), whether a brain's prompt is the product's own lines under
 // its stored name (`isBaseline`), and each row's STORED_AS, CHECK_OF and PATCH_OF by its id. Task 3.6 adds the folds'.
 Object.assign(window, {
   phoneShown: btPhoneShown,
   useFieldSave: useBtFieldSave,
   __businessTabSave: {
-    saver: btSaver,
+    saver: btTabSaver,
     same: btSame,
     trimmed: btTrimmed,
     isBaseline: btIsBaseline,

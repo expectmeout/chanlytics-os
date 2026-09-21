@@ -108,8 +108,10 @@ const facts = (over = {}) => ({
 /**
  * Draw the tab over a given record, as React replaces a tree: the last one unmounted (its cleanups run, a row's hold
  * on the fold registry among them), and the registry told that nothing is open, since a row left open by the last
- * test is not this page's. `brain` changes the stored brain beside its profile; `facts` replaces resolved facts, and
- * `resolved` resolves them all from the brain the way the settings read does (contracts resolveFacts).
+ * test is not this page's. The tab's one saver is reset too: it outlives every page drawn in the tab, and a save the
+ * last test left out, or its answer, is not this record's. `brain` changes the stored brain beside its profile; `facts`
+ * replaces resolved facts, and `resolved` resolves them all from the brain the way the settings read does (contracts
+ * resolveFacts).
  */
 const drawTab = ({ profile = melany, conflicts = [], flash = () => {}, brain = {}, facts: known = {}, resolved = null } = {}) => {
   W.__SETTINGS = settings(profile, {}, brain);
@@ -123,6 +125,7 @@ const drawTab = ({ profile = melany, conflicts = [], flash = () => {}, brain = {
   W.__ACTIVE_WORKSPACE = "t-melany";
   unmount();
   W.__recordFolds.reset();
+  W.__businessTabSave.saver.reset();
   return W.React.createElement(W.BusinessTab, { flash });
 };
 /** The same page again, over the same hook cells, as React draws it after a state change. */
@@ -773,7 +776,7 @@ test("Save stays a button focus can rest on while it saves, and a press meanwhil
   assert.deepEqual(openRows(redrawTab()), [], "the moment the server accepts, the editor closes");
 });
 
-/* ------------------------------------ the page's one saver ------------------------------------ */
+/* ------------------------------------ the tab's one saver ------------------------------------ */
 
 const google = "2581 Pitkin Ave, Brooklyn, NY 11208, USA";
 /** A record Google lists at another address and under another name: two presses, one on each row. */
@@ -828,6 +831,48 @@ test("a save made while another is out waits its turn, and its row says it is sa
   assert.equal(sent[2].config.brain.profile.website, "https://melanys.example");
   assert.equal(sent[2].config.brain.business_name, "Melany's Salon & Spa", "every change before it, carried");
   assert.equal(sent[2].config.brain.profile.address, google);
+});
+
+test("a page drawn again finds the tab's one saver: the answer to the last save, and a save still waiting its turn", () => {
+  // Task 3.2's review (its Minor 7). Each page held a saver of its own, so leaving the tab and coming back before the
+  // settings read brought a save back drew a new page with a new saver on the old read: the next save went out on
+  // version 7 again, and the server refused it as someone else's.
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash, ...disputed() });
+  useOn(tree, "address");
+  assert.deepEqual(sent.map((s) => s.version), [7]);
+  // Another Settings tab, and back: the page goes, and a new one is drawn over the same settings read.
+  unmount();
+  tree = W.React.createElement(W.BusinessTab, { flash });
+  useOn(tree, "name");
+  assert.deepEqual(sent.map((s) => s.version), [7, 8], "on the answer the server gave the first, not the read before it");
+  assert.equal(sent[1].config.brain.profile.address, google, "carrying the first's change");
+  assert.deepEqual(flashes.map((f) => f.tone || "ok"), ["ok", "ok"], "neither is refused");
+
+  // A save waiting its turn when the page goes is the new page's too: its row says so, and it goes when its turn comes.
+  const held = [];
+  W.__saveSettings = (config, v, accepted) => {
+    sent.push({ config: structuredClone(config), version: v });
+    return new Promise(() => { held.push(() => accepted({ config: structuredClone(config), version: v + 1 })); });
+  };
+  tree = drawTab(disputed());
+  sent.length = 0;
+  useOn(tree, "address");
+  tree = redrawTab();
+  openFold(tree, "website");
+  tree = redrawTab();
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab();
+  saveRow(tree, "website");
+  assert.equal(sent.length, 1, "the website waits while the address is out");
+  unmount();
+  tree = W.React.createElement(W.BusinessTab, { flash: () => {} });
+  assert.equal(byTestId(tree, "rec-inline-save-website").props["aria-busy"], true, "the new page's row says it is saving");
+  held[0]();
+  assert.deepEqual(sent.map((s) => s.version), [7, 8], "and it goes on the first's answer when the first is taken");
+  assert.equal(sent[1].config.brain.profile.website, "https://melanys.example");
 });
 
 test("a save the server refuses is said in its words, and the editor stays open with what was typed", async () => {
