@@ -536,6 +536,15 @@ test("Escape closes a sheet, once, unless something in it took the key", () => {
   assert.equal(closed.length, 2, "a key a combobox inside already took is not the sheet's");
 });
 
+test("a press on the wash behind a sheet keeps focus where it was", () => {
+  const wash = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet-backdrop"));
+  let prevented = false;
+  wash.props.onMouseDown({ preventDefault() { prevented = true; } });
+  // A mousedown's default moves focus to what was pressed, here the page's body, and Shift+Tab would then walk the
+  // page behind the modal.
+  assert.equal(prevented, true);
+});
+
 test("Tab stays inside a sheet, and wraps round both ways", () => {
   const sheet = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet"));
   const focused = [];

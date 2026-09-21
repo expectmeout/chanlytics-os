@@ -4,7 +4,7 @@
 // A list you scroll gets room of its own, beside the page (from the bottom, on a phone): a head with its name, the
 // line under it and a Close; an optional strip of tools (a search, an Add); the rows, which scroll; and a foot that
 // holds still, with the page's act in it. The page behind stays readable under a wash, and takes no presses while
-// the sheet is open. The kit knows nothing about what the sheet lists.
+// the sheet is open; a press on the wash keeps focus where it was. The kit knows nothing about what the sheet lists.
 //
 //   <RecordSheet id="services" title="…" sub="…" onClose={close} tools={<search/>} foot={<save/>}>…rows…</RecordSheet>
 //
@@ -14,8 +14,8 @@
 // wrap round, as the Calendar's appointment does (calendar-real.jsx crTrapTab): aria-modal tells a screen reader
 // that nothing outside the sheet is there, so focus that left it would be lost. Escape closes it, once, unless
 // something in it took the key first (a combobox's list closing): from inside the sheet its own handler hears the
-// key first and takes it, so a fold around it does not cancel as well; with focus outside it (a press on the wash),
-// the window hears it.
+// key first and takes it, so a fold around it does not cancel as well; with focus somewhere outside it, the window
+// hears it.
 //
 // So anything a sheet needs lives inside it. An Undo for a row taken out of the list goes inline, where the row
 // was, never in a toast: a toast is drawn outside the sheet, where Tab cannot reach it.
@@ -71,7 +71,9 @@ const RecordSheet = ({ id = null, title, sub = null, onClose, tools = null, foot
   const subId = id && sub ? `rec-sheet-${id}-sub` : undefined;
   const node = (
     <>
-      <div className="rec-sheet-backdrop" aria-hidden="true" />
+      {/* A press on the wash keeps focus where it was: a mousedown's default would hand it to the page's body, where
+          Shift+Tab walks the page behind the modal. The wash still takes the press, so nothing behind it does. */}
+      <div className="rec-sheet-backdrop" aria-hidden="true" onMouseDown={(e) => e.preventDefault()} />
       <section
         ref={place}
         className="rec-sheet"
