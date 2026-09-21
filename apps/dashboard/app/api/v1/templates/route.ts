@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, bookingTemplate, templateBlocked, templateComponents, templateParts, templateUsage, validateTemplateDraft } from "@chanlytics/contracts";
+import { AppError, bookingTemplate, templateBlocked, templateComponents, templateParts, templateSends, templateUsage, validateTemplateDraft } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate } from "@/server/service";
@@ -40,6 +40,26 @@ const Query = z.object({
   all: z.string().optional(),
 });
 
+/** Rows per page: PostgREST's max_rows (supabase config), which answers at most this many whatever a select asks for. */
+const PAGE = 1000;
+
+/**
+ * Every row a read matches, a page at a time. PostgREST cuts an answer at
+ * max_rows without saying so, and a count taken from the first thousand stops
+ * growing on exactly the workspaces that send the most. The read must be
+ * ordered by something unique, or a page boundary repeats one row and skips
+ * another.
+ */
+async function everyRow<T>(what: string, page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (;;) {
+    const { data, error } = await page(out.length, out.length + PAGE - 1);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    out.push(...(data ?? []));
+    if ((data ?? []).length < PAGE) return out;
+  }
+}
+
 export const GET = read({
   scope: workspace,
   query: Query,
@@ -56,24 +76,43 @@ export const GET = read({
     // three composers digging the same shapes out of it would put Meta's schema
     // in a .jsx file, where the compiler cannot see it.
     const templates = (data ?? []).map(({ components, ...t }) => ({ ...t, ...templateParts(components), blocked: templateBlocked({ components }) }));
-    // What sends each of them, for the page that lists every one. The composers
-    // (`!all`) are choosing a template to send and never ask, so they do not pay
-    // for the two reads. A workspace can carry a message nothing has ever sent --
-    // one written in WhatsApp Manager, or a starter added and never wired up --
-    // and this list was the one place that could not say so.
+    // What sends each of them, and how many of each went out, for the page that
+    // lists every one. The composers (`!all`) are choosing a template to send and
+    // never ask, so they do not pay for the reads. A workspace can carry a message
+    // nothing has ever sent -- one written in WhatsApp Manager, or a starter added
+    // and never wired up -- and this list was the one place that could not say so.
     if (!all) return { templates };
-    const [pb, bc] = await Promise.all([
+    const [pb, runs, recipients, inbox] = await Promise.all([
       ctx.supabase.from("playbooks").select("id, name, template_name, state").eq("tenant_id", tenantId),
-      ctx.supabase.from("broadcasts").select("template_name, playbook_id").eq("tenant_id", tenantId),
+      // Every run, a page at a time: a daily playbook alone passes a thousand of
+      // them in three years, and a run cut off the end sent messages nobody is
+      // credited with.
+      everyRow("broadcasts", (from, to) =>
+        ctx.supabase.from("broadcasts").select("id, template_name, playbook_id").eq("tenant_id", tenantId).order("id").range(from, to)),
+      // What LEFT, person by person. A broadcast's `recipient_count` is the
+      // audience it was scheduled for; the wire holds people back from it and a
+      // run can stop part-way, and Reports › Campaigns counts "Messages sent"
+      // from these rows, apart from "Delivered". Counted the way that page counts.
+      everyRow("broadcast_recipients", (from, to) =>
+        ctx.supabase.from("broadcast_recipients").select("broadcast_id, state, sent_at").eq("tenant_id", tenantId).eq("state", "sent")
+          .order("broadcast_id").order("contact_id").range(from, to)),
+      // The one door a run does not cover: a template the Inbox sent into a closed
+      // window, on its own message row. It left when WhatsApp took it -- the
+      // wamid; a row still in its veto window, withdrawn or refused has none. A
+      // run's own messages name no template (deliver records them without one),
+      // so nothing counted on a recipient row above is counted again here.
+      everyRow("messages", (from, to) =>
+        ctx.supabase.from("messages").select("template_name, external_id, created_at").eq("tenant_id", tenantId).eq("direction", "outbound")
+          .not("template_name", "is", null).not("external_id", "is", null).order("id").range(from, to)),
     ]);
     if (pb.error) throw new Error(pb.error.message);
-    if (bc.error) throw new Error(bc.error.message);
     const usedBy = templateUsage({
       playbooks: pb.data ?? [],
-      broadcasts: bc.data ?? [],
+      broadcasts: runs,
       bookingName: bookingTemplate(templates)?.name ?? null,
     });
-    return { templates, usedBy };
+    const sends = templateSends({ runs, recipients, inbox });
+    return { templates, usedBy, sends };
   },
 });
 
