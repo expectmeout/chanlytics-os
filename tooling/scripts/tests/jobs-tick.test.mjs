@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { runTick } from "../../../packages/jobs/src/tick.ts";
 import { RUN_INTERRUPTED, MAX_ATTEMPTS } from "../../../packages/jobs/src/ledger.ts";
 
-const job = (id, kind = "blob_thread_erase", attempts = 1) =>
+const job = (id, kind = "line_provision", attempts = 1) =>
   ({ id, tenant_id: "t1", kind, payload: {}, due_at: "2026-01-01T00:00:00Z", attempts });
 
 const OPTS = { claimForMs: 20_000, yieldAtMs: 45_000, leaseSeconds: 90 };
@@ -148,11 +148,14 @@ test("an intake that could not be kept is not failed either: the claim's own lea
 });
 
 test("internal work not written to be run again still fails on its first throw", async () => {
-  const { ports, calls } = fakes([job("a", "blob_thread_erase", 1), job("b", "line_provision", 1)], { throwOn: new Set(["a", "b"]) });
+  // line_provision is the internal kind with no waits in RETRY_WAITS_MS: its
+  // saga reads its own receipts, so a resumed run repeats nothing and a throw
+  // is a failure to tell somebody about rather than something to sit out.
+  const { ports, calls } = fakes([job("a", "line_provision", 1), job("b", "line_provision", 1)], { throwOn: new Set(["a", "b"]) });
   const counts = await runTick(ports, OPTS);
   assert.deepEqual(calls.defer, []);
   assert.deepEqual(calls.fail.map(([id]) => id), ["a", "b"]);
-  assert.match(calls.alert[0].body, /\(blob_thread_erase\) failed and will not retry on its own/, "a first try says no count");
+  assert.match(calls.alert[0].body, /\(line_provision\) failed and will not retry on its own/, "a first try says no count");
   assert.equal(counts.failed, 2);
 });
 
@@ -182,7 +185,7 @@ test("a send whose run died is never run a second time", async () => {
 });
 
 test("internal work whose run died is run again, and given up past the cap", async () => {
-  const { ports, calls } = fakes([job("a", "blob_thread_erase", 2), job("b", "blob_thread_erase", MAX_ATTEMPTS + 1)]);
+  const { ports, calls } = fakes([job("a", "line_provision", 2), job("b", "line_provision", MAX_ATTEMPTS + 1)]);
   const counts = await runTick(ports, OPTS);
   assert.deepEqual(calls.dispatch.map(([id]) => id), ["a"]);
   assert.deepEqual(calls.complete, ["a"]);

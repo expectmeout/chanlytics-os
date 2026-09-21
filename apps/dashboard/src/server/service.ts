@@ -2,9 +2,10 @@ import "server-only";
 import { deployment } from "./deployment";
 
 /**
- * Service-role territory (Blueprint §8): jobs scheduling and the pre-Gate-1b
- * Blob pause mirror. Tenant DATA writes never happen here — those run on the
- * session client so RLS enforces. This module cannot be imported client-side.
+ * Service-role territory (Blueprint §8): jobs scheduling, and the few calls
+ * that cross to the edge. Tenant DATA writes never happen here — those run on
+ * the session client so RLS enforces. This module cannot be imported
+ * client-side.
  */
 import { claimControl, createServiceClient, releaseControl } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
@@ -118,67 +119,6 @@ export async function removeMediaObjects(
     return { requested: paths.length, removed: [], error: error.message };
   }
   return { requested: paths.length, removed: (data ?? []).map((o) => o.name), error: null };
-}
-
-/**
- * The Blob leg's retry handle.
- *
- * The thread key is the customer's phone digits, and after the tombstone there
- * is nowhere left to recompute it — so a failed erase job's own payload is the
- * only thing that can drive the retry.
- *
- * The decision is made on the PAYLOAD, not the state. A job is 'fired' from
- * the moment it is claimed until its run reports back, and a run that dies
- * leaves it there with its thread_ids intact until the lease runs out — so
- * reading 'fired' as "already done" would strand that transcript. The handler
- * scrubs the payload on success, so an unscrubbed payload means unfinished,
- * whatever the state says.
- */
-export async function rescheduleBlobErase(
-  tenantId: string,
-  contactId: string,
-): Promise<{ jobId: string } | null> {
-  const { data } = await serviceDb()
-    .from("jobs")
-    .select("id, state, payload")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "blob_thread_erase")
-    .eq("payload->>contact_id", contactId)
-    .order("created_at", { ascending: false })
-    .limit(1);
-  const prior = data?.[0];
-  if (!prior) return null;
-  const payload = prior.payload as { thread_ids?: string[]; scrubbed?: boolean } | null;
-  if (payload?.scrubbed) return null;                        // the leg finished
-  if (prior.state === "scheduled") return { jobId: prior.id }; // still queued
-  if (!payload?.thread_ids?.length) return null;             // nothing to retry
-  return await schedule(tenantId, "blob_thread_erase", new Date(), prior.payload as Json);
-}
-
-/**
- * The phone spellings an outstanding erasure is still carrying.
- *
- * After the tombstone the contact's own row holds no number, so the only place
- * left that names the customer is the blob_thread_erase payload queued before
- * anything was destroyed. A retry of the other legs reads its needles from
- * here; once that job has scrubbed itself there are none left to recover, and
- * the scrubs that key on the contact id still do their work.
- */
-export async function erasedThreadIds(tenantId: string, contactId: string): Promise<string[]> {
-  const { data, error } = await serviceDb()
-    .from("jobs")
-    .select("payload")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "blob_thread_erase")
-    .eq("payload->>contact_id", contactId)
-    .order("created_at", { ascending: false })
-    .limit(1);
-  if (error) {
-    console.error("erased_thread_ids_read_failed", contactId, error.message);
-    return [];
-  }
-  const payload = data?.[0]?.payload as { thread_ids?: unknown } | null;
-  return Array.isArray(payload?.thread_ids) ? payload.thread_ids.filter((t): t is string => typeof t === "string") : [];
 }
 
 import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
@@ -587,16 +527,14 @@ export async function acceptOpenInvites(userId: string, email: string | null): P
  * erase_contact cancels what is still scheduled and touches nothing else, so
  * done, failed and canceled outbound_send rows kept `to_phone` and `body` in
  * their payload — a copy of the conversation the erasure promised to remove.
- * Matched by contact id or by the number in any of its forms; the Blob-erase
- * job is left alone because it is the one doing the erasing.
+ * Matched by contact id or by the number in any of its forms.
  */
 export async function scrubErasedJobs(tenantId: string, contactId: string, phones: string[]): Promise<number> {
   const db = serviceDb();
   const { data: rows, error } = await db
     .from("jobs")
     .select("id, payload")
-    .eq("tenant_id", tenantId)
-    .neq("kind", "blob_thread_erase");
+    .eq("tenant_id", tenantId);
   if (error) throw new Error(`scrub_jobs_read: ${error.message}`);
   const digits = new Set(phones.map((p) => p.replace(/\D/g, "")).filter(Boolean));
   const hit = (rows ?? []).filter((j) => {

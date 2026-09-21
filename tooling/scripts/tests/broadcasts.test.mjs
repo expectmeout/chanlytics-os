@@ -209,7 +209,7 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
   const sent = [];
   const ctx = (db) => ({
     db, wire: {}, alert: async (news) => sent.push([news.subject, news.body]),
-    eraseThread: async () => true, schedule: async () => {}, deadline: Date.now() + 60_000,
+    schedule: async () => {}, deadline: Date.now() + 60_000,
   });
   const job = { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } };
   const blip = { message: "canceling statement due to statement timeout" };

@@ -25,7 +25,6 @@ import { fakeDb } from "./_fake-db.mjs";
 // case; the doors read them at the call, not at import. No Supabase
 // credentials, so `setPg(null)` really is no database.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
-process.env.BLOB_SHADOW = "off";
 process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test, second@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";

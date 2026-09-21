@@ -49,7 +49,7 @@ export type DeleteResult = ApiResult<unknown>;
  * Delete this person: `window.__deletePerson(id)`.
  *
  * The route is the one the privacy policy promises — Postgres rows, Storage
- * media, the Blob thread and any queued job — and it is owner-only on the
+ * media and any queued job — and it is owner-only on the
  * server, so a viewer's click returns the server's refusal rather than a
  * pretend success. After it lands the refresh map re-reads every surface that
  * named the person — the list, the Inbox, the threads and Today — so nothing

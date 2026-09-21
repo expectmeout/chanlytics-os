@@ -1,8 +1,8 @@
-/** Ops diagnostic — store backend + live write/read probe + env presence
+/** Ops diagnostic — env presence, the sweeps, the pager, number drift, the
+ *  voice agents, the receptionist's last day
  *  + Meta access-token permanence check (debug_token expires_at).
  *  Auth: x-diag-key header (DIAG_KEY). Internal endpoint — not part of the
  *  frozen surface. */
-import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { createHash } from "node:crypto";
 import { json } from "../lib/http.js";
 import { authorizeAdmin } from "../lib/admin-auth.js";
@@ -23,18 +23,12 @@ export async function GET(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
 
   const out: Record<string, unknown> = {
-    store: storeBackend(),
-    // Which store the bot's MEMORY comes from. The single most important
-    // operational fact about this service after Gate 1b — and the flag to flip
-    // back first if the receptionist starts behaving oddly.
-    memory: process.env.PG_READS === "on" ? "postgres" : storeBackend() === "off" ? "none" : "blob",
+    // Where the bot's MEMORY comes from. Postgres, and nothing else: the
+    // credentials below are what decide whether it can be read at all, and a
+    // thread it cannot read is handed to a person.
+    memory: "postgres",
     env: {
-      pgReads: process.env.PG_READS === "on",
-      // Retired as a switch (lib/pg.ts): reported because an operator who
-      // has read the old runbook will look for it, honoured by nothing.
-      pgWrites: process.env.PG_WRITES === "on",
       database: !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      blobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
       anthropic: !!process.env.ANTHROPIC_API_KEY,
       waToken: !!process.env.WHATSAPP_ACCESS_TOKEN,
       resend: !!process.env.RESEND_API_KEY,
@@ -43,27 +37,6 @@ export async function GET(request: Request): Promise<Response> {
       diagKey: !!process.env.DIAG_KEY,
     },
   };
-
-  // The write/read probe proves the store only while the store is a memory.
-  if (storeBackend() === "off") {
-    out.probe = { skipped: "store retired; memory is Postgres" };
-  } else try {
-    const probeId = "diag-probe";
-    // The diagnostic probe writes to its own namespace so it can never touch
-    // a real tenant's stored conversation.
-    const probeNs = threadNamespace("diag-probe");
-    const t = await getThread(probeNs, probeId);
-    t.history.push({ role: "user", content: "probe " + Date.now() });
-    await saveThread(probeNs, probeId, t);
-    const back = await getThread(probeNs, probeId);
-    out.probe = {
-      wrote: t.history.length,
-      readBack: back.history.length,
-      roundTrip: back.history.length === t.history.length,
-    };
-  } catch (e) {
-    out.probe = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
-  }
 
   // Is the watchdog itself alive? pg_cron marks a sweep 'succeeded' the moment
   // net.http_post queues the request, so the run history cannot answer this —

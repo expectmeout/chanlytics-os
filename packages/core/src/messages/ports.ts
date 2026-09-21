@@ -1,10 +1,9 @@
 /**
- * The send path's view of the world: what the four job verbs need, named for
+ * The send path's view of the world: what the job verbs need, named for
  * what each means. The adapter that knows the tables and the runtime's
  * services is packages/jobs/src/handlers.ts.
  */
 import type { JobNews, SendPurpose } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
 import type { Delivered, Delivery } from "../deliver";
 
 /** The door, handed in: a verb never builds it, so a test can answer whatever the case needs. */
@@ -26,15 +25,6 @@ export interface SendQueuedPorts {
   alert(news: JobNews): Promise<void>;
   /** The platform's own pager, for a provider refusing every send on a wire. */
   page?(key: string, subject: string, body: string): Promise<unknown>;
-}
-
-export interface EraseThreadPorts {
-  /** One stored Blob thread gone. False when it is still there. */
-  eraseThread(namespace: string, threadId: string): Promise<boolean>;
-  /** Every job row for this contact, or this one job, carries the scrubbed payload from now on. */
-  scrub(tenantId: string, by: { contactId: string } | { jobId: string }, scrubbed: Json): Promise<void>;
-  /** The same ledger as the owner's own erase decision, and the event. */
-  recordErased(tenantId: string, contactId: string, threads: number, jobId: string): Promise<void>;
 }
 
 export interface ProvisionLinePorts {

@@ -14,7 +14,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const { provisionLineJob } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/line-provision-job.ts")).href);
 const { dispatchJob, verdictFor, MAX_ATTEMPTS } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
 
-const ctx = (provisionLine) => ({ db: fakeDb({}), wire: {}, alert: async () => {}, eraseThread: async () => true, schedule: async () => {}, deadline: Date.now() + 60_000, provisionLine });
+const ctx = (provisionLine) => ({ db: fakeDb({}), wire: {}, alert: async () => {}, schedule: async () => {}, deadline: Date.now() + 60_000, provisionLine });
 const job = (payload) => ({ id: "j1", tenant_id: "t1", kind: "line_provision", payload });
 
 test("the kind is declared, and it is internal work: tried again up to the cap, then given up", () => {

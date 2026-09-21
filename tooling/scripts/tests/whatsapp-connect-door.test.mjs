@@ -32,7 +32,6 @@ import { fakeDb } from "./_fake-db.mjs";
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.META_APP_SECRET = "meta-app-secret-nobody-may-see";
 process.env.META_APP_ID = "424242424242424";
-process.env.BLOB_SHADOW = "off";
 for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "META_ES_CONFIG_ID", "WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_ID"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");

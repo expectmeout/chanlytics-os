@@ -99,7 +99,7 @@ function whyNotAHandoff(raw, ownLine) {
   if (!typed) return null;
   const norm = "+" + typed.replace(/[^0-9]/g, "");
   if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm))) {
-    return "The transfer number needs the country code, like +1 646 932 5775.";
+    return "The transfer number needs the country code, like +1 212 555 0143.";
   }
   if (ownLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(ownLine)) {
     return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
@@ -214,12 +214,6 @@ var JOB_KINDS = [
   "outbound_send",
   "broadcast_send",
   /**
-   * Erase one customer's stored Blob thread. The DASHBOARD orchestrates
-   * erasure and cannot reach Blob; the EDGE holds BLOB_READ_WRITE_TOKEN and
-   * runs the ledger. This kind is the seam.
-   */
-  "blob_thread_erase",
-  /**
    * A line's provisioning saga, run under the ledger's lease and resumed by
    * the heartbeat if a worker dies (00109). The saga itself stays on the
    * edge with the provider's credentials and is injected into the tick.
@@ -269,7 +263,6 @@ var EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -428,9 +421,9 @@ var DECISION_VERBS = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**
@@ -2175,9 +2168,9 @@ function resolveFacts(typed, known) {
     // The one that matters, and the one that should usually be absent.
     //
     // The fallback is FORMATTED, not raw E.164: this value is spoken and
-    // written to customers -- "Phone: +13083368109" in a prompt becomes a
+    // written to customers -- "Phone: +13085550109" in a prompt becomes a
     // receptionist reading digits aloud -- so the provisioned line arrives as
-    // "+1 (308) 336-8109", the way a person says a number.
+    // "+1 (308) 555-0109", the way a person says a number.
     phone_display: typedOverKnown(
       trimmed(typed?.phone_display),
       voice ? formatPhoneDisplay(voice) : null,
@@ -2435,7 +2428,7 @@ var BusinessProfileSchema = z3.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z3.string().regex(E164, "E.164, like +16469325775").optional(),
+  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
   website: z3.string().url().max(500).optional(),
   notes: z3.array(NoteSchema).max(10).optional(),
   booking_rules: BookingRulesSchema.optional(),
@@ -10744,7 +10737,6 @@ var WORDS = {
   "contact.email_set": "A person's email address changed",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
-  "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
@@ -10911,7 +10903,6 @@ var TONES = {
   "line.failed": "danger",
   "line.texting_rejected": "danger",
   "contact.erased": "danger",
-  "contact.blob_erased": "danger",
   "ingest.unroutable": "danger",
   "ingest.unreachable_sender": "danger",
   erase: "danger",
@@ -11757,7 +11748,6 @@ var SCHEMA_SETS = {
   "jobs.kind": [
     "outbound_send",
     "broadcast_send",
-    "blob_thread_erase",
     "line_provision",
     "email_ingest",
     "lead_round_start",

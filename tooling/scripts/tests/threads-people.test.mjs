@@ -136,7 +136,11 @@ test("the API attaches the mode in force, and an erasure scrubs the jobs that ca
   assert.ok(detail.includes("effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null"));
   assert.ok(detail.includes("scrubErasedJobs(contact.tenant_id, id, threadIds)"));
   const service = readCode("apps/dashboard/src/server/service.ts");
-  assert.ok(service.includes('.neq("kind", "blob_thread_erase")'), "the job doing the erasing is left alone");
+  // No kind is spared any more. One was -- the blob_thread_erase job that
+  // removed the second copy of the conversation, which the scrub would
+  // otherwise have wiped the digits off before it could run. That store and
+  // that kind are gone (00148), so every job carrying the number is scrubbed.
+  assert.ok(!service.includes(".neq(\"kind\""), "nothing carrying the number is left alone");
   assert.ok(service.includes('reason: "contact erased"'));
 });
 

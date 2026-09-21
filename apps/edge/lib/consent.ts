@@ -1,16 +1,17 @@
 /**
  * Whether the receptionist may reply to this person at all.
  *
- * Pure and dependency-free, for the same reason reply-posture.ts is: the answer
- * has three possible sources that disagree under exactly the conditions nobody
- * exercises by hand — Postgres down, an opt-out from last week, a START arriving
- * mid-outage — and a truth table can be read and tested, while three `||`
- * clauses inline in a 700-line handler cannot.
+ * Pure and dependency-free, for the same reason reply-posture.ts is: the
+ * answer has two sources that disagree under exactly the conditions nobody
+ * exercises by hand — an opt-out from last week, a START arriving in the same
+ * message — and a truth table can be read and tested, while two `||` clauses
+ * inline in a 700-line handler cannot.
  *
- * Consent lives in `contacts.consent`, which only Postgres knows. The cache
- * exists because that made the guarantee fail open precisely when it mattered:
- * with the database unreachable the ingest result is null, so a customer who
- * opted out silently became opted in again for the length of the outage.
+ * Consent lives in `contacts.consent`, which only Postgres knows. There used
+ * to be a third source, a copy cached on the retired Blob thread, for the
+ * case where Postgres did not answer. It has no case left: the memory is
+ * Postgres, so a message whose thread could not be read never reaches this
+ * gate — it is handed to a person instead.
  */
 export interface ConsentInputs {
   /** THIS message is an explicit opt-out (STOP / BAJA / unsubscribe / alto). */
@@ -23,41 +24,32 @@ export interface ConsentInputs {
    * is no record at all.
    */
   recorded: boolean | null;
-  /** Consent cached on the thread by a previous request. */
-  cached: boolean | undefined;
 }
 
-export type ConsentSource = "this_message" | "record" | "cache" | "none";
+export type ConsentSource = "this_message" | "record" | "none";
 
 export interface ConsentDecision {
   optedOut: boolean;
-  /** Which input decided it — logged, so an outage is legible after the fact. */
+  /** Which input decided it — logged, so a disagreement is legible after the fact. */
   source: ConsentSource;
-  /** What the thread's cache should hold after this request. */
-  cache: boolean;
 }
 
 export function resolveConsent(i: ConsentInputs): ConsentDecision {
   // 1. The message in hand outranks any record. Local knowledge, so it holds
   //    even with no database at all — and a STOP must never wait on a query.
-  if (i.optOutNow) return { optedOut: true, source: "this_message", cache: true };
+  if (i.optOutNow) return { optedOut: true, source: "this_message" };
 
-  // 2. An explicit START is the documented way back, and it must work during an
-  //    outage too. Without this the cache below would hold someone out
-  //    indefinitely while Postgres was unreachable — the one state a customer
-  //    cannot escape by any action of their own.
-  if (i.optInNow) return { optedOut: false, source: "this_message", cache: false };
+  // 2. An explicit START is the documented way back, and it must work whatever
+  //    the record says — the one state a customer cannot otherwise escape by
+  //    any action of their own.
+  if (i.optInNow) return { optedOut: false, source: "this_message" };
 
-  // 3. Postgres owns consent. When it answered, its answer is final, and the
-  //    cache is refreshed from it rather than consulted.
-  if (i.recorded !== null) {
-    return { optedOut: i.recorded, source: "record", cache: i.recorded };
-  }
+  // 3. Postgres owns consent. When it answered, its answer is final.
+  if (i.recorded !== null) return { optedOut: i.recorded, source: "record" };
 
-  // 4. Postgres did not answer. The cached copy is all that is left; absent a
-  //    cache there is nothing to go on and the reply proceeds, which is the
-  //    pre-existing behaviour and is documented as the remaining ceiling —
-  //    blocking every reply whenever the database blips would be its own outage.
-  if (i.cached === true) return { optedOut: true, source: "cache", cache: true };
-  return { optedOut: false, source: "none", cache: false };
+  // 4. No record at all: there is nothing to go on and the reply proceeds,
+  //    which is the pre-existing behaviour and is documented as the remaining
+  //    ceiling — blocking every reply on a missing record would be its own
+  //    outage.
+  return { optedOut: false, source: "none" };
 }

@@ -39,10 +39,9 @@ const ENV_WHATSAPP = { phoneId: "109990000000004", token: "the-environments-own-
 // before the handler is imported below. This door pages nobody, so there is no
 // mailbox; and the only database is the one handed in.
 process.env.RETELL_FN_SECRET = SECRET;
-process.env.BLOB_SHADOW = "off";
 process.env.WHATSAPP_PHONE_ID = ENV_WHATSAPP.phoneId;
 process.env.WHATSAPP_ACCESS_TOKEN = ENV_WHATSAPP.token;
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM", "BLOB_READ_WRITE_TOKEN"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;

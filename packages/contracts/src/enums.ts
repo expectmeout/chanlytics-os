@@ -42,18 +42,15 @@ export type ConsentState = (typeof CONSENT_STATES)[number];
  * is an outbound_send with a delay, the deadman is a pg_cron sweep, media is
  * fetched inline — and so are the two timers (snooze_wake, pause_expire): a
  * snooze or a pause wakes from its own timestamp on the conversation (00098).
+ * `blob_thread_erase` is gone too (00148): it erased the Vercel Blob copy of
+ * a conversation, and there is no such copy — Postgres is the receptionist's
+ * only memory, and an erasure deletes rows.
  * A new kind arrives with its handler, its caller and the jobs.kind CHECK,
  * together.
  */
 export const JOB_KINDS = [
   "outbound_send",
   "broadcast_send",
-  /**
-   * Erase one customer's stored Blob thread. The DASHBOARD orchestrates
-   * erasure and cannot reach Blob; the EDGE holds BLOB_READ_WRITE_TOKEN and
-   * runs the ledger. This kind is the seam.
-   */
-  "blob_thread_erase",
   /**
    * A line's provisioning saga, run under the ledger's lease and resumed by
    * the heartbeat if a worker dies (00109). The saga itself stays on the
@@ -125,7 +122,6 @@ export const EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -336,9 +332,9 @@ export const DECISION_VERBS = [
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written twice per erasure: once by
-   * the owner (actor_type 'user') and once by the job that finishes the Blob
-   * leg (actor_type 'system').
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
    */
   "erase",
   /**

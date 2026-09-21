@@ -39,7 +39,6 @@ import { fakeDb } from "./_fake-db.mjs";
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.RETELL_API_KEY = "retell-key-for-this-file";
 process.env.RETELL_FN_SECRET = "fn-secret-nobody-may-see";
-process.env.BLOB_SHADOW = "off";
 for (const k of ["DIAG_KEY", "EDGE_ORIGIN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");

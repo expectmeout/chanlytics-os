@@ -130,7 +130,7 @@ before(async () => {
   await seed("google_listing_days", { tenant_id: A, day: "2026-09-01", review_count: 1 }, null);
   await seed("google_reviews", { tenant_id: A, review_id: "tenancy-review-1" }, null);
   await seed("idempotency_keys", { tenant_id: A, key: "tenancy-key-1", route: "POST /x" }, null);
-  await seed("jobs", { tenant_id: A, kind: "blob_thread_erase", due_at: new Date().toISOString(), payload: {} });
+  await seed("jobs", { tenant_id: A, kind: "line_provision", due_at: new Date().toISOString(), payload: {} });
 
   // The lead finder (00140), in dependency order. The round is the search's
   // first (the guard allows one live round, and seq 1 needs no session).
@@ -223,7 +223,7 @@ const TENANT_TABLES = {
   google_listing_days: ["member", () => ({ tenant_id: A, day: "2026-09-02", review_count: 1 })],
   google_reviews: ["member", () => ({ tenant_id: A, review_id: "stranger-review" })],
   idempotency_keys: ["acting", () => ({ tenant_id: A, key: "stranger-key", route: "POST /x" })],
-  jobs: ["none", () => ({ tenant_id: A, kind: "blob_thread_erase", due_at: new Date().toISOString(), payload: {} })],
+  jobs: ["none", () => ({ tenant_id: A, kind: "line_provision", due_at: new Date().toISOString(), payload: {} })],
   // The lead finder (00140): members read, nobody signed in writes a row; the
   // judgments and the counters are the service role's. The view runs under
   // the reader's own row security (security_invoker), and is not writable.

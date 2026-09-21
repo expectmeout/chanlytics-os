@@ -33,13 +33,12 @@ const MASTER = { sid: "ACplatformmasteraccountforthisfile", token: "platform-mas
 // Each test file is its own process, so this is the whole environment, set
 // before the route is imported below. The platform's mailbox is configured, so
 // what is not paged below is not paged by decision, never for want of an address.
-process.env.BLOB_SHADOW = "off";
 process.env.WHATSAPP_PHONE_ID = ENV_WHATSAPP.phoneId;
 process.env.WHATSAPP_ACCESS_TOKEN = ENV_WHATSAPP.token;
 process.env.TWILIO_ACCOUNT_SID = MASTER.sid;
 process.env.TWILIO_AUTH_TOKEN = MASTER.token;
 Object.assign(process.env, MAIL);
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "LINES_DRY_RUN", "VERCEL_ENV", "BLOB_READ_WRITE_TOKEN"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "LINES_DRY_RUN", "VERCEL_ENV"]) delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/jobs/tick.ts"));

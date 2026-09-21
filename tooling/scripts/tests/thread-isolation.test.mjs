@@ -1,157 +1,70 @@
 /**
- * Two businesses can have the same customer. Their stored conversation must not
- * be the same object.
+ * Two businesses can have the same customer. Their conversation must not be
+ * the same memory.
  *
- * The thread store was keyed `threads/<phone digits>.json` — a customer's phone
- * number with no tenant in it — and that one object carries conversation
- * history, pause state, the dedupe list and the daily reply cap. Sharing it
- * means one business's receptionist can quote another's conversation, inherit
- * its pause, and spend its reply budget. The inbound-call endpoint read the
- * same key with no tenant resolution at all, so it could have spoken one
- * business's WhatsApp thread into another's phone call.
+ * The receptionist's memory used to be a Vercel Blob object keyed
+ * `threads/<phone digits>.json` — a customer's phone number with no tenant in
+ * it — and that one object carried the conversation history, the pause, the
+ * dedupe list and the daily reply cap. Sharing it means one business's
+ * receptionist can quote another's conversation, inherit its pause, and spend
+ * its reply budget. The inbound-call endpoint read the same key with no tenant
+ * resolution at all, so it could have spoken one business's WhatsApp thread
+ * into another's phone call. The store is gone and the key with it: the memory
+ * is Postgres rows, and the isolation is that every read names the workspace.
  *
- * These tests drive the real store against its in-memory backend (no
- * BLOB_READ_WRITE_TOKEN in the test env), which exercises the same key
- * derivation the Blob path uses.
+ * So these run the real read against a database double and check the
+ * separation holds — and, for the call endpoint, that the tenant is resolved
+ * BEFORE anything is read.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { fakeDb } from "./_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const EDGE = path.join(here, "../../../apps/edge");
-const STORE = path.join(EDGE, "lib/store.ts");
-const {
-  getThread, saveThread, deleteThread, deleteTenantThreads, threadNamespace,
-} = await import(pathToFileURL(STORE).href);
+const { pgThread } = await import(pathToFileURL(path.join(EDGE, "lib/whatsapp/persist.ts")).href);
 
 const TENANT_A = "11111111-1111-1111-1111-111111111111";
 const TENANT_B = "22222222-2222-2222-2222-222222222222";
-const SHARED_CUSTOMER = "13475550199";
+// The same person, written to twice: one conversation per workspace, which is
+// what `conversations` enforces and what makes the two memories two.
+const CONV_A = "aaaaaaaa-0000-0000-0000-000000000001";
+const CONV_B = "bbbbbbbb-0000-0000-0000-000000000001";
 
-test("the same customer at two businesses is two separate threads", async () => {
-  const nsA = threadNamespace(TENANT_A);
-  const nsB = threadNamespace(TENANT_B);
-  assert.notEqual(nsA, nsB, "two tenants produced the same namespace");
+const at = (minutesAgo) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+const msg = (over) => ({ direction: "outbound", sender: "ai", status: "sent", type: "text", channel: "whatsapp", channel_ts: null, meta: {}, ...over });
+const ing = (conversationId, pausedUntil = null) => ({ message_id: "m", conversation_id: conversationId, contact_id: "k", is_new: true, paused_until: pausedUntil });
 
-  const a = await getThread(nsA, SHARED_CUSTOMER);
-  a.history.push({ role: "user", content: "salon A: my appointment is at 3" });
-  a.pausedUntil = Date.now() + 3600_000;
-  a.replies = [Date.now(), Date.now()];
-  a.seen.push("wamid.A1");
-  await saveThread(nsA, SHARED_CUSTOMER, a);
+/** Both businesses' rows in one table, as they really sit. */
+const world = () => fakeDb({ messages: [
+  msg({ id: "a1", tenant_id: TENANT_A, conversation_id: CONV_A, created_at: at(10), body: "salon A: your appointment is at 3" }),
+  msg({ id: "a2", tenant_id: TENANT_A, conversation_id: CONV_A, created_at: at(9), body: "salon A: see you then" }),
+  msg({ id: "b1", tenant_id: TENANT_B, conversation_id: CONV_B, created_at: at(8), body: "salon B: yes, we do gel" }),
+] });
 
-  const b = await getThread(nsB, SHARED_CUSTOMER);
+test("the same customer at two businesses is two separate memories", async () => {
+  const later = new Date(Date.now() + 3600_000).toISOString();
+  const a = await pgThread(world(), TENANT_A, ing(CONV_A, later));
+  const b = await pgThread(world(), TENANT_B, ing(CONV_B));
 
-  // All four of the things that object carries must be unshared.
-  assert.deepEqual(b.history, [], "business B could read business A's conversation");
+  assert.equal(a.history.length, 2);
+  assert.equal(b.history.length, 1, "business B could read business A's conversation");
+  assert.ok(b.history.every((h) => !h.content.includes("salon A")));
   assert.equal(b.pausedUntil, 0, "business B inherited business A's pause");
-  assert.deepEqual(b.replies, [], "business B inherited business A's reply budget");
-  assert.deepEqual(b.seen, [], "business B inherited business A's dedupe list");
+  assert.equal(a.replies.length, 2);
+  assert.equal(b.replies.length, 1, "business B inherited business A's reply budget");
 });
 
-test("a write by one business never reaches the other", async () => {
-  const nsA = threadNamespace(TENANT_A);
-  const nsB = threadNamespace(TENANT_B);
-
-  const b = await getThread(nsB, SHARED_CUSTOMER);
-  b.history.push({ role: "user", content: "salon B: do you do gel?" });
-  await saveThread(nsB, SHARED_CUSTOMER, b);
-
-  const a = await getThread(nsA, SHARED_CUSTOMER);
-  assert.equal(a.history.length, 1, "business A's thread changed when B wrote");
-  assert.match(a.history[0].content, /salon A/);
-});
-
-test("a tenant-less namespace is still specific, not global", async () => {
-  // The pre-Postgres path has no tenant to resolve. It must still land in a
-  // namespace of its own rather than a shared bucket every tenant would write.
-  const envNs = threadNamespace(null);
-  assert.notEqual(envNs, threadNamespace(TENANT_A));
-  assert.match(envNs, /^env-/, "the fallback namespace should name what it is");
-  assert.equal(threadNamespace(undefined), envNs, "null and undefined must agree");
-});
-
-test("a thread can be forgotten", async () => {
-  // The store had no delete path of any kind, which made a deletion request
-  // unanswerable for the most sensitive data in the product.
-  const ns = threadNamespace(TENANT_A);
-  const id = "13475550111";
-  const t = await getThread(ns, id);
-  t.history.push({ role: "user", content: "delete me" });
-  await saveThread(ns, id, t);
-
-  assert.equal(await deleteThread(ns, id), true);
-  const after = await getThread(ns, id);
-  assert.deepEqual(after.history, [], "the thread survived deletion");
-});
-
-test("an entire tenant can be forgotten — offboarding", async () => {
-  const ns = threadNamespace(TENANT_B);
-  for (const id of ["13475550201", "13475550202", "13475550203"]) {
-    const t = await getThread(ns, id);
-    t.history.push({ role: "user", content: "x" });
-    await saveThread(ns, id, t);
-  }
-  const removed = await deleteTenantThreads(ns);
-  assert.ok(removed >= 3, `expected at least 3 removed, got ${removed}`);
-
-  // ...and the OTHER tenant is untouched.
-  const survivor = await getThread(threadNamespace(TENANT_A), SHARED_CUSTOMER);
-  assert.equal(survivor.history.length, 1, "purging one tenant deleted another's data");
-});
-
-/* --------------------- no caller may reach the store untenanted ------------- */
-
-test("every store call site passes a namespace", () => {
-  // The failure mode is silent: a call site that reverts to the one-argument
-  // form would compile against a string threadId and quietly write to a
-  // namespace named after a phone number.
-  const files = [
-    "api/whatsapp.ts", "lib/whatsapp/inbound.ts", "api/retell-webhook.ts", "api/retell-inbound.ts", "lib/call-start.ts",
-    "api/diag.ts",
-  ];
-  /** Top-level arguments of a call, respecting nested parentheses —
-   *  `getThread(threadNamespace(x), from)` is TWO arguments, not one. */
-  function callArgs(src, start) {
-    let depth = 0;
-    let out = "";
-    for (let i = start; i < src.length; i++) {
-      const c = src[i];
-      if (c === "(") { depth++; if (depth === 1) continue; }
-      if (c === ")") { depth--; if (depth === 0) break; }
-      out += c;
-    }
-    const args = [];
-    let cur = "";
-    let d = 0;
-    for (const c of out) {
-      if (c === "(") d++;
-      if (c === ")") d--;
-      if (c === "," && d === 0) { args.push(cur.trim()); cur = ""; continue; }
-      cur += c;
-    }
-    if (cur.trim()) args.push(cur.trim());
-    return args;
-  }
-
-  for (const f of files) {
-    const src = fs.readFileSync(path.join(EDGE, f), "utf8");
-    for (const m of src.matchAll(/\b(getThread|saveThread)\(/g)) {
-      const args = callArgs(src, m.index + m[0].length - 1);
-      assert.ok(
-        args.length >= 2,
-        `${f}: ${m[1]}(${args.join(", ")}) is missing a namespace — it would key on the phone number alone`,
-      );
-      assert.match(
-        args[0],
-        /ns|Ns|namespace|threadNamespace/,
-        `${f}: ${m[1]}(...) — first argument should be a namespace, got "${args[0]}"`,
-      );
-    }
-  }
+test("a workspace cannot read another's conversation even by naming it", async () => {
+  // The conversation id alone is not the key: the tenant is read too, so a
+  // mis-routed id comes back empty rather than as somebody else's thread.
+  const crossed = await pgThread(world(), TENANT_B, ing(CONV_A));
+  assert.deepEqual(crossed.history, [], "a conversation was read outside its workspace");
+  assert.deepEqual(crossed.replies, []);
+  assert.equal(crossed.repliedBefore, false);
 });
 
 test("the inbound-call endpoint refuses to read without a resolved tenant", () => {

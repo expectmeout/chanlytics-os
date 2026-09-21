@@ -2,9 +2,8 @@
  * apps/edge/.env.example must list every variable the edge actually reads.
  *
  * It listed 12 of 21. The nine missing ones included SUPABASE_URL and
- * SUPABASE_SERVICE_ROLE_KEY — without which nothing is persisted — and
- * PG_READS / PG_WRITES, the switches that decide where the bot's memory comes
- * from and the levers a rollback pulls. An environment built from that file
+ * SUPABASE_SERVICE_ROLE_KEY — without which nothing is persisted and the
+ * receptionist has no memory to read. An environment built from that file
  * came up looking healthy and recorded nothing.
  *
  * A manifest nobody checks drifts the moment someone adds a feature, so this

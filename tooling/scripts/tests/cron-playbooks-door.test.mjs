@@ -22,7 +22,6 @@ import { localDate, localHour } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault } from "./_cron-doors-world.mjs";
 
-process.env.BLOB_SHADOW = "off";
 for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"]) delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));

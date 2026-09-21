@@ -3,23 +3,22 @@
  * call_analyzed.
  *
  * Every event carrying a call is ingested (ingest_call is forward-only: an
- * event older than the row is a no-op it reports as `skipped`). The note,
- * the recording copy and the summary email wait for the end of the call.
+ * event older than the row is a no-op it reports as `skipped`). The recording
+ * copy and the summary email wait for the end of the call.
  * transcript_updated is opt-in on the agent; when it is on, each turn
  * refreshes the row's transcript and heartbeat, which is what makes a live
  * transcript possible on the dashboard.
  *
- * Slice 3: every stage dual-writes the canonical `calls` row (idempotent on
- * retell_call_id, so started -> ended -> analyzed enrich ONE row), attaches the
- * call as a note on the caller's cross-channel thread, and copies the recording
- * into private Storage. The Resend summary email and the Blob thread note are
- * unchanged so the pre-Gate-1b bot keeps its voice context.
+ * Every stage writes the canonical `calls` row (idempotent on
+ * retell_call_id, so started -> ended -> analyzed enrich ONE row), lands the
+ * call on the caller's cross-channel thread as one `call_summary` message —
+ * which is how the WhatsApp receptionist knows they phoned — and copies the
+ * recording into private Storage.
  *
  * Routing: agent_id -> tenant_channels(kind='voice'). One Retell account hosts
  * many agents (432 calls across 8 in the live account) — an unrouted call is
  * dead-lettered, never guessed into a tenant.
  */
-import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { notify } from "../lib/notify.js";
 import { loadTenantNotifications, loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { json } from "../lib/http.js";
@@ -435,7 +434,6 @@ export async function POST(request: Request): Promise<Response> {
       console.log("retell_analyzed_duplicate", n.retellCallId);
       return json(200, { ok: true, duplicate: true });
     }
-    const from = (call.from_number || "").replace(/^\+/, "");
     const summary = n.summary || "(no summary)";
     const sentiment = n.sentiment || "n/a";
     // What the analysis said, for the email: the request, the outcome, the to-do.
@@ -446,27 +444,10 @@ export async function POST(request: Request): Promise<Response> {
     const callback = n.analysis?.outcome === "callback_needed";
     const durationS = n.durationMs ? Math.round(n.durationMs / 1000) : 0;
 
-    // Resolve the tenant ONCE for this block. Both the thread note and the
-    // summary email are tenant-scoped, and resolving it twice invites the two
-    // to disagree.
+    // Resolve the tenant ONCE for this block: the summary email is
+    // tenant-scoped, and resolving it twice invites two answers.
     const db2 = pg();
     const routedForCall = db2 && n.agentId ? await resolveChannel(db2, "voice", n.agentId) : null;
-
-    // cross-channel memory for the pre-Gate-1b bot (Blob is still its context);
-    // with the store retired, the call_summary row above is the note.
-    if (from && storeBackend() !== "off") {
-      try {
-        // Resolved from the SAME agent routing the call row used, so a voice
-        // note lands in the right business's thread rather than a shared one.
-        const noteNs = threadNamespace(routedForCall?.tenantId ?? null);
-        const t = await getThread(noteNs, from);
-        t.history.push({
-          role: "assistant",
-          content: `[voice call note ${new Date().toISOString().slice(0, 16)}] Caller phoned the business line. Summary: ${String(summary).slice(0, 400)}`,
-        });
-        await saveThread(noteNs, from, t);
-      } catch (e) { console.error("call_note_failed", e instanceof Error ? e.message : e); }
-    }
 
     // Same pipeline as WhatsApp escalations — and addressed the same way. This
     // email carries a caller's number and a full TRANSCRIPT of what they said,

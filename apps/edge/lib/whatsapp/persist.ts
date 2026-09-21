@@ -23,41 +23,27 @@ import { deliverSafely, type Delivered, type SendKind, type Wire } from "../work
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { queueDraft } from "../draft-queue.js";
 import type { BrainMeta, SendPurpose } from "../workspace/contracts.js";
-import type { ThreadState } from "../store.js";
+import { unreadableThread, type ThreadState } from "../thread.js";
 import { logger, errField } from "../log.js";
 
 /**
- * "Postgres couldn't answer" — distinct from "empty thread", so a database blip
- * falls back to Blob instead of giving the bot amnesia and re-greeting a
- * customer mid-conversation.
+ * Postgres-sourced thread state, or an UNKNOWN thread when it cannot be
+ * produced — "Postgres couldn't answer", which is not "empty thread".
  *
- * A FIELD on a fresh object, never a shared sentinel compared by identity.
- * store.ts carries the same note for the same reason, having already made this
- * mistake once: callers mutate what they are handed (`thread.seen.push(...)`,
- * `t.pausedUntil = ...`, `t.optedOut = ...`), so one exported instance
- * accumulated every customer's history, pause and dedupe list on a
- * process-global object and leaked it to the next customer inside a warm
- * lambda. `pausedUntil: -1` is the second line of defence it was before.
+ * Postgres is the receptionist's only memory, so there is nowhere to fall
+ * back to: the handler hands an unknown thread to a person rather than
+ * answering a customer mid-conversation from an invented empty history.
  */
-export const pgMiss = (): ThreadState => ({ history: [], seen: [], pausedUntil: -1, replies: [], pgMiss: true });
-
-/** True when Postgres could not produce this thread, so the Blob copy answers instead. */
-export function isPgMiss(s: ThreadState): boolean {
-  return s.pgMiss === true;
-}
-
-/** Postgres-sourced thread state, or a miss if it can't be produced. */
 export async function pgThread(
   db: ReturnType<typeof pg>,
   tenantId: string | null,
   ing: IngestResult | null,
 ): Promise<ThreadState> {
-  if (!db || !tenantId || !ing) return pgMiss();
+  if (!db || !tenantId || !ing) return unreadableThread();
   try {
     const s = await readThreadState(db, tenantId, ing.conversation_id, ing.paused_until);
     return {
       history: s.history,
-      seen: s.seen,
       pausedUntil: s.pausedUntil,
       replies: s.replies,
       // Carried so the handler does not have to infer "we have written to this
@@ -67,7 +53,7 @@ export async function pgThread(
     };
   } catch (e) {
     console.error("pg_thread_read_failed", e instanceof Error ? e.message : e);
-    return pgMiss();
+    return unreadableThread();
   }
 }
 

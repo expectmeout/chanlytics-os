@@ -42,7 +42,6 @@ import { fakeDb } from "./_fake-db.mjs";
 // (LINES_DRY_RUN) makes no network calls; the registration sweep needs the
 // real one, and sets the master credentials per case. No workspace is the
 // environment's own, and the only database is the one handed to setPg.
-process.env.BLOB_SHADOW = "off";
 process.env.RETELL_API_KEY = "retell-key-for-this-file";
 process.env.RETELL_FN_SECRET = "fn-secret-for-this-file";
 process.env.LINES_DRY_RUN = "1";

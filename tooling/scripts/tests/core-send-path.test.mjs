@@ -1,7 +1,7 @@
 /**
- * The send path's job verbs, run: the queued send, the Blob erasure and the
- * line provisioning through fakes that log their calls, so what is proved is
- * the order and the outcome, not the handlers' text.
+ * The send path's job verbs, run: the queued send and the line provisioning
+ * through fakes that log their calls, so what is proved is the order and the
+ * outcome, not the handlers' text.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import { importSrc } from "./_source.mjs";
 const core = await importSrc("packages/core/src/messages/index.ts");
 /** A port the runtime does not hold, as opposed to one that answers null. */
 const ABSENT = Symbol("absent");
-const WRITES = new Set(["deliver", "escalate", "alert", "page", "eraseThread", "scrub", "recordErased", "provision"]);
+const WRITES = new Set(["deliver", "escalate", "alert", "page", "provision"]);
 
 /** Every port answers a value, a function of its arguments, or throws an Error; ABSENT leaves the port out, as a runtime that does not hold it would. */
 function fakes(over = {}) {
@@ -18,7 +18,7 @@ function fakes(over = {}) {
   const answers = {
     queued: { status: "queued", body: "See you at 3", channel: "whatsapp", sender: "human" }, purposeOf: "conversational",
     deliver: { outcome: "sent", messageId: "m1", externalId: "wamid.1" }, escalate: "opened", alert: undefined, page: undefined,
-    eraseThread: true, scrub: undefined, recordErased: undefined, provision: { ok: true },
+    provision: { ok: true },
     ...over,
   };
   const ports = {};
@@ -125,30 +125,6 @@ test("an email's queued row leaves as the request it was frozen with, to the add
   const unset = fakes({ queued: row, deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" } });
   await core.sendQueued(unset.ports, byEmail());
   assert.equal(unset.log[1][3], "Dashboard reply could not be delivered (the email channel is not connected).");
-});
-
-test("the Blob erasure: every thread gone, then the ledger, then the payload scrubbed LAST; a thread that stayed fails the job with nothing scrubbed; a scrubbed payload is a finished job", async () => {
-  const { ports, log, ops } = fakes();
-  await core.eraseBlobThread(ports, { tenantId: "t1", jobId: "j1", payload: { contact_id: "k1", namespace: "ns", thread_ids: ["a", "b", ""] } });
-  // The scrub is what makes this job un-retryable: after it, a second run reads
-  // `scrubbed` and returns at the top. Recorded after the scrub, a run that
-  // scrubbed and then failed to record would finish with the erasure proven
-  // nowhere -- and nothing left that could retry it.
-  assert.deepEqual(ops(), ["eraseThread", "eraseThread", "recordErased", "scrub"]);
-  assert.deepEqual(log[0], ["eraseThread", "ns", "a"]);
-  assert.deepEqual(log[2], ["recordErased", "t1", "k1", 2, "j1"]);
-  assert.deepEqual(log[3], ["scrub", "t1", { contactId: "k1" }, { contact_id: "k1", namespace: "ns", threads: 2, scrubbed: true }]);
-  const stuck = fakes({ eraseThread: (ns, id) => id !== "b" });
-  await assert.rejects(core.eraseBlobThread(stuck.ports, { tenantId: "t1", jobId: "j1", payload: { contact_id: "k1", namespace: "ns", thread_ids: ["a", "b"] } }), /1 thread\(s\) not deleted/);
-  assert.deepEqual(stuck.ops(), ["eraseThread", "eraseThread"], "the payload is the only thing that can retry it, so it stays");
-  const done = fakes();
-  await core.eraseBlobThread(done.ports, { tenantId: "t1", jobId: "j1", payload: { scrubbed: true } });
-  assert.deepEqual(done.ops(), []);
-  await assert.rejects(core.eraseBlobThread(fakes().ports, { tenantId: "t1", jobId: "j1", payload: {} }), /no namespace/);
-  const anon = fakes();
-  await core.eraseBlobThread(anon.ports, { tenantId: "t1", jobId: "j1", payload: { namespace: "ns", thread_ids: ["a"] } });
-  assert.deepEqual(anon.log[1], ["scrub", "t1", { jobId: "j1" }, { contact_id: null, namespace: "ns", threads: 1, scrubbed: true }]);
-  assert.deepEqual(anon.ops(), ["eraseThread", "scrub"], "no contact, no ledger row");
 });
 
 test("the provisioning: the saga is the edge's; a runtime without it fails loudly, and a saga that stopped names its step", async () => {

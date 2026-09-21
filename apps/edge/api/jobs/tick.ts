@@ -19,7 +19,6 @@ import { alertFor } from "../../lib/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms.js";
 import { emailWireFor, emailIntake } from "../../lib/email.js";
-import { deleteThread } from "../../lib/store.js";
 import { whatsappSender } from "../../lib/workspace/core.js";
 import { pageOperator } from "../../lib/page-operator.js";
 import { provisionLineJob } from "../../lib/line-provision-job.js";
@@ -83,8 +82,6 @@ export async function POST(request: Request): Promise<Response> {
               wire,
               alert: alertFor(db, job),
               page: (key, subject, body) => pageOperator({ db }, key, subject, body),
-              // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN.
-              eraseThread: deleteThread,
               provisionLine: (lineId, by) => provisionLineJob(db, lineId, by),
               ...(intake ? { email: intake } : {}),
               ...(leads ? { leads } : {}),

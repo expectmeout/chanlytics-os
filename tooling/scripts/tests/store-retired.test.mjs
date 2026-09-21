@@ -1,8 +1,18 @@
 /**
- * One memory. BLOB_SHADOW=off retires the Blob thread store: the receptionist
- * neither reads nor writes it, Postgres is the only memory, and a Postgres miss
- * hands the thread to a human instead of falling back to a second copy. Deletes
- * still reach Blob, so erasure keeps working for what is left there.
+ * One memory, and no code for a second one.
+ *
+ * The receptionist's memory was a Vercel Blob object per thread. Postgres took
+ * over behind `PG_READS`, the store stayed as a shadow behind `BLOB_SHADOW`,
+ * and this file proved the flag held: reads answered "unknown", writes were
+ * refused, deletes still reached Blob. The flag is gone and so is the store —
+ * `apps/edge/lib/store.ts`, `@vercel/blob`, the backfill that imported the
+ * threads, and the `blob_thread_erase` job that erased one.
+ *
+ * So this file is now the proof that none of it came back: nothing imports a
+ * store, no flag decides where the memory is read from, and the queue declares
+ * no kind it cannot run. The behaviour that flag protected — a Postgres miss
+ * hands the thread to a person rather than answering from an invented empty
+ * history — is run for real in whatsapp-door.test.mjs and thread-memory.test.mjs.
  *
  * And the job queue says only what it can carry: every declared kind has a
  * handler and a caller.
@@ -11,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import fs from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { JOB_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -33,44 +43,60 @@ function sourceTree(roots) {
   return out.join("\n");
 }
 
-// The module reads its env at import time; this file runs in its own process.
-process.env.BLOB_SHADOW = "off";
-delete process.env.BLOB_READ_WRITE_TOKEN;
-const store = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/store.ts")).href);
+/** Every tracked file under the given roots, by repo-relative path. */
+function sourceFiles(roots) {
+  const out = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === "node_modules" || e.name === "dist" || e.name === ".next" || e.name === ".vercel") continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (/\.(ts|tsx|mjs|js|json)$/.test(e.name)) out.push(path.relative(ROOT, full));
+    }
+  };
+  for (const r of roots) walk(path.join(ROOT, r));
+  return out;
+}
 
-test("retired: the store answers unknown, refuses writes, still deletes", async () => {
-  assert.equal(store.storeBackend(), "off");
-  const ns = store.threadNamespace("tenant-x");
-  const t = await store.getThread(ns, "15550001111");
-  assert.equal(store.isThreadUnknown(t), true, "a read is a failed read — fail closed, never a blank thread that re-greets");
-  assert.equal(t.pausedUntil, -1, "the second line of defence still holds");
-  const saved = await store.saveThread(ns, "15550001111", { history: [], seen: [], pausedUntil: 0, replies: [] });
-  assert.equal(saved, false, "nothing is written");
-  assert.equal(await store.deleteThread(ns, "15550001111"), true, "erasure still answers");
-  assert.equal(await store.deleteTenantThreads(ns), 0);
+/** Comments stripped where that is meaningful, so an explanation cannot trip a
+ *  rule about what must not appear -- and a JSON manifest read whole. */
+const read = (f) => (f.endsWith(".json") ? readRaw(f) : readCode(f));
+
+/** What the store, its flags and its job kind would look like if any came back. */
+const GONE = /@vercel\/blob|lib\/store\.js|\.\.\/store\.js|blob_thread_erase|PG_READS|PG_WRITES|PG_DEDUPE|BLOB_SHADOW|BLOB_READ_WRITE_TOKEN/;
+
+test("the store is gone: no module, no dependency, no importer, no flag", () => {
+  for (const gone of [
+    "apps/edge/lib/store.ts",
+    "apps/edge/api/admin/backfill.ts",
+    "tooling/scripts/run-backfill.mjs",
+    "packages/core/src/messages/erase-thread.ts",
+  ]) {
+    assert.equal(fs.existsSync(path.join(ROOT, gone)), false, `${gone} must not come back`);
+  }
+  // The SDK, the importers, the job kind and the four levers, in one sweep:
+  // a variable nothing reads is still a lie in the manifest and a value
+  // somebody will go looking for, so they go with the code that read them.
+  const offenders = sourceFiles(["apps/edge", "apps/dashboard/app", "apps/dashboard/src/server", "packages"])
+    .filter((f) => GONE.test(read(f)));
+  assert.deepEqual(offenders, [], "the posture is the code now, not an env flip");
 });
 
-test("every caller that used the store as a mirror steps aside when it is retired", () => {
-  // The echo pause skipping the retired store and landing in Postgres is run in whatsapp-door.test.mjs.
-  assert.ok(readRaw("apps/edge/api/whatsapp.ts").includes("RETIRED STORE (BLOB_SHADOW=off)"), "the handler contract says so");
-  // The dashboard's own mirror -- a round trip to /api/admin/pause before every
-  // take-over, hand-back, snooze, archive and reply -- is GONE, along with the
-  // endpoint and the compensation logic the five verbs carried for it. What it
-  // mirrored INTO had been retired; a verb that could fail on a call which
-  // could not matter is the reason it went rather than being left inert.
-  // /api/diag declining to probe and naming the memory "none" is run in diag-door.test.mjs.
-  const st = readCode("apps/edge/lib/store.ts");
-  assert.ok(st.includes('const STORE_OFF = process.env.BLOB_SHADOW === "off";'));
-  assert.ok(st.includes("if (STORE_OFF) return unreadable();"), "a read under the flag is unknown, not blank");
-  assert.ok(readRaw("apps/edge/.env.example").includes("BLOB_SHADOW="), "the flag is documented beside the other levers");
-  assert.ok(readRaw("README.md").includes("BLOB_SHADOW=off"), "and in the runbook");
+test("the manifest documents no lever either", () => {
+  // An operator provisioning an environment from this file must not be sent
+  // looking for a value that decides nothing.
+  const manifest = readRaw("apps/edge/.env.example");
+  for (const v of ["PG_READS", "PG_WRITES", "PG_DEDUPE", "BLOB_SHADOW", "BLOB_READ_WRITE_TOKEN"]) {
+    assert.ok(!manifest.includes(`${v}=`), `${v} is not documented as if it did something`);
+  }
+  // That /api/diag names one memory is run in diag-door.test.mjs.
 });
 
 test("the queue's kinds: each one handled and each one scheduled somewhere", () => {
-  assert.deepEqual([...JOB_KINDS], ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check"]);
+  assert.deepEqual([...JOB_KINDS], ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check"]);
   const handlers = readCode("packages/jobs/src/handlers.ts");
   for (const k of JOB_KINDS) assert.ok(new RegExp(`^\\s*${k}: \\w+,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
-  for (const dead of ["veto_fire", "media_fetch", "rollup_daily", "report_weekly", "snooze_wake", "pause_expire"]) assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
+  for (const dead of ["veto_fire", "media_fetch", "rollup_daily", "report_weekly", "snooze_wake", "pause_expire", "blob_thread_erase"]) assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
   // `ctx.schedule(...)` call, or the draft queue's row, naming it -- or a
   // door in SQL that inserts the job itself (the lead finder's, 00140).
@@ -83,4 +109,15 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
     assert.ok(named.test(src) || inserted.test(sql), `${k} is scheduled by something`);
   }
   // That the CHECK agrees is held at compile time by contracts/src/schema-sets.ts.
+});
+
+test("the retired kind is withdrawn from the database too, rows first", () => {
+  // A CHECK tightened over rows that still hold the value fails the migration,
+  // so the delete has to come first -- and those rows are finished erasures of
+  // a store that no longer exists, not work anybody is waiting on.
+  const m = readRaw("supabase/migrations/00148_jobs_drop_blob_thread_erase.sql");
+  const del = m.indexOf("delete from public.jobs where kind = 'blob_thread_erase';");
+  const check = m.indexOf("add constraint jobs_kind_check");
+  assert.ok(del > -1 && check > del, "the rows go before the CHECK that would refuse them");
+  assert.ok(m.includes(`check (kind in ('${JOB_KINDS.join("', '")}'))`), "the CHECK is the declared set, in order");
 });

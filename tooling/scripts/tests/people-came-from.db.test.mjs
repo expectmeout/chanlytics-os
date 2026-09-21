@@ -70,7 +70,7 @@ const person = async (tenantId, name, { added, messages = [], calls = [] } = {})
 const T0 = "2026-08-01T12:00:00Z";
 const T1 = "2026-08-02T12:00:00Z";
 
-// A Blob-era thread's row as apps/edge/api/admin/backfill.ts moved it in: on 'whatsapp', no channel_ts, the created_at it assigned. A call's note is the receptionist's own line.
+// A row moved in from before the database, by the import that has since been retired with the store it read: on 'whatsapp', no channel_ts, the created_at it assigned. A call's note is the receptionist's own line.
 const movedInText = (at) => ({ channel: "whatsapp", channel_ts: null, meta: { backfill: true }, created_at: at });
 const movedInNote = (at) => ({ ...movedInText(at), type: "call_summary", direction: "outbound", sender: "ai", status: "sent", body: "[voice call note 2026-08-01T12:00] Caller phoned the business line. Summary: asked about a cut." });
 
