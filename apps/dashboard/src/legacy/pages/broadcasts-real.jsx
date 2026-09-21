@@ -85,6 +85,9 @@ const bcPersonRow = (p) => (
 // them; and the act alone at the foot, pinned, with the skip and the list beside it. The words are the contracts'
 // (toApprovalVM, through window.__broadcasts.approval); the acts are the page's, and when one lands the next run
 // waiting opens, so a queue of two is two presses.
+// A part of a bar, as a width: never under a sliver for a part that exists, so one person out of three hundred still shows.
+const bcShare = (n, of) => (of > 0 ? Math.max(1.5, Math.round((n / of) * 1000) / 10) : 0);
+
 const BcSheet = ({ d, people, avm, sheet, onClose, seeAll, onSeeAll }) => {
   const b = d.broadcast;
   const pb = sheet.playbook;
@@ -110,10 +113,41 @@ const BcSheet = ({ d, people, avm, sheet, onClose, seeAll, onSeeAll }) => {
           </div>
           <div className="bc-sheet-sub">Playbook · {hint} · {avm.goes}</div>
         </div>
+        {/* Who it reaches out of everyone its moment named, as the run counted
+            them when it was drawn: green reaches, amber waits only for time,
+            grey was left out -- and a line for each reason, the most first. A
+            run made before runs kept that count says the rules that made its
+            list instead, which are true of everyone on it. */}
         <div className="bc-sheet-reach" data-testid="bc-sheet-reach">
-          <div className="bc-sheet-n"><span className="bc-sheet-v tabular">{avm.will}</span><span className="bc-sheet-will">will get it</span></div>
-          <div className="bc-sheet-bar" aria-hidden="true"><span /></div>
-          {avm.rules.length > 0 && <div className="bc-sheet-rules">{avm.rules.map((r) => <div key={r}>{r}</div>)}</div>}
+          <div className="bc-sheet-n">
+            <span className="bc-sheet-v tabular">{avm.will}</span>
+            <span className="bc-sheet-will">{avm.of ? <>will get it, of <span className="tabular" data-testid="bc-sheet-pool">{avm.of.pool}</span></> : "will get it"}</span>
+          </div>
+          {avm.of ? (
+            <>
+              <div className="bc-sheet-bar is-parts" aria-hidden="true">
+                {avm.will > 0 && <span className="bc-sheet-bar-will" style={{ width: `${bcShare(avm.will, avm.of.pool)}%` }} />}
+                {avm.of.held > 0 && <span className="bc-sheet-bar-held" style={{ width: `${bcShare(avm.of.held, avm.of.pool)}%` }} />}
+                {avm.of.pool - avm.will - avm.of.held > 0 && <span className="bc-sheet-bar-rest" />}
+              </div>
+              {avm.of.lines.length > 0 && (
+                <ul className="bc-sheet-why" data-testid="bc-sheet-why">
+                  {avm.of.lines.map((l) => (
+                    <li key={l.words}>
+                      <span className="cm-reach-dot" data-tone={l.tone} aria-hidden="true" />
+                      <span>{l.words}</span>
+                      {l.door && <button type="button" className="bc-sheet-door" onClick={() => window.CHANLY.nav(l.door.to)} data-testid="bc-sheet-door">{l.door.words}</button>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="bc-sheet-bar" aria-hidden="true"><span /></div>
+              {avm.rules.length > 0 && <div className="bc-sheet-rules">{avm.rules.map((r) => <div key={r}>{r}</div>)}</div>}
+            </>
+          )}
         </div>
         {parts.length > 0 && (
           <div className="bc-sheet-words" data-testid="bc-sheet-words">

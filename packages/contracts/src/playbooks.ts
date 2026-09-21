@@ -10,9 +10,9 @@ import { POLICY_CLASS_WORDS } from "./config";
  * playbook, who heard from any playbook this week. Broadcasts is "send this
  * once"; a playbook is "keep doing this".
  */
-import { eligibleFor } from "./broadcasts";
+import { audienceMembers } from "./broadcasts";
 import { purposeOfPlaybook } from "./consent";
-import { GET_YES_ROUTE, type PersonRowVM } from "./people";
+import { GET_YES_ROUTE, whyNotReceive, type PersonRowVM } from "./people";
 import { PARAM_SOURCE_LABELS, type ParamSpec } from "./templates";
 import type { BroadcastDto, BroadcastRecipientDto } from "./broadcasts";
 import { visitStartTime, type VisitDto } from "./calendar-people";
@@ -109,38 +109,95 @@ export function eligibleForPlaybook(
   touches: Touches,
   nowMs: number,
 ): PersonRowVM[] {
+  return playbookRunReach(rows, p, touches, nowMs).eligible;
+}
+
+/**
+ * Who a run reaches, out of everyone its moment names, and why each of the
+ * rest was left out -- each counted once, under the first rule that left them
+ * out, in the order the run applies the rules. So `will` and the eight counts
+ * add up to `pool`, and a bar of them is the whole list.
+ *
+ * A run recorded how many it enrolled and nothing about the rest, so the sheet
+ * an owner approves it from could only list the rules that made the list:
+ * never "186 of 312", never "94 never said yes" -- and the one of those an
+ * owner can do something about (getting their yes) was the one it could not say.
+ */
+export interface RunReach {
+  /** Everyone the moment names: the trigger's list, everyone, or the day's visits. */
+  pool: number;
+  /** Who the run reaches. */
+  will: number;
+  /** No number on file: WhatsApp and text both need one. */
+  noNumber: number;
+  /** Asked to stop, or on the do-not-contact list. */
+  stopped: number;
+  /** Never said yes to what this playbook sends: offers, or hearing from you. */
+  noYes: number;
+  /** Heard from this playbook within its gap (its cadence, for the month's offer). */
+  heardThis: number;
+  /** Heard from any playbook this week. */
+  heardAny: number;
+  /** Past the cap per run: the longest unheard go first, these next time. */
+  overCap: number;
+  /** Past the number's daily limit (run-playbook): named, never dropped in silence. */
+  overLimit: number;
+}
+
+export function playbookRunReach(
+  rows: PersonRowVM[],
+  p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
+  touches: Touches,
+  nowMs: number,
+): { eligible: PersonRowVM[]; reach: RunReach } {
+  const reach: RunReach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return [];
+  if (!t) return { eligible: [], reach };
   const purpose = purposeOfPlaybook(t.cls);
+  // Who the moment names, before anyone is left out.
+  const named = t.kind === "visit"
+    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+    ? rows.filter((r) => {
+      if (!r.calendarTz) return false;
+      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) && !r.booked;
+    })
+    : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  reach.pool = named.length;
+  const allowed: PersonRowVM[] = [];
+  for (const r of named) {
+    const why = whyNotReceive(r, purpose);
+    if (why === "no_number") reach.noNumber += 1;
+    else if (why === "stopped") reach.stopped += 1;
+    else if (why === "no_yes") reach.noYes += 1;
+    else allowed.push(r);
+  }
   if (t.kind === "visit") {
     // The calendar decides, one message per visit: the run is daily and a
     // visit is on one day, so the gap and the week's breath do not apply —
     // a reminder must go whatever else the person heard this week, and the
-    // thank-you two days after it must go too. Day-keyed by the calendar's
-    // own clock, never by hours: eleven at night tomorrow is still tomorrow.
-    const pool = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) && !r.booked;
-    });
-    pool.sort((a, b) => (p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)));
+    // thank-you two days after it must go too.
+    allowed.sort((a, b) => (p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)));
     // The cap is a fatigue limit for offers; a reminder is owed to everyone
     // with a visit. Capped, the twenty-sixth appointment of a busy day got no
     // reminder at all -- not deferred, dropped, since the run is once a day.
     // The number's own daily limit still applies, in run-playbook, and says so.
-    return pool;
+    reach.will = allowed.length;
+    return { eligible: allowed, reach };
   }
-  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
-  const picked = pool.filter((r) => {
+  const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
-    if (mine !== undefined && nowMs - mine < gapMs) return false;
+    if (mine !== undefined && nowMs - mine < gapMs) { reach.heardThis += 1; return false; }
     const any = touches.byAny.get(r.id);
-    if (any !== undefined && nowMs - any < PLAYBOOK_BREATH_MS) return false;
+    if (any !== undefined && nowMs - any < PLAYBOOK_BREATH_MS) { reach.heardAny += 1; return false; }
     return true;
   });
   picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
-  return picked.slice(0, Math.max(1, p.cap_per_run));
+  const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
+  reach.overCap = picked.length - eligible.length;
+  reach.will = eligible.length;
+  return { eligible, reach };
 }
 
 export type RunPlan =
@@ -339,10 +396,19 @@ export interface ApprovalVM {
   will: number;
   /**
    * The rules that made its list, in words -- true of everyone on it by
-   * construction (eligibleForPlaybook). Never a count of who was left out: a
-   * run records how many it enrolled and nothing about the rest.
+   * construction (eligibleForPlaybook). What a run made before runs kept who
+   * they left out can say, and all it can.
    */
   rules: string[];
+  /**
+   * Out of how many, and who the rest are: everyone its moment named, as the
+   * run counted them when it was drawn (playbookRunReach). `held` is who waits
+   * only for time -- heard from a playbook lately, past the number's day -- and
+   * is the bar's amber; the rest of the bar is grey: no yes, a stop, no number,
+   * past the cap. Each reason is a line, the most first, and the one an owner
+   * can act on carries its door. Null for a run that kept no count.
+   */
+  of: { pool: number; held: number; lines: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] } | null;
   /** One value per slot, as `reader` gets them. */
   values: string[];
   /** Whose message the words are: the first person on it with a name. Null for a run with nobody on it. */
@@ -360,6 +426,39 @@ export interface ApprovalVM {
 }
 
 /**
+ * A run's reach, as the sheet says it: out of everyone its moment named, who
+ * waits only for time (the bar's amber), and a line for each reason anyone was
+ * left out, the most first. "Never said yes" carries the door to getting that
+ * yes (#663): of every reason a person is left out, it is the one an owner can
+ * change. Null for a run that kept no count.
+ */
+export function reachLines(
+  reach: RunReach | null | undefined,
+  p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null,
+): ApprovalVM["of"] {
+  if (!reach || !Number.isFinite(reach.pool)) return null;
+  const t = p ? triggerOf(p.trigger) : null;
+  const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
+  const gap = p ? (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) : null;
+  const one = (n: number, singular: string, plural: string) => (n === 1 ? singular : plural);
+  const reasons: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] = [
+    { n: reach.noYes, words: `never said yes to ${offers ? "offers" : "hearing from you"}`, tone: "plain", door: { words: "Get their yes", to: GET_YES_ROUTE } },
+    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    { n: reach.heardThis, words: gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately", tone: "warn", door: null },
+    { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
+    { n: reach.noNumber, words: one(reach.noNumber, "has no number on file", "have no number on file"), tone: "plain", door: null },
+    { n: reach.overCap, words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` — ${p.cap_per_run} a run, the longest unheard first` : ""}`, tone: "plain", door: null },
+    { n: reach.overLimit, words: one(reach.overLimit, "is past what the number may start today", "are past what the number may start today"), tone: "warn", door: null },
+  ];
+  const lines = reasons
+    .map((r, rank) => ({ ...r, rank }))
+    .filter((r) => r.n > 0)
+    .sort((a, b) => b.n - a.n || a.rank - b.rank)
+    .map(({ n, words, tone, door }) => ({ n, words: `${n} ${words}`, tone, door }));
+  return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
+}
+
+/**
  * A playbook's run waiting on a person, as the sheet says it: the canvas's
  * "approving from the sofa". What it reaches, by the rules that made its list;
  * the words as the first person on it reads them; and what approving does,
@@ -367,7 +466,7 @@ export interface ApprovalVM {
  */
 export function toApprovalVM(
   d: {
-    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params">;
+    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params"> & { audience?: { reach?: RunReach } | null };
     recipients: readonly Pick<BroadcastRecipientDto, "name" | "first_name">[];
   },
   opts: {
@@ -412,6 +511,7 @@ export function toApprovalVM(
   return {
     will,
     rules,
+    of: reachLines(b.audience?.reach ?? null, opts.playbook),
     values,
     reader: reader ? reader.name : null,
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,

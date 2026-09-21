@@ -147,7 +147,8 @@ test("a due playbook runs: a scheduled broadcast for the people who said yes, it
   assert.equal(run.run_for, today, "the run is for the business's own day");
   assert.equal(run.state, "scheduled", "auto: sends now");
   assert.equal(run.name, `Win-back · ${today}`);
-  assert.deepEqual(run.audience, { kind: "playbook", id: "pb-a", label: "Win-back" });
+  // Who the moment named and why the rest were left out, stored with the run the sheet approves it from.
+  assert.deepEqual(run.audience, { kind: "playbook", id: "pb-a", label: "Win-back", reach: { pool: 3, will: 2, noNumber: 0, stopped: 0, noYes: 1, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 } });
   assert.equal(run.recipient_count, 2);
   assert.equal(run.created_by, "owner-1", "the sweep's run is the playbook's owner's");
   assert.deepEqual(w.tables.broadcast_recipients.map((r) => r.contact_id).sort(), ["c1", "c2"], "the one who said no to offers is not on it");
