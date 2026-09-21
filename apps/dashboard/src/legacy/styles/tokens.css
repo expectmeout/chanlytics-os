@@ -149,7 +149,10 @@
 
   --ink:       oklch(0.18 0.01 260);    /* primary text */
   --ink-muted: oklch(0.42 0.01 260);    /* secondary */
-  --ink-dim:   oklch(0.56 0.008 260);   /* tertiary, captions; 4.5:1 on --bg-raised */
+  /* tertiary, captions. 4.5:1 on every surface text sits on -- raised, bg, sunken, hover and active -- not only on
+     --bg-raised: a table's rows are --bg, its header --bg-sunken, and a hovered row --bg-hover, where 0.56 read 4.44,
+     4.25 and 4.11. 0.52 reads 4.63 at its lowest, on --bg-active. */
+  --ink-dim:   oklch(0.52 0.008 260);
   --ink-faint: oklch(0.72 0.005 260);   /* placeholder */
 
   --shadow-sm: 0 1px 2px 0 oklch(0.2 0.01 260 / 0.04);
@@ -181,7 +184,8 @@
 
   --ink:       oklch(0.96 0.004 80);
   --ink-muted: oklch(0.74 0.008 260);
-  --ink-dim:   oklch(0.60 0.008 260);
+  /* The same rule in the dark: 0.60 read 4.26 on a hovered row and 3.92 on --bg-active. 0.64 reads 4.61 there. */
+  --ink-dim:   oklch(0.64 0.008 260);
   --ink-faint: oklch(0.45 0.008 260);
 
   --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.3);
