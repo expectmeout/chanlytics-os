@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { splitQuotedReply, toInboxThreadVM } from "@chanlytics/contracts";
+import { splitQuotedReply, toInboxThreadVM, toConversationVM } from "@chanlytics/contracts";
 
 /* ------------------------- the words, and the chain ------------------------- */
 
@@ -100,4 +100,27 @@ test("an email's chain is split off; the same characters on WhatsApp are words",
   const chat = bubbleOf(threadOf("whatsapp", body));
   assert.equal(chat.body, body, "WhatsApp does not quote — every character is theirs");
   assert.equal(chat.quoted, undefined);
+});
+
+/* ----------------- and the Conversations row says the same words ----------------- */
+
+// Found on 21 September: the thread said "Got it, thanks!" and the Conversations list beside it previewed
+// "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM Melany's Beauty Salon < melanys-beauty-salon@mail…", because
+// toConversationVM read messageText() and never the split. Two view models, one fix.
+test("a Conversations row previews and is searched by what they wrote, not the chain they quoted", () => {
+  const body = "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM Foo <a@b.com> wrote: > testing back at you >";
+  const dto = {
+    id: "c1", state: "needs_human", paused_until: null, snooze_until: null, assignee_user_id: null, assignee_is_me: false,
+    last_wa_inbound_at: ago(30), last_message_at: ago(30),
+    contact: { id: "p1", display_name: "Ruben", wa_profile_name: null, phone_e164: "+16465550123", consent: "opted_in", dnc: false },
+    messages: [{ id: "m1", direction: "inbound", sender: "customer", type: "text", body, media: null, meta: null, status: "received", channel: "email", created_at: ago(30), channel_ts: ago(30) }],
+  };
+  const row = toConversationVM(dto, ZONE, NOW);
+  assert.equal(row.snippet, "Got it, thanks!", "REGRESSION: the list previewed the quoted chain");
+  assert.equal(row.summary.headline, "Got it, thanks!");
+  assert.equal(row.messages[0].text, "Got it, thanks!", "search reads their words, not ours quoted back");
+
+  // WhatsApp keeps every character, as it does in the thread.
+  const wa = toConversationVM({ ...dto, messages: [{ ...dto.messages[0], channel: "whatsapp" }] }, ZONE, NOW);
+  assert.equal(wa.snippet, body.slice(0, 110));
 });

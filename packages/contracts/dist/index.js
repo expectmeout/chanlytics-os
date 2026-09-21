@@ -1891,6 +1891,7 @@ function clipAtWord(text, max) {
 function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
+  const said = (m) => m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
     // The row's own channel, not an assumption. Every bubble on this surface
@@ -1900,7 +1901,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     // column since I1 (toInboxThreadVM); these two view models had drifted.
     channel: m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel),
     at: bubbleTime(messageAt(m), tz, now),
-    text: messageText(m),
+    text: said(m),
     ...mediaVM(m) ? { media: mediaVM(m) } : {},
     ...m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) } : {},
     ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
@@ -1937,11 +1938,11 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     outcome,
-    snippet: last ? messageText(last).slice(0, 110) : "",
+    snippet: last ? said(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
     ts: last ? new Date(messageAt(last)).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     summary: {
-      headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
+      headline: lastInbound ? said(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
         `${chat.length} message${chat.length === 1 ? "" : "s"}${callNotes ? ` \xB7 ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""}${dto.messages[0] ? ` \xB7 started ${shortTime(messageAt(dto.messages[0]), tz, now)}` : ""}`,
         lastWordLine(needsHuman, last, lastAuthor)
