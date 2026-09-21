@@ -58,10 +58,11 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 | `packages/contracts/src/prompt-blocks.ts` | The prompt view: `promptBlocks`, the composed prompt cut into the blocks that wrote it. Split out of `business-tab.ts` by the Phase 1 review. Pure. A fold's consequence is composed from it in the bridge (Task 3.1). |
 | `apps/dashboard/src/legacy/components/record-row.jsx` | `RecordRow`, `RecordSourceChip` — one row grammar. |
 | `apps/dashboard/src/legacy/components/record-field.jsx` | `RecordField`, `RecordSwitch`, `RecordToggleGroup`, `RecordCombobox`. |
-| `apps/dashboard/src/legacy/components/record-fold.jsx` | `RecordFold` + the one-open-at-a-time registry. |
+| `apps/dashboard/src/legacy/components/record-fold.jsx` | `RecordFold`, `RecordInline` (lifted from the page in Task 3.2's review) + the one-open-at-a-time registry. |
 | `apps/dashboard/src/legacy/components/record-sheet.jsx` | `RecordSheet`. |
 | `apps/dashboard/src/legacy/styles/record.css` | The kit's styles. Nothing page-specific. |
 | `apps/dashboard/src/legacy/pages/business-tab.jsx` | The page: standing line and the four groups. |
+| `apps/dashboard/src/legacy/pages/business-tab-save.jsx` | What the page's saves write: the one saver, each row's check and patch, and each fold's helpers (Task 3.6). Split from the page in Task 3.2's review; loads before it. |
 | `apps/dashboard/src/legacy/pages/business-can.jsx` | The *What it can do* card and the prompt sheet. |
 | `tooling/scripts/tests/business-tab-vm.test.mjs` | The sentence tables, as pure functions. |
 | `tooling/scripts/tests/prompt-blocks.test.mjs` | The prompt view, whose words are in it, and the resolver's equivalence. |
@@ -1805,6 +1806,8 @@ git commit -am "The week has a shape"
 
 ### Task 3.4: *What you offer*, and the services sheet
 
+> **Noted 21 Sep, in Task 3.2's review.** `RecordSheet` holds four hooks and exists only while open, so on the tests' stub React it must be the page's last hook-holding child, or every row after it reads shifted cells. And the standing line's `services` door must open the services sheet, which the fold registry does not open.
+
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
 - Test: `tooling/scripts/tests/business-tab-page.test.mjs`
@@ -2037,6 +2040,8 @@ git commit -m "A save patches, and the test that proves it"
 ---
 
 ### Task 3.7: Swap the page in, delete the form, rewrite the seven tests
+
+> **Noted 21 Sep, in Task 3.2's review.** Add one nightly Playwright journey for the focus paths (a row opening and closing, "Keep editing", the standing line's door), which the stub cannot test because it never attaches refs. Both load lists already carry `pages/business-tab-save.jsx` and `pages/business-tab.jsx` (Task 3.2).
 
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/settings.jsx` — delete `BusinessEditor` (1013-1965) and `PromptPreview` (2190-2242); `PaneWorkspace` renders `window.BusinessTab`.
