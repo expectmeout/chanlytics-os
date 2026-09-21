@@ -1,4 +1,4 @@
-/* global React, Icon, ConfidenceDots, TlMedia, EmptyState, FailedRead, Confirm */
+/* global React, Icon, ConfidenceDots, TlMedia, EmptyState, FailedRead, Confirm, StatePill */
 // Inbox Thread Pane — perfectionist refinement.
 // New structure:
 //   1. Header (compact — name, channels, actions)
@@ -141,104 +141,132 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
       </div>
     )}
 
-    {thread.state === "snoozed" && (
+    {thread.state === "snoozed" && (thread.real ? (
+      // "Nothing happens until then" was false on a real thread: snooze
+      // deliberately does NOT mute the receptionist, so it keeps
+      // answering, and a new message from the customer reopens the
+      // conversation. Say what a snooze actually is — hidden, not
+      // paused — and, when the customer asked for a person, say that
+      // the request is still standing rather than letting the operator
+      // believe it was dealt with.
+      <IxState
+        testid="ix-snoozed"
+        pill={<StatePill kind="thread" value="snoozed" />}
+        meta={`back ${thread.wake || "tomorrow 10:00"}`}
+        says={<>Hidden from your queue. The receptionist still answers, and a new message brings it back.{thread.escalationId ? " They asked for a person — that's still waiting for you." : ""}</>}
+        acts={<button className="btn btn-ghost btn-sm" onClick={() => onWake(thread.id)} {...window.gate("approve", "wake a conversation")}>Wake now</button>}
+      />
+    ) : (
       <div className="ix-resolved">
         <Icon name="clock" size={13} />
-        {/* "Nothing happens until then" was false on a real thread: snooze
-            deliberately does NOT mute the receptionist, so it keeps
-            answering, and a new message from the customer reopens the
-            conversation. Say what a snooze actually is — hidden, not
-            paused — and, when the customer asked for a person, say that
-            the request is still standing rather than letting the operator
-            believe it was dealt with. */}
-        <span>
-          Snoozed — back <b>{thread.wake || "tomorrow 10:00"}</b>.
-          {thread.real
-            ? " Hidden from your queue; the receptionist still answers, and a new message brings it back."
-            : " Nothing happens until then."}
-          {thread.real && thread.escalationId ? " They asked for a person — that's still waiting for you." : ""}
-        </span>
+        <span>Snoozed — back <b>{thread.wake || "tomorrow 10:00"}</b>. Nothing happens until then.</span>
         <button className="cl-bucket-link" onClick={() => onWake(thread.id)} {...window.gate("approve", "wake a conversation")}>
           Wake now <Icon name="arrow-right" size={10} />
         </button>
       </div>
-    )}
+    ))}
 
-    {thread.state === "escalated" && !thread.takenOver && !thread.claimedByOther && (
-      <div className="ix-take">
-        {thread.real ? <span className="ix-status-dot" aria-hidden="true" /> : <Icon name="flag" size={13} />}
-        <div className="ix-take-body">
-          <div className="ix-take-title">
-            {thread.real ? <>Needs you{thread.waited ? <span className={`ix-take-wait${thread.waitingMin > 30 ? " late" : ""}`}>{` · waited ${thread.waited}`}</span> : ""}</> : "Escalated — needs a human voice"}
-          </div>
-          {/* The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason:
-              a held message was not "already answered", and a call back is not a reply. */}
-          <div className="ix-take-sub">{thread.real
-            ? <>{thread.summary}</>
-            : <>{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</>}</div>
-          {/* What they asked, beside the decision: their last message, or what the call left behind. */}
-          {thread.real && thread.ask && <IxAsk ask={thread.ask} />}
-        </div>
-        {/* The buttons beneath the words, wrapping: they shared the words' row, and at 1024 the words were 0px wide (I3). */}
-        <div className="ix-take-actions">
+    {thread.state === "escalated" && !thread.takenOver && !thread.claimedByOther && (thread.real ? (
+      <IxState
+        testid="ix-needs-you"
+        pill={<StatePill kind="thread" value="escalated" />}
+        // In the row's own words, and amber past half an hour as the row's pill is.
+        meta={thread.waited ? `waiting ${thread.waited}` : null}
+        late={thread.waitingMin > 30}
+        // The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason:
+        // a held message was not "already answered", and a call back is not a reply.
+        says={thread.summary}
+        // What they asked, beside the decision: their last message, or what the call left behind.
+        ask={thread.ask ? <IxAsk ask={thread.ask} /> : null}
+        acts={<>
           {ixDockDials(thread) ? (
-            <a className="btn btn-primary btn-sm" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
+            <a className="btn btn-sm ix-state-go" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
               <Icon name="phone" size={12} /> Call back
             </a>
           ) : (
-            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
-              {thread.real ? (thread.primaryChannel === "phone" ? "Call back" : "I'll answer this") : "I'll take this one"}
+            <button className="btn btn-sm ix-state-go" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
+              {thread.primaryChannel === "phone" ? <><Icon name="phone" size={12} /> Call back</> : "I'll answer this"}
             </button>
           )}
           {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
-          {thread.real && thread.escalationId && (
+          {thread.escalationId && (
             <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} aria-label="Nothing needed — hand it back to the receptionist" {...window.gate("approve", "hand a conversation back")}>
               Hand back
             </button>
           )}
+        </>}
+      />
+    ) : (
+      <div className="ix-take">
+        <Icon name="flag" size={13} />
+        <div className="ix-take-body">
+          <div className="ix-take-title">Escalated — needs a human voice</div>
+          <div className="ix-take-sub">{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</div>
+        </div>
+        {/* The buttons beneath the words, wrapping: they shared the words' row, and at 1024 the words were 0px wide (I3). */}
+        <div className="ix-take-actions">
+          <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
+            I'll take this one
+          </button>
         </div>
       </div>
-    )}
+    ))}
     {/* A teammate has it. Nothing to take and nothing to hand back: pressing
         "I'll answer this" took it from them without a word, and the hand-back
         resolved their request. A reply still claims it, so that is said first. */}
     {thread.real && thread.claimedByOther && (
-      <div className="ix-resolved" data-testid="ix-theirs">
-        <Icon name="users" size={13} />
-        <span><b>{window.ixAnswerer ? window.ixAnswerer(thread) : "A teammate"}</b> is answering this{thread.waited ? ` · waited ${thread.waited}` : ""}. The receptionist stays quiet until they hand it back. If you reply, the thread becomes yours.</span>
-      </div>
+      <IxState
+        testid="ix-theirs"
+        // The pill their row in the list wears, in the same words.
+        pill={<StatePill kind="thread" value="theirs" label={`${window.ixAnswerer ? window.ixAnswerer(thread) : "A teammate"} has it`} />}
+        meta={thread.waited ? `waiting ${thread.waited}` : null}
+        says="The receptionist stays quiet until they hand it back. If you reply, the thread becomes yours."
+      />
     )}
     {thread.real && thread.state === "done" && !thread.resolution && (thread.archived ? (
-      <div className="ix-resolved" data-testid="ix-archived">
-        <Icon name="check" size={13} />
-        <span>Archived — their request is closed. If they write again, it comes back.</span>
-      </div>
+      <IxState
+        testid="ix-archived"
+        pill={<StatePill kind="thread" value="archived" label="Archived" />}
+        says="Their request is closed. If they write again, it comes back."
+      />
     // A draft still waiting to go out is the thread's state, said by its bar: "They wrote last — no reply yet"
     // sat over "Auto-sends in 72s", one saying nothing was coming and the other that it was about to.
     ) : thread.lastWord && !thread.veto ? (
       // Who had the last word, and whether a reply didn't send (the view model's lastWord). Every quiet thread
       // read "Answered by the receptionist — no one asked for you", over a reply that never left (I1).
-      <div className={`ix-resolved${thread.lastWord.tone === "ok" ? "" : ` ${thread.lastWord.tone}`}`} data-testid="ix-last-word">
-        <Icon name={thread.lastWord.tone === "ok" ? "check" : thread.lastWord.tone === "plain" ? "chat" : "flag"} size={13} />
-        <span>{thread.lastWord.text}</span>
-      </div>
+      // A reply that didn't send wears the row's own pill ("Didn't send"); a quiet thread is its one quiet sentence.
+      <IxState
+        testid="ix-last-word"
+        tone={thread.lastWord.tone === "ok" ? null : thread.lastWord.tone}
+        pill={thread.lastWord.short ? <StatePill kind="tone" value={thread.lastWord.tone} label={thread.lastWord.short} /> : null}
+        says={thread.lastWord.text}
+      />
     ) : null)}
-    {thread.takenOver && (
+    {thread.takenOver && (thread.real ? (
+      <IxState
+        testid="ix-yours"
+        pill={<StatePill kind="thread" value="yours" label="You have it" />}
+        // The reason it was flagged is said here, once: "Where this stands" said it below (I1).
+        says={<>The receptionist stays quiet while you have it.{thread.escalationId && thread.summary ? <> {thread.summary}</> : null}</>}
+        // What they asked, where you answer it: it was only in the timeline (I3).
+        ask={thread.ask ? <IxAsk ask={thread.ask} /> : null}
+        acts={
+          <button className="btn btn-ghost btn-sm" onClick={() => onHandBack(thread.id)} aria-label={`Hand back to ${thread.agent.name}`} {...window.gate("approve", "hand a conversation back")}>
+            Hand back
+          </button>
+        }
+      />
+    ) : (
       <div className="ix-resolved ix-owned">
         <Icon name="users" size={13} />
         <div className="ix-take-body">
-          {/* On a real thread the reason it was flagged is said here, once: "Where this stands" said it below (I1). */}
-          <span>{thread.real
-            ? <>You own this thread — the receptionist stays quiet while you have it.{thread.escalationId && thread.summary ? <> {thread.summary}</> : null}</>
-            : "You own this thread — agents are standing down. Reply below in your own voice."}</span>
-          {/* What they asked, where you answer it: it was only in the timeline (I3). */}
-          {thread.real && thread.ask ? <IxAsk ask={thread.ask} /> : null}
+          <span>You own this thread — agents are standing down. Reply below in your own voice.</span>
         </div>
         <button className="cl-bucket-link" onClick={() => onHandBack(thread.id)} {...window.gate("approve", "hand a conversation back")}>
           Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
         </button>
       </div>
-    )}
+    ))}
     {/* The same trap the composer already documents: in the mockup "done"
         means decided, nothing left to do. On a REAL thread "handled" is the
         normal resting state — the receptionist answered and nothing
@@ -255,6 +283,26 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
     )}
   </>
 );
+
+// The state a real thread is in, said one way whatever the state: the pill its row in the list wears (StatePill -- one
+// vocabulary for both), a quiet word beside it, one sentence, and what you can do about it. It was a dot and a bold
+// title here, an icon and a bold name inside a sentence there, a white slab of a button beside a link with an arrow:
+// six looks for one line of a thread.
+const IxState = ({ pill = null, meta = null, late = false, says = null, ask = null, acts = null, tone = null, testid = null }) => {
+  const bare = !pill && !meta && !acts;
+  return (
+    <div className={`ix-state${tone ? ` ${tone}` : ""}${bare ? " bare" : ""}`} data-testid={testid || undefined}>
+      {(pill || meta) && (
+        <div className="ix-state-head">
+          {pill}
+          {meta && <span className={`ix-state-meta tabular${late ? " late" : ""}`}>{meta}</span>}
+        </div>
+      )}
+      {acts && <div className="ix-state-acts">{acts}</div>}
+      {(says || ask) && <div className="ix-state-says">{says}{ask}</div>}
+    </div>
+  );
+};
 
 // The customer's own words beside a decision about them: what they last wrote, or what the call left.
 const IxAsk = ({ ask }) => (
@@ -273,6 +321,16 @@ const ixDownload = (href) => {
   a.click();
   a.remove();
 };
+
+// The line under the name says the wires the conversation is on, once: "WhatsApp", "Phone · WhatsApp". It spent itself
+// on "+1 (917) 555-0114" and "no name saved" -- the number is on their profile, one tap away in the menu.
+const ixWires = (thread, labels) => {
+  const ws = (thread.channels && thread.channels.length ? thread.channels : [thread.primaryChannel]).filter(Boolean);
+  return [...new Set(ws.map((c) => labels[c] || c))].join(" · ");
+};
+
+// A menu's groups, a divider between each two that have anything in them.
+const ixMenu = (groups) => groups.filter((g) => g.length).flatMap((g, i) => (i ? [{ divider: true }, ...g] : g));
 
 // =============== HEADER ===============
 const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
@@ -309,7 +367,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
               );
             })()}
           </div>
-          <div className="ix-th-meta">{thread.whoMeta}</div>
+          <div className="ix-th-meta">{thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta}</div>
         </div>
       </div>
       <div className="ix-th-actions">
@@ -335,30 +393,35 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             <Icon name="phone" size={12} /> Call back
           </a>
         )}
-        <MoreMenu btnClass="btn btn-icon btn-sm" items={[
-          { header: "Conversation" },
-          // clientId is the contact behind the thread, so the item only renders
-          // when there is actually somewhere to go (a phone-only caller has none).
-          ...(thread.clientId ? [{ label: "Open profile", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
-          // On a real thread "Mark as unread" flipped a local flag the next
-          // realtime reseed wiped, and "Block sender" opened the Ask overlay,
-          // a no-op outside a demo: both promised something that did not
-          // happen. The real way to stop the receptionist for one person is
-          // the mode on their profile, so that is where a real session goes.
-          ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
-          // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
-          ...(snoozed ? [] : [{ label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") }]),
-          // Archive, for the thread in front of you: it lived only in the bulk bar, behind a checkbox a phone never shows.
-          ...(onArchive && !thread.archived ? [{ label: "Archive", icon: "check", onClick: onArchive, gate: window.gate("approve", "archive a conversation") }] : []),
-          // The transcript as a file, from the route that writes it. It was a button in Conversations' header only, so the
-          // thread had it in one tab and not the other.
-          ...(thread.real && thread.conversationId && window.__href ? [{ label: "Export", icon: "external", onClick: () => ixDownload(window.__href("GET conversations/[id]/export", { id: thread.conversationId })) }] : []),
-          ...(window.__DEMO_MODE
-            ? [{ divider: true }, { label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }]
-            : thread.clientId
-              ? [{ divider: true }, { label: "Receptionist for this person…", icon: "shield", onClick: () => onOpenClient(thread.clientId) }]
-              : []),
-        ]} />
+        {/* A quiet icon, not a boxed button: lit only while its menu is open. The menu says what to do with the
+            conversation, then with the person, then the file -- no eyebrow: the menu is the thread's. "Conversation"
+            headed a list of five in capitals, and "Receptionist for this person…" broke onto two lines. */}
+        <MoreMenu btnClass="btn btn-ghost btn-icon btn-sm ix-th-more" items={ixMenu([
+          [
+            // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
+            ...(snoozed ? [] : [{ label: "Snooze", hint: "until tomorrow 10:00", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") }]),
+            // Archive, for the thread in front of you: it lived only in the bulk bar, behind a checkbox a phone never shows.
+            ...(onArchive && !thread.archived ? [{ label: "Archive", icon: "check", onClick: onArchive, gate: window.gate("approve", "archive a conversation") }] : []),
+            // On a real thread "Mark as unread" flipped a local flag the next
+            // realtime reseed wiped, and "Block sender" opened the Ask overlay,
+            // a no-op outside a demo: both promised something that did not
+            // happen. The real way to stop the receptionist for one person is
+            // the mode on their profile, so that is where a real session goes.
+            ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
+          ],
+          [
+            // clientId is the contact behind the thread, so these only render
+            // when there is actually somewhere to go (a phone-only caller has none).
+            ...(thread.clientId ? [{ label: "Open profile", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
+            ...(!window.__DEMO_MODE && thread.clientId ? [{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }] : []),
+          ],
+          [
+            // The transcript as a file, from the route that writes it. It was a button in Conversations' header only, so the
+            // thread had it in one tab and not the other.
+            ...(thread.real && thread.conversationId && window.__href ? [{ label: "Export transcript", icon: "external", onClick: () => ixDownload(window.__href("GET conversations/[id]/export", { id: thread.conversationId })) }] : []),
+          ],
+          window.__DEMO_MODE ? [{ label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }] : [],
+        ])} />
       </div>
     </header>
   );

@@ -44,9 +44,9 @@ test("the thread menu on a real workspace offers only verbs that act", () => {
   assert.ok(page.includes('...(window.__DEMO_MODE ? [{ label: "Mark as unread"'), "Mark as unread is demo-only until unread state exists");
   assert.ok(page.includes('{ label: "Block sender", icon: "x", danger: true'), "the demo keeps its item");
   const block = page.indexOf('{ label: "Block sender"');
-  const gate = page.lastIndexOf("...(window.__DEMO_MODE", block);
+  const gate = page.lastIndexOf("window.__DEMO_MODE", block);
   assert.ok(gate > 0 && block - gate < 120, "Block sender is behind the demo gate");
-  assert.ok(page.includes('{ label: "Receptionist for this person…", icon: "shield", onClick: () => onOpenClient(thread.clientId) }'), "a real session is sent to the per-person mode instead");
+  assert.ok(page.includes('{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }'), "a real session is sent to the per-person mode instead");
 });
 
 test("no diagnostics page in production, and the unloaded mockup files are gone", () => {

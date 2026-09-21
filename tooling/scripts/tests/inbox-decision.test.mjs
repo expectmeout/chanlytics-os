@@ -168,7 +168,8 @@ test("the pane: a teammate's thread names who is answering, and offers no take-o
   const tree = paneOf(toInboxThreadVM(conv({ assignee_user_id: ANA, assignee_is_me: false }), asked(), ZONE, NOW));
   const banner = find(tree, byTestId("ix-theirs"));
   assert.ok(banner, "the claim is said where the take banner was");
-  assert.match(textOf(banner), /Ana García is answering this/);
+  // The pill their row in the list wears, in the same words: "Ana García is answering this" was a sentence of its own.
+  assert.match(textOf(banner), /Ana García has it/);
   assert.match(textOf(banner), /If you reply, the thread becomes yours\./, "a reply claims it, so the page says so before it happens");
   const buttons = buttonsOf(tree);
   assert.ok(!buttons.some((b) => b.includes("I'll answer this")), "REGRESSION: 'I'll answer this' took it from them without a word");
@@ -178,14 +179,14 @@ test("the pane: a teammate's thread names who is answering, and offers no take-o
 });
 
 test("the pane: beside I'll answer this, the customer's own words -- what they wrote, or what the call left", () => {
-  const take = find(paneOf(toInboxThreadVM(conv(), asked(), ZONE, NOW)), hasClass("ix-take"));
+  const take = find(paneOf(toInboxThreadVM(conv(), asked(), ZONE, NOW)), byTestId("ix-needs-you"));
   assert.ok(take, "the take banner");
   const words = find(take, byTestId("ix-take-ask"));
   assert.ok(words, "REGRESSION: only the reason's sentence sat beside the decision");
   assert.equal(textOf(words), "They wrote“Can I move my appointment to Friday?”");
   assert.ok(buttonsOf(take).some((b) => b.includes("I'll answer this")), "the decision is still there to make");
 
-  const callTake = find(paneOf(toInboxThreadVM(conv({ last_wa_inbound_at: null, messages: [callNote] }), callback, ZONE, NOW)), hasClass("ix-take"));
+  const callTake = find(paneOf(toInboxThreadVM(conv({ last_wa_inbound_at: null, messages: [callNote] }), callback, ZONE, NOW)), byTestId("ix-needs-you"));
   assert.equal(textOf(find(callTake, byTestId("ix-take-ask"))), "From the callCall Rosa back to confirm the bridal trial on Oct 3", "REGRESSION: the call back promised the details and showed none");
 });
 
