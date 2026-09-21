@@ -26,6 +26,7 @@ export * from "./broadcasts";
 export * from "./templates";
 export * from "./playbooks";
 export * from "./template-library";
+export * from "./template-languages";
 export * from "./refusal";
 export * from "./clock";
 export * from "./campaign-report";

@@ -366,6 +366,40 @@ test("a draft is judged in the body's words before the assistant is asked; the s
   await refused(sync.POST.run(send("POST", undefined, inB), ctxFor(tables)), "upstream_meta", 502, "Syncing only works on the production dashboard.");
 });
 
+test("a message written in one more language: judged against what the workspace has before the assistant is asked, and refused where it could not be sent as the same message", async () => {
+  const body = "Hi {{1}}, 20% off any service this week.";
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [
+      tpl(T1, B, { name: "offer", language: "en_US", category: "MARKETING", body_preview: body, variables: [{ position: 1, label: "First name", example: "Dani" }], components: [{ type: "BODY", text: body }] }),
+      tpl(T2, B, { name: "offer", language: "es", category: "MARKETING", body_preview: "Hola {{1}}, 20% en todo esta semana." }),
+      tpl(T3, B, { name: "fall_news", category: "MARKETING", components: [{ type: "HEADER", format: "TEXT", text: "Fall news" }, { type: "BODY", text: "See you at {{1}}" }] }),
+      tpl(T4, A, { name: "theirs" }),
+      tpl(T9, B, { name: "unread_words", body_preview: null }),
+    ],
+  };
+  const ask = (b, q = inB) => draft.POST.run(send("POST", b, q), ctxFor(tables));
+  // Nothing on file to write it from: said, rather than the assistant asked to translate nothing.
+  await refused(ask({ language: "fr", translate: { id: T9 } }), "validation", 400, "Its words are not on file here yet.");
+  // Who may: an operator of THIS workspace, as for any draft.
+  await refused(ask({ language: "fr", translate: { id: T1 } }, inA), "forbidden", 403);
+  // What it is written from, said once, and a language WhatsApp takes.
+  await refused(ask({ language: "fr", translate: {} }), "validation", 400, "Say which template to write in another language.");
+  await refused(ask({ language: "fr", translate: { id: T1, starter: "winback_offer" } }), "validation", 400, "Say which template to write in another language.");
+  await refused(ask({ translate: { id: T1 } }), "validation", 400, "Pick a language from the list.");
+  await refused(ask({ language: "tlh", translate: { id: T1 } }), "validation", 400, "Pick a language from the list.");
+  // Another workspace's message is not this one's to write.
+  await refused(ask({ language: "fr", translate: { id: T4 } }), "not_found", 404, "That template is not on file here.");
+  // A language the message already has is not one more.
+  await refused(ask({ language: "es", translate: { id: T1 } }), "conflict", 409, "It is on file in Spanish already.");
+  await refused(ask({ language: "en_US", translate: { id: T1 } }), "conflict", 409, "It is written in English (US) already.");
+  // A heading would not come with it -- the same name, a different message.
+  await refused(ask({ language: "fr", translate: { id: T3 } }), "validation", 400, "it has a heading");
+  // The library's own Spanish is added as it is, never paid for twice.
+  await refused(ask({ language: "es", translate: { starter: "winback_offer" } }), "validation", 400, "add it as it is");
+  await refused(ask({ language: "fr", translate: { starter: "nope" } }), "not_found", 404, "That starter is not in the library.");
+});
+
 test("playbooks: the workspace's with their runs' numbers and the business's clock; a new one is checked the way a broadcast is and started on the ledger", async () => {
   const tables = {
     memberships: both("viewer", "operator"),

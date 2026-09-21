@@ -123,7 +123,8 @@ test("the door: idempotent, one language at a time, synced in when the number's 
 
 test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {
   const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
-  for (const id of ["starters", "starter-add", "starter-add-all", "template-lang", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  for (const id of ["starters", "starter-add", "starter-add-all", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  assert.ok(s.includes('testid="template-lang"'), "one language control per message, the picker's");
   assert.ok(s.includes('data-testid={g.starter ? "starter-row" : "custom-row"}'), "one card per message: the starters, then what the workspace wrote");
   assert.ok(s.includes('const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"), "Meta's sample is never shown");
   assert.ok(s.includes("<window.MessagePreview") && s.includes("header={row ? row.header : null}") && s.includes("buttons={row ? row.buttons : null}"), "the card is the WHOLE message as the customer sees it: its heading and its buttons too");

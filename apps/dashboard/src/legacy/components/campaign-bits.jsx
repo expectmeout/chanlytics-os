@@ -77,6 +77,273 @@ const CmLangGlyph = ({ status = null, size = 12 }) => {
   );
 };
 
+/* ---- The language picker ------------------------------------------------------
+   A message is one thing in every language it has, so it has ONE language
+   control: a chip that says the language in view and opens every language
+   there is -- the ones WhatsApp holds, with their state; the ones the starter
+   library has written; and every other language WhatsApp takes -- found by
+   typing a name in English or in its own words, a place, or a code. It was a
+   slot per language on every row, "EN ES" down a page of sixteen messages, and
+   a language nobody had written could not be reached from it at all. */
+
+// Under a thumb the list is a sheet from the foot of the screen: the width at
+// which mobile.css makes the shell a phone.
+const LP_SHEET = "(max-width: 720px)";
+const lpSheet = () => { try { return !!(window.matchMedia && window.matchMedia(LP_SHEET).matches); } catch (e) { return false; } };
+// The contracts' search (findLanguages): a code, an English name, the language's
+// own name, a place. Without the library read, a plain match on the words.
+const lpFind = (q, list) => (window.__starters && window.__starters.findLanguages
+  ? window.__starters.findLanguages(q, list)
+  : list.filter((c) => !q.trim() || String(c.label).toLowerCase().includes(q.trim().toLowerCase())));
+// What stands at the right of a language: its state at WhatsApp in the app's one
+// vocabulary (tone.ts, through the chrome bridge), else its own name when that
+// is not its English one -- "Deutsch" beside German, nothing beside English.
+const lpSaid = (status) => (status && window.__chrome && window.__chrome.state ? window.__chrome.state("template", status).label : null);
+const lpHint = (c) => (c.hint !== undefined ? c.hint : c.status ? lpSaid(c.status) : c.native && c.native !== c.name ? c.native : null);
+const lpTone = (status) => {
+  if (status === undefined) return undefined;
+  const said = status && window.__chrome && window.__chrome.state ? window.__chrome.state("template", status) : null;
+  return said ? said.tone : "none";
+};
+const lpPortal = (node) => (window.ReactDOM && window.ReactDOM.createPortal && document.body ? window.ReactDOM.createPortal(node, document.body) : node);
+let lpSeq = 0;
+
+/**
+ * value     the language in view: "en_US"
+ * choices   [{ id, label, name, native, group?, status? }] -- contracts messageLanguageChoices, or any list of languages
+ * groups    the headings by group ({ on: "On WhatsApp", ... }); a group with none has none
+ * onPick    (id, choice) when a language is chosen
+ * status    the glyph for the language in view: a status, null for "not on WhatsApp", undefined for no glyph
+ * tag       the chip's letters: "EN"
+ * more      how many more languages the message has, said "+1" beside the letters
+ * display   "tag" (the letters) or "label" (the words, with a globe: a form's field)
+ * label     what the control is for, for a screen reader: "Language for Win-back"
+ * search    whether to offer the search box; by default when there are more than seven
+ * note      one line under the list: why something is not offered
+ * size      "md", or "sm" for a chip inside a chip
+ */
+const LanguagePicker = ({ value, choices = [], groups = {}, onPick, status, tag = null, more = 0, display = "tag", label = "Language", search = null, note = null, size = "md", disabled = false, testid = null }) => {
+  const [open, setOpen] = React.useState(false);
+  const [typed, setQ] = React.useState("");
+  // Always words: the node tests' stub React keys hooks by one global order, so a
+  // draw that opens a row above this one can hand this cell a neighbour's value.
+  const q = typeof typed === "string" ? typed : "";
+  const [active, setActive] = React.useState(0);
+  const [pos, setPos] = React.useState(null);
+  const trigger = React.useRef(null);
+  const pop = React.useRef(null);
+  const input = React.useRef(null);
+  const list = React.useRef(null);
+  const uid = React.useRef(null);
+  if (uid.current === null) uid.current = `lp${++lpSeq}`;
+  const searching = search === null ? choices.length > 7 : !!search;
+  // What the search finds, kept in its groups: a match's rank decides its place
+  // WITHIN a group, and the groups keep their order, so a heading never repeats.
+  const order = [...new Set(choices.map((c) => c.group || ""))];
+  const found = searching && q.trim() ? lpFind(q, choices) : choices;
+  const rank = new Map(found.map((c, i) => [c.id, i]));
+  const shown = found.slice().sort((a, b) => order.indexOf(a.group || "") - order.indexOf(b.group || "") || rank.get(a.id) - rank.get(b.id));
+  const current = choices.find((c) => c.id === value) || null;
+  const words = display === "label" ? (current ? current.label : value) : (tag || String(value || "").slice(0, 2).toUpperCase());
+
+  const close = (back) => {
+    setOpen(false);
+    setQ("");
+    setPos(null);
+    if (back && trigger.current && trigger.current.focus) trigger.current.focus();
+  };
+  const choose = (c) => {
+    if (!c) return;
+    close(true);
+    if (onPick) onPick(c.id, c);
+  };
+  // Where the list goes: under its chip, or over it when the room is above; a
+  // sheet under a thumb. Measured as it opens, so its first frame is already in
+  // place -- a list drawn hidden until an effect placed it could not take the
+  // focus the search box needs, and the first keys typed went nowhere.
+  const measure = () => {
+    if (lpSheet()) return { sheet: true };
+    const t = trigger.current;
+    if (!t || !t.getBoundingClientRect) return null;
+    const r = t.getBoundingClientRect();
+    const vw = window.innerWidth || 1024;
+    const vh = window.innerHeight || 768;
+    const width = Math.min(size === "sm" ? 256 : 304, vw - 16);
+    const left = Math.max(8, Math.min(display === "label" ? r.left : r.left - 6, vw - width - 8));
+    const below = vh - r.bottom - 16;
+    const above = r.top - 16;
+    const up = below < 260 && above > below;
+    const maxHeight = Math.max(180, Math.min(420, up ? above : below));
+    return up ? { left, width, maxHeight, bottom: vh - r.top + 6 } : { left, width, maxHeight, top: r.bottom + 6 };
+  };
+  const toggle = () => {
+    if (disabled) return;
+    if (open) { close(false); return; }
+    setQ("");
+    setActive(Math.max(0, choices.findIndex((c) => c.id === value)));
+    setPos(measure());
+    setOpen(true);
+  };
+
+  // Open: kept in place while anything scrolls or the window changes, closed by
+  // a press anywhere else -- a listener on the document, because a backdrop
+  // cannot cover the page from inside a list that is its own container -- and
+  // the search box takes the keys at once, except under a thumb, where a
+  // keyboard over half the sheet is not what a tap asked for.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const sheet = lpSheet();
+    // Moved only when it moved: scrolling the list itself is not the page moving,
+    // and a scroll tick that changed nothing redraws nothing.
+    const same = (a, b) => !!(a && b) && ["left", "top", "bottom", "width", "maxHeight", "sheet"].every((k) => a[k] === b[k]);
+    const place = () => { const at = measure(); if (at) setPos((was) => (same(was, at) ? was : at)); };
+    const onScroll = (e) => { if (pop.current && pop.current.contains && pop.current.contains(e.target)) return; place(); };
+    const onDown = (e) => {
+      const within = (el) => !!(el && el.contains && el.contains(e.target));
+      if (!within(pop.current) && !within(trigger.current)) close(false);
+    };
+    // Esc closes it wherever the focus went; inside the list the list's own keys take it first.
+    const onEsc = (e) => { if (e.key === "Escape") close(true); };
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("keydown", onEsc);
+    document.addEventListener("pointerdown", onDown, true);
+    const focus = () => {
+      const el = searching && !sheet ? input.current : list.current;
+      if (el && el.focus) el.focus({ preventScroll: true });
+    };
+    if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(focus); else focus();
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("keydown", onEsc);
+      document.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [open, display, searching, size]); // eslint-disable-line react-hooks/exhaustive-deps -- measure is this draw's; the listeners live while it is open
+
+  // The option the keys are on stays in sight as the arrows walk the list.
+  React.useEffect(() => {
+    if (!open || !document.getElementById) return;
+    const el = document.getElementById(`${uid.current}-o${active}`);
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+  }, [open, active, q]);
+
+  const onKey = (e) => {
+    const last = shown.length - 1;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, last)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+    else if (e.key === "PageDown") { e.preventDefault(); setActive((a) => Math.min(a + 8, last)); }
+    else if (e.key === "PageUp") { e.preventDefault(); setActive((a) => Math.max(a - 8, 0)); }
+    else if ((e.key === "Home" || e.key === "End") && e.target !== input.current) { e.preventDefault(); setActive(e.key === "Home" ? 0 : last); }
+    else if (e.key === "Enter") { e.preventDefault(); choose(shown[Math.min(active, last)]); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
+    else if (e.key === "Tab") close(false);
+  };
+
+  const sections = [];
+  shown.forEach((c, i) => {
+    const g = c.group || "";
+    const at = sections[sections.length - 1];
+    if (at && at.group === g) at.items.push({ c, i });
+    else sections.push({ group: g, items: [{ c, i }] });
+  });
+  const optId = (i) => `${uid.current}-o${i}`;
+  const onActive = shown[Math.min(active, shown.length - 1)] ? optId(Math.min(active, shown.length - 1)) : undefined;
+  const sheet = !!(pos && pos.sheet);
+
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        className={`lp-trigger lp-${size}${display === "label" ? " lp-as-label" : ""}${open ? " is-open" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${label}: ${current ? current.label : words}${more > 0 ? `, and ${more} more` : ""}`}
+        disabled={disabled}
+        onClick={(e) => { if (e && e.stopPropagation) e.stopPropagation(); toggle(); }}
+        onKeyDown={(e) => { if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); toggle(); } }}
+        data-tone={lpTone(status)}
+        data-testid={testid || undefined}
+      >
+        {display === "label" ? <Icon name="globe" size={13} /> : status !== undefined ? <CmLangGlyph status={status} size={12} /> : null}
+        <span className="lp-words">{words}</span>
+        {more > 0 && <span className="lp-more" aria-hidden="true">+{more}</span>}
+        <span className="lp-caret" aria-hidden="true"><Icon name="chevron-down" size={10} /></span>
+      </button>
+      {open && lpPortal(
+        <>
+          {sheet && <div className="lp-backdrop" onClick={() => close(false)} aria-hidden="true" />}
+          <div
+            ref={pop}
+            className={`lp-pop lp-pop-${size}${sheet ? " is-sheet" : ""}`}
+            style={pos && !pos.sheet ? { left: pos.left, top: pos.top, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight } : undefined}
+            role="dialog"
+            aria-label={label}
+            tabIndex={-1}
+            onKeyDown={onKey}
+            data-testid={testid ? `${testid}-pop` : undefined}
+          >
+            {searching && (
+              <div className="lp-search">
+                <Icon name="search" size={14} />
+                <input
+                  ref={input}
+                  type="text"
+                  role="combobox"
+                  aria-expanded="true"
+                  aria-controls={`${uid.current}-list`}
+                  aria-autocomplete="list"
+                  aria-activedescendant={onActive}
+                  aria-label="Search languages"
+                  placeholder="Search languages"
+                  value={q}
+                  onChange={(e) => { setQ(e.target.value); setActive(0); }}
+                  spellCheck={false}
+                  autoComplete="off"
+                  data-testid={testid ? `${testid}-search` : undefined}
+                />
+                {q && <button type="button" className="lp-clear" aria-label="Clear the search" onClick={() => { setQ(""); setActive(0); if (input.current && input.current.focus) input.current.focus(); }}><Icon name="x" size={12} /></button>}
+              </div>
+            )}
+            <div ref={list} className="lp-list" id={`${uid.current}-list`} role="listbox" aria-label={label} aria-activedescendant={onActive} tabIndex={-1}>
+              {sections.map((sec) => (
+                <div className="lp-group" role="group" aria-label={groups[sec.group] || undefined} key={sec.group || "all"}>
+                  {groups[sec.group] && <div className="lp-group-head" aria-hidden="true">{groups[sec.group]}</div>}
+                  {sec.items.map(({ c, i }) => {
+                    const hint = lpHint(c);
+                    return (
+                      <div
+                        key={c.id}
+                        id={optId(i)}
+                        role="option"
+                        aria-selected={c.id === value}
+                        className={`lp-opt${i === active ? " is-active" : ""}${c.id === value ? " is-on" : ""}`}
+                        onMouseMove={() => { if (i !== active) setActive(i); }}
+                        onClick={() => choose(c)}
+                        data-lang={c.id}
+                        data-group={c.group || undefined}
+                        data-testid={testid ? `${testid}-option` : undefined}
+                      >
+                        <span className="lp-opt-mark" aria-hidden="true">{c.status !== undefined ? <CmLangGlyph status={c.status} size={12} /> : null}</span>
+                        <span className="lp-opt-label">{c.label}</span>
+                        {hint && <span className="lp-opt-hint" data-tone={c.status ? lpTone(c.status) : undefined}>{hint}</span>}
+                        <span className="lp-opt-check" aria-hidden="true">{c.id === value ? <Icon name="check" size={14} /> : null}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+              {shown.length === 0 && <div className="lp-empty" role="status">No language called “{q.trim()}”</div>}
+            </div>
+            {note && <p className="lp-note" data-testid={testid ? `${testid}-note` : undefined}>{note}</p>}
+          </div>
+        </>,
+      )}
+    </>
+  );
+};
+
 /**
  * Who a run will actually reach, with the subtractions named: the number that
  * gets it, out of how many, a bar of the two -- those it reaches, those held
@@ -126,4 +393,4 @@ const CmSpark = ({ values = [], label = null }) => {
   );
 };
 
-Object.assign(window, { CmHead, CmDot, CmFlag, CmBanner, CmLangGlyph, CmReach, CmSpark });
+Object.assign(window, { CmHead, CmDot, CmFlag, CmBanner, CmLangGlyph, LanguagePicker, CmReach, CmSpark });

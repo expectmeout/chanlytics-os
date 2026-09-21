@@ -215,6 +215,11 @@ test("A playbook is a card of the moment it does: its message and languages, who
   // Who it reaches, out of whom, and who it holds back -- named, not summed away.
   assert.ok(textOf(byTestId(winback, "pb-tile-reach")).includes("24of 36 who said yes"), textOf(byTestId(winback, "pb-tile-reach")));
   assert.ok(textOf(winback).includes("12 heard from a playbook this week"));
+  // The ONE language its runs go out in -- a run sends its language to everyone on
+  // it -- where the card drew every language the message has ("EN ES") and named a
+  // missing one as though it held somebody back.
+  assert.deepEqual(all(winback, (n) => n.props?.["data-testid"] === "pb-tile-lang").map((m) => textOf(m).trim()), ["EN"]);
+  assert.ok(!/never added/.test(textOf(winback)), "a language the message lacks holds nobody back from a run in another");
   assert.ok(textOf(winback).includes("Next run tomorrow 10:00") && textOf(winback).includes("18 runs"));
   assert.ok(String(byTestId(winback, "pb-tile-runs").props["data-tip"]).includes("198 sent, 180 delivered, 36 wrote back"), "what its runs earned is a hover away");
   // Paused counts nobody of its own: its moment's count is how many it is not reaching.

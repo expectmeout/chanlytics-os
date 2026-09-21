@@ -11,9 +11,16 @@
  * the server; a viewer's click returns the server's refusal.
  */
 import { api } from "./api";
-import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, groupTemplates, languageWords, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, sendableTemplates, templateFooter, templatePreview, templatePreviewValues, templateTitle } from "@chanlytics/contracts";
+import { LANGUAGE_GROUP_WORDS, PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, WHATSAPP_LANGUAGES, compareTemplates, defaultSlotKinds, defaultTemplate, findLanguages, groupTemplates, languageLabel, languageTag, languageWords, messageLanguageChoices, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, sendableTemplates, templateFooter, templatePreview, templatePreviewValues, templateTitle, templateUntranslatable } from "@chanlytics/contracts";
 
-export interface DraftBody { brief: string; category: "marketing" | "utility"; language: string }
+/**
+ * A draft from a brief, or a message the workspace has written again in
+ * another language: a row on file by its id, or a starter by its key and the
+ * library language to write it from.
+ */
+export type DraftBody =
+  | { brief: string; category: "marketing" | "utility"; language: string }
+  | { language: string; translate: { id: string } | { starter: string; from?: string } };
 export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[]; button?: { text: string; url: string } | null }
 export interface StarterBody { keys?: string[]; languages?: string[] }
 
@@ -75,6 +82,19 @@ export interface StarterLibrary {
   stillSends: typeof playbooksStillSending;
   /** A language code as a person reads it ("en_US" -> "English"): a send names the language it goes out in. */
   langWords: typeof languageWords;
+  /** The same with its place, as the picker lists it: "English (US)". */
+  langLabel: typeof languageLabel;
+  /** The chip's letters: "EN", or "EN-US" beside another English. */
+  langTag: typeof languageTag;
+  /** Every language WhatsApp takes a template in. */
+  allLanguages: typeof WHATSAPP_LANGUAGES;
+  /** The languages a search typed in English, in the language itself, or as a code finds, best first. */
+  findLanguages: typeof findLanguages;
+  /** What a message's language picker offers, and the headings it groups them under. */
+  languageChoices: typeof messageLanguageChoices;
+  languageGroups: typeof LANGUAGE_GROUP_WORDS;
+  /** Why Chanlytics cannot write a message in another language; null when it can. */
+  untranslatable: typeof templateUntranslatable;
   /** The line under a message's words: the one Meta holds, else the starter's own. */
   footer: typeof templateFooter;
   /** What a composer may offer, and one sentence for what it may not. */
@@ -111,6 +131,13 @@ export function installTemplates(): void {
     sources: PARAM_SOURCE_LABELS,
     stillSends: playbooksStillSending,
     langWords: languageWords,
+    langLabel: languageLabel,
+    langTag: languageTag,
+    allLanguages: WHATSAPP_LANGUAGES,
+    findLanguages,
+    languageChoices: messageLanguageChoices,
+    languageGroups: LANGUAGE_GROUP_WORDS,
+    untranslatable: templateUntranslatable,
     footer: templateFooter,
     sendable: sendableTemplates,
   };

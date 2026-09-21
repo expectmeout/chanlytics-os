@@ -108,7 +108,8 @@ const pbLangs = (p) => {
     return { id: l.id, label: l.label, status: r ? r.meta_status || "approved" : null };
   });
 };
-const pbShort = (id) => String(id || "").slice(0, 2).toUpperCase();
+const pbShort = (id) => (window.__starters && window.__starters.langTag ? window.__starters.langTag(id) : String(id || "").slice(0, 2).toUpperCase());
+const pbLabel = (id) => (window.__starters && window.__starters.langLabel ? window.__starters.langLabel(id) : pbLangWords(id));
 
 /**
  * A playbook, as the canvas draws it: what starts it and its state; the message
@@ -131,11 +132,14 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   // nobody of its own, so its moment's count says how many it is not reaching.
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
   const pool = Math.max(will, p.candidates + p.held, trig ? (trig.candidates || 0) + (trig.held || 0) : 0);
+  // The language its runs go out in: ONE, whatever others the message has -- a
+  // run sends `template_language` to everyone on it (run-playbook.ts), so a
+  // language the message lacks holds nobody back and is not a reason here.
+  const sends = langs.find((l) => l.id === p.template_language) || { id: p.template_language, label: pbLangWords(p.template_language), status: null };
   const reasons = [
     paused && { t: "paused — nothing goes out", tone: "warn" },
     !paused && p.held > 0 && { t: `${p.held} heard from a playbook this week`, tone: "warn" },
     !paused && !waiting && p.candidates > p.cap_per_run && { t: `up to ${p.cap_per_run} a run — the rest go next time`, tone: "plain" },
-    ...langs.filter((l) => !l.status).map((l) => ({ t: `${l.label} was never added`, tone: "plain" })),
   ].filter(Boolean);
   const hour = `${String(p.run_hour).padStart(2, "0")}:00`;
   const spark = (p.totals.history || PB_NONE).slice(0, 6).reverse().map((h) => h.sent || 0);
@@ -151,16 +155,16 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
       </button>
       {!open && (
         <>
-          {/* The message it sends, by the name WhatsApp knows it by, and the
-              languages it has -- what a customer in each language gets. */}
+          {/* The message it sends, by the name WhatsApp knows it by, and the one
+              language its runs go out in, its state drawn. It drew every language
+              the message has -- "EN ES" -- as if each customer got their own, and a
+              run sends one language to everyone on it. */}
           <div className="pb-tile-tpl">
             <span className="pb-tile-tpl-name mono">{p.template_name}</span>
-            {langs.map((l) => (
-              <span key={l.id} className="pb-tile-lang" title={`${l.label}${l.status ? "" : " — not on WhatsApp"}`}>
-                <window.CmLangGlyph status={l.status} size={11} />
-                <span>{pbShort(l.id)}</span>
-              </span>
-            ))}
+            <span className="pb-tile-lang" title={`Goes out in ${pbLabel(sends.id)}${sends.status ? "" : " — not on WhatsApp"}`} data-testid="pb-tile-lang">
+              <window.CmLangGlyph status={sends.status} size={11} />
+              <span>{pbShort(sends.id)}</span>
+            </span>
           </div>
           <window.CmReach will={will} pool={pool} of="who said yes" held={paused ? pool : p.held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
           <div className="pb-tile-foot">

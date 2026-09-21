@@ -1641,20 +1641,15 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .bc-chip:hover { color: var(--ink); border-color: var(--ink-faint); }
 .bc-chip.active { background: var(--bg-raised); color: var(--ink); border-color: var(--ink); }
 .bc-chip-count { font-size: 10px; color: var(--ink-dim); }
-/* ---- One chip per message, its languages inside it (components/template-chips.jsx) ----
+/* ---- One chip per message, its language inside it (components/template-chips.jsx) ----
    A chip was one ROW and its title took no language, so the starter set in two
    languages drew seven pairs of identical chips side by side. The chip is a span
-   now, holding the name and -- when the message exists in more than one language
-   -- a toggle: each button is its own tap target, so the coarse-pointer floor in
-   legacy.css gives each of them 44px and the chip is as tall as one of them, the
-   same height a chip has always been on a phone. */
-.tpl-chip { padding: 2px 4px 2px 10px; gap: 6px; }
+   now, holding the name and -- when the message is approved in more than one
+   language -- the language it would go in, which opens the others (.lp-sm).
+   Each is its own tap target, so the coarse-pointer floor in legacy.css gives
+   each 44px and the chip is as tall as one of them, as a chip has always been. */
+.tpl-chip { padding: 2px 3px 2px 10px; gap: 6px; }
 .tpl-chip-name { font: inherit; color: inherit; background: none; border: none; padding: 2px 0; cursor: pointer; }
-.tpl-chip-langs { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--radius-full); background: var(--bg); }
-.tpl-chip-lang { font-size: 10px; font-weight: var(--weight-medium); color: var(--ink-dim); background: none; border: none; border-radius: var(--radius-full); padding: 2px 8px; cursor: pointer; white-space: nowrap; }
-.tpl-chip-lang:hover { color: var(--ink); }
-.tpl-chip-lang.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
-.bc-chip.tpl-chip.active .tpl-chip-langs { background: var(--bg-sunken); }
 .bc-meta { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-dim); }
 .bc-meta .icon { color: var(--ink-faint); }
 .bc-actions { display: flex; align-items: center; gap: 6px; }
@@ -2742,7 +2737,8 @@ html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
 .msg-tag[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
 .msg-tag[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
 .msg-row-words { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.msg-row-langs { display: flex; align-items: center; gap: 4px; margin-left: -5px; }
+/* The language chip's glyph sits under the column's heading, its padding outside the column. */
+.msg-row-langs { display: flex; align-items: center; min-width: 0; margin-left: -8px; }
 .msg-row-use { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: var(--text-xs); }
 .msg-use-link { max-width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--ink); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-use-link:hover { text-decoration: underline; text-underline-offset: 2px; }
@@ -2765,22 +2761,95 @@ html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
    (the heading is aria-hidden) and a stacked row (the heading is gone). */
 .msg-row-sent-unit { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .msg-row-sent-dot { display: none; }
-/* A language, as a slot: the glyph is that language's state and the two letters
-   are the language. Every colour is the one the state vocabulary gives it
-   (tone.ts), so a template in review is the same blue here as anywhere. The slot
-   in view is marked only while its message is open. */
-.msg-slot { display: inline-flex; align-items: center; gap: 5px; padding: 3px 5px; border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer; color: var(--ink-faint); }
-.msg-slot svg { width: 13px; height: 13px; }
-.msg-slot[data-tone="ok"] { color: var(--ok-ink); }
-.msg-slot[data-tone="info"] { color: var(--info-ink); }
-.msg-slot[data-tone="warn"] { color: var(--warn-ink); }
-.msg-slot[data-tone="danger"] { color: var(--danger-ink); }
-.msg-slot-k { font-size: var(--text-xs); color: var(--ink-dim); }
-.msg-slot:hover { background: var(--bg-active); }
-.msg-slot.on { background: var(--bg-active); }
-.msg-slot.on .msg-slot-k { color: var(--ink); font-weight: var(--weight-medium); }
+/* ---- The language picker (campaign-bits.jsx LanguagePicker) ----
+   One chip for a message's languages, where a slot per language stood: the
+   glyph is the state of the language in view, in the colour the vocabulary
+   gives it (tone.ts, .cm-lang-glyph), the letters are the language, "+1" says
+   the message has more, and a press opens every language there is. */
+.lp-trigger { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 5px 0 7px; border: 1px solid transparent; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-xs); color: var(--ink-dim); cursor: pointer; white-space: nowrap; transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out); }
+.lp-words { font-weight: var(--weight-medium); letter-spacing: .02em; color: var(--ink); }
+.lp-more { padding: 0 5px; border-radius: var(--radius-full); background: var(--bg-active); font-size: 10.5px; line-height: 16px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.lp-caret { display: inline-grid; place-items: center; width: 12px; color: var(--ink-faint); transition: transform var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
+.lp-trigger:hover:not(:disabled) { background: var(--bg-active); border-color: var(--line); }
+.lp-trigger:hover:not(:disabled) .lp-more { background: var(--bg-raised); }
+.lp-trigger:hover .lp-caret,
+.lp-trigger.is-open .lp-caret { color: var(--ink-dim); }
+.lp-trigger.is-open { background: var(--bg-active); border-color: var(--line-strong); }
+.lp-trigger.is-open .lp-caret { transform: rotate(180deg); }
+.lp-trigger:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.lp-trigger:disabled { cursor: default; opacity: .6; }
+/* In a form, the field says the language in words, drawn like the fields beside it. */
+.lp-trigger.lp-as-label { height: 30px; padding: 0 7px 0 9px; gap: 7px; border-color: var(--line-strong); background: var(--bg); font-size: 12.5px; }
+.lp-trigger.lp-as-label .lp-words { font-weight: var(--weight-regular); letter-spacing: 0; }
+.lp-trigger.lp-as-label .icon { color: var(--ink-dim); }
+/* Inside a template's chip: the letters on the chip's own pill. */
+.lp-trigger.lp-sm { height: 20px; padding: 0 3px 0 7px; gap: 3px; border-radius: var(--radius-full); background: var(--bg); font-size: 10.5px; }
+.lp-trigger.lp-sm .lp-caret { width: 10px; }
+.bc-chip.tpl-chip.active .lp-trigger.lp-sm { background: var(--bg-sunken); }
+
+/* The list, lifted off the page the way the action menu is: the search on top,
+   the groups under their headings, the one in view ticked. It lives on the
+   document's body, so no list it opens from can clip it. */
+.lp-pop { position: fixed; z-index: 260; display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 1px 2px oklch(0 0 0 / 0.08), 0 18px 44px -12px oklch(0 0 0 / 0.36); animation: more-in 140ms var(--ease-out); transform-origin: top left; }
+.lp-search { display: flex; align-items: center; gap: 8px; flex: none; height: 42px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--line); color: var(--ink-dim); }
+.lp-search input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: none; font: inherit; font-size: 13px; color: var(--ink); }
+.lp-search input::placeholder { color: var(--ink-dim); }
+.lp-clear { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-dim); cursor: pointer; }
+.lp-clear:hover { background: var(--bg-hover); color: var(--ink); }
+.lp-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; outline: none; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.lp-group + .lp-group { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--line); }
+.lp-group-head { padding: 6px 8px 4px; font-size: 11.5px; font-weight: var(--weight-medium); color: var(--ink-dim); }
+.lp-opt { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 14px; align-items: center; column-gap: 10px; min-height: 32px; padding: 4px 8px; border-radius: 8px; font-size: 13px; color: var(--ink); cursor: pointer; user-select: none; }
+.lp-opt.is-active { background: var(--bg-hover); }
+.lp-opt-mark,
+.lp-opt-check { display: grid; place-items: center; }
+.lp-opt-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-opt.is-on .lp-opt-label { font-weight: var(--weight-medium); }
+.lp-opt-hint { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.lp-opt-hint[data-tone="info"] { color: var(--info-ink); }
+.lp-opt-hint[data-tone="danger"] { color: var(--danger-ink); }
+.lp-opt-hint[data-tone="warn"] { color: var(--warn-ink); }
+.lp-opt-check { color: var(--ink); }
+.lp-empty { padding: 20px 12px; text-align: center; font-size: 12.5px; color: var(--ink-dim); }
+.lp-note { flex: none; margin: 0; padding: 9px 14px 11px; border-top: 1px solid var(--line); font-size: 11.5px; line-height: 1.45; color: var(--ink-dim); }
+/* Under a thumb: a sheet from the foot of the screen, with the page stepped back
+   behind it and every language at a finger's height. */
+.lp-backdrop { position: fixed; inset: 0; z-index: 259; background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); animation: lp-fade 180ms var(--ease-out); }
+.lp-pop.is-sheet { inset: auto 0 0 0; max-height: min(78vh, 640px); border-bottom: 0; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); animation: lp-sheet-in 220ms var(--ease-out); }
+.lp-pop.is-sheet::before { content: ""; flex: none; display: block; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: 999px; background: var(--line-strong); }
+.lp-pop.is-sheet .lp-search { height: 50px; margin: 0 8px; padding: 0 6px; }
+.lp-pop.is-sheet .lp-search input { font-size: 16px; }
+.lp-pop.is-sheet .lp-list { padding: 6px 10px 10px; }
+.lp-pop.is-sheet .lp-opt { min-height: 48px; padding: 0 12px; border-radius: 12px; font-size: 15px; }
+.lp-pop.is-sheet .lp-group-head { padding: 10px 12px 4px; font-size: 12.5px; }
+@keyframes lp-fade { from { opacity: 0; } }
+@keyframes lp-sheet-in { from { opacity: 0; transform: translateY(28px); } }
+@media (prefers-reduced-motion: reduce) {
+  .lp-pop, .lp-pop.is-sheet, .lp-backdrop { animation: none; }
+  .lp-caret, .lp-trigger { transition: none; }
+}
 /* A refusal is the row's own line, under it and in line with its words. */
 .msg-row > .bc-excl-hint { margin: 0 14px 10px 62px; }
+/* A language written in the row that opened it: the composer as a panel in the
+   fold, its fields beside the message as the customer will read it, and while
+   the assistant writes, the shape of the words rather than a spinner. */
+.msg-row-open .tpl-composer.is-translate { margin-top: 0; padding: 14px 16px 12px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); gap: 12px; }
+.tpl-composer.is-translate .ct-sec-head { flex-wrap: wrap; row-gap: 2px; }
+.tpl-composer.is-translate .ct-sec-title { display: inline-flex; align-items: center; gap: 7px; }
+.tpl-composer.is-translate .ct-sec-title .icon { color: var(--ink-dim); }
+.tpl-composer.is-translate .ct-sec-meta { flex: 1 1 100%; font-size: var(--text-xs); }
+.tpl-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 320px); column-gap: 20px; align-items: start; }
+.tpl-split .tpl-fields { margin: 0; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.tpl-split .bc-preview-wrap { margin: 0; }
+.tpl-split .mp-bubble { max-width: 100%; }
+.tpl-drafting { display: flex; flex-direction: column; gap: 9px; padding: 6px 0 10px; }
+.tpl-drafting-line { height: 11px; border-radius: 6px; background: linear-gradient(90deg, var(--bg-active) 0%, var(--bg-hover) 45%, var(--bg-active) 90%); background-size: 220% 100%; animation: tpl-shimmer 1.3s ease-in-out infinite; }
+.tpl-drafting-line.is-short { width: 58%; }
+@keyframes tpl-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@media (prefers-reduced-motion: reduce) { .tpl-drafting-line { animation: none; } }
+.tpl-retry { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.msg-new-sent { display: flex; align-items: center; gap: 7px; margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+.msg-new-sent .icon { color: var(--ok-ink); }
 /* The message itself, under the row it belongs to and in line with its words. */
 .msg-row-open { padding: 0 14px 14px 62px; display: flex; flex-direction: column; gap: 10px; }
 .msg-row-open .mp-frame { max-width: none; }
@@ -2810,7 +2879,7 @@ html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
   /* The title keeps its line; the name WhatsApp knows it by and a pill go under it. */
   .msg-row-titles { flex-wrap: wrap; row-gap: 2px; }
   .msg-row-title { flex: 1 1 100%; }
-  .msg-row-langs { margin-left: -5px; }
+  .msg-row-langs { margin-left: -8px; }
   .msg-row-sent { flex-direction: row; align-items: baseline; gap: 6px; text-align: left; }
   .msg-row-sent-unit { position: static; width: auto; height: auto; overflow: visible; clip-path: none; font-family: var(--font-sans); font-size: var(--text-xs); color: var(--ink-dim); }
   .msg-row-sent-dot { display: inline; color: var(--ink-faint); }
@@ -2818,6 +2887,9 @@ html.legacy-on .bc-report .bc-run-link { position: relative; min-height: 0; }
   .msg-row-sent-never { text-transform: none; }
   .msg-row-open { padding-left: 14px; }
   .msg-row > .bc-excl-hint { margin-left: 14px; }
+  /* The words over the message, not beside it. */
+  .tpl-split { grid-template-columns: minmax(0, 1fr); row-gap: 12px; }
+  .msg-row-open .tpl-composer.is-translate { padding: 12px; }
 }
 
 /* Under a thumb the quiet "No" beside a Confirm's button is 14px wide: the 44px floor gives it height, not width. */
