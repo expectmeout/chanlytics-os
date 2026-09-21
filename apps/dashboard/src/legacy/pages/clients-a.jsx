@@ -2077,7 +2077,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     setMapOpen(!!p.map);
     if (placeOf.current !== undefined) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
     placeTop.current = p.top || 0;
-    placeDue.current = { view: viewRoute, top: p.top || 0 };
+    placeDue.current = { view: viewRoute, top: p.top || 0, q: p.q || "", fresh: true };
   }, [viewRoute]); // eslint-disable-line react-hooks/exhaustive-deps
   // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
   React.useEffect(() => {
@@ -2087,15 +2087,21 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   }, [viewRoute, q, cursor, mapOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   if (onLeads && placeOf.current === viewRoute) placeNow.current = { view: viewRoute, place: { q, cursor, map: mapOpen } };
   // The list goes back to where it was once the rows on screen are this view's (the surface says which view it
-  // holds): scrolled any sooner, it would be the last view's rows that moved.
+  // holds) AND are the ones its own words leave. Scrolled before the view landed, it would be the last view's rows
+  // that moved. Scrolled on the draw that opens the view -- which still draws every row, the words being put back
+  // only on the next -- the browser re-anchored the list as the words shrank it: 500 became 122 on production.
+  // Words that are no longer the place's are the owner's, typed since: they have moved on, and nothing is put back.
   const viewLanded = onLeads && leads.route === viewRoute;
   React.useEffect(() => {
     const due = placeDue.current;
-    if (!onLeads || !due || due.view !== viewRoute || !viewLanded) return;
+    if (!onLeads || !due || due.view !== viewRoute) return;
+    if (q !== due.q) { if (!due.fresh) placeDue.current = null; due.fresh = false; return; }
+    due.fresh = false;
+    if (!viewLanded) return;
     placeDue.current = null;
     const sc = ldScroller(scrollRef.current);
     if (sc) sc.scrollTop = due.top;
-  }, [viewRoute, viewLanded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewRoute, viewLanded, q]); // eslint-disable-line react-hooks/exhaustive-deps
   // A Find half-written comes back with the page (ldFinderLoad, above), and is kept as it changes. The first pass
   // still holds the page's empty state, so it keeps nothing: it would clear the draft it is about to be given.
   const finderKept = React.useRef(false);
