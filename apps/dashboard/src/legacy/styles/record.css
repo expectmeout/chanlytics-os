@@ -24,11 +24,12 @@
 .rec-row-empty { color: var(--ink-faint); }
 /* A sentence under the value takes a line of its own. */
 .rec-row-hint { flex: 1 1 100%; font-size: var(--text-sm); color: var(--ink-dim); }
-/* Latent at rest, drawn on approach: in the tab order always, and full strength under the pointer or with focus. */
-.rec-row-act { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink-faint); border-radius: var(--radius-xs); transition: color var(--duration-fast) var(--ease-out); }
-.rec-row:hover .rec-row-act, .rec-row:focus-within .rec-row-act { color: var(--ink); font-weight: var(--weight-medium); }
-/* An act on an empty row is never hidden: there is no value to point at. */
-.rec-row[data-empty="true"] .rec-row-act { color: var(--ink-muted); }
+/* Latent at rest, drawn on approach: the spec's four controls at rest, and every other act drawn on hover or focus.
+   Hidden by opacity alone, never visibility or display, so each act stays in the tab order and :focus-within draws it. */
+.rec-row-act { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink); opacity: 0; border-radius: var(--radius-xs); transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
+/* Never hidden: the act on an empty row, since there is no value to point at. */
+.rec-row[data-empty="true"] .rec-row-act { opacity: 1; color: var(--ink-muted); }
+.rec-row:hover .rec-row-act, .rec-row:focus-within .rec-row-act { opacity: 1; color: var(--ink); font-weight: var(--weight-medium); }
 /* The chevron is the phone's; a desktop reads the act's words. */
 .rec-row-chev { display: none; }
 /* The hover wash reaches 12px past the row on each side and stops at the hairlines. A box-shadow spread reached as far
@@ -151,16 +152,22 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
   html.legacy-on .rec-tip::after { content: ""; position: absolute; inset: -8px; }
   html.legacy-on .rec-sheet-close { min-width: 44px; }
 }
+/* Nothing hovers under a finger, so every act is drawn: told by the input, not the width, because a touch screen
+   wider than a phone has no hover either. And no wash lingers on the row a finger last touched. */
+@media (hover: none), (pointer: coarse) {
+  .rec-row-act { opacity: 1; color: var(--ink-muted); }
+  .rec-row:hover::before { background: none; }
+}
 
 /* ---------- On a phone ---------- */
 @media (max-width: 760px) {
   .rec-card { --rec-gutter: 15px; padding: 15px var(--rec-gutter) 8px; }
-  /* No hover on a phone: the whole row is the act, and the chevron is always drawn. The act's own box stretches over
-     the row (its ::after), so it stays one button with one name; anything else in the row that can be pressed sits
-     above that. */
+  /* At a phone's width the whole row is the act, and its chevron is drawn, under a mouse too. The act's own box
+     stretches over the row (its ::after), so it stays one button with one name; anything else in the row that can be
+     pressed sits above that. */
   .rec-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 3px; min-height: 44px; }
   .rec-row-key, .rec-row-val { grid-column: 1; }
-  .rec-row-act { grid-column: 2; grid-row: 1 / span 2; color: var(--ink-muted); }
+  .rec-row-act { grid-column: 2; grid-row: 1 / span 2; opacity: 1; color: var(--ink-muted); }
   .rec-row-act::after { content: ""; position: absolute; inset: 0; }
   .rec-row-val :is(button, a, input, select, textarea, [tabindex]) { position: relative; z-index: 1; }
   .rec-row-act-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
