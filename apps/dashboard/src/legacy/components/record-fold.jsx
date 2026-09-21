@@ -28,15 +28,19 @@
 // opened it has gone; as it closes, focus that went with it comes back to that row's act (data-rec-act).
 //
 // window.__recordFolds is the rule that only one fold is open, and it is what the Settings rail asks before it
-// replaces a pane. A page asks it to open a fold with request(id, { dirty }), where `dirty` says whether that fold
-// holds unsaved changes once it is open. A clean fold gives way at once; a dirty one stays open and the registry
-// records { holding, wants } until one of three answers: discard() (throw its changes away and open the one asked
-// for), stay() (keep editing it), or close(id) from the holding fold itself (saved or cancelled; the one asked for
-// then opens). close(id) from a fold that is not the open one does nothing. subscribe(fn) hears every change. A page
-// reaches all of this through useRecordFold rather than by hand.
+// replaces a pane. A page asks it to open a fold with request(id), or request(id, { dirty }), where `dirty` says
+// whether that fold holds unsaved changes once it is open. Without one, the fold's own is used: useRecordFold binds
+// each fold's dirty test to its id as the fold mounts, so a fold opened from anywhere by its id alone (the Business
+// tab's standing line opens a row it names) is guarded exactly as its own act would have guarded it. A clean fold
+// gives way at once; a dirty one stays open and the registry records { holding, wants } until one of three answers:
+// discard() (throw its changes away and open the one asked for), stay() (keep editing it), or close(id) from the
+// holding fold itself (saved or cancelled; the one asked for then opens). close(id) from a fold that is not the open
+// one does nothing. subscribe(fn) hears every change. A page reaches all of this through useRecordFold rather than by
+// hand.
 // Three are not for pages: drawn(id) is RecordFold's own (it counts the folds with each id on the page, and when the
-// last one with the open id goes, the registry lets go); rebind(id, check) is useRecordFold's (a page drawn again
-// hands over its own dirty test); and reset() is for tests (it forgets what is open and asked).
+// last one with the open id goes, the registry lets go); bind(id, check) is useRecordFold's (a fold's dirty test, by
+// its id, for as long as the fold is on the page; a page drawn again hands over its own); and reset() is for tests (it
+// forgets what is open and asked).
 
 const { useRef: useFoldRef, useEffect: useFoldEffect, useState: useFoldState } = React;
 
@@ -49,11 +53,17 @@ const recFolds = (() => {
   // sees can be a new instance of the one that opened: StrictMode's check in development, a key change or a new
   // parent unmounts one and mounts the next in the same commit.
   const live = new Map();
+  // Each fold's own dirty test, by its id, from the moment its hook mounts until it goes (bind). A request that brings
+  // none uses it. Without it, a fold opened by its id alone held no test: the rail, another fold's act and the browser
+  // would each have thrown its changes away without asking.
+  const bound = new Map();
   // "Nothing open" is null, never merely falsy: a fold may be called 0 or "". A check that throws is taken as holding
   // changes: asking once too often loses nothing.
   const dirty = () => {
-    if (openId == null || typeof openDirty !== "function") return false;
-    try { return !!openDirty(); } catch { return true; }
+    if (openId == null) return false;
+    const check = typeof openDirty === "function" ? openDirty : bound.get(openId);
+    if (typeof check !== "function") return false;
+    try { return !!check(); } catch { return true; }
   };
   // The browser asks before the tab closes over a dirty fold. The listener is on only while a fold is open, as
   // BusinessEditor's was only while it held changes, and it asks the fold at the moment the tab closes.
@@ -76,7 +86,8 @@ const recFolds = (() => {
     open: () => openId,
     dirty,
     asking: () => (asked ? { holding: asked.holding, wants: asked.wants } : null),
-    request(id, { dirty: check } = {}) {
+    request(id, { dirty: given } = {}) {
+      const check = typeof given === "function" ? given : bound.get(id);
       if (id === openId) {
         if (typeof check === "function") openDirty = check;
         asked = null;
@@ -95,16 +106,25 @@ const recFolds = (() => {
       if (asked) become(asked.wants, asked.check);
       else become(null);
     },
-    // For tests: forget what is open and what is asked. The folds counted on the page stay counted; they are the page's.
+    // For tests: forget what is open and what is asked. The folds counted on the page stay counted, and their bound
+    // dirty tests stay bound; they are the page's.
     reset() { become(null); },
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
-    // useRecordFold's own, not a page's: the page holding fold `id` was drawn again as a new instance, and this is
-    // its dirty test now, whether the fold is open or waiting behind an ask to open. Nothing else moves, the ask
-    // included, and nobody is told: nothing anyone sees has changed.
-    rebind(id, check) {
-      if (typeof check !== "function") return;
+    // useRecordFold's own, not a page's: the fold `id` is on the page, and this is its dirty test, whether the fold is
+    // open, waiting behind an ask to open, or closed until something asks for it by its id. A page drawn again as a
+    // new instance hands over its own the same way. Nothing else moves, the ask included, and nobody is told: nothing
+    // anyone sees has changed. Call what this returns as the fold's page goes: its test is let go of wherever the
+    // registry still holds it, and a test bound since, by a new instance, is left in place.
+    bind(id, check) {
+      if (typeof check !== "function") return () => {};
+      bound.set(id, check);
       if (openId != null && id === openId) openDirty = check;
       if (asked && asked.wants === id) asked.check = check;
+      return () => {
+        if (bound.get(id) === check) bound.delete(id);
+        if (openDirty === check) openDirty = null;
+        if (asked && asked.check === check) asked.check = undefined;
+      };
     },
     // RecordFold's own, not a page's: a fold with this id is on the page; call what this returns when it goes. When
     // the last fold with the open id goes, the registry lets go of it, asked a moment later so a fold that comes
@@ -130,8 +150,9 @@ const recFolds = (() => {
 // Every section may draw that Confirm: `asking` is the registry's { holding, wants } only for the fold holding the
 // unsaved changes, where the prompt belongs, and null for every other, the fold asked for included. A section is
 // drawn again only when what it sees changes. `dirty` is the fold's unsaved-changes test, a boolean or a function,
-// read whenever the registry asks; a page drawn again as a new instance (a key change, a new parent) hands the
-// registry its own, and a pending ask stands.
+// read whenever the registry asks. It is bound to the fold's id as the hook mounts and let go of as it goes, so the
+// registry asks it however the fold was opened, by `request` here or by its id from anywhere else on the page; a page
+// drawn again as a new instance (a key change, a new parent) hands the registry its own, and a pending ask stands.
 const recSameAsk = (a, b) => (a ? a.holding : null) === (b ? b.holding : null) && (a ? a.wants : null) === (b ? b.wants : null);
 const useRecordFold = (id, { dirty = false } = {}) => {
   const read = () => {
@@ -143,10 +164,11 @@ const useRecordFold = (id, { dirty = false } = {}) => {
   dirtyNow.current = dirty;
   const holds = () => { const d = dirtyNow.current; return typeof d === "function" ? !!d() : !!d; };
   useFoldEffect(() => {
-    recFolds.rebind(id, holds);
+    const unbind = recFolds.bind(id, holds);
     const hear = () => setSeen((was) => { const now = read(); return was.open === now.open && recSameAsk(was.asking, now.asking) ? was : now; });
     hear();
-    return recFolds.subscribe(hear);
+    const unhear = recFolds.subscribe(hear);
+    return () => { unhear(); unbind(); };
   }, [id]);
   return {
     open: seen.open,

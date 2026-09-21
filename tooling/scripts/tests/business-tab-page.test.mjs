@@ -712,7 +712,18 @@ test("the standing line's door opens the row it names, and that row asks before 
   tree = redrawTab();
   assert.deepEqual(openRows(tree), ["address"]);
   typeInto(tree, "address", "2581 Pitkin Ave, Brooklyn, NY 11208");
-  assert.equal(W.__settingsUnsaved(), true, "opened by the door, it answers the rail as it does opened by its own act");
+  tree = redrawTab();
+  // The door knows only the row's id. What it opened is guarded as the row's own act would have guarded it, by the
+  // row's own dirty test: the Settings rail asks, the browser asks, and another row's act waits on an answer.
+  assert.equal(W.__settingsUnsaved(), true, "the rail asks before the pane goes");
+  const unload = { type: "beforeunload", returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+  W.dispatchEvent(unload);
+  assert.equal(unload.prevented, true, "the browser asks before the tab closes");
+  openFold(tree, "website");
+  tree = redrawTab();
+  assert.deepEqual(openRows(tree), ["address"], "another row's act does not throw the changes away");
+  assert.ok(byTestId(tree, "rec-inline-address-ask-confirm"), "it asks first, beside them");
+  assert.equal(boxOf(tree, "address").props.value, "2581 Pitkin Ave, Brooklyn, NY 11208");
 
   // A row this page does not draw yet is asked for by its id, for the fold that draws it to open.
   tree = drawTab({ profile: { ...melany, tone: undefined } });

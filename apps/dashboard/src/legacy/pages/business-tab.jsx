@@ -125,7 +125,8 @@ const btFocusBack = (id, el) => {
  *
  * It holds the fold registry (record-fold.jsx) as a fold does, so one editor or fold is open on the page at a time:
  * opening another row closes a clean editor and asks about one holding changes, and the Settings rail and the
- * browser's unload prompt ask before its changes are thrown away.
+ * browser's unload prompt ask before its changes are thrown away. Its dirty test is bound to its id as it mounts, so
+ * it is asked however the row was opened: by its own act, or by its id from the standing line's door.
  *
  * What a row writes is the row's own, in four answers: `initial` (the draft it opens with, from what is stored),
  * `storedAs` (what a draft would store, which is what "holds changes" is judged by; not `valueOf`, which every props
@@ -140,7 +141,7 @@ const btFocusBack = (id, el) => {
 const RecordInline = ({
   id, section = null, label, brain, value = null, empty = null, hint = null, source = null, disputed = null, wrong = null,
   initial, storedAs = btTrimmed, check = btNoCheck, commit, body, channel = "whatsapp",
-  canEdit = true, gate = null, flash = () => {}, rows = null,
+  canEdit = true, gate = null, flash = () => {},
 }) => {
   const [draft, setDraft] = useBizState(null);
   const [problem, setProblem] = useBizState(null);
@@ -179,8 +180,6 @@ const RecordInline = ({
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); setArm(false); };
   useBizEffect(() => { if (!open) reset(); }, [open]);
-  // The standing line's door opens a row by the row's own handle, which carries its dirty test (BusinessTab).
-  if (rows) rows[id] = fold;
 
   const set = (d) => { live.current.draft = d; setDraft(d); if (problem) setProblem(null); if (arm) setArm(false); };
   const close = () => { reset(); fold.close(); };
@@ -401,14 +400,12 @@ const BtStanding = ({ brain, door }) => {
 };
 
 /**
- * A door opens a row as the row's own act does: through the handle the row hands over as it draws, which carries its
- * dirty test to the registry, so a row opened from here asks before its changes are thrown away like any other. A row
- * this page does not draw yet (the hours, the services and the voice arrive with Tasks 3.3 to 3.5) is asked for by id,
- * which is all the registry needs to open it once a fold with that id is on the page.
+ * A door opens a row by its id, as the row's own act would open it: the registry holds each row's dirty test by id,
+ * bound as the row's hook mounted (record-fold.jsx), so a row opened from here asks before its changes are thrown away
+ * like any other, and one open elsewhere holding changes is asked about first. A row this page does not draw yet (the
+ * hours, the services and the voice arrive with Tasks 3.3 to 3.5) opens, guarded the same way, once its fold is here.
  */
-const btOpenRow = (rows, id) => {
-  const own = rows[id];
-  if (own && own.request) { own.request(); return; }
+const btOpenRow = (id) => {
   if (window.__recordFolds) window.__recordFolds.request(id);
 };
 
@@ -419,7 +416,7 @@ const btOpenRow = (rows, id) => {
  * The Workspace row is gone. It printed the business's name a second time whenever the workspace's name differed: two
  * names for one business, on the one card that exists to say which name customers hear.
  */
-const BtWho = ({ brain, canEdit, flash, rows }) => {
+const BtWho = ({ brain, canEdit, flash }) => {
   const F = ((window.__FACTS || {}).facts) || {};
   const conflicts = ((window.__FACTS || {}).conflicts) || [];
   const conflictOn = (key) => conflicts.find((k) => k.fact === key) || null;
@@ -429,7 +426,7 @@ const BtWho = ({ brain, canEdit, flash, rows }) => {
   // still what the receptionist says.
   const factOf = (key, typed) => F[key] || (typed ? { value: typed, source: null } : { value: null, source: null });
   const chip = (f) => (f.value ? f.source : null);
-  const shared = { brain, canEdit, flash, rows };
+  const shared = { brain, canEdit, flash };
   const gate = (thing) => window.gate("settings", `change the ${thing}`);
 
   const name = factOf("business_name", brain.business_name);
@@ -664,8 +661,6 @@ const BtWho = ({ brain, canEdit, flash, rows }) => {
  * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
  */
 const BusinessTab = ({ flash = () => {} }) => {
-  // Each row the page draws hands over its own handle here as it draws (RecordInline), for the standing line's door.
-  const rows = useBizRef({}).current;
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) return null;
@@ -680,8 +675,8 @@ const BusinessTab = ({ flash = () => {} }) => {
           <Icon name="shield" size={11} /> {window.gateTitle ? window.gateTitle("settings", "change the business") : ""} You can read everything.
         </p>
       )}
-      <BtStanding brain={brain} door={canEdit ? (row) => btOpenRow(rows, row) : null} />
-      <BtWho brain={brain} canEdit={canEdit} flash={flash} rows={rows} />
+      <BtStanding brain={brain} door={canEdit ? btOpenRow : null} />
+      <BtWho brain={brain} canEdit={canEdit} flash={flash} />
     </>
   );
 };

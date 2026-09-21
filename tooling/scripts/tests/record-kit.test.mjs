@@ -634,6 +634,42 @@ test("a page that remounts while its fold is open hands the registry its own dir
   folds.reset();
 });
 
+test("a fold opened by its id alone is guarded by the dirty test its hook bound as it mounted, until the hook goes", () => {
+  const folds = W.__recordFolds;
+  folds.reset();
+  let edited = false;
+  // A page whose fold is drawn with its hook; something else on the page knows only the fold's id (the Business tab's
+  // standing line opens the row it names).
+  const Page = () => { W.useRecordFold("tone", { dirty: () => edited }); return null; };
+  draw(Page);
+  folds.request("tone");
+  assert.equal(folds.open(), "tone");
+  assert.equal(folds.dirty(), false, "clean");
+  edited = true;
+  assert.equal(folds.dirty(), true, "the registry asks the fold's own test, which no one handed the request");
+  assert.equal(W.__settingsUnsaved(), true, "so the Settings rail asks before the pane goes");
+  const unload = { type: "beforeunload", returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+  W.dispatchEvent(unload);
+  assert.equal(unload.prevented, true, "and the browser before the tab closes");
+  assert.equal(folds.request("notes", { dirty: () => false }), false, "and another fold asked for waits on the answer");
+  assert.deepEqual(folds.asking(), { holding: "tone", wants: "notes" });
+
+  // A fold asked for by its id while another holds changes brings its own test when the ask is answered.
+  folds.reset();
+  folds.request("hours", { dirty: () => true });
+  folds.request("tone");
+  folds.discard();
+  assert.deepEqual([folds.open(), folds.dirty()], ["tone", true], "opened behind the ask, still guarded");
+
+  // Gone from the page, its test is let go: nothing answers for a fold that is not there.
+  unmount();
+  assert.equal(folds.dirty(), false);
+  folds.reset();
+  folds.request("tone");
+  assert.equal(W.__settingsUnsaved(), false, "a later request by its id finds no test left behind");
+  folds.reset();
+});
+
 test("a fold whose id is falsy is still a fold, and one listener that throws does not silence the rest", () => {
   const folds = W.__recordFolds;
   folds.reset();
