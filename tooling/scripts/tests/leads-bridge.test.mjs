@@ -396,7 +396,7 @@ test("a bulk act over ids shows on every row at once; one over a whole view show
 /* ------------------------------ views, held ------------------------------ */
 
 test("a view the surface has already read paints at once on the way back, with its Show more pages, and is refreshed behind: a rail pick used to be a round trip each way", async () => {
-  const w = wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1), next: PAGE2 });
+  wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1), next: PAGE2 });
   await globalThis.window.__leadsView("clients/leads");
   await globalThis.window.__leadsMore();
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length);
@@ -429,7 +429,7 @@ test("a view the surface has already read paints at once on the way back, with i
 });
 
 test("a view held stays held across a write: a Keep on one view does not make the way back to another a read again", async () => {
-  const w = wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : [REVIEW, ...PAGE1]) });
+  wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : [REVIEW, ...PAGE1]) });
   await globalThis.window.__leadsView("clients/leads:l-ready");
   await globalThis.window.__leadsView("clients/leads");
   assert.equal((await globalThis.window.__leadKeep(SEARCH_DONE.id, REVIEW.id)).ok, true);
