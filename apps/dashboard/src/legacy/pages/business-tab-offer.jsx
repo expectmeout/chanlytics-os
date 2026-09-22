@@ -52,6 +52,7 @@ const btwFull = (max) => `That is the most services the receptionist keeps (${ma
 const btwServiceRows = (rows) => {
   const max = window.__businessTabSave.LIMITS.services;
   return rows({
+    id: "services",
     name: (i) => `service-${i}`,
     max,
     blank: () => ({ name: "" }),

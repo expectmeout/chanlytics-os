@@ -121,6 +121,8 @@ const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly 
   // (LIMITS.shifts, contracts MAX_INTERVALS_PER_DAY) when adding and when an Undo puts one back, the removal said only
   // when it happened, and the removed shift back at its own index.
   const shiftsOf = (d) => rows({
+    // Each day's shifts are a list of their own, whose put-backs no other day's changes move.
+    id: `hours-${d}`,
     name: (n) => `hours-${d}-${n}`,
     max: window.__businessTabSave.LIMITS.shifts,
     blank: () => ({ open: "", close: "" }),
@@ -362,6 +364,7 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }) => {
   const max = window.__businessTabSave.LIMITS.closures;
   const full = `That is the most closures the receptionist keeps (${max}). Dates that have passed can go.`;
   const closed = rows({
+    id: "closures",
     name: (i) => `closure-${i}`,
     max,
     blank: () => ({ date: "", note: "" }),

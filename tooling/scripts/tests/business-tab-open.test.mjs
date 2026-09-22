@@ -1389,3 +1389,60 @@ test("a closed day taken out goes back between the same two days, whatever was t
   tree = redrawTab(flash);
   assert.deepEqual(dates(), days.map((d) => d.date));
 });
+
+test("a shift taken out of one day goes back into that day, whatever another day's shifts did since", () => {
+  // The quality review's P1. The put-backs of a day's shifts are that day's list, not the week's: a removal on Monday
+  // moved Tuesday's waiting shift up a place, and Tuesday's Undo put its third shift back second.
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const three = [{ open: "08:00", close: "10:00" }, { open: "11:00", close: "13:00" }, { open: "14:00", close: "16:00" }];
+  let tree = drawTab({ flash, profile: { ...melany, hours: { ...melany.hours, mon: { intervals: three }, tue: { intervals: three } } } });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  const opens = (d) => all(dayOf(tree, d), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"] || "")).map((n) => n.props.value);
+  press(byTestId(tree, "rec-hours-remove-tue-2"));
+  tree = redrawTab(flash);
+  const tuesday = flashes.at(-1).undo;
+  press(byTestId(tree, "rec-hours-remove-mon-1"));
+  tree = redrawTab(flash);
+  const monday = flashes.at(-1).undo;
+  tuesday();
+  tree = redrawTab(flash);
+  assert.deepEqual(opens("tue"), ["08:00", "11:00", "14:00"], "REGRESSION: Tuesday's third shift went back second");
+  monday();
+  tree = redrawTab(flash);
+  assert.deepEqual(opens("mon"), ["08:00", "11:00", "14:00"]);
+});
+
+test("a day's hours replaced whole by a copy leave its waiting shift nowhere to go, and its Undo says so", () => {
+  // The quality review's P3. Copying Monday onto Tuesday replaced Tuesday's shifts from outside the list's own rows(),
+  // and the Undo of a shift taken out of Tuesday before the copy then put it into the copied hours.
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const three = [{ open: "08:00", close: "10:00" }, { open: "11:00", close: "13:00" }, { open: "14:00", close: "16:00" }];
+  let tree = drawTab({ flash, profile: { ...melany, hours: { ...melany.hours, mon: { open: "09:00", close: "17:00" }, tue: { intervals: three } } } });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  const opens = (d) => all(dayOf(tree, d), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"] || "")).map((n) => n.props.value);
+  press(byTestId(tree, "rec-hours-remove-tue-1"));
+  tree = redrawTab(flash);
+  const tuesday = flashes.at(-1).undo;
+  tree = copyTo(tree, flash, "Tuesday");
+  assert.deepEqual(opens("tue"), ["09:00"], "Tuesday holds Monday's hours");
+  tuesday();
+  tree = redrawTab(flash);
+  assert.deepEqual(opens("tue"), ["09:00"], "REGRESSION: the old shift went back into the copied hours");
+  assert.deepEqual([flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })], ["warn", "Not put back — the list it came from was replaced since, so it has no place to go."]);
+  // A shift taken out after the copy goes back as any does.
+  press(byTestId(tree, "rec-hours-add-tue"));
+  tree = redrawTab(flash);
+  typeAt(tree, "Tuesday opens, second shift", "18:00");
+  tree = redrawTab(flash);
+  typeAt(tree, "Tuesday closes, second shift", "19:00");
+  tree = redrawTab(flash);
+  press(byTestId(tree, "rec-hours-remove-tue-1"));
+  tree = redrawTab(flash);
+  flashes.at(-1).undo();
+  tree = redrawTab(flash);
+  assert.deepEqual(opens("tue"), ["09:00", "18:00"]);
+});
