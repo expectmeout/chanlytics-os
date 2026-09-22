@@ -2195,7 +2195,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       // width the stylesheet hides it (clients.css, 900px and under), so one left open as the window narrowed is closed
       // and the key is the page's as ever: it held every key but Esc, the lists sheet's Esc included. The phone's lists
       // sheet listens for its own Esc.
-      if (k.menuOpen && k.phone) k.closeMenu();
+      // Asked at the key, not from the last draw: the window may have narrowed since, and this is the one moment it matters.
+      if (k.menuOpen && plPhoneNow()) k.closeMenu();
       else if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
       if (k.sheetOpen) return;
       // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
@@ -2419,7 +2420,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     clearSel: () => setSel(new Set()),
     focusSearch: () => { if (searchRef.current) searchRef.current.focus(); },
     sheetOpen: listsOpen,
-    phone,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
     peekOpen: onLeads && (!!peekId || !!lightboxId),
