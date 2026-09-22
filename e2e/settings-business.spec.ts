@@ -100,6 +100,40 @@ const overlaps = (
   b: { x: number; y: number; w: number; h: number },
 ): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+/**
+ * The record, quiet (the plan's Task 4.0), checked the only way it can be: by computed style, in a browser.
+ *
+ * The owner read the page on 22 September and named three things before he read a word of it -- gradients, a second
+ * typeface, and lines he could do nothing about. All three were taken out in CSS, and CSS is exactly what the unit
+ * suite cannot execute: a mutant that put the fold's gradient back passed 265 tests. So the journey that already opens
+ * every fold at a phone's width asks the page what it is actually painting.
+ */
+async function expectQuiet(page: Page, where: string): Promise<void> {
+  const loud = await page.evaluate(() => {
+    const gradients: string[] = [];
+    const monospace: string[] = [];
+    const hints: string[] = [];
+    for (const card of document.querySelectorAll(".rec-card")) {
+      for (const el of [card, ...card.querySelectorAll("*")]) {
+        const cs = getComputedStyle(el);
+        const name = el.className || el.tagName;
+        if (cs.backgroundImage.includes("gradient")) gradients.push(`${name}: ${cs.backgroundImage.slice(0, 48)}`);
+        if (/mono/i.test(cs.fontFamily) && (el.textContent ?? "").trim()) monospace.push(`${name}: ${cs.fontFamily}`);
+      }
+      // A row that HAS its fact says it and stops: its hint is a sentence the editor says again over the box.
+      for (const row of card.querySelectorAll('.rec-row[data-empty="false"]')) {
+        for (const hint of row.querySelectorAll(".rec-row-hint")) {
+          if (getComputedStyle(hint).display !== "none") hints.push(`${row.getAttribute("data-testid")}`);
+        }
+      }
+    }
+    return { gradients, monospace, hints };
+  });
+  expect(loud.gradients, `${where}: a gradient is painted inside the record`).toEqual([]);
+  expect(loud.monospace, `${where}: the record reads in a second typeface`).toEqual([]);
+  expect(loud.hints, `${where}: a filled row carries a hint at a phone's width`).toEqual([]);
+}
+
 test.describe("Settings › Business on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -437,17 +471,22 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("nothing on the record scrolls sideways on a phone, its folds open or shut", async ({ page }) => {
+  test("nothing on the record scrolls sideways on a phone, and nothing on it is a gradient, a second typeface or a line about a fact it already states", async ({
+    page,
+  }) => {
     const before = await readConfig(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await openRecord(page);
     await expectNoSidewaysScroll(page, "the record at rest", [PANE]);
+    await expectQuiet(page, "the record at rest");
 
     // The Who you are card overflowed a phone by 8px once, on the arrow inside a door's clipped words. Every card is
-    // measured, and then the folds whose fields are widest.
+    // measured, and then the folds whose fields are widest. Each one open is also where the fold's own ground and the
+    // block of what a save will say are painted, which is what carried a gradient and a monospace.
     for (const id of ["guardrails", "escalate_when", "fallbacks", "booking_rules", "hours"]) {
       await openFold(page, id);
       await expectNoSidewaysScroll(page, `the ${id} fold open`, [PANE]);
+      await expectQuiet(page, `the ${id} fold open`);
       await discard(page, id);
     }
     await expectRecordUnchanged(page, before);

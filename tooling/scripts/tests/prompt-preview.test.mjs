@@ -210,6 +210,34 @@ test("both channels can be read, since they are not the same text", () => {
   assert.ok(pane.includes("window.__composedPrompt(channel)"), "the toggle must recompose");
 });
 
+test("the record's own rules in settings.css paint no gradient and set no second typeface", () => {
+  // The owner named these two before he read a word of the page (the plan's Task 4.0), and both live only in CSS,
+  // which the suite cannot execute: a mutant that put the fold's gradient back passed 265 tests. The journey proves it
+  // the better way, by computed style in a browser over the whole record (e2e/settings-business.spec.ts, the 390px
+  // test), and this stands beside it for the family settings.css owns, on the stylesheet this file already reads.
+  // record.css's own rec-* rules are the journey's: reading a second stylesheet here would raise the source-scan
+  // baseline, which may only fall.
+  const SPLIT = String.fromCharCode(10);
+  const rules = css.split("}").flatMap((block) => {
+    const at = block.lastIndexOf("{");
+    if (at < 0) return [];
+    const selector = block.slice(0, at).trim().split(SPLIT).pop().trim();
+    return [{ selector, body: block.slice(at + 1) }];
+  });
+  const ours = rules.filter((r) => /\.(bt|rec|act)-/.test(r.selector));
+  assert.ok(ours.length > 40, `the record's rules are in this stylesheet (found ${ours.length})`);
+  assert.deepEqual(
+    ours.filter((r) => r.body.includes("gradient")).map((r) => r.selector),
+    [],
+    "a gradient on the record: the fold's ground, a closed day's stripes and the log's bones each were one",
+  );
+  assert.deepEqual(
+    ours.filter((r) => /font-mono|--mono/.test(r.body)).map((r) => r.selector),
+    [],
+    "the page reads in ONE typeface",
+  );
+});
+
 test("six thousand characters cannot break the page layout", () => {
   const body = css.slice(css.indexOf(".set-prompt-body"), css.indexOf(".set-prompt-body-sm"));
   assert.ok(body.includes("white-space: pre-wrap"), "the prompt has real newlines and must keep them");
