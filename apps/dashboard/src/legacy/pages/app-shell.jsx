@@ -753,14 +753,16 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // A move that stays on the page -- People to Leads and back -- is still a remount (the two scopes are two mounts),
   // and the route fade played on every one, on top of the rows' own draw: the switch read as a wait. The fade is for
   // arriving somewhere else, and for a page landing where the reading pane stood; a view that follows another of the
-  // same page draws at once. Decided as the view changes, in the draw that mounts it, and kept for that view's
-  // life: decided after the mount (an effect, a state) it re-drew the same element with the class, which cancelled
-  // the fade on every page one frame in.
+  // same page draws at once. A person's profile is somewhere else, though its route starts with the list's word.
+  // Decided as the view changes, in the draw that mounts it, and kept for that view's life: decided after the mount
+  // (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
+  // frame in.
   const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
-  const viewRef = useShellRef({ key: null, page: null, reading: false, stay: false });
+  const family = page === "clients" && param && !/^(leads(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
+  const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false });
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
-    viewRef.current = { key: viewKey, page, reading: routeLoading, stay: !routeLoading && prev.key !== null && prev.page === page && !prev.reading };
+    viewRef.current = { key: viewKey, family, reading: routeLoading, stay: !routeLoading && prev.key !== null && prev.family === family && !prev.reading };
   }
   const routeStay = viewRef.current.stay;
 

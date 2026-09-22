@@ -1487,5 +1487,20 @@ test("a move that stays on the page -- People to Leads and back -- draws without
   assert.equal(stays(tree), false, "a page opened cold fades in");
   assert.equal(stays(go("#/clients/leads")), true, "Leads beside People is the same page: no fade");
   assert.equal(stays(go("#/clients")), true, "and back");
+  assert.equal(
+    stays(go("#/clients/c-aisha")),
+    false,
+    "a person's profile is somewhere else, though its route starts with the list's word",
+  );
+  assert.equal(stays(go("#/clients")), false, "and so is the list, coming back from it");
   assert.equal(stays(go("#/inbox")), false, "another page fades in");
+  // A page landing where the reading pane stood fades in, even on the page the reading pane was for.
+  win.__surfaceGate = () => false;
+  try {
+    assert.equal(stays(go("#/clients/leads")), false, "the reading pane never stays");
+    win.__surfaceGate = () => true;
+    assert.equal(stays(go("#/clients/leads")), false, "the page that lands where it stood fades in");
+  } finally {
+    delete win.__surfaceGate;
+  }
 });

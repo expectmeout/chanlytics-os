@@ -1,7 +1,7 @@
-/* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES, PL_FIRST_ROWS,
+/* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
    ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
    PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
-   PL_NO_SEL, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
+   PL_NO_SEL, PL_FIRST_ROWS, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
