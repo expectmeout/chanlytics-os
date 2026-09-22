@@ -299,8 +299,8 @@
   .cal-month-taken, .cal-month-open, .cal-month-closed, .cal-month-none { font-size: 9.5px; }
   .cal-month-allday { display: none; }
   .cal-agenda-day { padding: 10px 12px; }
-  .cal-agenda-item { grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; }
-  .cal-agenda-person { grid-column: 2; }
+  /* The agenda's rows are the shared agenda row (components.css .ag-*), which is one column of time and one
+     of words at every width; these squeezed a three-column row the Calendar no longer draws. */
   .cal-grid { grid-template-columns: 44px repeat(7, minmax(96px, 1fr)); min-width: 716px; }
   .cal-grid.cal-grid-day { grid-template-columns: 44px minmax(0, 1fr); min-width: 0; }
   .cal-corner, .cal-gutter { position: sticky; left: 0; z-index: 4; background: var(--bg); }

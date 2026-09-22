@@ -3332,6 +3332,16 @@ function nextOpenWords(startIso, tz, todayKey) {
   if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock2}`;
   return `${shortDate(day.key)}, ${clock2}`;
 }
+function serviceOf(title, personName2) {
+  const whole = (title || "").trim();
+  const name = (personName2 || "").trim();
+  if (!whole || !name) return whole;
+  const quoted = name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const gap = String.raw`\s*(?:[-–—·|,:]|\bwith\b|\bfor\b)?\s*`;
+  const edge = String.raw`(?![\p{L}\p{N}])`;
+  const cut = whole.replace(new RegExp(`^${gap}${quoted}${edge}${gap}`, "iu"), "").replace(new RegExp(`${gap}(?<![\\p{L}\\p{N}])${quoted}${gap}$`, "iu"), "").trim();
+  return cut.replace(/[-–—·|,:\s]/gu, "") ? cut : whole;
+}
 function toBlock(item, tz, dayStartMs, dayEndMs, now) {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
@@ -3342,6 +3352,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
     t,
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
+    service: serviceOf(item.title || "Busy", item.person?.name ?? null),
     time: spanLabel2(t, tEnd),
     person: item.person ? {
       id: item.person.id,
@@ -6086,6 +6097,7 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     time: b.time,
     dur: allDay ? "" : durationLabel(b.dur),
     title: b.title,
+    service: b.service,
     person: b.person ? { id: b.person.id, name: b.person.name } : null,
     allDay,
     phase,
@@ -17322,6 +17334,7 @@ export {
   sendFailureIsOurs,
   sendableTemplates,
   serverNotificationRows,
+  serviceOf,
   serviceUndoName,
   servicesFoundWords,
   servicesSaveWords,
