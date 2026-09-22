@@ -55,7 +55,7 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* --------------------------- the bulk courier, run --------------------------- */
 
-const { inboxBulk } = await quiet(() => import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts"));
+const { inboxBulk, inboxVerb } = await quiet(() => import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts"));
 const { startSurfaces } = await quiet(() => import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts"));
 // Loaded now, so a re-read the courier starts is not held up loading the table.
 await quiet(() => import("../../../apps/dashboard/src/legacy-bridge/refresh-map.ts"));
@@ -165,6 +165,34 @@ const listProps = (over = {}) => ({
   ...over,
 });
 const inboxWith = (threads) => { globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: threads }; };
+
+test("a single act tells the page the moment the server takes it, while the Inbox, the threads and Today are still being read again behind it", async () => {
+  const events = [];
+  const parked = [];
+  globalThis.window.fetch = async (_url, init = {}) => {
+    if ((init.method ?? "GET") === "POST") { events.push("POST answered"); return json(200, { ok: true, data: { conversation: { id: "c1", state: "snoozed" } } }); }
+    await new Promise((r) => parked.push(r));
+    return json(200, { ok: true, data: { conversations: [], escalations: [], templates: [], calls: [], workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1", days: 1 } });
+  };
+  const { inboxOverride, conversationsOverride, todayOverride } = await quiet(() => import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
+  const stop = startSurfaces([inboxOverride, conversationsOverride, todayOverride]);
+  try {
+    // Let the boot's own reads through first, so what is parked below is the re-read the snooze starts.
+    for (let i = 0; i < 40; i += 1) { while (parked.length) parked.shift()(); await tick(5); }
+    const t = { id: "th-c1", conversationId: "c1", escalationId: null, who: "Aiko" };
+    let settled = false;
+    const done = quiet(() => inboxVerb(t, "snooze", undefined, { onAccepted: () => events.push("told the page") })).then((r) => { settled = true; return r; });
+    for (let i = 0; i < 200 && !parked.length; i += 1) await tick(5);
+    assert.deepEqual(events, ["POST answered", "told the page"], "the page hears it when the server took it");
+    assert.ok(parked.length > 0, "the re-read is out");
+    assert.equal(settled, false, "and the act itself still answers once the surfaces have been read again (the pane's own act lasts until then)");
+    for (let i = 0; i < 80 && !settled; i += 1) { while (parked.length) parked.shift()(); await tick(5); }
+    assert.equal((await done).ok, true);
+  } finally {
+    while (parked.length) parked.shift()();
+    stop();
+  }
+});
 
 test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs, one toast with the count and each refusal named, the refused left selected, and an Undo that wakes what it snoozed", async () => {
   let list = null;

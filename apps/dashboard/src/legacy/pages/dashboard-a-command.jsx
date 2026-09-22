@@ -154,13 +154,19 @@ const TodayQueue = ({ vm }) => {
   const verb = async (r, which) => {
     const inboxVerb = tqSurface("__inboxVerb");
     if (!(window.canDo && window.canDo("approve")) || !inboxVerb) return;
+    // Said the moment the server takes it, not after the Inbox, the threads and Today are read again behind it
+    // (the row itself leaves with that re-read: the server owns the thread).
+    let said = false;
+    const done = () => {
+      said = true;
+      ppFlash({ msg: which === "snooze" ? <><b>{r.who}</b> snoozed: hidden until they wake or reply</> : <><b>{r.who}</b>: done, the receptionist has the thread back</> });
+    };
     const res = await inboxVerb(
       { conversationId: r.also.conversationId, escalationId: r.also.escalationId, who: r.who },
-      which, {},
+      which, {}, { onAccepted: done },
     );
-    ppFlash(res.ok
-      ? { msg: which === "snooze" ? <><b>{r.who}</b> snoozed: hidden until they wake or reply</> : <><b>{r.who}</b>: done, the receptionist has the thread back</> }
-      : window.refusalToast(res, which === "snooze" ? "Not snoozed" : "Not resolved"));
+    if (!res.ok) ppFlash(window.refusalToast(res, which === "snooze" ? "Not snoozed" : "Not resolved"));
+    else if (!said) done();
   };
   const rows = vm.queue.rows;
   // One primary verb on the page: the first row's. Every other verb is drawn, quietly.

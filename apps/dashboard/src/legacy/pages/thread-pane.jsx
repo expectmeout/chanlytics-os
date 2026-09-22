@@ -70,8 +70,16 @@ const threadVerbs = (flash) => {
   // state. reply, reply-template, take-over, hand-back, snooze, wake, archive; resolves true when the server took it.
   const verb = (t, name, payload, okMsg, undoable) => {
     if (!window.__inboxVerb) return Promise.resolve(false);
+    // An act on the thread's state is said the moment the server takes it (onAccepted), not once the Inbox, the
+    // threads and Today have been read again behind it; the pane still repaints from that re-read, and the act is
+    // counted as yours until it lands, so it is never announced to you. A reply is said with its receipt (the Undo
+    // window), which only the server's answer carries.
+    let saidEarly = false;
+    const early = name === "reply" || name === "reply-template"
+      ? undefined
+      : () => { saidEarly = true; flash({ msg: <><b>{t.who}</b> — {okMsg}</> }); };
     TP_OWN.n += 1;
-    return window.__inboxVerb(t, name, payload).finally(() => { TP_OWN.n -= 1; }).then((r) => {
+    return window.__inboxVerb(t, name, payload, early ? { onAccepted: early } : undefined).finally(() => { TP_OWN.n -= 1; }).then((r) => {
       // An email reply whose address is not the one they wrote from waits on a yes: the server says where it will
       // go, and the yes is the same words sent again naming that address. The composer keeps the words meanwhile.
       if (!r.ok && r.confirmEmailTo && name === "reply") {
@@ -79,6 +87,7 @@ const threadVerbs = (flash) => {
         return false;
       }
       if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return false; }
+      if (saidEarly) return true;
       const mid = undoable && r.data && r.data.message_id;
       // The receipt says exactly how long the send can still be stopped; the
       // toast, and its Undo, live that long -- not the six seconds a plain
