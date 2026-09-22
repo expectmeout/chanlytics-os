@@ -1969,8 +1969,8 @@ test("a list that is moving shows no hover, on a desktop too: the pane is marked
   draw({ scope: "people", leadsRoute: null });
   assert.deepEqual(
     heard.map((h) => h.capture),
-    [true],
-    "nothing of Leads is left listening",
+    [true, true],
+    "on People too: the moving-list listener, and the one that keeps the place -- People keeps its place as Leads does (the loading standard's F)",
   );
 });
 
