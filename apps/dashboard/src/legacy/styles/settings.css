@@ -1442,7 +1442,9 @@ html.legacy-on .bt-link { position: relative; }
 .bt-handoff { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .bt-handoff-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .bt-handoff-words { min-width: 0; overflow-wrap: anywhere; }
-.bt-channel { flex: none; display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--ink-muted); }
+/* Which channel this line is about, as a muted word. It was a bordered pill, twice on the one row, which at a phone's
+   width is two outlined boxes over two sentences: the word does the same job and the row keeps its one grammar. */
+.bt-channel { flex: none; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
 .bt-handoff-part { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 .bt-handoff-number { font-size: var(--text-sm); color: var(--ink); }
 /* The notes: a title, what it says, and the press that removes it; the row's sentence under both boxes. */
