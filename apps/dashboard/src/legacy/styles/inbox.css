@@ -1993,3 +1993,111 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 }
 /* Under a thread that opens at its newest message, what they wrote is in view over its status: the quote said it again. */
 @container ixpane (max-width: 640px) { .ix-th-status .ix-take-ask { display: none; } }
+
+/* ====================================================================
+   A THREAD'S ROW ON A PHONE — People's row (tokens.css --row-*)
+   ==================================================================== */
+/* Measured on production at 375px, 22 Sep: a thread's row was 83px against a person's 84, and read as another
+   product beside it — the name a size smaller and unweighted, the gutter 14px against 16, and 24px of it spent on
+   a box nobody on a phone can see. It says everything it said before, in People's proportions.
+   Above 900px the rail beside an open thread keeps its own compact row. */
+@media (max-width: 900px) {
+  .ix-thread {
+    grid-template-columns: var(--row-face) minmax(0, 1fr);
+    gap: var(--row-gap);
+    padding: var(--row-pad-y) var(--row-pad-x);
+  }
+  /* Compact and rich are a desktop's choice of how much of a list fits on a screen; a phone shows one row, and it
+     is People's. Left alone, compact drew a 24px face on 8px of padding and dropped the line the row is for. */
+  .ix-list.compact .ix-thread,
+  .ix-list.rich .ix-thread {
+    grid-template-columns: var(--row-face) minmax(0, 1fr);
+    gap: var(--row-gap);
+    padding: var(--row-pad-y) var(--row-pad-x);
+  }
+  .ix-list.compact .ix-thread-avatar {
+    width: var(--row-face);
+    height: var(--row-face);
+    font-size: 11px;
+  }
+  .ix-list.compact .ix-thread-line3 {
+    display: flex;
+  }
+  .ix-list.compact .ix-thread-foot {
+    gap: var(--row-gap);
+    margin-top: 0;
+  }
+  /* The box leaves the grid rather than holding a track open: it kept the face 24px in from People's gutter, and a
+     thumb cannot reach it anyway (it shows on hover, on the keyboard's focus, and on a row already picked). Over
+     the face and unseen it would have swallowed the tap that opens the thread, so it answers one only when it
+     shows — the select-all box above the rows is how a phone picks, and a picked row shows its own box to undo it. */
+  .ix-thread-check {
+    position: absolute;
+    left: 12px;
+    top: 10px;
+    z-index: 1;
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    pointer-events: none;
+  }
+  .ix-thread:hover .ix-thread-check,
+  .ix-thread:focus-visible .ix-thread-check,
+  .ix-thread.selected .ix-thread-check,
+  .ix-thread.active .ix-thread-check {
+    pointer-events: auto;
+  }
+  /* One gap between the lines, in place of each line's own margin. The single track is minmax(0, 1fr) and not the
+     1fr a grid gives by default: a grid item's automatic minimum is its content, so a name beside two pills grew
+     the line past the row's right edge instead of ellipsing. */
+  .ix-thread-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--row-line-gap);
+  }
+  .ix-thread-line1,
+  .ix-thread-subject,
+  .ix-thread-line3 {
+    margin-bottom: 0;
+  }
+  .ix-thread-resolution {
+    margin-top: 0;
+  }
+  .ix-thread-who {
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    line-height: var(--row-name-line);
+    /* A name had 60% of the line whatever stood beside it; the meta takes what it needs and the name the rest. */
+    max-width: none;
+  }
+  /* Unread still reads heavier than read, now that every name is medium. */
+  .ix-thread.unread .ix-thread-who {
+    font-weight: var(--weight-semibold);
+  }
+  .ix-thread-subject,
+  .ix-thread-preview {
+    font-size: var(--text-sm);
+    line-height: var(--row-said-line);
+  }
+  .ix-thread-preview {
+    color: var(--ink-muted);
+  }
+  .ix-thread-resolution,
+  .ix-thread-foot,
+  .ix-thread-agent,
+  .ix-thread-value {
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+  .ix-thread-foot {
+    gap: var(--row-gap);
+  }
+  /* A pill on a row is words, not a control: the touch floor (legacy-bridge/legacy.css) gives every .pill
+     min-height 36px on a coarse pointer, which is what made this row taller than a person's. People's row
+     undoes it the same way. */
+  html.legacy-on .ix-thread .pill {
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}

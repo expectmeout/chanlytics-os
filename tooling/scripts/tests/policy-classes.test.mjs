@@ -93,8 +93,8 @@ test("the prompt carries the rows on both channels — a composed profile and a 
 });
 
 test("the wiring: the edge passes the rows to both prompts and checks after generation; the API refuses what a class cannot honour; the pane says so", () => {
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
+  const steps = readCode("packages/core/src/inbound/steps.ts");
   assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known)'));
   assert.ok(
     steps.includes("const askClass = policyAskClass(x.policy, x.intent);") &&

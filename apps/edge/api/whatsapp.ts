@@ -8,9 +8,10 @@
  *
  * Shape: this file is the webhook — verification, the signature, routing by
  * phone number id, statuses and echoes. The message path is
- * lib/whatsapp/inbound.ts; its Postgres bookkeeping lib/whatsapp/persist.ts;
+ * lib/whatsapp/inbound.ts, the edge's adapter onto the receptionist verb in
+ * packages/core/src/inbound; its Postgres bookkeeping lib/whatsapp/persist.ts;
  * the people it tells lib/whatsapp/alerts.ts; its pure decisions
- * lib/whatsapp/steps.ts.
+ * packages/core/src/inbound/steps.ts.
  *
  * Contract (frozen during Meta App Review): process-then-200 in-invocation
  * under maxDuration 60; Meta retries + dedupe make replays safe.
@@ -32,7 +33,7 @@
  */
 import crypto from "node:crypto";
 import { phoneTail } from "../lib/packages/contracts.js";
-import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/waba-events.js";
+import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/whatsapp/waba-events.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import type { WaChangeValue } from "../lib/packages/channels.js";
@@ -42,7 +43,7 @@ import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { pgSafe, IngestFailed } from "../lib/whatsapp/persist.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
-import { PAUSE_MS } from "../lib/whatsapp/steps.js";
+import { PAUSE_MS } from "../lib/packages/core.js";
 import { env } from "../lib/env.js";
 import { logger, errField } from "../lib/log.js";
 

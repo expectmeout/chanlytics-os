@@ -23,9 +23,9 @@
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { logger, errField } from "../lib/log.js";
-import { emailDomain } from "../lib/email.js";
-import { planResendEvent } from "../lib/email-ingress.js";
-import { applyEmailReceipt } from "../lib/email-receipts.js";
+import { emailDomain } from "../lib/email/email.js";
+import { planResendEvent } from "../lib/email/email-ingress.js";
+import { applyEmailReceipt } from "../lib/email/email-receipts.js";
 import { emitEvent, type Json } from "../lib/packages/db.js";
 import { scheduleJobOnce } from "../lib/packages/jobs.js";
 import { env } from "../lib/env.js";

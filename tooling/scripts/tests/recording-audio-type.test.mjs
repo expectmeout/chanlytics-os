@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const lib = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/call-recording.ts")).href);
+const lib = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/voice/call-recording.ts")).href);
 
 const bytes = (...parts) => {
   const out = [];

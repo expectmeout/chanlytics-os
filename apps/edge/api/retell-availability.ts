@@ -15,7 +15,7 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { resolveChannel } from "../lib/packages/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
-import { openingsData } from "../lib/availability.js";
+import { openingsData } from "../lib/calendar/availability.js";
 import {
   describeOpenings,
   filterOpenings,

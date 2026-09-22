@@ -58,7 +58,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/pg.ts"));
 const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
-const { PAUSE_MS } = await import(at("apps/edge/lib/whatsapp/steps.ts"));
+const { PAUSE_MS } = await import(at("packages/core/src/inbound/steps.ts"));
 const hook = await import(at("apps/edge/api/whatsapp.ts"));
 after(() => {
   setPg(null);

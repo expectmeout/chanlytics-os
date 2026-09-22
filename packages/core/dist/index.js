@@ -2644,6 +2644,23 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+function shortCode(raw) {
+  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
+  return digits2.length >= 3 && digits2.length <= 6;
+}
+function phoneTail(raw) {
+  const digits2 = (raw ?? "").replace(/\D/g, "");
+  return digits2 ? digits2.slice(-4) : null;
+}
+function formatPhoneDisplay(e164) {
+  if (!e164) return null;
+  const digits2 = String(e164).replace(/[^\d]/g, "");
+  if (digits2.length === 11 && digits2.startsWith("1")) {
+    return `+1 (${digits2.slice(1, 4)}) ${digits2.slice(4, 7)}-${digits2.slice(7)}`;
+  }
+  if (digits2.length < 7) return `+${digits2}`;
+  return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
+}
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -2886,6 +2903,22 @@ function localToUtcMs(tz, y, m, d, hh, mm) {
   const second = guess - zoneOffsetMs(tz, first);
   return second;
 }
+function dayIntervals(h) {
+  const raw = [];
+  if (h?.open && h?.close) raw.push([h.open, h.close]);
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const merged = [];
+  for (const [o, c] of usable) {
+    const last = merged[merged.length - 1];
+    if (last && o <= last[1]) {
+      if (c > last[1]) last[1] = c;
+    } else {
+      merged.push([o, c]);
+    }
+  }
+  return merged;
+}
 var FORMATS = /* @__PURE__ */ new Map();
 function formatsFor(tz) {
   const hit = FORMATS.get(tz);
@@ -2996,6 +3029,14 @@ var BrainOutputSchema2 = z22.object({
   ),
   language: z22.enum(BRAIN_LANGUAGES2).catch("other")
 });
+var PRICE_PATTERNS = [
+  /\$\s?\d/,
+  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
+  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i
+];
+function violatesNoPrices(text) {
+  return PRICE_PATTERNS.some((p) => p.test(text));
+}
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
@@ -3012,6 +3053,15 @@ var REPLY_LIMITS2 = {
 };
 var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l) => l.max));
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
+var REPLY_DELAY_DEFAULT_MS = 3e4;
+var REPLY_DELAY_MIN_MS = 5e3;
+var REPLY_DELAY_MAX_MS = 6e5;
+function replyDelayMs(mode, limits) {
+  if (mode !== "veto") return 0;
+  const raw = limits?.reply_delay_ms;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return REPLY_DELAY_DEFAULT_MS;
+  return Math.min(REPLY_DELAY_MAX_MS, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
+}
 var RETENTION_DAYS2 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -3069,6 +3119,75 @@ function feedProblemWords2(reason, status) {
       return null;
   }
 }
+var trimmed = (v) => {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s || null;
+};
+var activeChannel = (known, kind) => {
+  const rows = known?.channels ?? [];
+  const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
+  return trimmed(row2?.number_e164);
+};
+function samePhone(a, b) {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  return !!x && !!y && x === y;
+}
+function sameAddress(a, b) {
+  const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
+  const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
+  if (!x || !y) return false;
+  return x === y || x.startsWith(y) || y.startsWith(x);
+}
+function sameName(a, b) {
+  const x = textKey(a);
+  const y = textKey(b);
+  return !!x && !!y && x === y;
+}
+function textKey(v) {
+  return String(v ?? "").toLowerCase().replace(/[’'.]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function typedOverKnown(typed, known, knownSource, same2) {
+  if (typed && known) {
+    return same2(typed, known) ? { value: typed, source: "typed" } : { value: typed, source: "typed", disputed: { value: known, source: knownSource } };
+  }
+  if (typed) return { value: typed, source: "typed" };
+  if (known) return { value: known, source: knownSource };
+  return { value: null, source: "absent" };
+}
+function resolveFacts(typed, known) {
+  const p = typed?.profile ?? null;
+  const voice = activeChannel(known, "voice");
+  const whatsapp = activeChannel(known, "whatsapp");
+  const strEq = (a, b) => a === b;
+  return {
+    business_name: typedOverKnown(
+      trimmed(typed?.business_name),
+      trimmed(known?.listing?.name) ?? trimmed(known?.workspace?.name),
+      known?.listing?.name ? "verified" : "workspace",
+      sameName
+    ),
+    // The one that matters, and the one that should usually be absent.
+    //
+    // The fallback is FORMATTED, not raw E.164: this value is spoken and
+    // written to customers -- "Phone: +13085550109" in a prompt becomes a
+    // receptionist reading digits aloud -- so the provisioned line arrives as
+    // "+1 (308) 555-0109", the way a person says a number.
+    phone_display: typedOverKnown(
+      trimmed(typed?.phone_display),
+      voice ? formatPhoneDisplay(voice) : null,
+      "provisioned",
+      samePhone
+    ),
+    booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
+    address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
+    website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
+    // Human-only by nature: nothing provisions "the person to put a caller through to".
+    handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
+    voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
+    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" }
+  };
+}
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -3098,6 +3217,33 @@ var POLICY_CLASS_WORDS2 = {
   },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
+function policyClassOfIntent(intent) {
+  if (intent === "booking") return "booking";
+  if (intent === "pricing" || intent === "services") return "faq";
+  return null;
+}
+function policyAskClass(policy, intent) {
+  const cls = policyClassOfIntent(intent);
+  if (!cls) return null;
+  const mode = policy?.[cls]?.mode ?? "auto";
+  return mode === "auto" ? null : cls;
+}
+function policyRules(policy, channel) {
+  const out = [];
+  const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
+  const voice = channel === "voice";
+  if (modeOf("booking") !== "auto") {
+    out.push(
+      voice ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name." : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true."
+    );
+  }
+  if (modeOf("faq") !== "auto") {
+    out.push(
+      voice ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name." : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true."
+    );
+  }
+  return out;
+}
 var PolicyLimitsSchema2 = z32.object({
   max_replies_day: z32.number().int().min(1).max(200).optional(),
   pause_hours: z32.number().int().min(1).max(168).optional(),
@@ -3169,6 +3315,14 @@ var GuardrailsSchema2 = z32.object({
    */
   no_health_advice: z32.boolean().optional()
 }).strict();
+function guardrailsInForce(g) {
+  return {
+    never_quote_prices: g?.never_quote_prices !== false,
+    never_confirm_booking: g?.never_confirm_booking !== false,
+    disclose_ai: g?.disclose_ai !== false,
+    no_health_advice: g?.no_health_advice === true
+  };
+}
 var NoteSchema2 = z32.object({
   title: z32.string().min(1).max(80),
   text: z32.string().min(1).max(1200)
@@ -3383,6 +3537,345 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
+var DAY_LABEL = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
+function dayIntervals2(h) {
+  return dayIntervals(h).map(([open, close]) => ({ open, close }));
+}
+function joinList(parts2) {
+  if (parts2.length < 3) return parts2.join(" and ");
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function dayText(h) {
+  const spans = dayIntervals2(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
+}
+function hoursRuns(hours) {
+  if (!hours) return [];
+  const spans = DAYS2.map((d) => ({ day: d, text: dayText(hours[d]) }));
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
+    i = j + 1;
+  }
+  return out;
+}
+function hoursLines(hours) {
+  return hoursRuns(hours).map((r) => {
+    const label = r.from === r.to ? DAY_LABEL[r.from] : `${DAY_LABEL[r.from]}\u2013${DAY_LABEL[r.to]}`;
+    return `${label}: ${r.text}`;
+  });
+}
+function hasProfile(p) {
+  if (!p) return false;
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
+  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
+}
+function dateKeyInZone(tz, at2) {
+  try {
+    const parts2 = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(at2);
+    const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+    const y = get("year"), m = get("month"), d = get("day");
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  } catch {
+    return null;
+  }
+}
+function labelDate(key, withWeekday) {
+  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  if (Number.isNaN(at2.getTime()) || dateKeyInZone("UTC", at2) !== key) return key;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    ...withWeekday ? { weekday: "long" } : {},
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(at2);
+}
+function upcomingClosures(closures, tz, at2) {
+  if (!closures?.length) return [];
+  const today = tz && dateKeyInZone(tz, at2) || dateKeyInZone("UTC", new Date(at2.getTime() - 864e5));
+  if (!today) return closures;
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+function closureLines(closures) {
+  return closures.map((c) => {
+    const when = c.until && c.until !== c.date && c.until > c.date ? `${labelDate(c.date, false)} \u2013 ${labelDate(c.until, false)}` : labelDate(c.date, true);
+    return c.note ? `${when} \u2014 ${c.note}` : when;
+  });
+}
+function closedToday(closures, tz, at2) {
+  if (!closures?.length || !tz) return null;
+  const today = dateKeyInZone(tz, at2);
+  if (!today) return null;
+  return closures.find((c) => {
+    const end = c.until && c.until >= c.date ? c.until : c.date;
+    return c.date <= today && today <= end;
+  }) ?? null;
+}
+var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
+function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
+  if (!tz) return NO_CLOCK;
+  try {
+    const stamp = new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: tz
+    }).format(now);
+    const shut = closedToday(closures, tz, now);
+    const today = shut ? ` The business is CLOSED today${shut.note ? ` \u2014 ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.` : "";
+    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours and the closed dates, and treat a closed date as final.`;
+  } catch {
+    return NO_CLOCK;
+  }
+}
+var PROMPT_OPENINGS = {
+  hours: "Opening hours",
+  closures: "Closed on these dates",
+  services: "Services:",
+  notes: "Other things to know:",
+  bookingRules: "Booking rules:",
+  handoffChat: "Handing the conversation to a person:",
+  handoffCall: "Handing the caller to a person:",
+  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+  callTools: "Open times: use check_availability",
+  callMedium: "You are speaking aloud.",
+  chatMedium: "Keep replies short enough to read on a phone.",
+  openTimes: "If open times are listed after these instructions",
+  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+  rules: "Rules you must follow:",
+  /** Above the owner's own words, when there are details above for them to disagree with. */
+  ownWordsUnderDetails: "Further instructions from the business.",
+  /** Above the owner's own words on a call, alone or after the line above. */
+  ownWordsOnACall: "Some of it was written for text conversations"
+};
+function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
+  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
+}
+function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
+  const s = [];
+  const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
+  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
+  if (profile.tone) s.push(`Tone: ${profile.tone}`);
+  if (profile.languages?.length) {
+    s.push(
+      `You speak: ${profile.languages.join(", ")}.` + // A caller picks the language by speaking it; nobody asks a phone
+      // agent to "reply in Spanish".
+      (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
+    );
+  }
+  if (profile.address) s.push(`
+Address: ${profile.address}`);
+  if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
+  s.push(`Booking link: ${base.booking_link}`);
+  if (profile.website) s.push(`Website: ${profile.website}`);
+  const hrs = hoursLines(profile.hours);
+  if (hrs.length) {
+    const where = tz ? ` (all times ${tz})` : "";
+    s.push(`
+${PROMPT_OPENINGS.hours}${where}:
+${hrs.map((l) => `- ${l}`).join("\n")}`);
+  }
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  if (closed.length) {
+    s.push(
+      `
+${PROMPT_OPENINGS.closures}, whatever the opening hours above say:
+${closed.map((l) => `- ${l}`).join(
+        "\n"
+      )}
+If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
+    );
+  }
+  if (profile.services?.length) {
+    const lines = profile.services.map((sv) => {
+      const bits2 = [sv.name];
+      if (sv.duration_min) bits2.push(`about ${sv.duration_min} minutes`);
+      if (sv.price_note) bits2.push(sv.price_note);
+      return `- ${bits2.join(" \u2014 ")}`;
+    });
+    s.push(`
+${PROMPT_OPENINGS.services}
+${lines.join("\n")}`);
+  }
+  if (profile.notes?.length) {
+    s.push(`
+${PROMPT_OPENINGS.notes}
+${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
+  }
+  const br = profile.booking_rules;
+  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length)) {
+    const lines = [];
+    if (br.lead_hours !== void 0) {
+      lines.push(
+        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
+      );
+    }
+    if (br.consult_first?.length)
+      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+    if (br.party_max)
+      lines.push(
+        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+      );
+    for (const n of br.notes ?? []) lines.push(n);
+    s.push(`
+${PROMPT_OPENINGS.bookingRules}
+${lines.map((l) => `- ${l}`).join("\n")}`);
+  }
+  if (channel === "whatsapp") {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    s.push(
+      `
+${PROMPT_OPENINGS.handoffChat}
+Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
+Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+  } else {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
+    s.push(
+      `
+${PROMPT_OPENINGS.handoffCall}
+${staffed}
+Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+    s.push(
+      `
+${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
+Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.
+Ending: once the caller has said goodbye, use end_call.`
+    );
+  }
+  if (profile.extra_instructions?.trim()) {
+    const above = [
+      profile.address ? "address" : "",
+      hrs.length ? "hours" : "",
+      closed.length ? "closed dates" : "",
+      profile.services?.length ? "services" : ""
+    ].filter(Boolean);
+    const stated = above.length > 0;
+    const text = profile.extra_instructions.trim();
+    const header = [
+      stated ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
+      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
+    ].filter(Boolean).join(" ");
+    s.push(header ? `
+${header}
+${text}` : `
+${text}`);
+  }
+  s.push(
+    channel === "voice" ? `
+${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.` : `
+${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`
+  );
+  s.push(
+    `
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link.`
+  );
+  const g = guardrailsInForce(profile.guardrails);
+  const rules = [];
+  if (g.never_quote_prices) {
+    rules.push(
+      "Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link."
+    );
+  }
+  if (g.never_confirm_booking) {
+    rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
+  }
+  if (g.disclose_ai) {
+    rules.push(
+      "If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person."
+    );
+  }
+  rules.push(
+    "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else."
+  );
+  if (g.no_health_advice) {
+    rules.push(
+      "Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link."
+    );
+  }
+  rules.push(...policyRules(policy, channel));
+  if (rules.length) s.push(`
+${PROMPT_OPENINGS.rules}
+${rules.map((r) => `- ${r}`).join("\n")}`);
+  return s.join("\n");
+}
+function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
+  if (!hasProfile(brain.profile)) {
+    const rules = policyRules(policy, channel);
+    return rules.length ? `${brain.system_prompt}
+
+${PROMPT_OPENINGS.rules}
+${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
+  }
+  const profile = brain.profile;
+  const facts = resolveFacts(brain, known);
+  const resolved = {
+    business_name: facts.business_name.value ?? brain.business_name,
+    phone_display: facts.phone_display.value,
+    booking_link: facts.booking_link.value ?? brain.booking_link
+  };
+  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
+  return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+}
+function ownWordsOf(brain) {
+  const own = brain?.profile?.extra_instructions;
+  return own?.trim() ? own : brain?.system_prompt ?? null;
+}
+var FALLBACK_DEFAULTS = {
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
+  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
+};
+var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
+var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
+var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
+function fillDetails(text, values) {
+  if (!namesADetail(text)) return text;
+  return text.split("\n").map((line) => {
+    if (!namesADetail(line)) return line;
+    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
+  }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function fallbackMessages(brain, known) {
+  const facts = resolveFacts(brain, known);
+  const values = {
+    business: facts.business_name.value ?? brain.business_name,
+    "booking link": facts.booking_link.value ?? brain.booking_link,
+    phone: facts.phone_display.value
+  };
+  const say = (kind) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
+}
 function keyParts(key) {
   const [y, m, d] = key.split("-").map(Number);
   return { y, m: m ?? 1, d: d ?? 1 };
@@ -4401,6 +4894,10 @@ function isTimezone2(raw) {
   } catch {
     return false;
   }
+}
+function optInConfirmation(businessName, purpose) {
+  const name = businessName.trim() || "This business";
+  return purpose === "marketing" ? `${name}: you're signed up for offers and news. A few messages a month. Msg & data rates may apply. Reply HELP for help, STOP to cancel.` : `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`;
 }
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
@@ -42426,6 +42923,635 @@ async function reconcileUnknownRuns(p, unknownRuns) {
   }
   return out;
 }
+
+// src/inbound/ports.ts
+var IngestFailed = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "IngestFailed";
+  }
+};
+
+// src/inbound/thread.ts
+var unreadableThread = () => ({
+  history: [],
+  pausedUntil: -1,
+  replies: [],
+  unknown: true
+});
+function isThreadUnknown(s) {
+  return s.unknown === true;
+}
+
+// src/inbound/consent.ts
+function resolveConsent(i) {
+  if (i.optOutNow) return { optedOut: true, source: "this_message" };
+  if (i.optInNow) return { optedOut: false, source: "this_message" };
+  if (i.recorded !== null) return { optedOut: i.recorded, source: "record" };
+  return { optedOut: false, source: "none" };
+}
+
+// src/inbound/reply-posture.ts
+function replyPosture(f) {
+  return { replyMode: f.runtimeUsable ? f.policyMode ?? "ask" : "ask" };
+}
+function effectiveReplyMode(posture, personMode) {
+  return personMode || posture.replyMode;
+}
+
+// src/inbound/vision.ts
+var VISION_MAX_BYTES = 4 * 1024 * 1024;
+var VISION_MIMES = /* @__PURE__ */ new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+function isVisionMime(mime) {
+  if (!mime) return false;
+  return VISION_MIMES.has(mime.toLowerCase().split(";")[0].trim());
+}
+function photoUserText(caption) {
+  const said2 = (caption ?? "").trim();
+  return [
+    said2 ? `The customer sent this photo with the message: "${said2}"` : "The customer sent this photo, with no words.",
+    "Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for this business \u2014 what it shows, its style, colour, size or condition, or the product \u2014 and what the next step is. Every rule you were given still holds: no price, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the business can help with, say so kindly."
+  ].join("\n\n");
+}
+function toBase64(bytes) {
+  return Buffer.from(bytes).toString("base64");
+}
+
+// src/inbound/steps.ts
+var PAUSE_MS = 24 * 3600 * 1e3;
+var MAX_REPLIES_PER_DAY = 20;
+var STALE_MS = 10 * 60 * 1e3;
+var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
+function ageVerdict(timestampS, now = Date.now()) {
+  const ageMs = timestampS ? now - Number(timestampS) * 1e3 : 0;
+  return { ageMs, verdict: ageMs > STALE_REPLY_MS ? "stale" : ageMs > STALE_MS ? "late" : "fresh" };
+}
+function threadVerdict(thread, maxRepliesDay, now = Date.now()) {
+  if (now < thread.pausedUntil) return "paused";
+  if (thread.replies.length >= maxRepliesDay) return "ratecap";
+  return "ok";
+}
+function holdPlan(replyMode, replyLimits, brainMeta) {
+  let delayMs = replyDelayMs(replyMode, replyLimits);
+  const minConfidence = typeof replyLimits?.min_confidence === "number" ? replyLimits.min_confidence : 0;
+  const heldForConfidence = replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;
+  if (heldForConfidence) delayMs = replyDelayMs("veto", replyLimits);
+  return { delayMs, heldForConfidence, source: heldForConfidence ? "low_confidence" : "veto_window", minConfidence };
+}
+function layerTwo(x) {
+  let { replyText, escalate, escalationReason } = x;
+  let priceBlocked = false;
+  if (violatesNoPrices(replyText)) {
+    priceBlocked = true;
+    replyText = `Great question! Pricing is quoted at your consult \u2014 a member of our team will follow up here shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+    escalate = true;
+    escalationReason = "policy_block";
+  }
+  const askClass = policyAskClass(x.policy, x.intent);
+  let complied = null;
+  if (askClass) {
+    const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);
+    complied = askClass === "booking" ? !carriesLink : escalate;
+    if (askClass === "booking" && carriesLink) {
+      replyText = `A member of our team will confirm your booking with you shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+    } else if (askClass === "faq" && !escalate) {
+      replyText = `A member of our team will get back to you with the details shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+    }
+    escalate = true;
+    escalationReason = "policy_ask";
+  }
+  return { replyText, escalate, escalationReason, priceBlocked, askClass, complied };
+}
+function holdCopy(x) {
+  const personHold = !!x.brainCfg && !!x.personMode;
+  const details = x.brainCfg ? personHold ? `You set the receptionist to '${x.replyMode}' for this person \u2014 it stays out of the thread; answer them yourself.` : `Reply mode is '${x.replyMode}' \u2014 the receptionist holds everything for a human.` : x.configBroken ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field." : x.loadFailed ? "This workspace's settings could not be reached just now, so the receptionist stayed silent rather than answer in a voice that might not be yours. Nothing is wrong with your configuration and nothing needs changing; the next message tries again." : "No brain profile configured \u2014 the receptionist stays silent until Settings fills one in.";
+  const botText = personHold ? "(held \u2014 you handle this person yourself)" : "(held \u2014 no auto-reply for this workspace)";
+  const why = x.brainCfg ? personHold ? `this person is set to ${x.replyMode}` : `reply mode ${x.replyMode}` : x.configBroken ? "settings could not be read" : x.loadFailed ? "the workspace's settings could not be reached" : "no persona configured";
+  return { personHold, reason: personHold ? "person_hold" : "policy_block", details, botText, why };
+}
+var NO_MODEL_PAGE = {
+  key: "brain_unavailable",
+  subject: "The receptionist has no model key",
+  body: "ANTHROPIC_API_KEY is not set on the edge. Every reply is the workspace's generic greeting, labelled a fallback, and every thread is handed to a person until the key is back."
+};
+function noModelPlan(fallbacks) {
+  return {
+    replyText: fallbacks.greeting,
+    meta: { ack: true, fallback: "no_model" },
+    escalate: true,
+    escalationReason: "brain_error",
+    escalationDetails: (customerText) => `the receptionist has no model key \u2014 "${customerText}"`,
+    alertReason: "no model"
+  };
+}
+
+// src/inbound/answer.ts
+function errField(e) {
+  return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+}
+async function answerInbound(input, ports) {
+  const { message: n, raw, tenantId, routed, isEnvDefault, carrier } = input;
+  const from = raw.from;
+  const channel = carrier?.channel ?? "whatsapp";
+  const db = ports.db();
+  const t0 = Date.now();
+  const L4 = ports.log({ tenant_id: tenantId, wamid: raw.id, from_tail: phoneTail(from), type: raw.type });
+  const rt = db && routed ? await ports.runtime(db, routed) : null;
+  const posture = replyPosture({
+    runtimeUsable: !!rt && !rt.loadFailed,
+    policyMode: rt?.policy["reply"]?.mode
+  });
+  let replyMode = posture.replyMode;
+  let personMode = null;
+  const brainCfg = rt?.brain ?? null;
+  const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
+  const notif = rt?.notifications ?? null;
+  const notifyTarget = { tenantId, notifications: notif, isEnvDefault };
+  const replyLimits = rt?.policy["reply"]?.limits ?? {};
+  const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
+  const pauseMs = replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1e3 : PAUSE_MS;
+  const pauseHours = Math.round(pauseMs / 36e5);
+  const recordOrSay = async () => {
+    try {
+      return await ports.persist.ingest(db, tenantId, n, channel);
+    } catch (e) {
+      if (e instanceof IngestFailed) {
+        try {
+          await ports.alertStaff(
+            from,
+            n.body ?? `[${raw.type} message]`,
+            "(NOT recorded: the database did not accept the message; the provider will retry)",
+            "message not recorded",
+            { target: notifyTarget, channel, who: n.profileName ?? null }
+          );
+        } catch (alertErr) {
+          L4.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
+        }
+      }
+      throw e;
+    }
+  };
+  if (shortCode(from)) {
+    const ing2 = await recordOrSay();
+    const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
+    await sink2.unreachableSender();
+    await sink2.processed();
+    return;
+  }
+  const digits = (s) => s.replace(/\D/g, "");
+  const allow = ports.env.allowlist.split(",").map(digits).filter(Boolean);
+  if (isEnvDefault && allow.length && !allow.includes(digits(from))) {
+    const ing2 = await recordOrSay();
+    const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
+    await sink2.allowlistSkip();
+    await sink2.processed();
+    return;
+  }
+  const ing = await recordOrSay();
+  const thread = await ports.persist.thread(db, tenantId, ing);
+  const ingestMs = Date.now() - t0;
+  const wires = {
+    whatsapp: ports.sender(ports.waCfg(rt, isEnvDefault)),
+    ...carrier ? { sms: (to, p) => carrier.send(to, p.body) } : {}
+  };
+  const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);
+  const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
+  const firstReply = thread.replies.length === 0 && !repliedBefore;
+  const wire = (text) => carrier ? carrier.body(text, firstReply) : text;
+  const send = (text, meta, purpose, kind) => sink.deliver(from, wire(text), meta, purpose, kind);
+  const tell = (userText, botText, reason, pausedHours = null) => ports.alertStaff(from, userText, botText, reason, {
+    target: notifyTarget,
+    channel,
+    pausedHours,
+    route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",
+    who: n.profileName ?? null,
+    about: ing ? { type: "conversation", id: ing.conversation_id } : null
+  });
+  if (ing && !ing.is_new) {
+    L4.info("wa_skip_pg_dupe");
+    return;
+  }
+  if (db && tenantId && ing?.contact_id) {
+    try {
+      personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
+      replyMode = effectiveReplyMode(posture, personMode);
+    } catch (e) {
+      L4.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  if (isThreadUnknown(thread)) {
+    L4.error("wa_state_unavailable");
+    await Promise.all([
+      sink.escalate(
+        "state_unavailable",
+        "The receptionist could not read this thread's history, so it did not reply. Please answer this one."
+      ),
+      tell(
+        n.body ?? `[${raw.type}]`,
+        "(no reply sent \u2014 the receptionist could not read the thread state)",
+        "state unavailable"
+      ),
+      sink.processed()
+    ]);
+    return;
+  }
+  const consent = resolveConsent({
+    optOutNow: n.optOut,
+    optInNow: n.optIn,
+    // Absence is not an answer. `consent` and `dnc` are optional on the ingest
+    // result (packages/db ingest.ts) — "readers must treat absence as 'nothing
+    // on record', never as a block" — and a row carrying neither read as
+    // `false`, an affirmative "they are opted in".
+    recorded: ing && (ing.consent !== void 0 || ing.dnc !== void 0) ? isOptedOutContact(ing) : null
+  });
+  const optedOut = consent.optedOut;
+  if (optedOut) {
+    const post = [sink.processed()];
+    if (n.optOut) {
+      post.push(
+        sink.escalate(
+          "opt_out",
+          "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."
+        ),
+        tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 the customer opted out)", "opt-out")
+      );
+    }
+    await Promise.all(post);
+    L4.info("wa_skip_opt_out", {
+      this_message: n.optOut,
+      on_record: ing?.consent ?? null,
+      decided_by: consent.source
+    });
+    return;
+  }
+  if (carrier?.held) {
+    await Promise.all([
+      sink.escalate(carrier.held.reason, carrier.held.details),
+      tell(
+        n.body ?? `[${raw.type}]`,
+        "(no reply sent \u2014 the carriers have not approved this line for texting yet)",
+        "carriers"
+      ),
+      sink.processed()
+    ]);
+    L4.info("sms_held_for_carriers");
+    return;
+  }
+  if (n.kind === "reaction" || n.kind === "system") {
+    L4.info("wa_skip_no_request", { kind: n.kind });
+    await sink.processed();
+    return;
+  }
+  if (n.kind === "location" || n.kind === "contacts") {
+    await Promise.all([
+      sink.escalate("non_text", `${n.body} \u2014 needs a person.`),
+      tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 passed to a human)", n.kind),
+      sink.processed()
+    ]);
+    L4.info("wa_escalate_readable_nontext", { kind: n.kind });
+    return;
+  }
+  const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
+  const sayUnreadable = async (pausedUntilNow) => {
+    if (Date.now() <= pausedUntilNow) return 0;
+    const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
+    const acked = mayAck ? (
+      // A courtesy, not an answer: marked so it does not spend the daily cap.
+      (await send(fallbacks.non_text, { ack: true })).outcome === "sent"
+    ) : false;
+    const pausedUntil = acked ? Date.now() + pauseMs : 0;
+    const why = acked ? "auto-acknowledged, bot paused" : mayAck ? "the acknowledgement could not be sent \u2014 the customer has heard nothing back" : !brainCfg ? "no auto-reply configured" : personMode ? `no acknowledgement \u2014 this person is set to '${replyMode}'` : `no acknowledgement \u2014 reply mode is '${replyMode}'`;
+    await Promise.all([
+      ...pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : [],
+      sink.escalate("non_text", `Customer sent a ${raw.type} message \u2014 ${why}.`),
+      tell(`[${raw.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null)
+    ]);
+    L4.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
+    return pausedUntil;
+  };
+  if (!maySee && (n.type !== "text" || !n.body)) {
+    const media = sink.media(n);
+    await sayUnreadable(thread.pausedUntil);
+    await Promise.all([media, sink.processed()]);
+    return;
+  }
+  const bodyText = maySee ? n.media?.caption?.trim() || "[photo]" : n.body ?? "";
+  const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? void 0);
+  if (age === "stale") {
+    await Promise.all([
+      sink.escalate(
+        "stale",
+        `Message arrived ${Math.round(ageMs / 6e4)} minutes late \u2014 too old to answer automatically.`
+      ),
+      tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 arrived too late to answer automatically)", "late message"),
+      sink.processed()
+    ]);
+    L4.info("wa_stale_escalated", { age_ms: ageMs });
+    return;
+  }
+  if (age === "late") L4.info("wa_late_but_answering", { age_ms: ageMs });
+  if (n.optIn || n.optInMarketing && channel === "whatsapp") {
+    const purpose = n.optInMarketing ? "marketing" : "conversational";
+    const words4 = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    const confirmed = await send(words4, { ack: true, confirmation: purpose }, purpose, "system");
+    if (confirmed.outcome !== "sent") {
+      const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
+      await Promise.all([
+        sink.escalate(
+          "send_failed",
+          `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`
+        ),
+        tell(bodyText, `(the confirmation of their yes was not delivered \u2014 ${why})`, "opt-in not confirmed")
+      ]);
+    }
+    await sink.processed();
+    L4.info("wa_opt_in_confirmed", {
+      purpose,
+      channel,
+      sent: confirmed.outcome === "sent",
+      why: confirmed.outcome === "sent" ? null : confirmed.reason
+    });
+    return;
+  }
+  const gate = threadVerdict(thread, maxRepliesDay);
+  if (gate === "paused") {
+    L4.info("wa_skip_paused", { paused_until: thread.pausedUntil });
+    await sink.processed();
+    return;
+  }
+  if (gate === "ratecap") {
+    L4.info("wa_skip_ratecap", { cap: maxRepliesDay, used: thread.replies.length });
+    await Promise.all([
+      sink.escalate(
+        "rate_cap",
+        `Thread hit ${maxRepliesDay} automatic replies today \u2014 the receptionist stopped and is waiting for a human.`
+      ),
+      tell(bodyText, "(no reply sent \u2014 daily automatic-reply limit reached)", "rate cap"),
+      sink.processed()
+    ]);
+    return;
+  }
+  const tokenCap = typeof replyLimits.max_llm_tokens_day === "number" ? replyLimits.max_llm_tokens_day : 0;
+  if (tokenCap > 0 && db && tenantId) {
+    const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
+    if (used >= tokenCap) {
+      L4.info("wa_skip_budget", { cap: tokenCap, used });
+      await Promise.all([
+        sink.escalate(
+          "budget",
+          `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours \u2014 the receptionist stopped and is waiting for a human.`
+        ),
+        tell(bodyText, "(no reply sent \u2014 the day's model budget is used up)", "budget"),
+        sink.processed()
+      ]);
+      return;
+    }
+  }
+  if (rt?.paused) {
+    L4.info("wa_skip_workspace_paused");
+    await Promise.all([
+      sink.escalate(
+        "paused",
+        "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
+      ),
+      tell(bodyText, "(no reply sent \u2014 the workspace is paused until billing resumes)", "paused"),
+      sink.processed()
+    ]);
+    return;
+  }
+  if (!brainCfg || replyMode !== "auto" && replyMode !== "veto") {
+    const hold = holdCopy({
+      brainCfg,
+      personMode,
+      replyMode,
+      configBroken: !!rt?.configBroken,
+      loadFailed: !!rt?.loadFailed
+    });
+    const outcome = await sink.escalate(hold.reason, hold.details);
+    const alertNeeded = !hold.personHold || outcome !== "refreshed";
+    await Promise.all([...alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : [], sink.processed()]);
+    L4.info("wa_held_by_policy", {
+      mode: replyMode,
+      person_mode: personMode,
+      persona: !!brainCfg,
+      config_broken: !!rt?.configBroken,
+      load_failed: !!rt?.loadFailed,
+      escalation: outcome ?? "n/a",
+      alerted: alertNeeded
+    });
+    return;
+  }
+  let photo = null;
+  if (maySee) {
+    const got = await sink.media(n);
+    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
+      photo = { mime: got.mime, base64: toBase64(got.bytes) };
+      L4.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
+    } else {
+      L4.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
+      await sayUnreadable(thread.pausedUntil);
+      await sink.processed();
+      return;
+    }
+  }
+  let replyText;
+  let escalate = false;
+  let escalationReason = "human_token";
+  let usage;
+  let brainMeta;
+  let fallback;
+  let brainMs = 0;
+  if (ports.env.modelKey) {
+    try {
+      const { generateReply } = await ports.brain();
+      let leadNote;
+      if (db && tenantId) {
+        try {
+          const e164 = from.startsWith("+") ? from : `+${from}`;
+          const lead = await ports.leads.read(db, tenantId, e164, 1);
+          leadNote = ports.leads.describe(lead);
+          const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
+          if (visits) leadNote = `${leadNote}
+${visits}`;
+        } catch (e) {
+          L4.warn("lead_context_unavailable", { error: errField(e) });
+        }
+      }
+      const openings = rt ? await ports.calendar.openings(rt) : null;
+      const tBrain = Date.now();
+      const r = await generateReply(
+        thread.history,
+        photo ? photoUserText(n.media?.caption) : bodyText,
+        // Composed from the workspace's structured facts when it has them,
+        // and its hand-written prompt when it does not. lib/call-start.ts
+        // composes the SAME thing for the voice agent, which is the point:
+        // two copies of the hours is how two channels start disagreeing
+        // about when the business opens.
+        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, /* @__PURE__ */ new Date(), rt?.policy, rt?.known),
+        fallbacks.error,
+        leadNote,
+        // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
+        // it was answering too, from nothing — it had a table of hours and no
+        // idea what day it was.
+        `${describeNow(rt?.timezone, /* @__PURE__ */ new Date(), brainCfg.profile?.closures)}${openings ? `
+
+${openings}` : ""}`,
+        photo ?? void 0
+      );
+      replyText = r.text;
+      escalate = r.escalate;
+      usage = r.usage;
+      brainMeta = r.meta;
+      brainMs = Date.now() - tBrain;
+      if (r.reason) escalationReason = r.reason;
+      const two = layerTwo({
+        replyText,
+        escalate,
+        escalationReason,
+        brainCfg,
+        policy: rt?.policy,
+        intent: brainMeta?.intent ?? null
+      });
+      if (two.priceBlocked) L4.warn("policy_block_price");
+      if (two.askClass)
+        L4.info("wa_policy_ask", { class: two.askClass, intent: brainMeta?.intent ?? null, complied: two.complied });
+      replyText = two.replyText;
+      escalate = two.escalate;
+      escalationReason = two.escalationReason;
+    } catch (e) {
+      L4.error("brain_failed", { error: errField(e) });
+      replyText = fallbacks.error;
+      escalate = true;
+      escalationReason = "brain_error";
+    }
+  } else {
+    fallback = noModelPlan(fallbacks);
+    replyText = fallback.replyText;
+    escalate = fallback.escalate;
+    escalationReason = fallback.escalationReason;
+    L4.error("wa_no_model");
+    if (db) {
+      try {
+        await ports.page({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
+      } catch (e) {
+        L4.error("wa_no_model_page_failed", { error: errField(e) });
+      }
+    }
+  }
+  const plan = holdPlan(replyMode, replyLimits, brainMeta);
+  const { delayMs, heldForConfidence } = plan;
+  if (heldForConfidence)
+    L4.info("wa_held_low_confidence", { confidence: brainMeta?.confidence, min: plan.minConfidence, delay_ms: delayMs });
+  const queued = delayMs > 0 ? await ports.persist.queueReply(
+    db,
+    tenantId,
+    ing,
+    from,
+    wire(replyText),
+    delayMs,
+    L4,
+    plan.source,
+    brainMeta,
+    channel
+  ) : false;
+  const replyQuality = {
+    intent: brainMeta?.intent ?? null,
+    confidence: brainMeta?.confidence ?? null,
+    language: brainMeta?.language ?? null,
+    latency_ms: brainMs,
+    // What the reply actually did. This read `delayMs > 0` alone, so a reply
+    // whose hold could not be scheduled — sent to the customer immediately, a
+    // few lines below — was recorded as having waited, and the diagnostics that
+    // "read the day back from these" reported holds that never happened.
+    held: queued ? heldForConfidence ? "low_confidence" : "veto_window" : null,
+    escalate,
+    photo: !!photo
+  };
+  if (delayMs > 0 && !queued) {
+    await sink.vetoFallback(delayMs, plan.source);
+  }
+  if (delayMs > 0 && !queued && heldForConfidence) {
+    const post = [];
+    if (usage) post.push(sink.usage({ ...usage, ...replyQuality, escalate: true }));
+    post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
+    post.push(
+      sink.escalate(
+        "policy_block",
+        `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent \u2014 "${bodyText}"`
+      )
+    );
+    post.push(
+      tell(
+        bodyText,
+        replyText,
+        "held for low confidence; the hold could not be scheduled, so nothing was sent",
+        pauseHours
+      )
+    );
+    await Promise.all(post);
+    await sink.processed();
+    L4.warn("wa_hold_unscheduled_kept", { confidence: brainMeta?.confidence, min: plan.minConfidence });
+    return;
+  }
+  if (queued) {
+    const post = [];
+    if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
+    if (escalate) {
+      post.push(
+        sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : void 0)
+      );
+      post.push(
+        sink.escalate(
+          escalationReason,
+          fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
+        )
+      );
+      post.push(tell(bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
+    }
+    await Promise.all(post);
+    await sink.processed();
+    L4.info("wa_reply_queued", { delay_ms: delayMs, escalate });
+    return;
+  }
+  const sent = await send(
+    replyText,
+    fallback ? fallback.meta : brainMeta
+  );
+  const tSent = Date.now();
+  if (sent.outcome === "sent") {
+    const post = [];
+    if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
+    if (escalate) {
+      post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
+      post.push(
+        sink.escalate(
+          escalationReason,
+          fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
+        )
+      );
+      post.push(tell(bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", pauseHours));
+    }
+    await Promise.all(post);
+    await sink.processed();
+  } else if (sent.outcome === "refused") {
+    L4.info("wa_refused_at_wire", { reason: sent.reason });
+    await sink.processed();
+  } else {
+    await Promise.all([
+      tell(bodyText, "(send failed \u2014 the customer received no reply)", "wa_send_failed"),
+      sink.escalate(
+        "send_failed",
+        sent.reason === "wire_unreadable" ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer." : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`
+      )
+    ]);
+  }
+  L4.info("wa_replied", {
+    escalate,
+    sent: sent.outcome === "sent",
+    ingest_ms: ingestMs,
+    post_ms: Date.now() - tSent
+  });
+}
 export {
   BROADCAST_STALL_RETRY_MS,
   CARDS,
@@ -42442,6 +43568,7 @@ export {
   FIRST_COLLECT_SECONDS,
   IDEMPOTENCY_WINDOW_MS,
   INPUT_MARKER,
+  IngestFailed,
   JUDGE_MARGIN_MS,
   JUDGE_REFUSED_REASON,
   JUDGE_TIMEOUT_MS,
@@ -42452,20 +43579,29 @@ export {
   MAPS_RUN_TIMEOUT_SECS,
   MARK_ALLOWANCE_MS,
   MARK_AT_ONCE,
+  MAX_REPLIES_PER_DAY,
   MAX_SNOOZE_MS,
   NEEDS_UNTIL,
   NO_LOCATION_REASON,
+  NO_MODEL_PAGE,
   OUT_OF_AREA_REASON,
   PAGE_ITEMS,
   PAGE_READ_ALLOWANCE_MS,
+  PAUSE_MS,
   PERSON_CONTROL_MAX_S,
   POLL_SECONDS,
   PROVIDER_RUN_PAGE,
   RADIUS_MAX_M,
   RADIUS_MIN_M,
   SEND_GRACE_MS,
+  STALE_MS,
+  STALE_REPLY_MS,
   UNKNOWN_START_GRACE_MS,
+  VISION_MAX_BYTES,
+  VISION_MIMES,
   afterProbe,
+  ageVerdict,
+  answerInbound,
   approveRun,
   archive,
   areaCenter,
@@ -42482,6 +43618,7 @@ export {
   deliver,
   deliverSafely,
   discoveryEnding,
+  effectiveReplyMode,
   emailSender,
   fact,
   factsOf,
@@ -42489,25 +43626,34 @@ export {
   handBack,
   hasContact,
   haversineM,
+  holdCopy,
+  holdPlan,
   identityOf,
   inArea,
   ingestEmail,
   isAgainRun,
   isFreeMail,
+  isThreadUnknown,
+  isVisionMime,
   judgeBatch,
+  layerTwo,
   mainAsk,
   markPlaces,
   medianCenter,
   memberOf,
   nearbyFor,
   nearestAreas,
+  noModelPlan,
   opIdFor,
+  photoUserText,
   probeAsk,
   probeYield,
   provisionLine,
   radiusFromSpread,
   reconcileUnknownRuns,
+  replyPosture,
   replyToConversation,
+  resolveConsent,
   resolveEscalation,
   runCaps,
   runIdFor,
@@ -42526,6 +43672,9 @@ export {
   templatePurpose,
   templateValues,
   termsShortOf,
+  threadVerdict,
+  toBase64,
+  unreadableThread,
   wake,
   whatsappSender,
   yieldOf,

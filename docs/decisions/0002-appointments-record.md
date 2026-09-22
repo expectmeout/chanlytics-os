@@ -23,13 +23,13 @@ profile and the People list read it through
 and their next and last visit, through
 `packages/contracts/src/calendar-people.ts` (630 lines); the hourly sweep
 through `apps/edge/api/cron/calendar.ts` (82 lines); the receptionist through
-`openingsFor` and `visitsFor` (`apps/edge/lib/availability.ts:144`, `:163`).
+`openingsFor` and `visitsFor` (`apps/edge/lib/calendar/availability.ts:144`, `:163`).
 `calendar.ts:78` caches the _parse_ while the text is the same and `loadFeed`
 caches the text for a few minutes, but nothing is stored: every page load, run
 and message that mentions a time re-derives it from the same file.
 
 The only durable trace is a person: `addPeopleFromCalendar`
-(`apps/edge/lib/calendar-people.ts:28`) creates a contact from an event that
+(`apps/edge/lib/calendar/calendar-people.ts:28`) creates a contact from an event that
 carries a phone number and writes one `contact.added` event with
 `{ source: "calendar", title, uid, start }` (`:68-72`). The appointment is
 never kept.
@@ -264,7 +264,7 @@ no reader; _both orders:_ the dashboard does not know the table exists.
 default, a JSONL backup first, idempotent, `--apply` to mean it — running the
 same parse over each workspace's feed and inserting what step 2 would have. A
 feed carries only its own horizon (`max_days_ahead`, default 14,
-`apps/edge/lib/availability.ts:133`), so the backfill reaches no further back
+`apps/edge/lib/calendar/availability.ts:133`), so the backfill reaches no further back
 than that; Reports must say so rather than showing a short history as a real one.
 
 **4 · Reports read the table.** `bookingReport`
@@ -293,7 +293,7 @@ still carries one, so both versions parse it.
 
 **7 · A booking-tool webhook.** A signed door under `apps/edge/api`, judged by
 a pure `planBookingEvent` the way `planResendEvent`
-(`apps/edge/lib/email-ingress.ts:49`) is, writing through step 2's verb with
+(`apps/edge/lib/email/email-ingress.ts:49`) is, writing through step 2's verb with
 `source: 'booking_tool'`.
 
 **8 · Status beyond the feed.** The `kept` sweep, and the routes that let a

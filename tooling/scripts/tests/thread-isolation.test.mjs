@@ -106,7 +106,7 @@ test("the inbound-call endpoint refuses to read without a resolved tenant", () =
   // it is unchanged. Locating the read explicitly rather than comparing an
   // indexOf that returns -1: if the call is ever renamed away again, this
   // must fail loudly rather than pass because it found nothing.
-  const src = fs.readFileSync(path.join(EDGE, "lib/call-start.ts"), "utf8");
+  const src = fs.readFileSync(path.join(EDGE, "lib/voice/call-start.ts"), "utf8");
   assert.ok(
     src.includes(`resolveChannelDetailed(db, "voice", o.agentId)`),
     "it must resolve the tenant from the agent",

@@ -203,7 +203,7 @@ test("the receptionist is made once, in the lib both line paths share: the shell
   // the bodies on the wire, the row after the number, the bell and the event,
   // secrets never echoed, the read-back planning nothing -- is run in
   // voice-doors.test.mjs.
-  const agent = readCode("apps/edge/lib/voice-agent.ts");
+  const agent = readCode("apps/edge/lib/voice/voice-agent.ts");
   for (const pin of [
     "createRetellLlm(cfg, voiceLlmCreateBody(secrets))",
     "createAgent(cfg, voiceAgentCreateBody(",

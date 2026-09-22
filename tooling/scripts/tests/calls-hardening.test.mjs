@@ -97,7 +97,7 @@ test("the trigger wakes the edge for calls that have simply run too long", () =>
 test("the storage upload is bounded too", () => {
   // A CDN's 401, 403 or 410 as final, and its 404 as a try to repeat, run in
   // cron-doors-b.test.mjs, where the wire answers each.
-  const lib = readCode("apps/edge/lib/call-recording.ts");
+  const lib = readCode("apps/edge/lib/voice/call-recording.ts");
   assert.ok(lib.includes('"storage upload"'), "the upload is bounded too");
 });
 

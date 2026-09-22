@@ -14,10 +14,10 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import { calendarDue, markCalendarChecked, noteBacklog, CALENDAR_PER_TICK } from "../../lib/sweep-rotation.js";
-import { feedItemsFor } from "../../lib/availability.js";
-import { addPeopleFromCalendar } from "../../lib/calendar-people.js";
-import { recordNotification } from "../../lib/notify.js";
+import { calendarDue, markCalendarChecked, noteBacklog, CALENDAR_PER_TICK } from "../../lib/ops/sweep-rotation.js";
+import { feedItemsFor } from "../../lib/calendar/availability.js";
+import { addPeopleFromCalendar } from "../../lib/calendar/calendar-people.js";
+import { recordNotification } from "../../lib/ops/notify.js";
 import { parseTenantConfig, peopleFromItems } from "../../lib/packages/contracts.js";
 
 export const config = { maxDuration: 60 };

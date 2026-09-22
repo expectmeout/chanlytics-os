@@ -328,7 +328,7 @@ test(
         tenantId,
         call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }),
       );
-      // The marker purgeExpiredRecordings leaves once the audio is out of the bucket (apps/edge/lib/call-recording.ts).
+      // The marker purgeExpiredRecordings leaves once the audio is out of the bucket (apps/edge/lib/voice/call-recording.ts).
       const purged = {
         fetch_state: "purged",
         purged_at: new Date().toISOString(),

@@ -31,7 +31,7 @@ import {
   subscribeWaba,
   toE164,
   wabaInfo,
-} from "../../../lib/meta-graph.js";
+} from "../../../lib/whatsapp/meta-graph.js";
 import { env } from "../../../lib/env.js";
 import { logger } from "../../../lib/log.js";
 

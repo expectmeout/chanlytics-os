@@ -33,7 +33,7 @@ for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATS
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { GRAPH_VERSION } = await import(at("apps/edge/lib/meta-graph.ts"));
+const { GRAPH_VERSION } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
 const create = await import(at("apps/edge/api/admin/whatsapp/templates-create.ts"));
 const sync = await import(at("apps/edge/api/admin/whatsapp/templates-sync.ts"));
 const del = await import(at("apps/edge/api/admin/whatsapp/templates-delete.ts"));

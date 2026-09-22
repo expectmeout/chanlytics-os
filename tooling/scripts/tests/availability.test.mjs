@@ -239,7 +239,7 @@ test("booking rules and the calendar feed are config the schemas accept, and the
 });
 
 test("the edge reads the feed once per five minutes and tells both receptionists, after the clock", () => {
-  const lib = readRaw("apps/edge/lib/availability.ts"); // raw: a regex with // in it is not a comment
+  const lib = readRaw("apps/edge/lib/calendar/availability.ts"); // raw: a regex with // in it is not a comment
   assert.ok(lib.includes("const CACHE_MS = 5 * 60 * 1000;"));
   assert.ok(lib.includes("AbortSignal.timeout(FETCH_TIMEOUT_MS)"));
   assert.ok(lib.includes('u.replace(/^webcal:\\/\\//i, "https://")'));
@@ -261,7 +261,7 @@ test("the edge reads the feed once per five minutes and tells both receptionists
   );
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(rt.includes("calendar: parsed?.calendar ?? null,"));
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(wa.includes("const openings = rt ? await ports.calendar.openings(rt) : null;"));
   assert.ok(wa.includes('${openings ? `\\n\\n${openings}` : ""}'), "after describeNow, in the uncached block");
   // The phone's openings ride inside business_facts, and the facts rule from

@@ -47,7 +47,7 @@ export const HANDOFF_VAR = "{{handoff_number}}";
  * "we have nothing" are an agent reading its own placeholder aloud, or an
  * agent with no knowledge and no idea that it has none. This is the third
  * option: no facts, and told so. The call-start judgement on the edge
- * (apps/edge/lib/call-start.ts) sends this same constant as its fallback, so
+ * (apps/edge/lib/voice/call-start.ts) sends this same constant as its fallback, so
  * the shell's default and the webhook's answer cannot drift apart.
  */
 export const FACTS_UNAVAILABLE =

@@ -795,7 +795,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   ])
     assert.ok(page.includes(pin), pin);
   assert.ok(
-    readCode("apps/edge/lib/lines.ts").includes('export { LINE_STEP_WORDS } from "./packages/contracts.js";'),
+    readCode("apps/edge/lib/lines/lines.ts").includes('export { LINE_STEP_WORDS } from "../packages/contracts.js";'),
     "one list of step words",
   );
 });

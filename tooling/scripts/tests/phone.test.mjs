@@ -108,7 +108,7 @@ test("the receptionist records a short code and does not answer it", () => {
   // number, so composing a reply spends a model call to produce a message
   // Twilio will refuse — and the failure then raises "Reply delivery failed"
   // at an owner who never wrote it.
-  const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const inbound = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(inbound.includes("if (shortCode(from)) {"), "the guard reads the sender");
 
   // It gates the REPLY, not the persist: an owner should be able to see what

@@ -26,7 +26,7 @@ import { fakeApify, fakeJudge, checkerItem, probeItems } from "./_lead-fixtures.
 import { startRound, collect, check, OUT_OF_AREA_REASON } from "../../../packages/core/src/leads/runner.ts";
 import { runIdFor } from "../../../packages/core/src/leads/ids.ts";
 import { scheduleJobOnce } from "../../../packages/jobs/src/schedule.ts";
-import { leadDb } from "../../../apps/edge/lib/lead-db.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -209,7 +209,7 @@ const a2Items = (base) =>
 let a2Started = 0;
 
 /**
- * A2's runtime world over THIS database: the real adapter (apps/edge/lib/lead-db.ts), the
+ * A2's runtime world over THIS database: the real adapter (apps/edge/lib/leads/lead-db.ts), the
  * provider and the judge faked (_lead-fixtures.mjs), scheduleJobOnce for the next job, and
  * the webhook token derived as the edge derives it, under the test secret _lead-world.mjs holds.
  */
@@ -1981,7 +1981,7 @@ test(
 
 /* =========================================================================
  * Release A2 (gate G3, the runtime cases): the runner's verbs over the real
- * database adapter (apps/edge/lib/lead-db.ts) on this Postgres, with the
+ * database adapter (apps/edge/lib/leads/lead-db.ts) on this Postgres, with the
  * provider and the judge faked. Appended to A1's file; it shares its world
  * (db, A, owner, plan) and its skip. Every case below is one of the
  * interface's G3 items that only the runtime can show: two starts of one

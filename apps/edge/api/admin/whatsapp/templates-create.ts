@@ -13,7 +13,12 @@ import { json } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
-import { createTemplate, mapCategory, mapStatus, type MetaTemplateComponent } from "../../../lib/meta-templates.js";
+import {
+  createTemplate,
+  mapCategory,
+  mapStatus,
+  type MetaTemplateComponent,
+} from "../../../lib/whatsapp/meta-templates.js";
 import type { Json } from "../../../lib/packages/db.js";
 import { logger } from "../../../lib/log.js";
 

@@ -300,7 +300,7 @@ test("the owner's instructions hold as much as the prompt they grew out of -- 8,
 
   test("the WhatsApp prompt teaches the [[HUMAN]] token, even with no escalate_when", () => {
     // The runtime honours exactly one handoff mechanism: the literal token
-    // appended to a reply (apps/edge/lib/brain.ts). It was taught only inside
+    // appended to a reply (apps/edge/lib/receptionist/brain.ts). It was taught only inside
     // one salon's hand-written prose, so every composed prompt produced a
     // receptionist that says "let me get someone" and raises nothing — no
     // escalation, no pause, no staff email.

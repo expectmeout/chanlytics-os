@@ -51,7 +51,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
-import { campaignFactsFor } from "../../../apps/edge/lib/a2p.ts";
+import { campaignFactsFor } from "../../../apps/edge/lib/lines/a2p.ts";
 
 test("which question a customer's message answers", () => {
   // The split. One pattern used to match both, so one message gave one yes.
@@ -444,11 +444,11 @@ test("the resubmit sends everything Twilio will accept, and says what it will no
   );
   // And the caller no longer computes four fields for them to be dropped
   // silently by a narrower parameter type.
-  const edge = readCode("apps/edge/lib/a2p.ts");
+  const edge = readCode("apps/edge/lib/lines/a2p.ts");
   assert.match(edge, /privacyPolicyUrl: string; termsUrl: string \}/);
   assert.match(edge, /privacyPolicyUrl: facts\.privacyPolicyUrl,/);
   // The one that cannot be corrected says so where somebody would look for it.
-  assert.match(readRaw("apps/edge/lib/a2p.ts"), /NOT correctable after the first filing/);
+  assert.match(readRaw("apps/edge/lib/lines/a2p.ts"), /NOT correctable after the first filing/);
 });
 
 /* ========================================================================== *
@@ -462,7 +462,7 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
   // sends, two different bars, decided per call site rather than by anything about
   // the message." The broadcast wire was moved to `mayMessageFor`; this was not, so
   // for a while the product had two bars again. Nothing in this file read it.
-  const gate = readCode("apps/edge/lib/outbound-gate.ts");
+  const gate = readCode("apps/edge/lib/receptionist/outbound-gate.ts");
   assert.match(gate, /import \{ mayMessageFor/, "the gate asks the one predicate rather than holding a copy");
   assert.match(gate, /const may = mayMessageFor\(f\.contact, f\.purpose, \{ proactive: f\.proactive \}\);/);
   assert.ok(!/optedOut: boolean/.test(gate), "REGRESSION: a pre-decided boolean cannot answer a per-purpose question");

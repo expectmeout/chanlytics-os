@@ -12,7 +12,7 @@
  */
 import { pg } from "../lib/pg.js";
 import { platformHealthOf } from "../lib/packages/contracts.js";
-import type { SweepHealthRow } from "../lib/sweep-health.js";
+import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
 
 const CACHE_MS = 10_000;
 let cached: { at: number; status: number; body: string } | null = null;

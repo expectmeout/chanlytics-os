@@ -26,7 +26,7 @@ import {
   resubmitRejectedCampaign,
   replaceRejectedCampaign,
   filingProblems,
-} from "../../../apps/edge/lib/a2p.ts";
+} from "../../../apps/edge/lib/lines/a2p.ts";
 import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
@@ -100,10 +100,10 @@ test("a mock brand cannot be deleted, so the messaging profile is what changes",
   assert.equal(r.ok, true);
   assert.equal(lines[0].a2p_profile_sid, null, "cleared, so the saga resumes at a2p_profile with a fresh bundle");
   assert.ok(lines[0].profile_sid, "the customer profile is untouched -- it is the expensive half");
-  const lib = readCode("apps/edge/lib/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(lib.includes("a2p_profile_sid: null,"));
   assert.ok(
-    readRaw("apps/edge/lib/a2p.ts").includes("Duplicate Brand can not be saved"),
+    readRaw("apps/edge/lib/lines/a2p.ts").includes("Duplicate Brand can not be saved"),
     "and says why, where the next person will look",
   );
   // The campaign delete is the INSTANCE url. The collection answers 405, which
@@ -214,7 +214,7 @@ test("a question we could not ask is never reported as an answer", () => {
   // carriers are still thinking" both became null -- and null means "no answer
   // yet". The line would have sat in `registering` for ever with nothing wrong
   // on any page and a cheerful 200 from the sweep every hour.
-  const lib = readCode("apps/edge/lib/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(lib.includes("return { status: r.status, body:"), "the read carries the status");
   assert.ok(lib.includes("x.status === 401 || x.status === 403"), "and a refusal is recognised as one");
   assert.ok(lib.includes('error: "provider_unauthorized"'), "and reported as a refusal, not as a state");
@@ -228,13 +228,13 @@ test("a question we could not ask is never reported as an answer", () => {
   // The platform heals itself rather than waiting for somebody to paste a
   // secret: the parent account can read its own subaccounts' tokens, which is
   // how the saga got this one in the first place.
-  const sms = readCode("apps/edge/lib/sms.ts");
+  const sms = readCode("apps/edge/lib/sms/sms.ts");
   assert.ok(sms.includes("export async function refreshLineToken("));
   assert.ok(sms.includes("Accounts/${line.subaccount_sid}.json"), "read as the parent");
   assert.ok(sms.includes('db.rpc("put_line_credentials"'), "and written back through the one write path");
   assert.ok(lib.includes("const fresh = await refreshLineToken(db, line);"));
   assert.ok(
-    readRaw("apps/edge/lib/sms.ts").includes("the platform's own Twilio credentials were refused"),
+    readRaw("apps/edge/lib/sms/sms.ts").includes("the platform's own Twilio credentials were refused"),
     "a master-credential fault is named as itself, so nobody is sent looking at the subaccount",
   );
 
@@ -278,7 +278,7 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   ]) {
     assert.ok(chan.slice(chan.indexOf("export function updateCampaignRequest(")).includes(f), `the update sends ${f}`);
   }
-  const lib = readCode("apps/edge/lib/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(lib.includes("export async function resubmitRejectedCampaign("));
   assert.ok(!lib.includes("unfileRejectedCampaign"), "REGRESSION: the delete-and-pay-again path is gone");
   assert.ok(lib.includes('sms_state: "registering",'), "and the row says it is back with the carriers");
@@ -286,7 +286,7 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   // POSTs the INSTANCE url once, as the subaccount, with the workspace's
   // CURRENT name in the description, and asks the spend rule of nobody.
   assert.ok(
-    readRaw("apps/edge/lib/a2p.ts").includes("vetting fee is assessed only once per Campaign"),
+    readRaw("apps/edge/lib/lines/a2p.ts").includes("vetting fee is assessed only once per Campaign"),
     "and the reason is quoted where the next person will change it back",
   );
 });

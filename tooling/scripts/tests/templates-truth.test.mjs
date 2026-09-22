@@ -29,7 +29,7 @@ test("the migration: category, the two after-approval statuses, why rejected, wh
 });
 
 test("Meta's words into the table's: status, category, the body, the numbered variables with examples, labels kept", async () => {
-  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/meta-templates.ts")).href);
+  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/whatsapp/meta-templates.ts")).href);
   assert.equal(mod.mapStatus("APPROVED"), "approved");
   assert.equal(mod.mapStatus("IN_APPEAL"), "pending");
   assert.equal(mod.mapStatus("PENDING_DELETION"), "disabled");
@@ -104,7 +104,7 @@ test("the dashboard: the route proves the operator, the service reaches the edge
 });
 
 test("the webhook writes the row Meta changed; Settings shows every template with its status and one verb", async () => {
-  const w = readCode("apps/edge/lib/waba-events.ts");
+  const w = readCode("apps/edge/lib/whatsapp/waba-events.ts");
   assert.ok(w.includes('"template_category_update"'), "a recategorised template changes who may receive it");
   assert.match(w, /\.from\("templates"\)\s*\.update\(\{ meta_status: mapStatus\(event\), rejected_reason: reason \}\)/);
   assert.match(w, /\.from\("templates"\)\s*\.update\(\{\s*category: mapCategory\(/);

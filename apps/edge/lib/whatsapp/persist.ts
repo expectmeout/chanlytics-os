@@ -1,7 +1,8 @@
 /**
- * The Postgres bookkeeping of one inbound WhatsApp message: ingest first (the
+ * The Postgres bookkeeping of one inbound customer message: ingest first (the
  * customer's message is never lost to a later failure), the memory read, the
- * held draft, and the sink every branch of inbound.ts reports through. Every
+ * held draft, and the sink every branch of the receptionist reports through
+ * (packages/core/src/inbound/answer.ts, through its persist port). Every
  * method no-ops when Postgres is unconfigured and never throws into the
  * handling path, with one exception: pgIngest throws IngestFailed when the
  * write itself failed, because that is the one loss the provider can undo.
@@ -19,11 +20,18 @@ import {
 } from "../packages/db.js";
 import type { Database, Json } from "../packages/db.js";
 import { upsertEscalation, type EscalationOutcome } from "../packages/jobs.js";
-import { deliverSafely, type Delivered, type SendKind, type Wire } from "../packages/core.js";
+import {
+  deliverSafely,
+  IngestFailed,
+  unreadableThread,
+  type Delivered,
+  type SendKind,
+  type ThreadState,
+  type Wire,
+} from "../packages/core.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
-import { queueDraft } from "../draft-queue.js";
+import { queueDraft } from "../receptionist/draft-queue.js";
 import type { BrainMeta, SendPurpose } from "../packages/contracts.js";
-import { unreadableThread, type ThreadState } from "../thread.js";
 import { logger, errField } from "../log.js";
 
 /**
@@ -113,13 +121,16 @@ export async function queueReply(
   return id;
 }
 
-/** The ingest write itself failed. The message is NOT recorded, and the provider must be told so it retries. */
-export class IngestFailed extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "IngestFailed";
-  }
-}
+/**
+ * The ingest write itself failed. The message is NOT recorded, and the provider
+ * must be told so it retries.
+ *
+ * Declared in packages/core (inbound/ports.ts) because both sides need it: the
+ * verb catches it to copy the customer's words to the workspace mailbox, and
+ * this adapter throws it. Re-exported so the two doors that count it into
+ * their 503 go on importing it from the module that throws it.
+ */
+export { IngestFailed };
 
 /**
  * Persist first. Null when there is no database or no tenant to record for,

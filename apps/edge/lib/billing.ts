@@ -21,7 +21,7 @@ import {
   type BillingStatus,
   type SubscriptionFacts,
 } from "./packages/contracts.js";
-import { recordNotification } from "./notify.js";
+import { recordNotification } from "./ops/notify.js";
 import { logger, errField } from "./log.js";
 import { env } from "./env.js";
 

@@ -63,7 +63,7 @@ test("garbage in the config falls back rather than producing NaN", () => {
 
 /* ---------------------- the wiring the rule depends on -------------------- */
 
-const edge = read("apps/edge/lib/whatsapp/inbound.ts");
+const edge = read("packages/core/src/inbound/answer.ts");
 const sink = read("apps/edge/lib/whatsapp/persist.ts");
 const verbs = read("apps/dashboard/src/server/verbs.ts");
 const reply = read("packages/core/src/conversations/reply.ts");
@@ -140,7 +140,7 @@ test("a veto draft that could not be scheduled is retired, not left pending", ()
   // out would later fire and send it twice.
   // The writer moved to lib/draft-queue.ts (one writer for the handler and
   // the steer); the handler's queueReply is a thin wrapper over it.
-  const queue = readCode("apps/edge/lib/draft-queue.ts");
+  const queue = readCode("apps/edge/lib/receptionist/draft-queue.ts");
   const fn = queue.slice(queue.indexOf("export async function queueDraft"));
   const body = fn.slice(0, fn.indexOf("\n}\n", 1) + 3);
   // The rollback lives in the catch, so slice from there rather than measuring

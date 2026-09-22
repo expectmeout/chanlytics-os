@@ -11,7 +11,7 @@ import { readCode } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../../..");
-const steps = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/steps.ts")).href);
+const steps = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
 const { ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
 
 const brainCfg = { phone_display: "(305) 555-0100", booking_link: "https://book.example/melany", fallbacks: {} };
@@ -137,10 +137,13 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
 
 test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {
   // The webhook's GET and POST are imported and run in whatsapp-door.test.mjs.
-  const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  // The message path is a verb over ports now, and apps/edge/lib/whatsapp/inbound.ts
+  // is its adapter: handleInbound keeps its name and its seven parameters, which
+  // whatsapp-door.test.mjs and inbound-executed.test.mjs CALL rather than read.
+  const inbound = readCode("packages/core/src/inbound/answer.ts");
   for (const s of [
-    "export async function handleInbound(",
-    "const { ageMs, verdict: age } = ageVerdict(m.timestamp);",
+    "export async function answerInbound(",
+    "const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? undefined);",
     "const gate = threadVerdict(thread, maxRepliesDay);",
     "const plan = holdPlan(replyMode, replyLimits, brainMeta);",
     "const two = layerTwo({",
@@ -169,7 +172,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // environment's pair (per-tenant-credentials.test.mjs runs the resolver,
   // deliver.test.mjs runs the door).
   assert.ok(
-    inbound.includes("whatsapp: ports.sender(waCfgFor(rt, isEnvDefault)),") &&
+    inbound.includes("whatsapp: ports.sender(ports.waCfg(rt, isEnvDefault)),") &&
       /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
         inbound,
       ),

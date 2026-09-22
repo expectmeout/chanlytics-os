@@ -3,7 +3,7 @@
  * and the platform (traffic for a channel nobody routes). The customer is
  * texted through the one door, deliver() in packages/core, from the sink.
  */
-import { notify, type NotifyTarget, type NotifyMessage } from "../notify.js";
+import { notify, type NotifyTarget, type NotifyMessage } from "../ops/notify.js";
 import { formatPhoneDisplay } from "../packages/contracts.js";
 
 /**

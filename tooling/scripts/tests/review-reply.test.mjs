@@ -224,7 +224,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     "the constraint is found by what it says",
   );
 
-  const lib = readCode("apps/edge/lib/google.ts");
+  const lib = readCode("apps/edge/lib/google/google.ts");
   assert.ok(
     lib.includes("export async function reviewReplyMode(") &&
       lib.includes("reviewReplyModeOf(await listPolicies(db, tenantId))"),
@@ -240,7 +240,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"),
     "the facts are the brain's profile",
   );
-  const model = readCode("apps/edge/lib/review-reply.ts");
+  const model = readCode("apps/edge/lib/google/review-reply.ts");
   assert.ok(
     model.includes('export const REVIEW_REPLY_MODEL = "claude-sonnet-5";') &&
       model.includes("timeout: 15_000, maxRetries: 1") &&

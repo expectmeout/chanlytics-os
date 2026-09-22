@@ -31,7 +31,7 @@ import {
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { layerTwo } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/steps.ts")).href);
+const { layerTwo } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
 
 const agent = (content) => ({ role: "agent", content });
 const user = (content) => ({ role: "user", content });

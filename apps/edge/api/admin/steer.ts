@@ -32,8 +32,8 @@ import {
   fallbackMessages,
 } from "../../lib/packages/contracts.js";
 import { cancelJobsFor } from "../../lib/packages/jobs.js";
-import { generateReply } from "../../lib/brain.js";
-import { queueDraft } from "../../lib/draft-queue.js";
+import { generateReply } from "../../lib/receptionist/brain.js";
+import { queueDraft } from "../../lib/receptionist/draft-queue.js";
 import { env } from "../../lib/env.js";
 import { logger, errField } from "../../lib/log.js";
 

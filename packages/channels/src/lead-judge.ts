@@ -1,6 +1,6 @@
 /**
  * The judge's one model call (PRD §7.1): a structured output, no tools, no web,
- * sent the way apps/edge/lib/brain.ts sends the receptionist's in production
+ * sent the way apps/edge/lib/receptionist/brain.ts sends the receptionist's in production
  * (beta.messages.create, output_config.format beside the effort), and read by
  * contracts' own parser (lead-judge.ts holds the schema and the parser; this
  * file holds the call). The answering model is recorded, because the API's
