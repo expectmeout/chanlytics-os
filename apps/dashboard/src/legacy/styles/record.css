@@ -309,9 +309,22 @@ html.legacy-on .rec-row-act { min-height: 0; }
   /* The sheet rises from the bottom, and its foot clears the home indicator. */
   .rec-sheet { top: auto; left: 0; width: auto; height: 88vh; height: 88dvh; border-left: none; border-top: 1px solid var(--line-strong); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
   .rec-sheet-foot { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
+     voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own
+     duration and easing (spec 9, item 1), and its wash comes in with it: a transition from where it starts, as the
+     fold's own opening is, never a keyframe. It leaves the page as the fold closes, at once, as a fold does. */
+  .rec-sheet.rec-fold-sheet { height: auto; max-height: 88vh; max-height: 88dvh; transition: transform var(--duration-base) var(--ease-out); }
+  .rec-sheet-backdrop[data-fold="true"] { transition: opacity var(--duration-base) var(--ease-out); }
+  @starting-style {
+    .rec-sheet.rec-fold-sheet { transform: translateY(100%); }
+    .rec-sheet-backdrop[data-fold="true"] { opacity: 0; }
+  }
+  /* The sheet's body carries the gutter; the fields keep the fold's 4px either side for a focused box's ring. */
+  .rec-fold-sheet .rec-fold-inner { padding-block: 16px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .rec-row::before, .rec-row-act, .rec-fold-close, .rec-fold-body,
-  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close { transition: none; }
+  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close,
+  .rec-sheet.rec-fold-sheet, .rec-sheet-backdrop[data-fold="true"] { transition: none; }
 }
