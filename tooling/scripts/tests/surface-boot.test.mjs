@@ -24,6 +24,7 @@ globalThis.window = win;
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { getActiveWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+const { read } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n) => { for (let i = 0; i < n; i += 1) await tick(); };
@@ -116,6 +117,69 @@ test("a route with no surface of its own changes nothing: the order is only a pr
   await settle(40);
   stop();
   assert.deepEqual([...order].sort(), [...keys].sort(), "all of them, and none twice");
+});
+
+test("the boot holds every answer until its last surface is in: two surfaces reading one list ask the server once", async () => {
+  // Measured on the salon's Leads page: 31 reads at boot, 20 distinct. A surface in the second lane asked for a list
+  // a surface in the first had been answered a moment before, because a settled read was dropped as it settled.
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const sent = [];
+  win.fetch = async (url) => { sent.push(url); await tick(); return new Response(JSON.stringify({ ok: true, data: { templates: [] } }), { status: 200 }); };
+  let firstIn = () => {};
+  const first = new Promise((r) => { firstIn = r; });
+  const overrides = [
+    { key: "inbox", apply: async () => { await read("GET templates"); firstIn(); } },
+    { key: "people", apply: async () => { await first; await tick(); await read("GET templates"); } },
+  ];
+  const stop = startSurfaces(overrides);
+  await settle(20);
+  const asked = () => sent.filter((u) => u.startsWith("/api/v1/templates")).length;
+  assert.equal(asked(), 1, "the second surface read the answer the first had just been given");
+  await read("GET templates");
+  assert.equal(asked(), 2, "once the boot is in, a read asks the server: what follows is the live feed's and a write's to refresh");
+  stop();
+});
+
+/** A document that becomes visible when the test says, with its listeners by type. */
+function returnable() {
+  const on = {};
+  const doc = { visibilityState: "hidden", addEventListener: (t, f) => { (on[t] ||= []).push(f); }, removeEventListener: (t, f) => { on[t] = (on[t] || []).filter((g) => g !== f); } };
+  const back = () => { doc.visibilityState = "visible"; for (const f of on.visibilitychange || []) f(); };
+  return { doc, back };
+}
+
+test("a return to the tab reads the surface on screen first and the rest behind it in lanes, never every surface at once", async () => {
+  // Every surface was scheduled at once on a return -- twenty surfaces, thirty reads in one burst, the page's own
+  // among them and no sooner than a stranger's: the burst the boot's lanes exist to prevent.
+  const keys = ["today", "inbox", "people", "calendar", "reports", "settings", "broadcasts", "playbooks", "conversations", "notifications"];
+  const { doc, back } = returnable();
+  globalThis.document = doc;
+  const { order, overrides } = crowd(keys, { hash: "#/reports" });
+  let live = 0;
+  let peak = 0;
+  const measured = overrides.map((o) => ({ ...o, apply: async () => { live += 1; peak = Math.max(peak, live); await o.apply(); live -= 1; } }));
+  const stop = startSurfaces(measured);
+  try {
+    await settle(60);
+    order.length = 0;
+    peak = 0;
+    back();
+    await settle(60);
+    assert.equal(order[0], "reports", "the one on screen is read first");
+    assert.equal(new Set(order).size, keys.length, "and every other surface is still read");
+    assert.equal(order.length, keys.length, "each once");
+    assert.ok(peak <= 4 && peak > 1, `through the boot's lanes, saw ${peak} at once`);
+    order.length = 0;
+    back();
+    back();
+    await settle(60);
+    assert.equal(order.length, keys.length, "two returns in quick succession are one pass, not two");
+  } finally {
+    stop();
+    globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+  }
 });
 
 test("identity leads even on a workspace page, where nothing waits for it", async () => {

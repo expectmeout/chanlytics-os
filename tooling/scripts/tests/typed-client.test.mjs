@@ -128,6 +128,45 @@ test("identical reads within two seconds share one request; a write never does; 
   assert.equal(n, 5, "a different URL is a different request");
 });
 
+// Measured on the salon's Leads page, 21 Sep: 31 reads at boot, 20 of them distinct. The eleven others asked for a
+// list another surface had been answered 65-730ms before -- the 500-row leads page among them -- because a settled
+// read left the shared map at once. While the boot holds answers, it does not.
+test("while answers are held, a read that asks after an identical one has settled shares its answer; let go, it asks again", async () => {
+  let n = 0;
+  const h = harness(() => { n += 1; return envelope({ conversations: [n] }); });
+  const release = h.api.holdAnswers();
+  const first = await h.api("GET conversations");
+  h.tick(5_000);
+  const second = await h.api("GET conversations");
+  assert.equal(n, 1, "the second surface read the first one's answer");
+  assert.deepEqual(second, first);
+  release();
+  await h.api("GET conversations");
+  assert.equal(n, 2, "once let go, a read asks the server");
+  release();
+  await h.api("GET conversations");
+  assert.equal(n, 3, "a second release holds nothing again");
+});
+
+test("a held refusal is never shared, so a boot's retry asks the server again", async () => {
+  let n = 0;
+  const h = harness(() => { n += 1; return n === 1 ? refusal(503, "internal", "Busy.") : envelope({ conversations: [] }); });
+  h.api.holdAnswers();
+  assert.equal((await h.api("GET conversations")).ok, false);
+  assert.equal((await h.api("GET conversations")).ok, true, "the retry went to the server");
+  assert.equal(n, 2);
+});
+
+test("a write lets go of every held answer: what was read before it describes the world as it was", async () => {
+  let n = 0;
+  const h = harness(() => { n += 1; return envelope({ conversations: [], status: "ok" }); });
+  h.api.holdAnswers();
+  await h.api("GET conversations");
+  await h.api("POST billing/sync");
+  await h.api("GET conversations");
+  assert.equal(n, 3, "the read after the write is its own request");
+});
+
 test("a write forgets every read in flight, so the refresh that follows never shares a response issued before the change", async () => {
   let n = 0;
   let release = () => {};

@@ -10,7 +10,7 @@
  * sign-out, and flags stale deployments (version heartbeat).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { resolveTheme, isThemePref, isSidebarPref, type PendingWorkspace, type ThemePref, type SidebarPref } from "@chanlytics/contracts";
+import { resolveTheme, themePrefOf, DEFAULT_THEME_PREF, DEVICE_PREFS_STORAGE, isSidebarPref, type PendingWorkspace, type ThemePref, type SidebarPref } from "@chanlytics/contracts";
 import { authErrorInHash } from "@/auth/hash-error";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
@@ -197,15 +197,16 @@ interface Prefs {
   inboxDensity: "compact" | "medium" | "rich";
   showInboxAgentRail: boolean;
 }
-const PREF_DEFAULTS: Prefs = { theme: "dark", sidebar: "open", inboxDensity: "medium", showInboxAgentRail: false };
-const PREFS_KEY = "chanlytics-os-prefs";
+const PREF_DEFAULTS: Prefs = { theme: DEFAULT_THEME_PREF, sidebar: "open", inboxDensity: "medium", showInboxAgentRail: false };
+// The document's head reads the theme from the same place before first paint (contracts themeBootScript).
+const PREFS_KEY = DEVICE_PREFS_STORAGE;
 
 /** This device's preferences, with anything unknown or stale replaced by the default. */
 function loadPrefs(): Prefs {
   try {
     const stored = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as Partial<Prefs>;
     const p = { ...PREF_DEFAULTS, ...stored };
-    return { ...p, theme: isThemePref(p.theme) ? p.theme : PREF_DEFAULTS.theme, sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar };
+    return { ...p, theme: themePrefOf(p.theme), sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar };
   } catch {
     return PREF_DEFAULTS;
   }
@@ -389,7 +390,7 @@ export default function LegacyApp() {
       <ChanlyticsApp
         theme={theme}
         themePref={prefs.theme}
-        onTheme={(v) => setPref("theme", isThemePref(v) ? v : PREF_DEFAULTS.theme)}
+        onTheme={(v) => setPref("theme", themePrefOf(v))}
         sidebar={prefs.sidebar}
         onSidebar={(v) => setPref("sidebar", isSidebarPref(v) ? v : PREF_DEFAULTS.sidebar)}
         inboxDensity={prefs.inboxDensity}

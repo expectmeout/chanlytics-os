@@ -39,6 +39,34 @@ export function resolveTheme(pref: unknown, systemDark: boolean): Theme {
   return systemDark ? "dark" : "light";
 }
 
+/** The preference of a device that has chosen nothing, or holds one this build no longer knows. */
+export const DEFAULT_THEME_PREF: ThemePref = "dark";
+
+/** A device's stored preference as the app keeps it: anything unknown is the default, never System. */
+export const themePrefOf = (stored: unknown): ThemePref => (isThemePref(stored) ? stored : DEFAULT_THEME_PREF);
+
+/** Where this device keeps its preferences, the theme among them (LegacyApp.tsx loadPrefs). */
+export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
+
+/**
+ * The theme before first paint: a script for the document's head, run before anything is drawn. The document used
+ * to come down with data-theme="dark" hard-coded and be corrected in an effect after the bundle had mounted, so a
+ * light-theme workspace opened dark and flipped on every refresh. This is themePrefOf then resolveTheme, spelled once
+ * more where an import cannot reach; theme-boot.test.mjs runs it against them for everything a device could hold
+ * and both device settings. A storage that refuses or a window with no matchMedia stamps the app's own theme.
+ */
+export function themeBootScript(): string {
+  const known = JSON.stringify(THEME_OPTIONS.map((o) => o.id));
+  return [
+    "try{",
+    `var p=${JSON.stringify(DEFAULT_THEME_PREF)};`,
+    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");if(s&&${known}.indexOf(s.theme)>=0)p=s.theme}catch(e){}`,
+    'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
+    'document.documentElement.dataset.theme=p==="system"?(d?"dark":"light"):p;',
+    "}catch(e){}",
+  ].join("");
+}
+
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
 

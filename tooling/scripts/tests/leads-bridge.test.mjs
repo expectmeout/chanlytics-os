@@ -41,7 +41,7 @@ globalThis.window = {
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
-const { installLeadsCourier, leadsOverride, forgetLeadsViews } = await import("../../../apps/dashboard/src/legacy-bridge/leads.ts");
+const { installLeadsCourier, leadsOverride, forgetLeadsViews, leadsBootView } = await import("../../../apps/dashboard/src/legacy-bridge/leads.ts");
 installLeadsCourier();
 
 /* -------------------------------- fixtures ------------------------------- */
@@ -460,6 +460,25 @@ test("a view is warmed on intent: the read goes out, nothing on the page moves, 
   const twice = held.reads.length;
   await globalThis.window.__leadsWarm(`clients/leads:s-${SEARCH_ID}`);
   assert.equal(held.reads.length, twice, "held already: no read");
+});
+
+// Measured on the salon's workspace, 21 Sep: a refresh on a search's Needs review read ALL leads first (500 rows,
+// list=all, no search), drew them dimmed over the restored rows of the view the owner was on, then read that view.
+// A cold boot has only the address and what the tab's cache restored; it read neither. (The boot itself, run in a
+// fresh module: leads-cold-boot.test.mjs.)
+test("the view a cold boot reads: the one the address names, in the order this tab last read", () => {
+  const PEEK = "1a2b3c4d-0000-4000-8000-000000000001";
+  const restored = (over) => ({ view: { searchId: null, list: "all", cls: null, chips: {}, sort: "rating", dir: "desc", ...over } });
+  assert.deepEqual(
+    leadsBootView(`#/clients/leads:s-${SEARCH_ID}:c-review:p-${PEEK}`, restored({ searchId: SEARCH_ID, cls: "review" })),
+    { searchId: SEARCH_ID, list: "all", cls: "review", chips: {}, sort: "rating", dir: "desc" },
+    "the lead open over the view is no part of it",
+  );
+  assert.deepEqual(leadsBootView("#/clients/leads:l-ready", null), { searchId: null, list: "ready", cls: null, chips: {}, sort: "fit", dir: "asc" }, "nothing restored: the view's own default order");
+  assert.deepEqual(leadsBootView("#/today", restored({})), { searchId: null, list: "all", cls: null, chips: {}, sort: "rating", dir: "desc" }, "off the page: all leads, in the order the page will ask for when it opens");
+  assert.deepEqual(leadsBootView("#/clients/leads", restored({ sort: "nonsense", dir: "sideways" })), { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" }, "an order the server does not know is never sent");
+  assert.deepEqual(leadsBootView("#/clients/leads", { view: "garbage" }), { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" });
+  assert.deepEqual(leadsBootView("", undefined), { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" }, "what it always read");
 });
 
 test("the courier installs exactly the names the page and the screens call, and no words of its own", () => {

@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { subscribeMessagesInserts } from "@chanlytics/db";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
+import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
 import { routeSurfaceFor } from "./surface-registry";
@@ -228,10 +229,17 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   const wanted = surfaceOnScreen(window);
   const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : o.key === wanted ? 1 : 2);
   const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
+  // Surfaces read the same lists in turn -- the calls, the templates, the contacts, and on Leads the page the view
+  // asks for again as it mounts. Measured on the salon's Leads page: 31 reads at boot, 20 distinct, because a read
+  // that had settled was not shared with the one asking a moment later. Every answer is held until the last surface
+  // is in, and let go before the live feed is joined: nothing can change inside the hold without a write (which lets
+  // go of it) or an event the feed would not yet have delivered anyway.
+  const releaseAnswers = api().holdAnswers();
   const booted = workspaceFirst
     ? boot(workspaceFirst).then(() => inLanes(queued.filter((o) => o !== workspaceFirst), BOOT_LANES, boot))
     : inLanes(queued, BOOT_LANES, boot);
   void booted.then(() => {
+    releaseAnswers();
     if (cancelled) return;
     if (guardTenant()) return;
     if (!realtimeOverrides.length) return;
@@ -261,11 +269,26 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     );
   });
 
+  // Every surface again, as the boot reads them: the one on screen first, the rest behind it through the lanes. A
+  // return used to schedule all of them at once -- twenty surfaces, thirty reads in one burst, with the page's own no
+  // sooner than a stranger's. Answers are NOT held here: the live feed is joined by now, and an answer held from
+  // before one of its events would hide what the event changed. A return while one pass is still out is that pass.
+  let againRunning = false;
+  const readEverySurfaceAgain = () => {
+    if (againRunning || cancelled) return;
+    againRunning = true;
+    const onScreen = surfaceOnScreen(window);
+    const first = (o: SurfaceOverride) => (o.key === onScreen ? 0 : 1);
+    void inLanes([...overrides].sort((x, y) => first(x) - first(y)), BOOT_LANES, (o) => refresh(o, "refresh")).finally(() => {
+      againRunning = false;
+    });
+  };
+
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;
     // A failed surface is the one that MOST needs retrying — it used to be the
     // one excluded, which is how a boot blip became permanent for the session.
-    overrides.forEach(scheduleRefresh);
+    readEverySurfaceAgain();
   };
   document.addEventListener("visibilitychange", onVisible);
 
@@ -276,7 +299,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   const onOffline = () => setConnection({ offline: true });
   const onOnline = () => {
     setConnection({ offline: false });
-    overrides.forEach(scheduleRefresh);
+    readEverySurfaceAgain();
   };
   if (typeof navigator !== "undefined" && navigator.onLine === false) setConnection({ offline: true });
   window.addEventListener("offline", onOffline);
@@ -284,6 +307,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
 
   return () => {
     cancelled = true;
+    releaseAnswers();
     activeRefresh = null;
     activeOverrides = [];
     document.removeEventListener("visibilitychange", onVisible);
