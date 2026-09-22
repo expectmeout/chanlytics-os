@@ -2973,7 +2973,9 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 
 /* A route whose surface has not landed: the pane the page will fill stays empty (app-shell.jsx, the route view) and
    says so after a beat -- one muted line at the page's gutter, so a surface that lands fast is never said. Never a
-   skeleton: the one that stood here matched no page and moved every page when it left. */
+   skeleton: the one that stood here matched no page and moved every page when it left. The animation IS the delay
+   (fill-mode both holds the words at the from-frame until 600ms), so it is never set to none, under reduced motion
+   included: a fade of opacity alone is not motion. */
 .route-reading { padding: 14px var(--gutter-page); font-size: 11.5px; color: var(--ink-dim); animation: route-reading-in 200ms var(--ease-out) 600ms both; }
 @keyframes route-reading-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 900px) { .route-reading { padding: 12px 16px; } }

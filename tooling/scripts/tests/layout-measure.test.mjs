@@ -159,7 +159,7 @@ test("a route on its way is an empty pane that says so after a beat, never a ske
   // have none (Calendar, Reports, Playbooks, Templates), one block and a 3x2 card grid over Today's two columns,
   // and a 220px rail beside a 155px column on a 375px phone. Every page jumped when it left. A loading state that
   // moves the page when it leaves is worse than none, so the pane stays empty and says it is reading once a beat
-  // has passed (app-shell.jsx RouteReading; shell-status.test.mjs draws it).
+  // has passed (app-shell.jsx, the route view; shell-status.test.mjs draws it).
   const components = readRaw("apps/dashboard/src/legacy/styles/components.css");
   assert.doesNotMatch(components, /\.skel\b|skel-/, "no skeleton rules");
   const reading = components.match(/\.route-reading \{[^}]*\}/);

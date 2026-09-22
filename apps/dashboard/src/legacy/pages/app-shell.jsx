@@ -190,12 +190,10 @@ const ClientNotFound = ({ onNavigate }) => (
 
 // ---- A route on its way ---------------------------------------------------
 // Until its surface lands, the pane a page will fill stays empty and busy, and one status line says it is reading;
-// the words wait a beat (components.css .route-reading), so a surface that lands fast is never said. A skeleton
-// stood here until 22 Sep 2026: the mockup's page anatomy (a title, a subtitle, a stat strip, a list rail beside
-// a detail pane), which no real page kept, so every page jumped when it left -- a 58px head strip over all eleven
-// pane routes, a 340px rail on four pages that have none, a card grid over Today's two columns, two columns on a
-// phone. A loading state that moves the page when it leaves is worse than none. The route view is keyed on
-// readiness, so the route-in fade plays on the page as it lands rather than on the empty pane.
+// the words wait a beat (components.css .route-reading), so a surface that lands fast is never said. Never a
+// skeleton: the one that stood here matched no page and moved every page when it left (what was measured is in
+// layout-measure.test.mjs). The route view is keyed on readiness, so the route-in fade plays on the page as it
+// lands rather than on the empty pane.
 
 // ---- Shell -------------------------------------------------------------
 // ---- Phone tab bar --------------------------------------------------------
@@ -740,7 +738,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     if (routeReady(page, param)) return;
     // Re-render when readiness changes; the render below reads the truth.
     const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => setReadyTick((n) => n + 1)) : null;
-    // Never strand the operator on a skeleton forever — but time out INTO the
+    // Never strand the operator on the reading pane forever — but time out INTO the
     // unavailable pane, never into the mockup's seeds.
     const t = setTimeout(() => setRouteTimedOut(true), 8000);
     return () => { if (off) off(); clearTimeout(t); };

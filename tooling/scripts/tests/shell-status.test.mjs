@@ -1444,6 +1444,12 @@ test("a route whose surface has not landed is an empty pane that says it is read
     assert.ok(reading, "one line says it is reading");
     assert.equal(reading.props.role, "status", "as a status, for a screen reader");
     assert.equal(textOf(reading).trim(), "Reading…");
+    // The stub draws the shell shallow, so a component returned here would hide its own markup from byClass: the
+    // pane is proven empty by what the boundary holds, which is that one line and nothing else.
+    const boundary = view.props.children.find((k) => k && typeof k === "object");
+    const inside = boundary.props.children.filter((k) => k != null && typeof k === "object");
+    assert.equal(inside.length, 1, "the pane holds the one line and nothing else: no skeleton, no page");
+    assert.equal(inside[0], reading);
     assert.ok(timers.includes(8000), "the unavailable pane still comes after eight seconds");
     win.__surfaceGate = () => true;
     const landed = mount("#/inbox");
