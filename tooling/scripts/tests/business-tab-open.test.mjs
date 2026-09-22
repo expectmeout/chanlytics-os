@@ -1025,6 +1025,12 @@ test("the calendar row says where it reads and when, and keeps the address, the 
     assert.equal(box.props.value, "https://app.chanlytics.com/api/v1/calendar/filler.ics", "the address, whole");
     assert.equal(textOf(byTestId(open, "rec-calendar-whole")), W.__CALENDAR.vm.feed.detail);
     assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
+    // A read that failed says in the fold what it tried and when, which the row at rest leaves to the reason.
+    W.__CALENDAR = calendarRead(
+      readOk({ state: "unavailable", read_at: null, events: 0, reason: "http", status: 404, problem: "The calendar answered 404." }),
+    );
+    const bad = redrawTab();
+    assert.match(textOf(byTestId(bad, "rec-calendar-whole")), /tried 4m ago/);
   } finally {
     delete W.__CALENDAR;
   }
@@ -1206,7 +1212,18 @@ test("a viewer reads when the business is open and is offered no act on any of i
     );
     assert.match(textOf(card), new RegExp(escape(summaryOf(melany.hours))));
     assert.match(textOf(card), /1 ahead · Dec 24 – 26 · Christmas/);
-    assert.match(textOf(card), /read 4m ago/, "and everything is there to read");
+    // The whole of the last read, on the ROW: where it read from, when, and how many events. A viewer never opens a
+    // fold (below), so the fold is no place to keep it from them -- they read the record, all of it.
+    assert.equal(textOf(byTestId(card, "rec-calendar-read")), W.__CALENDAR.vm.feed.detail);
+    assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
+    // A read that failed is the same: what it tried, and when, where an owner would open the fold for it.
+    W.__CALENDAR = calendarRead(
+      readOk({ state: "unavailable", read_at: null, events: 0, reason: "http", status: 404, problem: "The calendar answered 404." }),
+    );
+    const failed = byTestId(drawTab({ profile: { ...melany, closures: [XMAS] } }), "rec-row-calendar");
+    assert.match(textOf(failed), /tried 4m ago/, "a viewer reads what the last try was, too");
+    assert.match(textOf(failed), /The calendar answered 404\./);
+    W.__CALENDAR = calendarRead(readOk());
     // Nothing opens an editor for it, whatever asks.
     for (const id of ["hours", "timezone", "closures", "calendar"]) {
       W.__recordFolds.request(id);

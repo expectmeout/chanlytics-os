@@ -489,7 +489,7 @@ const btoFeedHost = (url) => {
  * And a re-read after the save that FAILED is said, as a failed read is, with its Retry: the read still in the window
  * is the old calendar's, so waiting for a newer one to land waited for good.
  */
-const BtoFeedRead = ({ stored }) => {
+const BtoFeedRead = ({ stored, whole = false }) => {
   const [, setTick] = useBtoState(0);
   const bump = () => setTick((n) => n + 1);
   // Whether the read this row asked for is out, whether it failed, whether the row is still on the page to hear its
@@ -554,7 +554,10 @@ const BtoFeedRead = ({ stored }) => {
   // One mark for whether the last read worked, and one phrase for when it was. The mark carries the Calendar page's
   // own words (contracts CALENDAR_FEED_WORDS through the chrome bridge, as its pill does) in its accessible name and
   // under a pointer: a coloured pill of four words on a row that already states a fact is two facts, and on a phone it
-  // took a line. Where it read from and how many events it found are in the fold (BtoFeedBox).
+  // took a line. Where it read from and how many events it found are in the fold (BtoFeedBox) -- EXCEPT for a reader
+  // who has no fold: a viewer is offered no act on any row, so the fold is not a place to keep anything from them, and
+  // `whole` puts the Calendar page's own line on the row instead. It is still this component's read, with its
+  // freshness and its failures, so a viewer is never shown a stale one as if it were the latest.
   const state = window.__chrome && window.__chrome.state ? window.__chrome.state("calendar", feed.health) : { tone: "plain", label: feed.health };
   return (
     <span className="bt-feed" data-testid="rec-calendar-read" data-state={feed.health} data-reading={fresh ? undefined : "true"} aria-busy={fresh ? undefined : true}>
@@ -566,7 +569,7 @@ const BtoFeedRead = ({ stored }) => {
         data-tone={state.tone}
         data-testid="rec-calendar-state"
       />
-      {feed.read ? <span className="bt-feed-when">{feed.read}</span> : null}
+      {(whole ? feed.detail : feed.read) ? <span className="bt-feed-when">{whole ? feed.detail : feed.read}</span> : null}
       {feed.state !== "ok" || feed.stale ? (
         <span className="bt-feed-problem">{feed.problem || (feed.stale ? words.stale : words.unavailable) || null}</span>
       ) : null}
@@ -705,7 +708,7 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
           value: feed ? <span className="bt-feed-where">{btoFeedHost(feed)}</span> : null,
           empty: "Not connected",
           hint: feed ? null : "Read-only, so it can say which times are open before sending the link.",
-          children: <BtoFeedRead stored={!!feed} />,
+          children: <BtoFeedRead stored={!!feed} whole={!canEdit} />,
           name: feed ? "Change the calendar it reads" : "Add one: a calendar for it to read",
         }}
         body={(f) => <BtoFeedBox {...f} stored={feed} />}
