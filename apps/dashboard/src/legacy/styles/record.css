@@ -91,6 +91,16 @@
 .rec-fold-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-out); }
 .rec-fold-body > * { overflow: hidden; }
 @starting-style { .rec-fold-body { grid-template-rows: 0fr; opacity: 0; } }
+/* And it folds away as it closes (spec §9, item 1: --ease-in-out closing), the mirror of its opening: the head gives
+   way to the row at once, as the row gave way to it, and the fields fold up under the row on the same rows and
+   opacity. Nothing is kept by the page or the registry to do it: the fold is `hidden` the moment it closes, so focus
+   goes back to the row's act and the one-open rule lets the next fold in exactly when they did; the stylesheet alone
+   holds its box on screen for the fold's duration (display, allow-discrete) while it folds, then lets it go. For those
+   200ms what folds away takes no press. */
+.rec-fold { transition: display var(--duration-base) allow-discrete; }
+.rec-fold[hidden] { pointer-events: none; }
+.rec-fold[hidden] .rec-fold-head { display: none; }
+.rec-fold[hidden] .rec-fold-body { grid-template-rows: 0fr; opacity: 0; transition-timing-function: var(--ease-in-out); }
 /* The fields, what saving writes and the foot start under the value, past the label column (Edit-Fold's body is
    `padding: 8px 18px 0 168px`); 4px more either side, so the clip that folds the body never cuts a focused field's
    ring. A fold whose own grid carries a label column (a week, its days named) is wide: its fields take the whole
