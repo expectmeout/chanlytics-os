@@ -14,8 +14,8 @@
  */
 
 import { DAYS, GuardrailsSchema, type Closure, type Hours } from "./config";
-import { hardLimitsWords } from "./policy";
-import { dayIntervals } from "./availability";
+import { hardLimitsWords, violatesNoPrices } from "./policy";
+import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
 import { closureDatesLabel, closuresFrom } from "./calendar";
 import { zoneDayKey } from "./clock";
 import { timezoneCity } from "./time";
@@ -202,6 +202,178 @@ export function closuresAheadWords(closures: readonly Closure[] | null | undefin
   const named = `${closureDatesLabel(next)}${next.note ? ` · ${next.note}` : ""}`;
   return { count: ahead.length, line: `${ahead.length} ahead · ${ahead.length > 1 ? "next " : ""}${named}` };
 }
+
+/* ---- What you offer ---- */
+
+const count = (n: number): string => n.toLocaleString("en-US");
+
+/** A service as the settings read hands one over (contracts ServiceSchema), read defensively: the page is untyped. */
+export interface ServiceWordsInput {
+  name?: string | null;
+  duration_min?: number | null;
+  price_note?: string | null;
+}
+
+export interface ServicesWordsVM {
+  /** How many are on record. */
+  count: number;
+  /** "33 on record"; null with none, and the row says it has none. */
+  line: string | null;
+  /** How they are priced, in one sentence; null with none. */
+  priced: string | null;
+  /** The first four in the stored order, which is the order the receptionist reads them in: each name, and "180m" where it has a duration. */
+  chips: { name: string; takes: string | null }[];
+  /** "+29 more" past the four; null when every one is a chip. */
+  more: string | null;
+}
+
+/** How many services the row names at rest (the canvas's Record board). */
+const SERVICE_CHIPS = 4;
+// A note that sends the price to a consultation: "quoted at consult", "by consultation".
+const CONSULT = /\bconsult/i;
+// A note is written by the owner and read in a sentence: its first letter goes lower unless it opens an acronym.
+const inSentence = (note: string): string => (/^[A-Z][a-z]/.test(note) ? `${note[0]!.toLowerCase()}${note.slice(1)}` : note);
+
+/**
+ * The services row at rest: how many are on record, the first few by name with how long each takes, and ONE sentence
+ * about how they are priced.
+ *
+ * A note "names a price" when the detector the replies are checked by would take it for one (policy.ts
+ * violatesNoPrices), never a second test of what a price looks like: a note that names one is composed into the prompt
+ * as written, and the detector swaps it out of every reply, so the owner is told how many there are. With none that
+ * does, a list that sends every price to a consultation says so ("Every one quoted at consult — none names a price.",
+ * the canvas's words, in the owner's own note); any other says only that none names one. A service with no name is a
+ * row nobody finished, which no save writes, and is not counted.
+ */
+export function servicesWords(services: readonly ServiceWordsInput[] | null | undefined): ServicesWordsVM {
+  const list = (services ?? []).filter((s): s is ServiceWordsInput & { name: string } => !!s && typeof s.name === "string" && s.name.trim() !== "");
+  const n = list.length;
+  if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
+  const notes = list.map((s) => (typeof s.price_note === "string" ? s.price_note.trim() : ""));
+  const naming = notes.filter((note) => note !== "" && violatesNoPrices(note)).length;
+  const first = notes[0] ?? "";
+  const oneNote = first !== "" && notes.every((note) => note.toLowerCase() === first.toLowerCase());
+  const priced = naming
+    ? `${count(naming)} ${naming === 1 ? "names" : "name"} a price.`
+    : oneNote && CONSULT.test(first)
+      ? n === 1
+        ? `${first[0]!.toUpperCase()}${first.slice(1)} — it names no price.`
+        : `Every one ${inSentence(first)} — none names a price.`
+      : "None names a price.";
+  const chips = list.slice(0, SERVICE_CHIPS).map((s) => ({
+    name: s.name.trim(),
+    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min}m` : null,
+  }));
+  return { count: n, line: `${count(n)} on record`, priced, chips, more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null };
+}
+
+/**
+ * How much of everything the receptionist reads one block of its prompt is: "a quarter of everything it reads". `chars`
+ * is the block's own share of the prompt (PromptBlockVM.chars) and `total` the whole prompt's length, on one channel.
+ * Rough on purpose, the nearest of a few named shares, and "about" when even the nearest is some way off: a
+ * percentage would be a number nobody reads. Null when there is no block, or no prompt, to measure.
+ *
+ * The shares are inside the function: a table at the top of the module was kept, whole, in each of the four dists
+ * that bundle contracts and never call this.
+ */
+export function blockShareWords(chars: number, total: number): string | null {
+  const SHARES: ReadonlyArray<readonly [number, string]> = [
+    [1 / 10, "a tenth"], [1 / 5, "a fifth"], [1 / 4, "a quarter"], [1 / 3, "a third"], [2 / 5, "two fifths"], [1 / 2, "half"],
+    [3 / 5, "three fifths"], [2 / 3, "two thirds"], [3 / 4, "three quarters"], [4 / 5, "four fifths"], [9 / 10, "nine tenths"],
+  ];
+  if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
+  const f = Math.min(1, chars / total);
+  if (f >= 0.95) return "nearly everything it reads";
+  if (f < 0.075) return "less than a tenth of everything it reads";
+  const [share, words] = SHARES.reduce((best, s) => (Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best));
+  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words} of everything it reads`;
+}
+
+/**
+ * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it
+ * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
+ * prompt's length. With none it says what that costs, in the standing line's words for it.
+ */
+export function servicesToldWords(i: { count: number; chars: number | null; total: number | null }): string {
+  const n = i.count;
+  if (!n) return "No services, so it cannot say what you offer.";
+  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
+  const size = i.chars ? `, ${count(i.chars)} characters` : "";
+  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` — ${share}` : ""}.`;
+}
+
+/** The sheet's Save, named for what it saves: "Save 33 services". */
+export function servicesSaveWords(n: number): string {
+  if (!n) return "Save with no services";
+  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
+}
+
+/** The booking rules the row states (contracts BookingRulesSchema), read defensively: the page is untyped. */
+export interface BookingRulesWordsInput {
+  lead_hours?: number | null;
+  slot_min?: number | null;
+  buffer_min?: number | null;
+  max_days_ahead?: number | null;
+  party_max?: number | null;
+  notes?: readonly string[] | null;
+}
+
+export interface BookingRulesWordsVM {
+  /** "At least 2 hours' notice · 30-minute slots · up to 14 days ahead · up to 4 people": the rules that are set; null with none. */
+  line: string | null;
+  /** "No chemical services after 4 PM. Bridal parties are booked by phone.": the notes, as sentences; null with none. */
+  notes: string | null;
+  /** What it does with none of the five set: the calendar's own rules, said as they are applied. */
+  none: string;
+}
+
+const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const plural = (n: number, one: string, many: string): string => `${count(n)} ${n === 1 ? one : many}`;
+
+/**
+ * The booking rules at rest, in ONE sentence: each of the five that is set, joined by " · " in the fold's order (the
+ * canvas's Record board). A rule left empty is not said as if the owner had set it; with none set, `none` says what
+ * the calendar offers by (availability.ts BOOKING_DEFAULTS, which freeWindows applies to every opening it hands the
+ * receptionist): at least two hours' notice, fourteen days ahead, half-hour slots, no gap. "No rule" would not be true.
+ * The notes are the owner's own lines, each said as a sentence.
+ */
+export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefined): BookingRulesWordsVM {
+  const r = rules ?? {};
+  const parts: string[] = [];
+  if (isNumber(r.lead_hours)) parts.push(r.lead_hours === 0 ? "same-day bookings" : `at least ${r.lead_hours === 1 ? "1 hour's" : `${count(r.lead_hours)} hours'`} notice`);
+  if (isNumber(r.slot_min)) parts.push(`${count(r.slot_min)}-minute slots`);
+  if (isNumber(r.buffer_min)) parts.push(r.buffer_min === 0 ? "no gap between appointments" : `${plural(r.buffer_min, "minute", "minutes")} between appointments`);
+  if (isNumber(r.max_days_ahead)) parts.push(`up to ${plural(r.max_days_ahead, "day", "days")} ahead`);
+  if (isNumber(r.party_max)) parts.push(`up to ${plural(r.party_max, "person", "people")}`);
+  const joined = parts.join(" · ");
+  const notes = (r.notes ?? []).filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => {
+    const t = x.trim();
+    return /[.!?…]$/.test(t) ? t : `${t}.`;
+  });
+  const d = BOOKING_DEFAULTS;
+  return {
+    line: joined ? `${joined[0]!.toUpperCase()}${joined.slice(1)}` : null,
+    notes: notes.length ? notes.join(" ") : null,
+    none: `The calendar's own — at least ${plural(d.lead_hours, "hour's", "hours'")} notice, up to ${plural(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`,
+  };
+}
+
+/**
+ * What an empty box means, under each booking rule's box in its fold, where the box holds a number. From the defaults
+ * the openings are worked out with (BOOKING_DEFAULTS), so the hint is true: the canvas said "Empty means no rule." of
+ * the least notice, and an empty least notice is two hours'. The gap has no hint: empty is none. The party size has
+ * no default at all, and its hint says what the composer tells the receptionist of a larger group.
+ *
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: a top-level call is a side effect to the bundler, which would
+ * keep this in the four dists that bundle contracts and never use it.
+ */
+export const BOOKING_RULE_HINTS: Readonly<Record<"lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max", string | null>> = /* @__PURE__ */ (() => ({
+  lead_hours: `Empty uses ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+  slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
+  buffer_min: null,
+  max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
+  party_max: "Larger groups go to a person.",
+}))();
 
 /**
  * What a save says when it crosses the line the resolver draws between a record it composes from and one it answers

@@ -19,6 +19,14 @@ import {
   closuresAheadWords,
   closureDatesLabel,
   closuresFrom,
+  servicesWords,
+  servicesToldWords,
+  servicesSaveWords,
+  blockShareWords,
+  bookingRulesWords,
+  BOOKING_RULE_HINTS,
+  BOOKING_DEFAULTS,
+  violatesNoPrices,
 } from "@chanlytics/contracts";
 
 /* ---- A fact says where it came from ---- */
@@ -414,4 +422,100 @@ test("the closures ahead are counted on the business's own day, soonest first, a
   for (const none of [null, undefined, [], [closures[2]], [{ date: "", note: "half typed" }]]) assert.deepEqual(closuresAheadWords(none, "America/New_York", now), { count: 0, line: null });
   // A zone the clock cannot use is read as UTC (clock.ts), where it is already the 22nd: the row is never lost to one.
   assert.equal(closuresAheadWords(closures, "Not/AZone", now).count, 2);
+});
+
+/* ---- What you offer ---- */
+
+const svc = (name, duration_min, price_note) => ({ name, ...(duration_min ? { duration_min } : {}), ...(price_note ? { price_note } : {}) });
+const MANY = Array.from({ length: 33 }, (_, i) => svc(`Service ${i + 1}`, 30 + i, "quoted at consult"));
+
+test("the services row counts them, names the first four with how long each takes, and says how many more", () => {
+  const vm = servicesWords([svc("Balayage", 180, "quoted at consult"), svc("Highlights", 45, "quoted at consult"), svc("Haircut", null, "quoted at consult"), svc("Blowout", 120, "quoted at consult"), ...MANY.slice(0, 29)]);
+  assert.equal(vm.count, 33);
+  assert.equal(vm.line, "33 on record", "the canvas's words");
+  // In the stored order, which is the order the receptionist reads them in: never sorted.
+  assert.deepEqual(vm.chips, [{ name: "Balayage", takes: "180m" }, { name: "Highlights", takes: "45m" }, { name: "Haircut", takes: null }, { name: "Blowout", takes: "120m" }]);
+  assert.equal(vm.more, "+29 more");
+  // Four or fewer are all chips, with no "more".
+  assert.deepEqual([servicesWords(MANY.slice(0, 4)).chips.length, servicesWords(MANY.slice(0, 4)).more], [4, null]);
+  assert.deepEqual([servicesWords(MANY.slice(0, 5)).more, servicesWords(MANY.slice(0, 1)).line], ["+1 more", "1 on record"]);
+  // None is no line at all: the row says it has none. A row nobody finished (no name) is not counted, as no save writes it.
+  for (const none of [null, undefined, [], [{ name: "" }], [{ name: "   ", duration_min: 30 }]]) {
+    assert.deepEqual(servicesWords(none), { count: 0, line: null, priced: null, chips: [], more: null });
+  }
+  assert.equal(servicesWords([svc("Balayage", 180), { name: "" }]).count, 1);
+});
+
+test("how they are priced is one sentence, judged by the detector the replies are checked by", () => {
+  // Every one sent to a consultation, in the owner's own note: the canvas's sentence.
+  assert.equal(servicesWords(MANY).priced, "Every one quoted at consult — none names a price.");
+  assert.equal(servicesWords(MANY.map((s) => ({ ...s, price_note: "By consultation" }))).priced, "Every one by consultation — none names a price.", "the note as a sentence reads it");
+  assert.equal(servicesWords(MANY.map((s, i) => ({ ...s, price_note: i % 2 ? "Quoted at consult" : "quoted at consult " }))).priced, "Every one quoted at consult — none names a price.", "the same note, whatever its case or its space");
+  assert.equal(servicesWords([svc("Balayage", 180, "quoted at consult")]).priced, "Quoted at consult — it names no price.", "one service is not 'every one'");
+  // A note the detector takes for a price is counted, whatever the rest say.
+  const priced = MANY.map((s, i) => (i < 2 ? { ...s, price_note: i ? "45 dollars" : "from $45" } : s));
+  assert.ok(violatesNoPrices("from $45") && violatesNoPrices("45 dollars") && !violatesNoPrices("quoted at consult"), "the one predicate");
+  assert.equal(servicesWords(priced).priced, "2 name a price.");
+  assert.equal(servicesWords([svc("Balayage", 180, "$120"), svc("Cut", 30)]).priced, "1 names a price.");
+  assert.equal(servicesWords(MANY.map((s) => ({ ...s, price_note: "$60" }))).priced, "33 name a price.");
+  // A duration or a length is not a price: the detector ignores bare numbers, and so does the row.
+  assert.equal(servicesWords([svc("Braids", 240, "varies by length, 2 to 6 hours")]).priced, "None names a price.");
+  // No price at all, notes that differ, or one note for all that sends no price to a consult: none names one, and no more.
+  assert.equal(servicesWords([svc("Balayage", 180), svc("Cut", 30)]).priced, "None names a price.");
+  assert.equal(servicesWords([svc("Balayage", 180, "quoted at consult"), svc("Cut", 30, "varies")]).priced, "None names a price.");
+  assert.equal(servicesWords([svc("Balayage", 180, "quoted at consult"), svc("Cut", 30)]).priced, "None names a price.", "a service with no note is not 'quoted at consult'");
+  assert.equal(servicesWords(MANY.map((s) => ({ ...s, price_note: "varies by length" }))).priced, "None names a price.");
+});
+
+test("a block's share of the prompt is a rough fraction in words, never a percentage", () => {
+  // The canvas's: 1,190 characters of a 4,345-character prompt.
+  assert.equal(blockShareWords(1190, 4345), "a quarter of everything it reads");
+  assert.equal(blockShareWords(500, 1000), "half of everything it reads");
+  assert.equal(blockShareWords(1000, 3000), "a third of everything it reads");
+  assert.equal(blockShareWords(290, 1000), "about a quarter of everything it reads", "the nearest, and said to be rough when it is some way off");
+  assert.equal(blockShareWords(50, 1000), "less than a tenth of everything it reads");
+  assert.equal(blockShareWords(980, 1000), "nearly everything it reads");
+  assert.equal(blockShareWords(1200, 1000), "nearly everything it reads", "never more than all of it");
+  for (const [chars, total] of [[0, 1000], [100, 0], [null, 1000], [100, undefined], [Number.NaN, 10]]) assert.equal(blockShareWords(chars, total), null);
+});
+
+test("the services sheet's foot says how many it will be told of, how long they are, and what share of the prompt", () => {
+  assert.equal(servicesToldWords({ count: 33, chars: 1190, total: 4345 }), "33 services, 1,190 characters — a quarter of everything it reads.", "the canvas's foot");
+  assert.equal(servicesToldWords({ count: 1, chars: 40, total: 4000 }), "1 service, 40 characters — less than a tenth of everything it reads.");
+  assert.equal(servicesToldWords({ count: 3, chars: null, total: 4000 }), "3 services.", "with no block to measure, the count alone");
+  assert.equal(servicesToldWords({ count: 3, chars: 120, total: null }), "3 services, 120 characters.");
+  assert.equal(servicesToldWords({ count: 0, chars: null, total: 4000 }), "No services, so it cannot say what you offer.");
+  assert.deepEqual([33, 1, 0].map(servicesSaveWords), ["Save 33 services", "Save 1 service", "Save with no services"]);
+});
+
+test("the booking rules are one sentence of the rules that are set, in the fold's order, with the owner's notes as sentences", () => {
+  const vm = bookingRulesWords({ lead_hours: 2, slot_min: 30, max_days_ahead: 14, party_max: 4, consult_first: ["Color correction"], notes: ["No chemical services after 4 PM", "Bridal parties are booked by phone."] });
+  assert.equal(vm.line, "At least 2 hours' notice · 30-minute slots · up to 14 days ahead · up to 4 people", "the canvas's line");
+  assert.equal(vm.notes, "No chemical services after 4 PM. Bridal parties are booked by phone.");
+  // Only what is set is said, each in its own words, the first capitalised.
+  assert.equal(bookingRulesWords({ party_max: 1 }).line, "Up to 1 person");
+  assert.equal(bookingRulesWords({ lead_hours: 1, buffer_min: 15 }).line, "At least 1 hour's notice · 15 minutes between appointments");
+  assert.equal(bookingRulesWords({ lead_hours: 0, buffer_min: 0, max_days_ahead: 1 }).line, "Same-day bookings · no gap between appointments · up to 1 day ahead");
+  assert.equal(bookingRulesWords({ slot_min: 45, buffer_min: 1 }).line, "45-minute slots · 1 minute between appointments");
+  // Consult-first is a row of its own, and a line of the rules nowhere here.
+  assert.equal(bookingRulesWords({ consult_first: ["Extensions"] }).line, null);
+  // With none set, what the openings are worked out with is said, from the defaults the calendar applies: not "no rule".
+  for (const none of [null, undefined, {}, { notes: [] }, { lead_hours: null }]) {
+    const empty = bookingRulesWords(none);
+    assert.deepEqual([empty.line, empty.notes], [null, null]);
+  }
+  assert.equal(bookingRulesWords({}).none, "The calendar's own — at least 2 hours' notice, up to 14 days ahead, in 30-minute slots");
+  assert.deepEqual(BOOKING_DEFAULTS, { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 }, "the numbers it says are the ones freeWindows applies");
+  assert.equal(bookingRulesWords({ notes: ["  ", "Walk-ins welcome!"] }).notes, "Walk-ins welcome!");
+});
+
+test("a booking rule's box says what empty means, from the defaults the openings are worked out with", () => {
+  assert.deepEqual(BOOKING_RULE_HINTS, {
+    // The canvas said "Empty means no rule." of the least notice; an empty least notice is two hours'.
+    lead_hours: "Empty uses 2 hours.",
+    slot_min: "Empty uses the calendar's 30.",
+    buffer_min: null,
+    max_days_ahead: "Empty uses 14.",
+    party_max: "Larger groups go to a person.",
+  });
 });

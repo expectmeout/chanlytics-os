@@ -731,7 +731,7 @@ function parseRule(value, fallbackTz) {
   if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
   for (const k of Object.keys(parts2)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
   const interval = Math.max(1, Number(parts2.INTERVAL ?? 1) || 1);
-  const count = parts2.COUNT ? Number(parts2.COUNT) : null;
+  const count2 = parts2.COUNT ? Number(parts2.COUNT) : null;
   let until = null;
   if (parts2.UNTIL) {
     until = toMs(parts2.UNTIL, {}, fallbackTz);
@@ -753,7 +753,7 @@ function parseRule(value, fallbackTz) {
     bymonthday = Number(parts2.BYMONTHDAY);
     if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
   }
-  return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
+  return { freq, interval, count: count2 && count2 > 0 ? count2 : null, until, byday, bymonthday };
 }
 function occurrences(start, durMs, rule, exdates, horizon) {
   const out = [];
@@ -3333,9 +3333,9 @@ function spanForView(view, anchor) {
 function windowFor(anchor) {
   return { from: shiftKey(mondayOf(`${anchor.slice(0, 7)}-01`), -7), days: 63 };
 }
-function coversSpan(days, from, count) {
-  if (!days.length || count < 1) return false;
-  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count - 1);
+function coversSpan(days, from, count2) {
+  if (!days.length || count2 < 1) return false;
+  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count2 - 1);
 }
 function frameOf(key, todayKey) {
   const { y, m, d } = keyParts(key);
@@ -7742,7 +7742,7 @@ function reachLines(reach, p) {
   const t = p ? triggerOf(p.trigger) : null;
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
-  const one = (n, singular, plural7) => n === 1 ? singular : plural7;
+  const one = (n, singular, plural8) => n === 1 ? singular : plural8;
   const reasons = [
     { n: reach.noYes, words: `never said yes to ${offers ? "offers" : "hearing from you"}`, tone: "plain", door: { words: "Get their yes", to: GET_YES_ROUTE } },
     { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
@@ -8649,8 +8649,8 @@ function starsOf(rating) {
   const n = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
   return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
 }
-function reviewsWords(count) {
-  return typeof count === "number" ? plural4(count, "review") : "reviews not counted yet";
+function reviewsWords(count2) {
+  return typeof count2 === "number" ? plural4(count2, "review") : "reviews not counted yet";
 }
 function listingLine(l) {
   if (!l.review_count) return `${l.name} \xB7 no reviews on Google yet`;
@@ -8729,9 +8729,9 @@ function gainedOver(days, periodDays) {
   const points = [];
   let prev = before.length ? baseline.review_count : null;
   for (let day = since; day <= last.day; day = shiftDay2(day, 1)) {
-    const count = byDay.get(day);
-    const gained = count !== void 0 && prev !== null ? Math.max(0, count - prev) : 0;
-    if (count !== void 0) prev = count;
+    const count2 = byDay.get(day);
+    const gained = count2 !== void 0 && prev !== null ? Math.max(0, count2 - prev) : 0;
+    if (count2 !== void 0) prev = count2;
     points.push({ day, label: fmtDay(day), short: String(dayDate(day).getDate()), gained });
   }
   const max = Math.max(0, ...points.map((p) => p.gained));
@@ -11281,6 +11281,86 @@ function closuresAheadWords(closures, tz, now) {
   const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
   return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
 }
+var count = (n) => n.toLocaleString("en-US");
+var SERVICE_CHIPS = 4;
+var CONSULT = /\bconsult/i;
+var inSentence = (note) => /^[A-Z][a-z]/.test(note) ? `${note[0].toLowerCase()}${note.slice(1)}` : note;
+function servicesWords(services) {
+  const list2 = (services ?? []).filter((s) => !!s && typeof s.name === "string" && s.name.trim() !== "");
+  const n = list2.length;
+  if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
+  const notes = list2.map((s) => typeof s.price_note === "string" ? s.price_note.trim() : "");
+  const naming = notes.filter((note) => note !== "" && violatesNoPrices(note)).length;
+  const first = notes[0] ?? "";
+  const oneNote = first !== "" && notes.every((note) => note.toLowerCase() === first.toLowerCase());
+  const priced = naming ? `${count(naming)} ${naming === 1 ? "names" : "name"} a price.` : oneNote && CONSULT.test(first) ? n === 1 ? `${first[0].toUpperCase()}${first.slice(1)} \u2014 it names no price.` : `Every one ${inSentence(first)} \u2014 none names a price.` : "None names a price.";
+  const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
+    name: s.name.trim(),
+    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min}m` : null
+  }));
+  return { count: n, line: `${count(n)} on record`, priced, chips, more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null };
+}
+function blockShareWords(chars, total) {
+  const SHARES = [
+    [1 / 10, "a tenth"],
+    [1 / 5, "a fifth"],
+    [1 / 4, "a quarter"],
+    [1 / 3, "a third"],
+    [2 / 5, "two fifths"],
+    [1 / 2, "half"],
+    [3 / 5, "three fifths"],
+    [2 / 3, "two thirds"],
+    [3 / 4, "three quarters"],
+    [4 / 5, "four fifths"],
+    [9 / 10, "nine tenths"]
+  ];
+  if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
+  const f = Math.min(1, chars / total);
+  if (f >= 0.95) return "nearly everything it reads";
+  if (f < 0.075) return "less than a tenth of everything it reads";
+  const [share, words2] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words2} of everything it reads`;
+}
+function servicesToldWords(i) {
+  const n = i.count;
+  if (!n) return "No services, so it cannot say what you offer.";
+  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
+  const size = i.chars ? `, ${count(i.chars)} characters` : "";
+  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
+}
+function servicesSaveWords(n) {
+  if (!n) return "Save with no services";
+  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
+}
+var isNumber = (v) => typeof v === "number" && Number.isFinite(v);
+var plural6 = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
+function bookingRulesWords(rules) {
+  const r = rules ?? {};
+  const parts2 = [];
+  if (isNumber(r.lead_hours)) parts2.push(r.lead_hours === 0 ? "same-day bookings" : `at least ${r.lead_hours === 1 ? "1 hour's" : `${count(r.lead_hours)} hours'`} notice`);
+  if (isNumber(r.slot_min)) parts2.push(`${count(r.slot_min)}-minute slots`);
+  if (isNumber(r.buffer_min)) parts2.push(r.buffer_min === 0 ? "no gap between appointments" : `${plural6(r.buffer_min, "minute", "minutes")} between appointments`);
+  if (isNumber(r.max_days_ahead)) parts2.push(`up to ${plural6(r.max_days_ahead, "day", "days")} ahead`);
+  if (isNumber(r.party_max)) parts2.push(`up to ${plural6(r.party_max, "person", "people")}`);
+  const joined = parts2.join(" \xB7 ");
+  const notes = (r.notes ?? []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
+    const t = x.trim();
+    return /[.!?…]$/.test(t) ? t : `${t}.`;
+  });
+  const d = BOOKING_DEFAULTS;
+  return {
+    line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
+    notes: notes.length ? notes.join(" ") : null,
+    none: `The calendar's own \u2014 at least ${plural6(d.lead_hours, "hour's", "hours'")} notice, up to ${plural6(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
+  };
+}
+var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
+  lead_hours: `Empty uses ${plural6(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+  slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
+  buffer_min: null,
+  max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
+  party_max: "Larger groups go to a person."
+}))();
 var PROFILE_CROSSING_WORDS = {
   stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
   starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
@@ -12224,7 +12304,7 @@ function leadNoCardLine(what) {
   return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
 }
 var LEAD_PAUSED_TITLE = "Lead searches are paused for now";
-var plural6 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var plural7 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 function leadAnd(items) {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
@@ -12246,7 +12326,7 @@ function leadEndingLine(ending, f) {
       if (f.counted === 0) {
         return {
           mark,
-          title: `There are ${plural6(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
+          title: `There are ${plural7(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
           parts: ["Nothing was counted."],
           step: f.nearby.length ? { id: "nearby", label: `Look in ${leadAnd(f.nearby)}` } : null
         };
@@ -12265,7 +12345,7 @@ function leadEndingLine(ending, f) {
       return {
         mark,
         // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
-        title: `Found all ${plural6(f.seen, one, f.name)} in ${f.area}`,
+        title: `Found all ${plural7(f.seen, one, f.name)} in ${f.area}`,
         parts: [yours, ...f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : []],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
       };
@@ -12994,12 +13074,12 @@ function leadPlanFacts(plan, facts) {
 }
 function leadPlanAsk(plan, facts) {
   const binds = facts.bound !== null && facts.leadsLeft < plan.count;
-  const count = binds ? Math.max(0, facts.leadsLeft) : plan.count;
-  const label = `Find ${count} lead${count === 1 ? "" : "s"}`;
-  if (!binds) return { count, label, covers: null };
+  const count2 = binds ? Math.max(0, facts.leadsLeft) : plan.count;
+  const label = `Find ${count2} lead${count2 === 1 ? "" : "s"}`;
+  if (!binds) return { count: count2, label, covers: null };
   const who = planWho(plan);
-  const covers = facts.bound === "budget" ? `Emails for ${who} are hard to find, so this month covers about ${count} more. Find ${count} now?` : `You have ${count} lead${count === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
-  return { count, label, covers };
+  const covers = facts.bound === "budget" ? `Emails for ${who} are hard to find, so this month covers about ${count2} more. Find ${count2} now?` : `You have ${count2} lead${count2 === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
+  return { count: count2, label, covers };
 }
 
 // src/tone.ts
@@ -13388,6 +13468,7 @@ export {
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
   BOOKING_DEFAULTS,
+  BOOKING_RULE_HINTS,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
@@ -13783,9 +13864,11 @@ export {
   billingAccountDto,
   billingDoorOpen,
   billingPill,
+  blockShareWords,
   bookedAfterAsk,
   bookingHeld,
   bookingLinkAction,
+  bookingRulesWords,
   bookingTemplate,
   brainMetaOf,
   broadcastFailureFix,
@@ -14191,6 +14274,9 @@ export {
   sendFailureIsOurs,
   sendableTemplates,
   serverNotificationRows,
+  servicesSaveWords,
+  servicesToldWords,
+  servicesWords,
   setupRoute,
   setupSteps,
   sha256Hex,
