@@ -409,6 +409,7 @@ test.describe("Settings › Business on a real workspace", () => {
   });
 
   test("the sheet's columns head holds still over the rows it names", async ({ page }) => {
+    const before = await readConfig(page);
     await openRecord(page);
     await openServices(page);
     const body = page.locator(".rec-sheet-body");
@@ -433,9 +434,11 @@ test.describe("Settings › Business on a real workspace", () => {
       "the foot moved when the rows scrolled",
     ).toBe(footBefore.y);
     await discard(page, "services", "sheet");
+    await expectRecordUnchanged(page, before);
   });
 
   test("nothing on the record scrolls sideways on a phone, its folds open or shut", async ({ page }) => {
+    const before = await readConfig(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await openRecord(page);
     await expectNoSidewaysScroll(page, "the record at rest", [PANE]);
@@ -447,6 +450,7 @@ test.describe("Settings › Business on a real workspace", () => {
       await expectNoSidewaysScroll(page, `the ${id} fold open`, [PANE]);
       await discard(page, id);
     }
+    await expectRecordUnchanged(page, before);
   });
 
   test("a toast never covers the sheet's Save, at any width the sheet is drawn at", async ({ page }) => {
