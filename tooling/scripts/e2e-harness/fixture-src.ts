@@ -122,11 +122,15 @@ w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
 
 /* ---- the three surfaces What it can do reads beside the settings read ---- */
 // The Setup payload as legacy-bridge/setup.ts publishes it, the Autonomy matrix a provisioned workspace starts with
-// (00017_provision_tenant) and the workspace's approved messages. Built from THIS scenario's own channels and brain,
-// so the card the page draws is the card the record earns: the nightly's answers nowhere and has nothing filled in,
-// the salon's answers on both lines. Published as null before this, which drew the card's failed read over a record
-// the journey walks at a phone's width.
+// (00017_provision_tenant) and the workspace's approved messages. Built from THIS scenario's own channels, brain and
+// templates, so the card the page draws is the card the record earns: the nightly has nothing filled in and no
+// approved message, the salon answers on both lines and has the booking-link message a call sends the link as.
+// Published as null before this, which drew the card's failed read over a record the journey walks at a phone's
+// width; and the template list was a constant HERE until the messages moved to the scenario, which handed the seeded
+// workspace an approved message its own seed writes no row for.
 const profile = (S.config.brain.profile ?? {}) as Record<string, any>;
+// The scenario's own approved messages, counted rather than claimed.
+const approvedTemplates = (S.templates ?? []).filter((t: any) => t.meta_status === "approved");
 const answered = new Date(Date.now() - 3_600_000).toISOString();
 const channel = (kind: string) => {
   const c = S.known.channels?.find((x: any) => x.kind === kind) ?? null;
@@ -144,7 +148,7 @@ const setupDto = {
     broken: false,
   },
   channels: { whatsapp: { ...channel("whatsapp"), quality: null }, voice: channel("voice") },
-  templates: { approved: 1, pending: 0, startersApproved: 1 },
+  templates: { approved: approvedTemplates.length, pending: 0, startersApproved: approvedTemplates.length },
   calendar: { state: (S.config as any).calendar ? ("ok" as const) : ("none" as const) },
   team: { members: 1, invitesOpen: 0, alertEmails: 0 },
   consent: { yes: 0, offers: 0, offersSaidYes: 0 },
@@ -172,15 +176,7 @@ w.__POLICIES = {
   ],
   role: S.role,
 };
-w.__TEMPLATES_ALL = [
-  {
-    name: "booking_link",
-    language: "en_US",
-    meta_status: "approved",
-    channel: "whatsapp",
-    variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
-  },
-];
+w.__TEMPLATES_ALL = S.templates ?? [];
 // No __CHANNELS. The bridge publishes `toChannelVM(c, now)` (surface-data.ts), and defining the global at all flips
 // settings.jsx to PaneIntegrationsReal -- so a hand-built row would draw a pane no spec here opens, out of a shape
 // the product does not use. The channels reach the page where the page reads them: in the facts, resolved above.

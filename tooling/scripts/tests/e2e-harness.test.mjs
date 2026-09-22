@@ -107,6 +107,39 @@ test("the page's fixture publishes the tab's globals through the same contracts 
   assert.equal((await w.__workspace.setTimezone("America/Chicago")).ok, false);
 });
 
+test("the messages the fixture publishes are the scenario's own, and the nightly has none", async () => {
+  // The fixture published one approved booking_link template and templates.approved = 1 for EVERY scenario,
+  // hand-written beside the payload it derives everything else in. Neither the seed (e2e-workspace.mjs) nor the
+  // scenarios write a template row, so the nightly workspace was shown an approved message it does not have -- and
+  // an approved booking-link template is exactly what decides whether a call can send the link at all
+  // (contracts bookingTemplate, and the openings row's ", then the link" clause).
+  for (const [name, approved] of [
+    ["nightly", []],
+    ["salon", ["booking_link"]],
+  ]) {
+    const w = await publishedGlobals(name);
+    assert.deepEqual(
+      plain(w.__TEMPLATES_ALL)
+        .filter((t) => t.meta_status === "approved")
+        .map((t) => t.name),
+      approved,
+      `${name}: the approved messages`,
+    );
+    assert.deepEqual(
+      plain(w.__TEMPLATES_ALL),
+      plain(scenario(name, NOW).templates),
+      `${name}: the scenario's own list, not a copy`,
+    );
+    // And the count Setup states is that list counted, never a number typed beside it.
+    assert.equal(
+      w.__SETUP.dto.templates.approved,
+      approved.length,
+      `${name}: Setup counts the messages the workspace has`,
+    );
+    assert.equal(w.__SETUP.dto.templates.startersApproved, approved.length, name);
+  }
+});
+
 /* ------------------------------- what the pages read ------------------------------- */
 
 /** Every `window.__x` the pages under test read. */
