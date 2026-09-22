@@ -2305,7 +2305,44 @@ The eleven items:
   muted words (`8849307d`), and the week ribbon's green-washed bars became filled neutrals (`2f6a3b0a`) — green says
   nothing about opening hours, and the accent on this shell means "right now".
 
-**Proof.** `corepack pnpm e2e:local -- e2e/settings-business.spec.ts` and `--scenario=salon` are both 12/12, unchanged.
+**Kept, on purpose.**
+
+- The composed prompt still reads "Opening hours (all times America/New_York)" (`config.ts:1251`). That is the literal
+  text the receptionist receives, not a sentence this page writes, and rewriting it here would make the preview stop
+  being what it claims to be: what your receptionist is told, word for word. Item 5 is the page's own line above the
+  week, and its test asserts the exact `hoursZoneWords` string rather than "no `/`", so it cannot be satisfied by
+  smuggling the id in some other spelling.
+- The seven switches in the rules fold stay green (`record.css` `.rec-switch[aria-checked="true"]`). A switch is a
+  control, not a decoration, and `--ok` is the kit's one on/off signal across every Settings tab; making this page's
+  switches a different colour from every other page's switches would be the clutter, not the cure.
+- The "never an email" guarantee is proved at the bridge (`settings-save.test.mjs` `lastChangedFor`) and in contracts
+  (`facts.test.mjs` `lastChangedWords`/`lastChangedName`), because the page's own harness stubs `__lastChanged`, so the
+  page test proves composition only.
+
+**Fixed in review (22 Sep), same round.**
+
+- **B1.** Flattening the fold to `--bg-sunken` took two children with it, both painted `--bg-sunken` themselves: the
+  block of what a save will tell the receptionist, and every day's track. The block takes `--bg` and the track
+  `--bg-hover`, a step from both surfaces a track is drawn on (`0ea23c04`).
+- **I5.** At 390px the fold drew a bar per day with the axis hidden, which says only "some of the day" where the two
+  time boxes under it say it exactly: about 180px of a phone's height restating them. `.bt-week-row > .bt-week-track`
+  is not drawn under 761px; the ribbon at rest keeps its bars, where the seven ARE the answer (`db1f08b9`).
+- **I2.** Items 6, 7 and 10 had no test, and a mutant restoring the gradient passed 265 of them. The 390px journey now
+  asks the page by computed style, at rest and with each of five folds open: nothing inside `.rec-card` paints a
+  gradient, nothing in it is set in a monospace, and no row that HAS its fact draws a hint. A unit guard stands beside
+  it over `settings.css`'s own `rec-`/`bt-`/`act-` rules, on the stylesheet `prompt-preview.test.mjs` already reads —
+  `record.css` is the journey's alone, because a second `readCode` would raise the source-scan baseline, which may only
+  fall, and an executed stylesheet is the better proof anyway. Both were shown red against the gradient mutant and
+  green with it removed (`d0855496`).
+- **I3.** The told section's head said WhatsApp's sentence whatever channel was chosen, and an open section carried the
+  same sentence twice. One constant per channel, the head drawn only while it is closed (`ed2874f7`).
+- **I4 + M10a.** A viewer is offered no act on any row of this card, so the fold was not somewhere to look but
+  somewhere the fact had gone: the row draws the Calendar page's whole line for them, out of the same component that
+  keeps the read fresh. The failed read's "tried 4m ago" is asserted in the fold and on the viewer's row (`79709c3e`).
+- **M8, M9.** The dead `.bt-own-size` rule, and the kit's header now says `sourceLabel` has nothing to override on
+  `typed` (`d77aa498`).
+
+**Proof.** `corepack pnpm e2e:local -- e2e/settings-business.spec.ts` and `--scenario=salon` are both 12/12.
 At 390px on the salon record: no horizontal scroll, and inside `.rec-card` / `.rec-row` at rest **0** bordered pills
 (was 9), **0** monospace elements (was 2) and **0** computed gradients (was 13).
 
