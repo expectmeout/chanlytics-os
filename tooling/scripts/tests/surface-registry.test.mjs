@@ -192,9 +192,10 @@ test("REGRESSION: an unconfigured workspace is not shown somebody else's busines
     settings.includes("if (unconfigured) return <window.BtCreateCard"),
     "and the card must take the honest one",
   );
-  // Task 3.7: the empty state, and the fold that sets a receptionist up from it, are the page's own card.
-  const create = fs.readFileSync(path.join(DASH, "legacy/pages/business-tab-create.jsx"), "utf8");
-  assert.ok(create.includes("This workspace has no receptionist yet"), "an empty workspace says so");
+  // Task 3.7: the empty state, and the fold that sets a receptionist up from it, are the page's own card. Drawn,
+  // not read: business-tab-create.test.mjs, "a workspace with no receptionist is told so, and offered the one act
+  // that changes it", reads "This workspace has no receptionist yet" off the drawn card, and "with nothing read to
+  // save onto, the act is not offered at all" reads it again where there is no config behind the fold.
 });
 
 test("REGRESSION: the team card reads real members, not the seed store", () => {
