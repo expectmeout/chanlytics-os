@@ -2944,7 +2944,7 @@ Assert the retired phrases are absent and the kept ones present, by executing th
 >    Nothing else §10 retired was on the page: its words had moved in Phases 3 to 5.
 > 3. **"Transfers a caller to" was decided with the spec, and §10 is amended (dated).** The row stays in Who you are as the number's one editor -- Task 3.2's decision and §4.5's amendment, one fact with one editor -- and *Hands you a customer* stays the one hand-off row, naming both channels, reading the number and opening that row. What §10 retired was the label: a phrase where the rule is that a label names the thing. So the row is "Transfer number", and its act still says "Change the transfer number".
 > 4. **Only the contracts dist moved** (the four others are byte-identical: `PROMPT_READERS` is a plain literal the tab alone reads). `data/business-tab.js` went to `?v=24` with it.
-> 5. **Not renamed, outside the pages this task draws.** Setup's step is still titled "Business facts" (contracts `setup.ts`, pinned by `setup.test.mjs`), and Connections' carrier form still reads "Your business, as the carriers need it" where §10 keeps "the business on record" for that form. So is the AI memory pane's "the extra instructions saved there" (settings.jsx). All three are real §10 words on other pages; none was on this task's three pages, and each is one line with its own test to change.
+> 5. **Not renamed, outside the pages this task draws.** Setup's step is still titled "Business facts" (contracts `setup.ts`, pinned by `setup.test.mjs`), and Connections' carrier form still reads "Your business, as the carriers need it" where §10 keeps "the business on record" for that form. The AI memory pane's "the notes and the extra instructions saved there" (settings.jsx) was, and the review round rewrote it in the tab's row names. The two left are real §10 words on other pages; neither was on this task's three pages, and each is one line with its own test to change.
 
 ### Task 6.2b: On a phone, a row opens a sheet from the bottom
 
@@ -3019,6 +3019,7 @@ corepack pnpm test
 ## When every phase is merged
 
 - [ ] Re-read the spec's §14 and open one issue per out-of-scope item: the `facts_used` aggregate, the Google place imagery, colouring the prompt blocks by which tab wrote them, and the voice half of the loop.
+- [ ] Hand two of §10's words on other pages to their owners, as follow-ups beside the four issues (Task 6.2's review): Setup's step "Business facts" (`packages/contracts/src/setup.ts`, the facts step's titles, pinned by `setup.test.mjs`), which §10 retires for **Business**; and the carrier form's "Your business, as the carriers need it" (`pages/business-record.jsx`, on Connections), which §10 names **the business on record**.
 - [ ] Update `docs/system-map.md` if its counts name the settings surface.
 
 > **State, 22 Sep (Task 6.3).** `docs/system-map.md` is marked historical (measured 13 Sep) and names no count of the settings surface, so there is nothing in it to update. The four §14 issues are the controller's to open once this branch is merged.
