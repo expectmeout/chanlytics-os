@@ -6176,11 +6176,10 @@ function todayPeriodLine(r) {
   if (!a) return null;
   const messages = v.tiles.find((t) => t.id === "messages");
   const parts2 = [
-    `${a.totals.in} customer message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`
+    `${a.totals.in} message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`
   ];
   if (a.share !== void 0 && a.share !== null)
     parts2.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
-  if (v.replyTime && v.replyTime.count > 0) parts2.push(`median reply ${v.replyTime.medianLabel}`);
   const callCount = v.calls ? v.calls.total : 0;
   if (callCount) parts2.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
   return { text: `${lead}: ${parts2.join(", ")}.`, to: "reports" };
@@ -15004,6 +15003,21 @@ var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
 var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 var LEAD_WORDS = {
+  /**
+   * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
+   * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
+   * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
+   *
+   * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
+   * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
+   * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
+   */
+  callWays: {
+    dial: { label: "Call from your phone" },
+    copy: { label: "Copy the number" },
+    /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
+    log: { label: "Log a call you already made", meta: "how did it go?" }
+  },
   close: "Close",
   open: "Open",
   stageLabel: "Stage",

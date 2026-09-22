@@ -7281,9 +7281,10 @@ interface ReportsLike {
  * The last seven (or thirty, or ninety) days in one sentence at the foot of the day's card, with a door to Reports,
  * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, read from the
  * view model Reports itself draws and never derived a second time here: its period words (`period.now`), the messages
- * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `replyTime.medianLabel`, its
- * `calls.total`. It never reads `campaigns`: that read fails on its own (#686), and a period line that dereferenced it
- * took the whole page down.
+ * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `calls.total`. Not its median
+ * reply: that is Reports' own figure, and with it the foot ran three lines on a phone (22 Sep). "Messages", not
+ * "customer messages": the card's figure above already says whose. It never reads `campaigns`: that read fails on its
+ * own (#686), and a period line that dereferenced it took the whole page down.
  */
 declare function todayPeriodLine(r: ReportsLike | null): {
     text: string;
@@ -11878,6 +11879,28 @@ declare const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right no
  * A sentence the server also says is not here: the routes' toasts are the routes' own.
  */
 declare const LEAD_WORDS: {
+    /**
+     * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
+     * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
+     * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
+     *
+     * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
+     * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
+     * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
+     */
+    readonly callWays: {
+        readonly dial: {
+            readonly label: "Call from your phone";
+        };
+        readonly copy: {
+            readonly label: "Copy the number";
+        };
+        /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
+        readonly log: {
+            readonly label: "Log a call you already made";
+            readonly meta: "how did it go?";
+        };
+    };
     readonly close: "Close";
     readonly open: "Open";
     readonly stageLabel: "Stage";

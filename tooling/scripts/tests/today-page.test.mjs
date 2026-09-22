@@ -620,10 +620,7 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
   const tree = draw(W.TodayCard);
   const line = byTestId(tree, "today-period");
   assert.equal(textOf(line), todayPeriodLine(reports()).text);
-  assert.match(
-    textOf(line),
-    /^Last 7 days: 24 customer messages \(up from 19\), 88% answered by the receptionist, median reply 34s, 4 calls\.$/,
-  );
+  assert.match(textOf(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by the receptionist, 4 calls\.$/);
   press(buttons(tree, "Open Reports")[0]);
   assert.equal(went.at(-1), "reports");
   assert.equal(buttons(tree, "Open Reports").length, 1, "one door to Reports on the card: the period card had two");
@@ -988,6 +985,50 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   assert.match(textOf(byTestId(draw(W.TodayLeaks), "today-leaks-failed")), /Couldn't read People/);
   failed.clear();
   assert.equal(draw(W.TodayLeaks).rendered, null, "not read yet is not failed");
+});
+
+test("worth a look on a phone: the arithmetic waits behind the sentence, and the sentence is its door", () => {
+  // On a phone the arithmetic is a receipt, not a decision (Ruben, 22 Sep: the band read as wordy, in a second
+  // font). The words stay in the row, hidden, so Ask and a phone run read the same line as a desk does.
+  clear();
+  const vm = busy();
+  set({ TODAY_DATA: vm, __REPORTS: reports(), __PEOPLE: people() });
+  const had = W.matchMedia;
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
+  try {
+    const { rows } = todayLeaks(reports(), people(), vm.noReply);
+    const [first, second] = rows;
+    const mathOf = (tree, id) => find(byTestId(tree, `today-leak-${id}`), (n) => classes(n).includes("tl-math"));
+    let tree = draw(W.TodayLeaks);
+    assert.equal(all(tree, (n) => classes(n).includes("tsec-sub")).length, 0, "no subtitle over the rows");
+    const door = byTestId(tree, `today-leak-text-${first.id}`);
+    assert.equal(door.type, "button", "the sentence is the door");
+    assert.equal(textOf(door), first.text);
+    assert.equal(door.props["aria-expanded"], false);
+    assert.equal(door.props["aria-controls"], mathOf(tree, first.id).props.id);
+    assert.equal(mathOf(tree, first.id).props.hidden, true, "the arithmetic waits");
+    assert.equal(textOf(mathOf(tree, first.id)), first.math, "in the row's own words");
+    assert.equal(mathOf(tree, second.id).props.hidden, true);
+    press(door);
+    tree = again(() => W.React.createElement(W.TodayLeaks));
+    assert.equal(byTestId(tree, `today-leak-text-${first.id}`).props["aria-expanded"], true);
+    assert.equal(mathOf(tree, first.id).props.hidden, false, "one press shows it");
+    assert.equal(mathOf(tree, second.id).props.hidden, true, "and only it");
+    press(byTestId(tree, `today-leak-text-${first.id}`));
+    tree = again(() => W.React.createElement(W.TodayLeaks));
+    assert.equal(mathOf(tree, first.id).props.hidden, true, "a second press puts it away");
+  } finally {
+    if (had === undefined) delete W.matchMedia;
+    else W.matchMedia = had;
+  }
+  // A desk keeps the sentence a span and the arithmetic in view.
+  const desk = draw(W.TodayLeaks);
+  const { rows } = todayLeaks(reports(), people(), vm.noReply);
+  assert.equal(byTestId(desk, `today-leak-text-${rows[0].id}`), null);
+  assert.equal(
+    find(byTestId(desk, `today-leak-${rows[0].id}`), (n) => classes(n).includes("tl-math")).props.hidden,
+    false,
+  );
 });
 
 test("REGRESSION: worth a look over People's real rows -- a yes to offers with no number to send one to is not 'nobody has said yes', and there is no door to ask for it again", () => {
