@@ -1219,7 +1219,9 @@ const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown
 // bar back; words in the box keep it open (a view of Leads comes back with its own) without taking focus. The search
 // was a box of its own: 64px wide on Leads ("Sear"), and on People a 57px row above three text buttons. Hookless: its
 // state is the page's (`searchOpen`), so the tests' stub React counts one hook order.
-const PeoplePhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
+// `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. As one
+// string, "All leads · 96" was drawn "All leads · …" on a 375px phone.
+const PeoplePhoneBar = ({ scope, onScope, listLabel, listCount = null, onLists, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
   const id = (part) => `${testid}-phone-${part}`;
   if (searchOpen || q) {
     return (
@@ -1257,10 +1259,10 @@ const PeoplePhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen = false,
       </div>
       <button type="button" className="pp-bar-pick" aria-haspopup="dialog" aria-expanded={!!listsOpen} onClick={onLists} data-testid={id("lists")}>
         <span className="pp-bar-pick-words">{listLabel}</span>
+        {listCount != null ? <span className="pp-bar-pick-count" data-testid={id("lists-count")}>{Number(listCount).toLocaleString()}</span> : null}
         <Icon name="chevron-down" size={11} />
       </button>
-      <span className="pp-bar-gap" />
-      <button type="button" className="pp-bar-icon" aria-label={searchLabel} onClick={() => onSearchOpen(true)} data-testid={id("search-open")}>
+      <button type="button" className="pp-bar-icon pp-bar-push" aria-label={searchLabel} onClick={() => onSearchOpen(true)} data-testid={id("search-open")}>
         <Icon name="search" size={18} />
       </button>
       {trailing}
@@ -2731,16 +2733,17 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
       if (id === "take_offered") return takeOffered();
       return undefined;
     };
-    // What the phone's bar says it is showing: the search that is open, or the list, with its count (Task 18).
+    // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the
+    // bar never shortens (Task 18; PeoplePhoneBar's listCount).
     const openList = rail.lists.find((l) => l.id === leadView.list);
-    const railLabel = openSearch
-      ? `${openSearch.name} · ${openSearch.round.counted}`
-      : openList ? `${openList.label} · ${openList.count}` : "All leads";
+    const railLabel = openSearch ? openSearch.name : openList ? openList.label : "All leads";
+    const railCount = openSearch ? openSearch.round.counted : openList ? openList.count : null;
     return (
       <LeadsScope
         surface={leads}
         rail={rail}
         railLabel={railLabel}
+        railCount={railCount}
         listTitle={openList ? openList.label : "All leads"}
         listsOpen={listsOpen}
         onLists={() => setListsOpen(true)}

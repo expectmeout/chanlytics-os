@@ -1412,7 +1412,7 @@ test("Export these N is a link to the search's own view of the export route", ()
 const bar = (over = {}) => {
   cells = []; seq = 0;
   return globalThis.window.LeadsPhoneBar({
-    scope: "leads", onScope() {}, listLabel: "All leads · 322", onLists() {}, listsOpen: false,
+    scope: "leads", onScope() {}, listLabel: "All leads", listCount: 322, onLists() {}, listsOpen: false,
     q: "", onQ() {}, searchRef: { current: null }, searchOpen: false, onSearchOpen() {}, onFind() {}, canFind: true, ...over,
   });
 };
@@ -1425,7 +1425,11 @@ test("on a phone the switch, the list, search and Find are one bar; search is a 
   assert.equal(byTestId(t, "leads-phone-search-open").props["aria-label"], "Search leads");
   assert.equal(byTestId(t, "leads-phone-search"), null, "REGRESSION: the box was 64px wide on a phone and said 'Sear'");
   assert.equal(byTestId(t, "leads-phone-find").props["aria-label"], "Find leads");
-  assert.equal(textOf(byTestId(t, "leads-phone-lists")), "All leads · 322");
+  // The name gives way before the count: "All leads · 96" was one string, and a 375px phone drew it "All leads · …".
+  const pick = byTestId(t, "leads-phone-lists");
+  assert.equal(textOf(find(pick, (n) => n.props?.className === "pp-bar-pick-words")), "All leads");
+  assert.equal(textOf(byTestId(pick, "leads-phone-lists-count")), "322", "REGRESSION: the count was the part an ellipsis took");
+  assert.equal(textOf(byTestId(bar({ listCount: 1240 }), "leads-phone-lists-count")), "1,240", "a count reads as a number");
   assert.equal(all(t, (n) => n.props?.["data-testid"] === "leads-phone-bar").length, 1, "one bar, not a row of controls");
   const open = bar({ searchOpen: true });
   const field = byTestId(open, "leads-phone-search");
@@ -1461,6 +1465,9 @@ test("at a phone's width the page draws the bar instead of the rail and the cont
   globalThis.__phone = true;
   const t = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   assert.ok(byTestId(t, "leads-phone-bar"), "one bar");
+  const pick = byTestId(t, "leads-phone-lists");
+  assert.equal(textOf(find(pick, (n) => n.props?.className === "pp-bar-pick-words")), "Personal trainers · Austin", "the search that is open, by its name");
+  assert.equal(textOf(byTestId(pick, "leads-phone-lists-count")), "161", "and its count apart, which never gives way");
   assert.equal(all(t, (n) => n.props?.className === "cl-controls").length, 0, "no controls row above the rows");
   assert.equal(all(t, (n) => n.props?.className === "cl-rail").length, 0, "no rail");
   assert.equal(all(t, (n) => n.props?.["data-testid"] === "leads-standing").length, 0, "and no standing line: a phone shows the work first");

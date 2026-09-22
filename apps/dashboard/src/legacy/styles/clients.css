@@ -2102,19 +2102,23 @@
 
 /* The one bar, for both scopes (PeoplePhoneBar): the switch, the list, search behind a button, the scope's own last
    control. Searching, the bar is the field, at 16px: a phone zooms into anything smaller. */
-.pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px 16px; flex: none; }
+.pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
 .pp-bar .pt-scope { margin: 0; }
-.pp-bar .pt-scope button { height: 38px; min-width: 56px; padding: 0 8px; }
+.pp-bar .pt-scope button { height: 38px; min-width: 50px; padding: 0 6px; }
 /* The switch stands as tall as the list button beside it (44px with its frame); its halves are 38px, not the touch
    floor's 44 each, which drew the switch 50px tall beside a 44px button. */
 html.legacy-on .pp-bar .pt-scope button { min-height: 0; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
 .pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }
-.pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
+.pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
 .pp-bar-pick .icon { flex: none; color: var(--ink-dim); }
 /* The words give way, not the chevron: an ellipsis on the button itself does nothing, it is a flex box. */
 .pp-bar-pick-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pp-bar-gap { flex: 1 1 0; min-width: 0; }
+/* Leads' count, apart from the name: the name gives way, the count never does. */
+.pp-bar-pick-count { flex: none; margin-left: 2px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* Search and the scope's last control stand at the bar's right edge. A spacer did this, and cost the list button a
+   gap's 6px when there was no room to spare. */
+.pp-bar-push { margin-left: auto; }
 .pp-bar-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
 .pp-bar-icon:hover { background: var(--bg-hover); color: var(--ink); }
 .pp-bar .more-wrap { flex: none; }
