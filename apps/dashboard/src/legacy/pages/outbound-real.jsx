@@ -330,23 +330,41 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     ? window.__starters.sendable((data.templates || PB_NONE).slice().sort(pbOrder))
     : { sendable: (data.templates || PB_NONE).slice().sort(pbOrder), blocked: PB_NONE, why: null }), [data.templates]);
   const triggers = data.triggers || PB_NONE;
-  const [trigger, setTrigger] = React.useState(() => (editing ? editing.trigger : initialTrigger || pbFirstFree(triggers, data.rows)));
+  // What it opens as: the playbook being changed, or a new one on the moment pressed. Words typed here before and
+  // not saved come back over that (the tab's draft, useUnsavedWork), except the moment a slot was pressed for.
+  const opened = React.useMemo(() => ({
+    trigger: editing ? editing.trigger : initialTrigger || pbFirstFree(triggers, data.rows),
+    tplId: editing ? editing.template_id : "",
+    picked: !!editing,
+    name: editing ? editing.name : null,
+    hour: editing ? editing.run_hour : 10,
+    cap: editing ? editing.cap_per_run : 25,
+    gap: editing ? editing.gap_days : 90,
+    cadence: editing ? editing.cadence_days : 30,
+    fills: editing && Array.isArray(editing.params) ? { [editing.template_id]: editing.params.map((p) => (p && p.kind ? p.kind : "text")) } : {},
+    typed: editing && Array.isArray(editing.params) ? { [editing.template_id]: editing.params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {},
+  }), [editing, initialTrigger]); // eslint-disable-line react-hooks/exhaustive-deps -- what it opened as, read once
+  const draftKey = editing ? editing.id : "new";
+  const [kept] = React.useState(() => (window.tabDraft ? window.tabDraft("playbook", draftKey) : null));
+  const start = kept ? { ...kept, trigger: initialTrigger || kept.trigger } : opened;
+  const [trigger, setTrigger] = React.useState(start.trigger);
   // The message the owner chose. Until they choose one it is the moment's own,
   // and it follows the moment -- nothing is picked for them that the moment
   // was not written for: it opened on whichever template sorted first.
-  const [tplId, setTplId] = React.useState(editing ? editing.template_id : "");
-  const [picked, setPicked] = React.useState(!!editing);
+  const [tplId, setTplId] = React.useState(start.tplId);
+  const [picked, setPicked] = React.useState(start.picked);
   // Null follows the name the route gives a playbook given none; words are the owner's.
-  const [name, setName] = React.useState(editing ? editing.name : null);
-  const [hour, setHour] = React.useState(editing ? editing.run_hour : 10);
-  const [cap, setCap] = React.useState(editing ? editing.cap_per_run : 25);
-  const [gap, setGap] = React.useState(editing ? editing.gap_days : 90);
-  const [cadence, setCadence] = React.useState(editing ? editing.cadence_days : 30);
+  const [name, setName] = React.useState(start.name);
+  const [hour, setHour] = React.useState(start.hour);
+  const [cap, setCap] = React.useState(start.cap);
+  const [gap, setGap] = React.useState(start.gap);
+  const [cadence, setCadence] = React.useState(start.cadence);
   // Per message: what fills each slot, and the words typed into it.
-  const [fills, setFills] = React.useState(() => (editing && Array.isArray(editing.params)
-    ? { [editing.template_id]: editing.params.map((p) => (p && p.kind ? p.kind : "text")) } : {}));
-  const [typed, setTyped] = React.useState(() => (editing && Array.isArray(editing.params)
-    ? { [editing.template_id]: editing.params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {}));
+  const [fills, setFills] = React.useState(start.fills);
+  const [typed, setTyped] = React.useState(start.typed);
+  // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
+  const held = { trigger, tplId, picked, name, hour, cap, gap, cadence, fills, typed };
+  const work = window.useUnsavedWork("playbook", draftKey, { value: held, dirty: JSON.stringify(held) !== JSON.stringify(opened), onLeave: onCancel });
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [adding, setAdding] = React.useState(false);
@@ -448,6 +466,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     const r = editing ? await window.__playbooks.update(editing.id, body) : await window.__playbooks.create(body);
     setBusy(false);
     if (!r.ok) { setError(r.message || "It could not be saved."); return; }
+    work.done();
     onDone(r.data, !!editing);
   };
 
@@ -486,13 +505,18 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
         </span>
       )}
       sub={editing ? "A change counts from its next run." : "One approved message, to the people a moment names who said yes — each on its own clock. Replies land in the Inbox."}
-      onClose={onCancel}
+      onClose={work.leave}
       closeLabel="Cancel"
       foot={(
         <div className="pb-foot">
-          <span className="pb-foot-say" data-tone={say ? say.tone : undefined} role={error ? "alert" : undefined} data-testid={error ? "pb-error" : "pb-foot-say"}>{say ? say.t : null}</span>
-          <button type="button" className="btn" onClick={onCancel} data-testid="pb-cancel">Cancel</button>
-          <button type="button" className="btn btn-primary" disabled={!ready} onClick={save} data-testid="pb-save">{busy ? "Saving…" : editing ? "Save changes" : "Start it"}</button>
+          {/* Cancel, and Escape, with something changed: the one question first (UnsavedAsk), where the buttons were. */}
+          {work.asking ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} what="saved" testid="pb-leave" /> : (
+            <>
+              <span className="pb-foot-say" data-tone={say ? say.tone : undefined} role={error ? "alert" : undefined} data-testid={error ? "pb-error" : "pb-foot-say"}>{say ? say.t : null}</span>
+              <button type="button" className="btn" onClick={work.leave} data-testid="pb-cancel">Cancel</button>
+              <button type="button" className="btn btn-primary" disabled={!ready} onClick={save} data-testid="pb-save">{busy ? "Saving…" : editing ? "Save changes" : "Start it"}</button>
+            </>
+          )}
         </div>
       )}
     >
@@ -668,32 +692,38 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
   // Not counted (the server's read failed): the sentence keeps what is known -- the moment, the clock, the next
   // run -- and no count; the page says once, over the cards, that the counts could not be read.
   const counted = named !== null && p.candidates !== null && p.held !== null;
+  // Said the moment the server takes it, from what it answered (`onAccepted`), not once the playbooks and the
+  // broadcasts are read again behind it; the card repaints from that re-read, and its buttons wait for it -- a Run
+  // now pressed twice before the first run's rows had landed would be two runs.
   const act = async (fn, said) => {
     if (!V || busy) return;
     setBusy(true);
-    const r = await fn();
+    let done = false;
+    const say = (d) => { done = true; flash({ tone: "ok", msg: said(d) }); };
+    const r = await fn({ onAccepted: say });
     setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? said(r.data) : <>{r.message}</> });
+    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
+    else if (!done) say(r.data);
   };
   const toggle = () => act(
-    () => (p.state === "paused" ? V.resume(p.id) : V.pause(p.id)),
+    (o) => (p.state === "paused" ? V.resume(p.id, o) : V.pause(p.id, o)),
     () => (p.state === "paused" ? <><b>{p.name}</b> resumed — next run {p.next === "paused" ? "at its hour" : p.next}</> : <><b>{p.name}</b> paused — nothing runs until you resume it</>),
   );
   const runNow = () => act(
-    () => V.runNow(p.id),
+    (o) => V.runNow(p.id, o),
     (d) => (d.outcome === "sent" ? <><b>{p.name}</b> — {pbPeople(d.eligible)}, {pbSentWhen(d)}</>
       : d.outcome === "held" ? <><b>{p.name}</b> — {pbPeople(d.eligible)} waiting for your approval</>
       : <><b>{p.name}</b> — nobody new to send to right now</>),
   );
   // The server may move the run to nine o'clock: the receipt says when it really goes (broadcasts-real.jsx bcWhenWords).
-  const approve = () => act(() => V.approveRun(waiting.id), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, {window.bcWhenWords ? window.bcWhenWords(d) : "sending now"}</>);
+  const approve = () => act((o) => V.approveRun(waiting.id, o), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, {window.bcWhenWords ? window.bcWhenWords(d) : "sending now"}</>);
   const skip = () => {
     setSkipSure(false);
-    return act(() => V.skipRun(waiting.id), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
+    return act((o) => V.skipRun(waiting.id, o), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
   };
   const remove = () => {
     setSure(false);
-    act(() => V.remove(p.id), () => <><b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers</>);
+    act((o) => V.remove(p.id, o), () => <><b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers</>);
   };
 
   // Inside a tile (PlaybookTile), the tile draws the name and the state; the
@@ -856,8 +886,11 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
   const [toastNode, flash] = window.usePPToast();
   // Who may start, change or run a playbook: the role store's answer, View-as included.
   const canAct = !!(window.canDo && window.canDo("approve"));
-  const [composing, setComposing] = React.useState(false);
-  const [editing, setEditing] = React.useState(null);
+  // A playbook half-written when the page was left opens again as the page does: the tab kept its words
+  // (useUnsavedWork), a new one under "new" and a change under the playbook's id.
+  const draftOf = (key) => !!(window.tabDraft && window.tabDraft("playbook", key));
+  const [composing, setComposing] = React.useState(() => draftOf("new"));
+  const [editing, setEditing] = React.useState(() => (data.rows || PB_NONE).find((p) => draftOf(p.id)) || null);
   // The moment an empty slot was pressed for, so the composer opens on it rather
   // than on whichever trigger happens to be first.
   const [slot, setSlot] = React.useState(null);
@@ -1019,6 +1052,7 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
 };
 
 window.PlaybookCard = PlaybookCard; // drawn on its own by confirm.test.mjs (the delete that was two clicks on one button)
+window.PlaybookComposer = PlaybookComposer; // and by campaigns-drafts.test.mjs (a slot pressed over a draft: the stub cannot remount on a key)
 window.OutboundPage = (props) => {
   const Seed = window.OutboundSeed;
   if (window.__PLAYBOOKS) return <PlaybooksReal {...props} />;

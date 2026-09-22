@@ -763,13 +763,17 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // playbook's: offered here, its time and service were typed once for everyone.
   const link = !!data.bookingLink;
   const templates = React.useMemo(() => offered.sendable.filter((t) => bcSlots(t, link) !== null), [offered, link]);
+  // A send half-written when the page was left: the tab kept it (useUnsavedWork), and the screen opens again on it,
+  // with its list, its message and its words -- unless a link names a list, which wins the list.
+  const [kept] = React.useState(() => (window.tabDraft ? window.tabDraft("broadcast") : null));
   const [aud, setAud] = React.useState(() => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
+    if (!initialSegment && kept && audiences.some((a) => bcKey(a) === kept.aud)) return kept.aud;
     return first ? bcKey(first) : "everyone:";
   });
   // The composer is its own screen, opened by New broadcast -- and by a link that
   // names a list ("Broadcast to this list" on People), which is asking to write one.
-  const [writing, setWriting] = React.useState(!!initialSegment);
+  const [writing, setWriting] = React.useState(!!initialSegment || !!kept);
   // The shell keeps this page mounted across its own links, so it follows them: a later link to a list picks that
   // list, and a link to a run, which names no list, leaves the audience where it was. Only a new link moves it: the
   // surface re-reading its audiences does not undo a choice made on the page.
@@ -781,13 +785,23 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (next) setAud(bcKey(next));
     if (initialSegment) setWriting(true);
   }, [initialSegment, audiences]);
-  const [tplId, setTplId] = React.useState(() => { const d = bcDefault(templates); return d ? d.id : ""; });
-  const [params, setParams] = React.useState({});
-  const [sources, setSources] = React.useState({});
-  const [composing, setComposing] = React.useState(false);
-  const [name, setName] = React.useState("");
-  const [whenAt, setWhenAt] = React.useState(null);
+  const [tplId, setTplId] = React.useState(() => { if (kept && kept.tplId && templates.some((t) => t.id === kept.tplId)) return kept.tplId; const d = bcDefault(templates); return d ? d.id : ""; });
+  const [params, setParams] = React.useState((kept && kept.params) || {});
+  const [sources, setSources] = React.useState((kept && kept.sources) || {});
+  // A template half-written inside the send is kept under its own kind, and opens again with the send.
+  const [composing, setComposing] = React.useState(() => !!(kept && window.tabDraft && window.tabDraft("template", "new")));
+  const [name, setName] = React.useState((kept && kept.name) || "");
+  const [whenAt, setWhenAt] = React.useState(kept && kept.whenAt != null ? kept.whenAt : null);
   const [busy, setBusy] = React.useState(false);
+  // The words of the send -- a name, a value typed into a slot, a time picked -- are what is kept and what Cancel asks
+  // about; the list and the message are choices, and a choice alone keeps nothing. Sent, or thrown away, they clear.
+  const wrote = !!name.trim() || whenAt !== null || Object.values(params).some((w) => (w || []).some((v) => String(v || "").trim()));
+  const clearWords = () => { setName(""); setWhenAt(null); setParams({}); setSources({}); };
+  const work = window.useUnsavedWork("broadcast", null, {
+    value: { aud, tplId, params, sources, name, whenAt },
+    dirty: wrote,
+    onLeave: () => { clearWords(); setWriting(false); setArmed(false); },
+  });
   // Which of the audience's people the preview is showing.
   const [who, setWho] = React.useState(0);
   // Which half of the history is in view: a playbook's runs, the ones sent by
@@ -949,8 +963,8 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     setBusy(false);
     setArmed(false);
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
-    setName("");
-    setWhenAt(null);
+    work.done();
+    clearWords();
     // Sent, the screen closes onto the ledger, where the run now is -- and "See who" opens it.
     setWriting(false);
     const n = r.data.recipient_count;
@@ -1138,7 +1152,9 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
         <window.CmHead
           title="New broadcast"
           sub="Who, what and when on one screen — and the people it reaches, by name. Replies land in the Inbox, where the receptionist answers them."
-          right={<button className="btn btn-ghost" onClick={() => { setWriting(false); setArmed(false); }} data-testid="bc-compose-close">Cancel</button>}
+          right={work.asking
+            ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />
+            : <button className="btn btn-ghost" onClick={work.leave} data-testid="bc-compose-close">Cancel</button>}
         />
         {composing && window.TemplateComposer && (
           <window.TemplateComposer

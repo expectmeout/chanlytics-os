@@ -49,19 +49,23 @@ const recFolds = (() => {
   // sees can be a new instance of the one that opened: StrictMode's check in development, a key change or a new
   // parent unmounts one and mounts the next in the same commit.
   const live = new Map();
+  // Work half-done that is not a fold -- a composer's words (useUnsavedWork, below). Each holds its own unsaved test
+  // here while it is drawn, so the tab asks before closing over it and the rail before replacing it. A hold never
+  // stands between two folds: request() asks the open fold alone.
+  const holds = new Map();
+  const holding = (check) => { try { return !!check(); } catch { return true; } };
   // "Nothing open" is null, never merely falsy: a fold may be called 0 or "". A check that throws is taken as holding
   // changes: asking once too often loses nothing.
-  const dirty = () => {
-    if (openId == null || typeof openDirty !== "function") return false;
-    try { return !!openDirty(); } catch { return true; }
-  };
-  // The browser asks before the tab closes over a dirty fold. The listener is on only while a fold is open, as
-  // BusinessEditor's was only while it held changes, and it asks the fold at the moment the tab closes.
+  const foldDirty = () => openId != null && typeof openDirty === "function" && holding(openDirty);
+  const dirty = () => foldDirty() || [...holds.values()].some(holding);
+  // The browser asks before the tab closes over a dirty fold, or over a composer's words. The listener is on only
+  // while a fold is open or a composer holds, as BusinessEditor's was only while it held changes, and it asks at the
+  // moment the tab closes.
   const hold = (e) => { if (!dirty()) return; e.preventDefault(); e.returnValue = ""; };
   // Each listener hears every change, whatever another does: one that throws is reported and the rest still hear.
   const tell = () => {
     window.removeEventListener("beforeunload", hold);
-    if (openId != null) window.addEventListener("beforeunload", hold);
+    if (openId != null || holds.size > 0) window.addEventListener("beforeunload", hold);
     for (const fn of [...subs]) {
       try { fn(); } catch (err) { if (window.console) window.console.error(err); }
     }
@@ -83,10 +87,18 @@ const recFolds = (() => {
         tell();
         return true;
       }
-      if (openId == null || !dirty()) { become(id, check); return true; }
+      if (openId == null || !foldDirty()) { become(id, check); return true; }
       asked = { holding: openId, wants: id, check };
       tell();
       return false;
+    },
+    // useUnsavedWork's own, not a page's: a composer with this id is drawn, and `check` says whether it holds words.
+    // Call what this returns when it goes. A hold that comes back under the same id replaces the last.
+    hold(id, check) {
+      const test = typeof check === "function" ? check : () => !!check;
+      holds.set(id, test);
+      tell();
+      return () => { if (holds.get(id) === test) { holds.delete(id); tell(); } };
     },
     discard() { if (asked) become(asked.wants, asked.check); else become(null); },
     stay() { if (!asked) return; asked = null; tell(); },
@@ -95,8 +107,8 @@ const recFolds = (() => {
       if (asked) become(asked.wants, asked.check);
       else become(null);
     },
-    // For tests: forget what is open and what is asked. The folds counted on the page stay counted; they are the page's.
-    reset() { become(null); },
+    // For tests: forget what is open, what is asked and what is held. The folds counted on the page stay counted; they are the page's.
+    reset() { holds.clear(); become(null); },
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
     // useRecordFold's own, not a page's: the page holding fold `id` was drawn again as a new instance, and this is
     // its dirty test now, whether the fold is open or waiting behind an ask to open. Nothing else moves, the ask
@@ -263,4 +275,46 @@ const RecordFold = ({
   );
 };
 
-Object.assign(window, { RecordFold, useRecordFold, __recordFolds: recFolds });
+// ---- Work half-done that is not a fold: a composer's words ----------------------------------------------------
+// The one rule for a composer (legacy CLAUDE.md, the loading standard's G): its words are kept in the tab as they are
+// typed (window.__tabMemory, by `kind`, and `key` where there is one composer per thing -- a playbook being changed),
+// come back when the composer opens again, and go when the server takes them (`done`) or the person throws them
+// away. While it holds words, the tab asks before closing over them and Settings' rail before replacing them (the
+// registry's hold), and its Cancel asks once (`leave` -> `asking`; UnsavedAsk draws the question; `discard` and
+// `stay` answer it). With nothing typed, Cancel closes at once. The page says what counts as words (`dirty`) and
+// what to keep (`value`); what was kept is read as the page's state is made, with tabDraft(kind, key).
+//   const kept = window.tabDraft("broadcast");
+//   const work = useUnsavedWork("broadcast", null, { value: { aud, name, ... }, dirty: !!name.trim(), onLeave: close });
+//   <button onClick={work.leave}>Cancel</button>
+//   {work.asking ? <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" /> : null}
+// Nothing is kept where the tab has no memory (the standalone harness): the guard still asks, the draft is the page's.
+const tabDraft = (kind, key) => (window.__tabMemory ? window.__tabMemory.draft(kind, key == null ? undefined : key) : null);
+const useUnsavedWork = (kind, key, { value, dirty, onLeave }) => {
+  const [asking, setAsking] = useFoldState(false);
+  const dirtyNow = useFoldRef(dirty);
+  dirtyNow.current = dirty;
+  const k = key == null ? undefined : key;
+  const drop = () => { if (window.__tabMemory) window.__tabMemory.dropDraft(kind, k); };
+  // Kept as it changes, never on a timer: a tab closed a keystroke later has the keystroke. Nothing typed, nothing kept.
+  const json = JSON.stringify(value);
+  useFoldEffect(() => {
+    if (!window.__tabMemory) return;
+    if (dirty) window.__tabMemory.keepDraft(kind, value, k); else drop();
+  }, [kind, k, json, dirty]);
+  useFoldEffect(() => recFolds.hold(`${kind}:${k || ""}`, () => dirtyNow.current), [kind, k]);
+  return {
+    dirty,
+    asking,
+    leave: () => { if (dirtyNow.current) setAsking(true); else { drop(); onLeave(); } },
+    discard: () => { setAsking(false); drop(); onLeave(); },
+    stay: () => setAsking(false),
+    // The server took it: there is nothing left to keep.
+    done: drop,
+  };
+};
+// The one question, where the Cancel was. `what` is what has not happened: sent, saved, submitted.
+const UnsavedAsk = ({ onYes, onNo, busy = false, what = "sent", testid = null }) => (
+  <window.Confirm question="Throw away what you've written?" detail={`Nothing has been ${what}.`} yes="Yes, throw it away" no="Keep writing" danger busy={busy} onYes={onYes} onNo={onNo} testid={testid} />
+);
+
+Object.assign(window, { RecordFold, useRecordFold, useUnsavedWork, UnsavedAsk, tabDraft, __recordFolds: recFolds });
