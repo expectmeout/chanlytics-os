@@ -438,8 +438,6 @@
    900px and under: cards, one bar, and the work first. Nothing above the rows
    but the bar and the strip. */
 
-.ld-bar { display: none; }
-
 @media (max-width: 900px) {
   /* One gutter for the pane, owned by the scope. The bar, the strip, the band, the chips, the bench, the map and the
      first day read --gutter-page, and at this width the pane's is People's 16px (the cards' wrap, the standing line
@@ -448,17 +446,11 @@
      touch phone at 375. */
   .leads-scope { --gutter-page: 16px; }
 
-  /* One bar replaces the rail and the controls row. The rail is already
-     display: none at this width (mobile.css) and the Leads scope draws
-     neither of them here; the rule stands for a window dragged past the band
-     between two state changes, and it is scoped to Leads, because People's own
-     controls row at this width is People's business. */
+  /* One bar replaces the rail and the controls row: People's (PeoplePhoneBar, clients.css .pp-bar), with Find as its
+     last control. The rail is already display: none at this width (mobile.css) and the Leads scope draws neither of
+     them here; the rule stands for a window dragged past the band between two state changes, and it is scoped to
+     Leads, because People's own controls row at this width is People's business. */
   .leads-scope .cl-controls { display: none; }
-  .ld-bar { display: flex; align-items: center; gap: 8px; padding: 8px var(--gutter-page) 10px; flex: none; }
-  .ld-bar .pt-scope { margin: 0; }
-  .ld-bar .pt-scope button { height: 32px; min-width: 62px; }
-  .ld-bar-lists { height: 32px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font: inherit; font-size: var(--text-sm); color: var(--ink); white-space: nowrap; cursor: pointer; }
-  .ld-bar-search { flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); padding: 0 10px; font: inherit; font-size: var(--text-md); color: var(--ink); }
   .ld-bar-find { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--accent); cursor: pointer; }
 
   /* The classes and the chips give up the gutter, not their words. */
@@ -532,13 +524,6 @@
   .pl-finder .lf-mic { order: -1; width: 76px; height: 76px; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent); border: 0; }
   .pl-finder .lf-input { width: 100%; text-align: center; font-size: var(--text-lg); line-height: var(--leading-relaxed); }
   .pl-finder .lf-acts .btn { width: 100%; min-height: 48px; justify-content: center; }
-}
-
-/* 720px and under: the same bar, slimmer. The list's name gives up its words
-   before the switch or Find give up a pixel. */
-@media (max-width: 720px) {
-  .ld-bar { gap: 6px; }
-  .ld-bar-lists { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* ============================== the row, re-cut (D5, docs/plans/…D5-the-page.md) ====
@@ -690,8 +675,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-card-count { font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-bar-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) 40px; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-dim); margin-top: 3px; }
 .ld-bar-row .n { text-align: right; }
-/* One star's track, named through its row: .ld-bar alone is also the phone's bar (the switch, search and Find), and
-   this rule, later and unconditional, drew that bar as a 5px track with all four clipped out of sight. */
+/* One star's track, named through its row: .ld-bar alone was also the phone's bar (the switch, search and Find) until
+   the phone pass gave both scopes one bar (.pp-bar), and this rule, later and unconditional, drew that bar as a 5px
+   track with all four clipped out of sight. */
 .ld-bar-row .ld-bar { display: block; height: 5px; border-radius: 3px; background: var(--bg-active); overflow: hidden; }
 .ld-bar-row .ld-bar span { display: block; height: 100%; border-radius: 3px; background: var(--warn); }
 

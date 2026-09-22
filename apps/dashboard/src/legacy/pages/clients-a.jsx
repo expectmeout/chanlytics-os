@@ -1200,6 +1200,62 @@ const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown
   )
 );
 
+// The phone's one bar (900px and under, the band the rows and the Lists sheet use), the same for both scopes of
+// People: the People | Leads switch, the list being shown, search behind a button, and the scope's own last control
+// -- People's more-menu, Leads' Find. Nothing sits above the rows but the one line under it: the phone shows the work
+// first. Searching, the bar is the field, full width and 16px, so a phone never zooms into it, and Cancel gives the
+// bar back; words in the box keep it open (a view of Leads comes back with its own) without taking focus. The search
+// was a box of its own: 64px wide on Leads ("Sear"), and on People a 57px row above three text buttons. Hookless: its
+// state is the page's (`searchOpen`), so the tests' stub React counts one hook order.
+const PeoplePhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
+  const id = (part) => `${testid}-phone-${part}`;
+  if (searchOpen || q) {
+    return (
+      <div className="pp-bar is-searching" data-testid={id("bar")}>
+        <label className="pp-bar-field">
+          <Icon name="search" size={16} />
+          <input
+            ref={searchRef}
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoFocus={searchOpen}
+            value={q}
+            placeholder={searchLabel}
+            aria-label={searchLabel}
+            onChange={(e) => onQ(e.target.value)}
+            data-testid={id("search")}
+          />
+          {q ? (
+            <button type="button" className="pp-bar-clear" aria-label="Clear the search" onClick={() => { onQ(""); if (searchRef && searchRef.current) searchRef.current.focus(); }} data-testid={id("search-clear")}>
+              <Icon name="x" size={12} />
+            </button>
+          ) : null}
+        </label>
+        <button type="button" className="pp-bar-cancel" onClick={() => { onQ(""); onSearchOpen(false); }} data-testid={id("search-cancel")}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <div className="pp-bar" data-testid={id("bar")}>
+      <div className="pt-scope" role="tablist" aria-label="Which people">
+        <button type="button" role="tab" aria-selected={scope === "people"} className={scope === "people" ? "on" : ""} onClick={() => onScope("people")}>People</button>
+        <button type="button" role="tab" aria-selected={scope === "leads"} className={scope === "leads" ? "on" : ""} onClick={() => onScope("leads")}>Leads</button>
+      </div>
+      <button type="button" className="pp-bar-pick" aria-haspopup="dialog" aria-expanded={!!listsOpen} onClick={onLists} data-testid={id("lists")}>
+        <span className="pp-bar-pick-words">{listLabel}</span>
+        <Icon name="chevron-down" size={11} />
+      </button>
+      <span className="pp-bar-gap" />
+      <button type="button" className="pp-bar-icon" aria-label={searchLabel} onClick={() => onSearchOpen(true)} data-testid={id("search-open")}>
+        <Icon name="search" size={18} />
+      </button>
+      {trailing}
+    </div>
+  );
+};
+
 // The receptionist's four modes for a selection. The words are contracts' (PERSON_MODE_WORDS, through the
 // chrome bridge), the same ones the profile and a pill say: this list said "Answer them" and "Stay out" for
 // the profile's Answer and Never.
@@ -1650,6 +1706,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
   const [listsOpen, setListsOpen] = useState(false);
   const [newListSignal, setNewListSignal] = useState(0);
+  // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [phone, setPhone] = useState(plPhoneNow);
   React.useEffect(() => {
     const mq = window.matchMedia ? window.matchMedia(PL_PHONE_QUERY) : null;
@@ -2544,6 +2602,8 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         q={q}
         onQ={setQ}
         searchRef={searchRef}
+        searchOpen={searchOpen}
+        onSearchOpen={setSearchOpen}
         scrollRef={scrollRef}
         scrolled={scrolledX}
         onScrolled={setScrolledX}
@@ -2876,4 +2936,4 @@ const ClientsA = (props) => ((props.scope === "leads" ? window.__LEADS : window.
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads").
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, RailSection, RailGroup, RailRow, railToggle });
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, RailSection, RailGroup, RailRow, railToggle });

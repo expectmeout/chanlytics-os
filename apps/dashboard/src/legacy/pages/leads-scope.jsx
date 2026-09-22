@@ -651,41 +651,41 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 
 /* ---------------------------------------------------------------- the phone */
 
-// The phone's one bar (<=900px, the band People's own cards begin at): the People | Leads switch, the list it is
-// showing, search and Find. Nothing else sits above the rows -- no title, no sub-headline, no stat cards and no
-// second control row (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen, q, onQ, searchRef, onFind, canFind }) => (
-  <div className="ld-bar" data-testid="leads-phone-bar">
-    <div className="pt-scope" role="tablist" aria-label="Which people">
-      <button type="button" role="tab" aria-selected={scope === "people"} className={scope === "people" ? "on" : ""} onClick={() => onScope("people")}>People</button>
-      <button type="button" role="tab" aria-selected={scope === "leads"} className={scope === "leads" ? "on" : ""} onClick={() => onScope("leads")}>Leads</button>
-    </div>
-    <button type="button" className="ld-bar-lists" onClick={onLists} aria-expanded={!!listsOpen} data-testid="leads-phone-lists">
-      {listLabel}
-      <Icon name="chevron-down" size={11} />
-    </button>
-    <input
-      ref={searchRef}
-      className="ld-bar-search"
-      type="search"
-      value={q}
-      placeholder="Search leads"
-      aria-label="Search leads"
-      data-testid="leads-phone-search"
-      onChange={(e) => onQ(e.target.value)}
+// The phone's one bar (<=900px, the band People's own rows begin at), Leads' way: People's bar (PeoplePhoneBar,
+// clients-a.jsx) with Find as its last control. The switch, the list and search are the same bar on both scopes, and
+// nothing else sits above the rows -- no title, no sub-headline, no stat cards and no second control row
+// (legacy/CLAUDE.md, the phone shows the work first).
+const LeadsPhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind, canFind }) => {
+  const Bar = window.PeoplePhoneBar;
+  return (
+    <Bar
+      scope={scope}
+      onScope={onScope}
+      listLabel={listLabel}
+      onLists={onLists}
+      listsOpen={listsOpen}
+      q={q}
+      onQ={onQ}
+      searchRef={searchRef}
+      searchOpen={searchOpen}
+      onSearchOpen={onSearchOpen}
+      searchLabel="Search leads"
+      testid="leads"
+      trailing={(
+        <button
+          type="button"
+          className="ld-bar-find"
+          aria-label="Find leads"
+          data-testid="leads-phone-find"
+          onClick={onFind}
+          {...(canFind ? {} : window.gate("find", "find businesses for you"))}
+        >
+          <Icon name="sparkle" size={20} />
+        </button>
+      )}
     />
-    <button
-      type="button"
-      className="ld-bar-find"
-      aria-label="Find leads"
-      data-testid="leads-phone-find"
-      onClick={onFind}
-      {...(canFind ? {} : window.gate("find", "find businesses for you"))}
-    >
-      <Icon name="sparkle" size={20} />
-    </button>
-  </div>
-);
+  );
+};
 
 // The finder, as a sheet from the bottom of a phone. No listener of its own: the page's one keydown listener
 // closes the finder on Esc before anything else and holds every other key while it is open (Task 2), so a second
@@ -760,6 +760,8 @@ const LeadsScope = (p) => {
               q={p.q}
               onQ={p.onQ}
               searchRef={p.searchRef}
+              searchOpen={p.searchOpen}
+              onSearchOpen={p.onSearchOpen}
               onFind={p.onFind}
               canFind={p.canFind}
             />

@@ -2097,3 +2097,29 @@
 .cl-row-act-drop:hover { color: var(--danger); }
 /* The phone's way to the lists, on the standing line; a desktop has the rail beside it. */
 .pl-standing-lists { display: none; }
+
+/* ==== People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md) ============================
+   The page draws these only at 900px and under (PL_PHONE_QUERY), the band the rows, the bar and the Lists sheet share. */
+
+/* The one bar, for both scopes (PeoplePhoneBar): the switch, the list, search behind a button, the scope's own last
+   control. Searching, the bar is the field, at 16px: a phone zooms into anything smaller. */
+.pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px 16px; flex: none; }
+.pp-bar .pt-scope { margin: 0; }
+.pp-bar .pt-scope button { height: 32px; min-width: 56px; padding: 0 8px; }
+.pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
+.pp-bar-pick .icon { flex: none; color: var(--ink-dim); }
+/* The words give way, not the chevron: an ellipsis on the button itself does nothing, it is a flex box. */
+.pp-bar-pick-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-bar-gap { flex: 1 1 0; min-width: 0; }
+.pp-bar-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
+.pp-bar-icon:hover { background: var(--bg-hover); color: var(--ink); }
+.pp-bar .more-wrap { flex: none; }
+.pp-bar-field { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-dim); }
+.pp-bar-field:focus-within { border-color: var(--ink-faint); }
+.pp-bar-field .icon { flex: none; }
+.pp-bar-field input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 16px; outline: none; }
+.pp-bar-field input::placeholder { color: var(--ink-faint); }
+.pp-bar-field input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.pp-bar-clear { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-dim); cursor: pointer; }
+html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0; }
+.pp-bar-cancel { flex: none; height: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
