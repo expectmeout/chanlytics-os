@@ -45,6 +45,7 @@ import {
   fallbacksWords,
   guardrailsInForce,
   rulesKept,
+  VISION_STRENGTH,
   hoursLines,
   MAX_INTERVALS_PER_DAY,
   MAX_CLOSURES,
@@ -140,6 +141,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "PROFILE_LIMITS",
     "RULES_WITHOUT_FIELDS_WORDS",
     "TONE_PRESETS",
+    "VISION_STRENGTH",
     "abilityRows",
     "blockShareWords",
     "bookingHeld",
@@ -192,6 +194,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   for (const g of [undefined, {}, { never_quote_prices: false }, { no_health_advice: true }])
     assert.deepEqual(tab.guardrailsInForce(g), guardrailsInForce(g), JSON.stringify(g));
   // Which rules the row at rest may name is contracts' too, over the same reading of the stored ones.
+  assert.deepEqual(tab.VISION_STRENGTH, VISION_STRENGTH);
   for (const g of [undefined, {}, { never_quote_prices: false }, { never_confirm_booking: false }])
     for (const composes of [true, false]) {
       const i = { rules: guardrailsInForce(g), vision: false, composes };

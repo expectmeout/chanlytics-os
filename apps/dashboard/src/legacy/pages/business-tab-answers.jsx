@@ -180,6 +180,8 @@ const BTA_RULES = [
  */
 const BtaRules = ({ draft, update, readOnly, unread }) => {
   const tab = window.__businessTab || {};
+  // The photos switch's strength, which is not a rule's: it is an ability, stored apart from the guardrails.
+  const vision = tab.VISION_STRENGTH || null;
   return (
   <div className="bt-rules-list" data-testid="rec-rules-switches">
     {BTA_RULES.map(([key, label]) => {
@@ -230,10 +232,14 @@ const BtaRules = ({ draft, update, readOnly, unread }) => {
       <span className="bt-rule-words">
         <span className="bt-rule-head">
           <span className="bt-rule-label" id="bt-rule-vision-label">Look at photos customers send</span>
-          <span className="bt-rule-chip">gives it a power</span>
+          {/* The fifth strength, from contracts like the four above it (VISION_STRENGTH): a badge typed here and
+              typed again in the page's test agreed with each other and with nothing else. */}
+          {vision ? <span className="bt-rule-chip">{vision.chip}</span> : null}
         </span>
-        {/* Not the canvas's "The four above are limits and start on": health advice starts off. */}
-        <span className="bt-rule-hint">On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person. The rules above are limits; this one gives it an ability, so it starts off.</span>
+        {/* Drawn at every width, unlike the four: it is the one switch whose sentence says what each POSITION does,
+            which is a decision an owner makes here. Not the canvas's "The four above are limits and start on":
+            health advice starts off too. */}
+        {vision ? <span className="bt-rule-hint">{vision.sentence}</span> : null}
       </span>
       <window.RecordSwitch
         on={draft.vision === true}

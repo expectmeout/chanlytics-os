@@ -25,6 +25,7 @@ import {
   hasProfile,
   GUARDRAIL_KEYS,
   ruleStrength,
+  VISION_STRENGTH,
   rulesKept,
   guardrailsInForce,
 } from "@chanlytics/contracts";
@@ -472,7 +473,7 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     "a dashed rule sets the photos switch apart from the four limits",
   );
   assert.match(textOf(vision), /Look at photos customers send/);
-  assert.match(textOf(vision), /gives it a power/i);
+  assert.match(textOf(vision), new RegExp(escape(VISION_STRENGTH.chip)));
   assert.doesNotMatch(
     textOf(vision),
     /four above .* start on/i,
@@ -753,8 +754,12 @@ test("the photos switch is an ability, not a limit, and is drawn apart from the 
     find(vision, (n) => classes(n).includes("rec-rule-sep")),
     "a dashed rule separates it from the four limits",
   );
-  assert.deepEqual(badgesOn(vision), ["gives it a power"], "one badge here too");
-  assert.match(textOf(vision), /it starts off/i, "and its hint still says why it starts off");
+  assert.deepEqual(badgesOn(vision), [VISION_STRENGTH.chip], "one badge here too, and contracts' word for it");
+  assert.equal(
+    textOf(find(vision, (n) => classes(n).includes("bt-rule-hint"))),
+    VISION_STRENGTH.sentence,
+    "and its sentence is contracts' too, never typed in the page",
+  );
   assert.equal(
     all(vision, (n) => classes(n).includes("bt-rule-checked-line")).length,
     0,

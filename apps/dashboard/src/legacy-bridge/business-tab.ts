@@ -18,6 +18,7 @@ import {
   capabilityStatus,
   POLICY_MODES,
   ruleStrength,
+  VISION_STRENGTH,
   rulesKept,
   GUARDRAIL_KEYS,
   promptBlocks,
@@ -282,6 +283,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 export const BUSINESS_TAB = {
   standingLine,
   rulesKept,
+  VISION_STRENGTH,
   ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,

@@ -16,6 +16,7 @@ import {
   stateOf,
   SOURCE_WORDS,
   ruleStrength,
+  VISION_STRENGTH,
   GUARDRAIL_KEYS,
   rulesKept,
   RULES_AT_REST_WORDS,
@@ -129,6 +130,21 @@ test("the four rules carry three different guarantees", () => {
   // And only the checked rule has channels to draw: the other three land the same way on both.
   for (const k of GUARDRAIL_KEYS) {
     if (k !== "never_quote_prices") assert.equal(ruleStrength(k).checkedOn, null, k);
+  }
+});
+
+test("the photos switch is the fifth strength, and its words live where the four rules' do", () => {
+  // It sat in the JSX, and the page test re-typed it, so the two agreed with each other and with nothing else.
+  // It is not a GuardrailKey -- it is stored as features.vision and it changes no word of the prompt -- so it is
+  // its own export rather than a fifth entry in a table typed over the schema's keys.
+  assert.equal(VISION_STRENGTH.strength, "power");
+  assert.equal(VISION_STRENGTH.chip, "gives it a power");
+  assert.equal(VISION_STRENGTH.checkedOn, null, "nothing checks an ability");
+  assert.match(VISION_STRENGTH.sentence, /it starts off/i, "its sentence says why it is the one that starts off");
+  // And it is a strength of a different kind from all four limits, so no rule wears its word.
+  for (const k of GUARDRAIL_KEYS) {
+    assert.notEqual(ruleStrength(k).strength, "power", k);
+    assert.notEqual(ruleStrength(k).chip, VISION_STRENGTH.chip, k);
   }
 });
 

@@ -79,7 +79,7 @@ const channelOpens = (c: "whatsapp" | "voice"): string => {
  * all; one has a detector on both channels; two are lines in a prompt, and
  * `policy.ts` says in its own header that an instruction is not an enforcement.
  */
-export type RuleStrength = "structural" | "checked" | "instructed";
+export type RuleStrength = "structural" | "checked" | "instructed" | "power";
 
 export interface RuleStrengthVM {
   strength: RuleStrength;
@@ -155,6 +155,26 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
 export function ruleStrength(key: GuardrailKey): RuleStrengthVM {
   return STRENGTHS[key];
 }
+
+/**
+ * The fifth switch in the same fold, and the only one that is not a limit.
+ *
+ * Not a GuardrailKey: photos are stored as `features.vision` beside the profile rather than in the guardrails, and
+ * the switch changes no word of the composed prompt at all -- a photo's words go in the customer's own turn
+ * (core/src/inbound/answer.ts). So it is its own export rather than a fifth entry in a table typed over the schema's
+ * keys, and its strength is a different kind: the four above say how far a LIMIT goes, and this one says the switch
+ * gives the receptionist something it otherwise does not have.
+ *
+ * Here rather than in the JSX for the reason every other sentence on this tab is: the page drew the badge as a
+ * literal and the page's test typed the same literal back, so the two agreed with each other and with nothing else.
+ */
+export const VISION_STRENGTH: RuleStrengthVM = /* @__PURE__ */ (() => ({
+  strength: "power" as const,
+  chip: "gives it a power",
+  sentence:
+    "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person. The rules above are limits; this one gives it an ability, so it starts off.",
+  checkedOn: null,
+}))();
 
 /**
  * The short name the row at rest says each rule by (the canvas's Record board). Not the switch's label, which is an

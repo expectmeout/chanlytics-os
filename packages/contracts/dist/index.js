@@ -13586,6 +13586,12 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
 function ruleStrength(key) {
   return STRENGTHS[key];
 }
+var VISION_STRENGTH = /* @__PURE__ */ (() => ({
+  strength: "power",
+  chip: "gives it a power",
+  sentence: "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person. The rules above are limits; this one gives it an ability, so it starts off.",
+  checkedOn: null
+}))();
 var RULES_AT_REST_WORDS = {
   never_quote_prices: "Never quotes a price",
   never_confirm_booking: "Never confirms a booking",
@@ -16967,6 +16973,7 @@ export {
   TONE_PRESETS,
   TenantConfigSchema,
   TenantConfigWriteSchema,
+  VISION_STRENGTH,
   WABA_FIELDS,
   WA_WINDOW_MS,
   WHATSAPP_LANGUAGES,
