@@ -117,6 +117,14 @@ w.__SETTINGS = {
   updatedBy: "E2E Owner",
   updatedAt: new Date(Date.now() - 3_600_000).toISOString(),
 };
+// What the receptionist is told, as the prompt sheet reads it: inbox-verbs.ts composedPrompt's three lines, written out
+// for the reason the preview is (that module brings the surface runner and the API client with it). e2e-harness.test.mjs
+// runs both over this window and holds them to one answer.
+w.__composedPrompt = (channel: "whatsapp" | "voice" = "whatsapp") => {
+  const prompt = w.__SETTINGS && w.__SETTINGS.prompt;
+  if (!prompt) return null;
+  return { text: prompt[channel], now: prompt.now, tz: prompt.tz };
+};
 const resolved = C.resolveFacts(S.config.brain, S.known);
 w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
 

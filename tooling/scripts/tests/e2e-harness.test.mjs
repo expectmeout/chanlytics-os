@@ -102,6 +102,20 @@ test("the page's fixture publishes the tab's globals through the same contracts 
   assert.equal(w.__SETTINGS.version, S.version);
   assert.equal(w.__ACTIVE_WORKSPACE, WORKSPACE.id);
 
+  // What the receptionist is told, which the prompt sheet cuts: the bridge's own reading of the settings read, run over
+  // the fixture's window, answers exactly what the fixture's written-out copy does, on both channels.
+  const { composedPrompt } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const was = globalThis.window;
+  globalThis.window = w;
+  try {
+    for (const channel of ["whatsapp", "voice"]) {
+      assert.deepEqual(plain(w.__composedPrompt(channel)), plain(composedPrompt(channel)), channel);
+      assert.ok(w.__composedPrompt(channel).text.length > 0, `${channel}: there is a prompt to read`);
+    }
+  } finally {
+    globalThis.window = was;
+  }
+
   // Nothing the fixture publishes can write: a spec that pressed a Save is refused on the page.
   assert.equal((await w.__saveSettings()).ok, false);
   assert.equal((await w.__workspace.setTimezone("America/Chicago")).ok, false);
@@ -195,7 +209,6 @@ const NOT_PUBLISHED = new Map([
   ["__activity", "the Activity log pane's surface"],
   ["__platform", "the back office, which an owner never sees"],
   ["__setPolicy", "the Autonomy pane's verb"],
-  ["__composedPrompt", "the old Settings card's preview; the Business tab's comes with the settings read"],
   ["__shell", "the chrome's own, published by the app shell"],
   ["__href", "the chrome's own"],
   ["__me", "the chrome's own; the fixture publishes __ME, which the record reads"],

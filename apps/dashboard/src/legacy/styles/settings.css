@@ -1418,6 +1418,44 @@ html.legacy-on .bt-link { position: relative; }
 .bt-services-told-key { flex: none; font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
 .bt-services-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
 
+/* ---- What your receptionist is told (pages/business-tab-prompt.jsx) ---- */
+/* At rest the section is its title, who reads it and one door, on the card's own head line. */
+.bt-told-open { flex: none; font-size: var(--text-sm); }
+/* The sheet is wider than a list's: the contents sit beside the blocks. Like the services sheet it is drawn in
+   .app-root, outside the Settings pane, so its buttons are sized here. */
+.bt-prompt-sheet { width: min(820px, 92vw); }
+.bt-prompt-sheet .btn-sm { height: 30px; padding: 0 12px; font-size: var(--text-sm); border-radius: var(--radius-md); }
+/* Nothing here to save: the foot is a Close, and on a desktop the head's Close is within reach, so the foot is a
+   phone's alone (below). */
+.bt-prompt-sheet .rec-sheet-foot { display: none; }
+.bt-prompt { display: grid; grid-template-columns: 168px minmax(0, 1fr); align-items: start; gap: 28px; padding: 16px 0 22px; }
+/* The contents hold still beside the blocks as they scroll. Each entry's cost is ONE thin bar as long as its share:
+   the owner's "smart indicator", in the line's own neutrals, never a colour, and never a number on the glass (the count
+   is the entry's description and its tip). */
+.bt-prompt-rail { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bt-prompt-rail-title { margin: 0; font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.bt-prompt-entries { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.bt-prompt-entry { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 6px 8px; border-radius: var(--radius-sm); text-align: left; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
+.bt-prompt-entry:hover { background: var(--bg-hover); color: var(--ink); }
+.bt-prompt-entry:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bt-prompt-bar { display: block; height: 2px; border-radius: 1px; background: var(--line); overflow: hidden; }
+.bt-prompt-bar-fill { display: block; height: 100%; background: var(--ink-faint); }
+.bt-prompt-blocks { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.bt-prompt-block { display: flex; flex-direction: column; gap: 6px; scroll-margin-top: 16px; border-radius: var(--radius-sm); }
+.bt-prompt-block:focus { outline: none; }
+.bt-prompt-block:focus-visible { box-shadow: var(--focus-ring); }
+.bt-prompt-block-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; }
+.bt-prompt-block-label { flex: 1 1 auto; min-width: 0; margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
+/* The share in words: a phone's indicator, where the contents are not drawn (below). */
+.bt-prompt-block-share { display: none; font-size: var(--text-xs); color: var(--ink-dim); }
+.bt-prompt-door { flex: none; font-size: var(--text-sm); }
+/* The prompt itself, in the page's own face: sentences about a business, not a listing. It has real line breaks and
+   keeps them, and an unbroken booking address must never widen the sheet. */
+.bt-prompt-block-text { margin: 0; font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.bt-prompt-block-note { margin: 0; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* What is sent beside the prompt, under a dashed rule: it is rebuilt every time, and apart on purpose. */
+.bt-prompt-now { display: flex; flex-direction: column; gap: 6px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
+
 /* ---- How it answers (pages/business-tab-answers.jsx) ---- */
 /* The voice's three starting points: a row of presses after the words that name them. */
 .bt-presets { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
@@ -1568,6 +1606,16 @@ html.legacy-on .bt-link { position: relative; }
   .bt-note { grid-template-columns: minmax(0, 1fr) auto; }
   .bt-note-head { display: none; }
   .bt-note > .rec-box:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  /* The prompt sheet on a phone: the kit's sheet from the bottom, full width; no contents beside the blocks, so each
+     block's head carries its share in words; and a foot with Close, within a thumb's reach, since there is nothing to
+     save. */
+  .bt-prompt-sheet { width: auto; }
+  .bt-prompt { display: block; padding-top: 12px; }
+  .bt-prompt-rail { display: none; }
+  .bt-prompt-blocks { gap: 18px; }
+  .bt-prompt-block-share { display: inline; }
+  .bt-prompt-sheet .rec-sheet-foot { display: flex; }
+  .bt-prompt-sheet .rec-sheet-foot > .btn { height: 40px; }
 }
 
 /* WCAG's reflow width, 320px: nothing runs past the edge. The ribbon's days shrink under their 30px rather than push

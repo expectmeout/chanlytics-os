@@ -119,15 +119,16 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
     textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
     "The voice, the limits, and what fits no field",
   );
-  // After What you offer, before What it can do, and above the services sheet, the page's last drawn child.
+  // After What you offer, before What it can do, and above the sheet slot, the page's last drawn child.
   assert.deepEqual(
     all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
-    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers", "rec-card-can"],
+    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers", "rec-card-can", "rec-card-told"],
   );
   const tail = [].concat(drawTab().rendered.props.children).filter((c) => c != null && c !== false);
-  assert.equal(tail.at(-1).type, W.BtServicesSheet);
-  assert.equal(tail.at(-2).type, W.BtCanCard, "What it can do is the card after this one");
-  assert.equal(tail.at(-3).type, W.BtAnswersCard);
+  assert.equal(tail.at(-1).type, W.BtSheetSlot);
+  assert.equal(tail.at(-2).type, W.BtPromptTold, "what it is told, at rest, after What it can do");
+  assert.equal(tail.at(-3).type, W.BtCanCard, "What it can do is the card after this one");
+  assert.equal(tail.at(-4).type, W.BtAnswersCard);
 });
 
 test("typing a voice reaches the composer: the fold says the Tone line it will be told, and the save writes the tone alone", () => {
