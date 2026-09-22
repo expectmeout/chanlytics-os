@@ -1548,6 +1548,10 @@ html.legacy-on .bt-link { position: relative; }
      screen reader -- it is off the glass, not gone. The photos switch keeps its hint: it is the one switch whose
      sentence says what each position does. */
   .bt-rule-says { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* One place for the badge. Left to wrap, it sat under the label on the two switches with a long name and inline on
+     the three with a short one: the same signal in two positions down one fold, which is a fold an owner has to read
+     rather than scan. Its own line under the label, always, at the label's own edge. */
+  .bt-rule-head > .bt-rule-chip { flex-basis: 100%; }
   /* A service's three columns stack into one row: its name with the remove at the right, then how long and the price,
      side by side, each row ruled off from the next. The columns' head has nothing left to name. */
   .bt-service-head { display: none; }

@@ -143,6 +143,35 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
  * out -- and, beside it, that a row nothing does reads like one rather than drawing a lit glyph beside "No number
  * yet".
  */
+/**
+ * The five strength badges in the rules fold sit in ONE place.
+ *
+ * On a phone `.bt-rule-head` wrapped: a badge went under its label where the label was long and stayed inline where
+ * it was short, so the same signal appeared in two positions down one fold, and an owner scanning for it had to read
+ * every row. One position, measured against each badge's own label rather than the viewport, since the labels start
+ * at the same edge and a badge that moved with its label would still be wrong.
+ */
+async function expectRuleBadgesInLine(page: Page, where: string): Promise<void> {
+  const badges = await page.evaluate(() =>
+    [...document.querySelectorAll(".bt-rule")].map((row) => {
+      const label = row.querySelector(".bt-rule-label")!.getBoundingClientRect();
+      const chip = row.querySelector(".bt-rule-chip")?.getBoundingClientRect();
+      return {
+        id: row.getAttribute("data-testid"),
+        dx: chip ? Math.round(chip.left - label.left) : null,
+        ownLine: chip ? chip.top >= label.bottom - 1 : null,
+      };
+    }),
+  );
+  expect(badges.length, `${where}: four rules and the photos switch`).toBe(5);
+  for (const b of badges) expect(b.dx, `${where}: ${b.id} wears a badge`).not.toBeNull();
+  expect(
+    [...new Set(badges.map((b) => b.dx))],
+    `${where}: every badge starts at the same offset from its label`,
+  ).toHaveLength(1);
+  for (const b of badges) expect(b.ownLine, `${where}: ${b.id}'s badge is on its own line under the label`).toBe(true);
+}
+
 async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
   const card = await page.evaluate(() => {
     const el = document.querySelector('[data-testid="rec-card-can"]');
@@ -545,6 +574,7 @@ test.describe("Settings › Business on a real workspace", () => {
       await openFold(page, id);
       await expectNoSidewaysScroll(page, `the ${id} fold open`, [PANE]);
       await expectQuiet(page, `the ${id} fold open`);
+      if (id === "guardrails") await expectRuleBadgesInLine(page, "the rules fold open on a phone");
       await discard(page, id);
     }
     await expectRecordUnchanged(page, before);
