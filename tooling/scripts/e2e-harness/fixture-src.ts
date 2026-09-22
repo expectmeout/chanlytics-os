@@ -119,7 +119,68 @@ w.__SETTINGS = {
 };
 const resolved = C.resolveFacts(S.config.brain, S.known);
 w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
-w.__POLICIES = null;
+
+/* ---- the three surfaces What it can do reads beside the settings read ---- */
+// The Setup payload as legacy-bridge/setup.ts publishes it, the Autonomy matrix a provisioned workspace starts with
+// (00017_provision_tenant) and the workspace's approved messages. Built from THIS scenario's own channels and brain,
+// so the card the page draws is the card the record earns: the nightly's answers nowhere and has nothing filled in,
+// the salon's answers on both lines. Published as null before this, which drew the card's failed read over a record
+// the journey walks at a phone's width.
+const profile = (S.config.brain.profile ?? {}) as Record<string, any>;
+const answered = new Date(Date.now() - 3_600_000).toISOString();
+const channel = (kind: string) => {
+  const c = S.known.channels?.find((x: any) => x.kind === kind) ?? null;
+  const active = !!c && c.status === "active";
+  return { present: !!c, active, number: c?.number_e164 ?? null, lastInboundAt: active ? answered : null };
+};
+const setupDto = {
+  business: {
+    name: S.config.brain.business_name ?? null,
+    hours: Object.keys(profile.hours ?? {}).length > 0,
+    services: (profile.services ?? []).length,
+    bookingLink: !!S.config.brain.booking_link,
+    address: !!profile.address,
+    handoff: profile.handoff_number ?? null,
+    broken: false,
+  },
+  channels: { whatsapp: { ...channel("whatsapp"), quality: null }, voice: channel("voice") },
+  templates: { approved: 1, pending: 0, startersApproved: 1 },
+  calendar: { state: (S.config as any).calendar ? ("ok" as const) : ("none" as const) },
+  team: { members: 1, invitesOpen: 0, alertEmails: 0 },
+  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  requests: { line: null },
+  // No line row at all, so texting is not sold here (capabilities.ts) and the card keeps its third limit.
+  lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
+  activations: (["voice", "whatsapp"] as const)
+    .filter((k) => channel(k).active)
+    .map((k) => ({ capability: k, activated_at: answered, activated_by: "u-e2e-owner", deactivated_at: null })),
+};
+w.__SETUP = {
+  dto: setupDto,
+  role: S.role,
+  vm: C.setupSteps({ ...(setupDto as any), later: [] }),
+  fetchedAt: Date.now(),
+};
+w.__POLICIES = {
+  rows: [
+    { class: "faq", mode: "auto", limits: {} },
+    { class: "booking", mode: "auto", limits: {} },
+    { class: "reply", mode: "auto", limits: { max_replies_day: 20 } },
+    { class: "reengage", mode: "ask", limits: {} },
+    { class: "campaign", mode: "ask", limits: {} },
+    { class: "money", mode: "never", limits: {} },
+  ],
+  role: S.role,
+};
+w.__TEMPLATES_ALL = [
+  {
+    name: "booking_link",
+    language: "en_US",
+    meta_status: "approved",
+    channel: "whatsapp",
+    variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
+  },
+];
 // No __CHANNELS. The bridge publishes `toChannelVM(c, now)` (surface-data.ts), and defining the global at all flips
 // settings.jsx to PaneIntegrationsReal -- so a hand-built row would draw a pane no spec here opens, out of a shape
 // the product does not use. The channels reach the page where the page reads them: in the facts, resolved above.

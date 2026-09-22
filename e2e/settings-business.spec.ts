@@ -134,6 +134,63 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
   expect(loud.hints, `${where}: a filled row carries a hint at a phone's width`).toEqual([]);
 }
 
+/**
+ * What it can do, at a phone's width (the plan's Tasks 4.1 and 4.1b).
+ *
+ * A row that is whole keeps its sentence for a screen reader and OFF SCREEN, which is one CSS rule and nothing a unit
+ * test can execute: deleting `.bt-can-says`'s visually-hidden rule leaves the whole suite green and puts six
+ * two-clause paragraphs on the card, which is the clutter the owner named. So the page is asked what it is laying
+ * out -- and, beside it, that a row nothing does reads like one rather than drawing a lit glyph beside "No number
+ * yet".
+ */
+async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
+  const card = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="rec-card-can"]');
+    if (!el) return null;
+    const boxes = [...el.querySelectorAll(".bt-can-says")].map((n) => {
+      const r = n.getBoundingClientRect();
+      const s = getComputedStyle(n);
+      return { w: Math.round(r.width), h: Math.round(r.height), clipped: s.clipPath !== "none" };
+    });
+    const rows = [...el.querySelectorAll(".bt-can-row")].map((r) => ({
+      id: r.getAttribute("data-testid"),
+      ready: r.getAttribute("data-ready"),
+      why: !!r.querySelector(".bt-can-why"),
+      ink: getComputedStyle(r.querySelector(".rec-row-key") as Element).color,
+      lit: r.querySelectorAll('.rec-can-chip[data-on="true"]').length,
+    }));
+    // --ink-dim as this card's own ground resolves it, for the row nothing does.
+    const probe = document.createElement("span");
+    probe.style.color = getComputedStyle(document.documentElement).getPropertyValue("--ink-dim").trim();
+    el.appendChild(probe);
+    const dim = getComputedStyle(probe).color;
+    probe.remove();
+    return { boxes, rows, dim, limits: el.querySelectorAll(".bt-cannot-row").length };
+  });
+  expect(card, `${where}: What it can do is on the record`).not.toBeNull();
+  expect(card!.rows.length, `${where}: six abilities`).toBe(6);
+  // Every ability that draws no sentence on screen, and every limit, keeps one for a reader.
+  expect(card!.limits, `${where}: the three limits`).toBe(3);
+  expect(card!.boxes.length, `${where}: every ability and every limit keeps its sentence`).toBe(
+    card!.rows.filter((r) => !r.why).length + card!.limits,
+  );
+  expect(card!.boxes.length, `${where}: and there are some to keep`).toBeGreaterThan(3);
+  for (const b of card!.boxes) {
+    expect(b, `${where}: a sentence kept for a reader is not laid out`).toMatchObject({ w: 1, h: 1, clipped: true });
+  }
+  expect(
+    card!.rows.some((r) => r.why),
+    `${where}: the row this record can fix does say so`,
+  ).toBe(true);
+  for (const r of card!.rows) {
+    expect(r.lit > 0, `${where}: ${r.id} is lit on a channel exactly when it does something there`).toBe(
+      r.ready === "true",
+    );
+    if (r.ready === "true") expect(r.why, `${where}: ${r.id} is whole, so it draws no sentence`).toBe(false);
+    else expect(r.ink, `${where}: ${r.id} does nothing, and reads like it`).toBe(card!.dim);
+  }
+}
+
 test.describe("Settings › Business on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -479,6 +536,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await openRecord(page);
     await expectNoSidewaysScroll(page, "the record at rest", [PANE]);
     await expectQuiet(page, "the record at rest");
+    await expectAbilitiesQuiet(page, "the record at rest");
 
     // The Who you are card overflowed a phone by 8px once, on the arrow inside a door's clipped words. Every card is
     // measured, and then the folds whose fields are widest. Each one open is also where the fold's own ground and the

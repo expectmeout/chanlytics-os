@@ -152,7 +152,6 @@ const NOT_PUBLISHED = new Map([
   ["__CHANNELS", "defining it at all flips settings.jsx to PaneIntegrationsReal, and its shape is toChannelVM's"],
   ["__CALENDAR", "the Calendar pane's surface; the Business record's calendar row reads the config"],
   ["__calendar", "the Calendar pane's verbs"],
-  ["__SETUP", "the Setup pane's surface"],
   ["__setup", "the Setup pane's verbs"],
   ["__TEAM", "the Team card's surface"],
   ["__TEAM_INVITES", "the Team card's invitations"],
@@ -171,8 +170,10 @@ const NOT_PUBLISHED = new Map([
 ]);
 
 test("the fixture publishes every global the Business record and Settings read, or says why not", async () => {
-  const pages = fs.readdirSync(path.join(LEGACY, "pages")).filter((f) => /^business-tab.*\.jsx$/.test(f));
-  assert.ok(pages.length >= 5, `the Business pages moved: ${pages.join(", ")}`);
+  // Every file of the record: its cards (business-tab-*.jsx) and What it can do, which is business-can.jsx.
+  const pages = fs.readdirSync(path.join(LEGACY, "pages")).filter((f) => /^business-(tab.*|can)\.jsx$/.test(f));
+  assert.ok(pages.length >= 6, `the Business pages moved: ${pages.join(", ")}`);
+  assert.ok(pages.includes("business-can.jsx"), "What it can do is one of them");
   const read = globalsRead([...pages, "settings.jsx"]);
   assert.ok(read.has("__handoffE164"), "the transfer row's check is one of the globals this test is about");
 
