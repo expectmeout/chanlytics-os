@@ -171,8 +171,11 @@ export function ruleStrength(key: GuardrailKey): RuleStrengthVM {
 export const VISION_STRENGTH: RuleStrengthVM = /* @__PURE__ */ (() => ({
   strength: "power" as const,
   chip: "gives it a power",
+  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
+  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
+  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
   sentence:
-    "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person. The rules above are limits; this one gives it an ability, so it starts off.",
+    "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
   checkedOn: null,
 }))();
 

@@ -140,7 +140,15 @@ test("the photos switch is the fifth strength, and its words live where the four
   assert.equal(VISION_STRENGTH.strength, "power");
   assert.equal(VISION_STRENGTH.chip, "gives it a power");
   assert.equal(VISION_STRENGTH.checkedOn, null, "nothing checks an ability");
-  assert.match(VISION_STRENGTH.sentence, /it starts off/i, "its sentence says why it is the one that starts off");
+  // Two clauses, one per position, and nothing else. At 390px it was four lines, and its last clause restated the
+  // dashed rule above it and the badge beside it -- the owner's words for that are "not bulky and cluttered".
+  assert.match(VISION_STRENGTH.sentence, /^On, /, "what On does");
+  assert.match(VISION_STRENGTH.sentence, /Off, a photo goes to a person\.$/, "then what Off does, and then stop");
+  assert.doesNotMatch(
+    VISION_STRENGTH.sentence,
+    /limits|starts off/i,
+    "REGRESSION: the separator says it is apart and the badge says it is a power; the sentence said both again",
+  );
   // And it is a strength of a different kind from all four limits, so no rule wears its word.
   for (const k of GUARDRAIL_KEYS) {
     assert.notEqual(ruleStrength(k).strength, "power", k);

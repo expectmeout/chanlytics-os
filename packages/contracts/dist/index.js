@@ -13589,7 +13589,10 @@ function ruleStrength(key) {
 var VISION_STRENGTH = /* @__PURE__ */ (() => ({
   strength: "power",
   chip: "gives it a power",
-  sentence: "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person. The rules above are limits; this one gives it an ability, so it starts off.",
+  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
+  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
+  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
+  sentence: "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
   checkedOn: null
 }))();
 var RULES_AT_REST_WORDS = {
