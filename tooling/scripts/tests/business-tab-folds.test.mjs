@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   newReceptionistDefaults, instructionsDraft, FALLBACK_DEFAULTS, unknownDetails, INSTRUCTIONS_MAX, resolveSystemPrompt,
-  hasProfile, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, BOOKING_DEFAULTS, BOOKING_RULE_HINTS, bookingRuleRefusal, BookingRulesSchema,
+  hasProfile, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, bookingRuleRefusal, BookingRulesSchema,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "./_legacy-react.mjs";
 
