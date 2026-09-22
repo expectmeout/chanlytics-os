@@ -11520,10 +11520,9 @@ function abilityRows(i) {
       // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
       detail: transferWords(i.hasHandoffNumber),
       channels: { voice: i.voiceLive, whatsapp: false },
-      // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt: the row the page draws
-      // as "Hands you a customer", whose id is the key it saves (escalate_when). It shows the transfer number and opens
-      // the Who you are row that changes it.
-      runsOn: { label: "The transfer number", row: "escalate_when" },
+      // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
+      // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
+      runsOn: { label: "The transfer number", row: "handoff_number" },
       ready: i.voiceLive && i.hasHandoffNumber
     },
     {
