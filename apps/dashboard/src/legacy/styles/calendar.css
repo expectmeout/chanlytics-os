@@ -471,7 +471,9 @@
 /* The date and the service pickers take the ring every control takes (C4): the date's was switched off. */
 .cal-jump:focus-visible, .cal-service:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .cal-jump:focus-visible { opacity: 1; }
-.cal-service { max-width: 220px; }
+/* The service picker takes the room its choice needs and no more: it narrows the board's open times to the ones a
+   service fits, and the board is where that shows. */
+.cal-service { max-width: 180px; }
 /* The hours, the rules and the calendar's source, under the foot's toggle: a label and what it says, row by row. */
 .cal-rules { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-muted); }
 .cal-rules-group { display: contents; }
@@ -546,7 +548,9 @@
    away under it. A title the top bar already says, a paragraph, three stat cards and five rows of controls came first,
    and on a phone the first day sat below the fold. One gutter for the whole page, narrowed on a small screen. */
 .calendar { --cal-gutter: 28px; }
-.cal-head { display: flex; flex-direction: column; gap: var(--space-2); flex-shrink: 0; padding: var(--space-4) var(--cal-gutter) var(--space-3); }
+/* One bar over the board, and nothing under it but the board: the counts line is gone (calendar-real.jsx), so the head
+   is the bar alone, 12px above and 8px below it. */
+.cal-head { display: flex; flex-direction: column; gap: var(--space-2); flex-shrink: 0; padding: var(--space-3) var(--cal-gutter) var(--space-2); }
 .cal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
 .cal-when { display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin-right: auto; }
 /* The steps are one group whose outer corners are the buttons' own: a group that clipped its buttons cut a focused
@@ -568,11 +572,6 @@
 .cal-tools .cal-service { height: 30px; padding-top: 0; padding-bottom: 0; border-color: var(--line); border-radius: var(--radius-md); background-color: var(--bg-raised); }
 .cal-views { flex: none; }
 .cal-views .cl-tab { justify-content: center; padding: 4px 12px; font-size: 12px; }
-/* Each count: what it counts, the number, and what the number means or why there is none. */
-.cal-counts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-5); margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-dim); }
-.cal-count { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; min-width: 0; }
-.cal-count-label[data-tip] { text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; cursor: help; }
-.cal-count-value { color: var(--ink); font-weight: 500; }
 /* The foot: the legend and the toggle on one line, and what the toggle shows under them. */
 .cal-foot { display: flex; flex-direction: column; gap: var(--space-3); flex-shrink: 0; padding: var(--space-2) var(--cal-gutter) var(--space-3); border-top: 1px solid var(--line); }
 .cal-foot-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
