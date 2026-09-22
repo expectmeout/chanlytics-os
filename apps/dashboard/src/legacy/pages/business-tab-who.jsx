@@ -53,7 +53,7 @@ const btPublishedBox = ({ line, handoff, testid }) => ({ draft, set, problem, fi
           value={draft.typed}
           onChange={(t) => set({ own: draft.own, typed: t })}
           problem={problem}
-          placeholder={lineShown || "+1 646 932 5775"}
+          placeholder={lineShown || "+1 212 555 0143"}
           inputMode="tel"
           autoComplete="tel"
         />
@@ -296,7 +296,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
           };
         }}
         body={btTextBox({
-          placeholder: "+1 646 932 5775",
+          placeholder: "+1 212 555 0143",
           inputMode: "tel",
           autoComplete: "tel",
           hint: "A line a person answers, with the country code. Empty and the phone receptionist takes a message instead of transferring — which is better than a number nobody picks up.",
