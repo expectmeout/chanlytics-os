@@ -20,7 +20,9 @@ import {
   type ThemePref,
   type SidebarPref,
 } from "@chanlytics/contracts";
+import { subscribeMessagesInserts } from "@chanlytics/db";
 import { authErrorInHash } from "@/auth/hash-error";
+import { createClient } from "@/lib/supabase/client";
 import { paintThemeColor } from "./theme-color";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
@@ -52,6 +54,7 @@ import {
   onSurfaceStatusChange,
   refreshSurfaces,
   startSurfaces,
+  type JoinLiveFeed,
 } from "./surface-runner";
 import { hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
@@ -156,6 +159,8 @@ const SURFACES = [
   googleOverride,
   billingOverride,
 ];
+/** The runner's live feed: the one subscription, over this browser's Supabase client. */
+const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeMessagesInserts(createClient(), onChange, opts);
 const SURFACE_LABELS: Record<string, string> = {
   conversations: "Conversations",
   inbox: "Inbox",
@@ -349,7 +354,7 @@ export default function LegacyApp() {
 
   // Surface flips: one runner owns retries, realtime, debounce, and status.
   useEffect(() => {
-    const stop = startSurfaces(SURFACES);
+    const stop = startSurfaces(SURFACES, joinLiveFeed);
     const off = onSurfaceStatusChange(() => {
       setStatusTick((n) => n + 1);
       setAllWorkspaces((window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? []);

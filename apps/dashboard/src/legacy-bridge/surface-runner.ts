@@ -9,8 +9,7 @@
  * ./surface-status, which is pure and unit-tested; everything here is the
  * side-effecting half.
  */
-import { createClient } from "@/lib/supabase/client";
-import { subscribeMessagesInserts } from "@chanlytics/db";
+import type { subscribeMessagesInserts, SubscribeOptions } from "@chanlytics/db";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { api } from "./api";
@@ -99,7 +98,21 @@ function surfaceOnScreen(win: Window): string | undefined {
 
 let runnerSeq = 0;
 
-export function startSurfaces(overrides: SurfaceOverride[]): () => void {
+/**
+ * How the runner joins the live feed: the one subscription, over the client the page holds. Handed in rather than
+ * built here: the runner used to make the Supabase browser client itself once its boot was in, so a node test that
+ * mounted real surfaces built one with no URL or key, and the throw -- in an un-awaited continuation -- failed
+ * whichever test was running when the boot happened to finish.
+ */
+export type JoinLiveFeed = (
+  onChange: Parameters<typeof subscribeMessagesInserts>[1],
+  opts: SubscribeOptions,
+) => () => void;
+
+export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed): () => void {
+  // Said now, at the call, not when the boot ends: a missing feed found then is a throw nobody awaits.
+  if (typeof joinFeed !== "function" && overrides.some(subscribesToRealtime))
+    throw new TypeError("startSurfaces: surfaces that watch the live feed need a feed to join");
   // Read the cached identity BEFORE any boot can overwrite it. Every
   // successful boot persists with the CURRENT tenant, and snapshotSurface
   // assigns blob.tenant on every write — so the old guard, which read the
@@ -249,15 +262,13 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     if (cancelled) return;
     if (guardTenant()) return;
     if (!realtimeOverrides.length) return;
-    const supabase = createClient();
     // Scoped to the workspace this tab shows. RLS authorises the events
     // server-side; the filter is what makes the subscription this
     // workspace's and nobody else's, so a member of two workspaces neither
     // receives nor repaints on the other one's rows. The topic carries the
     // workspace too, so a switch is a new channel, never a shared one.
     const ws = tenantId();
-    unsubscribe = subscribeMessagesInserts(
-      supabase,
+    unsubscribe = joinFeed(
       // Routed by table: a live call's transcript turns repaint Live, not the
       // five surfaces that never asked (three of them plpgsql aggregates).
       (row, table, event) =>
