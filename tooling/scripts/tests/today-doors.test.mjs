@@ -88,6 +88,7 @@ globalThis.window = {
   clearInterval() {},
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStrip", "StatCell"]) globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);
 globalThis.useHotkey = () => {};
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
