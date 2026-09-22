@@ -128,11 +128,9 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   assert.ok(shell.includes("<div key={mountKey}"), "and the surface is keyed on that, not on the gate key");
   assert.ok(shell.includes('routeReady(page, param)'), "the readiness check still sees the param");
 
-  // Opt-IN, and only for a surface that follows its param. Getting this list
-  // wrong in the other direction shows the wrong entity, so the default has to
-  // be the safe one.
-  assert.match(shell, /const PARAM_FOLLOWED_AS_PROP = new Set\(\["admin", "inbox", "broadcasts"\]\);/);
-  // Broadcasts follows its run and its list as props: drawn in runs-honest.test.mjs, its mount key in shell-status.test.mjs.
+  // Opt-IN, and only for a surface that follows its param: which pages are one mount across their address is run
+  // on the shell as drawn (shell-status.test.mjs), the safe default with them. Broadcasts follows its run and its
+  // list as props: drawn in runs-honest.test.mjs.
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
   const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");

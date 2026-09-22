@@ -16,8 +16,9 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 // for flipped surfaces; unflipped ones are seeded and always ready.
 const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGate(page, param);
 
-/** Surfaces whose own route param is a prop they follow, not a new identity. */
-const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts"]);
+/** Surfaces whose own route param is a prop they follow, not a new identity. Live writes the call it opens to the
+ *  address (replaced), so each call being its own mount would tear the page down on every click. */
+const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts", "live"]);
 // What a route is MOUNTED under (the long note where it is used says why that is not the route). Leads follows its
 // address as a prop -- the page reads `leadsRoute` on every draw and its one read is keyed by it -- so every view of
 // Leads, and a lead opened over one, is the page already there. People's own views and a profile keep their whole
