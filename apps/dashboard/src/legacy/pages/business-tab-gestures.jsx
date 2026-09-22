@@ -671,6 +671,17 @@ const BtSheet = ({
   );
 };
 
+/**
+ * Whether the sheet `id` could open over the saver's base: a read to save onto, and a draft its part of the record can
+ * be worked out as. The editor's own test (useBtEditor's `open` and `stored`), for the row that opens a sheet the page
+ * draws elsewhere, last: a fold offers no act while its draft cannot be worked out, and the row that opens a sheet
+ * offered one that opened nothing.
+ */
+BtSheet.opens = (id, saver) => {
+  const base = saver ? saver.base() : null;
+  return !!base && !!btWorkedOut(`the draft the ${id} fold opens with`, () => ({ draft: window.__businessTabSave.draftOf(id, base) }));
+};
+
 // The three gestures, and the words every row of words says once its change is saved, for the cards that live in files
 // of their own and read them as they draw.
 Object.assign(window, { BtRow, BtFold, BtSheet, BT_SAVED });

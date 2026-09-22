@@ -838,3 +838,25 @@ test("two rows taken out go back in either order, apart or from the same gap, an
   for (const name of ["Service 9", "Service 10", "Service 5"]) { press(undoFor(tree, name)); tree = redrawTab(flash); }
   assert.deepEqual(namesOf(rowsOf(tree)), TEN);
 });
+
+test("while the sheet could not open, the services row offers no act, as a fold offers none; and nothing is taken down", () => {
+  // The spec review's probe: a stored list whose draft cannot be worked out (here a hand-edited record whose services
+  // are not a list). BtFold hides its act then; the services row offered one that opened nothing.
+  const errors = [];
+  const was = console.error;
+  console.error = (...args) => errors.push(args);
+  try {
+    let tree = drawTab({ profile: { ...melany, services: { Balayage: 180 } } });
+    const row = byTestId(tree, "rec-row-services");
+    assert.equal(byTestId(row, "rec-row-act-services"), null, "REGRESSION: an act that opened nothing");
+    assert.match(textOf(row), /None yet/, "and the row still says what it says");
+    W.__recordFolds.request("services");
+    tree = redrawTab();
+    assert.equal(sheetOf(tree), null);
+    assert.ok(byTestId(tree, "rec-card-offer"), "the page is still there");
+  } finally {
+    console.error = was;
+  }
+  // With a list, the act is there.
+  assert.ok(byTestId(drawTab({ profile: many }), "rec-row-act-services"));
+});

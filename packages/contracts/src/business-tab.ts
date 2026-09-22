@@ -246,7 +246,8 @@ const inSentence = (note: string): string => (/^[A-Z][a-z]/.test(note) ? `${note
  * row nobody finished, which no save writes, and is not counted.
  */
 export function servicesWords(services: readonly ServiceWordsInput[] | null | undefined): ServicesWordsVM {
-  const list = (services ?? []).filter((s): s is ServiceWordsInput & { name: string } => !!s && typeof s.name === "string" && s.name.trim() !== "");
+  // A stored list that is not one (a hand-edited record) is no services, never a throw: the page draws this as it draws.
+  const list = (Array.isArray(services) ? services : []).filter((s): s is ServiceWordsInput & { name: string } => !!s && typeof s.name === "string" && s.name.trim() !== "");
   const n = list.length;
   if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
   const notes = list.map((s) => (typeof s.price_note === "string" ? s.price_note.trim() : ""));

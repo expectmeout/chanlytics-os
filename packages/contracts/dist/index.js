@@ -11286,7 +11286,7 @@ var SERVICE_CHIPS = 4;
 var CONSULT = /\bconsult/i;
 var inSentence = (note) => /^[A-Z][a-z]/.test(note) ? `${note[0].toLowerCase()}${note.slice(1)}` : note;
 function servicesWords(services) {
-  const list2 = (services ?? []).filter((s) => !!s && typeof s.name === "string" && s.name.trim() !== "");
+  const list2 = (Array.isArray(services) ? services : []).filter((s) => !!s && typeof s.name === "string" && s.name.trim() !== "");
   const n = list2.length;
   if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
   const notes = list2.map((s) => typeof s.price_note === "string" ? s.price_note.trim() : "");

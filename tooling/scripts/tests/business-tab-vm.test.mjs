@@ -440,7 +440,8 @@ test("the services row counts them, names the first four with how long each take
   assert.deepEqual([servicesWords(MANY.slice(0, 4)).chips.length, servicesWords(MANY.slice(0, 4)).more], [4, null]);
   assert.deepEqual([servicesWords(MANY.slice(0, 5)).more, servicesWords(MANY.slice(0, 1)).line], ["+1 more", "1 on record"]);
   // None is no line at all: the row says it has none. A row nobody finished (no name) is not counted, as no save writes it.
-  for (const none of [null, undefined, [], [{ name: "" }], [{ name: "   ", duration_min: 30 }]]) {
+  // And a stored list that is not one (a hand-edited record) is none, never a throw: the row is drawn as the page draws.
+  for (const none of [null, undefined, [], [{ name: "" }], [{ name: "   ", duration_min: 30 }], { Balayage: 180 }, "Balayage"]) {
     assert.deepEqual(servicesWords(none), { count: 0, line: null, priced: null, chips: [], more: null });
   }
   assert.equal(servicesWords([svc("Balayage", 180), { name: "" }]).count, 1);

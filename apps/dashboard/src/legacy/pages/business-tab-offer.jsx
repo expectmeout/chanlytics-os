@@ -65,19 +65,21 @@ const btwServiceRows = (rows) => {
  * The row at rest (the canvas's Record board): how many are on record, the first four by name with how long each
  * takes, and one sentence about how they are priced, all contracts' (servicesWords). Its act opens the sheet, by asking
  * the registry for its id: the one door, as the standing line's is, so a fold open elsewhere with changes is asked
- * about first. A role that may not change the business is offered no act.
+ * about first. A role that may not change the business is offered no act, and nor is anyone while the sheet could not
+ * open (BtSheet.opens: nothing read to save onto, or a list whose draft cannot be worked out), as a fold offers none then.
  */
-const BtwServicesRow = ({ brain, canEdit, gate }) => {
+const BtwServicesRow = ({ brain, canEdit, gate, saver }) => {
   const tab = window.__businessTab || {};
   const vm = tab.servicesWords ? tab.servicesWords((brain.profile || {}).services) : null;
   const has = !!(vm && vm.count);
+  const opens = !!(window.BtSheet && window.BtSheet.opens && window.BtSheet.opens("services", saver));
   return (
     <window.RecordRow
       id="services"
       label="Services"
       value={has ? vm.line : null}
       empty="None yet"
-      act={canEdit ? {
+      act={canEdit && opens ? {
         label: has ? "Open the list" : "Add one",
         name: has ? "Open the list of services" : "Add one: a service",
         onClick: () => { if (window.__recordFolds) window.__recordFolds.request("services"); },
@@ -360,7 +362,7 @@ const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
         <span className="rec-card-sub">And the rules for offering it</span>
       </div>
 
-      <BtwServicesRow brain={brain} canEdit={canEdit} gate={gate("your services")} />
+      <BtwServicesRow brain={brain} canEdit={canEdit} gate={gate("your services")} saver={saver} />
 
       <Fold
         {...shared}
