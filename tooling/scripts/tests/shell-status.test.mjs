@@ -561,6 +561,45 @@ test("a page can say the same place more exactly: a replaced address makes no en
   }
 });
 
+test("REGRESSION: a person's Back returns to the list they were opened from -- it pushed plain People, and the list, its scroll and its words went", () => {
+  shell.installShell(win);
+  const keepHistory = win.history;
+  const keepPeople = win.__PEOPLE;
+  // Back is the browser's; the shell never writes history.state (Next reloads on a Back to an entry it did not mark).
+  const h = { backs: 0, back() { h.backs += 1; } };
+  win.history = h;
+  win.__PEOPLE = { rows: [{ id: "p-1", name: "Rosa Díaz" }] };
+  // The shell drawn again with the state it kept, after the browser moved its address (hashchange), as React would.
+  const arrive = (hash) => { win.location.hash = hash; fire("hashchange"); deep = false; seq = 0; const t = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} }); deep = true; return t; };
+  const profileBack = (tree) => find(tree, (n) => n.type === "ClientProfile").props.onBack();
+  try {
+    find(mount("#/clients/list:L1").tree, (n) => n.type === "ClientsA").props.onOpenProfile("p-1");
+    assert.equal(win.location.hash, "/clients/p-1", "the profile is a new entry");
+    profileBack(arrive("#/clients/p-1"));
+    assert.equal(h.backs, 1, "REGRESSION: Back pushed #/clients, a second entry, and the list they came from was gone");
+    assert.equal(win.location.hash, "#/clients/p-1", "nothing pushed: the browser's Back is what returns");
+
+    // Reached by a link or a reload: People itself, pushed.
+    h.backs = 0;
+    profileBack(mount("#/clients/p-1").tree);
+    assert.deepEqual([h.backs, win.location.hash], [0, "/clients"], "by a link: People");
+    // Opened from another page's door: People, never a Back out to the Inbox.
+    mount("#/inbox/th-1");
+    win.appNavigate("clients/p-1");
+    profileBack(arrive("#/clients/p-1"));
+    assert.deepEqual([h.backs, win.location.hash], [0, "/clients"], "from the Inbox: People");
+    // Back to the profile from somewhere else: the entry before it is not known to be the list, so People.
+    find(mount("#/clients/list:L1").tree, (n) => n.type === "ClientsA").props.onOpenProfile("p-1");
+    arrive("#/clients/p-1");
+    win.appNavigate("calendar");
+    profileBack(arrive("#/clients/p-1"));
+    assert.deepEqual([h.backs, win.location.hash], [0, "/clients"], "Back from the Calendar, then Back to People: People");
+  } finally {
+    win.history = keepHistory;
+    win.__PEOPLE = keepPeople;
+  }
+});
+
 test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named in the crumbs -- the route dropped the id", () => {
   shell.installShell(win);
   const keepGate = win.gate;

@@ -215,6 +215,25 @@ test("a link names the call it opens, and a call not among these says so, with a
   assert.equal(went.at(-1), "conversations/cv-c-gone");
 });
 
+test("REGRESSION: a call you opened that Live no longer holds says so -- the panel fell to another caller's call, End and Pass to me with it", () => {
+  // `all.find(opened) || live[0] || recent[0]`: once the opened call left both lists, whoever was on the line took
+  // the panel, controls and all, and nothing said the call on screen was not the one chosen.
+  const ada = call({ id: "c-live-2", conversation_id: "cv2", contact_id: "k2", contact: { display_name: "Ada Byron", wa_profile_name: null, phone_e164: "+16465550999" } });
+  withLive([call(), ada]);
+  const rows = callRows(mount());
+  rows.find((r) => r.props["data-call-id"] === "c-live-2").props.onClick();
+  const head = (tree) => find(tree, (n) => n.props?.className === "lm-head-name");
+  assert.match(textOf(head(mount())), /Ada Byron/, "Ada's call is open");
+  // The next read no longer holds it: the page keeps what was chosen (the state is not reset, as a re-read's is not).
+  globalThis.window.__LIVE = toLiveVM([call()], channels, ZONE, new Date(NOW));
+  const tree = mount();
+  assert.equal(head(tree), undefined, "REGRESSION: Rosa's call opened in Ada's place");
+  assert.equal(byTestId(tree, "live-hand-over"), undefined, "and no other call's controls stand under the notice");
+  assert.match(textOf(byTestId(tree, "live-missing")), /has ended, and Live no longer holds it/);
+  find(byTestId(tree, "live-missing"), (n) => n.type === "button" && textOf(n).includes("Conversations")).props.onClick();
+  assert.equal(went.at(-1), "conversations/cv-c-live-2", "with the door to its transcript");
+});
+
 test("a call gone quiet says when it was last heard from, before the checking banner minutes later", () => {
   withLive([call({ updated_at: iso(40_000) })]);
   assert.match(textOf(find(mount(), (n) => n.props?.className === "lm-head-meta")), /last heard 4\d s ago/);

@@ -206,11 +206,14 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
     return list;
   }, [channel, query, tick]); // tick: the SurfaceData swap replaces the array identity
 
-  // Keep selection valid within the filtered list
-  const selected = visible.find(c => c.id === selectedId) || visible[0];
-  // A deep link to a conversation that is not in view must not open someone
+  // The conversation asked for stays open while the box's words hide its row (the Inbox keeps a moved thread the same
+  // way): the pane fell to the first match, another customer's thread with its reply box, the moment a search stopped
+  // matching the one open. Nothing asked for, or a tab's new list: its first row.
+  const asked = selectedId ? CONVERSATIONS.find((c) => c.id === selectedId && matchesChannel(c)) || null : null;
+  const selected = visible.find(c => c.id === selectedId) || asked || visible[0];
+  // A deep link to a conversation that is not here must not open someone
   // else's transcript in silence: the first row still shows, with a notice.
-  const requestedMissing = !!initialId && selectedId === initialId && visible.length > 0 && !visible.some((c) => c.id === initialId);
+  const requestedMissing = !!initialId && selectedId === initialId && visible.length > 0 && !asked;
   useCvEffect(() => { if (!initialId) setSelectedId(null); }, [channel]);
 
   // Counted from the tabs THIS workspace has, by the same rule that filters
