@@ -1492,6 +1492,19 @@ const stageLabelOf = (stage: LeadStage, closedReason: string | null): string =>
   (stage === "archived" ? LEAD_CLOSED_WORDS[closedReason as (typeof LEAD_CLOSED_REASONS)[number]] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage]);
 
 /**
+ * The listing's photo at the size a row's tile draws it: Google's photo service takes a size after `=`, and the
+ * scraper's URL asks for 408 wide, which every row downloaded for a 48px box. `s96-c` is a 96px square crop, which
+ * the tile draws with object-fit anyway, and enough for a 2x screen. Any other host, or a URL with no size to
+ * replace, is left as it is. The peek's band and the photo expanded keep the whole photograph (toLeadPeekVM).
+ */
+export const LEAD_TILE_PX = 96;
+export function leadTileSrc(url: string | null | undefined, px: number = LEAD_TILE_PX): string | null {
+  if (!url) return null;
+  if (!/^https:\/\/lh3\.googleusercontent\.com\//.test(url)) return url;
+  return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
+}
+
+/**
  * One row's words and shapes (§6.2). Nothing here is a stored value. The search is the row's own (D5): a review
  * row names what it waits on in the queue's words, and the name card names the term it was found for.
  */
@@ -1575,7 +1588,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     slots: leadSlots(r),
     rated,
     spread,
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null, logo: r.logo_url ?? null },
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: leadTileSrc(r.image_url), logo: r.logo_url ?? null },
     waitsOn,
     state,
     stateTag,

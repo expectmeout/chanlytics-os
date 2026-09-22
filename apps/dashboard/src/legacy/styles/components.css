@@ -453,7 +453,8 @@
   color: var(--ink);
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  transition: all var(--duration-fast) var(--ease-out);
+  /* Named, not `all`: a button's size or padding changing class must not animate, and every row of a list carries several. */
+  transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
   white-space: nowrap;
 }
 .btn:hover { background: var(--bg-hover); border-color: var(--line-strong); }

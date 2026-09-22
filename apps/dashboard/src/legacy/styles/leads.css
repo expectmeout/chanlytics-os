@@ -16,6 +16,7 @@
   flex: none;
 }
 @keyframes lf-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lf-panel, .lf-strip { animation: none; } }
 .lf-compose { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; }
 .lf-spark { color: var(--ink-dim); display: inline-flex; }
 .lf-spark.live { color: var(--accent); }
@@ -560,9 +561,9 @@
 @media (prefers-reduced-motion: reduce) { .leads-scope .cl-table tbody { transition: none; } }
 
 /* The row: 62px, so the tile has room and the sub-line breathes. */
-.leads-scope .cl-table tbody tr:has(td.ld-biz-cell) td { padding-top: 7px; padding-bottom: 7px; }
-.leads-scope .cl-table tbody tr:has(td.ld-biz-cell) { height: 62px; }
-.leads-scope .cl-table tbody tr:has(td.ld-biz-cell) td:first-child { position: relative; }
+.leads-scope .cl-table tbody tr.ld-row td { padding-top: 7px; padding-bottom: 7px; }
+.leads-scope .cl-table tbody tr.ld-row { height: 62px; }
+.leads-scope .cl-table tbody tr.ld-row td:first-child { position: relative; }
 .ld-row-name { gap: 12px; }
 .ld-biz-cell .cl-row-fullname { display: flex; align-items: center; gap: 6px; font-size: var(--text-base); overflow: visible; }
 .ld-biz-cell .cl-row-fullname .ld-biz-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -720,7 +721,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
    the template lacks is not dropped: it opens implicit tracks past the grid. Fit and Stage still named the areas
    of the card before D5, and those tracks squeezed the name to a few letters and put Call mid-card. */
 @media (max-width: 900px) {
-  .clients .cl-table tbody tr:has(td.ld-biz-cell) {
+  .clients .cl-table tbody tr.ld-row {
     grid-template-columns: 28px minmax(0, 1fr) auto 44px;
     grid-template-areas:
       "sel business business call"
@@ -744,9 +745,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-row-actions > :not(.ld-call) { display: none; }
   .ld-row-actions .ld-call { width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); display: grid; place-items: center; }
   /* A left-out card is its name and, under it, what left it out: nothing about it was checked. */
-  .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) { grid-template-areas: "sel business business call"; }
-  .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-reach-cell,
-  .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-rated-cell { display: none; }
+  .clients .cl-table tbody tr.ld-cls-excluded { grid-template-areas: "sel business business call"; }
+  .clients .cl-table tbody tr.ld-cls-excluded td.ld-reach-cell,
+  .clients .cl-table tbody tr.ld-cls-excluded td.ld-rated-cell { display: none; }
   .ld-tile { width: 40px !important; height: 40px !important; }
   /* The table's tile is a button, the one thing on the card that opens the photo, and on a touch screen legacy.css
      makes every button at least 44px tall: this square stood 40 wide and 44 tall, with the photo cropped to fit. It
