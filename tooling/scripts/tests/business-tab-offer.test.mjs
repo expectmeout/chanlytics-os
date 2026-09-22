@@ -893,3 +893,35 @@ test("an Undo from an earlier opening says the editor it was in has closed, even
   assert.deepEqual([flashes.at(-1).tone, said(flashes.at(-1))], ["warn", "Not put back — the editor it was in has closed. Open it again to change it."], "REGRESSION: it said the list was full");
   assert.equal(rowsOf(redrawTab(flash)).length, LIMIT);
 });
+
+test("a row put back while the search says something else comes back in sight, pinned to that search and no later one", () => {
+  // The quality review's P6: a row taken out while searching "Service 5" and put back while searching "Service 7" came
+  // back hidden, so its Undo put it somewhere nobody could see, and focus went to a hidden box. A row changed since the
+  // sheet opened stays in sight under the search in force when it changed; it was pinned against every later search too.
+  let tree = openSheet(drawTab({ profile: ten }));
+  searchFor(tree, "Service 5");
+  tree = redrawTab();
+  removeNamed(tree, "Service 5");
+  tree = redrawTab();
+  searchFor(tree, "Service 7");
+  tree = redrawTab();
+  press(undoFor(tree, "Service 5"));
+  tree = redrawTab();
+  assert.deepEqual(namesOf(shownOf(tree)), ["Service 5", "Service 7"], "REGRESSION: it came back hidden");
+  // Pinned to the search it came back under, not to every one after it.
+  searchFor(tree, "Service 9");
+  tree = redrawTab();
+  assert.deepEqual(namesOf(shownOf(tree)), ["Service 9"]);
+  // And a name typed over under one search stays in sight under that search, and is searched as any other after it.
+  searchFor(tree, "Service 3");
+  tree = redrawTab();
+  typeAt(tree, "Service 3 name", "Balayage");
+  tree = redrawTab();
+  assert.deepEqual(namesOf(shownOf(tree)), ["Balayage"]);
+  searchFor(tree, "Service 8");
+  tree = redrawTab();
+  assert.deepEqual(namesOf(shownOf(tree)), ["Service 8"], "REGRESSION: a row changed once was shown under every search after");
+  searchFor(tree, "bala");
+  tree = redrawTab();
+  assert.deepEqual(namesOf(shownOf(tree)), ["Balayage"], "found by its new name like any other");
+});

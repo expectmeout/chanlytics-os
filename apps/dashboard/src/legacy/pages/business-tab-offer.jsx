@@ -26,7 +26,7 @@
 // object rest, for the reasons business-tab-save.jsx gives. The sheet's rows come and go (an Add, a remove, a search),
 // so they are drawn hookless (the kit's RecordBox), as a fold's rows are.
 
-const { useState: useBtwState } = React;
+const { useState: useBtwState, useRef: useBtwRef } = React;
 
 /* ------------------------------------ the services ------------------------------------ */
 
@@ -100,9 +100,11 @@ const BtwServicesRow = ({ brain, canEdit, gate, saver }) => {
  *
  * The search narrows the rows by name and NEVER reorders them: the stored order is the order the receptionist reads
  * them in, and a sheet sorted by its search would save them sorted. A row it leaves out is hidden, not taken off the
- * page, so every row keeps its index and its boxes their focus. A row changed since the sheet opened (typed in, or
- * just added) is never hidden by it: a name typed over until it no longer matched would have taken its row, and the
- * box being typed in, out of sight.
+ * page, so every row keeps its index and its boxes their focus. A row changed since the sheet opened (typed in, just
+ * added, or put back) is pinned to the search in force when it changed, and stays in sight under that search: a name
+ * typed over until it no longer matched would have taken its row, and the box being typed in, out of sight, and a row
+ * put back while another name was searched came back hidden (the quality review's P6). Under a later search it is
+ * searched like any other; pinned to every later one, a row changed once stayed in every search after.
  *
  * A row taken out leaves an Undo where it was, inside the sheet, since the toast's Undo is outside the dialog's Tab ring
  * (record-sheet.jsx); the toast still says it and offers the same Undo, which does nothing once the sheet has closed
@@ -116,6 +118,11 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
   const S = window.__businessTabSave;
   const tab = window.__businessTab || {};
   const [search, setSearch] = useBtwState({ opening: 0, q: "" });
+  // Each row changed since the sheet opened, and the search in force when it changed (the header says why). A row is
+  // changed when it is not one the sheet opened with: rows() makes a new one for each keystroke, each row added, and
+  // each row put back, so the first draw a row is seen in is the moment it changed.
+  const pins = useBtwRef(null);
+  if (!pins.current) pins.current = new WeakMap();
   const Sheet = window.BtSheet;
   if (!Sheet) return null;
   // Whether a service needs a consultation first is contracts' one question (needsConsultation), the one the Calendar's
@@ -153,7 +160,8 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
     const list = f.draft || [];
     const q = btwFolded(search.opening === f.opening ? search.q : "");
     const opened = new Set(f.opened || []);
-    const shows = (x) => !q || !opened.has(x) || btwFolded(x.name).includes(q);
+    list.forEach((x) => { if (x && !opened.has(x) && !pins.current.has(x)) pins.current.set(x, q); });
+    const shows = (x) => !q || btwFolded(x.name).includes(q) || (!opened.has(x) && pins.current.get(x) === q);
     const marks = svc.waiting();
     const setSvc = (i, k, v) => svc.setAt(i, { [k]: v });
     // A service and a note are words somebody typed, the same as a closure, and each went with one press and no Undo (S18).
