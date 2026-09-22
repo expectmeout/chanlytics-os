@@ -23,7 +23,8 @@ type MethodOf<K extends RouteKey> = (typeof ROUTES)[K]["method"];
 /** A read's query, as its schema declares it; a write has none. */
 type QueryOf<K extends RouteKey> = MethodOf<K> extends "GET" ? InputOf<Routes[K]> : never;
 /** A write's body: the declared schema, or anything JSON for a route that reads its own. */
-type BodyOf<K extends RouteKey> = MethodOf<K> extends "GET" ? never : InputOf<Routes[K]> extends undefined ? unknown : InputOf<Routes[K]>;
+type BodyOf<K extends RouteKey> =
+  MethodOf<K> extends "GET" ? never : InputOf<Routes[K]> extends undefined ? unknown : InputOf<Routes[K]>;
 
 export interface ApiOptions<K extends RouteKey> {
   params?: Params<K>;
@@ -45,8 +46,8 @@ export interface ApiOptions<K extends RouteKey> {
   refresh?: boolean | "behind";
   /**
    * Fired the moment the server accepts, before the surfaces are re-read, with what it answered: a form can say
-   * "saved" without waiting for every re-read, and a write that follows can build on the answer (the settings save's
-   * `{ config, version }`) instead of on a read that is about to be replaced.
+   * "saved", and an approve what it scheduled, without waiting for every re-read; and a write that follows can build
+   * on the answer (the settings save's `{ config, version }`) instead of on a read that is about to be replaced.
    */
   onAccepted?: (data: OutputOf<Routes[K]>) => void;
 }
@@ -58,10 +59,15 @@ export interface ApiOptions<K extends RouteKey> {
  */
 export type ApiRefusal = { ok: false } & Refusal;
 export type ApiResult<O> = { ok: true; data: O } | ApiRefusal;
-type Envelope = { ok: true; data: unknown } | { ok: false; error?: { code?: string; message?: string; details?: unknown } };
+type Envelope =
+  { ok: true; data: unknown } | { ok: false; error?: { code?: string; message?: string; details?: unknown } };
 
 export class ApiError extends Error {
-  constructor(readonly code: string, readonly status: number, message: string) {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -97,13 +103,16 @@ const WRITE_TIMEOUT_MS = 30_000;
 
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
-  const inFlight = new Map<string, { p: Promise<unknown>; at: number }>();
+  // `kept`: settled, answered, and held (holdAnswers) -- shared whatever its age until the hold is let go.
+  const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean }>();
+  let holds = 0;
 
   function urlFor<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): string {
     const params = (opts.params ?? {}) as Record<string, string>;
     const url = ROUTES[key].path.replace(/\[(\w+)\]/g, (_m, name: string) => encodeURIComponent(params[name] ?? ""));
     const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries((opts.query ?? {}) as Record<string, unknown>)) if (v !== undefined && v !== null) qs.set(k, String(v));
+    for (const [k, v] of Object.entries((opts.query ?? {}) as Record<string, unknown>))
+      if (v !== undefined && v !== null) qs.set(k, String(v));
     const ws = deps.workspace();
     if (ws && !qs.has("workspace")) qs.set("workspace", ws);
     const q = qs.toString();
@@ -125,12 +134,15 @@ export function createApi(deps: ApiDeps) {
     };
   }
 
-  async function send<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): Promise<ApiResult<OutputOf<Routes[K]>>> {
+  async function send<K extends RouteKey>(
+    key: K,
+    opts: ApiOptions<K> = {} as ApiOptions<K>,
+  ): Promise<ApiResult<OutputOf<Routes[K]>>> {
     const isRead = ROUTES[key].method === "GET";
     const url = urlFor(key, opts);
     if (isRead) {
       const hit = inFlight.get(url);
-      if (hit && now() - hit.at < INFLIGHT_MS) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
+      if (hit && (hit.kept || now() - hit.at < INFLIGHT_MS)) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
     const p = (async (): Promise<ApiResult<OutputOf<Routes[K]>>> => {
       let res: Response;
@@ -156,7 +168,15 @@ export function createApi(deps: ApiDeps) {
         // what a page shows and when it may try again, in the owner's words.
         return {
           ok: false,
-          ...refusalOf({ code: e?.code, status: res.status, message: e?.message, details: e?.details, retryAfter: res.headers.get("retry-after"), write: !isRead, nowMs: now() }),
+          ...refusalOf({
+            code: e?.code,
+            status: res.status,
+            message: e?.message,
+            details: e?.details,
+            retryAfter: res.headers.get("retry-after"),
+            write: !isRead,
+            nowMs: now(),
+          }),
         };
       }
       if (!isRead) {
@@ -171,11 +191,39 @@ export function createApi(deps: ApiDeps) {
       return { ok: true, data: j.data as OutputOf<Routes[K]> };
     })();
     if (isRead) {
-      // A rejection must not be shared beyond its burst: drop the entry as it settles.
-      inFlight.set(url, { p, at: now() });
-      p.finally(() => { if (inFlight.get(url)?.p === p) inFlight.delete(url); }).catch(() => {});
+      // A refusal must not be shared beyond its burst, and neither is an answer unless answers are held: drop the
+      // entry as it settles, or keep it for whoever asks next while the hold lasts.
+      const entry: { p: Promise<unknown>; at: number; kept?: boolean } = { p, at: now() };
+      inFlight.set(url, entry);
+      p.then(
+        (r) => {
+          if (inFlight.get(url) !== entry) return;
+          if (holds > 0 && r.ok) entry.kept = true;
+          else inFlight.delete(url);
+        },
+        () => {
+          if (inFlight.get(url) === entry) inFlight.delete(url);
+        },
+      );
     }
     return p;
+  }
+
+  /**
+   * Hold every answer until the returned release: a read that asks after an identical one has settled shares its
+   * answer rather than asking again. The boot, where the surfaces read the same lists in turn -- the runner holds
+   * from its first read to its last, before the live feed is joined, so no change can land inside the hold unheard.
+   * A write still forgets everything held. Releasing twice is releasing once.
+   */
+  function holdAnswers(): () => void {
+    holds += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      holds -= 1;
+      if (holds === 0) for (const [url, e] of inFlight) if (e.kept) inFlight.delete(url);
+    };
   }
 
   /** The Response itself: the two Google redirects and the Ask stream answer no envelope. */
@@ -190,7 +238,7 @@ export function createApi(deps: ApiDeps) {
     inFlight.clear();
   }
 
-  return Object.assign(send, { raw, url: urlFor, forget });
+  return Object.assign(send, { raw, url: urlFor, forget, holdAnswers });
 }
 
 export type Api = ReturnType<typeof createApi>;

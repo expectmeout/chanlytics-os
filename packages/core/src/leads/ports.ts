@@ -7,7 +7,18 @@
  * here runs over fakes in a test: no network, no database.
  */
 import type { ApifyClient, LeadJudge } from "@chanlytics/channels";
-import type { JudgePlaceAnswer, LeadArea, LeadEmailState, LeadFit, LeadMemberClass, LeadRoundEnding, LeadRoundPurpose, LeadRoundState, LeadRunState, LeadSearchPlan } from "@chanlytics/contracts";
+import type {
+  JudgePlaceAnswer,
+  LeadArea,
+  LeadEmailState,
+  LeadFit,
+  LeadMemberClass,
+  LeadRoundEnding,
+  LeadRoundPurpose,
+  LeadRoundState,
+  LeadRunState,
+  LeadSearchPlan,
+} from "@chanlytics/contracts";
 
 /** The question after the probe, as lead_rounds.question keeps it (PRD §7.2, P4): contracts' LeadQuestion with when it was asked. */
 export interface RoundQuestion {
@@ -151,7 +162,14 @@ export interface MemberJudgment {
 
 export interface CollectPlace {
   place: LeadColumns;
-  member: { judgment: MemberJudgment; class: LeadMemberClass; excluded_by: string | null; fit: LeadFit | null; reason: string; distance_m: number | null };
+  member: {
+    judgment: MemberJudgment;
+    class: LeadMemberClass;
+    excluded_by: string | null;
+    fit: LeadFit | null;
+    reason: string;
+    distance_m: number | null;
+  };
   duplicate_of_place_id: string | null;
   shares: LeadShare[];
 }
@@ -180,7 +198,14 @@ export interface CollectPage {
   run_state: LeadRunState | null;
   next: { kind: "lead_collect"; seq: string; run_after_seconds: number } | null;
   /** `nearby` (D3): where to look next when the round ran dry, written with the ending it belongs to. */
-  round: { state: LeadRoundState | null; question: RoundQuestion | null; ending: LeadRoundEnding | null; ending_pending?: LeadRoundEnding; target?: number; nearby?: LeadArea[] } | null;
+  round: {
+    state: LeadRoundState | null;
+    question: RoundQuestion | null;
+    ending: LeadRoundEnding | null;
+    ending_pending?: LeadRoundEnding;
+    target?: number;
+    nearby?: LeadArea[];
+  } | null;
 }
 
 export type CollectCommitResult =
@@ -191,24 +216,60 @@ export interface LeadDb {
   runClaim(runId: string, owner: string): Promise<boolean>;
   runRecordStart(runId: string, owner: string, apifyRunId: string, datasetId: string, capUsd: number): Promise<boolean>;
   runMarkUnknown(runId: string, owner: string): Promise<boolean>;
-  runReconcile(runId: string, apifyRunId: string | null, datasetId: string | null, state: LeadRunState): Promise<boolean>;
+  runReconcile(
+    runId: string,
+    apifyRunId: string | null,
+    datasetId: string | null,
+    state: LeadRunState,
+  ): Promise<boolean>;
   /** Takes or renews the lease; the generation, or null when another holds it. */
   runLease(runId: string, owner: string, seconds: number): Promise<number | null>;
   runRelease(runId: string, owner: string, gen: number): Promise<boolean>;
-  collectCommit(runId: string, owner: string, gen: number, fromOffset: number, toOffset: number, page: CollectPage): Promise<CollectCommitResult>;
+  collectCommit(
+    runId: string,
+    owner: string,
+    gen: number,
+    fromOffset: number,
+    toOffset: number,
+    page: CollectPage,
+  ): Promise<CollectCommitResult>;
   /** usageUsd is the CHECK RUN's total so far, never this batch's delta: only what is new settles, so a job tried again charges once. */
-  checkCommit(roundId: string, runId: string | null, results: { lead_id: string; email_state: LeadEmailState; checked_at: string }[], usageUsd: number, last: boolean): Promise<{ ok: boolean }>;
+  checkCommit(
+    roundId: string,
+    runId: string | null,
+    results: { lead_id: string; email_state: LeadEmailState; checked_at: string }[],
+    usageUsd: number,
+    last: boolean,
+  ): Promise<{ ok: boolean }>;
   roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
   /** Insert the run rows that are not there yet, by their deterministic ids, and answer every row of the round. */
-  runsEnsure(rows: { id: string; tenant_id: string; round_id: string; purpose: "discover" | "check"; term: string | null; actor: string; build: string; webhook_token_hash: string; cap_usd: number }[]): Promise<LeadRunRow[]>;
+  runsEnsure(
+    rows: {
+      id: string;
+      tenant_id: string;
+      round_id: string;
+      purpose: "discover" | "check";
+      term: string | null;
+      actor: string;
+      build: string;
+      webhook_token_hash: string;
+      cap_usd: number;
+    }[],
+  ): Promise<LeadRunRow[]>;
   round(id: string): Promise<LeadRoundRow | null>;
   run(id: string): Promise<LeadRunRow | null>;
   runsOfRound(roundId: string): Promise<LeadRunRow[]>;
   membersOfRound(roundId: string): Promise<LeadMemberRow[]>;
   /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */
   placeIdsHeld(tenantId: string, placeIds: string[]): Promise<Map<string, string>>;
-  sharesOf(tenantId: string, keys: { phones: string[]; emails: string[]; hosts: string[] }): Promise<{ key: string; share: LeadShare }[]>;
-  suppressed(tenantId: string, keys: { emails: string[]; placeIds: string[] }): Promise<{ emails: Set<string>; placeIds: Set<string> }>;
+  sharesOf(
+    tenantId: string,
+    keys: { phones: string[]; emails: string[]; hosts: string[] },
+  ): Promise<{ key: string; share: LeadShare }[]>;
+  suppressed(
+    tenantId: string,
+    keys: { emails: string[]; placeIds: string[] },
+  ): Promise<{ emails: Set<string>; placeIds: Set<string> }>;
   zoneOf(tenantId: string): Promise<string>;
   leadSearchesOn(tenantId: string): Promise<boolean>;
 }
@@ -223,7 +284,11 @@ export interface LeadPorts {
   /** A run row's webhook token, derived from its id by the edge: made once (its sha256 on the row), never rewritten, rebuilt by any later job of ours. */
   webhookToken(runRowId: string): Promise<string>;
   /** scheduleJobOnce for this workspace: a second row for the same key is an answer, not an error. */
-  schedule(kind: "lead_round_start" | "lead_collect" | "lead_check", payload: Record<string, unknown>, runAfterSeconds: number): Promise<void>;
+  schedule(
+    kind: "lead_round_start" | "lead_collect" | "lead_check",
+    payload: Record<string, unknown>,
+    runAfterSeconds: number,
+  ): Promise<void>;
   /**
    * One GET of a page as text, for the engine's own reading -- today the business's home page, for its mark (D6).
    * Answers null rather than throwing on anything that is not a page we can read. Absent in a runtime that has no

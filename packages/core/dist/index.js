@@ -1137,7 +1137,16 @@ var DECISION_VERBS = [
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
-var BRAIN_INTENTS = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA = {
   type: "object",
@@ -1183,7 +1192,9 @@ var BrainOutputSchema = z2.object({
   escalate: z2.boolean().catch(false),
   reason: z2.string().catch("").transform((s) => s.trim().slice(0, 300)),
   confidence: z2.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z2.array(z2.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  facts_used: z2.array(z2.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
+  ),
   language: z2.enum(BRAIN_LANGUAGES).catch("other")
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
@@ -1194,7 +1205,14 @@ var REPLY_LIMITS = {
 };
 var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
-var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
+var CALL_OUTCOMES = [
+  "answered",
+  "booking_link_sent",
+  "callback_needed",
+  "voicemail",
+  "no_request",
+  "other"
+];
 var RETENTION_DAYS = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -1254,11 +1272,31 @@ function feedProblemWords(reason, status) {
 }
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema = z3.object({
@@ -1528,7 +1566,11 @@ function checkClosure(c, n, ctx) {
 }
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -1547,14 +1589,26 @@ var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
 var DAY_MS3 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
 var NEW_WINDOW_MS = 7 * DAY_MS3;
 var QUIET_AFTER_MS = 30 * DAY_MS3;
-var REPLY_VIA = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS = {
   whatsapp: REPLY_VIA.whatsapp,
   sms: REPLY_VIA.sms,
@@ -1577,8 +1631,18 @@ var CHANNEL_KIND_WORDS = {
   instagram: "Instagram"
 };
 var KIND_META = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -1651,8 +1715,16 @@ var AskFinishSchema = z4.object({
       label: z4.string().catch("").transform(clip(80))
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
-  followups: z4.array(z4.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
-  navigate: z4.object({ to: z4.string().catch(""), label: z4.string().catch(""), now: z4.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
+  followups: z4.array(z4.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
+  ),
+  navigate: z4.object({ to: z4.string().catch(""), label: z4.string().catch(""), now: z4.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
+    } : null
+  ),
   language: z4.enum(ASK_LANGUAGES).catch("other")
 });
 var ASK_UNDO_MS = 10 * 6e4;
@@ -1663,10 +1735,24 @@ var AskProposalOutcomeSchema = z4.object({
   undo: z4.record(z4.string(), z4.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
-  z4.object({ op: z4.literal("add_closure"), date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z4.string().max(200).optional() }),
-  z4.object({ op: z4.literal("set_hours"), day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z4.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z4.object({
+    op: z4.literal("add_closure"),
+    date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z4.string().max(200).optional()
+  }),
+  z4.object({
+    op: z4.literal("set_hours"),
+    day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z4.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z4.object({ op: z4.literal("add_note"), title: z4.string().min(1).max(80), text: z4.string().min(1).max(1200) }),
-  z4.object({ op: z4.literal("add_service"), name: z4.string().min(1).max(80), duration_min: z4.number().int().min(1).max(1440).optional() })
+  z4.object({
+    op: z4.literal("add_service"),
+    name: z4.string().min(1).max(80),
+    duration_min: z4.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L = (id, name, region, native) => ({
   id,
@@ -1971,18 +2057,47 @@ var LeadSearchPlanSchema = z6.object({
   }),
   count: z6.number().int().min(1).max(LEAD_MAX_PLACES),
   contact: z6.enum(["phone", "email"]),
-  criteria: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 120), standard: z6.enum(["likely", "seen"]), required: z6.boolean() })).max(8),
-  exclusions: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 80), origin: z6.enum(["claude", "you_said"]), category_key: z6.string().regex(KEY).optional() })).max(8)
+  criteria: z6.array(
+    z6.object({
+      key: z6.string().regex(KEY),
+      text: words(2, 120),
+      standard: z6.enum(["likely", "seen"]),
+      required: z6.boolean()
+    })
+  ).max(8),
+  exclusions: z6.array(
+    z6.object({
+      key: z6.string().regex(KEY),
+      text: words(2, 80),
+      origin: z6.enum(["claude", "you_said"]),
+      category_key: z6.string().regex(KEY).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name, code2]) => [code2, name]));
+var US_NAMES = Object.fromEntries(
+  Object.entries(US_STATES).map(([name, code2]) => [code2, name])
+);
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -2011,9 +2126,22 @@ var PASSWORD_WORDS = {
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES = {
   interested: "ok",
   call_back: "warn",
@@ -2022,7 +2150,14 @@ var LEAD_CALL_OUTCOME_TONES = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS = {
   chain: "A chain or franchise",
@@ -2075,7 +2210,11 @@ var LEAD_WORDS = {
   callQuestion: LEAD_CALL_QUESTION,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id], tone: LEAD_CALL_OUTCOME_TONES[id] })),
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS[id],
+    tone: LEAD_CALL_OUTCOME_TONES[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
@@ -2084,7 +2223,10 @@ var LEAD_WORDS = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE,
   draftOpen: "Open in your email",
@@ -2127,13 +2269,22 @@ var LeadStageInputSchema = z7.discriminatedUnion("kind", [
   z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
   z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
   z7.object({ kind: z7.literal("said_no") }),
-  z7.object({ kind: z7.literal("outcome"), outcome: z7.enum(LEAD_CALL_OUTCOMES), note: z7.string().trim().max(280).optional() }),
+  z7.object({
+    kind: z7.literal("outcome"),
+    outcome: z7.enum(LEAD_CALL_OUTCOMES),
+    note: z7.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z7.object({ kind: z7.literal("emailed") })
 ]);
 var LeadsBulkSchema = z7.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z7.array(z7.string().uuid()).min(1).max(500), search_id: z7.string().uuid().optional() }),
+  z7.object({
+    by: z7.literal("ids"),
+    action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z7.array(z7.string().uuid()).min(1).max(500),
+    search_id: z7.string().uuid().optional()
+  }),
   z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
 var LeadsCheckAgainSchema = z7.object({ ids: z7.array(z7.string().uuid()).min(1).max(500) });
@@ -2162,13 +2313,32 @@ var ProposeLeadSearchSchema = z7.object({
   leave_out: z7.array(z7.object({ words: planChip(40) })).max(6).default([]),
   asked: z7.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema = z7.object({
+  subject: z7.string().trim().min(3).max(120),
+  body: z7.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema = z7.object({
   line: z7.string().trim().min(3).max(160),
-  items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z7.array(
+    z7.object({
+      words: z7.string().trim().min(3).max(80),
+      who_for: z7.string().trim().min(3).max(120),
+      category_key: z7.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
@@ -2203,12 +2373,16 @@ var JUDGE_OUTPUT_SCHEMA = {
   additionalProperties: false
 };
 var AnswerSchema = z8.object({
-  places: z8.array(z8.object({
-    ref: z8.number().int(),
-    criteria: z8.array(z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })),
-    email_index: z8.number().int().nullable(),
-    reason: z8.string()
-  }))
+  places: z8.array(
+    z8.object({
+      ref: z8.number().int(),
+      criteria: z8.array(
+        z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })
+      ),
+      email_index: z8.number().int().nullable(),
+      reason: z8.string()
+    })
+  )
 });
 var K = new Uint32Array([
   1116352408,
@@ -2323,7 +2497,11 @@ var CALL_ANALYSIS_FIELDS = [
     type: "string",
     name: "caller_wanted",
     description: "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
-    examples: ["Asked whether Saturday at 10 is free.", "Wanted Tuesday's hours and a price.", "Moved Friday's appointment to next week."]
+    examples: [
+      "Asked whether Saturday at 10 is free.",
+      "Wanted Tuesday's hours and a price.",
+      "Moved Friday's appointment to next week."
+    ]
   },
   {
     type: "enum",
@@ -2384,7 +2562,11 @@ async function sendEmail(cfg, request) {
   try {
     const r = await fetch(RESEND_EMAILS, {
       method: "POST",
-      headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": idempotency_key },
+      headers: {
+        Authorization: `Bearer ${cfg.apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotency_key
+      },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS2)
     });
@@ -2408,7 +2590,12 @@ var FRESH_SLACK_MS = 2 * 864e5;
 var STATE_TTL_MS = 10 * 6e4;
 var enc2 = new TextEncoder();
 var dec = new TextDecoder();
-var APIFY_RUN_END_EVENTS = ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED", "ACTOR.RUN.TIMED_OUT", "ACTOR.RUN.ABORTED"];
+var APIFY_RUN_END_EVENTS = [
+  "ACTOR.RUN.SUCCEEDED",
+  "ACTOR.RUN.FAILED",
+  "ACTOR.RUN.TIMED_OUT",
+  "ACTOR.RUN.ABORTED"
+];
 
 // ../contracts/dist/index.js
 import { z as z9 } from "zod";
@@ -2714,7 +2901,15 @@ function formatsFor(tz) {
     time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
     date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
     dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
-    parts: new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+    parts: new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })
   };
   FORMATS.set(tz, made);
   return made;
@@ -2727,7 +2922,12 @@ function wall(atMs, tz) {
   if (hit) return hit;
   const p = {};
   for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
-  const made = { key: `${p.year}-${p.month}-${p.day}`, year: Number(p.year), hh: Number(p.hour) % 24, mm: Number(p.minute) };
+  const made = {
+    key: `${p.year}-${p.month}-${p.day}`,
+    year: Number(p.year),
+    hh: Number(p.hour) % 24,
+    mm: Number(p.minute)
+  };
   if (WALLS.size >= WALLS_MAX) WALLS.clear();
   WALLS.set(id, made);
   return made;
@@ -2736,7 +2936,16 @@ function clockDate(atMs, tz, nowMs) {
   const f = formatsFor(tz);
   return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
 }
-var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS2 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES2 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA2 = {
   type: "object",
@@ -2782,7 +2991,9 @@ var BrainOutputSchema2 = z22.object({
   escalate: z22.boolean().catch(false),
   reason: z22.string().catch("").transform((s) => s.trim().slice(0, 300)),
   confidence: z22.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z22.array(z22.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  facts_used: z22.array(z22.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
+  ),
   language: z22.enum(BRAIN_LANGUAGES2).catch("other")
 });
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
@@ -2860,11 +3071,31 @@ function feedProblemWords2(reason, status) {
 }
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema2 = z32.object({
@@ -3134,7 +3365,11 @@ function checkClosure2(c, n, ctx) {
 }
 var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk2(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z32.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords2("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z32.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords2("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -3168,17 +3403,31 @@ var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 var ms = (t) => typeof t === "number" ? t : Date.parse(t);
 function visitStartTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
+    new Date(ms(v.start))
+  );
 }
 var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS2 = { ...PERSON_MODE_LABELS2, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS2 = {
+  ...PERSON_MODE_LABELS2,
+  inherit: "Follow the workspace"
+};
 var DAY_MS32 = 864e5;
 var WEEK_MS22 = 7 * DAY_MS32;
 var MONTH_MS2 = 30 * DAY_MS32;
 var NEW_WINDOW_MS2 = 7 * DAY_MS32;
 var QUIET_AFTER_MS3 = 30 * DAY_MS32;
-var REPLY_VIA2 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS2 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA2 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS2 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS2 = {
   whatsapp: REPLY_VIA2.whatsapp,
   sms: REPLY_VIA2.sms,
@@ -3203,17 +3452,39 @@ function whyNotReceive(r, purpose) {
   return said2.reason === "opted_out" ? "stopped" : "no_yes";
 }
 function saidYesTo(r, purpose) {
-  return mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).ok;
+  return mayMessageFor(
+    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
+    purpose,
+    { proactive: true }
+  ).ok;
 }
 var PEOPLE_LISTS = [
   { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
   { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
-  { id: "booked_week", label: "Booked this week", group: "journey", needsCalendar: true, test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7 },
+  {
+    id: "booked_week",
+    label: "Booked this week",
+    group: "journey",
+    needsCalendar: true,
+    test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7
+  },
   { id: "booked", label: "Booked", group: "journey", needsCalendar: true, test: (v) => v.booked },
-  { id: "asked_never_booked", label: "Asked, never booked", group: "journey", needsCalendar: true, test: (v) => v.askedNotBooked },
+  {
+    id: "asked_never_booked",
+    label: "Asked, never booked",
+    group: "journey",
+    needsCalendar: true,
+    test: (v) => v.askedNotBooked
+  },
   // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
-  { id: "lapsed", label: "Lapsed", group: "journey", needsCalendar: true, test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45 },
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    group: "journey",
+    needsCalendar: true,
+    test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45
+  },
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
@@ -3249,8 +3520,18 @@ var CHANNEL_KIND_WORDS2 = {
   instagram: "Instagram"
 };
 var KIND_META2 = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS2.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS2.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS2.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS2.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS2.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -3323,8 +3604,16 @@ var AskFinishSchema2 = z42.object({
       label: z42.string().catch("").transform(clip2(80))
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS2.citations)),
-  followups: z42.array(z42.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))),
-  navigate: z42.object({ to: z42.string().catch(""), label: z42.string().catch(""), now: z42.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
+  followups: z42.array(z42.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))
+  ),
+  navigate: z42.object({ to: z42.string().catch(""), label: z42.string().catch(""), now: z42.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
+    } : null
+  ),
   language: z42.enum(ASK_LANGUAGES2).catch("other")
 });
 var ASK_UNDO_MS2 = 10 * 6e4;
@@ -3335,10 +3624,24 @@ var AskProposalOutcomeSchema2 = z42.object({
   undo: z42.record(z42.string(), z42.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema2 = z42.discriminatedUnion("op", [
-  z42.object({ op: z42.literal("add_closure"), date: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z42.string().max(200).optional() }),
-  z42.object({ op: z42.literal("set_hours"), day: z42.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z42.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z42.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z42.object({
+    op: z42.literal("add_closure"),
+    date: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z42.string().max(200).optional()
+  }),
+  z42.object({
+    op: z42.literal("set_hours"),
+    day: z42.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z42.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z42.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z42.object({ op: z42.literal("add_note"), title: z42.string().min(1).max(80), text: z42.string().min(1).max(1200) }),
-  z42.object({ op: z42.literal("add_service"), name: z42.string().min(1).max(80), duration_min: z42.number().int().min(1).max(1440).optional() })
+  z42.object({
+    op: z42.literal("add_service"),
+    name: z42.string().min(1).max(80),
+    duration_min: z42.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L2 = (id, name, region, native) => ({
   id,
@@ -3478,7 +3781,8 @@ function parseParamSpec(raw) {
   if (raw && typeof raw === "object") {
     const o = raw;
     if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service")
+      return { kind: o.kind };
   }
   return null;
 }
@@ -3596,12 +3900,26 @@ var STARTER_TEMPLATES = [
       en_US: {
         body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
         footer: STOP_EN,
-        slots: [FIRST2, BUSINESS2, { kind: "text", label: "The offer", example: "20% off any service booked before Friday." }, LINK2]
+        slots: [
+          FIRST2,
+          BUSINESS2,
+          { kind: "text", label: "The offer", example: "20% off any service booked before Friday." },
+          LINK2
+        ]
       },
       es: {
         body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
         footer: STOP_ES,
-        slots: [FIRST_ES2, BUSINESS_ES2, { kind: "text", label: "La oferta", example: "20% de descuento en cualquier servicio reservado antes del viernes." }, LINK_ES2]
+        slots: [
+          FIRST_ES2,
+          BUSINESS_ES2,
+          {
+            kind: "text",
+            label: "La oferta",
+            example: "20% de descuento en cualquier servicio reservado antes del viernes."
+          },
+          LINK_ES2
+        ]
       }
     }
   },
@@ -3656,12 +3974,20 @@ var STARTER_TEMPLATES = [
       en_US: {
         body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
         footer: STOP_EN,
-        slots: [FIRST2, BUSINESS2, { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }]
+        slots: [
+          FIRST2,
+          BUSINESS2,
+          { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }
+        ]
       },
       es: {
         body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
         footer: STOP_ES,
-        slots: [FIRST_ES2, BUSINESS_ES2, { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }]
+        slots: [
+          FIRST_ES2,
+          BUSINESS_ES2,
+          { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }
+        ]
       }
     }
   },
@@ -3722,7 +4048,8 @@ function templateTitle(name, title) {
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
-  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e)) return "booking_link";
+  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
+    return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
   if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
   return "text";
@@ -3734,7 +4061,9 @@ function defaultSlotKinds(t) {
     const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
     return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
   }
-  return vars.map((v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null));
+  return vars.map(
+    (v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null)
+  );
 }
 function defaultParamSpecs(t) {
   return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
@@ -3773,7 +4102,7 @@ var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
-var EVERYONE_LABEL = "Everyone who said yes";
+var EVERYONE_LABEL = "Everyone";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
   return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
 }
@@ -3822,11 +4151,46 @@ function overLimitRefusal(h, audience) {
 var DAY_MS62 = 864e5;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
-  { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
-  { id: "phoned_only", label: "Save our number", list: "phoned_only", cls: "reengage", kind: "list", hint: "Only ever phoned, never texted" },
-  { id: "everyone_monthly", label: "The month's offer", list: null, cls: "campaign", kind: "cadence", hint: "Everyone who said yes, on a cadence" },
-  { id: "visit_tomorrow", label: "Visit reminder", list: null, cls: "booking", kind: "visit", hint: "The day before an appointment on the calendar" },
-  { id: "visited", label: "After the visit", list: null, cls: "reengage", kind: "visit", hint: "The day after a visit, when nothing is booked next" }
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  }
 ];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
@@ -3844,16 +4208,31 @@ function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 function playbookRunReach(rows, p, touches, nowMs) {
-  const reach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
+  const reach = {
+    pool: 0,
+    will: 0,
+    noNumber: 0,
+    stopped: 0,
+    noYes: 0,
+    heardThis: 0,
+    heardAny: 0,
+    overCap: 0,
+    overLimit: 0
+  };
   const t = triggerOf(p.trigger);
-  if (!t) return { eligible: [], reach };
+  if (!t) return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
-  const named = t.kind === "visit" ? rows.filter((r) => {
-    if (!r.calendarTz) return false;
-    if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS62));
-    return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS62)) && !r.booked;
-  }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  const named = t.kind === "visit" ? (
+    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+    rows.filter((r) => {
+      if (!r.calendarTz) return false;
+      if (p.trigger === "visit_tomorrow")
+        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS62));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS62)) && !r.booked;
+    })
+  ) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
+  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed = [];
   for (const r of named) {
     const why = whyNotReceive(r, purpose);
@@ -3863,9 +4242,11 @@ function playbookRunReach(rows, p, touches, nowMs) {
     else allowed.push(r);
   }
   if (t.kind === "visit") {
-    allowed.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
+    allowed.sort(
+      (a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)
+    );
     reach.will = allowed.length;
-    return { eligible: allowed, reach };
+    return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS62;
   const picked = allowed.filter((r) => {
@@ -3885,7 +4266,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
   const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
   reach.overCap = picked.length - eligible.length;
   reach.will = eligible.length;
-  return { eligible, reach };
+  return { eligible, reach, saidYes };
 }
 function planRun(mode, now) {
   switch (mode) {
@@ -3901,7 +4282,14 @@ function planRun(mode, now) {
 }
 function parts(tz, now) {
   try {
-    const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false });
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
     const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
     const hour = Number(p.hour) % 24;
     return { date: `${p.year}-${p.month}-${p.day}`, hour };
@@ -4103,20 +4491,49 @@ var LeadSearchPlanSchema2 = z62.object({
   }),
   count: z62.number().int().min(1).max(LEAD_MAX_PLACES2),
   contact: z62.enum(["phone", "email"]),
-  criteria: z62.array(z62.object({ key: z62.string().regex(KEY2), text: words2(2, 120), standard: z62.enum(["likely", "seen"]), required: z62.boolean() })).max(8),
-  exclusions: z62.array(z62.object({ key: z62.string().regex(KEY2), text: words2(2, 80), origin: z62.enum(["claude", "you_said"]), category_key: z62.string().regex(KEY2).optional() })).max(8)
+  criteria: z62.array(
+    z62.object({
+      key: z62.string().regex(KEY2),
+      text: words2(2, 120),
+      standard: z62.enum(["likely", "seen"]),
+      required: z62.boolean()
+    })
+  ).max(8),
+  exclusions: z62.array(
+    z62.object({
+      key: z62.string().regex(KEY2),
+      text: words2(2, 80),
+      origin: z62.enum(["claude", "you_said"]),
+      category_key: z62.string().regex(KEY2).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES2.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES2.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
 var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 var lowerFirst2 = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-var US_NAMES2 = Object.fromEntries(Object.entries(US_STATES2).map(([name, code2]) => [code2, name]));
+var US_NAMES2 = Object.fromEntries(
+  Object.entries(US_STATES2).map(([name, code2]) => [code2, name])
+);
 function endingOfRound(x) {
   if (x.counted >= x.target) return "target_reached";
   if (x.paused) return "paused";
@@ -4143,7 +4560,12 @@ var LEAD_CARDS = [
       "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
       "businesses outside the US"
     ],
-    settings: ["terms (up to five search phrases, widest first)", "area (a city, a ZIP, or a center and radius)", "count (1 to 1000)", "contact standard (phone, or email checked)"],
+    settings: [
+      "terms (up to five search phrases, widest first)",
+      "area (a city, a ZIP, or a center and radius)",
+      "count (1 to 1000)",
+      "contact standard (phone, or email checked)"
+    ],
     costPerPlaceUsd: 3e-3,
     contactsPerPlaceUsd: 2e-3,
     judgePerPlaceUsd: 23e-4,
@@ -4194,7 +4616,8 @@ function placesToAsk(plan, remaining, yieldSoFar) {
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 function classify(plan, answer, facts, emailState, inArea2) {
-  if (facts.phone_matches_site === null && facts.emails.length === 0) return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
+  if (facts.phone_matches_site === null && facts.emails.length === 0)
+    return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons = [];
   const rubric = [
     { key: LEAD_KIND_KEY, standard: "likely", required: true },
@@ -4245,10 +4668,14 @@ function questionAfterProbe(plan, members) {
   if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
   const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
   const tally2 = /* @__PURE__ */ new Map();
-  for (const m of members) if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by)) tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
+  for (const m of members)
+    if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by))
+      tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
   const top = [...tally2.entries()].sort((a, b) => b[1] - a[1])[0];
   if (!top) return { ask: false };
-  const textOf2 = (key) => lowerFirst2(plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key);
+  const textOf2 = (key) => lowerFirst2(
+    plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
+  );
   const namedShare = top[1] / n;
   const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
   const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
@@ -4256,15 +4683,20 @@ function questionAfterProbe(plan, members) {
   if (plan.terms.length > 1) {
     const statOf = (term) => {
       const of = members.filter((m) => m.term === term);
-      return { count: of.length, excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0 };
+      return {
+        count: of.length,
+        excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0
+      };
     };
     for (const term of plan.terms) {
       const s = statOf(term);
       if (s.count < 5 || s.excludedShare < 2 / 3) continue;
-      const anotherWorks = plan.terms.some((other) => other !== term && (() => {
-        const o = statOf(other);
-        return o.count >= 5 && o.excludedShare < 2 / 3;
-      })());
+      const anotherWorks = plan.terms.some(
+        (other) => other !== term && (() => {
+          const o = statOf(other);
+          return o.count >= 5 && o.excludedShare < 2 / 3;
+        })()
+      );
       if (anotherWorks) {
         dropTerm = term;
         break;
@@ -4272,7 +4704,12 @@ function questionAfterProbe(plan, members) {
     }
   }
   const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
-  return { ask: true, sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`, criterionKey: top[0], dropTerm };
+  return {
+    ask: true,
+    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
+    criterionKey: top[0],
+    dropTerm
+  };
 }
 var LEAD_PLATFORM_HOSTS = [
   "vagaro.com",
@@ -4324,9 +4761,50 @@ var LEAD_PLACEHOLDER_LOCALS = [
   "no-reply",
   "donotreply"
 ];
-var LEAD_ROLE_LOCALS = ["careers", "career", "jobs", "recruiting", "recruitment", "hr", "media", "press", "pr", "privacy", "legal", "webmaster", "abuse", "postmaster"];
-var LEAD_FREE_MAIL = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "aol.com", "live.com", "msn.com", "me.com", "protonmail.com", "proton.me"];
-var DESK_LOCALS = ["intake", "info", "hello", "contact", "office", "team", "book", "booking", "bookings", "appointments", "studio", "frontdesk", "admin"];
+var LEAD_ROLE_LOCALS = [
+  "careers",
+  "career",
+  "jobs",
+  "recruiting",
+  "recruitment",
+  "hr",
+  "media",
+  "press",
+  "pr",
+  "privacy",
+  "legal",
+  "webmaster",
+  "abuse",
+  "postmaster"
+];
+var LEAD_FREE_MAIL = [
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "icloud.com",
+  "aol.com",
+  "live.com",
+  "msn.com",
+  "me.com",
+  "protonmail.com",
+  "proton.me"
+];
+var DESK_LOCALS = [
+  "intake",
+  "info",
+  "hello",
+  "contact",
+  "office",
+  "team",
+  "book",
+  "booking",
+  "bookings",
+  "appointments",
+  "studio",
+  "frontdesk",
+  "admin"
+];
 var has = (xs, v) => xs.includes(v);
 function cleanEmailCandidates(emails, host) {
   const seen = /* @__PURE__ */ new Set();
@@ -4437,9 +4915,22 @@ var PASSWORD_WORDS2 = {
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
 var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES2 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES2 = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS2 = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS2 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS2 = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES2 = {
   interested: "ok",
   call_back: "warn",
@@ -4448,7 +4939,14 @@ var LEAD_CALL_OUTCOME_TONES2 = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS2 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS2 = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE2 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS2 = {
   chain: "A chain or franchise",
@@ -4501,7 +4999,11 @@ var LEAD_WORDS2 = {
   callQuestion: LEAD_CALL_QUESTION2,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS2[id], tone: LEAD_CALL_OUTCOME_TONES2[id] })),
+  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS2[id],
+    tone: LEAD_CALL_OUTCOME_TONES2[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER2,
   noteMax: LEAD_NOTE_MAX2,
@@ -4510,7 +5012,10 @@ var LEAD_WORDS2 = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE2,
   draftOpen: "Open in your email",
@@ -4553,13 +5058,22 @@ var LeadStageInputSchema2 = z72.discriminatedUnion("kind", [
   z72.object({ kind: z72.literal("stage"), stage: z72.enum(["ready", "nurture", "converted"]) }),
   z72.object({ kind: z72.literal("not_a_fit"), why: z72.enum(LEAD_NOT_A_FIT_WHYS2) }),
   z72.object({ kind: z72.literal("said_no") }),
-  z72.object({ kind: z72.literal("outcome"), outcome: z72.enum(LEAD_CALL_OUTCOMES2), note: z72.string().trim().max(280).optional() }),
+  z72.object({
+    kind: z72.literal("outcome"),
+    outcome: z72.enum(LEAD_CALL_OUTCOMES2),
+    note: z72.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z72.object({ kind: z72.literal("emailed") })
 ]);
 var LeadsBulkSchema2 = z72.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z72.object({ by: z72.literal("ids"), action: z72.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z72.array(z72.string().uuid()).min(1).max(500), search_id: z72.string().uuid().optional() }),
+  z72.object({
+    by: z72.literal("ids"),
+    action: z72.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z72.array(z72.string().uuid()).min(1).max(500),
+    search_id: z72.string().uuid().optional()
+  }),
   z72.object({ by: z72.literal("view"), action: z72.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
 ]);
 var LeadsCheckAgainSchema2 = z72.object({ ids: z72.array(z72.string().uuid()).min(1).max(500) });
@@ -4588,13 +5102,32 @@ var ProposeLeadSearchSchema2 = z72.object({
   leave_out: z72.array(z72.object({ words: planChip2(40) })).max(6).default([]),
   asked: z72.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema2 = z72.object({ subject: z72.string().trim().min(3).max(120), body: z72.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema2 = z72.object({
+  subject: z72.string().trim().min(3).max(120),
+  body: z72.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema2 = z72.object({
   line: z72.string().trim().min(3).max(160),
-  items: z72.array(z72.object({ words: z72.string().trim().min(3).max(80), who_for: z72.string().trim().min(3).max(120), category_key: z72.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z72.array(
+    z72.object({
+      words: z72.string().trim().min(3).max(80),
+      who_for: z72.string().trim().min(3).max(120),
+      category_key: z72.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS2 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS2 = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA2 = {
   type: "object",
   properties: {
@@ -4629,12 +5162,16 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   additionalProperties: false
 };
 var AnswerSchema2 = z82.object({
-  places: z82.array(z82.object({
-    ref: z82.number().int(),
-    criteria: z82.array(z82.object({ key: z82.string(), answer: z82.enum(["pass", "fail", "unknown"]), facts: z82.array(z82.string()) })),
-    email_index: z82.number().int().nullable(),
-    reason: z82.string()
-  }))
+  places: z82.array(
+    z82.object({
+      ref: z82.number().int(),
+      criteria: z82.array(
+        z82.object({ key: z82.string(), answer: z82.enum(["pass", "fail", "unknown"]), facts: z82.array(z82.string()) })
+      ),
+      email_index: z82.number().int().nullable(),
+      reason: z82.string()
+    })
+  )
 });
 var K2 = new Uint32Array([
   1116352408,
@@ -4711,7 +5248,16 @@ function sha256Hex(text) {
   const view = new DataView(padded.buffer);
   view.setUint32(padded.length - 8, Math.floor(bitLen / 4294967296));
   view.setUint32(padded.length - 4, bitLen >>> 0);
-  const h = new Uint32Array([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]);
+  const h = new Uint32Array([
+    1779033703,
+    3144134277,
+    1013904242,
+    2773480762,
+    1359893119,
+    2600822924,
+    528734635,
+    1541459225
+  ]);
   const w = new Uint32Array(64);
   const rotr = (x, n) => x >>> n | x << 32 - n;
   for (let off = 0; off < padded.length; off += 64) {
@@ -4944,7 +5490,16 @@ var DECISION_VERBS3 = [
 ];
 var DAY_MS7 = 864e5;
 var WEEK_MS5 = 7 * DAY_MS7;
-var BRAIN_INTENTS3 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS3 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES3 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA3 = {
   type: "object",
@@ -4990,7 +5545,9 @@ var BrainOutputSchema3 = z23.object({
   escalate: z23.boolean().catch(false),
   reason: z23.string().catch("").transform((s) => s.trim().slice(0, 300)),
   confidence: z23.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z23.array(z23.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  facts_used: z23.array(z23.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
+  ),
   language: z23.enum(BRAIN_LANGUAGES3).catch("other")
 });
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
@@ -5060,11 +5617,31 @@ function feedProblemWords3(reason, status) {
 }
 var POLICY_CLASS_WORDS3 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema3 = z33.object({
@@ -5334,7 +5911,11 @@ function checkClosure3(c, n, ctx) {
 }
 var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk3(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z33.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords3("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z33.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords3("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -5353,14 +5934,26 @@ var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS3 = { ...PERSON_MODE_LABELS3, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS3 = {
+  ...PERSON_MODE_LABELS3,
+  inherit: "Follow the workspace"
+};
 var DAY_MS33 = 864e5;
 var WEEK_MS23 = 7 * DAY_MS33;
 var MONTH_MS3 = 30 * DAY_MS33;
 var NEW_WINDOW_MS3 = 7 * DAY_MS33;
 var QUIET_AFTER_MS4 = 30 * DAY_MS33;
-var REPLY_VIA3 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS3 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA3 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS3 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS3 = {
   whatsapp: REPLY_VIA3.whatsapp,
   sms: REPLY_VIA3.sms,
@@ -5383,8 +5976,18 @@ var CHANNEL_KIND_WORDS3 = {
   instagram: "Instagram"
 };
 var KIND_META3 = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS3.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS3.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS3.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -5457,8 +6060,16 @@ var AskFinishSchema3 = z43.object({
       label: z43.string().catch("").transform(clip3(80))
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS3.citations)),
-  followups: z43.array(z43.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s) => s.slice(0, 90))),
-  navigate: z43.object({ to: z43.string().catch(""), label: z43.string().catch(""), now: z43.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
+  followups: z43.array(z43.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s) => s.slice(0, 90))
+  ),
+  navigate: z43.object({ to: z43.string().catch(""), label: z43.string().catch(""), now: z43.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
+    } : null
+  ),
   language: z43.enum(ASK_LANGUAGES3).catch("other")
 });
 var ASK_UNDO_MS3 = 10 * 6e4;
@@ -5469,10 +6080,24 @@ var AskProposalOutcomeSchema3 = z43.object({
   undo: z43.record(z43.string(), z43.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema3 = z43.discriminatedUnion("op", [
-  z43.object({ op: z43.literal("add_closure"), date: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z43.string().max(200).optional() }),
-  z43.object({ op: z43.literal("set_hours"), day: z43.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z43.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z43.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z43.object({
+    op: z43.literal("add_closure"),
+    date: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z43.string().max(200).optional()
+  }),
+  z43.object({
+    op: z43.literal("set_hours"),
+    day: z43.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z43.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z43.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z43.object({ op: z43.literal("add_note"), title: z43.string().min(1).max(80), text: z43.string().min(1).max(1200) }),
-  z43.object({ op: z43.literal("add_service"), name: z43.string().min(1).max(80), duration_min: z43.number().int().min(1).max(1440).optional() })
+  z43.object({
+    op: z43.literal("add_service"),
+    name: z43.string().min(1).max(80),
+    duration_min: z43.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L3 = (id, name, region, native) => ({
   id,
@@ -5777,18 +6402,47 @@ var LeadSearchPlanSchema3 = z63.object({
   }),
   count: z63.number().int().min(1).max(LEAD_MAX_PLACES3),
   contact: z63.enum(["phone", "email"]),
-  criteria: z63.array(z63.object({ key: z63.string().regex(KEY3), text: words3(2, 120), standard: z63.enum(["likely", "seen"]), required: z63.boolean() })).max(8),
-  exclusions: z63.array(z63.object({ key: z63.string().regex(KEY3), text: words3(2, 80), origin: z63.enum(["claude", "you_said"]), category_key: z63.string().regex(KEY3).optional() })).max(8)
+  criteria: z63.array(
+    z63.object({
+      key: z63.string().regex(KEY3),
+      text: words3(2, 120),
+      standard: z63.enum(["likely", "seen"]),
+      required: z63.boolean()
+    })
+  ).max(8),
+  exclusions: z63.array(
+    z63.object({
+      key: z63.string().regex(KEY3),
+      text: words3(2, 80),
+      origin: z63.enum(["claude", "you_said"]),
+      category_key: z63.string().regex(KEY3).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES3.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES3.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES3 = Object.fromEntries(Object.entries(US_STATES3).map(([name, code2]) => [code2, name]));
+var US_NAMES3 = Object.fromEntries(
+  Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
+);
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {
@@ -5817,9 +6471,22 @@ var PASSWORD_WORDS3 = {
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES3 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES3 = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS3 = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS3 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS3 = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES3 = {
   interested: "ok",
   call_back: "warn",
@@ -5828,7 +6495,14 @@ var LEAD_CALL_OUTCOME_TONES3 = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS3 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS3 = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE3 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS3 = {
   chain: "A chain or franchise",
@@ -5881,7 +6555,11 @@ var LEAD_WORDS3 = {
   callQuestion: LEAD_CALL_QUESTION3,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES3.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS3[id], tone: LEAD_CALL_OUTCOME_TONES3[id] })),
+  outcomes: LEAD_CALL_OUTCOMES3.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS3[id],
+    tone: LEAD_CALL_OUTCOME_TONES3[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER3,
   noteMax: LEAD_NOTE_MAX3,
@@ -5890,7 +6568,10 @@ var LEAD_WORDS3 = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE3,
   draftOpen: "Open in your email",
@@ -5933,13 +6614,22 @@ var LeadStageInputSchema3 = z73.discriminatedUnion("kind", [
   z73.object({ kind: z73.literal("stage"), stage: z73.enum(["ready", "nurture", "converted"]) }),
   z73.object({ kind: z73.literal("not_a_fit"), why: z73.enum(LEAD_NOT_A_FIT_WHYS3) }),
   z73.object({ kind: z73.literal("said_no") }),
-  z73.object({ kind: z73.literal("outcome"), outcome: z73.enum(LEAD_CALL_OUTCOMES3), note: z73.string().trim().max(280).optional() }),
+  z73.object({
+    kind: z73.literal("outcome"),
+    outcome: z73.enum(LEAD_CALL_OUTCOMES3),
+    note: z73.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z73.object({ kind: z73.literal("emailed") })
 ]);
 var LeadsBulkSchema3 = z73.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z73.object({ by: z73.literal("ids"), action: z73.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z73.array(z73.string().uuid()).min(1).max(500), search_id: z73.string().uuid().optional() }),
+  z73.object({
+    by: z73.literal("ids"),
+    action: z73.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z73.array(z73.string().uuid()).min(1).max(500),
+    search_id: z73.string().uuid().optional()
+  }),
   z73.object({ by: z73.literal("view"), action: z73.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
 ]);
 var LeadsCheckAgainSchema3 = z73.object({ ids: z73.array(z73.string().uuid()).min(1).max(500) });
@@ -5968,13 +6658,32 @@ var ProposeLeadSearchSchema3 = z73.object({
   leave_out: z73.array(z73.object({ words: planChip3(40) })).max(6).default([]),
   asked: z73.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema3 = z73.object({ subject: z73.string().trim().min(3).max(120), body: z73.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema3 = z73.object({
+  subject: z73.string().trim().min(3).max(120),
+  body: z73.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema3 = z73.object({
   line: z73.string().trim().min(3).max(160),
-  items: z73.array(z73.object({ words: z73.string().trim().min(3).max(80), who_for: z73.string().trim().min(3).max(120), category_key: z73.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z73.array(
+    z73.object({
+      words: z73.string().trim().min(3).max(80),
+      who_for: z73.string().trim().min(3).max(120),
+      category_key: z73.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS3 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS3 = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA3 = {
   type: "object",
   properties: {
@@ -6009,12 +6718,16 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   additionalProperties: false
 };
 var AnswerSchema3 = z83.object({
-  places: z83.array(z83.object({
-    ref: z83.number().int(),
-    criteria: z83.array(z83.object({ key: z83.string(), answer: z83.enum(["pass", "fail", "unknown"]), facts: z83.array(z83.string()) })),
-    email_index: z83.number().int().nullable(),
-    reason: z83.string()
-  }))
+  places: z83.array(
+    z83.object({
+      ref: z83.number().int(),
+      criteria: z83.array(
+        z83.object({ key: z83.string(), answer: z83.enum(["pass", "fail", "unknown"]), facts: z83.array(z83.string()) })
+      ),
+      email_index: z83.number().int().nullable(),
+      reason: z83.string()
+    })
+  )
 });
 var K3 = new Uint32Array([
   1116352408,
@@ -6147,14 +6860,24 @@ function kindOf(d) {
   return d.messageId ? "draft" : "answer";
 }
 async function wireFacts(db, d) {
-  const { data, error } = await db.from("conversations").select("paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
+  const { data, error } = await db.from("conversations").select(
+    "paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)"
+  ).eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
   return {
     pausedUntil: row.paused_until ?? null,
     control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
-    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null, email: null, email_suppressed_at: null },
+    contact: row.contacts ?? {
+      consent: null,
+      dnc: null,
+      marketing_consent: null,
+      erased_at: null,
+      erasing_since: null,
+      email: null,
+      email_suppressed_at: null
+    },
     tenantStatus: row.tenants?.status ?? null
   };
 }
@@ -6173,7 +6896,8 @@ function refusalFor(d, f, nowMs) {
   if (f.tenantStatus === "paused") return "paused";
   const held = !!f.control && nowMs < new Date(f.control.until).getTime();
   if (kind === "draft" && held) return "human_has_it";
-  if (kind !== "draft" && kind !== "system" && (held || f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime())) return "human_has_it";
+  if (kind !== "draft" && kind !== "system" && (held || f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()))
+    return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
@@ -6190,7 +6914,11 @@ function event(db, d, kind, messageId, data) {
 }
 async function stampThread(db, d, nowMs) {
   const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
-  if (error) console.error("deliver_stamp_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }));
+  if (error)
+    console.error(
+      "deliver_stamp_failed",
+      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message })
+    );
 }
 async function finalizeQueued(db, d, patch) {
   const { data, error } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
@@ -6221,8 +6949,19 @@ async function deliver(ports, d) {
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, { body: d.body, template: d.template, ...d.email ? { email: d.email } : {} });
   if (sent.ok) {
     if (d.messageId) {
-      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...sent.wamid ? { external_id: sent.wamid } : {} }).catch((e) => {
-        console.error("deliver_finalize_failed", JSON.stringify({ tenant: d.tenantId, message: d.messageId, wamid: sent.wamid, error: e instanceof Error ? e.message : String(e) }));
+      const marked = await finalizeQueued(ports.db, d, {
+        status: "sent",
+        ...sent.wamid ? { external_id: sent.wamid } : {}
+      }).catch((e) => {
+        console.error(
+          "deliver_finalize_failed",
+          JSON.stringify({
+            tenant: d.tenantId,
+            message: d.messageId,
+            wamid: sent.wamid,
+            error: e instanceof Error ? e.message : String(e)
+          })
+        );
         return null;
       });
       await Promise.all([
@@ -6244,7 +6983,15 @@ async function deliver(ports, d) {
       status: "sent",
       meta: d.meta ?? {}
     }).catch((e) => {
-      console.error("deliver_record_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, wamid: sent.wamid, error: e instanceof Error ? e.message : String(e) }));
+      console.error(
+        "deliver_record_failed",
+        JSON.stringify({
+          tenant: d.tenantId,
+          conversation: d.conversationId,
+          wamid: sent.wamid,
+          error: e instanceof Error ? e.message : String(e)
+        })
+      );
       return null;
     });
     return { outcome: "sent", messageId: messageId2, externalId: sent.wamid };
@@ -6268,7 +7015,13 @@ async function deliver(ports, d) {
     });
   }
   await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
-  return { outcome: "failed", reason: sent.reason ?? "provider", status: sent.status, errorBody: sent.errorBody ?? null, messageId };
+  return {
+    outcome: "failed",
+    reason: sent.reason ?? "provider",
+    status: sent.status,
+    errorBody: sent.errorBody ?? null,
+    messageId
+  };
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -6281,7 +7034,10 @@ async function deliverSafely(ports, d) {
     return await deliver(ports, d);
   } catch (e) {
     const errorBody = e instanceof Error ? e.message : String(e);
-    console.error("deliver_threw", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: errorBody }));
+    console.error(
+      "deliver_threw",
+      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: errorBody })
+    );
     return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
   }
 }
@@ -6295,7 +7051,12 @@ async function takeOver(ports, cmd) {
   if (!await ports.claim(conv.id, paused_until, cmd.userId)) {
     throw new AppError("conflict", "Could not take this thread over \u2014 reload and try again.", 409);
   }
-  await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((untilMs - ports.now()) / 1e3))));
+  await ports.takeControl(
+    conv.tenant_id,
+    conv.id,
+    cmd.userId,
+    Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((untilMs - ports.now()) / 1e3)))
+  );
   const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "take_over", { paused_until });
   return { state: "needs_human", paused_until, decision_id, withdrawn_drafts };
@@ -6334,7 +7095,8 @@ async function snooze(ports, cmd) {
 async function wake(ports, cmd) {
   const { conv } = cmd;
   if (conv.state !== "snoozed") throw new AppError("conflict", "This thread is not snoozed.", 409);
-  if (!await ports.wake(conv.id)) throw new AppError("conflict", "Could not wake this thread \u2014 reload and try again.", 409);
+  if (!await ports.wake(conv.id))
+    throw new AppError("conflict", "Could not wake this thread \u2014 reload and try again.", 409);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "wake", {});
   return { state: "open", decision_id };
 }
@@ -6354,7 +7116,8 @@ async function archive(ports, cmd) {
 async function resolveEscalation(ports, cmd) {
   const { esc } = cmd;
   if (esc.state === "resolved") return { state: "resolved", already: true };
-  if (!await ports.resolve(esc.id)) throw new AppError("conflict", "This escalation was already resolved \u2014 reload.", 409);
+  if (!await ports.resolve(esc.id))
+    throw new AppError("conflict", "This escalation was already resolved \u2014 reload.", 409);
   const decision_id = await ports.record(esc.tenant_id, "escalation", esc.id, "resolve");
   await ports.link(esc.id, decision_id);
   return { state: "resolved", decision_id };
@@ -6364,7 +7127,8 @@ async function resolveEscalation(ports, cmd) {
 async function cancelSend(ports, cmd) {
   const { msg } = cmd;
   if (msg.status !== "queued") throw new AppError("conflict", "Too late \u2014 this message has already been sent.");
-  if (!await ports.cancelQueued(msg.id)) throw new AppError("conflict", "Too late \u2014 this message went out while you were canceling it.");
+  if (!await ports.cancelQueued(msg.id))
+    throw new AppError("conflict", "Too late \u2014 this message went out while you were canceling it.");
   await ports.cancelJob(msg.tenant_id, msg.id);
   const decision_id = await ports.record(msg.tenant_id, "message", msg.id, "cancel_send");
   return { status: "canceled", decision_id };
@@ -6375,7 +7139,10 @@ var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 async function shapeEmailReply(ports, conv, to, text, agreedTo) {
   if (conv.email_suppressed_at) {
-    throw new AppError("conflict", "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way.");
+    throw new AppError(
+      "conflict",
+      "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way."
+    );
   }
   const parent = await ports.email.parent(conv);
   if (!parent) throw new AppError("conflict", "There is no email from this person on this thread to reply to.");
@@ -6389,8 +7156,23 @@ async function shapeEmailReply(ports, conv, to, text, agreedTo) {
   }
   const id = ports.email.newId();
   const frozen = await ports.email.freeze({ tenantId: conv.tenant_id, messageId: id, to, parent, body: text });
-  if (!frozen) throw new AppError("conflict", "This workspace has no email address to send from yet. Set one up in Settings \u203A Channels first.");
-  return { id, meta: { email: { subject: frozen.subject, to: [to], parent_id: parent.messageId, in_reply_to: parent.rfcMessageId, request: frozen.request } } };
+  if (!frozen)
+    throw new AppError(
+      "conflict",
+      "This workspace has no email address to send from yet. Set one up in Settings \u203A Channels first."
+    );
+  return {
+    id,
+    meta: {
+      email: {
+        subject: frozen.subject,
+        to: [to],
+        parent_id: parent.messageId,
+        in_reply_to: parent.rfcMessageId,
+        request: frozen.request
+      }
+    }
+  };
 }
 async function replyToConversation(ports, cmd) {
   const { conv, body } = cmd;
@@ -6399,7 +7181,10 @@ async function replyToConversation(ports, cmd) {
   const channel = await ports.replyChannel(conv);
   const to = channel === "email" ? conv.email ?? null : conv.phone_e164;
   if (!to) {
-    throw new AppError("conflict", channel === "email" ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first." : "This person has no phone number, so a WhatsApp or text reply cannot reach them.");
+    throw new AppError(
+      "conflict",
+      channel === "email" ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first." : "This person has no phone number, so a WhatsApp or text reply cannot reach them."
+    );
   }
   const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
   const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
@@ -6420,18 +7205,32 @@ async function replyToConversation(ports, cmd) {
     if (messageBody.length > REPLY_LIMITS2[channel].max) throw new AppError("validation", REPLY_LIMITS2[channel].refusal);
     if (channel === "email") email = await shapeEmailReply(ports, conv, to, messageBody, body.email_to);
   } else {
-    if (!body.template?.name) throw new AppError("window_closed", "The 24-hour WhatsApp window is closed \u2014 replies must use an approved template.");
+    if (!body.template?.name)
+      throw new AppError(
+        "window_closed",
+        "The 24-hour WhatsApp window is closed \u2014 replies must use an approved template."
+      );
     const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
     if (!tpl || tpl.meta_status !== "approved") throw new AppError("validation", "Template not found or not approved.");
     if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
-      throw new AppError("forbidden", "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.");
+      throw new AppError(
+        "forbidden",
+        "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first."
+      );
     }
     const toWrite = slotToWrite(tpl);
     if (toWrite) {
-      throw new AppError("validation", `This template needs words for \u201C${toWrite}\u201D, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`);
+      throw new AppError(
+        "validation",
+        `This template needs words for \u201C${toWrite}\u201D, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`
+      );
     }
     const facts = await ports.templateFacts(conv.tenant_id);
-    if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings \u203A Business first.");
+    if (!facts)
+      throw new AppError(
+        "validation",
+        "This workspace has no template facts configured yet. Add the business name and booking link in Settings \u203A Business first."
+      );
     const params = resolveParams(inboxSlots(tpl), {
       firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
       businessName: facts.business_name,
@@ -6446,7 +7245,12 @@ async function replyToConversation(ports, cmd) {
   if (!await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString())) {
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
-  await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((pauseUntil - now) / 1e3))));
+  await ports.takeControl(
+    conv.tenant_id,
+    conv.id,
+    cmd.userId,
+    Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((pauseUntil - now) / 1e3)))
+  );
   const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
   const message_id = await ports.queue({
     tenant_id: conv.tenant_id,
@@ -6473,9 +7277,19 @@ async function replyToConversation(ports, cmd) {
     await ports.cancelOrphan(message_id);
     throw e;
   }
-  const queued = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts };
+  const queued = {
+    message_id,
+    status: "queued",
+    cancelable_until: dueAt.toISOString(),
+    window_open: window.open,
+    withdrawn_drafts
+  };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", { message_id, window_open: window.open, template: templateName });
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
+    message_id,
+    window_open: window.open,
+    template: templateName
+  });
   await ports.resolveEscalation(conv.id, decision_id);
   const receipt = { ...queued, decision_id };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
@@ -6489,13 +7303,18 @@ async function sendQueued(ports, cmd) {
   try {
     msg = await ports.queued(p.message_id);
   } catch (e) {
-    throw new Error(`outbound_send: cannot read message ${p.message_id}: ${e instanceof Error ? e.message : String(e)}`);
+    throw new Error(
+      `outbound_send: cannot read message ${p.message_id}: ${e instanceof Error ? e.message : String(e)}`
+    );
   }
   if (!msg || msg.status !== "queued") return;
   const purpose = await ports.purposeOf(p.template);
   const channel = msg.channel ?? "whatsapp";
   const to = channel === "email" ? p.to_email : p.to_phone;
-  if (!to) throw new Error(`outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`);
+  if (!to)
+    throw new Error(
+      `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
+    );
   const out = await ports.deliver({
     tenantId: cmd.tenantId,
     conversationId: p.conversation_id,
@@ -6516,12 +7335,24 @@ async function sendQueued(ports, cmd) {
   });
   if (out.outcome !== "failed") return;
   if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
-    await ports.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`);
+    await ports.page?.(
+      `provider_auth:${channel}`,
+      `${channel} rejected a send with ${out.status}`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`
+    );
   }
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
-  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`;
+  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : (
+    // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+    // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+    out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
+  );
   const receptionist = msg.sender === "ai";
-  await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
+  await ports.escalate(
+    p.conversation_id,
+    "send_failed",
+    `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`
+  );
   await ports.alert({
     kind: "handoff",
     route: `inbox/th-${p.conversation_id}`,
@@ -6550,14 +7381,16 @@ var EMAIL_REVIEW_WORDS = {
 async function ingestEmail(ports, cmd) {
   const mailboxId = typeof cmd.payload.mailbox_id === "string" ? cmd.payload.mailbox_id : "";
   const receivedId = typeof cmd.payload.received_id === "string" ? cmd.payload.received_id : "";
-  if (!mailboxId || !receivedId) throw new Error("email_ingest: payload.mailbox_id and payload.received_id are required");
+  if (!mailboxId || !receivedId)
+    throw new Error("email_ingest: payload.mailbox_id and payload.received_id are required");
   const mailbox = await ports.mailbox(mailboxId);
   if (!mailbox) return "gone";
   const email = await ports.fetch(receivedId);
   if (!email) return "gone";
   const address = normalizeEmail(email.from?.address);
   if (!address) return "no_sender";
-  if (address === mailbox.address || email.messageId && await ports.ours(mailbox.tenant_id, email.messageId)) return "our_own";
+  if (address === mailbox.address || email.messageId && await ports.ours(mailbox.tenant_id, email.messageId))
+    return "our_own";
   const at = new Date(ports.now()).toISOString();
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
   const { claim } = email;
@@ -6572,8 +7405,14 @@ async function ingestEmail(ports, cmd) {
   });
   if (!kept.is_new && kept.processed) return "already_handled";
   if (claim !== "auto_reply") {
-    const flagged = await ports.escalate(mailbox.tenant_id, kept.conversation_id, "email_review", EMAIL_REVIEW_WORDS[claim]);
-    if (flagged === "failed") throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
+    const flagged = await ports.escalate(
+      mailbox.tenant_id,
+      kept.conversation_id,
+      "email_review",
+      EMAIL_REVIEW_WORDS[claim]
+    );
+    if (flagged === "failed")
+      throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
     if (flagged === "opened" || flagged === "changed") {
       await ports.tell(mailbox.tenant_id, {
         conversationId: kept.conversation_id,
@@ -6628,14 +7467,26 @@ async function sendBroadcastBatch(ports, cmd) {
   if (b.state !== "scheduled" && b.state !== "sending") return;
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D not sent`, body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again." });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast \u201C${b.name}\u201D not sent`,
+      body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
+    });
     return;
   }
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
     await ports.fail(b.id, "template_not_approved");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D stopped`, body: `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.` });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast \u201C${b.name}\u201D stopped`,
+      body: `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.`
+    });
     return;
   }
   const purpose = purposeOfTemplate(tpl.category);
@@ -6712,7 +7563,10 @@ async function sendBroadcastBatch(ports, cmd) {
         source: "broadcast",
         broadcast_id: b.id,
         broadcast_name: b.name,
-        ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String(b.audience?.label ?? b.name) } : {}
+        ...b.playbook_id ? {
+          playbook_id: b.playbook_id,
+          playbook_name: String(b.audience?.label ?? b.name)
+        } : {}
       }
     }).catch((e) => {
       throw new ThrownAtTheDoor(e);
@@ -6729,7 +7583,13 @@ async function sendBroadcastBatch(ports, cmd) {
     if (!wireIsDown(out)) return "go on";
     const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
     await ports.fail(b.id, "wire_unavailable");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D stopped`, body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.` });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast \u201C${b.name}\u201D stopped`,
+      body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`
+    });
     return "stop";
   };
   for (const [i, r] of batch.entries()) {
@@ -6750,7 +7610,8 @@ async function sendBroadcastBatch(ports, cmd) {
   const remaining = await ports.remaining(b.id);
   if (remaining > 0) {
     if (await ports.state(b.id) !== "sending") return;
-    if (batch.length > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    if (batch.length > 0 && marked === 0)
+      await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     else await ports.scheduleNext(b.id);
     return;
   }
@@ -6819,7 +7680,12 @@ async function runPlaybook(ports, cmd) {
   if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") return off("no_calendar");
   const drawn = playbookRunReach(
     ctx.people,
-    { trigger: p.trigger, cap_per_run: p.cap_per_run, gap_days: p.gap_days, cadence_days: p.cadence_days },
+    {
+      trigger: p.trigger,
+      cap_per_run: p.cap_per_run,
+      gap_days: p.gap_days,
+      cadence_days: p.cadence_days
+    },
     { byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(), byAny: ctx.touches.byAny },
     now.getTime()
   );
@@ -6840,7 +7706,12 @@ async function runPlaybook(ports, cmd) {
   const specs = parseParamSpecs(p.params);
   const factsOf2 = (r) => {
     const v = ctx.visits.get(r.id);
-    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null, ctx.tz, open ? open.at : now);
+    return visitFactsFor(
+      p.trigger,
+      p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null,
+      ctx.tz,
+      open ? open.at : now
+    );
   };
   const n = eligible.length;
   const made = await assembleRun(ports, {
@@ -6864,15 +7735,42 @@ async function runPlaybook(ports, cmd) {
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
   if (open) {
-    await ports.decide({ broadcastId: made.id, by, payload: { playbook_id: p.id, playbook: p.name, mode, recipients: n, scheduled_for: open.at.toISOString(), run_now: by.kind === "user", ...movedFrom ? { moved_from: movedFrom } : {} } });
+    await ports.decide({
+      broadcastId: made.id,
+      by,
+      payload: {
+        playbook_id: p.id,
+        playbook: p.name,
+        mode,
+        recipients: n,
+        scheduled_for: open.at.toISOString(),
+        run_now: by.kind === "user",
+        ...movedFrom ? { moved_from: movedFrom } : {}
+      }
+    });
   } else {
     await ports.notify(
       `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
       `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns \u203A Playbooks. Nothing is sent until you do.`
     );
   }
-  await record({ mode, eligible: n, reach, broadcast_id: made.id, state: plan.state, ...movedFrom ? { moved_from: movedFrom } : {} });
-  return open ? { outcome: "sent", broadcast_id: made.id, eligible: n, mode, state: plan.state, scheduled_for: open.at.toISOString(), moved_from: movedFrom } : { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+  await record({
+    mode,
+    eligible: n,
+    reach,
+    broadcast_id: made.id,
+    state: plan.state,
+    ...movedFrom ? { moved_from: movedFrom } : {}
+  });
+  return open ? {
+    outcome: "sent",
+    broadcast_id: made.id,
+    eligible: n,
+    mode,
+    state: plan.state,
+    scheduled_for: open.at.toISOString(),
+    moved_from: movedFrom
+  } : { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
 }
 
 // src/campaigns/template-values.ts
@@ -6881,29 +7779,48 @@ async function templateValues(ports, cmd) {
   if (!UUID.test(cmd.templateId)) throw new AppError("validation", "Pick a template.");
   const tpl = await ports.template(cmd.templateId);
   if (!tpl) throw new AppError("not_found", "Template not found.", 404);
-  if (tpl.meta_status !== "approved") throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);
+  if (tpl.meta_status !== "approved")
+    throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);
   const expected = Array.isArray(tpl.variables) ? tpl.variables.length : 0;
   const rawParams = Array.isArray(cmd.params) ? cmd.params : [];
   if (rawParams.length !== expected) {
-    throw new AppError("validation", expected === 0 ? "This template takes no values." : `This template takes ${expected} value${expected === 1 ? "" : "s"}.`);
+    throw new AppError(
+      "validation",
+      expected === 0 ? "This template takes no values." : `This template takes ${expected} value${expected === 1 ? "" : "s"}.`
+    );
   }
   const specs = [];
   for (const p of rawParams) {
     const spec = parseParamSpec(p);
-    if (!spec) throw new AppError("validation", "Each value is typed text, their first name, the business name, the booking link, or a visit's time or service.");
+    if (!spec)
+      throw new AppError(
+        "validation",
+        "Each value is typed text, their first name, the business name, the booking link, or a visit's time or service."
+      );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
-      if (v === null) throw new AppError("validation", "Every value is needed, without line breaks or tabs, and under 1024 characters.");
+      if (v === null)
+        throw new AppError(
+          "validation",
+          "Every value is needed, without line breaks or tabs, and under 1024 characters."
+        );
       specs.push({ kind: "text", value: v });
     } else {
       if ((spec.kind === "visit_when" || spec.kind === "visit_service") && !cmd.visits) {
-        throw new AppError("validation", "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.");
+        throw new AppError(
+          "validation",
+          "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service."
+        );
       }
       specs.push(spec);
     }
   }
   if (specs.some((s) => s.kind === "booking_link") && !await ports.bookingLink()) {
-    throw new AppError("conflict", "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.", 409);
+    throw new AppError(
+      "conflict",
+      "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.",
+      409
+    );
   }
   return { template: tpl, specs };
 }
@@ -6922,13 +7839,15 @@ async function createBroadcast(ports, cmd) {
   }
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
   if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError("validation", "Pick a list.");
-  if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId))) throw new AppError("validation", "Pick a list.");
+  if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId)))
+    throw new AppError("validation", "Pick a list.");
   const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: false });
   let when = now;
   if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
     const t = new Date(body.scheduled_for);
     if (Number.isNaN(t.getTime())) throw new AppError("validation", "That is not a time.");
-    if (!OFFSET.test(body.scheduled_for)) throw new AppError("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
+    if (!OFFSET.test(body.scheduled_for))
+      throw new AppError("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
     when = t.getTime() > now.getTime() ? t : now;
   }
   const health = await ports.number();
@@ -6947,15 +7866,22 @@ async function createBroadcast(ports, cmd) {
   }
   const purpose = purposeOfTemplate(tpl.category);
   const eligible = eligibleFor(rows, kind, audienceId, savedIds, purpose);
-  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind, audienceId, savedIds)), 409);
-  if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+  if (eligible.length === 0)
+    throw new AppError(
+      "conflict",
+      emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind, audienceId, savedIds)),
+      409
+    );
+  if (eligible.length > BROADCAST_MAX_RECIPIENTS)
+    throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   const over = overLimitRefusal(health, eligible.length);
   if (over) throw new AppError("validation", over);
   const tz = await ports.timezone();
   const open = nextOpenMoment(tz, when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
-  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
+  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5)
+    throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, tz, now, tpl.title);
   const audience = { kind, id: audienceId, label };
   const made = await assembleRun(ports, {
@@ -6975,8 +7901,19 @@ async function createBroadcast(ports, cmd) {
     sendAt: when
   });
   if (!made.ok) {
-    if (made.failure === "schedule_failed") throw new AppError("upstream_meta", "The send could not be scheduled. Nothing was sent; try again.", 502, made.error);
-    throw new AppError("internal", made.failure === "run_not_created" ? "The broadcast could not be created. Nothing was sent; try again." : "The people could not be enrolled. Nothing was sent; try again.", 500, made.error);
+    if (made.failure === "schedule_failed")
+      throw new AppError(
+        "upstream_meta",
+        "The send could not be scheduled. Nothing was sent; try again.",
+        502,
+        made.error
+      );
+    throw new AppError(
+      "internal",
+      made.failure === "run_not_created" ? "The broadcast could not be created. Nothing was sent; try again." : "The people could not be enrolled. Nothing was sent; try again.",
+      500,
+      made.error
+    );
   }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
@@ -6988,7 +7925,15 @@ async function createBroadcast(ports, cmd) {
     scheduled_for: when.toISOString(),
     ...movedFrom ? { moved_from: movedFrom } : {}
   });
-  return { id: made.id, name, state: "scheduled", recipient_count: eligible.length, scheduled_for: when.toISOString(), moved_from: movedFrom, decision_id };
+  return {
+    id: made.id,
+    name,
+    state: "scheduled",
+    recipient_count: eligible.length,
+    scheduled_for: when.toISOString(),
+    moved_from: movedFrom,
+    decision_id
+  };
 }
 
 // src/campaigns/approve.ts
@@ -6997,7 +7942,11 @@ async function approveRun(ports, cmd) {
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
   const tz = await ports.timezone();
   if (b.playbook_id && b.run_for && localDate(tz, cmd.now) !== b.run_for) {
-    throw new AppError("conflict", `This run was made for ${b.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`, 409);
+    throw new AppError(
+      "conflict",
+      `This run was made for ${b.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`,
+      409
+    );
   }
   const open = nextOpenMoment(tz, cmd.now);
   const at = open.at;
@@ -7006,7 +7955,12 @@ async function approveRun(ports, cmd) {
     await ports.schedule(b.id, at);
   } catch (e) {
     await ports.hold(b.id);
-    throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502, e instanceof Error ? e.message : void 0);
+    throw new AppError(
+      "upstream_meta",
+      "The send could not be scheduled. The run is still waiting; try again.",
+      502,
+      e instanceof Error ? e.message : void 0
+    );
   }
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;
@@ -7018,7 +7972,14 @@ async function approveRun(ports, cmd) {
     scheduled_for: scheduledFor,
     ...movedFrom ? { moved_from: movedFrom } : {}
   });
-  return { id: b.id, state: "scheduled", recipient_count: b.recipient_count, scheduled_for: scheduledFor, moved_from: movedFrom, decision_id };
+  return {
+    id: b.id,
+    state: "scheduled",
+    recipient_count: b.recipient_count,
+    scheduled_for: scheduledFor,
+    moved_from: movedFrom,
+    decision_id
+  };
 }
 
 // src/campaigns/cancel.ts
@@ -7028,7 +7989,8 @@ async function cancelBroadcast(ports, cmd) {
     const said2 = b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
     throw new AppError("conflict", `This broadcast has ${said2}.`, 409);
   }
-  if (!await ports.cancel(b.id, b.state)) throw new AppError("conflict", "This broadcast just changed state; look again.", 409);
+  if (!await ports.cancel(b.id, b.state))
+    throw new AppError("conflict", "This broadcast just changed state; look again.", 409);
   if (b.state === "scheduled") await ports.withdraw(b.id);
   const decision_id = await ports.record("broadcast", b.id, "cancel_broadcast", { name: b.name, was: b.state });
   return { id: b.id, state: "canceled", was: b.state, decision_id };
@@ -7038,15 +8000,24 @@ async function cancelBroadcast(ports, cmd) {
 function int(v, fallback, min, max, what) {
   if (v === void 0 || v === null || v === "") return fallback;
   const n = typeof v === "number" ? v : Number(v);
-  if (!Number.isInteger(n) || n < min || n > max) throw new AppError("validation", `${what} must be a whole number from ${min} to ${max}.`);
+  if (!Number.isInteger(n) || n < min || n > max)
+    throw new AppError("validation", `${what} must be a whole number from ${min} to ${max}.`);
   return n;
 }
 async function checkPlaybook(ports, body) {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
   const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
-  if (!trig) throw new AppError("validation", "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.");
+  if (!trig)
+    throw new AppError(
+      "validation",
+      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday."
+    );
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: trig.kind === "visit" });
+  const { template: tpl, specs } = await templateValues(ports, {
+    templateId,
+    params: body?.params,
+    visits: trig.kind === "visit"
+  });
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
     name: name || playbookName(trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
@@ -40258,7 +41229,15 @@ function inArea(center, radiusM, point) {
 function nearestAreas(center, o) {
   const max = o.maxM ?? RADIUS_MAX_M;
   const state = (o.state ?? "").trim().toUpperCase();
-  return TABLE.map(([zip, lat, lng]) => ({ zip, lat, lng, d: haversineM(center, { lat, lng }) })).filter((x) => x.d >= o.excludeWithinM && x.d <= max).sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1)).slice(0, Math.max(0, o.take)).map((x) => ({ kind: "zip", label: `near ${x.zip}`, state, center: { lat: x.lat, lng: x.lng }, radius_m: 8e3, zip: x.zip, query: state ? `${x.zip}, ${state}, USA` : `${x.zip}, USA` }));
+  return TABLE.map(([zip, lat, lng]) => ({ zip, lat, lng, d: haversineM(center, { lat, lng }) })).filter((x) => x.d >= o.excludeWithinM && x.d <= max).sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1)).slice(0, Math.max(0, o.take)).map((x) => ({
+    kind: "zip",
+    label: `near ${x.zip}`,
+    state,
+    center: { lat: x.lat, lng: x.lng },
+    radius_m: 8e3,
+    zip: x.zip,
+    query: state ? `${x.zip}, ${state}, USA` : `${x.zip}, USA`
+  }));
 }
 
 // src/leads/cards.ts
@@ -40323,7 +41302,13 @@ var CARDS = {
       const center = plan.area.kind === "city" ? null : areaCenter(plan);
       return {
         searchStringsArray: [term],
-        ...center ? { customGeolocation: { type: "Point", coordinates: [center.lng, center.lat], radiusKm: Math.max(1, Math.round(plan.area.radius_m / 100) / 10) } } : { locationQuery: plan.area.query },
+        ...center ? {
+          customGeolocation: {
+            type: "Point",
+            coordinates: [center.lng, center.lat],
+            radiusKm: Math.max(1, Math.round(plan.area.radius_m / 100) / 10)
+          }
+        } : { locationQuery: plan.area.query },
         maxCrawledPlacesPerSearch: places,
         language: "en",
         scrapeContacts: true,
@@ -40368,7 +41353,13 @@ var CARDS = {
           const d = obj(o.reviewsDistribution);
           if (!d) return null;
           const n = (k) => num(d[k]) ?? 0;
-          return { one: n("oneStar"), two: n("twoStar"), three: n("threeStar"), four: n("fourStar"), five: n("fiveStar") };
+          return {
+            one: n("oneStar"),
+            two: n("twoStar"),
+            three: n("threeStar"),
+            four: n("fourStar"),
+            five: n("fiveStar")
+          };
         })(),
         price: str(o.price)?.slice(0, 8) ?? null,
         facebook: strs(o.facebooks)[0] ?? null,
@@ -40453,12 +41444,17 @@ function sharesWithin(places) {
   const out = /* @__PURE__ */ new Map();
   for (const p of places) {
     const keys = shareKeysOf(p);
-    for (const [kind, values] of [["phone", keys.phones], ["email", keys.emails], ["host", keys.hosts]]) {
+    for (const [kind, values] of [
+      ["phone", keys.phones],
+      ["email", keys.emails],
+      ["host", keys.hosts]
+    ]) {
       for (const v of values) {
         const key = `${kind}:${v}`;
         const first = firstBy.get(key);
         if (!first) firstBy.set(key, p.raw.placeId);
-        else if (first !== p.raw.placeId) out.set(p.raw.placeId, [...out.get(p.raw.placeId) ?? [], { kind, place_id: first }]);
+        else if (first !== p.raw.placeId)
+          out.set(p.raw.placeId, [...out.get(p.raw.placeId) ?? [], { kind, place_id: first }]);
       }
     }
   }
@@ -40573,7 +41569,16 @@ function runCaps(plan, perTerm, reservedLeftUsd) {
 // src/leads/question.ts
 function afterProbe(plan, members, now) {
   const q = questionAfterProbe(plan, members);
-  if (q.ask) return { kind: "ask", question: { sentence: q.sentence, criterionKey: q.criterionKey, dropTerm: q.dropTerm, asked_at: now.toISOString() } };
+  if (q.ask)
+    return {
+      kind: "ask",
+      question: {
+        sentence: q.sentence,
+        criterionKey: q.criterionKey,
+        dropTerm: q.dropTerm,
+        asked_at: now.toISOString()
+      }
+    };
   return { kind: "go", yield: probeYield(plan.contact, members) };
 }
 
@@ -40646,7 +41651,8 @@ function isPlatformDefault(url) {
 }
 var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
 function holdsUnsafe(url) {
-  for (const ch of url) if (UNSAFE_IN_AN_ADDRESS.includes(ch) || ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127) return true;
+  for (const ch of url)
+    if (UNSAFE_IN_AN_ADDRESS.includes(ch) || ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127) return true;
   return false;
 }
 function decodeEntities(s) {
@@ -40798,17 +41804,19 @@ async function startRound(p, roundId, owner, resume = false) {
     wanted.push({ id, term, hash: await sha256Hex2(await p.webhookToken(id)), places: ask.perTerm[i], cap: caps[i] });
   }
   if (!wanted.length) return { kind: "started", phase, runs: [] };
-  const rows = await p.db.runsEnsure(wanted.map((w) => ({
-    id: w.id,
-    tenant_id: round.tenant_id,
-    round_id: round.id,
-    purpose: "discover",
-    term: w.term,
-    actor: card.actor,
-    build: card.build,
-    webhook_token_hash: w.hash,
-    cap_usd: w.cap
-  })));
+  const rows = await p.db.runsEnsure(
+    wanted.map((w) => ({
+      id: w.id,
+      tenant_id: round.tenant_id,
+      round_id: round.id,
+      purpose: "discover",
+      term: w.term,
+      actor: card.actor,
+      build: card.build,
+      webhook_token_hash: w.hash,
+      cap_usd: w.cap
+    }))
+  );
   const outcomes = [];
   for (const w of wanted) {
     const row = rows.find((r) => r.id === w.id);
@@ -40890,7 +41898,10 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       phone_sources: c.phoneSources,
       // A left-out place never stores its candidate emails (PRD §0.4, §15).
       email: excluded ? null : picked,
-      email_alternates: excluded ? [] : c.emails.filter((e) => e !== picked).slice(0, 4).map((e) => ({ email: e, why: c.host && e.endsWith(`@${c.host}`) ? "on their own domain" : "another domain" })),
+      email_alternates: excluded ? [] : c.emails.filter((e) => e !== picked).slice(0, 4).map((e) => ({
+        email: e,
+        why: c.host && e.endsWith(`@${c.host}`) ? "on their own domain" : "another domain"
+      })),
       email_state: excluded ? "none" : emailState,
       rating: c.raw.rating,
       reviews: c.raw.reviews,
@@ -40949,11 +41960,13 @@ async function collect(p, runId, seq, owner) {
   if (run.purpose === "check") return collectCheck(p, round, run, owner);
   if (seq === "stop" || seq.startsWith("stop.")) return stopRun(p, round, run, owner);
   if (round.state === "ended") {
-    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id).catch(() => void 0);
+    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state))
+      await p.apify.abortRun(run.apify_run_id).catch(() => void 0);
     return { kind: "round_ended" };
   }
   if (round.state === "checking" || round.ending_pending !== null) {
-    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id).catch(() => void 0);
+    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state))
+      await p.apify.abortRun(run.apify_run_id).catch(() => void 0);
     return { kind: "round_closing" };
   }
   if (!run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) return { kind: "not_started" };
@@ -41013,9 +42026,19 @@ async function collectHeld(p, round, run, owner, gen) {
     const { folded } = foldDuplicates(cleans);
     const keys = cleans.map(shareKeysOf);
     const [held, supp, shares] = await Promise.all([
-      p.db.placeIdsHeld(round.tenant_id, cleans.map((c) => c.raw.placeId)),
-      p.db.suppressed(round.tenant_id, { emails: keys.flatMap((k) => k.emails), placeIds: cleans.map((c) => c.raw.placeId) }),
-      p.db.sharesOf(round.tenant_id, { phones: keys.flatMap((k) => k.phones), emails: keys.flatMap((k) => k.emails), hosts: keys.flatMap((k) => k.hosts) })
+      p.db.placeIdsHeld(
+        round.tenant_id,
+        cleans.map((c) => c.raw.placeId)
+      ),
+      p.db.suppressed(round.tenant_id, {
+        emails: keys.flatMap((k) => k.emails),
+        placeIds: cleans.map((c) => c.raw.placeId)
+      }),
+      p.db.sharesOf(round.tenant_id, {
+        phones: keys.flatMap((k) => k.phones),
+        emails: keys.flatMap((k) => k.emails),
+        hosts: keys.flatMap((k) => k.hosts)
+      })
     ]);
     const within = sharesWithin(cleans.filter((c) => !folded.has(c.raw.placeId)));
     const toJudge = [];
@@ -41024,7 +42047,8 @@ async function collectHeld(p, round, run, owner, gen) {
       const idn = identityOf(prep.clean, held, supp.placeIds, shares);
       if (idn.kind === "already_yours" || idn.kind === "hidden") continue;
       const dup = folded.get(prep.clean.raw.placeId) ?? null;
-      if (!prep.rule && geo.center && !inArea(geo.center, geo.radiusM, prep.clean.raw.location)) prep.rule = { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null };
+      if (!prep.rule && geo.center && !inArea(geo.center, geo.radiusM, prep.clean.raw.location))
+        prep.rule = { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null };
       prep.clean.emails = prep.clean.emails.filter((e) => !supp.emails.has(e));
       rows.push({ prep, shares: [...idn.shares, ...within.get(prep.clean.raw.placeId) ?? []], duplicateOf: dup });
       if (!prep.rule && !dup) toJudge.push({ prep, ref: toJudge.length });
@@ -41032,14 +42056,30 @@ async function collectHeld(p, round, run, owner, gen) {
     let judged = { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: false, why: null };
     if (toJudge.length) {
       if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
-      judged = await judgeBatch(p.judge, plan, toJudge.map((t) => factsOf(t.ref, t.prep.clean)), opIdFor(run.id, from, 0));
+      judged = await judgeBatch(
+        p.judge,
+        plan,
+        toJudge.map((t) => factsOf(t.ref, t.prep.clean)),
+        opIdFor(run.id, from, 0)
+      );
       if (judged.refused && judged.why) judgeRefused = judged.why;
     }
     const places = rows.map((r) => {
       const ref = toJudge.find((t) => t.prep === r.prep)?.ref;
       const answer = ref === void 0 ? null : judged.answers.get(ref) ?? null;
       const rule = r.duplicateOf && !r.prep.rule ? { class: "excluded", reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" } : r.prep.rule;
-      return memberOf(plan, run.term ?? "", r.prep.clean, answer, judged.judgment?.op_id ?? null, judged.model, rule, geo, r.shares, r.duplicateOf);
+      return memberOf(
+        plan,
+        run.term ?? "",
+        r.prep.clean,
+        answer,
+        judged.judgment?.op_id ?? null,
+        judged.model,
+        rule,
+        geo,
+        r.shares,
+        r.duplicateOf
+      );
     });
     await markPlaces(p, places);
     newMembers.push(...places);
@@ -41047,7 +42087,15 @@ async function collectHeld(p, round, run, owner, gen) {
     const runDone = isLastOfPage && pageShort && remoteFinal;
     const stopHere = !isLastOfPage && outOfTime(p);
     const next = runDone ? null : !isLastOfPage && !stopHere ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: isLastOfPage && pageShort ? POLL_SECONDS : 0 };
-    const decision = runDone ? await roundDecision(p, round, run, phase, remoteState, [...members, ...memberRows(newMembers, run.term)], seen + end) : null;
+    const decision = runDone ? await roundDecision(
+      p,
+      round,
+      run,
+      phase,
+      remoteState,
+      [...members, ...memberRows(newMembers, run.term)],
+      seen + end
+    ) : null;
     const page = {
       judgment: judged.judgment,
       places,
@@ -41067,7 +42115,14 @@ async function collectHeld(p, round, run, owner, gen) {
     cursor = end;
     if (stopHere || runDone) break;
   } while (cursor < items.length);
-  return { kind: "committed", commits, toOffset: from, runState: lastRunState, roundState: lastRoundState, judgeRefused };
+  return {
+    kind: "committed",
+    commits,
+    toOffset: from,
+    runState: lastRunState,
+    roundState: lastRoundState,
+    judgeRefused
+  };
 }
 function memberRows(places, term) {
   return places.map((x) => ({
@@ -41088,20 +42143,33 @@ function memberRows(places, term) {
   }));
 }
 async function roundDecision(p, round, run, phase, runState, members, itemsSeenNow) {
-  const runs = (await p.db.runsOfRound(round.id)).map((r) => r.id === run.id ? { ...r, state: runState, items_seen: itemsSeenNow } : r);
+  const runs = (await p.db.runsOfRound(round.id)).map(
+    (r) => r.id === run.id ? { ...r, state: runState, items_seen: itemsSeenNow } : r
+  );
   const phaseOf = /* @__PURE__ */ new Map();
-  for (const r of runs) if (r.purpose === "discover" && r.term !== null) phaseOf.set(r.id, await runIdFor(round.id, "probe", r.term) === r.id ? "probe" : "main");
+  for (const r of runs)
+    if (r.purpose === "discover" && r.term !== null)
+      phaseOf.set(r.id, await runIdFor(round.id, "probe", r.term) === r.id ? "probe" : "main");
   const inPhase = runs.filter((r) => r.purpose === "discover" && phaseOf.get(r.id) === phase);
   if (!inPhase.every((r) => FINAL_RUN_STATES.has(r.state))) return null;
   const countedNow = members.filter((m) => m.counted).length;
   const countable = round.plan.contact === "phone" ? members.filter((m) => !m.counted && m.class === "qualified").length : 0;
   const counted = countedNow + Math.min(countable, Math.max(0, round.allowance_reserved - round.allowance_used));
-  const toChecks = { round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" }, next: null, after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0) };
+  const toChecks = {
+    round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" },
+    next: null,
+    after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
+  };
   if (phase === "probe") {
     if (counted >= targetOf(round)) return toChecks;
     const judged = members.filter(wasJudged);
-    const a = afterProbe(round.plan, judged.map((m) => ({ class: m.class, excluded_by: m.excluded_by, term: m.term, phone: m.phone, email: m.email })), p.now());
-    if (a.kind === "ask") return { round: { state: "waiting_on_owner", question: a.question, ending: null }, next: null };
+    const a = afterProbe(
+      round.plan,
+      judged.map((m) => ({ class: m.class, excluded_by: m.excluded_by, term: m.term, phone: m.phone, email: m.email })),
+      p.now()
+    );
+    if (a.kind === "ask")
+      return { round: { state: "waiting_on_owner", question: a.question, ending: null }, next: null };
     return {
       round: { state: "running", question: null, ending: null, target: targetOf(round) },
       next: null,
@@ -41114,10 +42182,21 @@ async function roundDecision(p, round, run, phase, runState, members, itemsSeenN
     const input = await p.apify.runInput(r.apify_run_id).catch(() => null);
     asked.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
   }
-  const ending = discoveryEnding(round, runs, { counted, target: targetOf(round), termsShort: termsShortOf(inPhase, (r) => asked.get(r.id) ?? null), stopped: false });
+  const ending = discoveryEnding(round, runs, {
+    counted,
+    target: targetOf(round),
+    termsShort: termsShortOf(inPhase, (r) => asked.get(r.id) ?? null),
+    stopped: false
+  });
   const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
   return {
-    round: { state: "checking", question: null, ending: null, ending_pending: ending, ...nearby.length ? { nearby } : {} },
+    round: {
+      state: "checking",
+      question: null,
+      ending: null,
+      ending_pending: ending,
+      ...nearby.length ? { nearby } : {}
+    },
     next: null,
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
   };
@@ -41159,16 +42238,18 @@ async function markPlaces(p, places) {
   for (let i = 0; i < want.length; i += MARK_AT_ONCE) {
     const left = until - p.now().getTime();
     if (left <= 250) break;
-    await Promise.all(want.slice(i, i + MARK_AT_ONCE).map(async (x) => {
-      const origin = `https://${x.place.website_host}`;
-      const html = await fetchText(origin, left).catch(() => null);
-      if (!html) return;
-      const mark = leadMarkFrom(html, origin);
-      if (mark) {
-        x.place.logo_url = mark;
-        marked += 1;
-      }
-    }));
+    await Promise.all(
+      want.slice(i, i + MARK_AT_ONCE).map(async (x) => {
+        const origin = `https://${x.place.website_host}`;
+        const html = await fetchText(origin, left).catch(() => null);
+        if (!html) return;
+        const mark = leadMarkFrom(html, origin);
+        if (mark) {
+          x.place.logo_url = mark;
+          marked += 1;
+        }
+      })
+    );
   }
   return marked;
 }
@@ -41183,7 +42264,14 @@ async function check(p, roundId, batch, owner, again = null) {
   const all = checkable(await p.db.membersOfRound(round.id)).filter((m) => !named || named.has(m.lead_id));
   const slice = all.slice(batch * CHECK_BATCH, (batch + 1) * CHECK_BATCH);
   if (!await p.db.leadSearchesOn(round.tenant_id)) {
-    if (slice.length) await p.db.checkCommit(round.id, null, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })), 0, false);
+    if (slice.length)
+      await p.db.checkCommit(
+        round.id,
+        null,
+        slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })),
+        0,
+        false
+      );
     if (!again) await p.db.roundEnd(round.id, "paused");
     return { kind: "paused" };
   }
@@ -41196,29 +42284,60 @@ async function check(p, roundId, batch, owner, again = null) {
   const token = await p.webhookToken(id);
   const emails = [...new Set(slice.map((m) => m.email))];
   const brief = LEAD_CARDS.find((c) => c.id === round.plan.card);
-  const capUsd = Math.max(0.5, Math.round(emails.length * (brief?.checkPerEmailUsd ?? 89e-5) * LEAD_ESTIMATE_MARGIN * 100) / 100);
-  const rows = await p.db.runsEnsure([{ id, tenant_id: round.tenant_id, round_id: round.id, purpose: "check", term, actor: card.checker.actor, build: card.checker.build, webhook_token_hash: await sha256Hex2(token), cap_usd: capUsd }]);
+  const capUsd = Math.max(
+    0.5,
+    Math.round(emails.length * (brief?.checkPerEmailUsd ?? 89e-5) * LEAD_ESTIMATE_MARGIN * 100) / 100
+  );
+  const rows = await p.db.runsEnsure([
+    {
+      id,
+      tenant_id: round.tenant_id,
+      round_id: round.id,
+      purpose: "check",
+      term,
+      actor: card.checker.actor,
+      build: card.checker.build,
+      webhook_token_hash: await sha256Hex2(token),
+      cap_usd: capUsd
+    }
+  ]);
   const row = rows.find((r) => r.id === id);
-  if (!row || row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)) return { kind: "already" };
+  if (!row || row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner))
+    return { kind: "already" };
   if (outOfTime(p)) throw new LeadRetry("out of time before the checker");
   const claim = await claimOrRecover(p, card.checker.actor, row, owner);
   if (claim !== "mine") return { kind: "already" };
   try {
-    const started = await p.apify.startRun(card.checker.actor, { ...card.checker.buildInput(emails), [INPUT_MARKER]: row.id }, {
-      build: card.checker.build,
-      timeoutSecs: CHECKER_RUN_TIMEOUT_SECS,
-      maxTotalChargeUsd: capUsd,
-      webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }]
-    });
+    const started = await p.apify.startRun(
+      card.checker.actor,
+      { ...card.checker.buildInput(emails), [INPUT_MARKER]: row.id },
+      {
+        build: card.checker.build,
+        timeoutSecs: CHECKER_RUN_TIMEOUT_SECS,
+        maxTotalChargeUsd: capUsd,
+        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }]
+      }
+    );
     await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, capUsd);
     await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
     const more = all.length > (batch + 1) * CHECK_BATCH;
-    if (more) await p.schedule("lead_check", { round_id: round.id, batch: batch + 1, ...again ? { again: again.nonce, lead_ids: again.leadIds } : {} }, 0);
+    if (more)
+      await p.schedule(
+        "lead_check",
+        { round_id: round.id, batch: batch + 1, ...again ? { again: again.nonce, lead_ids: again.leadIds } : {} },
+        0
+      );
     return { kind: "started", emails: emails.length, more };
   } catch (e) {
     const kind = await startFailed(p, row, owner, e);
     if (kind === "refused") {
-      await p.db.checkCommit(round.id, row.id, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })), 0, !again && all.length <= (batch + 1) * CHECK_BATCH);
+      await p.db.checkCommit(
+        round.id,
+        row.id,
+        slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })),
+        0,
+        !again && all.length <= (batch + 1) * CHECK_BATCH
+      );
     }
     return { kind };
   }
@@ -41255,17 +42374,30 @@ async function collectCheck(p, round, run, owner) {
     }
     const byEmail = /* @__PURE__ */ new Map();
     let items = [];
-    if (state === "succeeded" && datasetId) items = (await p.apify.listItems(datasetId, 0, CHECK_BATCH, [...card.checker.fields])).items;
+    if (state === "succeeded" && datasetId)
+      items = (await p.apify.listItems(datasetId, 0, CHECK_BATCH, [...card.checker.fields])).items;
     for (const it of items) {
       const r = card.checker.mapItem(it);
       if (r) byEmail.set(r.email, r.state);
     }
     const waiting = checkable(await p.db.membersOfRound(round.id));
-    const results = waiting.filter((m) => state !== "succeeded" || byEmail.has(m.email)).map((m) => ({ lead_id: m.lead_id, email_state: byEmail.get(m.email) ?? "unknown", checked_at: iso(p.now()) }));
+    const results = waiting.filter((m) => state !== "succeeded" || byEmail.has(m.email)).map((m) => ({
+      lead_id: m.lead_id,
+      email_state: byEmail.get(m.email) ?? "unknown",
+      checked_at: iso(p.now())
+    }));
     const others = (await p.db.runsOfRound(round.id)).filter((r) => r.purpose === "check" && r.id !== run.id);
     const answered = new Set(results.map((r) => r.lead_id));
     const last = !again && others.every((r) => FINAL_RUN_STATES.has(r.state)) && waiting.every((m) => answered.has(m.lead_id));
-    const commit = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset + items.length, { judgment: null, places: [], usage_usd: usage, items_seen: items.length, run_state: FINAL_RUN_STATES.has(run.state) ? null : state, next: null, round: null });
+    const commit = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset + items.length, {
+      judgment: null,
+      places: [],
+      usage_usd: usage,
+      items_seen: items.length,
+      run_state: FINAL_RUN_STATES.has(run.state) ? null : state,
+      next: null,
+      round: null
+    });
     if (!commit.ok) return { kind: "lost", why: commit.why };
     await p.db.checkCommit(round.id, run.id, results, usage, last);
     return { kind: "checked", results: results.length, last };

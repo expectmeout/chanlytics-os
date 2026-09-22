@@ -14,11 +14,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const skip = !URL_ || !KEY
-  ? "no database in env"
-  : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
-    ? "refusing a database that is not on this machine: this suite writes customers"
-    : false;
+const skip =
+  !URL_ || !KEY
+    ? "no database in env"
+    : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+      ? "refusing a database that is not on this machine: this suite writes customers"
+      : false;
 
 let db;
 let tenantId;
@@ -27,7 +28,11 @@ let phones = 0;
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  const { data, error } = await db.from("tenants").insert({ slug: `erasure-${Date.now()}`, name: "Erasure" }).select("id").single();
+  const { data, error } = await db
+    .from("tenants")
+    .insert({ slug: `erasure-${Date.now()}`, name: "Erasure" })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
   tenantId = data.id;
 });
@@ -39,7 +44,8 @@ after(async () => {
 
 async function customer(fields) {
   phones += 1;
-  const { data, error } = await db.from("contacts")
+  const { data, error } = await db
+    .from("contacts")
     .insert({ tenant_id: tenantId, phone_e164: `+1555${String(phones).padStart(7, "0")}`, ...fields })
     .select("id")
     .single();
@@ -48,7 +54,8 @@ async function customer(fields) {
 }
 
 async function answerOf(id) {
-  const { data, error } = await db.from("contacts")
+  const { data, error } = await db
+    .from("contacts")
     .select("marketing_consent, marketing_consent_source, marketing_consent_updated_at")
     .eq("id", id)
     .single();
@@ -58,7 +65,11 @@ async function answerOf(id) {
 
 test("erasing a customer who said yes to offers leaves no answer on the row", { skip }, async () => {
   const saidYesAt = new Date(Date.now() - 86_400_000).toISOString();
-  const id = await customer({ marketing_consent: "opted_in", marketing_consent_source: "form", marketing_consent_updated_at: saidYesAt });
+  const id = await customer({
+    marketing_consent: "opted_in",
+    marketing_consent_source: "form",
+    marketing_consent_updated_at: saidYesAt,
+  });
 
   const { error } = await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
   assert.equal(error, null);

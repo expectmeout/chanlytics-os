@@ -32,7 +32,11 @@ async function smokeTenantId() {
 
 async function cleanup(tenantId) {
   const { data: c } = await db
-    .from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", PHONE).maybeSingle();
+    .from("contacts")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("phone_e164", PHONE)
+    .maybeSingle();
   if (!c) return;
   const { data: conv } = await db.from("conversations").select("id").eq("contact_id", c.id);
   for (const v of conv ?? []) {
@@ -69,18 +73,29 @@ test("erasing a contact takes the call row with it", { skip }, async () => {
   assert.equal(vErr, null, vErr?.message);
 
   const { error: mErr } = await db.from("messages").insert({
-    tenant_id: tenantId, conversation_id: conv.id, contact_id: contact.id,
-    channel: "whatsapp", direction: "inbound", sender: "customer", type: "text",
-    body: "erasure probe", meta: {},
+    tenant_id: tenantId,
+    conversation_id: conv.id,
+    contact_id: contact.id,
+    channel: "whatsapp",
+    direction: "inbound",
+    sender: "customer",
+    type: "text",
+    body: "erasure probe",
+    meta: {},
   });
   assert.equal(mErr, null, mErr?.message);
 
   const { data: call, error: kErr } = await db
     .from("calls")
     .insert({
-      tenant_id: tenantId, contact_id: contact.id, conversation_id: conv.id,
+      tenant_id: tenantId,
+      contact_id: contact.id,
+      conversation_id: conv.id,
       retell_call_id: `erasure-probe-${Date.now()}`,
-      direction: "inbound", status: "ended", from_e164: PHONE, from_raw: PHONE,
+      direction: "inbound",
+      status: "ended",
+      from_e164: PHONE,
+      from_raw: PHONE,
       transcript: [{ role: "user", content: "please delete my data" }],
       recording: { storage_path: `${tenantId}/probe/rec.mp3`, fetch_state: "stored" },
     })
@@ -164,14 +179,22 @@ test("erasing a contact takes their name out of the events ledger", { skip }, as
     // The three payload shapes the three doors actually write, plus one kind
     // that must survive untouched.
     const ev = (kind, data) => ({
-      tenant_id: tenantId, kind, category: "contact",
-      subject_type: "contact", subject_id: id, data,
+      tenant_id: tenantId,
+      kind,
+      category: "contact",
+      subject_type: "contact",
+      subject_id: id,
+      data,
     });
     const { error: eErr } = await db.from("events").insert([
       ev("contact.named", { name: "Ledger Probe", by: actor }),
       ev("contact.added", { source: "manual", title: "Colour, Ledger P.", by: actor }),
-      ev("contact.added", { source: "calendar", title: "Balayage — Ledger",
-                            uid: "evt_9f3a@example.com", start: "2026-09-20T14:00:00Z" }),
+      ev("contact.added", {
+        source: "calendar",
+        title: "Balayage — Ledger",
+        uid: "evt_9f3a@example.com",
+        start: "2026-09-20T14:00:00Z",
+      }),
       ev("contact.consent_changed", { from: "unknown", to: "opted_in", by: actor }),
     ]);
     assert.equal(eErr, null, eErr?.message);
@@ -179,12 +202,14 @@ test("erasing a contact takes their name out of the events ledger", { skip }, as
     // The erasure. erase_contact reads auth.uid(), which the service role does
     // not have — but the scrub hangs off erased_at (00130, the way 00101 and
     // 00125 hang off it), so setting the tombstone IS the thing under test.
-    const { error: uErr } = await db
-      .from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
+    const { error: uErr } = await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
     assert.equal(uErr, null, uErr?.message);
 
     const { data: after, error: rErr } = await db
-      .from("events").select("kind, data").eq("tenant_id", tenantId).eq("subject_id", id);
+      .from("events")
+      .select("kind, data")
+      .eq("tenant_id", tenantId)
+      .eq("subject_id", id);
     assert.equal(rErr, null, rErr?.message);
     assert.equal(after.length, 4, "the ledger keeps its rows: a scrub is not a delete");
 
@@ -202,8 +227,11 @@ test("erasing a contact takes their name out of the events ledger", { skip }, as
     // survived, and every scrubbed row says when it was scrubbed.
     const added = after.filter((e) => e.kind === "contact.added");
     assert.equal(added.length, 2);
-    assert.deepEqual(added.map((e) => e.data.source).sort(), ["calendar", "manual"],
-      "where a person came from is not identifying, and the profile reads it");
+    assert.deepEqual(
+      added.map((e) => e.data.source).sort(),
+      ["calendar", "manual"],
+      "where a person came from is not identifying, and the profile reads it",
+    );
     for (const e of after.filter((e) => e.kind !== "contact.consent_changed")) {
       assert.ok(e.data.scrubbed_at, `${e.kind} was rewritten without a stamp`);
     }
@@ -218,8 +246,7 @@ test("erasing a contact takes their name out of the events ledger", { skip }, as
 
     // Idempotent: erasing again rewrites nothing and loses nothing.
     await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
-    const { data: twice } = await db
-      .from("events").select("kind, data").eq("tenant_id", tenantId).eq("subject_id", id);
+    const { data: twice } = await db.from("events").select("kind, data").eq("tenant_id", tenantId).eq("subject_id", id);
     assert.equal(twice.length, 4);
     assert.deepEqual(
       twice.map((e) => e.data.scrubbed_at ?? null).sort(),

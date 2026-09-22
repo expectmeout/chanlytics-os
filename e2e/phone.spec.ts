@@ -36,7 +36,9 @@ test.describe("Phone shell on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the ✦ in the tab bar opens Ask as a sheet and hides while the sheet is open, and the top bar says neither Ask nor the theme again", async ({ page }) => {
+  test("the ✦ in the tab bar opens Ask as a sheet and hides while the sheet is open, and the top bar says neither Ask nor the theme again", async ({
+    page,
+  }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     const fab = page.getByTestId("phone-ask");
@@ -44,8 +46,14 @@ test.describe("Phone shell on a real workspace", () => {
     // In the tab bar's own row, clear of the tabs: it floated 126px up, over the page.
     const bar = await page.getByTestId("phone-tabs").boundingBox();
     const at = await fab.boundingBox();
-    expect(bar && at && at.y >= bar.y, `the ✦ at ${JSON.stringify(at)} sits in the tab bar at ${JSON.stringify(bar)}`).toBe(true);
-    const rightmost = await page.getByTestId("phone-tabs").getByRole("button").evaluateAll((els) => Math.max(...els.map((el) => el.getBoundingClientRect().right)));
+    expect(
+      bar && at && at.y >= bar.y,
+      `the ✦ at ${JSON.stringify(at)} sits in the tab bar at ${JSON.stringify(bar)}`,
+    ).toBe(true);
+    const rightmost = await page
+      .getByTestId("phone-tabs")
+      .getByRole("button")
+      .evaluateAll((els) => Math.max(...els.map((el) => el.getBoundingClientRect().right)));
     expect(rightmost, "no tab runs under it").toBeLessThanOrEqual((at?.x ?? 0) + 1);
     await expect(page.getByTestId("tb-ask")).toBeHidden();
     await expect(page.locator(".tb-theme")).toBeHidden();
@@ -122,7 +130,9 @@ test.describe("Phone shell on a real workspace", () => {
    * first screen, then the send. Links too, since the ledger's "Print a desk
    * sign" and "Download QR" are links drawn as buttons.
    */
-  test("Campaigns: every control on Broadcasts is inside the screen, and the page opens on the work", async ({ page }) => {
+  test("Campaigns: every control on Broadcasts is inside the screen, and the page opens on the work", async ({
+    page,
+  }) => {
     await page.goto("/#/broadcasts");
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("broadcasts-real");
@@ -132,10 +142,15 @@ test.describe("Phone shell on a real workspace", () => {
       for (const el of await screen.getByRole("button").or(screen.getByRole("link")).all()) {
         const box = await el.boundingBox();
         if (!box) continue;
-        expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(width + 1);
+        expect(
+          box.x + box.width,
+          `${(await el.textContent())?.trim()} runs off a ${width}px screen`,
+        ).toBeLessThanOrEqual(width + 1);
       }
       // Nothing scrolls sideways: the row wraps rather than being clipped.
-      const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
       expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
     };
     // The work first: New broadcast whole on the first screen, and not the
@@ -163,7 +178,9 @@ test.describe("Phone shell on a real workspace", () => {
     test.skip((await head.count()) === 0, "no call on this workspace yet: no panel head to measure");
     const width = page.viewportSize()?.width ?? 390;
     const titles = await page.locator(".lm-head-titles").first().boundingBox();
-    expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(true);
+    expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(
+      true,
+    );
     for (const fact of await page.locator(".lm-head-meta > *").all()) {
       const box = await fact.boundingBox();
       if (!box || box.height < 4) continue; // the separator dots
@@ -172,7 +189,9 @@ test.describe("Phone shell on a real workspace", () => {
     for (const el of await page.locator(".lm-head-actions").getByRole("button").all()) {
       const box = await el.boundingBox();
       if (!box) continue;
-      expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(width + 1);
+      expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(
+        width + 1,
+      );
     }
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
@@ -191,5 +210,102 @@ test.describe("Phone shell on a real workspace", () => {
     // Nothing has gone: the question can be dismissed and the button comes back.
     await page.getByTestId("bc-send-no").click();
     await expect(page.getByTestId("bc-send")).toBeVisible();
+  });
+
+  /**
+   * People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md): one bar, one line and the
+   * rows. On 22 Sep the first person stood 299px down under a search box and three text buttons, each person a boxed
+   * card 119 to 168px tall with the face squeezed to an oval and the state 36px tall, and Add a person opened a form
+   * 479px wide on a 375px screen.
+   */
+  test("People is one bar, one line and the rows: a face is round, a state one line, nothing past the edge", async ({
+    page,
+  }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const bar = page.getByTestId("people-phone-bar");
+    await expect(bar).toBeVisible();
+    for (const id of ["people-phone-lists", "people-phone-search-open"])
+      await expect(bar.getByTestId(id)).toBeInViewport({ ratio: 1 });
+    await expect(page.locator(".cl-controls")).toHaveCount(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      "nothing past the edge",
+    ).toBe(0);
+    const row = page.locator(".pl-table tbody tr.pl-card-row").first();
+    test.skip((await row.count()) === 0, "nobody on this workspace");
+    await expect(row).toBeInViewport({ ratio: 1 });
+    expect(
+      (await row.boundingBox())!.y,
+      "the first person is on the first screen, under one bar and one line",
+    ).toBeLessThan(240);
+    const face = (await row.locator(".pl-card-face").boundingBox())!;
+    expect(Math.abs(face.width - face.height), "a face is round").toBeLessThanOrEqual(1);
+    expect(
+      (await row.locator(".pl-card > .pill").boundingBox())!.height,
+      "a state is a pill, not a 36px button",
+    ).toBeLessThanOrEqual(22);
+    // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
+    await bar.getByTestId("people-phone-search-open").click();
+    const field = page.getByTestId("people-phone-search");
+    await expect(field).toBeFocused();
+    expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    await page.getByTestId("people-phone-search-cancel").click();
+    await expect(bar.getByTestId("people-phone-lists")).toBeVisible();
+    // A list picked in the sheet closes it and leaves no tip behind: the tap focused its row, the sheet took the row
+    // away, and the tip was placed at the corner of the top bar 280ms later.
+    await bar.getByTestId("people-phone-lists").click();
+    const sheet = page.getByTestId("people-lists-sheet");
+    await expect(sheet).toBeVisible();
+    await sheet.getByTestId("rail-everyone").click();
+    await expect(sheet).toHaveCount(0);
+    await page.waitForTimeout(400);
+    await expect(page.locator(".ui-tip.show")).toHaveCount(0);
+    // Add a person: a sheet whose one button is on the screen.
+    await bar.locator(".more-wrap > button").click();
+    const add = page.getByRole("menuitem", { name: "Add a person" });
+    test.skip((await add.count()) === 0, "this member cannot add people");
+    await add.click();
+    await expect(page.getByTestId("add-person-sheet")).toBeVisible();
+    await expect(page.getByTestId("add-person-save")).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("add-person-sheet-close").click();
+    await expect(page.getByTestId("add-person-sheet")).toHaveCount(0);
+  });
+  /**
+   * Selecting on a phone (the same spec, 4.5): the face is the checkbox, and a selection is one row standing on the tab
+   * bar -- ✕, the count, Add to list and ⋯ -- whose ⋯ opens a sheet with the rest. On 22 Sep the bar was a pill 188px
+   * wide at the middle of the screen, its seven controls stacked 312px tall over the rows.
+   */
+  test("a selection is one row on the tab bar, and ⋯ opens its sheet whole on the screen", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const row = page.locator(".pl-table tbody tr.pl-card-row").first();
+    test.skip((await row.count()) === 0, "nobody on this workspace");
+    const pick = row.getByTestId("row-select");
+    test.skip((await pick.count()) === 0, "this member can neither edit nor export people");
+    // The box is laid over the face at no opacity: the face is what a finger sees.
+    await pick.click({ force: true });
+    const bar = page.getByTestId("bulk-bar");
+    await expect(bar).toBeVisible();
+    await expect(bar).toContainText("1 selected");
+    const vp = page.viewportSize()!;
+    const box = (await bar.boundingBox())!;
+    expect(box.x, "edge to edge").toBeLessThanOrEqual(0.5);
+    expect(box.x + box.width).toBeGreaterThanOrEqual(vp.width - 0.5);
+    expect(box.height, "one row").toBeLessThanOrEqual(64);
+    expect(await bar.evaluate((el) => el.scrollWidth - el.clientWidth), "nothing past its edge").toBeLessThanOrEqual(1);
+    const tabs = (await page.getByTestId("phone-tabs").boundingBox())!;
+    expect(box.y + box.height, "it stands on the tab bar, not under it").toBeLessThanOrEqual(tabs.y + 1);
+    await bar.getByTestId("bulk-more").click();
+    const sheet = page.getByTestId("bulk-sheet");
+    await expect(sheet).toBeVisible();
+    const rows = sheet.locator(".pp-sheet-row");
+    expect(await rows.count(), "the rest of what a selection can become").toBeGreaterThan(0);
+    await expect(rows.last()).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("bulk-sheet-close").click();
+    await expect(sheet).toHaveCount(0);
+    await expect(bar, "Cancel shuts the sheet and keeps the selection").toContainText("1 selected");
+    await bar.getByTestId("bulk-clear").click();
+    await expect(bar).toHaveCount(0);
   });
 });

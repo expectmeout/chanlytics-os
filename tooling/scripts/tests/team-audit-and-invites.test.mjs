@@ -49,7 +49,11 @@ test("every mutating team op writes to it", () => {
   for (const verb of ["change_role", "remove_member", "revoke_invite", "invite"]) {
     assert.ok(service.includes(`"${verb}"`), `${verb} is never recorded`);
   }
-  assert.equal(service.split("noteTeamChange(").length - 1, 6, "one definition, five call sites: a new invitation is recorded too, once its email is on its way");
+  assert.equal(
+    service.split("noteTeamChange(").length - 1,
+    6,
+    "one definition, five call sites: a new invitation is recorded too, once its email is on its way",
+  );
 });
 
 test("the audit runs on the CALLER's client, so the actor cannot be spoofed", () => {
@@ -57,7 +61,10 @@ test("the audit runs on the CALLER's client, so the actor cannot be spoofed", ()
   // needs no privilege the request does not have — and actor_user_id comes
   // from the session rather than from an argument somebody passed.
   // Through the one ledger writer now (verbs.ts recordDecision), on the caller's client, with the card's mark and an undo's link riding along.
-  assert.ok(service.includes("await recordDecision(ctx, tenantId, subjectType, subjectId, verb, payload as Json);"), "the actor is the session (ask-commit.test.mjs runs the writer)");
+  assert.ok(
+    service.includes("await recordDecision(ctx, tenantId, subjectType, subjectId, verb, payload as Json);"),
+    "the actor is the session (ask-commit.test.mjs runs the writer)",
+  );
 });
 
 test("a failed audit row never fails the change that already happened", () => {
@@ -74,8 +81,8 @@ test("removal records what the row said, because the row is gone", () => {
 });
 
 test("the routes hand the caller through", () => {
-  assert.ok(teamIdRoute.includes("setMemberRole(ctx,"));
-  assert.ok(teamIdRoute.includes("removeMember(ctx,"));
+  assert.match(teamIdRoute, /setMemberRole\(\s*ctx,/);
+  assert.match(teamIdRoute, /removeMember\(\s*ctx,/);
 });
 
 /* --------------------------- the stranded invite -------------------------- */
@@ -90,17 +97,18 @@ test("REGRESSION: acceptance is no longer gated on having no memberships", () =>
     workspaces.includes("if (isSameOrigin(_req) && (await acceptOpenInvites(userId, email ?? null)) > 0) {"),
     "acceptance must be attempted on every same-origin workspace read",
   );
-  assert.ok(
-    !workspaces.includes("!data?.length && (await acceptOpenInvites"),
-    "the membership gate is the bug",
-  );
+  assert.ok(!workspaces.includes("!data?.length && (await acceptOpenInvites"), "the membership gate is the bug");
 });
 
 test("the lookup that now runs every time has an index that fits it", () => {
   // The only index was (tenant_id, lower(email)) — email is the SECOND column,
   // so a cross-tenant lookup by email could not use it and scanned the table.
   assert.match(sql, /create index if not exists invitations_open_by_email\s*\n\s*on public\.invitations \(email\)/);
-  assert.match(sql, /where accepted_at is null and revoked_at is null;/, "partial: settled invitations are never looked up this way");
+  assert.match(
+    sql,
+    /where accepted_at is null and revoked_at is null;/,
+    "partial: settled invitations are never looked up this way",
+  );
 });
 
 test("the index matches how the reader actually filters", () => {
@@ -109,7 +117,7 @@ test("the index matches how the reader actually filters", () => {
   // plain column is correct — and that invariant is what makes it correct.
   assert.ok(service.includes('.eq("email", email.toLowerCase())'));
   const invite = readCode("apps/dashboard/app/api/v1/team/invite/route.ts");
-  assert.ok(invite.includes('.trim().toLowerCase()'), "stored lowercased at the door");
+  assert.ok(/\.trim\(\)\s*\.toLowerCase\(\)/.test(invite), "stored lowercased at the door");
 });
 
 /* ---- the card writes to the SERVER, not to the seeded roster ---- */

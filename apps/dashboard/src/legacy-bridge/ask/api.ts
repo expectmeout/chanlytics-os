@@ -30,7 +30,12 @@ export interface OpeningsView {
  * The client is the caller's -- the tab's own, or a test's bound to a fake
  * fetch -- so the committer can be run rather than read.
  */
-export function viaAsk<K extends RouteKey>(client: Api, key: K, opts: ApiOptions<K> = {} as ApiOptions<K>, undoOf?: string): Promise<ApiResult<Output<K>>> {
+export function viaAsk<K extends RouteKey>(
+  client: Api,
+  key: K,
+  opts: ApiOptions<K> = {} as ApiOptions<K>,
+  undoOf?: string,
+): Promise<ApiResult<Output<K>>> {
   return client(key, { ...opts, via: "ask", ...(undoOf ? { undoOf } : {}) });
 }
 
@@ -68,7 +73,9 @@ export function askApi(client: Api = api()) {
      * 404, null for a read that failed. Both were null, and the palette said
      * "Thread deleted" and dropped the thread from the list whenever a read failed.
      */
-    thread: async (id: string): Promise<{ thread: AskThreadVM; messages: AskMessageVM[] } | { missing: true } | null> => {
+    thread: async (
+      id: string,
+    ): Promise<{ thread: AskThreadVM; messages: AskMessageVM[] } | { missing: true } | null> => {
       try {
         const r = await client("GET ask/threads/[id]", { params: { id } });
         if (r.ok) return r.data;
@@ -77,35 +84,63 @@ export function askApi(client: Api = api()) {
         return null;
       }
     },
-    deleteThread: async (id: string): Promise<boolean> => (await client("DELETE ask/threads/[id]", { params: { id } })).ok,
+    deleteThread: async (id: string): Promise<boolean> =>
+      (await client("DELETE ask/threads/[id]", { params: { id } })).ok,
     openings: async (day: string | null, service: string | null): Promise<OpeningsView> => {
-      return unwrap(await client("GET ask/openings", { query: { day: day ?? undefined, service: service ?? undefined } })).openings;
+      return unwrap(
+        await client("GET ask/openings", { query: { day: day ?? undefined, service: service ?? undefined } }),
+      ).openings;
     },
     outcome: async (messageId: string, proposalId: string, o: AskProposalOutcome): Promise<boolean> => {
       if (!/^[0-9a-f-]{36}$/.test(messageId)) return false;
-      const r = await client("POST ask/messages/[id]/proposals/[pid]", { params: { id: messageId, pid: proposalId }, body: o, via: "ask" });
+      const r = await client("POST ask/messages/[id]/proposals/[pid]", {
+        params: { id: messageId, pid: proposalId },
+        body: o,
+        via: "ask",
+      });
       return r.ok;
     },
-    send: async (input: { text: string; threadId: string | null; scope: AskScope | null; surface: AskSurface }, on: (ev: SendEvent) => void): Promise<void> => {
+    send: async (
+      input: { text: string; threadId: string | null; scope: AskScope | null; surface: AskSurface },
+      on: (ev: SendEvent) => void,
+    ): Promise<void> => {
       let res: Response;
       try {
-        res = await client.raw("POST ask", { body: { text: input.text, thread_id: input.threadId, scope: input.scope, surface: input.surface }, timeoutMs: TURN_MS });
+        res = await client.raw("POST ask", {
+          body: { text: input.text, thread_id: input.threadId, scope: input.scope, surface: input.surface },
+          timeoutMs: TURN_MS,
+        });
       } catch (e) {
         // A question that never left asked nothing; one that timed out may still be answered.
         const name = (e as { name?: unknown } | null)?.name;
-        on({ t: "error", text: name === "TimeoutError" || name === "AbortError" ? "Chanlytics took too long to answer — ask again in a moment." : "Network error — nothing was asked." });
+        on({
+          t: "error",
+          text:
+            name === "TimeoutError" || name === "AbortError"
+              ? "Chanlytics took too long to answer — ask again in a moment."
+              : "Network error — nothing was asked.",
+        });
         return;
       }
       // The client has already signed the tab out on its way back.
       if (res.status === 401) return;
       if (!res.ok || !res.body) {
-        const j = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string; details?: unknown } } | null;
+        const j = (await res.json().catch(() => null)) as {
+          error?: { code?: string; message?: string; details?: unknown };
+        } | null;
         // The server's sentence, in our words where it gave none (contracts refusalOf); a page
         // that was not ours used to read "Ask failed (502)." and gets a sentence of ours.
         on({
           t: "error",
           text: j?.error
-            ? refusalOf({ code: j.error.code, status: res.status, message: j.error.message, details: j.error.details, retryAfter: res.headers.get("retry-after"), write: true }).message
+            ? refusalOf({
+                code: j.error.code,
+                status: res.status,
+                message: j.error.message,
+                details: j.error.details,
+                retryAfter: res.headers.get("retry-after"),
+                write: true,
+              }).message
             : "Chanlytics didn't answer — ask again in a moment.",
         });
         return;

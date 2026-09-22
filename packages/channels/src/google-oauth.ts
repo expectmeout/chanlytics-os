@@ -28,7 +28,11 @@ export interface OAuthClient {
   redirectUri: string;
 }
 
-export function authorizeUrl(cfg: Pick<OAuthClient, "clientId" | "redirectUri">, state: string, loginHint?: string | null): string {
+export function authorizeUrl(
+  cfg: Pick<OAuthClient, "clientId" | "redirectUri">,
+  state: string,
+  loginHint?: string | null,
+): string {
   const q = new URLSearchParams({
     client_id: cfg.clientId,
     redirect_uri: cfg.redirectUri,
@@ -47,11 +51,35 @@ const form = (params: Record<string, string>): PlacesRequest["body"] => new URLS
 const FORM = { "Content-Type": "application/x-www-form-urlencoded" };
 
 export function tokenExchangeRequest(cfg: OAuthClient, code: string): PlacesRequest {
-  return { url: GOOGLE_TOKEN_URL, method: "POST", headers: FORM, body: form({ code, client_id: cfg.clientId, client_secret: cfg.clientSecret, redirect_uri: cfg.redirectUri, grant_type: "authorization_code" }) };
+  return {
+    url: GOOGLE_TOKEN_URL,
+    method: "POST",
+    headers: FORM,
+    body: form({
+      code,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      redirect_uri: cfg.redirectUri,
+      grant_type: "authorization_code",
+    }),
+  };
 }
 
-export function tokenRefreshRequest(cfg: Pick<OAuthClient, "clientId" | "clientSecret">, refreshToken: string): PlacesRequest {
-  return { url: GOOGLE_TOKEN_URL, method: "POST", headers: FORM, body: form({ refresh_token: refreshToken, client_id: cfg.clientId, client_secret: cfg.clientSecret, grant_type: "refresh_token" }) };
+export function tokenRefreshRequest(
+  cfg: Pick<OAuthClient, "clientId" | "clientSecret">,
+  refreshToken: string,
+): PlacesRequest {
+  return {
+    url: GOOGLE_TOKEN_URL,
+    method: "POST",
+    headers: FORM,
+    body: form({
+      refresh_token: refreshToken,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      grant_type: "refresh_token",
+    }),
+  };
 }
 
 /** Either token may be revoked; revoking the refresh token ends the grant. */
@@ -71,7 +99,12 @@ export interface TokenGrant {
 export function parseTokenResponse(json: unknown): TokenGrant {
   const o = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
   const access = typeof o.access_token === "string" ? o.access_token : "";
-  if (!access) throw new Error(typeof o.error === "string" ? `${o.error}${typeof o.error_description === "string" ? `: ${o.error_description}` : ""}` : "Google answered without a token");
+  if (!access)
+    throw new Error(
+      typeof o.error === "string"
+        ? `${o.error}${typeof o.error_description === "string" ? `: ${o.error_description}` : ""}`
+        : "Google answered without a token",
+    );
   return {
     access_token: access,
     refresh_token: typeof o.refresh_token === "string" && o.refresh_token ? o.refresh_token : null,
@@ -137,7 +170,9 @@ export interface OAuthState {
 }
 
 async function hmac(secret: string, data: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
   return b64url(new Uint8Array(sig));
 }
@@ -148,7 +183,11 @@ export async function signState(secret: string, s: OAuthState): Promise<string> 
 }
 
 /** The state back from Google: its signature, its expiry, then its claims — or the reason it is refused. */
-export async function verifyState(secret: string, state: string | null | undefined, nowMs: number): Promise<{ ok: true; state: OAuthState } | { ok: false; reason: "missing" | "malformed" | "signature" | "expired" }> {
+export async function verifyState(
+  secret: string,
+  state: string | null | undefined,
+  nowMs: number,
+): Promise<{ ok: true; state: OAuthState } | { ok: false; reason: "missing" | "malformed" | "signature" | "expired" }> {
   if (!state) return { ok: false, reason: "missing" };
   const [payload, sig, ...rest] = state.split(".");
   if (!payload || !sig || rest.length) return { ok: false, reason: "malformed" };
@@ -160,7 +199,8 @@ export async function verifyState(secret: string, state: string | null | undefin
   } catch {
     return { ok: false, reason: "malformed" };
   }
-  if (typeof s.t !== "string" || typeof s.u !== "string" || typeof s.n !== "string" || typeof s.exp !== "number") return { ok: false, reason: "malformed" };
+  if (typeof s.t !== "string" || typeof s.u !== "string" || typeof s.n !== "string" || typeof s.exp !== "number")
+    return { ok: false, reason: "malformed" };
   if (s.exp < nowMs) return { ok: false, reason: "expired" };
   return { ok: true, state: s };
 }

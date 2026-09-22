@@ -8,7 +8,11 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import * as contracts from "@chanlytics/contracts";
 import { todayLeaks, todayAwayGrouped, unreadCount } from "@chanlytics/contracts";
-import { todaySample, installTodaySample, sampleDayOf } from "../../../apps/dashboard/src/legacy-bridge/today-sample.ts";
+import {
+  todaySample,
+  installTodaySample,
+  sampleDayOf,
+} from "../../../apps/dashboard/src/legacy-bridge/today-sample.ts";
 
 // 4 PM in New York on Friday 18 September 2026: every "minutes ago" in the sample lands on this day.
 const NOW = Date.parse("2026-09-18T20:00:00Z");
@@ -24,11 +28,16 @@ test("every figure agrees with the threads and calls under it", () => {
   const s = todaySample(NOW);
   const t = s.TODAY_DATA;
   const since = Date.parse(s.metrics.window.since);
-  const inboundToday = s.conversations.flatMap((c) => c.messages).filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
+  const inboundToday = s.conversations
+    .flatMap((c) => c.messages)
+    .filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
   const by = Object.fromEntries(t.figures.map((f) => [f.id, f]));
   assert.equal(by.messages.value, inboundToday.length, "the messages figure is the messages the read holds");
   assert.equal(by.messages.value, s.metrics.period.messages_in);
-  const split = by.messages.receipt.text.match(/\d+/g).map(Number).reduce((a, n) => a + n, 0);
+  const split = by.messages.receipt.text
+    .match(/\d+/g)
+    .map(Number)
+    .reduce((a, n) => a + n, 0);
   assert.equal(split, inboundToday.length, `the receipt's wires add up to the figure: ${by.messages.receipt.text}`);
   assert.equal(by.answered.value, s.metrics.period.answered_by_ai);
   assert.equal(by.calls.value, s.calls.length, "one figure per call");
@@ -37,22 +46,51 @@ test("every figure agrees with the threads and calls under it", () => {
   assert.equal(by.new.value, 2);
   assert.match(by.new.receipt.text, /^Renata Solís and Marco Ibáñez wrote for the first time today\.$/);
   assert.equal(t.proof.startsWith("The last message arrived "), true);
-  for (const f of t.figures) if (f.receipt) assert.doesNotMatch(f.receipt.text, new RegExp(`\\b${f.value}\\b`), `${f.id}: the receipt repeats the figure`);
+  for (const f of t.figures)
+    if (f.receipt)
+      assert.doesNotMatch(f.receipt.text, new RegExp(`\\b${f.value}\\b`), `${f.id}: the receipt repeats the figure`);
 });
 
 test("the queue holds one of each kind, and Worth a look names who is waiting", () => {
   const s = todaySample(NOW);
   const t = s.TODAY_DATA;
-  assert.deepEqual(t.queue.rows.map((r) => r.kind), ["handoff", "callback", "window", "call"]);
-  assert.deepEqual(t.noReply.map((r) => r.who), ["Dulce Amaro"], "Sofía's thread is the closing window's; Ana's is the handoff's; Dulce is the one nobody answered");
+  assert.deepEqual(
+    t.queue.rows.map((r) => r.kind),
+    ["handoff", "callback", "window", "call"],
+  );
+  assert.deepEqual(
+    t.noReply.map((r) => r.who),
+    ["Dulce Amaro"],
+    "Sofía's thread is the closing window's; Ana's is the handoff's; Dulce is the one nobody answered",
+  );
   const leaks = todayLeaks(s.__REPORTS, s.__PEOPLE, t.noReply);
-  assert.ok(leaks.rows.some((l) => l.id === "unreachable"), `everyone here said yes to messages and nobody to offers: ${leaks.rows.map((l) => l.id)}`);
-  const away = todayAwayGrouped(s.bell, t.queue.rows.map((r) => ({ conversationId: r.conversationId, callId: r.callId })), 5);
+  assert.ok(
+    leaks.rows.some((l) => l.id === "unreachable"),
+    `everyone here said yes to messages and nobody to offers: ${leaks.rows.map((l) => l.id)}`,
+  );
+  const away = todayAwayGrouped(
+    s.bell,
+    t.queue.rows.map((r) => ({ conversationId: r.conversationId, callId: r.callId })),
+    5,
+  );
   assert.equal(away.total, unreadCount(s.bell));
   assert.equal(away.queued, 3, "the handoff's row, the call-back's row and the missed call are the queue's");
-  assert.deepEqual(away.groups.map((g) => g.row.kind), ["number", "review", "broadcast_sent"], "a warning first, then the news");
-  assert.ok(s.__CALENDAR.vm.feed.state === "ok" && s.__CALENDAR.vm.days.find((d) => d.today).blocks.length === 6, "six on the calendar today: the day module's cap has something to cut");
-  assert.equal(s.__BROADCASTS.rows.map((r) => r.state).sort().join(","), "pending_approval,scheduled,sent");
+  assert.deepEqual(
+    away.groups.map((g) => g.row.kind),
+    ["number", "review", "broadcast_sent"],
+    "a warning first, then the news",
+  );
+  assert.ok(
+    s.__CALENDAR.vm.feed.state === "ok" && s.__CALENDAR.vm.days.find((d) => d.today).blocks.length === 6,
+    "six on the calendar today: the day module's cap has something to cut",
+  );
+  assert.equal(
+    s.__BROADCASTS.rows
+      .map((r) => r.state)
+      .sort()
+      .join(","),
+    "pending_approval,scheduled,sent",
+  );
 });
 
 test("it installs only where the app's globals are absent", () => {
@@ -64,7 +102,16 @@ test("it installs only where the app's globals are absent", () => {
   win.__TODAY_SAMPLE.__notifs.read(win.__TODAY_SAMPLE.__notifs.feed()[0].id);
   assert.equal(win.__TODAY_SAMPLE.__notifs.unread(), todaySample(NOW).bell.length - 1, "a read mark holds in memory");
   assert.equal(win.__TODAY_SAMPLE.__clock.dayKey(NOW), "2026-09-18");
-  for (const key of ["__CALENDAR", "__PLAYBOOKS", "__PEOPLE", "__BROADCASTS", "__REPORTS", "__LIVE", "__clock", "__notifs"]) {
+  for (const key of [
+    "__CALENDAR",
+    "__PLAYBOOKS",
+    "__PEOPLE",
+    "__BROADCASTS",
+    "__REPORTS",
+    "__LIVE",
+    "__clock",
+    "__notifs",
+  ]) {
     assert.equal(win[key], undefined, "the mockup's other pages switch to their real variants on the bridge's names");
   }
 });
@@ -72,13 +119,20 @@ test("it installs only where the app's globals are absent", () => {
 test("the mockup's bundle publishes the same sample and never bundles the bridge's api", async () => {
   const { todaySampleBundle } = await import("../serve-legacy.mjs");
   const js = await todaySampleBundle();
-  assert.ok(!js.includes("legacy-bridge/api.ts"), "zone.ts and notifications.ts import ./api; the sample must import neither");
+  assert.ok(
+    !js.includes("legacy-bridge/api.ts"),
+    "zone.ts and notifications.ts import ./api; the sample must import neither",
+  );
   const win = {};
   vm.runInNewContext(js, { window: win, console, Date, Intl });
   const plain = (x) => JSON.parse(JSON.stringify(x));
   assert.deepEqual(plain(win.__todaySample(NOW).TODAY_DATA), plain(todaySample(NOW).TODAY_DATA));
   assert.ok(win.TODAY_DATA && win.__today && win.__TODAY_SAMPLE, "installed at load, for the page scripts that follow");
-  assert.equal(win.__BROADCASTS, undefined, "the mockup's other pages switch to their real variants on the bridge's names");
+  assert.equal(
+    win.__BROADCASTS,
+    undefined,
+    "the mockup's other pages switch to their real variants on the bridge's names",
+  );
 });
 
 /** "A", "A and B", "A, B and C", "A, B, C and 2 more": the andList grammar, unpicked. */
@@ -94,8 +148,14 @@ test("at any hour the figures agree with the rows under them", () => {
     const s = todaySample(at);
     const t = s.TODAY_DATA;
     const since = Date.parse(s.metrics.window.since);
-    const inboundToday = s.conversations.flatMap((c) => c.messages).filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
-    assert.equal(s.metrics.period.messages_in, inboundToday.length, `${iso}: messages_in is the inbound customer messages the read holds`);
+    const inboundToday = s.conversations
+      .flatMap((c) => c.messages)
+      .filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
+    assert.equal(
+      s.metrics.period.messages_in,
+      inboundToday.length,
+      `${iso}: messages_in is the inbound customer messages the read holds`,
+    );
     const callsToday = s.calls.filter((c) => c.started_at && Date.parse(c.started_at) >= since);
     assert.equal(s.metrics.period.calls, callsToday.length, `${iso}: calls is the calls started today`);
 
@@ -116,9 +176,16 @@ test("at any hour the figures agree with the rows under them", () => {
       const expectedNamed = Math.min(s.metrics.period.new_contacts, 3);
       const more = s.metrics.period.new_contacts > 3 ? named.pop() : null;
       assert.equal(named.length, expectedNamed, `${iso}: ${by.new.receipt.text}`);
-      if (more !== null) assert.equal(more, `${s.metrics.period.new_contacts - 3} more`, `${iso}: ${by.new.receipt.text}`);
+      if (more !== null)
+        assert.equal(more, `${s.metrics.period.new_contacts - 3} more`, `${iso}: ${by.new.receipt.text}`);
     }
-    for (const f of t.figures) if (f.receipt) assert.doesNotMatch(f.receipt.text, new RegExp(`\\b${f.value}\\b`), `${iso}: ${f.id}: the receipt repeats the figure`);
+    for (const f of t.figures)
+      if (f.receipt)
+        assert.doesNotMatch(
+          f.receipt.text,
+          new RegExp(`\\b${f.value}\\b`),
+          `${iso}: ${f.id}: the receipt repeats the figure`,
+        );
   }
 });
 
@@ -130,18 +197,32 @@ test("at any hour the figures agree with the rows under them", () => {
 test("on both daylight-saving days the day still opens at local midnight", () => {
   const wall = (ms) => {
     const p = Object.fromEntries(
-      new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
-        .formatToParts(new Date(ms)).map((x) => [x.type, x.value]),
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/New_York",
+        hourCycle: "h23",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+        .formatToParts(new Date(ms))
+        .map((x) => [x.type, x.value]),
     );
     return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
   };
   // 2026: forward on 8 March, back on 1 November.
-  for (const [iso, day] of [["2026-03-08T12:00:00Z", "2026-03-08"], ["2026-11-01T12:00:00Z", "2026-11-01"]]) {
+  for (const [iso, day] of [
+    ["2026-03-08T12:00:00Z", "2026-03-08"],
+    ["2026-11-01T12:00:00Z", "2026-11-01"],
+  ]) {
     const s = todaySample(Date.parse(iso));
     const since = Date.parse(s.metrics.window.since);
     assert.equal(wall(since), `${day} 00:00`, `${iso}: the window opens at local midnight, not ${wall(since)}`);
     assert.equal(s.metrics.window.since_local, `${day}T00:00:00`);
-    const inbound = s.conversations.flatMap((c) => c.messages).filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
+    const inbound = s.conversations
+      .flatMap((c) => c.messages)
+      .filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
     assert.equal(s.metrics.period.messages_in, inbound.length, `${iso}: the figures count from that midnight`);
   }
 });
@@ -163,7 +244,10 @@ test("a busy day overflows every cap and the page says what it cut", () => {
   assert.ok(t.queue.rows.length + t.queue.more >= 10, `a busy queue: ${t.queue.rows.length} + ${t.queue.more}`);
   assert.equal(t.queue.rows.length, TODAY_QUEUE_MAX);
   assert.ok(t.queue.more >= 4, "the rest is counted, not dropped");
-  assert.ok(t.queue.parts.some((p) => /need you/.test(p)), t.queue.parts.join(" · "));
+  assert.ok(
+    t.queue.parts.some((p) => /need you/.test(p)),
+    t.queue.parts.join(" · "),
+  );
 
   // The day: twelve today, five drawn, seven on the Calendar; the summary counts the day, not the rows.
   const day = todayDay(s.__CALENDAR.vm, s.__PLAYBOOKS.rows, s.__PEOPLE);
@@ -180,20 +264,31 @@ test("a busy day overflows every cap and the page says what it cut", () => {
   assert.ok(leaks.rows.length <= 2, `${leaks.rows.length} rows`);
 
   // The away card: five drawn, the rest counted in its foot, the queue's own rows never drawn twice.
-  const away = todayAwayGrouped(s.bell, t.queue.rows.map((r) => ({ conversationId: r.conversationId, callId: r.callId })), 5);
+  const away = todayAwayGrouped(
+    s.bell,
+    t.queue.rows.map((r) => ({ conversationId: r.conversationId, callId: r.callId })),
+    5,
+  );
   assert.ok(away.groups.length <= 5, `${away.groups.length} groups`);
   assert.equal(away.total, unreadCount(s.bell));
   // Deduped against the rows the queue DRAWS: a bell row about a handoff past the cap is news here, not a repeat.
-  assert.ok(away.queued >= 3 && away.queued <= t.queue.rows.length, `what the six drawn rows already hold: ${away.queued}`);
+  assert.ok(
+    away.queued >= 3 && away.queued <= t.queue.rows.length,
+    `what the six drawn rows already hold: ${away.queued}`,
+  );
 
   // Every figure still agrees with the rows under it, busy or not.
   const since = Date.parse(s.metrics.window.since);
-  const inboundToday = s.conversations.flatMap((c) => c.messages).filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
+  const inboundToday = s.conversations
+    .flatMap((c) => c.messages)
+    .filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
   const by = Object.fromEntries(t.figures.map((f) => [f.id, f]));
   assert.equal(by.messages.value, inboundToday.length);
   assert.equal(by.calls.value, s.calls.filter((c) => c.started_at && Date.parse(c.started_at) >= since).length);
   assert.equal(by.new.value, 2, "the busy threads are all older than today, so nobody new is invented");
-  for (const f of t.figures) if (f.receipt) assert.doesNotMatch(f.receipt.text, new RegExp(`\b${f.value}\b`), `${f.id}: the receipt repeats the figure`);
+  for (const f of t.figures)
+    if (f.receipt)
+      assert.doesNotMatch(f.receipt.text, new RegExp(`\b${f.value}\b`), `${f.id}: the receipt repeats the figure`);
 
   // The mockup's switch: the query names the day; nothing else does.
   assert.equal(sampleDayOf({ location: { search: "?day=busy" } }), "busy");

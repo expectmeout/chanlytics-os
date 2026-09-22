@@ -77,7 +77,10 @@ const PLATFORM_DEFAULTS = new Set([
 
 /** True when the address is the platform's stock mark rather than this company's. */
 function isPlatformDefault(url: string): boolean {
-  const bare = url.slice(url.indexOf("//") + 2).split(/[?#]/)[0].toLowerCase();
+  const bare = url
+    .slice(url.indexOf("//") + 2)
+    .split(/[?#]/)[0]
+    .toLowerCase();
   return PLATFORM_DEFAULTS.has(bare) || /(^|\/)default-favicon\.[a-z0-9]+$/.test(bare);
 }
 
@@ -86,7 +89,8 @@ const UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13
 
 /** True when the address holds something no address holds: a space, a quote, a bracket, or any control character. */
 function holdsUnsafe(url: string): boolean {
-  for (const ch of url) if (UNSAFE_IN_AN_ADDRESS.includes(ch) || ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f) return true;
+  for (const ch of url)
+    if (UNSAFE_IN_AN_ADDRESS.includes(ch) || ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f) return true;
   return false;
 }
 

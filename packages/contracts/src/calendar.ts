@@ -18,7 +18,17 @@ import { agoWords, timezoneCity } from "./time";
  */
 import { DAYS, hoursRuns, type BookingRules, type Closure, type Hours } from "./config";
 import { waWindow } from "./policy";
-import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, dayPlusInZone, localToUtcMs, offerFor, type BookingRulesLike } from "./availability";
+import {
+  BOOKING_DEFAULTS,
+  clockInZone,
+  closedOn,
+  dayInZone,
+  dayIntervals,
+  dayPlusInZone,
+  localToUtcMs,
+  offerFor,
+  type BookingRulesLike,
+} from "./availability";
 import type { MatchVia } from "./calendar-people";
 import type { FeedFailure } from "./feed-url";
 import { formatPhoneDisplay } from "./phone";
@@ -104,7 +114,15 @@ export interface CalendarWeekDto {
 /* ------------------------------------------------------------ day keys */
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const DAY_SHORT: Record<string, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+const DAY_SHORT: Record<string, string> = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun",
+};
 
 function keyParts(key: string): { y: number; m: number; d: number } {
   const [y, m, d] = key.split("-").map(Number);
@@ -144,7 +162,9 @@ export function shiftMonth(key: string, n: number): string {
 /** "September 2026" */
 export function monthLabelOf(key: string): string {
   const { y, m } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(
+    new Date(Date.UTC(y, m - 1, 1, 12)),
+  );
 }
 
 /* ----------------------------------------------------------- the words */
@@ -167,7 +187,9 @@ function shortDate(key: string): string {
 
 function longDate(key: string): string {
   const { y, m, d } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(
+    new Date(Date.UTC(y, m - 1, d, 12)),
+  );
 }
 
 /**
@@ -202,7 +224,8 @@ export function ruleParts(rules: (BookingRulesLike & Pick<BookingRules, "party_m
   if (r.buffer_min > 0) parts.push(`${r.buffer_min} min between appointments`);
   parts.push(`up to ${r.max_days_ahead} days ahead`, `${r.slot_min}-min slots`);
   // The party size a booking is held to, when Settings gives one: the receptionist follows it, and the page never said it (C1).
-  if (rules?.party_max) parts.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
+  if (rules?.party_max)
+    parts.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
   return parts;
 }
 
@@ -219,7 +242,9 @@ export function rulesLine(rules: (BookingRulesLike & Pick<BookingRules, "party_m
  * events than the board draws still has every one of them taken, because the
  * windows are worked out from all of them.
  */
-export function feedNotes(feed: Pick<CalendarFeedDto, "state" | "skipped_recurring" | "dropped">): CalendarFeedNoteVM[] {
+export function feedNotes(
+  feed: Pick<CalendarFeedDto, "state" | "skipped_recurring" | "dropped">,
+): CalendarFeedNoteVM[] {
   if (feed.state !== "ok") return [];
   const notes: CalendarFeedNoteVM[] = [];
   const repeats = feed.skipped_recurring || 0;
@@ -252,7 +277,10 @@ export function hoursLines(hours: Record<string, Hours | undefined> | null | und
   if (!hours) return [];
   const clean: Record<string, Hours> = {};
   for (const d of DAYS) if (hours[d]) clean[d] = hours[d] as Hours;
-  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `–${DAY_SHORT[r.to] ?? r.to}` : ""} ${dayHoursWords(clean[r.from])}`);
+  return hoursRuns(clean).map(
+    (r) =>
+      `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `–${DAY_SHORT[r.to] ?? r.to}` : ""} ${dayHoursWords(clean[r.from])}`,
+  );
 }
 
 /** One day's hours in the board's clock: its spans; "closed" when it states none; "hours incomplete" when what it states can't be used. */
@@ -349,7 +377,12 @@ export interface CalendarFeedNoteVM {
  * The calendar feed's state, in the words the Calendar's pill, Connections and Setup all use (C3): the page drew a
  * coloured dot where Connections said "Readable". `stale` is a read that landed before a refresh that didn't.
  */
-export const CALENDAR_FEED_WORDS = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" } as const;
+export const CALENDAR_FEED_WORDS = {
+  ok: "Readable",
+  stale: "Last good read",
+  unavailable: "Could not be read",
+  none: "Not connected",
+} as const;
 export type CalendarFeedHealth = keyof typeof CALENDAR_FEED_WORDS;
 
 export interface CalendarVM {
@@ -369,7 +402,13 @@ export interface CalendarVM {
   /** Where the now line sits, hours from midnight, when today is in the span. */
   now: number | null;
   feed: {
-    present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number; source: string; problem: string | null; stale: boolean;
+    present: boolean;
+    state: "ok" | "unavailable" | "none";
+    line: string;
+    events: number;
+    source: string;
+    problem: string | null;
+    stale: boolean;
     /** The state the pill says, in CALENDAR_FEED_WORDS. */
     health: CalendarFeedHealth;
     /** The line without the state the pill says: where and when it was read, when it was tried; "" when that is all. */
@@ -407,7 +446,7 @@ function spanLabel(t1: number, t2: number): string {
   const b = clockLabel(t2);
   // One AM or PM for a span inside one half of one day. A span to midnight ends in the next day's AM: its halves were
   // matched by their letters, and "10 AM – 12 AM" read "10 – 12 AM" (C3).
-  const sameHalf = t2 < 24 && (t1 < 12) === (t2 < 12);
+  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
   return `${sameHalf ? a.slice(0, -3) : a} – ${b}`;
 }
 
@@ -449,7 +488,11 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
       : null,
     description: item.description ?? null,
     location: item.location ?? null,
-    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), e164: item.contacts?.phones ?? [], emails: item.contacts?.emails ?? [] },
+    contacts: {
+      phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p),
+      e164: item.contacts?.phones ?? [],
+      emails: item.contacts?.emails ?? [],
+    },
     guess: item.guess ?? null,
     start: item.start,
     end: item.end,
@@ -468,12 +511,21 @@ function assignLanes(timed: CalendarBlockVM[]): void {
   let cluster: CalendarBlockVM[] = [];
   let clusterEnd = -1;
   let laneEnds: number[] = [];
-  const close = () => { for (const b of cluster) b.lanes = laneEnds.length; };
+  const close = () => {
+    for (const b of cluster) b.lanes = laneEnds.length;
+  };
   for (const b of timed) {
     const end = b.t + b.dur / 60;
-    if (b.t >= clusterEnd - 1e-9 && cluster.length) { close(); cluster = []; laneEnds = []; }
+    if (b.t >= clusterEnd - 1e-9 && cluster.length) {
+      close();
+      cluster = [];
+      laneEnds = [];
+    }
     let lane = laneEnds.findIndex((e) => e <= b.t + 1e-9);
-    if (lane === -1) { lane = laneEnds.length; laneEnds.push(end); } else laneEnds[lane] = end;
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(end);
+    } else laneEnds[lane] = end;
     b.lane = lane;
     cluster.push(b);
     clusterEnd = Math.max(clusterEnd, end);
@@ -505,7 +557,10 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       if (Number.isFinite(ch)) end = Math.max(end, ch);
     }
   }
-  if (start >= end) { start = 8; end = 20; }
+  if (start >= end) {
+    start = 8;
+    end = 20;
+  }
   start = Math.max(0, start - 1);
   end = Math.min(24, end + 1);
   // A block outside the business's hours widens the grid rather than falling
@@ -526,7 +581,8 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const days: CalendarDayVM[] = dto.days.map((d) => {
     const { y, m, d: dd } = keyParts(d.key);
     const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
-    const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
+    const closure =
+      dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
     const intervals = dayIntervals(dto.hours?.[weekday]);
     const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
     const bands: CalendarBandVM[] = [];
@@ -551,7 +607,8 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       const e = Date.parse(item.end);
       if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
       const block = toBlock(item, tz, zoneDayStart, zoneDayEnd, now);
-      if (item.all_day || (s <= zoneDayStart && e >= zoneDayEnd)) allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
+      if (item.all_day || (s <= zoneDayStart && e >= zoneDayEnd))
+        allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
       else timed.push(block);
     }
     timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
@@ -589,17 +646,19 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
   // What the pill beside it does not say (C3). What a read left out is said once, by feedNotes, in words the owner can
   // act on; the line said it again as "2 repeating rules read once · 3 more not shown", unexplained (C1).
-  const feedDetail = dto.feed.state === "ok"
-    ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? ` · could not be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
-    : dto.feed.state === "unavailable"
-      ? [tried ? `tried ${tried}` : "", ago ? `last read ${ago}` : ""].filter(Boolean).join(" · ")
-      : "";
+  const feedDetail =
+    dto.feed.state === "ok"
+      ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? ` · could not be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
+      : dto.feed.state === "unavailable"
+        ? [tried ? `tried ${tried}` : "", ago ? `last read ${ago}` : ""].filter(Boolean).join(" · ")
+        : "";
   // The whole sentence, for whoever reads the line without the pill: Ask's get_calendar.
-  const feedLine = dto.feed.state === "ok"
-    ? feedDetail
-    : dto.feed.state === "unavailable"
-      ? `Your calendar could not be read${feedDetail ? ` · ${feedDetail}` : ""}`
-      : "No calendar connected";
+  const feedLine =
+    dto.feed.state === "ok"
+      ? feedDetail
+      : dto.feed.state === "unavailable"
+        ? `Your calendar could not be read${feedDetail ? ` · ${feedDetail}` : ""}`
+        : "No calendar connected";
   const feedHealth: CalendarFeedHealth = dto.feed.state === "ok" ? (stale ? "stale" : "ok") : dto.feed.state;
 
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
@@ -629,7 +688,20 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, health: feedHealth, line: feedLine, detail: feedDetail, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
+    feed: {
+      present: dto.feed.present,
+      state: dto.feed.state,
+      health: feedHealth,
+      line: feedLine,
+      detail: feedDetail,
+      events: dto.feed.events,
+      source: dto.feed.source ?? "your calendar",
+      problem: dto.feed.problem ?? null,
+      stale,
+      skippedRecurring: dto.feed.skipped_recurring || 0,
+      dropped: dto.feed.dropped || 0,
+      notes: feedNotes(dto.feed),
+    },
     stats: { events, windows: windowCount, next },
     offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
     rules: rulesLine(dto.rules),
@@ -689,7 +761,10 @@ export function coversSpan(days: ReadonlyArray<{ key: string }>, from: string, c
 }
 
 /** A day's frame from its key alone — the shape a view draws before the day's data has landed. */
-export function frameOf(key: string, todayKey: string): { key: string; dow: string; date: string; long: string; dayNum: string; today: boolean; past: boolean } {
+export function frameOf(
+  key: string,
+  todayKey: string,
+): { key: string; dow: string; date: string; long: string; dayNum: string; today: boolean; past: boolean } {
   const { y, m, d } = keyParts(key);
   return {
     key,

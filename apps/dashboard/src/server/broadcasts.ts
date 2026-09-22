@@ -1,5 +1,18 @@
 import "server-only";
-import { AppError, REPLY_WINDOW_MS, firstNameOf, parseParamSpecs, personName, type Audience, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type RecipientState } from "@chanlytics/contracts";
+import {
+  AppError,
+  REPLY_WINDOW_MS,
+  firstNameOf,
+  parseParamSpecs,
+  personName,
+  type Audience,
+  type BroadcastCounts,
+  type BroadcastDetailDto,
+  type BroadcastDto,
+  type BroadcastRecipientDto,
+  type BroadcastState,
+  type RecipientState,
+} from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 
 /**
@@ -14,7 +27,8 @@ import type { RouteContext } from "@/server/with-route";
 const RECENT = 50;
 const IN_CHUNK = 200;
 
-const ROW_COLUMNS = "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id, run_for";
+const ROW_COLUMNS =
+  "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id, run_for";
 
 interface BroadcastRow {
   id: string;
@@ -42,12 +56,19 @@ interface RecipientRow {
   reason: string | null;
   sent_at: string | null;
   messages: { conversation_id: string; status: string; meta?: unknown } | null;
-  contacts?: { display_name: string | null; wa_profile_name: string | null; phone_e164: string | null; email: string | null } | null;
+  contacts?: {
+    display_name: string | null;
+    wa_profile_name: string | null;
+    phone_e164: string | null;
+    email: string | null;
+  } | null;
 }
 
 /** When a status arrived, from the stamp the guard keeps on the row (00111); null before it, or for a status not reached. */
 export function statusAt(meta: unknown, status: string): string | null {
-  const at = (meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>).status_at : null) as Record<string, unknown> | null | undefined;
+  const at = (
+    meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>).status_at : null
+  ) as Record<string, unknown> | null | undefined;
   const v = at && typeof at === "object" ? at[status] : null;
   return typeof v === "string" ? v : null;
 }
@@ -57,7 +78,10 @@ function emptyCounts(): BroadcastCounts {
 }
 
 /** Sent, skipped, failed from the recipient rows; delivered and read from their messages. */
-function countRecipients(recipients: RecipientRow[], ids: string[]): { counts: Map<string, BroadcastCounts>; threadsOf: Map<string, Map<string, string>> } {
+function countRecipients(
+  recipients: RecipientRow[],
+  ids: string[],
+): { counts: Map<string, BroadcastCounts>; threadsOf: Map<string, Map<string, string>> } {
   const counts = new Map<string, BroadcastCounts>(ids.map((id) => [id, emptyCounts()]));
   const threadsOf = new Map<string, Map<string, string>>(); // broadcast -> conversation -> sent_at
   for (const r of recipients) {
@@ -86,7 +110,12 @@ function countRecipients(recipients: RecipientRow[], ids: string[]): { counts: M
  * reply came -- and, when the detail passes somewhere to keep them, that reply's words on one line (a list only
  * counts replies, and reads no bodies).
  */
-async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<string, string>, words: Map<string, string | null> | null = null): Promise<Map<string, string>> {
+async function repliedThreads(
+  ctx: RouteContext,
+  tenantId: string,
+  threads: Map<string, string>,
+  words: Map<string, string | null> | null = null,
+): Promise<Map<string, string>> {
   const convIds = [...threads.keys()];
   const since = [...threads.values()].sort()[0];
   const replied = new Map<string, string>();
@@ -100,7 +129,11 @@ async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<
       .gt("created_at", since);
     if (error) throw new Error(error.message);
     // A select chosen at run time is past the client's typed parser: the rows are the columns named above.
-    for (const m of (inbound ?? []) as unknown as { conversation_id: string; created_at: string; body?: string | null }[]) {
+    for (const m of (inbound ?? []) as unknown as {
+      conversation_id: string;
+      created_at: string;
+      body?: string | null;
+    }[]) {
       const sentAt = threads.get(m.conversation_id);
       if (sentAt && m.created_at > sentAt && Date.parse(m.created_at) - Date.parse(sentAt) <= REPLY_WINDOW_MS) {
         const first = replied.get(m.conversation_id);
@@ -125,7 +158,11 @@ function oneLine(body: string | null | undefined): string | null {
  * read as an answer -- the receptionist's, or the team's own words. A note is the team talking to itself, and a
  * template is the machine starting something new (a later broadcast, a playbook's run), so neither is an answer.
  */
-async function answeredAfter(ctx: RouteContext, tenantId: string, replied: Map<string, string>): Promise<Map<string, { by: "receptionist" | "team"; at: string }>> {
+async function answeredAfter(
+  ctx: RouteContext,
+  tenantId: string,
+  replied: Map<string, string>,
+): Promise<Map<string, { by: "receptionist" | "team"; at: string }>> {
   const convIds = [...replied.keys()];
   const out = new Map<string, { by: "receptionist" | "team"; at: string }>();
   if (convIds.length === 0) return out;
@@ -175,7 +212,9 @@ function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
     template_name: r.template_name,
     template_language: r.template_language,
     params: parseParamSpecs(r.params),
-    audience: (r.audience && typeof r.audience === "object" ? r.audience : { kind: "everyone", id: null, label: "" }) as unknown as Audience,
+    audience: (r.audience && typeof r.audience === "object"
+      ? r.audience
+      : { kind: "everyone", id: null, label: "" }) as unknown as Audience,
     state: r.state as BroadcastState,
     scheduled_for: r.scheduled_for,
     started_at: r.started_at,
@@ -215,7 +254,10 @@ async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRo
  * older broadcasts exist beyond it. The page summed these fifty under headings
  * that read as everything; one row past the fifty is how it knows to say "latest".
  */
-export async function listBroadcasts(ctx: RouteContext, tenantId: string): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
+export async function listBroadcasts(
+  ctx: RouteContext,
+  tenantId: string,
+): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
   const { data: rows, error } = await ctx.supabase
     .from("broadcasts")
     .select(ROW_COLUMNS)
@@ -253,7 +295,11 @@ export async function listRuns(ctx: RouteContext, tenantId: string): Promise<Bro
  * Someone the run never reached did not answer it.
  */
 type ConsentAnswer = { consent: "opted_in" | "opted_out"; purpose: "marketing" | "conversational"; at: string };
-async function consentAfter(ctx: RouteContext, tenantId: string, rows: RecipientRow[]): Promise<Map<string, ConsentAnswer>> {
+async function consentAfter(
+  ctx: RouteContext,
+  tenantId: string,
+  rows: RecipientRow[],
+): Promise<Map<string, ConsentAnswer>> {
   const sentAt = new Map<string, number>();
   for (const r of rows) if (r.state === "sent" && r.sent_at) sentAt.set(r.contact_id, Date.parse(r.sent_at));
   const out = new Map<string, ConsentAnswer>();
@@ -298,7 +344,9 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
 
   const { data: recipients, error: rErr } = await ctx.supabase
     .from("broadcast_recipients")
-    .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)")
+    .select(
+      "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)",
+    )
     .eq("tenant_id", tenantId)
     .eq("broadcast_id", id)
     .order("sent_at", { ascending: false, nullsFirst: false });
@@ -316,7 +364,12 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
 
   const people: BroadcastRecipientDto[] = rows.map((r) => ({
     contact_id: r.contact_id,
-    name: personName({ display_name: r.contacts?.display_name ?? null, wa_profile_name: r.contacts?.wa_profile_name ?? null, phone_e164: r.contacts?.phone_e164 ?? null, email: r.contacts?.email ?? null }),
+    name: personName({
+      display_name: r.contacts?.display_name ?? null,
+      wa_profile_name: r.contacts?.wa_profile_name ?? null,
+      phone_e164: r.contacts?.phone_e164 ?? null,
+      email: r.contacts?.email ?? null,
+    }),
     first_name: firstNameOf(r.contacts?.display_name, r.contacts?.wa_profile_name),
     phone: r.contacts?.phone_e164 ?? null,
     state: r.state as RecipientState,
@@ -327,13 +380,13 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),
     delivered_at: statusAt(r.messages?.meta, "delivered"),
     read_at: statusAt(r.messages?.meta, "read"),
-    replied_at: r.messages?.conversation_id ? replied.get(r.messages.conversation_id) ?? null : null,
+    replied_at: r.messages?.conversation_id ? (replied.get(r.messages.conversation_id) ?? null) : null,
     consent_after: answered.get(r.contact_id)?.consent ?? null,
     consent_at: answered.get(r.contact_id)?.at ?? null,
     consent_purpose: answered.get(r.contact_id)?.purpose ?? null,
-    reply_words: r.messages?.conversation_id ? words.get(r.messages.conversation_id) ?? null : null,
-    answered_by: r.messages?.conversation_id ? answers.get(r.messages.conversation_id)?.by ?? null : null,
-    answered_at: r.messages?.conversation_id ? answers.get(r.messages.conversation_id)?.at ?? null : null,
+    reply_words: r.messages?.conversation_id ? (words.get(r.messages.conversation_id) ?? null) : null,
+    answered_by: r.messages?.conversation_id ? (answers.get(r.messages.conversation_id)?.by ?? null) : null,
+    answered_at: r.messages?.conversation_id ? (answers.get(r.messages.conversation_id)?.at ?? null) : null,
     waiting_on_you: !!(r.messages?.conversation_id && waiting.has(r.messages.conversation_id)),
   }));
   return { broadcast: toDto(row as BroadcastRow, counts.get(id) ?? emptyCounts()), recipients: people };

@@ -108,9 +108,15 @@ test("a promotional message needs the offers answer, on either kind of send", ()
 test("marketing FAILS CLOSED on a row that never projected the column", () => {
   // consent.ts's stated asymmetry, pinned here because this gate is the one that
   // reads a row assembled by a resolver rather than selected for the send.
-  assert.equal(gate({ purpose: "marketing", contact: { consent: "opted_in", dnc: false } }).refusal, "no_marketing_consent");
-  assert.equal(gate({ purpose: "conversational", contact: { consent: "opted_in", dnc: false } }).allowed, true,
-    "and a missing column never silences a reply");
+  assert.equal(
+    gate({ purpose: "marketing", contact: { consent: "opted_in", dnc: false } }).refusal,
+    "no_marketing_consent",
+  );
+  assert.equal(
+    gate({ purpose: "conversational", contact: { consent: "opted_in", dnc: false } }).allowed,
+    true,
+    "and a missing column never silences a reply",
+  );
 });
 
 test("REGRESSION: a thread a human has taken over is not texted over", () => {
@@ -146,8 +152,11 @@ test("the workspace that confirms its own bookings does not have its link sent f
   // differently -- the phone agent texting the link the WhatsApp agent had just
   // been stopped from sending.
   assert.equal(gate({ bookingHeld: true }).refusal, "booking_needs_a_person");
-  assert.equal(gate({ bookingHeld: true, replyMode: "auto" }).refusal, "booking_needs_a_person",
-    "REGRESSION: a free reply dial is not permission to book");
+  assert.equal(
+    gate({ bookingHeld: true, replyMode: "auto" }).refusal,
+    "booking_needs_a_person",
+    "REGRESSION: a free reply dial is not permission to book",
+  );
   assert.equal(gate({ bookingHeld: true, replyMode: "veto" }).refusal, "booking_needs_a_person");
   // It is the workspace's own answer about bookings, so it outranks the generic
   // "automation is off" and is reported as itself: the caller is owed the true
@@ -169,7 +178,15 @@ test("consent is reported before every other refusal", () => {
 test("no refusal leaks our internal state to the caller", () => {
   // The agent SPEAKS these. A caller must not be told a colleague is mid-thread
   // with them, nor hear the words for our policy machinery.
-  for (const r of ["opted_out", "not_opted_in", "no_marketing_consent", "human_has_it", "policy_hold", "booking_needs_a_person", "daily_cap"]) {
+  for (const r of [
+    "opted_out",
+    "not_opted_in",
+    "no_marketing_consent",
+    "human_has_it",
+    "policy_hold",
+    "booking_needs_a_person",
+    "daily_cap",
+  ]) {
     const said = refusalScript(r, "(646) 932-5775");
     assert.ok(said.length > 20, `${r} must say something useful`);
     assert.doesNotMatch(said, /paused|policy_hold|opted_out|daily_cap|rate cap|tenant/i, r);
@@ -177,7 +194,15 @@ test("no refusal leaks our internal state to the caller", () => {
 });
 
 test("every refusal offers the caller a way forward", () => {
-  for (const r of ["opted_out", "not_opted_in", "no_marketing_consent", "human_has_it", "policy_hold", "booking_needs_a_person", "daily_cap"]) {
+  for (const r of [
+    "opted_out",
+    "not_opted_in",
+    "no_marketing_consent",
+    "human_has_it",
+    "policy_hold",
+    "booking_needs_a_person",
+    "daily_cap",
+  ]) {
     assert.match(
       refusalScript(r, "(646) 932-5775"),
       /offer|tell the caller|book/i,
@@ -197,9 +222,25 @@ test("every refusal a caller can hear calls the booking link a WhatsApp message,
   // is the texting line's refusal, which a WhatsApp send never meets: the
   // door refuses it on channel "sms" only (core deliver).
   const heard = (r) => [refusalScript(r, "(646) 932-5775"), refusalScript(r, null)];
-  const whatsapp = ["opted_out", "not_opted_in", "no_marketing_consent", "paused", "human_has_it", "policy_hold", "daily_cap"];
-  assert.deepEqual(whatsapp.filter((r) => heard(r).some((said) => /\btext/i.test(said))), [], "not one calls it a text");
-  assert.deepEqual(whatsapp.filter((r) => !heard(r).every((said) => said.includes("WhatsApp"))), [], "and each says WhatsApp");
+  const whatsapp = [
+    "opted_out",
+    "not_opted_in",
+    "no_marketing_consent",
+    "paused",
+    "human_has_it",
+    "policy_hold",
+    "daily_cap",
+  ];
+  assert.deepEqual(
+    whatsapp.filter((r) => heard(r).some((said) => /\btext/i.test(said))),
+    [],
+    "not one calls it a text",
+  );
+  assert.deepEqual(
+    whatsapp.filter((r) => !heard(r).every((said) => said.includes("WhatsApp"))),
+    [],
+    "and each says WhatsApp",
+  );
 });
 
 test("veto is not off: the booking link a caller just asked for goes out", () => {

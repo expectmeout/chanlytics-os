@@ -32,9 +32,7 @@ function tablesWithTenantId() {
 }
 
 test("the script backs up every table that carries a tenant_id", () => {
-  const listed = new Set(
-    (/const TABLES = \[([\s\S]*?)\];/.exec(script)?.[1] ?? "").matchAll(/"([a-z_]+)"/g),
-  );
+  const listed = new Set((/const TABLES = \[([\s\S]*?)\];/.exec(script)?.[1] ?? "").matchAll(/"([a-z_]+)"/g));
   const inScript = new Set([...listed].map((m) => m[1]));
   const inSchema = tablesWithTenantId();
 
@@ -88,7 +86,10 @@ test("the two tables that do not cascade are handled, not discovered afterwards"
   const billing = readCode("supabase/migrations/00073_billing.sql");
   assert.ok(billing.includes("tenant_id    uuid references public.tenants (id) on delete set null"));
   assert.ok(script.includes('const KEPT = new Set(["billing_events"]);'), "the script says which rows survive");
-  assert.ok(script.includes("kept, tenant_id set to null"), "and says so in the tally rather than in a comment nobody reads");
+  assert.ok(
+    script.includes("kept, tenant_id set to null"),
+    "and says so in the tally rather than in a comment nobody reads",
+  );
 });
 
 test("it refuses to strand what the cascade cannot reach", () => {
@@ -126,5 +127,8 @@ test("a dry run reports the orphans and still finishes", () => {
   const report = script.indexOf("WOULD BE STRANDED OUTSIDE THE DATABASE");
   const dryExit = script.indexOf("Dry run only. Re-run with --apply");
   assert.ok(report < dryExit, "the list is printed before the dry run exits");
-  assert.ok(dryExit < script.indexOf("REFUSING: this workspace still holds"), "and the dry run exits 0 rather than refusing");
+  assert.ok(
+    dryExit < script.indexOf("REFUSING: this workspace still holds"),
+    "and the dry run exits 0 rather than refusing",
+  );
 });

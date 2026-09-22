@@ -112,10 +112,7 @@ test("the cache is hydrated at module scope, before React renders", () => {
 /* ------------- 3. loading is derived during render, not set later ------------ */
 
 test("the shell derives route loading during render", () => {
-  const shell = fs.readFileSync(
-    path.join(here, "../../../apps/dashboard/src/legacy/pages/app-shell.jsx"),
-    "utf8",
-  );
+  const shell = fs.readFileSync(path.join(here, "../../../apps/dashboard/src/legacy/pages/app-shell.jsx"), "utf8");
   for (const name of ["surfaceReady", "surfaceUnavailable", "routeLoading"]) {
     assert.match(
       shell,

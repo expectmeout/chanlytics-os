@@ -14,7 +14,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONSENT_SOURCES, SHORTCUTS, csvCell, mayReceive, offersYesRefusal, shortcutGroups, stateOf, toPersonRowVM } from "@chanlytics/contracts";
+import {
+  CONSENT_SOURCES,
+  SHORTCUTS,
+  csvCell,
+  mayReceive,
+  offersYesRefusal,
+  shortcutGroups,
+  stateOf,
+  toPersonRowVM,
+} from "@chanlytics/contracts";
 
 const TID = "t-salon";
 const ZONE = "America/New_York";
@@ -25,18 +34,53 @@ const iso = (ms) => new Date(NOW - ms).toISOString();
 
 /** A person the People read returns, the shape people-vm.test.mjs pins (copied from broadcast-counts-are-whole.test.mjs). */
 const row = (over = {}) => ({
-  id: "c1", display_name: "Daniela R.", wa_profile_name: "Dani", phone_e164: "+17865550181",
-  consent: "opted_in", consent_source: "in_person", consent_updated_at: iso(D),
-  marketing_consent: "opted_in", marketing_consent_source: "in_person", marketing_consent_updated_at: iso(D),
-  dnc: false, channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false,
-  open_escalation_reason: null, open_escalation_since: null, latest_conversation_id: "cv1", latest_state: "open",
-  latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null,
-  latest_wa_inbound_at: iso(2 * H), last_message_at: iso(2 * H), last_message_direction: "inbound", last_message_sender: "customer",
-  last_inbound_text: "Can I move Saturday to 11?", last_inbound_at: iso(2 * H), last_call_at: null, call_count: 0, call_seconds: 0,
-  first_contact_at: iso(60 * D), earliest_row_at: iso(60 * D), has_backfill: false, has_chat: true, queued_reply_at: null,
+  id: "c1",
+  display_name: "Daniela R.",
+  wa_profile_name: "Dani",
+  phone_e164: "+17865550181",
+  consent: "opted_in",
+  consent_source: "in_person",
+  consent_updated_at: iso(D),
+  marketing_consent: "opted_in",
+  marketing_consent_source: "in_person",
+  marketing_consent_updated_at: iso(D),
+  dnc: false,
+  channels: ["whatsapp"],
+  conversation_count: 1,
+  escalation_count: 0,
+  needs_human: false,
+  open_escalation_reason: null,
+  open_escalation_since: null,
+  latest_conversation_id: "cv1",
+  latest_state: "open",
+  latest_paused_until: null,
+  latest_assignee_user_id: null,
+  latest_snooze_until: null,
+  latest_wa_inbound_at: iso(2 * H),
+  last_message_at: iso(2 * H),
+  last_message_direction: "inbound",
+  last_message_sender: "customer",
+  last_inbound_text: "Can I move Saturday to 11?",
+  last_inbound_at: iso(2 * H),
+  last_call_at: null,
+  call_count: 0,
+  call_seconds: 0,
+  first_contact_at: iso(60 * D),
+  earliest_row_at: iso(60 * D),
+  has_backfill: false,
+  has_chat: true,
+  queued_reply_at: null,
   ...over,
 });
-const person = (i, over = {}) => row({ id: `p${i}`, display_name: `Person ${i}`, wa_profile_name: null, phone_e164: `+1786555${1000 + i}`, latest_conversation_id: `cv${i}`, ...over });
+const person = (i, over = {}) =>
+  row({
+    id: `p${i}`,
+    display_name: `Person ${i}`,
+    wa_profile_name: null,
+    phone_e164: `+1786555${1000 + i}`,
+    latest_conversation_id: `cv${i}`,
+    ...over,
+  });
 
 /* ------------------------------- the window ------------------------------- */
 
@@ -47,7 +91,14 @@ const listeners = {};
  * `className`, it carries those classes, and a selector that says `:not(.x)` of one of them leaves it out.
  */
 let overlayOpen = null;
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
@@ -58,17 +109,46 @@ globalThis.document = {
   getElementById: () => null,
   // A selector's part finds the open element when it names its role, and, for one outside the app, asks for no
   // .app-root; unless the part leaves out a class the element carries.
-  querySelector: (sel) => (overlayOpen && sel.split(",").some((part) => part.includes(`[role="${overlayOpen.role}"]`) && (overlayOpen.inApp !== false || !part.includes(".app-root")) && !String(overlayOpen.className || "").split(/\s+/).some((c) => c && part.includes(`:not(.${c})`))) ? overlayOpen : null),
+  querySelector: (sel) =>
+    overlayOpen &&
+    sel.split(",").some(
+      (part) =>
+        part.includes(`[role="${overlayOpen.role}"]`) &&
+        (overlayOpen.inApp !== false || !part.includes(".app-root")) &&
+        !String(overlayOpen.className || "")
+          .split(/\s+/)
+          .some((c) => c && part.includes(`:not(.${c})`)),
+    )
+      ? overlayOpen
+      : null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  location: { pathname: "/w/salon", hash: "#/clients", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
-  history: { replaceState: (_s, _t, hash) => { globalThis.window.location.hash = hash; } },
+  location: {
+    pathname: "/w/salon",
+    hash: "#/clients",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
+  history: {
+    replaceState: (_s, _t, hash) => {
+      globalThis.window.location.hash = hash;
+    },
+  },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   // The workspace, as its own surface publishes it: the rows say their times by its clock (legacy-bridge/zone.ts).
@@ -76,8 +156,17 @@ globalThis.window = {
   __ACTIVE_WORKSPACE: TID,
 };
 
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const quietly = async (fn) => { const e = console.error; console.error = () => {}; try { return await fn(); } finally { console.error = e; } };
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const quietly = async (fn) => {
+  const e = console.error;
+  console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.error = e;
+  }
+};
 const { peopleOverride } = await quietly(() => import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
 const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
@@ -85,7 +174,16 @@ installClock();
 const { saveView } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
 
 /** Everyone over pages of `per`, the saved lists (or their read failing), what a search answers, the calendar's state, the member's saved views and the booking link on file; a view saved lands in `viewSaves`. */
-const wire = ({ people, per = 1000, lists = [], listsFail = false, search = null, calendar = "none", views = {}, bookingLink = null } = {}) => {
+const wire = ({
+  people,
+  per = 1000,
+  lists = [],
+  listsFail = false,
+  search = null,
+  calendar = "none",
+  views = {},
+  bookingLink = null,
+} = {}) => {
   const seen = { offsets: [], queries: [], viewSaves: [] };
   const cal = { state: calendar, source: calendar === "ok" ? "Google Calendar" : "your calendar" };
   globalThis.window.fetch = async (url, init = {}) => {
@@ -101,11 +199,27 @@ const wire = ({ people, per = 1000, lists = [], listsFail = false, search = null
       if (q !== null) {
         seen.queries.push(q);
         const found = search ? search(q) : { people: [], total: 0, has_more: false };
-        return json(200, { ok: true, data: { people: found.people, page: { q, offset: 0, limit: 1000, total: found.total, has_more: found.has_more }, calendar: cal, booking_link: bookingLink } });
+        return json(200, {
+          ok: true,
+          data: {
+            people: found.people,
+            page: { q, offset: 0, limit: 1000, total: found.total, has_more: found.has_more },
+            calendar: cal,
+            booking_link: bookingLink,
+          },
+        });
       }
       const offset = Number(u.searchParams.get("offset") || 0);
       seen.offsets.push(offset);
-      return json(200, { ok: true, data: { people: people.slice(offset, offset + per), page: { q: null, offset, limit: per, total: people.length, has_more: offset + per < people.length }, calendar: cal, booking_link: bookingLink } });
+      return json(200, {
+        ok: true,
+        data: {
+          people: people.slice(offset, offset + per),
+          page: { q: null, offset, limit: per, total: people.length, has_more: offset + per < people.length },
+          calendar: cal,
+          booking_link: bookingLink,
+        },
+      });
     }
     if (u.pathname === "/api/v1/segments") {
       return listsFail
@@ -121,12 +235,20 @@ const wire = ({ people, per = 1000, lists = [], listsFail = false, search = null
 /* --------------------------- the surface, every page --------------------------- */
 
 test("REGRESSION (B7): People reads every page before it counts -- a list, a count and a search covered the first thousand", async () => {
-  const seen = wire({ people: [person(1), person(2), person(3)], per: 2, lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p3"] }] });
+  const seen = wire({
+    people: [person(1), person(2), person(3)],
+    per: 2,
+    lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p3"] }],
+  });
   await peopleOverride.apply();
   const P = globalThis.window.__PEOPLE;
   assert.deepEqual(seen.offsets, [0, 2], "the second page was read before anything was counted");
   assert.equal(P.rows.length, 3, "REGRESSION: the rows were the first page, and a refresh put them back to it");
-  assert.equal(P.saved.find((s) => s.id === "s1").count, 2, "REGRESSION: a saved list counted only the people on the first page");
+  assert.equal(
+    P.saved.find((s) => s.id === "s1").count,
+    2,
+    "REGRESSION: a saved list counted only the people on the first page",
+  );
   assert.equal(P.lists.find((l) => l.id === "opted_in").count, 3, "a smart list counts everyone");
   assert.equal(P.page.has_more, false, "nothing left to show more of");
 });
@@ -141,7 +263,10 @@ test("past fifty pages the surface stops and says more follow, and a search answ
   assert.equal(seen.offsets.length, 50, "a chain of pages that never ends cannot hang the surface");
   assert.equal(globalThis.window.__PEOPLE.page.has_more, true);
   const r = await globalThis.window.__peopleSearch("rosa");
-  assert.deepEqual(r.rows.map((p) => p.id), ["p99"]);
+  assert.deepEqual(
+    r.rows.map((p) => p.id),
+    ["p99"],
+  );
   assert.equal(r.more, true, "the first thousand matches, and the page can say so");
 });
 
@@ -182,16 +307,45 @@ globalThis.React = {
     return node;
   },
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
   // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
   useEffect: (fn, deps) => {
     const k = seq++;
     const prev = cells[k];
-    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (
+      prev &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     cells[k] = { deps, cleanup: undefined };
     cells[k].cleanup = fn();
@@ -199,7 +353,8 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"]) globalThis[k] = globalThis.window[k];
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
+  globalThis[k] = globalThis.window[k];
 // Menus and questions as their props: the items are what these tests press, and a hookless stand-in keeps the stub's hook order.
 globalThis.MoreMenu = () => null;
 globalThis.Confirm = () => null;
@@ -222,14 +377,37 @@ Object.assign(globalThis.window, {
   __mayReceive: mayReceive,
 });
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
+for (const k of [
+  "PeopleTable",
+  "PeopleColumnsMenu",
+  "plLocked",
+  "plShows",
+  "plSortKeys",
+  "plDrawnColumns",
+  "plShownColumns",
+  "plColumnChoices",
+  "plColumnOptions",
+  "PL_NO_SEL",
+])
+  globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 // The shell's ? sheet, whose Esc is heard before People's.
 await import("../../../apps/dashboard/src/legacy/components/shortcuts.jsx");
 
-const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
-const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
+const walk = (n, fn) => {
+  if (n == null || typeof n !== "object") return;
+  fn(n);
+  for (const k of n.props?.children ?? []) walk(k, fn);
+  if (n.rendered) walk(n.rendered, fn);
+};
+const all = (tree, pred) => {
+  const out = [];
+  walk(tree, (n) => {
+    if (pred(n)) out.push(n);
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 /** A node's words in reading order: what a drawn component rendered, else its children in turn. */
@@ -241,12 +419,28 @@ const textOf = (n) => {
   return (n.props?.children ?? []).map(textOf).join("");
 };
 const tick = () => new Promise((r) => setTimeout(r, 0));
-const settle = async (n = 8) => { for (let i = 0; i < n; i += 1) await tick(); };
+const settle = async (n = 8) => {
+  for (let i = 0; i < n; i += 1) await tick();
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const lists = (over = {}) => ({ create: async () => ({ ok: false, message: "not here" }), rename: async () => ({ ok: true, data: {} }), remove: async () => ({ ok: true, data: {} }), add: async () => ({ ok: true, data: {} }), drop: async () => ({ ok: true, data: {} }), ...over });
+const lists = (over = {}) => ({
+  create: async () => ({ ok: false, message: "not here" }),
+  rename: async () => ({ ok: true, data: {} }),
+  remove: async () => ({ ok: true, data: {} }),
+  add: async () => ({ ok: true, data: {} }),
+  drop: async () => ({ ok: true, data: {} }),
+  ...over,
+});
 
 /** People published by the real surface over the wire, and a page with nothing drawn yet: no view remembered on this device and none saved over the wire, unless a test gives one. What the wire saw. */
-const freshPage = async ({ people, lists: saved = [], listsFail = false, calendar = "none", views = {}, bookingLink = null } = {}) => {
+const freshPage = async ({
+  people,
+  lists: saved = [],
+  listsFail = false,
+  calendar = "none",
+  views = {},
+  bookingLink = null,
+} = {}) => {
   const seen = wire({ people, lists: saved, listsFail, calendar, views, bookingLink });
   await quietly(() => peopleOverride.apply());
   cells = [];
@@ -262,7 +456,10 @@ const freshPage = async ({ people, lists: saved = [], listsFail = false, calenda
   globalThis.window.__lists = lists();
   return seen;
 };
-const draw = (props = {}) => { seq = 0; return globalThis.window.ClientsA({ onOpenProfile: (id) => opened.push(id), ...props }); };
+const draw = (props = {}) => {
+  seq = 0;
+  return globalThis.window.ClientsA({ onOpenProfile: (id) => opened.push(id), ...props });
+};
 /**
  * A key as the window hears it: pressed in `target`, where focus is unless `focus` says where it went (a field's own
  * Esc can close the field, and focus with it, before the window hears the key), with `mods`: ctrlKey, metaKey, altKey,
@@ -271,7 +468,21 @@ const draw = (props = {}) => { seq = 0; return globalThis.window.ClientsA({ onOp
 const press = (key, target = null, { focus = target, ...mods } = {}) => {
   globalThis.document.activeElement = focus;
   let taken = false;
-  const ev = { key, target, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, defaultPrevented: false, ...mods, preventDefault() { taken = true; ev.defaultPrevented = true; } };
+  const ev = {
+    key,
+    target,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    repeat: false,
+    defaultPrevented: false,
+    ...mods,
+    preventDefault() {
+      taken = true;
+      ev.defaultPrevented = true;
+    },
+  };
   for (const fn of [...(listeners.keydown || [])]) fn(ev);
   return taken;
 };
@@ -281,7 +492,11 @@ test("REGRESSION (B14): Enter or Space on a focused button presses that button -
   draw();
   press("ArrowDown");
   draw();
-  const button = { tagName: "BUTTON", isContentEditable: false, closest: (sel) => (/\bbutton\b/.test(sel) ? {} : null) };
+  const button = {
+    tagName: "BUTTON",
+    isContentEditable: false,
+    closest: (sel) => (/\bbutton\b/.test(sel) ? {} : null),
+  };
   assert.equal(press("Enter", button), false, "the button keeps its Enter");
   assert.deepEqual(opened, [], "REGRESSION: Enter on a focused button opened a profile");
   press(" ", button);
@@ -298,7 +513,10 @@ test("REGRESSION (B22): a list made on the rail says so and is the one shown -- 
   const rail = find(tree, (n) => typeof n.props?.onCreateList === "function");
   const r = await rail.props.onCreateList("Regulars");
   assert.equal(r.ok, true, "the rail still hears the answer, to show a refusal where the name was typed");
-  assert.ok(flashes.some((f) => textOf(f.msg).includes("Regulars")), `REGRESSION: nothing said the list was made: ${JSON.stringify(flashes.map((f) => textOf(f.msg)))}`);
+  assert.ok(
+    flashes.some((f) => textOf(f.msg).includes("Regulars")),
+    `REGRESSION: nothing said the list was made: ${JSON.stringify(flashes.map((f) => textOf(f.msg)))}`,
+  );
   // The surface re-reads after the write; here the list arrives as the server keeps it.
   globalThis.window.__PEOPLE.saved = [{ id: "s9", name: "Regulars", count: 0, ids: [], members: [] }];
   tree = draw();
@@ -310,8 +528,14 @@ test("REGRESSION: adding people to a list counts who was added, and Undo takes o
   await freshPage({ people: [person(1), person(2), person(3)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   const calls = [];
   globalThis.window.__lists = lists({
-    add: async (id, ids) => { calls.push(["add", id, ids]); return { ok: true, data: {} }; },
-    drop: async (id, ids) => { calls.push(["drop", id, ids]); return { ok: true, data: {} }; },
+    add: async (id, ids) => {
+      calls.push(["add", id, ids]);
+      return { ok: true, data: {} };
+    },
+    drop: async (id, ids) => {
+      calls.push(["drop", id, ids]);
+      return { ok: true, data: {} };
+    },
   });
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
@@ -320,7 +544,11 @@ test("REGRESSION: adding people to a list counts who was added, and Undo takes o
   await regulars.onClick();
   await settle();
   const toast = flashes.at(-1);
-  assert.match(textOf(toast.msg), /^2 added to Regulars/, `REGRESSION: the count took in the person already on it: ${textOf(toast.msg)}`);
+  assert.match(
+    textOf(toast.msg),
+    /^2 added to Regulars/,
+    `REGRESSION: the count took in the person already on it: ${textOf(toast.msg)}`,
+  );
   assert.deepEqual(calls[0], ["add", "s1", ["p2", "p3"]]);
   assert.equal(typeof toast.undo, "function", "the add can be undone");
   await toast.undo();
@@ -330,7 +558,10 @@ test("REGRESSION: adding people to a list counts who was added, and Undo takes o
 test("REGRESSION (B4): a yes recorded for more than fifty goes for fifty, says so, and keeps the rest selected -- the rest were dropped without a word", async () => {
   await freshPage({ people: Array.from({ length: 60 }, (_, i) => person(i)) });
   const sent = [];
-  globalThis.window.__setPersonConsentMany = async (ids) => { sent.push(ids); return { ok: true, done: ids.length, failed: 0 }; };
+  globalThis.window.__setPersonConsentMany = async (ids) => {
+    sent.push(ids);
+    return { ok: true, done: ids.length, failed: 0 };
+  };
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
@@ -339,21 +570,51 @@ test("REGRESSION (B4): a yes recorded for more than fifty goes for fifty, says s
   await settle();
   assert.equal(sent[0].length, 50, "fifty went: the batch door takes fifty at a time");
   const said = textOf(flashes.at(-1).msg);
-  assert.ok(said.includes("10 more still selected"), `REGRESSION: the ten past fifty were dropped without a word: ${said}`);
+  assert.ok(
+    said.includes("10 more still selected"),
+    `REGRESSION: the ten past fifty were dropped without a word: ${said}`,
+  );
   tree = draw();
-  assert.ok(textOf(byTestId(tree, "bulk-bar")).includes("10 selected"), "the ten stay selected, one press from the next fifty");
+  assert.ok(
+    textOf(byTestId(tree, "bulk-bar")).includes("10 selected"),
+    "the ten stay selected, one press from the next fifty",
+  );
 });
 
 // The rail is one kit for both scopes (RailSection, RailRow, railToggle in clients-a.jsx); Leads draws its lists and
 // searches with the same rows. Run here: the Saved section, and the one-at-a-time pick both scopes share.
 test("the rail's Saved section draws each kept list as a rail row, and the rail picks one row at a time: a pick replaces the last, pressed again shows everyone", async () => {
-  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }, { id: "s2", name: "Walk-ins", ids: ["p2"] }] });
+  await freshPage({
+    people: [person(1), person(2)],
+    lists: [
+      { id: "s1", name: "Regulars", ids: ["p1"] },
+      { id: "s2", name: "Walk-ins", ids: ["p2"] },
+    ],
+  });
   // The stub tree reaches a row through its parent's children and its parent's drawing both: each is counted once.
-  const railRows = (tree) => [...new Set(all(tree, (n) => n.type === "button" && String(n.props?.className || "").split(" ").includes("cl-rail-row")))];
+  const railRows = (tree) => [
+    ...new Set(
+      all(
+        tree,
+        (n) =>
+          n.type === "button" &&
+          String(n.props?.className || "")
+            .split(" ")
+            .includes("cl-rail-row"),
+      ),
+    ),
+  ];
   const press = (b) => b.props.onClick({ stopPropagation() {}, preventDefault() {} });
   const savedRows = () => railRows(byTestId(draw(), "saved-lists"));
-  assert.deepEqual(savedRows().map((b) => textOf(b)), ["Regulars1", "Walk-ins1"], "each kept list, its name and who is still on it");
-  const current = () => railRows(draw()).filter((b) => b.props["aria-current"] === "true").map((b) => textOf(b));
+  assert.deepEqual(
+    savedRows().map((b) => textOf(b)),
+    ["Regulars1", "Walk-ins1"],
+    "each kept list, its name and who is still on it",
+  );
+  const current = () =>
+    railRows(draw())
+      .filter((b) => b.props["aria-current"] === "true")
+      .map((b) => textOf(b));
   assert.deepEqual(current(), [], "nothing is picked: everyone");
   press(savedRows()[0]);
   assert.deepEqual(current(), ["Regulars1"], "one row picked, and a screen reader hears which");
@@ -363,9 +624,17 @@ test("the rail's Saved section draws each kept list as a rail row, and the rail 
   assert.ok(smart, "the smart lists are rail rows too");
   // Every smart list stands in its group (RailGroup, rail-group-<id>), as the rail's groups say.
   const isSmart = (b) => b.props.className.split(" ").includes("smart");
-  const groups = [...new Set(all(draw(), (n) => n.type === "div" && String(n.props?.["data-testid"] || "").startsWith("rail-group-")))];
+  const groups = [
+    ...new Set(
+      all(draw(), (n) => n.type === "div" && String(n.props?.["data-testid"] || "").startsWith("rail-group-")),
+    ),
+  ];
   assert.ok(groups.length > 0, "the smart lists are grouped");
-  assert.equal(groups.reduce((k, g) => k + railRows(g).filter(isSmart).length, 0), railRows(draw()).filter(isSmart).length, "and none stands outside a group");
+  assert.equal(
+    groups.reduce((k, g) => k + railRows(g).filter(isSmart).length, 0),
+    railRows(draw()).filter(isSmart).length,
+    "and none stands outside a group",
+  );
   press(smart);
   assert.deepEqual(current(), [textOf(smart)], "a smart list replaces a kept one, as a kept one replaces a smart one");
   press(railRows(draw()).find((b) => b.props["aria-current"] === "true"));
@@ -374,7 +643,18 @@ test("the rail's Saved section draws each kept list as a rail row, and the rail 
 
 test("a selection never outlives its view, and does outlive a search: a list picked on the rail drops it, words typed in the box do not", async () => {
   await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
-  const railRows = (tree) => [...new Set(all(tree, (n) => n.type === "button" && String(n.props?.className || "").split(" ").includes("cl-rail-row")))];
+  const railRows = (tree) => [
+    ...new Set(
+      all(
+        tree,
+        (n) =>
+          n.type === "button" &&
+          String(n.props?.className || "")
+            .split(" ")
+            .includes("cl-rail-row"),
+      ),
+    ),
+  ];
   const box = (tree) => find(tree, (n) => n.type === "input" && /^Search/.test(String(n.props?.placeholder || "")));
   byTestId(draw(), "select-all").props.onChange();
   assert.ok(byTestId(draw(), "bulk-bar"), "everyone shown is selected");
@@ -385,7 +665,29 @@ test("a selection never outlives its view, and does outlive a search: a list pic
   assert.ok(byTestId(draw(), "bulk-bar"), "REGRESSION: one letter in the box dropped everything selected");
   railRows(byTestId(draw(), "saved-lists"))[0].props.onClick({ stopPropagation() {}, preventDefault() {} });
   draw();
-  assert.equal(byTestId(draw(), "bulk-bar"), null, "another view: a bar counting people who are no longer on screen is what bulk acts go wrong with");
+  assert.equal(
+    byTestId(draw(), "bulk-bar"),
+    null,
+    "another view: a bar counting people who are no longer on screen is what bulk acts go wrong with",
+  );
+});
+
+test("REGRESSION: the rail's 'Can receive offers' says it needs a number -- its tip read 'Said yes to OFFERS', beside a count that leaves out a yes with no number to send to", async () => {
+  await freshPage({ people: [person(1)] });
+  const rows = all(
+    draw(),
+    (n) =>
+      n.type === "button" &&
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("cl-rail-row"),
+  );
+  const offers = rows.find((b) => textOf(b).startsWith("Can receive offers"));
+  assert.ok(offers, "the list is on the rail");
+  assert.ok(
+    String(offers.props["data-tip"]).includes("Said yes to OFFERS, separately, with a number to send to"),
+    `REGRESSION: ${offers.props["data-tip"]}`,
+  );
 });
 
 test("REGRESSION (B27): lists that could not be read say so on the rail, the profile and Lists, and the people stay", async () => {
@@ -401,33 +703,52 @@ test("REGRESSION (B27): lists that could not be read say so on the rail, the pro
     "no list is offered that could not be read",
   );
   assert.equal(typeof globalThis.window.PersonLists, "function", "the profile's lists can be drawn on their own");
-  cells = []; seq = 0;
+  cells = [];
+  seq = 0;
   const onProfile = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Person", flash: () => {} });
-  assert.ok(byTestId(onProfile, "person-lists-failed"), "the profile says so, instead of \"No lists yet\"");
+  assert.ok(byTestId(onProfile, "person-lists-failed"), 'the profile says so, instead of "No lists yet"');
 });
 
 test("REGRESSION (B6): past everyone loaded, a search keeps the loaded people its words match and says what it searched -- the server's matches replaced them", async () => {
-  await freshPage({ people: [person(1, { last_inbound_text: "Can I book a trim on Saturday?" }), person(2, { last_inbound_text: "Thanks, see you then" })] });
+  await freshPage({
+    people: [
+      person(1, { last_inbound_text: "Can I book a trim on Saturday?" }),
+      person(2, { last_inbound_text: "Thanks, see you then" }),
+    ],
+  });
   globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
   const far = toPersonRowVM(person(99, { display_name: "Saturday Jones" }), ZONE, new Date());
   globalThis.window.__peopleSearch = async () => ({ rows: [far], more: false });
   let tree = draw();
-  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({ target: { value: "saturday" } });
+  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+    target: { value: "saturday" },
+  });
   draw();
   await sleep(320);
   tree = draw();
   const names = all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]);
   assert.ok(names.includes("Select Saturday Jones"), `the server's match is shown: ${names}`);
-  assert.ok(names.includes("Select Person 1"), `REGRESSION: a loaded person matched by their last words vanished: ${names}`);
+  assert.ok(
+    names.includes("Select Person 1"),
+    `REGRESSION: a loaded person matched by their last words vanished: ${names}`,
+  );
   assert.match(textOf(byTestId(tree, "people-more")), /names and numbers searched across everyone/);
   assert.ok(textOf(tree).includes("Showing 2 of 60000"), "the foot counts against everyone, not the rows in hand");
 
-  globalThis.window.__peopleSearch = async () => { throw new Error("That search is too long."); };
-  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({ target: { value: "saturday!" } });
+  globalThis.window.__peopleSearch = async () => {
+    throw new Error("That search is too long.");
+  };
+  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+    target: { value: "saturday!" },
+  });
   draw();
   await sleep(320);
   tree = draw();
-  assert.match(textOf(byTestId(tree, "people-more")), /couldn't search past/, "a search that could not ask the server says so");
+  assert.match(
+    textOf(byTestId(tree, "people-more")),
+    /couldn't search past/,
+    "a search that could not ask the server says so",
+  );
 });
 
 test("REGRESSION: past a page of people, the line under the table stands in the table's gutter -- its own padding put its words at the pane's edge", async () => {
@@ -440,14 +761,28 @@ test("REGRESSION: past a page of people, the line under the table stands in the 
   // The gutter is People's stylesheet's (.pl-more: 28px, 16px at 900px and under, as the standing line and the
   // table's wrap have it), and nothing on the line says otherwise.
   assert.ok(String(more.props.className).split(/\s+/).includes("pl-more"), "the line takes People's gutter");
-  assert.equal(more.props.style, undefined, "REGRESSION: an inline padding of 8px 0 16px set the sides to 0, 28px left of the table on a desktop and 16px on a phone");
+  assert.equal(
+    more.props.style,
+    undefined,
+    "REGRESSION: an inline padding of 8px 0 16px set the sides to 0, 28px left of the table on a desktop and 16px on a phone",
+  );
 });
 
 test("REGRESSION: People opens on the people -- one line, then the table; a title, two sentences, four stat cards and a five-tab strip stood in front of them", async () => {
   await freshPage({
     people: [
-      person(1, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(3 * H), latest_state: "needs_human" }),
-      person(2, { needs_human: true, open_escalation_reason: "callback", open_escalation_since: iso(H), latest_state: "needs_human" }),
+      person(1, {
+        needs_human: true,
+        open_escalation_reason: "human_token",
+        open_escalation_since: iso(3 * H),
+        latest_state: "needs_human",
+      }),
+      person(2, {
+        needs_human: true,
+        open_escalation_reason: "callback",
+        open_escalation_since: iso(H),
+        latest_state: "needs_human",
+      }),
       person(3),
     ],
   });
@@ -462,18 +797,34 @@ test("REGRESSION: People opens on the people -- one line, then the table; a titl
 
   // What stood in front of the table.
   assert.ok(!byTestId(tree, "attention-strip"), "REGRESSION: five tabs, three rows and a footer above the table");
-  assert.ok(!byTestId(tree, "attention-tab-needs_you"), "REGRESSION: a tab counting what the rail and the rows already count");
+  assert.ok(
+    !byTestId(tree, "attention-tab-needs_you"),
+    "REGRESSION: a tab counting what the rail and the rows already count",
+  );
   assert.ok(!find(tree, (n) => cls(n).includes("cl-head-stats")), "REGRESSION: four stat cards");
-  assert.ok(!find(tree, (n) => cls(n).includes("cl-page-title")), "REGRESSION: a page title under a top bar that says People");
+  assert.ok(
+    !find(tree, (n) => cls(n).includes("cl-page-title")),
+    "REGRESSION: a page title under a top bar that says People",
+  );
   const said = textOf(tree);
-  assert.ok(!said.includes("The receptionist handles the routine"), "REGRESSION: the page explained itself on every visit");
+  assert.ok(
+    !said.includes("The receptionist handles the routine"),
+    "REGRESSION: the page explained itself on every visit",
+  );
   assert.ok(!said.includes("the strip above"), "REGRESSION: the page explained its own furniture");
 
   // The two who need a person are in the table, once, with their state on the row.
   const rows = all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]);
   assert.deepEqual(rows.length, 3, `everyone is in the table: ${rows}`);
-  assert.equal(rows.filter((r) => r === "Select Person 1").length, 1, "REGRESSION: the strip drew the table's own first rows over again");
-  assert.ok(all(tree, (n) => n.props?.["data-testid"] === "row-state-detail").length >= 2, "each row says its own state");
+  assert.equal(
+    rows.filter((r) => r === "Select Person 1").length,
+    1,
+    "REGRESSION: the strip drew the table's own first rows over again",
+  );
+  assert.ok(
+    all(tree, (n) => n.props?.["data-testid"] === "row-state-detail").length >= 2,
+    "each row says its own state",
+  );
 
   // The count in the line is the tap that shows them, because a phone has no rail.
   byTestId(tree, "people-standing-needs").props.onClick();
@@ -502,20 +853,42 @@ test("a day nobody needs you says the count and the week, and offers no tap", as
 // A click, as a mouse gives it: `press` above is the keyboard.
 const click = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 // A heading's sort: the button in the cell (a keyboard reaches it), found by its words.
-const sortByHeading = (tree, label) => click(find(tree, (n) => n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith(label)));
+const sortByHeading = (tree, label) =>
+  click(
+    find(
+      tree,
+      (n) =>
+        n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith(label),
+    ),
+  );
 
 test("a list kept by hand is the page's title when open, with its rename, its delete and its one door -- the Lists page held them over a second table of the same people", async () => {
   // Person 1 said yes to offers (the fixture's default); person 2 was never asked.
-  await freshPage({ people: [person(1), person(2, { marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null })], lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }] });
+  await freshPage({
+    people: [
+      person(1),
+      person(2, { marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null }),
+    ],
+    lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }],
+  });
   const calls = [];
   globalThis.window.__lists = lists({
-    rename: async (id, name) => { calls.push(["rename", id, name]); return { ok: true, data: {} }; },
-    drop: async (id, ids) => { calls.push(["drop", id, ids]); return { ok: true, data: {} }; },
+    rename: async (id, name) => {
+      calls.push(["rename", id, name]);
+      return { ok: true, data: {} };
+    },
+    drop: async (id, ids) => {
+      calls.push(["drop", id, ids]);
+      return { ok: true, data: {} };
+    },
   });
   let tree = draw({ initialSaved: "s1" });
   const title = byTestId(tree, "saved-filter");
   assert.ok(title && textOf(title).includes("Regulars"), "the list is the title");
-  assert.ok(!all(tree, (n) => n.props?.className === "cl-section-title").some((n) => textOf(n) === "Everyone"), "REGRESSION: Everyone, with the list as a chip beside it");
+  assert.ok(
+    !all(tree, (n) => n.props?.className === "cl-section-title").some((n) => textOf(n) === "Everyone"),
+    "REGRESSION: Everyone, with the list as a chip beside it",
+  );
   const step = byTestId(tree, "list-action");
   assert.ok(step, "a kept list has its one door, as a smart list has its step");
   assert.match(textOf(step), /1 of 2 on this list said yes to offers/, textOf(step));
@@ -530,7 +903,10 @@ test("a list kept by hand is the page's title when open, with its rename, its de
   byTestId(tree, "list-rename-name").props.onChange({ target: { value: "VIP regulars" } });
   await byTestId(draw({ initialSaved: "s1" }), "list-rename-save").props.onClick();
   assert.deepEqual(calls, [["rename", "s1", "VIP regulars"]]);
-  assert.ok(flashes.some((f) => textOf(f.msg).includes("VIP regulars")), "said");
+  assert.ok(
+    flashes.some((f) => textOf(f.msg).includes("VIP regulars")),
+    "said",
+  );
   // One person off, from the row, with Undo.
   tree = draw({ initialSaved: "s1" });
   const drop = byTestId(tree, "row-drop-list");
@@ -541,38 +917,593 @@ test("a list kept by hand is the page's title when open, with its rename, its de
   assert.ok(byTestId(tree, "delete-list"), "the delete on the same line");
   click(byTestId(tree, "show-everyone"));
   tree = draw({ initialSaved: "s1" });
-  assert.ok(all(tree, (n) => n.props?.className === "cl-section-title").some((n) => textOf(n) === "Everyone"), "Show everyone");
+  assert.ok(
+    all(tree, (n) => n.props?.className === "cl-section-title").some((n) => textOf(n) === "Everyone"),
+    "Show everyone",
+  );
   assert.equal(byTestId(tree, "row-drop-list"), null, "and nobody can be taken off a list that is not open");
 });
 
-test("on a phone the rail's lists are behind one tap on the standing line, as a sheet; a pick closes it, and New list opens the box in it", async () => {
-  await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
-  let tree = draw();
-  assert.equal(byTestId(tree, "people-lists-sheet"), null, "closed until asked");
-  const pick = byTestId(tree, "people-lists-pick");
-  assert.ok(pick && textOf(pick).includes("Lists"), "the standing line's way to the lists");
-  click(pick);
-  tree = draw();
-  const sheet = byTestId(tree, "people-lists-sheet");
-  assert.ok(sheet, "the sheet");
-  assert.ok(find(sheet, (n) => n.type === "aside" && n.props?.className === "cl-rail"), "the same rail, drawn in the sheet as well");
-  click(find(sheet, (n) => n.type === "button" && textOf(n).includes("Regulars")));
-  tree = draw();
-  assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes it");
-  assert.ok(textOf(byTestId(tree, "saved-filter")).includes("Regulars"), "with the list open");
-  assert.ok(textOf(byTestId(tree, "people-lists-pick")).includes("Regulars"), "and the line names it");
-  // The shell's and a profile's New list: on a phone the sheet comes up with the box open.
-  globalThis.window.matchMedia = () => ({ matches: true });
+/* ------------------------------ People on a phone (the phone pass, 22 Sep) ------------------------------ */
+
+/** A phone's width for the page's life: set before the first draw, as a phone opens the page. */
+const onPhone = async (fn) => {
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
   try {
-    globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
-    tree = draw();
-    tree = draw();
-    assert.ok(byTestId(tree, "people-lists-sheet"), "the sheet");
-    assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
+    return await fn();
   } finally {
     delete globalThis.window.matchMedia;
   }
+};
+const idsShown = (tree) => all(tree, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id);
+
+test("REGRESSION: on a phone People is one bar, one line and the people -- a 57px search box, three text buttons and an 'Everyone' title stood between them", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+    let tree = draw();
+    const bar = byTestId(tree, "people-phone-bar");
+    assert.ok(bar, "the bar");
+    assert.deepEqual(
+      all(bar, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
+      [
+        ["People", true],
+        ["Leads", false],
+      ],
+    );
+    assert.equal(textOf(byTestId(bar, "people-phone-lists")).trim(), "Everyone", "the list being shown");
+    assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search by name or phone");
+    assert.ok(
+      find(bar, (n) => n.type === globalThis.MoreMenu),
+      "and the page's more-menu",
+    );
+    assert.equal(
+      find(tree, (n) => n.props?.className === "cl-controls"),
+      null,
+      "REGRESSION: the controls row",
+    );
+    assert.equal(
+      find(tree, (n) => n.props?.className === "cl-section-head"),
+      null,
+      "REGRESSION: the list head, under a bar that names the list",
+    );
+    const standing = byTestId(tree, "people-standing");
+    assert.match(textOf(standing), /2 people/, "the one line stays");
+    assert.equal(byTestId(standing, "people-lists-pick"), null, "the line holds counts; the list is the bar's");
+    // A pick in the sheet names the list in the bar.
+    click(byTestId(tree, "people-phone-lists"));
+    tree = draw();
+    click(find(byTestId(tree, "people-lists-sheet"), (n) => n.type === "button" && textOf(n).includes("Regulars")));
+    tree = draw();
+    assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars");
+    assert.deepEqual(idsShown(tree), ["person-p1"]);
+  }));
+
+test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
+  await freshPage({ people: [person(1)] });
+  const tree = draw();
+  assert.equal(byTestId(tree, "people-phone-bar"), null);
+  assert.ok(find(tree, (n) => n.props?.className === "cl-controls"));
+  assert.ok(find(tree, (n) => n.props?.className === "cl-section-head"));
 });
+
+test("on a phone search is a button that opens the bar into the field; Cancel gives the bar back and clears the words", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1, { display_name: "Rosa Diaz" }), person(2, { display_name: "Ana Lee" })] });
+    let tree = draw();
+    assert.equal(byTestId(tree, "people-phone-search"), null, "no box until asked");
+    click(byTestId(tree, "people-phone-search-open"));
+    tree = draw();
+    const field = byTestId(tree, "people-phone-search");
+    assert.equal(field.props.type, "search");
+    assert.equal(field.props.autoFocus, true);
+    assert.equal(byTestId(tree, "people-phone-lists"), null, "the bar is the field while searching");
+    field.props.onChange({ target: { value: "rosa" } });
+    tree = draw();
+    assert.deepEqual(idsShown(tree), ["person-p1"]);
+    click(byTestId(tree, "people-phone-search-cancel"));
+    tree = draw();
+    assert.ok(byTestId(tree, "people-phone-lists"), "Cancel gives the bar back");
+    assert.equal(idsShown(tree).length, 2, "and clears the words");
+    // The page's / opens it too.
+    press("/");
+    assert.ok(byTestId(draw(), "people-phone-search"), "/ opens the field");
+  }));
+
+const phoneMenuOf = (tree) =>
+  find(byTestId(tree, "people-phone-bar"), (n) => n.type === globalThis.MoreMenu).props.items;
+
+test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headings do, and holds the open list's own acts", () =>
+  onPhone(async () => {
+    await freshPage({
+      people: [person(1, { display_name: "Zed" }), person(2, { display_name: "Abe" })],
+      lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }],
+    });
+    const calls = [];
+    globalThis.window.__lists = lists({
+      rename: async (id, name) => {
+        calls.push(["rename", id, name]);
+        return { ok: true, data: {} };
+      },
+      remove: async (id) => {
+        calls.push(["remove", id]);
+        return { ok: true, data: {} };
+      },
+    });
+    globalThis.window.__addPerson = async (body) => {
+      calls.push(["add", body]);
+      return { ok: true, data: { contact_id: "p9", existed: false } };
+    };
+    try {
+      let tree = draw();
+      assert.deepEqual(
+        phoneMenuOf(tree)
+          .filter((i) => typeof i.checked === "boolean")
+          .map((i) => [i.label, i.checked]),
+        [
+          ["Needs you first", false],
+          ["Latest contact first", true],
+          ["Name, A to Z", false],
+          ["Name, Z to A", false],
+        ],
+        "the sorts a desktop's headings give, the one in use ticked; Soonest visit only with a calendar",
+      );
+      phoneMenuOf(tree)
+        .find((i) => i.label === "Name, A to Z")
+        .onClick();
+      tree = draw();
+      assert.deepEqual(idsShown(tree), ["person-p2", "person-p1"], "A to Z");
+      // Add a person: a sheet, not the desktop's row, which was 479px wide on a 365px screen.
+      phoneMenuOf(tree)
+        .find((i) => i.label === "Add a person")
+        .onClick();
+      tree = draw();
+      const sheet = byTestId(tree, "add-person-sheet");
+      assert.equal(sheet.props.role, "dialog");
+      assert.equal(byTestId(sheet, "add-person-phone").props.type, "tel", "a phone's number pad");
+      byTestId(sheet, "add-person-phone").props.onChange({ target: { value: "+1 786 555 0100" } });
+      tree = draw();
+      await byTestId(tree, "add-person-save").props.onClick();
+      tree = draw();
+      assert.deepEqual(calls.at(-1), ["add", { phone: "+1 786 555 0100" }]);
+      assert.equal(byTestId(tree, "add-person-sheet"), null, "added: the sheet closes");
+      assert.equal(opened.at(-1), "p9", "and their page opens, as the desktop's form does");
+      // A list open: its rename and its delete are the menu's.
+      tree = draw({ initialSaved: "s1" });
+      tree = draw({ initialSaved: "s1" });
+      phoneMenuOf(tree)
+        .find((i) => i.label === "Rename this list")
+        .onClick();
+      tree = draw({ initialSaved: "s1" });
+      const name = byTestId(byTestId(tree, "list-act-sheet"), "list-rename-name");
+      assert.equal(name.props.value, "Regulars", "the name to change, in the box");
+      name.props.onChange({ target: { value: "VIP" } });
+      tree = draw({ initialSaved: "s1" });
+      await byTestId(tree, "list-rename-save").props.onClick();
+      tree = draw({ initialSaved: "s1" });
+      assert.deepEqual(calls.at(-1), ["rename", "s1", "VIP"]);
+      assert.equal(byTestId(tree, "list-act-sheet"), null);
+      assert.ok(
+        flashes.some((f) => textOf(f.msg).includes("VIP")),
+        "said",
+      );
+      phoneMenuOf(tree)
+        .find((i) => i.label === "Delete this list…")
+        .onClick();
+      tree = draw({ initialSaved: "s1" });
+      const confirm = find(byTestId(tree, "list-act-sheet"), (n) => n.type === globalThis.Confirm);
+      assert.equal(confirm.props.detail, "The people stay.", "asked through the one Confirm");
+      await confirm.props.onYes();
+      tree = draw({ initialSaved: "s1" });
+      assert.deepEqual(calls.at(-1), ["remove", "s1"]);
+      assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone", "the list gone, everyone shown");
+    } finally {
+      delete globalThis.window.__addPerson;
+    }
+  }));
+
+test("Esc closes the phone's own sheet, and the page holds its keys while one is open", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)] });
+    globalThis.window.__addPerson = async () => ({ ok: true, data: { contact_id: "p9" } });
+    try {
+      let tree = draw();
+      phoneMenuOf(tree)
+        .find((i) => i.label === "Add a person")
+        .onClick();
+      tree = draw();
+      assert.ok(byTestId(tree, "add-person-sheet"));
+      assert.equal(press("j"), false, "J walks nothing behind the sheet");
+      assert.equal(press("Escape"), true);
+      assert.equal(byTestId(draw(), "add-person-sheet"), null, "Esc closed it");
+    } finally {
+      delete globalThis.window.__addPerson;
+    }
+  }));
+
+test("a phone sheet's list is rows of one shape, and a step inside a sheet has a way back", () => {
+  const Row = globalThis.window.PhoneSheetRow;
+  const Sheet = globalThis.window.PhoneSheet;
+  let pressed = 0;
+  const row = Row({
+    icon: "edit",
+    label: "Add a note",
+    next: true,
+    onClick: () => {
+      pressed += 1;
+    },
+    testid: "r",
+  });
+  assert.equal(row.type, "button");
+  assert.match(row.props.className, /\bpp-sheet-row\b/);
+  assert.ok(
+    find(row, (n) => n.props?.className === "pp-sheet-row-next"),
+    "a row that opens a step says so",
+  );
+  click(row);
+  assert.equal(pressed, 1);
+  // A row the member's role refuses is the gate's: focusable, described, inert.
+  const refused = Row({
+    label: "Export",
+    onClick: () => {
+      pressed += 1;
+    },
+    gate: { "aria-disabled": true, onClick: () => {} },
+  });
+  click(refused);
+  assert.equal(pressed, 1, "the gate's press, not the act");
+  assert.equal(refused.props["aria-disabled"], true);
+  let backs = 0;
+  const s = Sheet({
+    title: "Record a yes",
+    onClose: () => {},
+    onBack: () => {
+      backs += 1;
+    },
+    testid: "x",
+    children: [],
+  });
+  click(byTestId(s, "x-back"));
+  assert.equal(backs, 1, "Back walks to the list the step came from");
+  assert.equal(
+    byTestId(Sheet({ title: "3 selected", onClose: () => {}, testid: "y", children: [] }), "y-back"),
+    null,
+    "the first step has no way back",
+  );
+});
+
+test("on a phone More › Select people starts a selection with nobody picked: the faces are rings, a tap selects, and ✕ ends it", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)] });
+    let tree = draw();
+    phoneMenuOf(tree)
+      .find((i) => i.label === "Select people")
+      .onClick();
+    tree = draw();
+    assert.match(
+      find(tree, (n) => /\bpl-table-wrap\b/.test(String(n.props?.className || ""))).props.className,
+      /\bselecting\b/,
+      "the faces are rings, ready for a tap",
+    );
+    const bar = byTestId(tree, "bulk-bar");
+    assert.ok(bar, "the bar says the mode is on");
+    assert.match(textOf(bar), /Tap people to select them/, "and what to do, with nothing yet to act on");
+    assert.equal(byTestId(bar, "bulk-more"), null);
+    const before = opened.length;
+    rowOf(tree, "p1").props.onClick();
+    tree = draw();
+    assert.equal(opened.length, before, "a tap selects rather than opens");
+    assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/);
+    rowOf(tree, "p1").props.onClick();
+    tree = draw();
+    assert.match(
+      textOf(byTestId(tree, "bulk-bar")),
+      /Tap people to select them/,
+      "the last one off, the mode stays until ✕",
+    );
+    click(byTestId(tree, "bulk-clear"));
+    tree = draw();
+    assert.equal(byTestId(tree, "bulk-bar"), null, "✕ ends it");
+    rowOf(tree, "p1").props.onClick();
+    assert.equal(opened.at(-1), "p1", "and a tap opens again");
+  }));
+
+test("Esc ends a Select-people selection; a member who may neither edit nor export is not offered it", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1)] });
+    let tree = draw();
+    phoneMenuOf(tree)
+      .find((i) => i.label === "Select people")
+      .onClick();
+    assert.ok(byTestId(draw(), "bulk-bar"));
+    assert.equal(press("Escape"), true, "the page takes the key");
+    assert.equal(byTestId(draw(), "bulk-bar"), null, "and the mode ends");
+    const me = globalThis.window.__ME;
+    globalThis.window.__ME = { role: "viewer" };
+    try {
+      await freshPage({ people: [person(1)] });
+      tree = draw();
+      assert.equal(
+        phoneMenuOf(tree).find((i) => i.label === "Select people"),
+        undefined,
+        "nothing a selection could become",
+      );
+    } finally {
+      globalThis.window.__ME = me;
+    }
+  }));
+
+/** A class token, whole: pp-sheet-row, not pp-sheet-row-words. */
+const hasClass = (n, c) =>
+  String(n?.props?.className || "")
+    .split(/\s+/)
+    .includes(c);
+/** The sheet's rows, in order, by their test ids. */
+const sheetRows = (sheet) =>
+  all(sheet, (n) => n.type === "button" && hasClass(n, "pp-sheet-row")).map((n) => n.props["data-testid"]);
+/** A phone's selection of p1 and p2 by their faces, and its sheet opened with ⋯. */
+const bulkSheetOpen = () => {
+  byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+  byTestId(rowOf(draw(), "p2"), "row-select").props.onChange();
+  click(byTestId(draw(), "bulk-more"));
+  return draw();
+};
+
+test("REGRESSION: on a phone a selection is one row -- ✕, the count, Add to list and ⋯ -- its seven controls stacked into a 312px pill over the rows", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2), person(3)], lists: [{ id: "s1", name: "Regulars", ids: [] }] });
+    globalThis.window.__setPersonConsentMany = async () => ({ ok: true, done: 2 });
+    globalThis.window.__appendPersonNotesMany = async () => ({ ok: true, done: 2 });
+    try {
+      byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+      byTestId(rowOf(draw(), "p2"), "row-select").props.onChange();
+      const tree = draw();
+      const bar = byTestId(tree, "bulk-bar");
+      assert.ok(hasClass(bar, "pp-bulk"), "the phone's row");
+      const controls = bar.props.children
+        .filter(Boolean)
+        .map(
+          (k) =>
+            k.props?.["data-testid"] || (k.type === globalThis.MoreMenu ? `menu:${k.props.label}` : k.props?.className),
+        );
+      assert.deepEqual(
+        controls,
+        ["bulk-clear", "cl-bulk-count", "menu:Add to list", "bulk-more"],
+        "four things, in one row",
+      );
+      assert.equal(textOf(find(bar, (n) => hasClass(n, "cl-bulk-count"))), "2 selected");
+      for (const id of ["bulk-note", "bulk-form-note", "bulk-list-name", "bulk-export"])
+        assert.equal(byTestId(bar, id), null, `${id} is the sheet's, not the row's`);
+      assert.equal(
+        find(bar, (n) => n.type === globalThis.MoreMenu && n.props.label !== "Add to list"),
+        null,
+        "REGRESSION: Record a yes and Receptionist were menus in the row",
+      );
+      const add = find(bar, (n) => n.type === globalThis.MoreMenu);
+      assert.equal(add.props.escape, true, "placed against the window");
+      assert.deepEqual(
+        add.props.items.map((i) => i.label || i.header),
+        ["Add to", "Regulars", "New list…"],
+      );
+      assert.equal(byTestId(tree, "bulk-sheet"), null, "the sheet waits for ⋯");
+    } finally {
+      delete globalThis.window.__setPersonConsentMany;
+      delete globalThis.window.__appendPersonNotesMany;
+    }
+  }));
+
+test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›, Add a note ›, Export -- and a step asks, acts, then shuts", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2), person(3)] });
+    const said = [];
+    globalThis.window.__setPersonConsentMany = async (ids, body) => {
+      said.push(["yes", ids, body]);
+      return { ok: true, done: ids.length };
+    };
+    globalThis.window.__appendPersonNotesMany = async (ids, line) => {
+      said.push(["note", ids, line]);
+      return { ok: true, done: ids.length };
+    };
+    globalThis.window.__href = () => "";
+    try {
+      let tree = bulkSheetOpen();
+      let sheet = byTestId(tree, "bulk-sheet");
+      assert.equal(sheet.props["aria-label"], "2 selected");
+      assert.deepEqual(sheetRows(sheet), ["bulk-select-all", "bulk-yes", "bulk-note", "bulk-export"]);
+      assert.equal(textOf(byTestId(sheet, "bulk-select-all")), "Select all 3");
+      // Record a yes, on a sign-up form: the step asks which forms, then records, then the sheet shuts.
+      click(byTestId(sheet, "bulk-yes"));
+      tree = draw();
+      sheet = byTestId(tree, "bulk-sheet");
+      assert.equal(sheet.props["aria-label"], "Record a yes");
+      assert.deepEqual(sheetRows(sheet), [
+        "bulk-yes-conversational-in_person",
+        "bulk-yes-conversational-phone",
+        "bulk-yes-conversational-form",
+      ]);
+      click(byTestId(sheet, "bulk-yes-conversational-form"));
+      tree = draw();
+      byTestId(tree, "bulk-form-note").props.onChange({ target: { value: "Saturday's slips" } });
+      await byTestId(draw(), "bulk-form-save").props.onClick();
+      await settle();
+      tree = draw();
+      assert.deepEqual(said.at(-1), [
+        "yes",
+        ["p1", "p2"],
+        { consent: "opted_in", source: "form", note: "Saturday's slips" },
+      ]);
+      assert.equal(byTestId(tree, "bulk-sheet"), null, "the sheet shuts once it lands");
+      assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "the selection stays, as on a desktop");
+      // A spoken yes is recorded at the tap.
+      click(byTestId(tree, "bulk-more"));
+      click(byTestId(draw(), "bulk-yes"));
+      click(byTestId(draw(), "bulk-yes-conversational-in_person"));
+      await settle();
+      assert.deepEqual(said.at(-1), ["yes", ["p1", "p2"], { consent: "opted_in", source: "in_person" }]);
+      assert.equal(byTestId(draw(), "bulk-sheet"), null);
+      // Add a note: one line, Add; noted, the selection is done with.
+      click(byTestId(draw(), "bulk-more"));
+      click(byTestId(draw(), "bulk-note"));
+      tree = draw();
+      assert.equal(byTestId(tree, "bulk-sheet").props["aria-label"], "Add a note");
+      byTestId(tree, "bulk-note-line").props.onChange({ target: { value: "Called about the move" } });
+      await byTestId(draw(), "bulk-note-save").props.onClick();
+      await settle();
+      assert.deepEqual(said.at(-1), ["note", ["p1", "p2"], "Called about the move"]);
+      assert.equal(byTestId(draw(), "bulk-bar"), null, "noted, the selection clears, as on a desktop");
+    } finally {
+      delete globalThis.window.__setPersonConsentMany;
+      delete globalThis.window.__appendPersonNotesMany;
+      delete globalThis.window.__href;
+    }
+  }));
+
+test("on a phone Esc shuts the selection's sheet and keeps the selection; Back walks a step back; Select all picks everyone shown", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2), person(3)] });
+    globalThis.window.__setPersonConsentMany = async () => ({ ok: true, done: 1 });
+    try {
+      let tree = bulkSheetOpen();
+      click(byTestId(tree, "bulk-yes"));
+      tree = draw();
+      click(byTestId(tree, "bulk-sheet-back"));
+      tree = draw();
+      assert.ok(byTestId(tree, "bulk-select-all"), "back at the list");
+      assert.equal(byTestId(tree, "bulk-sheet-back"), null, "the list has no way back of its own");
+      assert.equal(press("j"), false, "the sheet holds the keys: J walks nothing behind it");
+      assert.equal(press("Escape"), true);
+      tree = draw();
+      assert.equal(byTestId(tree, "bulk-sheet"), null, "Esc shut the sheet");
+      assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "REGRESSION: and not the selection behind it");
+      click(byTestId(tree, "bulk-more"));
+      click(byTestId(draw(), "bulk-select-all"));
+      tree = draw();
+      assert.match(textOf(byTestId(tree, "bulk-bar")), /3 selected/);
+      assert.equal(byTestId(tree, "bulk-sheet"), null, "Select all shuts the sheet");
+      assert.equal(press("Escape"), true);
+      assert.equal(byTestId(draw(), "bulk-bar"), null, "and the next Esc clears the selection");
+    } finally {
+      delete globalThis.window.__setPersonConsentMany;
+    }
+  }));
+
+test("on a phone Add to list › New list… names the list in the sheet; a member who may only export gets Export and the reason", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)] });
+    const made = [];
+    globalThis.window.__lists = lists({
+      create: async (n) => {
+        made.push(n);
+        return { ok: true, data: { id: "s9" } };
+      },
+      add: async () => ({ ok: true, data: {} }),
+    });
+    byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+    let tree = draw();
+    find(byTestId(tree, "bulk-bar"), (n) => n.type === globalThis.MoreMenu)
+      .props.items.find((i) => i.label === "New list…")
+      .onClick();
+    tree = draw();
+    assert.equal(
+      byTestId(tree, "bulk-sheet").props["aria-label"],
+      "New list",
+      "the name is asked in the sheet, not in the row",
+    );
+    byTestId(tree, "bulk-list-name").props.onChange({ target: { value: "Saturday" } });
+    await byTestId(draw(), "bulk-list-save").props.onClick();
+    await settle();
+    assert.deepEqual(made, ["Saturday"]);
+    tree = draw();
+    assert.equal(byTestId(tree, "bulk-sheet"), null, "made, the sheet shuts");
+    assert.match(textOf(flashes.at(-1).msg), /1 on the new list Saturday/);
+    const me = globalThis.window.__ME;
+    globalThis.window.__ME = { role: "viewer" };
+    globalThis.window.__href = () => "";
+    try {
+      await freshPage({ people: [person(1), person(2)] });
+      byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+      tree = draw();
+      assert.equal(
+        find(byTestId(tree, "bulk-bar"), (n) => n.type === globalThis.MoreMenu),
+        null,
+        "no Add to list for a member who may not edit",
+      );
+      click(byTestId(tree, "bulk-more"));
+      const sheet = byTestId(draw(), "bulk-sheet");
+      assert.deepEqual(sheetRows(sheet), ["bulk-select-all", "bulk-export"]);
+      assert.match(textOf(sheet), /Only an owner or operator can add to lists or record a yes\./);
+    } finally {
+      globalThis.window.__ME = me;
+      delete globalThis.window.__href;
+    }
+  }));
+
+test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no second People | Leads -- the switch was in the sheet and, beside the bar's, would be twice", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+    let tree = draw({ initialSaved: "s1" });
+    tree = draw({ initialSaved: "s1" });
+    click(byTestId(tree, "people-phone-lists"));
+    tree = draw({ initialSaved: "s1" });
+    const sheet = byTestId(tree, "people-lists-sheet");
+    assert.equal(byTestId(sheet, "people-scope"), null, "one switch, the bar's");
+    const everyone = byTestId(sheet, "rail-everyone");
+    assert.match(textOf(everyone), /Everyone\s*2/, "Everyone, first, with everyone's count");
+    assert.equal(everyone.props["aria-current"], undefined, "not current while a list is open");
+    click(everyone);
+    tree = draw({ initialSaved: "s1" });
+    assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes the sheet");
+    assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone");
+    assert.equal(idsShown(tree).length, 2);
+  }));
+
+test("on a phone the face is the checkbox, and while anyone is selected a tap on a row selects them rather than opening them", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)] });
+    let tree = draw();
+    byTestId(rowOf(tree, "p1"), "row-select").props.onChange();
+    tree = draw();
+    assert.match(rowOf(tree, "p1").props.className, /\bselected\b/);
+    const before = opened.length;
+    rowOf(tree, "p2").props.onClick();
+    tree = draw();
+    assert.equal(opened.length, before, "a tap while selecting does not open the person");
+    assert.match(rowOf(tree, "p2").props.className, /\bselected\b/, "it selects them");
+    const bar = byTestId(tree, "bulk-bar");
+    assert.ok(bar, "the bar");
+    assert.equal(
+      find(bar, (n) => n.type === globalThis.MoreMenu).props.escape,
+      true,
+      "its menus are placed against the window: the docked row scrolls, and would cut them off",
+    );
+    click(byTestId(tree, "bulk-clear"));
+    tree = draw();
+    rowOf(tree, "p2").props.onClick();
+    assert.equal(opened.at(-1), "p2", "cleared, a tap opens again");
+  }));
+
+test("on a phone the lists are behind the bar's list button, as a sheet; a pick closes it, and New list opens the box in it", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+    let tree = draw();
+    assert.equal(byTestId(tree, "people-lists-sheet"), null, "closed until asked");
+    click(byTestId(tree, "people-phone-lists"));
+    tree = draw();
+    const sheet = byTestId(tree, "people-lists-sheet");
+    assert.ok(sheet, "the sheet");
+    assert.ok(
+      find(sheet, (n) => n.type === "aside" && n.props?.className === "cl-rail"),
+      "the rail's own rows, in the sheet",
+    );
+    click(find(sheet, (n) => n.type === "button" && textOf(n).includes("Regulars")));
+    tree = draw();
+    assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes it");
+    assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars", "and the bar names the list");
+    // The shell's and a profile's New list: on a phone the sheet comes up with the box open.
+    globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
+    tree = draw();
+    tree = draw();
+    assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
+  }));
 
 test("a list's own route lands on People with that list picked -- Playbooks' list, an answer's jump and a kept address still arrive", async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
@@ -584,27 +1515,49 @@ test("a list's own route lands on People with that list picked -- Playbooks' lis
 });
 
 test("REGRESSION: on a list, the Offers column shows the answer about offers -- the Lists page showed the yes to messages under the Offers heading", async () => {
-  await freshPage({ people: [person(1, { marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null }), person(2)] });
+  await freshPage({
+    people: [
+      person(1, { marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null }),
+      person(2),
+    ],
+  });
   const tree = draw({ initialSegment: "opted_in" });
-  const offers = all(tree, (n) => n.props?.["data-testid"] === "row-offers").map((td) => textOf(td).trim()).sort();
+  const offers = all(tree, (n) => n.props?.["data-testid"] === "row-offers")
+    .map((td) => textOf(td).trim())
+    .sort();
   assert.deepEqual(offers, ["Not asked", "Yes"], `the cells: ${offers}`);
 });
 
 test("a selection's yes on a sign-up form is recorded with the note that says which slips, and their own message is not offered for many", async () => {
   await freshPage({ people: [person(1), person(2)] });
   const sent = [];
-  globalThis.window.__setPersonConsentMany = async (ids, body) => { sent.push(["visit", [...ids].sort(), body]); return { ok: true, done: ids.length, failed: 0 }; };
-  globalThis.window.__setPersonMarketingConsentMany = async (ids, body) => { sent.push(["offers", [...ids].sort(), body]); return { ok: true, done: ids.length, failed: 0 }; };
+  globalThis.window.__setPersonConsentMany = async (ids, body) => {
+    sent.push(["visit", [...ids].sort(), body]);
+    return { ok: true, done: ids.length, failed: 0 };
+  };
+  globalThis.window.__setPersonMarketingConsentMany = async (ids, body) => {
+    sent.push(["offers", [...ids].sort(), body]);
+    return { ok: true, done: ids.length, failed: 0 };
+  };
   try {
     let tree = draw();
     byTestId(tree, "select-all").props.onChange();
     const menu = () => find(draw(), (n) => n.props?.label === "Record a yes");
     assert.deepEqual(
       menu().props.items.map((i) => i.header || i.label),
-      ["Yes to messages about their visit…", "In person", "On the phone", "Sign-up form", "Yes to offers and news…", "Sign-up form"],
+      [
+        "Yes to messages about their visit…",
+        "In person",
+        "On the phone",
+        "Sign-up form",
+        "Yes to offers and news…",
+        "Sign-up form",
+      ],
       "their own message names one message, so a selection is not offered it",
     );
-    await menu().props.items.find((i) => i.label === "Sign-up form").onClick();
+    await menu()
+      .props.items.find((i) => i.label === "Sign-up form")
+      .onClick();
     tree = draw();
     assert.deepEqual(sent, [], "REGRESSION: thirty slips were recorded with nothing to say which");
     const note = byTestId(tree, "bulk-form-note");
@@ -614,26 +1567,38 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
     tree = draw();
     await byTestId(tree, "bulk-form-save").props.onClick();
     await settle();
-    assert.deepEqual(sent, [["visit", ["p1", "p2"], { consent: "opted_in", source: "form", note: "slips from Saturday" }]]);
+    assert.deepEqual(sent, [
+      ["visit", ["p1", "p2"], { consent: "opted_in", source: "form", note: "slips from Saturday" }],
+    ]);
     tree = draw();
     assert.equal(byTestId(tree, "bulk-form-note"), null, "the step closes once it lands");
 
     // Offers, by Enter; and Escape leaves without a word sent.
-    await menu().props.items.filter((i) => i.label === "Sign-up form")[1].onClick();
+    await menu()
+      .props.items.filter((i) => i.label === "Sign-up form")[1]
+      .onClick();
     tree = draw();
     byTestId(tree, "bulk-form-note").props.onChange({ target: { value: "offers slips" } });
     tree = draw();
     byTestId(tree, "bulk-form-note").props.onKeyDown({ key: "Enter" });
     await settle();
-    assert.deepEqual(sent.at(-1), ["offers", ["p1", "p2"], { consent: "opted_in", source: "form", note: "offers slips" }]);
-    await menu().props.items.find((i) => i.label === "Sign-up form").onClick();
+    assert.deepEqual(sent.at(-1), [
+      "offers",
+      ["p1", "p2"],
+      { consent: "opted_in", source: "form", note: "offers slips" },
+    ]);
+    await menu()
+      .props.items.find((i) => i.label === "Sign-up form")
+      .onClick();
     tree = draw();
     byTestId(tree, "bulk-form-note").props.onKeyDown({ key: "Escape" });
     assert.equal(byTestId(draw(), "bulk-form-note"), null, "Escape closes the step");
     assert.equal(sent.length, 2, "and sends nothing");
 
     // The spoken ways still record at once, with the source and nothing else.
-    await menu().props.items.find((i) => i.label === "In person").onClick();
+    await menu()
+      .props.items.find((i) => i.label === "In person")
+      .onClick();
     await settle();
     assert.deepEqual(sent.at(-1)[2], { consent: "opted_in", source: "in_person" });
   } finally {
@@ -646,37 +1611,81 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
 /** Whether a member turned a column off: drawn, with a mark that only a desktop hides (pl-col-off). */
 const colOff = (n) => /\bpl-col-off\b/.test(String(n.props?.className || ""));
 /** The table's headings as a desktop shows them: those a member turned off, the checkbox's and the actions' empty ones left out, the sort arrow off. */
-const headings = (tree) => all(tree, (n) => n.type === "th" && !colOff(n)).map((th) => textOf(th).replace(/[▲▼]/g, "").trim()).filter(Boolean);
+const headings = (tree) =>
+  all(tree, (n) => n.type === "th" && !colOff(n))
+    .map((th) => textOf(th).replace(/[▲▼]/g, "").trim())
+    .filter(Boolean);
 /** A person's row, by their id. */
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `person-${id}`);
 
 test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, Offers, and Came from", async () => {
   // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
-  const sorting = (tree) => all(tree, (n) => n.type === "th" && !colOff(n) && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
+  const sorting = (tree) =>
+    all(tree, (n) => n.type === "th" && !colOff(n) && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) =>
+      textOf(th).replace(/[▲▼]/g, "").trim(),
+    );
   const oneCellPerHeading = (tree, why) => {
-    const heads = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th").length;
-    const rows = all(find(tree, (n) => n.type === "tbody"), (n) => n.type === "tr");
+    const heads = all(
+      find(tree, (n) => n.type === "thead"),
+      (n) => n.type === "th",
+    ).length;
+    const rows = all(
+      find(tree, (n) => n.type === "tbody"),
+      (n) => n.type === "tr",
+    );
     assert.equal(rows.length, 2, "both people are rows");
-    for (const tr of rows) assert.equal(tr.props.children.filter((k) => k && k.type === "td").length, heads, `${tr.props.id}: one cell under each heading, ${why}`);
+    for (const tr of rows)
+      assert.equal(
+        tr.props.children.filter((k) => k && k.type === "td").length,
+        heads,
+        `${tr.props.id}: one cell under each heading, ${why}`,
+      );
   };
   await freshPage({ people: [person(1), person(2)] });
   let tree = draw();
   assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from"]);
-  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Offers"], "the receptionist and where they came from never sort");
+  assert.deepEqual(
+    sorting(tree),
+    ["Person", "State", "Last contact", "Offers"],
+    "the receptionist and where they came from never sort",
+  );
   oneCellPerHeading(tree, "without a calendar");
   await freshPage({ people: [person(1), person(2)], calendar: "ok" });
   tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Visits", "Offers", "Came from"], "with a calendar the outcome takes the receptionist's column");
-  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Visits", "Offers"], "the visit sorts; where they came from never does");
+  assert.deepEqual(
+    headings(tree),
+    ["Person", "State", "Last contact", "Visits", "Offers", "Came from"],
+    "with a calendar the outcome takes the receptionist's column",
+  );
+  assert.deepEqual(
+    sorting(tree),
+    ["Person", "State", "Last contact", "Visits", "Offers"],
+    "the visit sorts; where they came from never does",
+  );
   oneCellPerHeading(tree, "with a calendar");
 });
 
 test("a row says where the person came from, in words, and nothing when nothing is known", async () => {
-  await freshPage({ people: [person(1, { came_from: "calendar" }), person(2, { came_from: "sms" }), person(3, { came_from: null }), person(4)] });
+  await freshPage({
+    people: [
+      person(1, { came_from: "calendar" }),
+      person(2, { came_from: "sms" }),
+      person(3, { came_from: null }),
+      person(4),
+    ],
+  });
   const tree = draw();
   const said = (id) => textOf(byTestId(rowOf(tree, id), "row-came-from")).trim();
-  assert.deepEqual(["p1", "p2", "p3", "p4"].map(said), ["Your calendar", "Text", "", ""], "and a row read before the column existed says nothing either");
-  for (const id of ["p3", "p4"]) assert.ok(byTestId(rowOf(tree, id), "row-came-from"), `${id}: the cell is drawn, empty, so the row's cells stay under their headings`);
+  assert.deepEqual(
+    ["p1", "p2", "p3", "p4"].map(said),
+    ["Your calendar", "Text", "", ""],
+    "and a row read before the column existed says nothing either",
+  );
+  for (const id of ["p3", "p4"])
+    assert.ok(
+      byTestId(rowOf(tree, id), "row-came-from"),
+      `${id}: the cell is drawn, empty, so the row's cells stay under their headings`,
+    );
 });
 
 test("a row with a thread offers the booking link on file; with none on file, only the thread", async () => {
@@ -691,24 +1700,46 @@ test("a row with a thread offers the booking link on file; with none on file, on
 test("the receptionist's word is beside the state whether or not its column shows, marked when it does, so a card never loses it", async () => {
   // A reply is queued, so the receptionist is not simply answering: it has a word to say. Person 2's is simply answering.
   const queued = person(1, { queued_reply_at: iso(H) });
-  const stateCell = (tree, id) => find(rowOf(tree, id), (n) => n.type === "td" && /\bcl-state-cell\b/.test(String(n.props?.className || "")));
+  const stateCell = (tree, id) =>
+    find(rowOf(tree, id), (n) => n.type === "td" && /\bcl-state-cell\b/.test(String(n.props?.className || "")));
   const isMark = (n) => /\bcl-row-recept-mark\b/.test(String(n.props?.className || ""));
   const markOf = (tree) => find(stateCell(tree, "p1"), isMark);
   const inColumn = (mark) => /\bis-in-column\b/.test(String(mark.props.className));
   await freshPage({ people: [queued, person(2)] });
   const tree = draw();
   let mark = markOf(tree);
-  assert.equal(mark && textOf(mark), "reply queued", "without a calendar the Receptionist column shows, and the word is beside the state too");
-  assert.equal(inColumn(mark), true, "marked as said in its column, which the stylesheet leaves to say it where that column is on screen");
-  assert.ok(stateCell(tree, "p2") && !find(stateCell(tree, "p2"), isMark), "a receptionist simply answering has no word beside the state");
+  assert.equal(
+    mark && textOf(mark),
+    "reply queued",
+    "without a calendar the Receptionist column shows, and the word is beside the state too",
+  );
+  assert.equal(
+    inColumn(mark),
+    true,
+    "marked as said in its column, which the stylesheet leaves to say it where that column is on screen",
+  );
+  assert.ok(
+    stateCell(tree, "p2") && !find(stateCell(tree, "p2"), isMark),
+    "a receptionist simply answering has no word beside the state",
+  );
   await freshPage({ people: [queued], calendar: "ok" });
   mark = markOf(draw());
-  assert.equal(mark && textOf(mark), "reply queued", "with a calendar the Receptionist column is hidden, and the word is beside the state");
+  assert.equal(
+    mark && textOf(mark),
+    "reply queued",
+    "with a calendar the Receptionist column is hidden, and the word is beside the state",
+  );
   assert.equal(inColumn(mark), false, "unmarked: this is where it is said");
 });
 
 test("REGRESSION: the keyboard is one listener for the page's life, and it walks the rows shown now -- it was taken down and added again on every draw", async () => {
-  const needs = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  const needs = (i) =>
+    person(i, {
+      needs_human: true,
+      open_escalation_reason: "human_token",
+      open_escalation_since: iso(H),
+      latest_state: "needs_human",
+    });
   await freshPage({ people: [needs(1), person(2), needs(3)] });
   draw();
   assert.equal(listeners.keydown?.size, 1, "one listener");
@@ -726,7 +1757,8 @@ test("REGRESSION: the keyboard is one listener for the page's life, and it walks
 
 test("the keyboard: J/K and the arrows move, x and Space select, Enter opens, / searches, Esc clears the selection", async () => {
   await freshPage({ people: [person(1), person(2), person(3)] });
-  const cursorOn = () => find(draw(), (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
+  const cursorOn = () =>
+    find(draw(), (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
   draw();
   assert.equal(press("j"), true, "J is the page's");
   assert.equal(cursorOn(), "person-p1");
@@ -754,20 +1786,39 @@ test("the keyboard: J/K and the arrows move, x and Space select, Enter opens, / 
   assert.deepEqual(opened, ["p2"], "Enter opens the person under the cursor");
   const box = find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
   let focusedSearch = 0;
-  box.props.ref.current = { focus: () => { focusedSearch += 1; } };
+  box.props.ref.current = {
+    focus: () => {
+      focusedSearch += 1;
+    },
+  };
   assert.equal(press("/"), true);
   assert.equal(focusedSearch, 1, "/ puts you in the search box");
-  assert.equal(press("j", { tagName: "INPUT", type: "text", isContentEditable: false, closest: () => null }), false, "and a J typed there is a letter");
-  assert.equal(press("j", { tagName: "INPUT", type: "checkbox", isContentEditable: false, closest: () => ({}) }), true, "a row's checkbox is not a place to type: after a click on one, J still walks");
+  assert.equal(
+    press("j", { tagName: "INPUT", type: "text", isContentEditable: false, closest: () => null }),
+    false,
+    "and a J typed there is a letter",
+  );
+  assert.equal(
+    press("j", { tagName: "INPUT", type: "checkbox", isContentEditable: false, closest: () => ({}) }),
+    true,
+    "a row's checkbox is not a place to type: after a click on one, J still walks",
+  );
 });
 
 /* ------------------------- the keys: where they were pressed, and what is open ------------------------- */
 
 /** An element as a key's target or focus: its tag, its type, and the selectors it matches or sits inside, for `closest`. */
-const element = (tagName, { type = "", within = [] } = {}) => ({ nodeType: 1, tagName, type, isContentEditable: false, closest: (sel) => (within.some((s) => sel.includes(s)) ? {} : null) });
+const element = (tagName, { type = "", within = [] } = {}) => ({
+  nodeType: 1,
+  tagName,
+  type,
+  isContentEditable: false,
+  closest: (sel) => (within.some((s) => sel.includes(s)) ? {} : null),
+});
 const BODY = element("BODY");
 /** The row under the keyboard's cursor, by its id. */
-const cursorRow = (tree) => find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
+const cursorRow = (tree) =>
+  find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
 /** The table foot's line of keys, as it reads. */
 const keysLine = (tree) => textOf(find(tree, (n) => n.props?.className === "cl-table-keys"));
 
@@ -776,10 +1827,16 @@ test("REGRESSION: Esc in a field is the field's, even once the field has gone --
   byTestId(draw(), "select-all").props.onChange();
   // New list… puts the name box in the bar. Its own Esc closes it (React hears the key before the window does), and
   // focus goes with it: by the time the page hears the key, focus is on the body.
-  find(draw(), (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "New list…").onClick();
+  find(draw(), (n) => n.props?.label === "Add to list")
+    .props.items.find((i) => i.label === "New list…")
+    .onClick();
   byTestId(draw(), "bulk-list-name").props.onKeyDown({ key: "Escape" });
   const nameBox = element("INPUT", { type: "text", within: ["input", ".cl-bulk"] });
-  assert.equal(press("Escape", nameBox, { focus: BODY }), false, "the page leaves an Esc pressed in a field to the field");
+  assert.equal(
+    press("Escape", nameBox, { focus: BODY }),
+    false,
+    "the page leaves an Esc pressed in a field to the field",
+  );
   const tree = draw();
   assert.equal(byTestId(tree, "bulk-list-name"), null, "the box closed");
   assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "REGRESSION: and the selection went with it");
@@ -795,7 +1852,11 @@ test("REGRESSION: Esc while a menu or a dialog is open is theirs -- the Esc that
     assert.equal(press("Escape"), false, `a ${role} closes itself; the page leaves its Esc alone`);
     assert.equal(press("j"), false, `and walks nothing behind the ${role}`);
     assert.equal(press("/"), false, `nor goes to the search behind the ${role}`);
-    assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/, `REGRESSION: an Esc that closed a ${role} cleared the selection`);
+    assert.match(
+      textOf(byTestId(draw(), "bulk-bar")),
+      /2 selected/,
+      `REGRESSION: an Esc that closed a ${role} cleared the selection`,
+    );
   }
   // A dialog outside the app, one a browser extension added and hid, is not the app's: the page keeps its keys.
   overlayOpen = { role: "dialog", inApp: false };
@@ -811,7 +1872,10 @@ test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the se
   // hears it, the sheet has closed. Its hooks sit far past the page's in the stub's one call order.
   const chrome = globalThis.window.__chrome;
   globalThis.window.__chrome = { ...chrome, shortcuts: SHORTCUTS, shortcutGroups, typing: () => false };
-  const sheet = () => { seq = 10_000; return globalThis.window.ShortcutsSheet(); };
+  const sheet = () => {
+    seq = 10_000;
+    return globalThis.window.ShortcutsSheet();
+  };
   try {
     assert.equal(sheet(), null, "closed until asked");
     byTestId(draw(), "select-all").props.onChange();
@@ -820,7 +1884,11 @@ test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the se
     assert.ok(byTestId(sheet(), "shortcuts-sheet"), "the sheet is open");
     assert.equal(press("Escape"), true, "the sheet takes the Esc that closes it");
     assert.equal(sheet(), null, "and closes");
-    assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/, "REGRESSION: the Esc that closed the sheet cleared the selection behind it");
+    assert.match(
+      textOf(byTestId(draw(), "bulk-bar")),
+      /2 selected/,
+      "REGRESSION: the Esc that closed the sheet cleared the selection behind it",
+    );
     assert.equal(press("Escape"), true, "with the sheet closed, Esc is People's");
     assert.equal(byTestId(draw(), "bulk-bar"), null, "and clears the selection");
   } finally {
@@ -844,7 +1912,13 @@ test("a key with a modifier is not the page's: Ctrl-K is Ask's, and Ctrl-J, Ctrl
   draw();
   press("j");
   assert.equal(cursorRow(draw()), "person-p2");
-  for (const [key, mod] of [["k", "ctrlKey"], ["j", "ctrlKey"], ["x", "ctrlKey"], ["j", "metaKey"], ["x", "altKey"]]) {
+  for (const [key, mod] of [
+    ["k", "ctrlKey"],
+    ["j", "ctrlKey"],
+    ["x", "ctrlKey"],
+    ["j", "metaKey"],
+    ["x", "altKey"],
+  ]) {
     assert.equal(press(key, null, { [mod]: true }), false, `${mod} with ${key} is not the page's`);
   }
   const tree = draw();
@@ -852,23 +1926,28 @@ test("a key with a modifier is not the page's: Ctrl-K is Ask's, and Ctrl-J, Ctrl
   assert.equal(byTestId(tree, "bulk-bar"), null, "and nobody was selected");
 });
 
-test("Esc closes the phone's lists sheet first, and the selection stays; the next Esc clears it", async () => {
-  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
-  byTestId(draw(), "select-all").props.onChange();
-  click(byTestId(draw(), "people-lists-pick"));
-  assert.ok(byTestId(draw(), "people-lists-sheet"), "the sheet is open");
-  press("Escape");
-  let tree = draw();
-  assert.equal(byTestId(tree, "people-lists-sheet"), null, "Esc closed the sheet");
-  assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "and left the selection alone");
-  assert.equal(press("Escape"), true);
-  tree = draw();
-  assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
-});
+test("Esc closes the phone's lists sheet first, and the selection stays; the next Esc clears it", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+    byTestId(draw(), "select-all").props.onChange();
+    click(byTestId(draw(), "people-phone-lists"));
+    assert.ok(byTestId(draw(), "people-lists-sheet"), "the sheet is open");
+    press("Escape");
+    let tree = draw();
+    assert.equal(byTestId(tree, "people-lists-sheet"), null, "Esc closed the sheet");
+    assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "and left the selection alone");
+    assert.equal(press("Escape"), true);
+    tree = draw();
+    assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
+  }));
 
 test("x and Space select nobody for a member who can neither edit lists nor export, and the foot's keys say what the member's keys do", async () => {
   await freshPage({ people: [person(1), person(2)] });
-  assert.equal(keysLine(draw()), "JK move · x selects · esc clears · ↵ opens · / searches", "an owner's foot names every key");
+  assert.equal(
+    keysLine(draw()),
+    "JK move · x selects · esc clears · ↵ opens · / searches",
+    "an owner's foot names every key",
+  );
   await freshPage({ people: [person(1), person(2)] });
   const me = globalThis.window.__ME;
   globalThis.window.__ME = { role: "viewer" };
@@ -890,7 +1969,11 @@ test("/ goes to the search on an empty table too", async () => {
   await freshPage({ people: [] });
   const box = find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
   let focused = 0;
-  box.props.ref.current = { focus: () => { focused += 1; } };
+  box.props.ref.current = {
+    focus: () => {
+      focused += 1;
+    },
+  };
   assert.equal(press("/"), true);
   assert.equal(focused, 1, "nobody to walk, and still somewhere to search");
 });
@@ -916,25 +1999,36 @@ test("a radio's arrow keys are the radio's; a held x, Space or Enter acts once, 
 });
 
 /** The Columns menu's rows: which column, whether it shows, and whether it is Person's, which always does. */
-const menuItems = (tree) => all(byTestId(tree, "people-columns-menu"), (n) => n.props?.role === "menuitemcheckbox")
-  .map((n) => ({ key: n.props["data-testid"].replace(/^column-/, ""), on: n.props["aria-checked"], locked: n.props["aria-disabled"] === true }));
+const menuItems = (tree) =>
+  all(byTestId(tree, "people-columns-menu"), (n) => n.props?.role === "menuitemcheckbox").map((n) => ({
+    key: n.props["data-testid"].replace(/^column-/, ""),
+    on: n.props["aria-checked"],
+    locked: n.props["aria-disabled"] === true,
+  }));
 
 test("the Columns menu shows and hides columns and stays open while it does; Person always shows; Esc closes it", async () => {
-  await freshPage({ people: [person(1, { came_from: "whatsapp" }), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  await freshPage({
+    people: [person(1, { came_from: "whatsapp" }), person(2)],
+    lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }],
+  });
   let tree = draw();
   assert.equal(byTestId(tree, "people-columns-menu"), null, "closed until asked");
   click(byTestId(tree, "people-columns"));
   tree = draw();
-  assert.deepEqual(menuItems(tree), [
-    { key: "name", on: true, locked: true },
-    { key: "state", on: true, locked: false },
-    { key: "last", on: true, locked: false },
-    { key: "receptionist", on: true, locked: false },
-    { key: "offers", on: true, locked: false },
-    { key: "came_from", on: true, locked: false },
-    { key: "email", on: false, locked: false },
-    { key: "lists", on: false, locked: false },
-  ], "every column this workspace can show; Visits waits for a calendar");
+  assert.deepEqual(
+    menuItems(tree),
+    [
+      { key: "name", on: true, locked: true },
+      { key: "state", on: true, locked: false },
+      { key: "last", on: true, locked: false },
+      { key: "receptionist", on: true, locked: false },
+      { key: "offers", on: true, locked: false },
+      { key: "came_from", on: true, locked: false },
+      { key: "email", on: false, locked: false },
+      { key: "lists", on: false, locked: false },
+    ],
+    "every column this workspace can show; Visits waits for a calendar",
+  );
   click(byTestId(tree, "column-came_from"));
   tree = draw();
   assert.ok(byTestId(tree, "people-columns-menu"), "it stays open: MoreMenu closes on every pick");
@@ -942,7 +2036,11 @@ test("the Columns menu shows and hides columns and stays open while it does; Per
   click(byTestId(tree, "column-lists"));
   tree = draw();
   assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Receptionist", "Offers", "Lists"]);
-  assert.equal(textOf(byTestId(rowOf(tree, "p1"), "row-lists")).trim(), "Regulars", "the lists kept by hand that they are on");
+  assert.equal(
+    textOf(byTestId(rowOf(tree, "p1"), "row-lists")).trim(),
+    "Regulars",
+    "the lists kept by hand that they are on",
+  );
   click(byTestId(tree, "column-name"));
   assert.ok(headings(draw()).includes("Person"), "Person cannot be hidden");
   assert.equal(press("Escape"), true);
@@ -950,22 +2048,40 @@ test("the Columns menu shows and hides columns and stays open while it does; Per
 });
 
 test("a view keeps its columns with its sort, and every save sends every key -- member_view_set replaces the page's whole object", async () => {
-  await freshPage({ people: [person(1)], views: { people: { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true } } } });
+  await freshPage({
+    people: [person(1)],
+    views: { people: { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true } } },
+  });
   const saves = [];
-  globalThis.window.__saveView = async (page, view) => { saves.push([page, view]); return { ok: true, data: { views: { [page]: view } } }; };
+  globalThis.window.__saveView = async (page, view) => {
+    saves.push([page, view]);
+    return { ok: true, data: { views: { [page]: view } } };
+  };
   let tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Receptionist", "Offers", "Email"], "the member's own columns");
+  assert.deepEqual(
+    headings(tree),
+    ["Person", "State", "Last contact", "Receptionist", "Offers", "Email"],
+    "the member's own columns",
+  );
   assert.deepEqual(saves, [], "the view it already holds is not saved again");
   click(byTestId(tree, "people-columns"));
   tree = draw();
   click(byTestId(tree, "column-lists"));
   tree = draw();
-  assert.deepEqual(saves.at(-1), ["people", { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true, lists: true } }], "a column change keeps the sort");
+  assert.deepEqual(
+    saves.at(-1),
+    ["people", { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true, lists: true } }],
+    "a column change keeps the sort",
+  );
   sortByHeading(tree, "State");
   draw();
   // One save at a time: the new sort goes once the column's save has landed.
   await settle();
-  assert.deepEqual(saves.at(-1), ["people", { sortBy: "state", sortDir: "desc", columns: { came_from: false, email: true, lists: true } }], "and a new sort keeps the columns");
+  assert.deepEqual(
+    saves.at(-1),
+    ["people", { sortBy: "state", sortDir: "desc", columns: { came_from: false, email: true, lists: true } }],
+    "and a new sort keeps the columns",
+  );
 });
 
 test("with a calendar the receptionist's word sits beside the state until its own column is shown -- then a desktop says it there, once, and a card keeps it beside the state", async () => {
@@ -981,7 +2097,11 @@ test("with a calendar the receptionist's word sits beside the state until its ow
   // Controller: after Task 3's review the mark always renders; a class hides it at 901px and up, where the column shows it,
   // so a phone card (which hides the Receptionist cell beside Visits) still says it.
   const mark = find(stateCell(tree), (n) => /cl-row-recept-mark/.test(n.props?.className || ""));
-  assert.match(mark?.props?.className || "", /is-in-column/, "beside the state only where its column is off the screen: a card");
+  assert.match(
+    mark?.props?.className || "",
+    /is-in-column/,
+    "beside the state only where its column is off the screen: a card",
+  );
 });
 
 test("Esc closes the Columns menu first and puts focus back on its button, and the selection stays; the rows hold still behind it, and the next Esc clears the selection", async () => {
@@ -991,7 +2111,11 @@ test("Esc closes the Columns menu first and puts focus back on its button, and t
   let tree = draw();
   assert.ok(byTestId(tree, "people-columns-menu"), "the menu is open");
   let focused = 0;
-  byTestId(tree, "people-columns").props.ref.current = { focus: () => { focused += 1; } };
+  byTestId(tree, "people-columns").props.ref.current = {
+    focus: () => {
+      focused += 1;
+    },
+  };
   assert.equal(press("j"), false, "J walks nothing behind the menu");
   assert.equal(cursorRow(draw()), null);
   assert.equal(press("Escape"), true, "the menu is the page's own, so its Esc is the page's");
@@ -1006,27 +2130,55 @@ test("Esc closes the Columns menu first and puts focus back on its button, and t
 
 test("a saved view's columns are read with care -- only a true or false for a column a member may hide counts, and the next save drops the rest", async () => {
   // A view is the member's own JSON: an older page or another device may have written anything into it.
-  await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc", columns: { name: false, actions: false, came_from: "no", email: true, bogus: true } } } });
+  await freshPage({
+    people: [person(1)],
+    views: {
+      people: {
+        sortBy: "last",
+        sortDir: "desc",
+        columns: { name: false, actions: false, came_from: "no", email: true, bogus: true },
+      },
+    },
+  });
   const saves = [];
-  globalThis.window.__saveView = async (page, view) => { saves.push([page, view]); return { ok: true, data: { views: { [page]: view } } }; };
+  globalThis.window.__saveView = async (page, view) => {
+    saves.push([page, view]);
+    return { ok: true, data: { views: { [page]: view } } };
+  };
   const tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from", "Email"], "Person stays, and a word is not a false");
-  assert.ok(find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-actions-cell\b/.test(n.props?.className || "")), "and so do the row's actions");
+  assert.deepEqual(
+    headings(tree),
+    ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from", "Email"],
+    "Person stays, and a word is not a false",
+  );
+  assert.ok(
+    find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-actions-cell\b/.test(n.props?.className || "")),
+    "and so do the row's actions",
+  );
   assert.deepEqual(saves, [], "what it could read of the view is what it holds: nothing to save");
   click(byTestId(tree, "people-columns"));
   click(byTestId(draw(), "column-lists"));
   draw();
-  assert.deepEqual(saves.at(-1), ["people", { sortBy: "last", sortDir: "desc", columns: { email: true, lists: true } }], "the next save keeps what it understood");
+  assert.deepEqual(
+    saves.at(-1),
+    ["people", { sortBy: "last", sortDir: "desc", columns: { email: true, lists: true } }],
+    "the next save keeps what it understood",
+  );
   for (const columns of [null, "email", ["email"], 7]) {
     await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc", columns } } });
-    assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from"], `${JSON.stringify(columns)} is no set of columns: the defaults`);
+    assert.deepEqual(
+      headings(draw()),
+      ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from"],
+      `${JSON.stringify(columns)} is no set of columns: the defaults`,
+    );
   }
 });
 
 /** Saves the test lands by hand: each call waits in the list, with the view it carried, until the test lands it. */
 const heldSaves = () => {
   const calls = [];
-  globalThis.window.__saveView = (page, view) => new Promise((land) => calls.push({ page, view: JSON.parse(JSON.stringify(view)), land }));
+  globalThis.window.__saveView = (page, view) =>
+    new Promise((land) => calls.push({ page, view: JSON.parse(JSON.stringify(view)), land }));
   return calls;
 };
 
@@ -1047,7 +2199,11 @@ test("a view saves one at a time, and only the latest waits -- two in flight cou
   await settle();
   assert.equal(calls.length, 2, "the first landed, and one more went");
   assert.equal(calls[1].page, "people");
-  assert.deepEqual(calls[1].view, { sortBy: "last", sortDir: "desc", columns: { came_from: false, email: true, lists: true } }, "the latest view, whole");
+  assert.deepEqual(
+    calls[1].view,
+    { sortBy: "last", sortDir: "desc", columns: { came_from: false, email: true, lists: true } },
+    "the latest view, whole",
+  );
   calls[1].land({ ok: true, data: {} });
   await settle();
   assert.equal(calls.length, 2, "and nothing after it");
@@ -1071,7 +2227,11 @@ test("a save that fails is tried once more, unless a newer view is waiting to go
     calls[1].land({ ok: false, message: "timed out" });
     await settle();
     assert.equal(calls.length, 2, "only once");
-    assert.equal(errors.filter((m) => m.startsWith("people_view_not_saved")).length, 1, "then it says the view was not saved");
+    assert.equal(
+      errors.filter((m) => m.startsWith("people_view_not_saved")).length,
+      1,
+      "then it says the view was not saved",
+    );
     // A newer view waiting goes instead of a second try: it carries every key, the failed one's too.
     click(byTestId(draw(), "column-lists"));
     draw();
@@ -1081,7 +2241,11 @@ test("a save that fails is tried once more, unless a newer view is waiting to go
     calls[2].land({ ok: false, message: "timed out" });
     await settle();
     assert.equal(calls.length, 4);
-    assert.deepEqual(calls[3].view.columns, { email: true, lists: true, came_from: false }, "the newer view, not the failed one again");
+    assert.deepEqual(
+      calls[3].view.columns,
+      { email: true, lists: true, came_from: false },
+      "the newer view, not the failed one again",
+    );
     calls[3].land({ ok: true, data: {} });
     await settle();
     assert.equal(calls.length, 4, "and nothing after it");
@@ -1113,7 +2277,10 @@ test("a Columns menu left open as the window narrows to a phone's lets go: the k
 test("a column put back the way its default has it is no choice any more -- the receptionist, turned off and on again, gives way to Visits once a calendar connects", async () => {
   await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc" } } });
   const saves = [];
-  globalThis.window.__saveView = async (page, view) => { saves.push(view); return { ok: true, data: {} }; };
+  globalThis.window.__saveView = async (page, view) => {
+    saves.push(view);
+    return { ok: true, data: {} };
+  };
   click(byTestId(draw(), "people-columns"));
   click(byTestId(draw(), "column-receptionist"));
   draw();
@@ -1124,7 +2291,11 @@ test("a column put back the way its default has it is no choice any more -- the 
   await settle();
   assert.deepEqual(saves.at(-1).columns, {}, "on again, as it shows without a calendar: nothing left to keep");
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves.at(-1) } });
-  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Visits", "Offers", "Came from"], "a calendar connects, and Visits takes the receptionist's place, as it does for everyone");
+  assert.deepEqual(
+    headings(draw()),
+    ["Person", "State", "Last contact", "Visits", "Offers", "Came from"],
+    "a calendar connects, and Visits takes the receptionist's place, as it does for everyone",
+  );
 });
 
 test("the Columns button says whether its menu is open, and a second press or a press beside the menu closes it", async () => {
@@ -1150,12 +2321,29 @@ test("the Columns button says whether its menu is open, and a second press or a 
 
 test("with a calendar the menu offers Visits, shown, and the receptionist, hidden; a Visits hidden stays hidden through a calendar outage and rides in every save", async () => {
   let saves = [];
-  const record = async (page, view) => { saves.push(view); return { ok: true, data: {} }; };
+  const record = async (page, view) => {
+    saves.push(view);
+    return { ok: true, data: {} };
+  };
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: { sortBy: "last", sortDir: "desc" } } });
   globalThis.window.__saveView = record;
   click(byTestId(draw(), "people-columns"));
   let tree = draw();
-  assert.deepEqual(menuItems(tree).map((c) => [c.key, c.on]), [["name", true], ["state", true], ["last", true], ["visits", true], ["receptionist", false], ["offers", true], ["came_from", true], ["email", false], ["lists", false]], "the visit shows; the receptionist waits in the menu");
+  assert.deepEqual(
+    menuItems(tree).map((c) => [c.key, c.on]),
+    [
+      ["name", true],
+      ["state", true],
+      ["last", true],
+      ["visits", true],
+      ["receptionist", false],
+      ["offers", true],
+      ["came_from", true],
+      ["email", false],
+      ["lists", false],
+    ],
+    "the visit shows; the receptionist waits in the menu",
+  );
   click(byTestId(tree, "column-visits"));
   draw();
   await settle();
@@ -1172,34 +2360,60 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
   click(byTestId(tree, "column-email"));
   draw();
   await settle();
-  assert.deepEqual(saves.at(-1).columns, { visits: false, email: true }, "a save while it is down keeps the hidden Visits");
+  assert.deepEqual(
+    saves.at(-1).columns,
+    { visits: false, email: true },
+    "a save while it is down keeps the hidden Visits",
+  );
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves.at(-1) } });
-  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Offers", "Came from", "Email"], "back up, and Visits is still hidden, as chosen");
+  assert.deepEqual(
+    headings(draw()),
+    ["Person", "State", "Last contact", "Offers", "Came from", "Email"],
+    "back up, and Visits is still hidden, as chosen",
+  );
 });
 
 test("REGRESSION: Back keeps the columns a member chose -- People mounted again read the surface's view from before the save, and the next save wrote the old columns to the server", async () => {
   // A member whose view this page has saved before, columns and all.
-  const seen = await freshPage({ people: [person(1), person(2)], views: { people: { sortBy: "last", sortDir: "desc", columns: {} } } });
+  const seen = await freshPage({
+    people: [person(1), person(2)],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: {} } },
+  });
   // The bridge's own save over the wire, not a stand-in: the save itself keeps the surface's copy in step.
   globalThis.window.__saveView = saveView;
   click(byTestId(draw(), "people-columns"));
   click(byTestId(draw(), "column-came_from"));
   draw();
   await settle();
-  assert.deepEqual(seen.viewSaves, [{ page: "people", view: { sortBy: "last", sortDir: "desc", columns: { came_from: false } } }], "the save landed");
+  assert.deepEqual(
+    seen.viewSaves,
+    [{ page: "people", view: { sortBy: "last", sortDir: "desc", columns: { came_from: false } } }],
+    "the save landed",
+  );
   // A profile opens, so the list goes; Back mounts it again, and it reads the surface as it stands.
   cells = [];
   const tree = draw();
   assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the column the member hid came back");
-  assert.deepEqual(JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view")).columns, { came_from: false }, "REGRESSION: and this device's copy was written over with the old columns");
+  assert.deepEqual(
+    JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view")).columns,
+    { came_from: false },
+    "REGRESSION: and this device's copy was written over with the old columns",
+  );
   sortByHeading(tree, "State");
   draw();
   await settle();
-  assert.deepEqual(seen.viewSaves.at(-1), { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: false } } }, "REGRESSION: a sort afterwards sent the columns from before, and the server lost the choice");
+  assert.deepEqual(
+    seen.viewSaves.at(-1),
+    { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: false } } },
+    "REGRESSION: a sort afterwards sent the columns from before, and the server lost the choice",
+  );
 });
 
 test("REGRESSION: a save made while People is being read is not undone by the read -- the read brought the old view back, Back showed the column again, and the next sort saved the old columns", async () => {
-  const seen = await freshPage({ people: [person(1), person(2)], views: { people: { sortBy: "last", sortDir: "desc", columns: {} } } });
+  const seen = await freshPage({
+    people: [person(1), person(2)],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: {} } },
+  });
   globalThis.window.__saveView = saveView;
   click(byTestId(draw(), "people-columns"));
   // A read of People goes out (a new message, the tab shown again, a load), and the server answers it with the view
@@ -1209,14 +2423,22 @@ test("REGRESSION: a save made while People is being read is not undone by the re
   draw();
   await reading;
   await settle();
-  assert.deepEqual(seen.viewSaves.map((s) => s.view.columns), [{ came_from: false }], "the save went while the read was out");
+  assert.deepEqual(
+    seen.viewSaves.map((s) => s.view.columns),
+    [{ came_from: false }],
+    "the save went while the read was out",
+  );
   cells = [];
   const tree = draw();
   assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the read put the column back");
   sortByHeading(tree, "State");
   draw();
   await settle();
-  assert.deepEqual(seen.viewSaves.at(-1).view, { sortBy: "state", sortDir: "desc", columns: { came_from: false } }, "REGRESSION: and the next sort saved the old columns");
+  assert.deepEqual(
+    seen.viewSaves.at(-1).view,
+    { sortBy: "state", sortDir: "desc", columns: { came_from: false } },
+    "REGRESSION: and the next sort saved the old columns",
+  );
 });
 
 test("a read of People that overlapped no save takes the server's view -- another device's change shows", async () => {
@@ -1231,7 +2453,11 @@ test("a read of People that overlapped no save takes the server's view -- anothe
   wire({ people, views: { people: { sortBy: "name", sortDir: "asc", columns: { email: true } } } });
   await peopleOverride.apply();
   cells = [];
-  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from", "Email"], "the other device's columns, not this tab's last save");
+  assert.deepEqual(
+    headings(draw()),
+    ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from", "Email"],
+    "the other device's columns, not this tab's last save",
+  );
 });
 
 /* ------------------------- the bulk bar, on the people shown (Phase 0) ------------------------- */
@@ -1241,25 +2467,54 @@ test("a read of People that overlapped no save takes the server's view -- anothe
  * makes lands in `blobs`, and `restore` puts the window back.
  */
 const catchExports = () => {
-  const blobs = [], was = { url: URL.createObjectURL, make: globalThis.document.createElement };
-  URL.createObjectURL = (b) => { blobs.push(b); return was.url(b); };
+  const blobs = [],
+    was = { url: URL.createObjectURL, make: globalThis.document.createElement };
+  URL.createObjectURL = (b) => {
+    blobs.push(b);
+    return was.url(b);
+  };
   globalThis.document.createElement = () => ({ click() {}, remove() {} });
   globalThis.document.body.appendChild = () => {};
   globalThis.window.__href = () => "";
-  return { blobs, restore: () => { URL.createObjectURL = was.url; globalThis.document.createElement = was.make; delete globalThis.document.body.appendChild; delete globalThis.window.__href; } };
+  return {
+    blobs,
+    restore: () => {
+      URL.createObjectURL = was.url;
+      globalThis.document.createElement = was.make;
+      delete globalThis.document.body.appendChild;
+      delete globalThis.window.__href;
+    },
+  };
 };
 /** Who is in a file the bar made: each row's first cell, the name, under the heading row. A cell is quoted only when it must be (csvCell). */
-const csvFirst = (line) => { const m = /^"((?:[^"]|"")*)"/.exec(line); return m ? m[1].replace(/""/g, '"') : line.split(",")[0]; };
+const csvFirst = (line) => {
+  const m = /^"((?:[^"]|"")*)"/.exec(line);
+  return m ? m[1].replace(/""/g, '"') : line.split(",")[0];
+};
 const exportedNames = async (blob) => (await blob.text()).split("\r\n").slice(1).map(csvFirst);
 
 test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh moved out of the view stayed counted, and was written to", async () => {
-  const needs = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  const needs = (i) =>
+    person(i, {
+      needs_human: true,
+      open_escalation_reason: "human_token",
+      open_escalation_since: iso(H),
+      latest_state: "needs_human",
+    });
   const kept = [{ id: "s1", name: "Regulars", ids: [] }];
   await freshPage({ people: [needs(1), needs(2), person(3)], lists: kept });
   const calls = [];
-  globalThis.window.__lists = lists({ add: async (id, ids) => { calls.push(ids); return { ok: true, data: {} }; } });
+  globalThis.window.__lists = lists({
+    add: async (id, ids) => {
+      calls.push(ids);
+      return { ok: true, data: {} };
+    },
+  });
   const yeses = [];
-  globalThis.window.__setPersonConsentMany = async (ids) => { yeses.push(ids); return { ok: true, done: ids.length, failed: 0 }; };
+  globalThis.window.__setPersonConsentMany = async (ids) => {
+    yeses.push(ids);
+    return { ok: true, done: ids.length, failed: 0 };
+  };
   const { blobs, restore } = catchExports();
   try {
     let tree = draw({ initialState: "needs_you" });
@@ -1270,18 +2525,34 @@ test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh mo
     wire({ people: [needs(1), person(2), person(3)], lists: kept });
     await quietly(() => peopleOverride.apply());
     tree = draw({ initialState: "needs_you" });
-    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]), ["Select Person 1"], "the view shows one");
-    assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/, "REGRESSION: the bar counted a person who is not on screen");
-    await find(tree, (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "Regulars").onClick();
+    assert.deepEqual(
+      all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]),
+      ["Select Person 1"],
+      "the view shows one",
+    );
+    assert.match(
+      textOf(byTestId(tree, "bulk-bar")),
+      /1 selected/,
+      "REGRESSION: the bar counted a person who is not on screen",
+    );
+    await find(tree, (n) => n.props?.label === "Add to list")
+      .props.items.find((i) => i.label === "Regulars")
+      .onClick();
     await settle();
     assert.deepEqual(calls, [["p1"]], "REGRESSION: the add wrote to a person the view no longer shows");
     // The doors that take fifty at a time (a yes, the receptionist, a note, Take off) share one batch; a yes stands for them.
-    await find(draw({ initialState: "needs_you" }), (n) => n.props?.label === "Record a yes").props.items.find((i) => i.label === "In person").onClick();
+    await find(draw({ initialState: "needs_you" }), (n) => n.props?.label === "Record a yes")
+      .props.items.find((i) => i.label === "In person")
+      .onClick();
     await settle();
     assert.deepEqual(yeses, [["p1"]], "REGRESSION: the yes went to a person the view no longer shows");
     byTestId(draw({ initialState: "needs_you" }), "bulk-export").props.onClick();
     assert.equal(textOf(flashes.at(-1).msg), "1 exported as a CSV");
-    assert.deepEqual(await exportedNames(blobs.at(-1)), ["Person 1"], "REGRESSION: the file held a person the view no longer shows");
+    assert.deepEqual(
+      await exportedNames(blobs.at(-1)),
+      ["Person 1"],
+      "REGRESSION: the file held a person the view no longer shows",
+    );
   } finally {
     restore();
   }
@@ -1289,35 +2560,68 @@ test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh mo
 
 test("REGRESSION: a search match past the people loaded is exported with the rest -- the bar counted it and wrote to it, and left it out of the file", async () => {
   // Past everyone loaded, the server finds Saturday Jones; Person 2 matches by their last words ("Can I move Saturday to 11?").
-  await freshPage({ people: [person(1, { display_name: "Saturday Smith" }), person(2)], lists: [{ id: "s1", name: "Regulars", ids: [] }] });
+  await freshPage({
+    people: [person(1, { display_name: "Saturday Smith" }), person(2)],
+    lists: [{ id: "s1", name: "Regulars", ids: [] }],
+  });
   globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
   const far = toPersonRowVM(person(99, { display_name: "Saturday Jones" }), ZONE, new Date());
   globalThis.window.__peopleSearch = async () => ({ rows: [far], more: false });
   const calls = [];
-  globalThis.window.__lists = lists({ add: async (id, ids) => { calls.push(ids); return { ok: true, data: {} }; } });
+  globalThis.window.__lists = lists({
+    add: async (id, ids) => {
+      calls.push(ids);
+      return { ok: true, data: {} };
+    },
+  });
   const { blobs, restore } = catchExports();
   try {
-    find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({ target: { value: "saturday" } });
+    find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+      target: { value: "saturday" },
+    });
     draw();
     await sleep(320);
     byTestId(draw(), "select-all").props.onChange();
     const tree = draw();
     assert.match(textOf(byTestId(tree, "bulk-bar")), /3 selected/, "the two loaded and the one found");
     byTestId(tree, "bulk-export").props.onClick();
-    assert.equal(textOf(flashes.at(-1).msg), "3 exported as a CSV", "REGRESSION: the file counted only the people loaded");
-    assert.deepEqual((await exportedNames(blobs.at(-1))).sort(), ["Person 2", "Saturday Jones", "Saturday Smith"], "REGRESSION: the person found past the loaded rows was left out of the file");
-    await find(tree, (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "Regulars").onClick();
+    assert.equal(
+      textOf(flashes.at(-1).msg),
+      "3 exported as a CSV",
+      "REGRESSION: the file counted only the people loaded",
+    );
+    assert.deepEqual(
+      (await exportedNames(blobs.at(-1))).sort(),
+      ["Person 2", "Saturday Jones", "Saturday Smith"],
+      "REGRESSION: the person found past the loaded rows was left out of the file",
+    );
+    await find(tree, (n) => n.props?.label === "Add to list")
+      .props.items.find((i) => i.label === "Regulars")
+      .onClick();
     await settle();
-    assert.deepEqual(calls.map((ids) => [...ids].sort()), [["p1", "p2", "p99"]], "and written to with the rest");
+    assert.deepEqual(
+      calls.map((ids) => [...ids].sort()),
+      [["p1", "p2", "p99"]],
+      "and written to with the rest",
+    );
   } finally {
     restore();
   }
 });
 
 test("the table is selecting only while a row it shows is selected -- a selection a refresh took off the screen shows no row's box, and draws no bar", async () => {
-  const needs = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  const needs = (i) =>
+    person(i, {
+      needs_human: true,
+      open_escalation_reason: "human_token",
+      open_escalation_since: iso(H),
+      latest_state: "needs_human",
+    });
   // `selecting` on the table's wrap is what shows every row's box (clients.css).
-  const selecting = (tree) => /\bselecting\b/.test(String(find(tree, (n) => /\bpl-table-wrap\b/.test(String(n.props?.className || ""))).props.className));
+  const selecting = (tree) =>
+    /\bselecting\b/.test(
+      String(find(tree, (n) => /\bpl-table-wrap\b/.test(String(n.props?.className || ""))).props.className),
+    );
   await freshPage({ people: [needs(1), needs(2), person(3)] });
   let tree = draw({ initialState: "needs_you" });
   assert.equal(selecting(tree), false, "nobody selected");
@@ -1329,7 +2633,11 @@ test("the table is selecting only while a row it shows is selected -- a selectio
   wire({ people: [needs(1), person(2), person(3)] });
   await quietly(() => peopleOverride.apply());
   tree = draw({ initialState: "needs_you" });
-  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]), ["Select Person 1"], "the view shows one");
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]),
+    ["Select Person 1"],
+    "the view shows one",
+  );
   assert.equal(selecting(tree), false, "a selection nobody can see does not put the table in selecting mode");
   assert.equal(byTestId(tree, "bulk-bar"), null, "nor draws a bar with nobody on screen to act on");
   byTestId(rowOf(tree, "p1"), "row-select").props.onChange();
@@ -1341,7 +2649,10 @@ test("the table is selecting only while a row it shows is selected -- a selectio
 test("on a desktop the table scrolls in its own box, Person pinned, and the hairline beside it shows once it has scrolled sideways", async () => {
   await freshPage({ people: [person(1)] });
   let tree = draw();
-  assert.ok(find(tree, (n) => /\bcl-main-scroll\b/.test(n.props?.className || "") && /\bpl-main\b/.test(n.props.className)), "the page's column is the layout that gives the table its own box");
+  assert.ok(
+    find(tree, (n) => /\bcl-main-scroll\b/.test(n.props?.className || "") && /\bpl-main\b/.test(n.props.className)),
+    "the page's column is the layout that gives the table its own box",
+  );
   const scroller = (t) => byTestId(t, "people-table-scroll");
   assert.doesNotMatch(scroller(tree).props.className, /\bscrolled\b/, "no hairline at rest");
   scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 120 } });
@@ -1350,14 +2661,33 @@ test("on a desktop the table scrolls in its own box, Person pinned, and the hair
   scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 0 } });
   tree = draw();
   assert.doesNotMatch(scroller(tree).props.className, /\bscrolled\b/, "back at the start: none");
-  assert.match(find(tree, (n) => n.type === "th" && textOf(n).startsWith("Person")).props.className, /\bpl-pin\b/, "Person's heading is pinned");
-  assert.match(find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-name-cell\b/.test(n.props?.className || "")).props.className, /\bpl-pin\b/, "and so are its cells");
+  assert.match(
+    find(tree, (n) => n.type === "th" && textOf(n).startsWith("Person")).props.className,
+    /\bpl-pin\b/,
+    "Person's heading is pinned",
+  );
+  assert.match(
+    find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-name-cell\b/.test(n.props?.className || "")).props
+      .className,
+    /\bpl-pin\b/,
+    "and so are its cells",
+  );
 });
 
 test("Person is the cell right after the checkbox, in the header and in every row -- its pin sits at the checkbox's width, 28px, beside it", async () => {
   // clients.css pins Person with `.cl-sel + .pl-pin { left: 28px }`: that holds only while Person follows the checkbox.
   const cells = (tr) => tr.props.children.filter((k) => k && (k.type === "th" || k.type === "td"));
-  const lines = (tree) => [find(find(tree, (n) => n.type === "thead"), (n) => n.type === "tr"), ...all(find(tree, (n) => n.type === "tbody"), (n) => n.type === "tr")].map(cells);
+  const lines = (tree) =>
+    [
+      find(
+        find(tree, (n) => n.type === "thead"),
+        (n) => n.type === "tr",
+      ),
+      ...all(
+        find(tree, (n) => n.type === "tbody"),
+        (n) => n.type === "tr",
+      ),
+    ].map(cells);
   const is = (cell, cls) => new RegExp(`\\b${cls}\\b`).test(String(cell.props.className || ""));
   for (const calendar of ["none", "ok"]) {
     await freshPage({ people: [person(1), person(2), person(3)], calendar });
@@ -1383,29 +2713,75 @@ test("Person is the cell right after the checkbox, in the header and in every ro
   }
 });
 
-test("REGRESSION: a member's columns are a desktop's, and a phone keeps its cards -- with State and Offers hidden, the cards lost the state and the answer to offers, and no phone can reach the Columns menu to put them back", async () => {
-  const needsYou = person(1, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
-  const people = [needsYou, person(2)];
-  /** A row's cells as a card draws them: every cell drawn, whatever mark a desktop reads. */
-  const cardCells = (tree, id) => rowOf(tree, id).props.children.filter((k) => k && k.type === "td").map((td) => String(td.props.className).replace(/\s*\bpl-col-off\b/g, "").trim());
-  await freshPage({ people });
-  let tree = draw();
-  const byDefault = ["p1", "p2"].map((id) => cardCells(tree, id));
-  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
-  tree = draw();
-  assert.deepEqual(["p1", "p2"].map((id) => cardCells(tree, id)), byDefault, "REGRESSION: each row draws the cells it draws by default, whatever the member chose");
-  assert.deepEqual(headings(tree), ["Person", "Last contact", "Receptionist", "Came from"], "and a desktop leaves State and Offers out");
-  const state = find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-state-cell\b/.test(n.props?.className || ""));
-  assert.ok(colOff(state) && colOff(byTestId(rowOf(tree, "p1"), "row-offers")), "the state and the answer to offers are drawn, marked for a desktop to hide");
-  assert.match(textOf(state), /needs you/i, "and the card still says who needs a person");
-  const offHeadings = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th" && colOff(n)).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
-  assert.deepEqual(offHeadings, ["State", "Offers", "Email", "Lists"], "a heading carries the mark with its cells, so one cell sits under each heading");
+test("REGRESSION: a desktop builds no cell of a column the member turned off -- four hidden cells were built, cloned and inserted per row for a desktop to hide", async () => {
+  const needsYou = person(1, {
+    needs_human: true,
+    open_escalation_reason: "human_token",
+    open_escalation_since: iso(H),
+    latest_state: "needs_human",
+  });
+  await freshPage({
+    people: [needsYou, person(2)],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } },
+  });
+  const desk = draw();
+  assert.equal(
+    all(rowOf(desk, "p1"), (n) => n.type === "td" && colOff(n)).length,
+    0,
+    "State, Offers, Email and Lists are not in the row at all",
+  );
+  assert.deepEqual(headings(desk), ["Person", "Last contact", "Receptionist", "Came from"]);
 });
+
+test("REGRESSION: a phone row is one cell -- the face, the name and the state; why they need a person, or their own words; the visit and the last contact -- and the member's desktop columns never reach it", () =>
+  onPhone(async () => {
+    const needs = person(1, {
+      display_name: "Zoe M.",
+      needs_human: true,
+      open_escalation_reason: "human_token",
+      open_escalation_since: iso(H),
+      latest_state: "needs_human",
+    });
+    await freshPage({
+      people: [needs, person(2)],
+      views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } },
+    });
+    const tree = draw();
+    const row = rowOf(tree, "p1");
+    assert.match(row.props.className, /\bpl-card-row\b/);
+    const tds = row.props.children.filter((k) => k && k.type === "td");
+    assert.deepEqual(
+      tds.map((td) => String(td.props.className)),
+      ["cl-sel", "pl-card-cell"],
+      "REGRESSION: the desktop's cells re-gridded into a box, 119 to 168px a person",
+    );
+    const card = tds[1];
+    const pill = find(card, (n) => /\bpill\b/.test(String(n.props?.className || "")));
+    assert.equal(pill.props["data-state"], "needs_you", "the state, whatever the member hid on a desktop");
+    assert.ok(byTestId(card, "row-state-detail"), "why they need a person");
+    assert.equal(byTestId(card, "row-offers"), null, "the answer to offers is on their page (Ruben, 22 Sep)");
+    assert.ok(
+      find(card, (n) => /\bpl-card-face\b/.test(String(n.props?.className || ""))),
+      "their face",
+    );
+    assert.match(
+      textOf(byTestId(rowOf(tree, "p2"), "row-words")),
+      /Saturday/,
+      "a person who needs nobody says their own words",
+    );
+    assert.match(textOf(card), /Zoe M\./, "and their name");
+  }));
 
 /* ------------------------- the table, after its review (18 September) ------------------------- */
 
 test("REGRESSION: By state puts who needs a person first -- the ranks ran the other way, so the first press put Active first and Needs you last", async () => {
-  const needsOne = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  const needsOne = (i) =>
+    person(i, {
+      needs_human: true,
+      open_escalation_reason: "human_token",
+      open_escalation_since: iso(H),
+      latest_state: "needs_human",
+    });
   await freshPage({ people: [person(1), needsOne(2), person(3)] });
   let tree = draw();
   const ids = (t) => all(t, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id);
@@ -1413,7 +2789,11 @@ test("REGRESSION: By state puts who needs a person first -- the ranks ran the ot
   sortByHeading(tree, "State");
   tree = draw();
   assert.equal(ids(tree)[0], "person-p2", `REGRESSION: the person who needs someone came last: ${ids(tree)}`);
-  assert.equal(all(tree, (n) => n.type === "button" && textOf(n).trim() === "By state").length, 1, "and the sort says so");
+  assert.equal(
+    all(tree, (n) => n.type === "button" && textOf(n).trim() === "By state").length,
+    1,
+    "and the sort says so",
+  );
 });
 
 test("REGRESSION: a selection's file spells a cell as the route's export does -- a name a spreadsheet reads as a formula ran in whoever opened it, and a number lost its plus", async () => {
@@ -1423,10 +2803,17 @@ test("REGRESSION: a selection's file spells a cell as the route's export does --
     byTestId(draw(), "select-all").props.onChange();
     byTestId(draw(), "bulk-export").props.onClick();
     const lines = (await blobs.at(-1).text()).replace(/^\ufeff/, "").split("\r\n");
-    assert.equal(lines[0], "Name,Phone,Email,State,Last contact,Consent,Offers,Next visit,First contact", "a heading is quoted only when it must be");
+    assert.equal(
+      lines[0],
+      "Name,Phone,Email,State,Last contact,Consent,Offers,Next visit,First contact",
+      "a heading is quoted only when it must be",
+    );
     const hyper = lines.find((l) => l.includes("HYPERLINK"));
-    assert.ok(hyper && hyper.startsWith(`"'=HYPERLINK(""http://x"")",'+1 (786) 555-1001,`), `REGRESSION: the formula was quoted and nothing more: ${hyper}`);
-    assert.deepEqual((await exportedNames(blobs.at(-1))).sort(), ["'=HYPERLINK(\"http://x\")", "Person 2"]);
+    assert.ok(
+      hyper && hyper.startsWith(`"'=HYPERLINK(""http://x"")",'+1 (786) 555-1001,`),
+      `REGRESSION: the formula was quoted and nothing more: ${hyper}`,
+    );
+    assert.deepEqual((await exportedNames(blobs.at(-1))).sort(), ['\'=HYPERLINK("http://x")', "Person 2"]);
   } finally {
     restore();
   }
@@ -1435,26 +2822,56 @@ test("REGRESSION: a selection's file spells a cell as the route's export does --
 test("a heading that sorts is a button a keyboard reaches; one that does not is words", async () => {
   await freshPage({ people: [person(1)] });
   const tree = draw();
-  const ths = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th");
+  const ths = all(
+    find(tree, (n) => n.type === "thead"),
+    (n) => n.type === "th",
+  );
   const isSort = (n) => n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || ""));
   const withButton = ths.filter((th) => find(th, isSort));
-  assert.deepEqual(withButton.map((th) => textOf(th).replace(/[▲▼]/g, "").trim()), ["Person", "State", "Last contact", "Offers"], "REGRESSION: the sort was the cell's own click, which Tab never found");
+  assert.deepEqual(
+    withButton.map((th) => textOf(th).replace(/[▲▼]/g, "").trim()),
+    ["Person", "State", "Last contact", "Offers"],
+    "REGRESSION: the sort was the cell's own click, which Tab never found",
+  );
   for (const th of withButton) assert.equal(find(th, isSort).props.type, "button", "a button, not a form's submit");
-  assert.equal(find(ths.find((th) => textOf(th).trim() === "Came from"), (n) => n.type === "button"), null, "Came from does not sort, so it is words");
+  assert.equal(
+    find(
+      ths.find((th) => textOf(th).trim() === "Came from"),
+      (n) => n.type === "button",
+    ),
+    null,
+    "Came from does not sort, so it is words",
+  );
 });
 
 test("focusing a row puts the cursor on it, and the cursor's row is the table's tab stop -- J and K carry on from where a person tabbed or clicked", async () => {
   await freshPage({ people: [person(1), person(2), person(3)] });
   let tree = draw();
   const rows = (t) => all(t, (n) => n.type === "tr" && n.props?.id);
-  assert.deepEqual(rows(tree).map((r) => r.props.tabIndex), [0, -1, -1], "with no cursor the first row is the tab stop");
+  assert.deepEqual(
+    rows(tree).map((r) => r.props.tabIndex),
+    [0, -1, -1],
+    "with no cursor the first row is the tab stop",
+  );
   rows(tree)[1].props.onFocus();
   tree = draw();
-  assert.deepEqual(rows(tree).map((r) => /\bfocused\b/.test(r.props.className)), [false, true, false], "REGRESSION: a row focused by Tab or a click was not the cursor's");
-  assert.deepEqual(rows(tree).map((r) => r.props.tabIndex), [-1, 0, -1], "and it is the tab stop");
+  assert.deepEqual(
+    rows(tree).map((r) => /\bfocused\b/.test(r.props.className)),
+    [false, true, false],
+    "REGRESSION: a row focused by Tab or a click was not the cursor's",
+  );
+  assert.deepEqual(
+    rows(tree).map((r) => r.props.tabIndex),
+    [-1, 0, -1],
+    "and it is the tab stop",
+  );
   press("ArrowDown");
   tree = draw();
-  assert.deepEqual(rows(tree).map((r) => /\bfocused\b/.test(r.props.className)), [false, false, true], "the keys carry on from it");
+  assert.deepEqual(
+    rows(tree).map((r) => /\bfocused\b/.test(r.props.className)),
+    [false, false, true],
+    "the keys carry on from it",
+  );
   const before = opened.length;
   assert.equal(press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null }), true);
   assert.deepEqual(opened.slice(before), ["p3"], "Enter on the focused row opens it");

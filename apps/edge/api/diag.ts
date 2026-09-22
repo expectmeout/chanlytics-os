@@ -12,6 +12,7 @@ import type { SweepHealthRow } from "../lib/sweep-health.js";
 import { pageStates, untoldPages, type PageRow } from "../lib/page-operator.js";
 import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/packages/channels.js";
 import { metaAppId } from "../lib/meta-graph.js";
+import { env } from "../lib/env.js";
 
 const META_APP_ID = metaAppId();
 
@@ -28,13 +29,13 @@ export async function GET(request: Request): Promise<Response> {
     // thread it cannot read is handed to a person.
     memory: "postgres",
     env: {
-      database: !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      anthropic: !!process.env.ANTHROPIC_API_KEY,
-      waToken: !!process.env.WHATSAPP_ACCESS_TOKEN,
-      resend: !!process.env.RESEND_API_KEY,
-      metaSecret: !!process.env.META_APP_SECRET,
-      retellKey: !!process.env.RETELL_API_KEY,
-      diagKey: !!process.env.DIAG_KEY,
+      database: !!env.SUPABASE_URL && !!env.SUPABASE_SERVICE_ROLE_KEY,
+      anthropic: !!env.ANTHROPIC_API_KEY,
+      waToken: !!env.WHATSAPP_ACCESS_TOKEN,
+      resend: !!env.RESEND_API_KEY,
+      metaSecret: !!env.META_APP_SECRET,
+      retellKey: !!env.RETELL_API_KEY,
+      diagKey: !!env.DIAG_KEY,
     },
   };
 
@@ -74,7 +75,10 @@ export async function GET(request: Request): Promise<Response> {
     if (!db) {
       out.pages = { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" };
     } else {
-      const { data, error } = await db.from("operator_pages").select("key, first_at, last_at, count, alerted_at").order("last_at", { ascending: false });
+      const { data, error } = await db
+        .from("operator_pages")
+        .select("key, first_at, last_at, count, alerted_at")
+        .order("last_at", { ascending: false });
       if (error) {
         out.pages = { error: error.message.slice(0, 200) };
       } else {
@@ -112,11 +116,11 @@ export async function GET(request: Request): Promise<Response> {
 
   // Token permanence: a temp WHATSAPP_ACCESS_TOKEN expiring mid-App-Review would
   // take the pilot dark with no code change to blame. expires_at=0 = permanent.
-  if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.META_APP_SECRET) {
+  if (env.WHATSAPP_ACCESS_TOKEN && env.META_APP_SECRET) {
     try {
       const q = new URLSearchParams({
-        input_token: process.env.WHATSAPP_ACCESS_TOKEN,
-        access_token: `${META_APP_ID}|${process.env.META_APP_SECRET}`,
+        input_token: env.WHATSAPP_ACCESS_TOKEN,
+        access_token: `${META_APP_ID}|${env.META_APP_SECRET}`,
       });
       const r = await fetch(`https://graph.facebook.com/v25.0/debug_token?${q}`);
       const d = ((await r.json()) as { data?: { is_valid?: boolean; expires_at?: number; type?: string } }).data || {};
@@ -137,7 +141,7 @@ export async function GET(request: Request): Promise<Response> {
   // whether Retell sends transcript_updated (a live transcript), how long it
   // keeps recordings, whether their URLs are signed. Nothing else can read
   // them — the API key lives here.
-  if (process.env.RETELL_API_KEY) {
+  if (env.RETELL_API_KEY) {
     try {
       const db = pg();
       const { data: rows } = db
@@ -145,12 +149,12 @@ export async function GET(request: Request): Promise<Response> {
         : { data: null };
       const agents: unknown[] = [];
       for (const r of rows ?? []) {
-        const a = await getAgent({ apiKey: process.env.RETELL_API_KEY }, r.external_id);
+        const a = await getAgent({ apiKey: env.RETELL_API_KEY }, r.external_id);
         // Whether the line runs the product's shell — facts and caller context
         // arriving per call — or a hand-typed prompt with the hours baked in.
         // Read at the version the agent points at; strings only come out,
         // because the live tools carry a secret header.
-        const llm = a?.llm_id ? await getRetellLlm({ apiKey: process.env.RETELL_API_KEY }, a.llm_id, a.llm_version) : null;
+        const llm = a?.llm_id ? await getRetellLlm({ apiKey: env.RETELL_API_KEY }, a.llm_id, a.llm_version) : null;
         agents.push(
           a
             ? {
@@ -174,14 +178,28 @@ export async function GET(request: Request): Promise<Response> {
       // key this deployment holds be matched against the one Retell badges
       // as its webhook signer, without printing either.
       out.retellAuth = {
-        key_fingerprint: createHash("sha256").update(process.env.RETELL_API_KEY).digest("hex").slice(0, 12),
+        key_fingerprint: createHash("sha256").update(env.RETELL_API_KEY).digest("hex").slice(0, 12),
         recent: db
-          ? ((await db.from("events").select("created_at, data").eq("kind", "webhook.auth").order("created_at", { ascending: false }).limit(5)).data ?? [])
+          ? ((
+              await db
+                .from("events")
+                .select("created_at, data")
+                .eq("kind", "webhook.auth")
+                .order("created_at", { ascending: false })
+                .limit(5)
+            ).data ?? [])
           : [],
         // What the last deliveries DID — per event: status carried and
         // normalised, turns brought, whether the ingest declined them.
         deliveries: db
-          ? ((await db.from("events").select("created_at, subject_id, data").eq("kind", "webhook.delivery").order("created_at", { ascending: false }).limit(20)).data ?? [])
+          ? ((
+              await db
+                .from("events")
+                .select("created_at, subject_id, data")
+                .eq("kind", "webhook.delivery")
+                .order("created_at", { ascending: false })
+                .limit(20)
+            ).data ?? [])
           : [],
       };
     } catch (e) {
@@ -195,9 +213,12 @@ export async function GET(request: Request): Promise<Response> {
   // the staging allowlist (a reply skipped is a customer unanswered) and the
   // environment token a channel without its own credentials rides.
   out.whatsapp = {
-    allowlist_numbers: (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean).length,
-    env_fallback_token: !!process.env.WHATSAPP_ACCESS_TOKEN,
-    signup_ready: !!(process.env.META_APP_SECRET && process.env.META_ES_CONFIG_ID),
+    allowlist_numbers: (env.WHATSAPP_TEST_ALLOWLIST || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean).length,
+    env_fallback_token: !!env.WHATSAPP_ACCESS_TOKEN,
+    signup_ready: !!(env.META_APP_SECRET && env.META_ES_CONFIG_ID),
   };
 
   // The receptionist's last 24 hours, from the usage events every reply

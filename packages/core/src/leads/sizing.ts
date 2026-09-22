@@ -5,7 +5,14 @@
  * run: the term's estimate, scaled down when the sum would pass what the
  * round still has reserved, never under the actor's floor.
  */
-import { LEAD_PROBE_PLACES, estimateRoundUsd, placesToAsk, type LeadContactStandard, type LeadMemberClass, type LeadSearchPlan } from "@chanlytics/contracts";
+import {
+  LEAD_PROBE_PLACES,
+  estimateRoundUsd,
+  placesToAsk,
+  type LeadContactStandard,
+  type LeadMemberClass,
+  type LeadSearchPlan,
+} from "@chanlytics/contracts";
 import { MAPS_CAP_FLOOR_USD } from "./cards";
 
 /** The probe: LEAD_PROBE_PLACES spread across every term (E10). */
@@ -14,7 +21,12 @@ export function probeAsk(plan: LeadSearchPlan): { terms: string[]; perTerm: numb
 }
 
 /** The main phase: the remainder over the probe's yield, without the term the question dropped. */
-export function mainAsk(plan: LeadSearchPlan, remaining: number, yieldSoFar: number, dropTerm: string | null): { terms: string[]; perTerm: number[] } {
+export function mainAsk(
+  plan: LeadSearchPlan,
+  remaining: number,
+  yieldSoFar: number,
+  dropTerm: string | null,
+): { terms: string[]; perTerm: number[] } {
   const terms = plan.terms.filter((t) => t !== dropTerm);
   const kept = terms.length ? terms : plan.terms;
   const sized = placesToAsk({ ...plan, terms: kept }, Math.max(1, remaining), yieldSoFar);
@@ -28,7 +40,10 @@ export function yieldOf(judged: number, usable: number): number {
 }
 
 /** What the contact standard needs on a place: a phone, or a candidate email the cleaner kept. */
-export function hasContact(contact: LeadContactStandard, place: { phone: string | null; email: string | null }): boolean {
+export function hasContact(
+  contact: LeadContactStandard,
+  place: { phone: string | null; email: string | null },
+): boolean {
   return contact === "phone" ? place.phone !== null : place.email !== null;
 }
 
@@ -39,7 +54,10 @@ export function hasContact(contact: LeadContactStandard, place: { phone: string 
  * email standard that is zero until the mailbox checks land, and a round
  * sized from zero asks the provider for everything it is allowed to.
  */
-export function probeYield(contact: LeadContactStandard, members: { class: LeadMemberClass; phone: string | null; email: string | null }[]): number {
+export function probeYield(
+  contact: LeadContactStandard,
+  members: { class: LeadMemberClass; phone: string | null; email: string | null }[],
+): number {
   return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(contact, m)).length);
 }
 

@@ -66,7 +66,15 @@ export async function POST(request: Request): Promise<Response> {
   // own, so a failure there never costs the two-hour watchdog its tick.
   let unfinished: Awaited<ReturnType<typeof sweepUnfinished>> = { unanswered: 0, orphaned: 0, told: 0 };
   try {
-    unfinished = await sweepUnfinished({ db, L, upsertEscalation, markProcessed, notify, loadTenantNotifications, reachesTenant });
+    unfinished = await sweepUnfinished({
+      db,
+      L,
+      upsertEscalation,
+      markProcessed,
+      notify,
+      loadTenantNotifications,
+      reachesTenant,
+    });
   } catch (e) {
     L.error("unfinished_sweep_failed", { error: errField(e) });
   }
@@ -112,21 +120,18 @@ export async function POST(request: Request): Promise<Response> {
         continue;
       }
 
-      const delivered = await notify(
-        target,
-        {
-          kind: "deadman",
-          route: "inbox",
-          subject: `Still waiting: a customer has had no answer for ${waited}`,
-          body:
-            `A conversation was handed to a human ${waited} ago and is still open.\n\n` +
-            `Customer: ${c.phone_e164 ?? "unknown"}\n` +
-            `Flagged because: ${c.reason}\n` +
-            `${c.details ? `Detail: ${c.details}\n` : ""}` +
-            `\nOpen it in the Inbox to reply, or resolve it if it was handled elsewhere.`,
-          redactedBody: `A customer in this workspace has waited ${waited} for a human reply.`,
-        },
-      );
+      const delivered = await notify(target, {
+        kind: "deadman",
+        route: "inbox",
+        subject: `Still waiting: a customer has had no answer for ${waited}`,
+        body:
+          `A conversation was handed to a human ${waited} ago and is still open.\n\n` +
+          `Customer: ${c.phone_e164 ?? "unknown"}\n` +
+          `Flagged because: ${c.reason}\n` +
+          `${c.details ? `Detail: ${c.details}\n` : ""}` +
+          `\nOpen it in the Inbox to reply, or resolve it if it was handled elsewhere.`,
+        redactedBody: `A customer in this workspace has waited ${waited} for a human reply.`,
+      });
 
       // Only a DELIVERED warning earns the once-guard, and only this
       // workspace's own people count as delivery — the unaddressable case

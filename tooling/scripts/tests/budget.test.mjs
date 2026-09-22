@@ -50,7 +50,11 @@ test("a day that fits in one page is one round trip", async () => {
 
 test("a day past the server's cap is counted whole, not truncated at a thousand", async () => {
   const db = fakeDb({ events: usage(2500) });
-  assert.equal(await tokensLast24h(db, T), 5000, "2500 replies at 2 tokens each — not 2000, which is what a truncated read returns");
+  assert.equal(
+    await tokensLast24h(db, T),
+    5000,
+    "2500 replies at 2 tokens each — not 2000, which is what a truncated read returns",
+  );
   assert.equal(reads(db), 3);
 });
 
@@ -64,7 +68,11 @@ test("the caller's cap stops the read, because the only question is whether it i
   const db = fakeDb({ events: usage(2500) });
   const used = await tokensLast24h(db, T, 1000);
   assert.ok(used >= 1000, `${used} is enough to answer the question`);
-  assert.equal(reads(db), 1, "it stopped at the first page rather than reading the day out to prove a number nobody compares");
+  assert.equal(
+    reads(db),
+    1,
+    "it stopped at the first page rather than reading the day out to prove a number nobody compares",
+  );
 });
 
 test("rows written WHILE the day is being read are counted once — in the NEXT read, not twice in this one", async () => {
@@ -88,25 +96,56 @@ test("rows written WHILE the day is being read are counted once — in the NEXT 
     q.select = (...a) => {
       const b = select(...a);
       const then = b.then.bind(b);
-      b.then = (res, rej) => then((r) => {
-        // Five hundred replies land while page one is in flight, stamped NOW
-        // the way a real insert is — after the moment this read fixed its end.
-        if (++pages === 1) {
-          const at = new Date(Date.now() + 1000).toISOString();
-          rows.push(...Array.from({ length: 500 }, (_, i) => ({ id: `late-${i}`, tenant_id: T, kind: "usage.llm_tokens", created_at: at, data: { input_tokens: 100, output_tokens: 100 } })));
-        }
-        return res(r);
-      }, rej);
+      b.then = (res, rej) =>
+        then((r) => {
+          // Five hundred replies land while page one is in flight, stamped NOW
+          // the way a real insert is — after the moment this read fixed its end.
+          if (++pages === 1) {
+            const at = new Date(Date.now() + 1000).toISOString();
+            rows.push(
+              ...Array.from({ length: 500 }, (_, i) => ({
+                id: `late-${i}`,
+                tenant_id: T,
+                kind: "usage.llm_tokens",
+                created_at: at,
+                data: { input_tokens: 100, output_tokens: 100 },
+              })),
+            );
+          }
+          return res(r);
+        }, rej);
       return b;
     };
     return q;
   };
-  assert.equal(await tokensLast24h(db, T), 2000, "the thousand on record, each once; the arrivals belong to the next read");
+  assert.equal(
+    await tokensLast24h(db, T),
+    2000,
+    "the thousand on record, each once; the arrivals belong to the next read",
+  );
   assert.equal(pages, 2);
 });
 
 test("the summary describes the day without reading it twenty times over", async () => {
-  const db = fakeDb({ events: [...usage(10), { id: "x", tenant_id: T, kind: "usage.llm_tokens", created_at: new Date().toISOString(), data: { input_tokens: 5, output_tokens: 7, confidence: 0.5, latency_ms: 100, held: "veto_window", intent: "book" } }] });
+  const db = fakeDb({
+    events: [
+      ...usage(10),
+      {
+        id: "x",
+        tenant_id: T,
+        kind: "usage.llm_tokens",
+        created_at: new Date().toISOString(),
+        data: {
+          input_tokens: 5,
+          output_tokens: 7,
+          confidence: 0.5,
+          latency_ms: 100,
+          held: "veto_window",
+          intent: "book",
+        },
+      },
+    ],
+  });
   const s = await brainSummary(db, T);
   assert.equal(s.replies, 11);
   assert.equal(s.tokens_in, 15);
@@ -130,7 +169,7 @@ test("a summary that hits its bound describes the NEWEST of the window, not the 
   // 5001 events, with the marks on the two ends: the summary's bound is 5000,
   // so exactly one row is dropped and which one it is says which end it read.
   const rows = usage(5001);
-  rows[0].data = { ...rows[0].data, held: "veto_window" };          // the oldest
+  rows[0].data = { ...rows[0].data, held: "veto_window" }; // the oldest
   rows[5000].data = { ...rows[5000].data, held: "low_confidence" }; // the newest
   const s = await brainSummary(fakeDb({ events: rows }), T);
   assert.equal(s.replies, 5000, "bounded, as it is meant to be");

@@ -39,7 +39,10 @@ const files = [];
 const declared = {};
 const undeclared = new Set();
 for (const f of files.sort()) {
-  const rel = path.relative(API, f).replace(/\\/g, "/").replace(/\/route\.ts$/, "");
+  const rel = path
+    .relative(API, f)
+    .replace(/\\/g, "/")
+    .replace(/\/route\.ts$/, "");
   const mod = await import(pathToFileURL(f).href);
   for (const m of METHODS) {
     if (typeof mod[m] !== "function") continue;
@@ -48,7 +51,8 @@ for (const f of files.sort()) {
   }
 }
 
-const NOTE = "Written by route-policy.test.mjs (UPDATE_ROUTE_POLICY=1). A change here is a change to who may do what, how often, and on which workspace: review it as one.";
+const NOTE =
+  "Written by route-policy.test.mjs (UPDATE_ROUTE_POLICY=1). A change here is a change to who may do what, how often, and on which workspace: review it as one.";
 const current = { note: NOTE, undeclared: [...undeclared].sort(), routes: declared };
 if (process.env.UPDATE_ROUTE_POLICY === "1") fs.writeFileSync(FILE, `${JSON.stringify(current, null, 2)}\n`);
 const file = JSON.parse(fs.readFileSync(FILE, "utf8"));

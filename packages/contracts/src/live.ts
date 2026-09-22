@@ -129,7 +129,11 @@ export function fmtClock(seconds: number): string {
  * could stay lit for a call nobody had heard from until the next fetch. One
  * rule, here.
  */
-export function liveStillUp(c: Pick<LiveCallVM, "live" | "heartbeatAtMs" | "startedAtMs">, heartbeatMs: number, nowMs: number): boolean {
+export function liveStillUp(
+  c: Pick<LiveCallVM, "live" | "heartbeatAtMs" | "startedAtMs">,
+  heartbeatMs: number,
+  nowMs: number,
+): boolean {
   if (!c.live) return false;
   return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
 }
@@ -159,7 +163,12 @@ export function liveBar(vm: LiveVM | null | undefined, nowMs: number): LiveBarVM
   const up = (vm?.now ?? []).filter((c) => liveStillUp(c, vm?.heartbeatMs ?? 0, nowMs));
   if (up.length === 0) return null;
   if (up.length > 1) {
-    return { callId: null, text: `${up.length} calls on your line now`, sinceMs: null, checking: up.some((c) => c.checking) };
+    return {
+      callId: null,
+      text: `${up.length} calls on your line now`,
+      sinceMs: null,
+      checking: up.some((c) => c.checking),
+    };
   }
   const c = up[0];
   return {
@@ -231,10 +240,15 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
         : "none";
 
   const recordingState: LiveCallVM["recordingState"] =
-    dto.recording?.fetch_state === "stored" ? "ready" :
-    dto.recording?.fetch_state === "failed" ? "failed" :
-    dto.recording?.fetch_state === "purged" ? "purged" :
-    dto.recording ? "pending" : "none";
+    dto.recording?.fetch_state === "stored"
+      ? "ready"
+      : dto.recording?.fetch_state === "failed"
+        ? "failed"
+        : dto.recording?.fetch_state === "purged"
+          ? "purged"
+          : dto.recording
+            ? "pending"
+            : "none";
 
   return {
     callId: dto.id,
@@ -243,7 +257,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     who,
     whoShort,
     initials: withheld ? "–" : initialsOf(who),
-    number: withheld ? null : phone ?? dto.from_raw,
+    number: withheld ? null : (phone ?? dto.from_raw),
     direction: dto.direction,
     status: dto.status,
     live,
@@ -274,9 +288,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
 
 export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: string, now = new Date()): LiveVM {
   const vms = calls.map((c) => toLiveCallVM(c, tz, now));
-  const nowList = vms
-    .filter((c) => c.live)
-    .sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
+  const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
   const recent = vms
     .filter((c) => !c.live)
     .sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0))
@@ -291,5 +303,12 @@ export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: st
       }
     : null;
 
-  return { now: nowList, recent, line, lineRead: channels !== null, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
+  return {
+    now: nowList,
+    recent,
+    line,
+    lineRead: channels !== null,
+    heartbeatMs: CALL_HEARTBEAT_MS,
+    fetchedAtMs: now.getTime(),
+  };
 }

@@ -28,7 +28,8 @@ const APPLY = process.argv.includes("--apply");
 if (!["create", "clean"].includes(mode)) throw new Error(`unknown mode "${mode}" (create|clean)`);
 
 const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, REF_CONV } = process.env;
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)
+  throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 const stamp = new Date().toISOString();
@@ -40,8 +41,10 @@ function record(action, detail) {
 /** Probe rows only: the reserved number AND the exact name. */
 async function probeContacts() {
   const { data, error } = await db
-    .from("contacts").select("id, tenant_id, phone_e164, display_name")
-    .eq("phone_e164", PHONE).eq("display_name", NAME);
+    .from("contacts")
+    .select("id, tenant_id, phone_e164, display_name")
+    .eq("phone_e164", PHONE)
+    .eq("display_name", NAME);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -77,8 +80,7 @@ if (mode === "clean") {
 // probe lands in THEIR tenant. An arbitrary row puts it somewhere RLS hides,
 // and the verification then reads its own 404 as a pass.
 if (!REF_CONV) throw new Error("set REF_CONV to a conversation id visible to the operator");
-const { data: refRow, error: refErr } = await db
-  .from("conversations").select("tenant_id").eq("id", REF_CONV).single();
+const { data: refRow, error: refErr } = await db.from("conversations").select("tenant_id").eq("id", REF_CONV).single();
 if (refErr) throw new Error(`reference conversation: ${refErr.message}`);
 const tenantId = refRow.tenant_id;
 
@@ -92,22 +94,39 @@ if (!APPLY) {
 
 let contactId = existing?.id;
 if (!contactId) {
-  const { data, error } = await db.from("contacts").insert({
-    tenant_id: tenantId, phone_e164: PHONE, wa_profile_name: NAME, display_name: NAME,
-    consent: "opted_out", dnc: true,
-    consent_source: "customer_message", consent_updated_at: stamp,
-  }).select("id").single();
+  const { data, error } = await db
+    .from("contacts")
+    .insert({
+      tenant_id: tenantId,
+      phone_e164: PHONE,
+      wa_profile_name: NAME,
+      display_name: NAME,
+      consent: "opted_out",
+      dnc: true,
+      consent_source: "customer_message",
+      consent_updated_at: stamp,
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
   contactId = data.id;
 }
 
-const { data: conv, error: cErr } = await db.from("conversations")
-  .upsert({
-    tenant_id: tenantId, contact_id: contactId, state: "open",
-    last_message_at: stamp, last_inbound_at: stamp,
-    last_wa_inbound_at: stamp, // window OPEN, so only consent can block a send
-  }, { onConflict: "tenant_id,contact_id" })
-  .select("id").single();
+const { data: conv, error: cErr } = await db
+  .from("conversations")
+  .upsert(
+    {
+      tenant_id: tenantId,
+      contact_id: contactId,
+      state: "open",
+      last_message_at: stamp,
+      last_inbound_at: stamp,
+      last_wa_inbound_at: stamp, // window OPEN, so only consent can block a send
+    },
+    { onConflict: "tenant_id,contact_id" },
+  )
+  .select("id")
+  .single();
 if (cErr) throw new Error(cErr.message);
 
 record("created", { tenantId, contactId, conversationId: conv.id });

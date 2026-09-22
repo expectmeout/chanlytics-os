@@ -12,6 +12,10 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/notify.js";
+import { env } from "../../lib/env.js";
+import { logger } from "../../lib/log.js";
+
+const L = logger();
 
 interface Body {
   tenant_id?: string;
@@ -21,18 +25,27 @@ interface Body {
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/signup-notify");
   if (!auth.ok) return auth.response;
-  if (!process.env.LEAD_TO || !process.env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
+  if (!env.LEAD_TO || !env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
   let body: Body = {};
-  try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* validated below */
+  }
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !email) return json(400, { ok: false, error: "tenant_id and email are required" });
-  const tenant = await db.from("tenants").select("id, name, slug, timezone, created_at").eq("id", tenantId).maybeSingle();
+  if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !email)
+    return json(400, { ok: false, error: "tenant_id and email are required" });
+  const tenant = await db
+    .from("tenants")
+    .select("id, name, slug, timezone, created_at")
+    .eq("id", tenantId)
+    .maybeSingle();
   if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
   if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
   const sent = await notify(
@@ -50,6 +63,6 @@ export async function POST(request: Request): Promise<Response> {
         "Their Setup page tells them what to do next; nothing is provisioned until they ask.\n",
     },
   );
-  console.log("signup_told", JSON.stringify({ tenant: tenantId, sent }));
+  L.info("signup_told", { tenant: tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, tenant: tenant.data.slug });
 }

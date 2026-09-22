@@ -16,6 +16,15 @@ export type AfterProbe = { kind: "ask"; question: RoundQuestion } | { kind: "go"
 
 export function afterProbe(plan: LeadSearchPlan, members: ProbeYieldMember[], now: Date): AfterProbe {
   const q = questionAfterProbe(plan, members);
-  if (q.ask) return { kind: "ask", question: { sentence: q.sentence, criterionKey: q.criterionKey, dropTerm: q.dropTerm, asked_at: now.toISOString() } };
+  if (q.ask)
+    return {
+      kind: "ask",
+      question: {
+        sentence: q.sentence,
+        criterionKey: q.criterionKey,
+        dropTerm: q.dropTerm,
+        asked_at: now.toISOString(),
+      },
+    };
   return { kind: "go", yield: probeYield(plan.contact, members) };
 }

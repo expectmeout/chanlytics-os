@@ -44,9 +44,22 @@ const DraftSchema = z.object({
   body: z.string().min(1).max(TEMPLATE_BODY_MAX),
   footer: z.string().max(TEMPLATE_FOOTER_MAX).nullable().optional(),
   examples: z.array(z.string().min(1).max(100)).max(10).default([]),
-  variables: z.array(z.object({ position: z.number().int().min(1).max(10), label: z.string().max(40), source: z.enum(["text", "first_name", "business_name", "booking_link"]) })).max(10).default([]),
+  variables: z
+    .array(
+      z.object({
+        position: z.number().int().min(1).max(10),
+        label: z.string().max(40),
+        source: z.enum(["text", "first_name", "business_name", "booking_link"]),
+      }),
+    )
+    .max(10)
+    .default([]),
 });
-export type DraftedTemplate = z.infer<typeof DraftSchema> & { warnings: string[]; category: TemplateCategoryChoice; language: string };
+export type DraftedTemplate = z.infer<typeof DraftSchema> & {
+  warnings: string[];
+  category: TemplateCategoryChoice;
+  language: string;
+};
 
 /**
  * The language to write in, as the model should read it: "Portuguese (Brazil)",
@@ -60,7 +73,10 @@ function writeIn(language: string): string {
 }
 
 export function draftSystemPrompt(f: WorkspaceFacts, category: TemplateCategoryChoice, language: string): string {
-  const services = f.services.slice(0, 12).map((s) => s.name).join(", ");
+  const services = f.services
+    .slice(0, 12)
+    .map((s) => s.name)
+    .join(", ");
   return [
     `You write WhatsApp message templates for ${f.businessName}, a small business, in its own voice: warm, brief, specific, never salesy.`,
     services ? `Its services: ${services}.` : "",
@@ -80,31 +96,51 @@ export function draftSystemPrompt(f: WorkspaceFacts, category: TemplateCategoryC
     "",
     "Answer with one JSON object and nothing else, no code fence:",
     '{"name": "short_snake_case_name", "body": "the message with {{1}} slots", "footer": "optional footer or null", "examples": ["one example per slot"], "variables": [{"position": 1, "label": "First name", "source": "first_name"}]}',
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function extractJson(text: string): unknown {
-  const t = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  try { return JSON.parse(t); } catch { /* fall through */ }
+  const t = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  try {
+    return JSON.parse(t);
+  } catch {
+    /* fall through */
+  }
   const start = t.indexOf("{");
   const end = t.lastIndexOf("}");
   if (start >= 0 && end > start) {
-    try { return JSON.parse(t.slice(start, end + 1)); } catch { /* fall through */ }
+    try {
+      return JSON.parse(t.slice(start, end + 1));
+    } catch {
+      /* fall through */
+    }
   }
   return null;
 }
 
-export type DraftOutcome = { ok: true; draft: DraftedTemplate } | { ok: false; reason: "refused" | "malformed" | "invalid"; message: string };
+export type DraftOutcome =
+  { ok: true; draft: DraftedTemplate } | { ok: false; reason: "refused" | "malformed" | "invalid"; message: string };
 type Refused = { ok: false; reason: "refused"; message: string };
 
 /** The workspace as the model is told it: its name, services and rules, and its booking link. */
-async function workspaceFor(ctx: RouteContext, tenantId: string): Promise<{ facts: WorkspaceFacts; bookingLink: string | null }> {
+async function workspaceFor(
+  ctx: RouteContext,
+  tenantId: string,
+): Promise<{ facts: WorkspaceFacts; bookingLink: string | null }> {
   const [{ name, timezone }, cfgRow] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
     ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   const parsed = parseTenantConfig(cfgRow.data?.config ?? null);
-  return { facts: workspaceFacts(name, timezone, cfgRow.data?.config ?? null), bookingLink: parsed?.brain?.booking_link ?? null };
+  return {
+    facts: workspaceFacts(name, timezone, cfgRow.data?.config ?? null),
+    bookingLink: parsed?.brain?.booking_link ?? null,
+  };
 }
 
 /**
@@ -112,7 +148,15 @@ async function workspaceFor(ctx: RouteContext, tenantId: string): Promise<{ fact
  * other: the text it answered, and what came back around it, so a malformed
  * answer is a diagnosis and not a guess. A refusal is said in the owner's words.
  */
-async function askOnce(ctx: RouteContext, tenantId: string, system: string, user: string, what: "draft" | "translation"): Promise<{ ok: true; text: string; blockTypes: string[]; stopReason: string | null; streamError: string | null } | Refused> {
+async function askOnce(
+  ctx: RouteContext,
+  tenantId: string,
+  system: string,
+  user: string,
+  what: "draft" | "translation",
+): Promise<
+  { ok: true; text: string; blockTypes: string[]; stopReason: string | null; streamError: string | null } | Refused
+> {
   try {
     const r = await runRound(
       {
@@ -127,11 +171,26 @@ async function askOnce(ctx: RouteContext, tenantId: string, system: string, user
       },
       () => {},
     );
-    const text = r.blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
-    if (r.streamError && !text) return { ok: false, reason: "refused", message: `The ${what} could not be written right now. Try again.` };
-    return { ok: true, text, blockTypes: r.blocks.map((b) => b.type), stopReason: r.stopReason, streamError: r.streamError };
+    const text = r.blocks
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+    if (r.streamError && !text)
+      return { ok: false, reason: "refused", message: `The ${what} could not be written right now. Try again.` };
+    return {
+      ok: true,
+      text,
+      blockTypes: r.blocks.map((b) => b.type),
+      stopReason: r.stopReason,
+      streamError: r.streamError,
+    };
   } catch (e) {
-    if (e instanceof GatewayRefused) return { ok: false, reason: "refused", message: "The assistant is not available right now. Try again in a moment." };
+    if (e instanceof GatewayRefused)
+      return {
+        ok: false,
+        reason: "refused",
+        message: "The assistant is not available right now. Try again in a moment.",
+      };
     throw e;
   }
 }
@@ -143,7 +202,11 @@ export async function draftTemplate(
 ): Promise<DraftOutcome> {
   const brief = input.brief.trim().slice(0, DRAFT_BRIEF_MAX);
   const { facts, bookingLink } = await workspaceFor(ctx, tenantId);
-  const system = draftSystemPrompt(facts, input.category, input.language) + (bookingLink ? "\nThe business has a booking link, so a booking_link slot may be used." : "\nThe business has no booking link on file: do not use a booking_link slot.");
+  const system =
+    draftSystemPrompt(facts, input.category, input.language) +
+    (bookingLink
+      ? "\nThe business has a booking link, so a booking_link slot may be used."
+      : "\nThe business has no booking link on file: do not use a booking_link slot.");
 
   const turn = await askOnce(ctx, tenantId, system, `Brief: ${brief}`, "draft");
   if (!turn.ok) return turn;
@@ -152,11 +215,37 @@ export async function draftTemplate(
   const d = DraftSchema.safeParse(json);
   if (!d.success) {
     // What actually came back, so a malformed draft is a diagnosis and not a guess.
-    console.error("draft_malformed", JSON.stringify({ tenant_id: tenantId, blocks: blockTypes, stop: stopReason, stream_error: streamError, text: text.slice(0, 400), issues: json ? d.error.issues.slice(0, 3) : "no json" }));
-    return { ok: false, reason: "malformed", message: "The draft did not come out well-formed. Try again, or write it by hand." };
+    console.error(
+      "draft_malformed",
+      JSON.stringify({
+        tenant_id: tenantId,
+        blocks: blockTypes,
+        stop: stopReason,
+        stream_error: streamError,
+        text: text.slice(0, 400),
+        issues: json ? d.error.issues.slice(0, 3) : "no json",
+      }),
+    );
+    return {
+      ok: false,
+      reason: "malformed",
+      message: "The draft did not come out well-formed. Try again, or write it by hand.",
+    };
   }
-  const check = validateTemplateDraft({ name: d.data.name, language: input.language, category: input.category, body: d.data.body, footer: d.data.footer ?? null, examples: d.data.examples });
-  if (!check.ok) return { ok: false, reason: "invalid", message: `The draft broke a WhatsApp rule (${check.error}). Try again, or write it by hand.` };
+  const check = validateTemplateDraft({
+    name: d.data.name,
+    language: input.language,
+    category: input.category,
+    body: d.data.body,
+    footer: d.data.footer ?? null,
+    examples: d.data.examples,
+  });
+  if (!check.ok)
+    return {
+      ok: false,
+      reason: "invalid",
+      message: `The draft broke a WhatsApp rule (${check.error}). Try again, or write it by hand.`,
+    };
   const v: TemplateDraft = check.value;
   return {
     ok: true,
@@ -197,10 +286,12 @@ export interface TranslateSource {
 /** A row on file, by id; or a starter's own words from the library, in the language they are written in. */
 export type SourceRef = { id: string } | { starter: string; from?: string | null };
 
-export type SourceOutcome = { ok: true; source: TranslateSource } | { ok: false; code: "not_found" | "conflict" | "validation"; message: string };
+export type SourceOutcome =
+  { ok: true; source: TranslateSource } | { ok: false; code: "not_found" | "conflict" | "validation"; message: string };
 
 /** Meta files a category in capitals, a template made here in lower case: either is the one choice. */
-const categoryOf = (c: unknown): TemplateCategoryChoice | null => (/^marketing$/i.test(String(c ?? "")) ? "marketing" : /^utility$/i.test(String(c ?? "")) ? "utility" : null);
+const categoryOf = (c: unknown): TemplateCategoryChoice | null =>
+  /^marketing$/i.test(String(c ?? "")) ? "marketing" : /^utility$/i.test(String(c ?? "")) ? "utility" : null;
 
 /**
  * What a template is written from, and whether it may be written in `language`
@@ -209,15 +300,35 @@ const categoryOf = (c: unknown): TemplateCategoryChoice | null => (/^marketing$/
  * has, and never a language the library has written already -- that one is
  * added as it is, not translated. Refused here, before the assistant is paid for.
  */
-export async function translationSource(ctx: RouteContext, tenantId: string, ref: SourceRef, language: string): Promise<SourceOutcome> {
+export async function translationSource(
+  ctx: RouteContext,
+  tenantId: string,
+  ref: SourceRef,
+  language: string,
+): Promise<SourceOutcome> {
   let source: TranslateSource;
   if ("starter" in ref) {
     const s = starterByKey(ref.starter);
     if (!s) return { ok: false, code: "not_found", message: "That starter is not in the library." };
-    if (s.texts[language]) return { ok: false, code: "validation", message: `The starter set has it written in ${languageLabel(language)} already: add it as it is.` };
+    if (s.texts[language])
+      return {
+        ok: false,
+        code: "validation",
+        message: `The starter set has it written in ${languageLabel(language)} already: add it as it is.`,
+      };
     const from = ref.from && s.texts[ref.from] ? ref.from : "en_US";
     const t = starterText(s, from);
-    source = { name: s.name, category: s.category, language: from, body: t.body, footer: t.footer, examples: t.slots.map((x) => x.example), labels: t.slots.map((x) => x.label), kinds: t.slots.map((x) => x.kind), button: null };
+    source = {
+      name: s.name,
+      category: s.category,
+      language: from,
+      body: t.body,
+      footer: t.footer,
+      examples: t.slots.map((x) => x.example),
+      labels: t.slots.map((x) => x.label),
+      kinds: t.slots.map((x) => x.kind),
+      button: null,
+    };
   } else {
     const { data, error } = await ctx.supabase
       .from("templates")
@@ -228,14 +339,31 @@ export async function translationSource(ctx: RouteContext, tenantId: string, ref
     if (error) throw new Error(error.message);
     if (!data) return { ok: false, code: "not_found", message: "That template is not on file here." };
     const parts = templateParts(data.components);
-    const why = templateUntranslatable({ ...parts, blocked: templateBlocked({ components: data.components }), category: data.category });
+    const why = templateUntranslatable({
+      ...parts,
+      blocked: templateBlocked({ components: data.components }),
+      category: data.category,
+    });
     const category = categoryOf(data.category);
-    if (why || !category) return { ok: false, code: "validation", message: `Chanlytics can't write this one in another language: ${why ?? "WhatsApp gave it no category"}. Add its other languages in WhatsApp Manager.` };
+    if (why || !category)
+      return {
+        ok: false,
+        code: "validation",
+        message: `Chanlytics can't write this one in another language: ${why ?? "WhatsApp gave it no category"}. Add its other languages in WhatsApp Manager.`,
+      };
     const body = String(data.body_preview ?? "");
-    if (!body.trim()) return { ok: false, code: "validation", message: "Its words are not on file here yet. Check WhatsApp for changes, then write it in another language." };
+    if (!body.trim())
+      return {
+        ok: false,
+        code: "validation",
+        message: "Its words are not on file here yet. Check WhatsApp for changes, then write it in another language.",
+      };
     // One entry per slot, by its number: the variables as the sync or the create
     // path filed them, a starter's library words where a row kept no example.
-    const vars = (Array.isArray(data.variables) ? data.variables : []) as Array<{ position?: unknown; example?: unknown } | null>;
+    const vars = (Array.isArray(data.variables) ? data.variables : []) as Array<{
+      position?: unknown;
+      example?: unknown;
+    } | null>;
     const row = { name: data.name, language: data.language, variables: data.variables };
     const labels = slotLabels(row);
     const kinds = defaultSlotKinds(row);
@@ -245,7 +373,7 @@ export async function translationSource(ctx: RouteContext, tenantId: string, ref
       const found = vars.findIndex((v) => v?.position === i + 1);
       const k = found >= 0 ? found : i;
       const given = vars[k]?.example;
-      const example = typeof given === "string" && given.trim() ? given.trim() : libExamples[i] ?? "";
+      const example = typeof given === "string" && given.trim() ? given.trim() : (libExamples[i] ?? "");
       return { example, label: labels[k] ?? `Value ${i + 1}`, kind: kinds[k] ?? "text" };
     });
     source = {
@@ -260,7 +388,8 @@ export async function translationSource(ctx: RouteContext, tenantId: string, ref
       button: templateLinkButton(data.components),
     };
   }
-  if (source.language === language) return { ok: false, code: "conflict", message: `It is written in ${languageLabel(language)} already.` };
+  if (source.language === language)
+    return { ok: false, code: "conflict", message: `It is written in ${languageLabel(language)} already.` };
   const { data: have, error: hErr } = await ctx.supabase
     .from("templates")
     .select("id")
@@ -298,12 +427,16 @@ export function translateSystemPrompt(f: WorkspaceFacts, src: TranslateSource, l
 
 /** The template as the assistant is given it: what each slot is, with its example, so a slot is never guessed at. */
 export function translationInput(src: TranslateSource): string {
-  return JSON.stringify({
-    body: src.body,
-    footer: src.footer,
-    slots: src.labels.map((label, i) => ({ slot: `{{${i + 1}}}`, is: label, example: src.examples[i] ?? "" })),
-    button: src.button ? src.button.text : null,
-  }, null, 2);
+  return JSON.stringify(
+    {
+      body: src.body,
+      footer: src.footer,
+      slots: src.labels.map((label, i) => ({ slot: `{{${i + 1}}}`, is: label, example: src.examples[i] ?? "" })),
+      button: src.button ? src.button.text : null,
+    },
+    null,
+    2,
+  );
 }
 
 const TranslationSchema = z.object({
@@ -329,7 +462,8 @@ export interface TranslatedTemplate {
   from: string;
 }
 
-export type TranslateOutcome = { ok: true; draft: TranslatedTemplate } | { ok: false; reason: "refused" | "malformed" | "invalid"; message: string };
+export type TranslateOutcome =
+  { ok: true; draft: TranslatedTemplate } | { ok: false; reason: "refused" | "malformed" | "invalid"; message: string };
 
 /**
  * What came back, as a draft the owner can submit: the same name, the same
@@ -339,16 +473,43 @@ export type TranslateOutcome = { ok: true; draft: TranslatedTemplate } | { ok: f
  */
 export function translatedDraft(src: TranslateSource, language: string, raw: unknown): TranslateOutcome {
   const d = TranslationSchema.safeParse(raw);
-  if (!d.success) return { ok: false, reason: "malformed", message: "The translation did not come out well-formed. Try again, or write it by hand." };
+  if (!d.success)
+    return {
+      ok: false,
+      reason: "malformed",
+      message: "The translation did not come out well-formed. Try again, or write it by hand.",
+    };
   const slots = placeholdersOf(d.data.body);
-  if (slots.length !== src.examples.length) return { ok: false, reason: "invalid", message: "The translation lost one of the message's values. Try again." };
+  if (slots.length !== src.examples.length)
+    return { ok: false, reason: "invalid", message: "The translation lost one of the message's values. Try again." };
   const examples = src.examples.map((e, i) => {
     const said = String(d.data.examples[i] ?? "").trim();
     return src.kinds[i] && src.kinds[i] !== "text" && e ? e : said || e;
   });
-  const button = src.button ? { text: String(d.data.button ?? "").replace(/\s+/g, " ").trim() || src.button.text, url: src.button.url } : null;
-  const check = validateTemplateDraft({ name: src.name, language, category: src.category, body: d.data.body, footer: d.data.footer ?? null, examples, button });
-  if (!check.ok) return { ok: false, reason: "invalid", message: `The translation broke a WhatsApp rule (${check.error}). Try again, or write it by hand.` };
+  const button = src.button
+    ? {
+        text:
+          String(d.data.button ?? "")
+            .replace(/\s+/g, " ")
+            .trim() || src.button.text,
+        url: src.button.url,
+      }
+    : null;
+  const check = validateTemplateDraft({
+    name: src.name,
+    language,
+    category: src.category,
+    body: d.data.body,
+    footer: d.data.footer ?? null,
+    examples,
+    button,
+  });
+  if (!check.ok)
+    return {
+      ok: false,
+      reason: "invalid",
+      message: `The translation broke a WhatsApp rule (${check.error}). Try again, or write it by hand.`,
+    };
   const v = check.value;
   return {
     ok: true,
@@ -372,14 +533,33 @@ export function translatedDraft(src: TranslateSource, language: string, raw: unk
  * words WhatsApp already holds. A draft, never a submission: the owner reads it
  * and submits it, and WhatsApp reviews it as the new template it is.
  */
-export async function translateTemplate(ctx: RouteContext, tenantId: string, input: { source: TranslateSource; language: string }): Promise<TranslateOutcome> {
+export async function translateTemplate(
+  ctx: RouteContext,
+  tenantId: string,
+  input: { source: TranslateSource; language: string },
+): Promise<TranslateOutcome> {
   const { facts } = await workspaceFor(ctx, tenantId);
-  const turn = await askOnce(ctx, tenantId, translateSystemPrompt(facts, input.source, input.language), translationInput(input.source), "translation");
+  const turn = await askOnce(
+    ctx,
+    tenantId,
+    translateSystemPrompt(facts, input.source, input.language),
+    translationInput(input.source),
+    "translation",
+  );
   if (!turn.ok) return turn;
   const json = extractJson(turn.text);
   const out = translatedDraft(input.source, input.language, json);
   if (!out.ok && out.reason === "malformed") {
-    console.error("translation_malformed", JSON.stringify({ tenant_id: tenantId, blocks: turn.blockTypes, stop: turn.stopReason, stream_error: turn.streamError, text: turn.text.slice(0, 400) }));
+    console.error(
+      "translation_malformed",
+      JSON.stringify({
+        tenant_id: tenantId,
+        blocks: turn.blockTypes,
+        stop: turn.stopReason,
+        stream_error: turn.streamError,
+        text: turn.text.slice(0, 400),
+      }),
+    );
   }
   return out;
 }

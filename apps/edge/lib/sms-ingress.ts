@@ -88,17 +88,36 @@ export async function planSmsIngress(o: {
     line = await lineByNumber(db, inbound.to);
     acct = line ? await lineAccount(db, line) : null;
   } catch {
-    return { kind: "refuse", status: 503, log: "sms_line_unreadable", level: "error", alert: "the line or its token could not be read" };
+    return {
+      kind: "refuse",
+      status: 503,
+      log: "sms_line_unreadable",
+      level: "error",
+      alert: "the line or its token could not be read",
+    };
   }
   if (!line) {
     // Before the signature: the token that verifies it belongs to the line's
     // own subaccount, so an unknown number cannot be authenticated at all.
     // The signal is worth keeping -- a Twilio number still pointing here whose
     // row was deleted -- but it is suppressed as ONE thing, not one per `To`.
-    return { kind: "refuse", status: 404, log: "sms_unknown_line", level: "warn", alert: "no line row carries this number", alertKey: UNKNOWN_LINE_ALERT_KEY };
+    return {
+      kind: "refuse",
+      status: 404,
+      log: "sms_unknown_line",
+      level: "warn",
+      alert: "no line row carries this number",
+      alertKey: UNKNOWN_LINE_ALERT_KEY,
+    };
   }
   if (!acct) {
-    return { kind: "refuse", status: 503, log: "sms_line_without_account", level: "error", alert: "the line has no subaccount or no token in the vault" };
+    return {
+      kind: "refuse",
+      status: 503,
+      log: "sms_line_without_account",
+      level: "error",
+      alert: "the line has no subaccount or no token in the vault",
+    };
   }
 
   // The dry provider signs nothing, and never exists in production.
@@ -113,8 +132,20 @@ export async function planSmsIngress(o: {
     // off is an answer, and Twilio is told the text was received so it stops
     // asking. The two must not share a status.
     return lookupFailed
-      ? { kind: "refuse", status: 503, log: "sms_routing_lookup_failed", level: "error", alert: "the sms channel row could not be read" }
-      : { kind: "refuse", status: 200, log: "sms_unroutable", level: "error", alert: "the sms channel row is missing or not active" };
+      ? {
+          kind: "refuse",
+          status: 503,
+          log: "sms_routing_lookup_failed",
+          level: "error",
+          alert: "the sms channel row could not be read",
+        }
+      : {
+          kind: "refuse",
+          status: 200,
+          log: "sms_unroutable",
+          level: "error",
+          alert: "the sms channel row is missing or not active",
+        };
   }
 
   // Held: the carriers have not approved this line for texting yet, so the

@@ -39,6 +39,34 @@ export function resolveTheme(pref: unknown, systemDark: boolean): Theme {
   return systemDark ? "dark" : "light";
 }
 
+/** The preference of a device that has chosen nothing, or holds one this build no longer knows. */
+export const DEFAULT_THEME_PREF: ThemePref = "dark";
+
+/** A device's stored preference as the app keeps it: anything unknown is the default, never System. */
+export const themePrefOf = (stored: unknown): ThemePref => (isThemePref(stored) ? stored : DEFAULT_THEME_PREF);
+
+/** Where this device keeps its preferences, the theme among them (LegacyApp.tsx loadPrefs). */
+export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
+
+/**
+ * The theme before first paint: a script for the document's head, run before anything is drawn. The document used
+ * to come down with data-theme="dark" hard-coded and be corrected in an effect after the bundle had mounted, so a
+ * light-theme workspace opened dark and flipped on every refresh. This is themePrefOf then resolveTheme, spelled once
+ * more where an import cannot reach; theme-boot.test.mjs runs it against them for everything a device could hold
+ * and both device settings. A storage that refuses or a window with no matchMedia stamps the app's own theme.
+ */
+export function themeBootScript(): string {
+  const known = JSON.stringify(THEME_OPTIONS.map((o) => o.id));
+  return [
+    "try{",
+    `var p=${JSON.stringify(DEFAULT_THEME_PREF)};`,
+    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");if(s&&${known}.indexOf(s.theme)>=0)p=s.theme}catch(e){}`,
+    'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
+    'document.documentElement.dataset.theme=p==="system"?(d?"dark":"light"):p;',
+    "}catch(e){}",
+  ].join("");
+}
+
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
 
@@ -64,7 +92,7 @@ export type Crumb = string | { label: string; to?: string | null };
  */
 export function pageTitle(crumbs: readonly Crumb[] | null | undefined, needs?: number | null): string {
   const words = (crumbs ?? [])
-    .map((c) => (typeof c === "string" ? c : c?.label ?? "").trim())
+    .map((c) => (typeof c === "string" ? c : (c?.label ?? "")).trim())
     .filter(Boolean)
     .reverse();
   const where = [...words, "Chanlytics"].join(" · ");
@@ -127,11 +155,56 @@ function namesAnd(names: readonly string[]): string {
  */
 export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusLine | null {
   if (!s) return null;
-  if (s.offline) return { kind: "offline", tone: "warn", text: "You're offline", detail: "What's on screen may be out of date. It catches up when you're back online.", action: null, cta: null, busy: null };
-  if (s.paused) return { kind: "paused", tone: "danger", text: "Your receptionist is paused", detail: "New messages still land in the Inbox, for you to answer.", action: "billing", cta: "Billing", busy: null };
-  if (s.stale) return { kind: "stale", tone: "info", text: "A newer version is ready", detail: null, action: "reload", cta: "Reload", busy: null };
-  if (s.degraded.length) return { kind: "degraded", tone: "warn", text: `${namesAnd(s.degraded)} stopped refreshing`, detail: "You're seeing what was last loaded.", action: "retry", cta: "Retry", busy: "Retrying…" };
-  if (s.disconnected) return { kind: "disconnected", tone: "info", text: "Live updates aren't coming through", detail: "Reconnecting. Until then, refresh to see anything new.", action: "retry", cta: "Refresh now", busy: "Refreshing…" };
+  if (s.offline)
+    return {
+      kind: "offline",
+      tone: "warn",
+      text: "You're offline",
+      detail: "What's on screen may be out of date. It catches up when you're back online.",
+      action: null,
+      cta: null,
+      busy: null,
+    };
+  if (s.paused)
+    return {
+      kind: "paused",
+      tone: "danger",
+      text: "Your receptionist is paused",
+      detail: "New messages still land in the Inbox, for you to answer.",
+      action: "billing",
+      cta: "Billing",
+      busy: null,
+    };
+  if (s.stale)
+    return {
+      kind: "stale",
+      tone: "info",
+      text: "A newer version is ready",
+      detail: null,
+      action: "reload",
+      cta: "Reload",
+      busy: null,
+    };
+  if (s.degraded.length)
+    return {
+      kind: "degraded",
+      tone: "warn",
+      text: `${namesAnd(s.degraded)} stopped refreshing`,
+      detail: "You're seeing what was last loaded.",
+      action: "retry",
+      cta: "Retry",
+      busy: "Retrying…",
+    };
+  if (s.disconnected)
+    return {
+      kind: "disconnected",
+      tone: "info",
+      text: "Live updates aren't coming through",
+      detail: "Reconnecting. Until then, refresh to see anything new.",
+      action: "retry",
+      cta: "Refresh now",
+      busy: "Refreshing…",
+    };
   return null;
 }
 
@@ -204,7 +277,12 @@ export const TOAST_UNDO_MS = 15_000;
 /** The least a toast may stay: a window that is nearly over is still read. */
 export const TOAST_MIN_MS = 2_000;
 
-export const TOAST_ICONS: Readonly<Record<ToastTone, string>> = { ok: "check", info: "info", warn: "alert", danger: "error" };
+export const TOAST_ICONS: Readonly<Record<ToastTone, string>> = {
+  ok: "check",
+  info: "info",
+  warn: "alert",
+  danger: "error",
+};
 
 export interface ToastShape {
   tone: ToastTone;
@@ -217,7 +295,10 @@ export interface ToastShape {
 export function toastShape(p: { tone?: unknown; icon?: unknown; undo?: unknown; ms?: unknown }): ToastShape {
   const tone: ToastTone = (TOAST_TONES as readonly unknown[]).includes(p.tone) ? (p.tone as ToastTone) : "ok";
   const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
-  const ms = Math.max(TOAST_MIN_MS, Math.round(asked ?? (p.undo ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])));
+  const ms = Math.max(
+    TOAST_MIN_MS,
+    Math.round(asked ?? (p.undo ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])),
+  );
   return {
     tone,
     icon: typeof p.icon === "string" && p.icon ? p.icon : TOAST_ICONS[tone],

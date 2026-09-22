@@ -41,8 +41,13 @@ const RFC = "<010001a0b061e76b-5e784f21-72c8-48a3-aa0b-8bfed22406df-000000@email
 test("a real email.sent names its row by the tags it left with, and carries the id the send returned and the Message-ID the provider minted", () => {
   const r = emailReceiptFrom(load("receipt-sent.json"));
   assert.deepEqual(r, {
-    type: "sent", providerId: SENT_ID, rfcMessageId: RFC, to: ["e0-test@mail.chanlytics.com"],
-    messageId: M, tenantId: T, detail: { kind: null, subKind: null, message: null },
+    type: "sent",
+    providerId: SENT_ID,
+    rfcMessageId: RFC,
+    to: ["e0-test@mail.chanlytics.com"],
+    messageId: M,
+    tenantId: T,
+    detail: { kind: null, subKind: null, message: null },
   });
   // REGRESSION guard: the request sends tags as a LIST of {name, value}; Resend
   // answers with a MAP. Reading back only the shape we send finds no row here.
@@ -77,7 +82,11 @@ test("every committed fixture is one the parser reads, and none of them carries 
     // would outlive their erasure, which is the one thing the product promises not to do.
     const text = fs.readFileSync(path.join(DIR, f), "utf8");
     for (const domain of text.match(/@[a-z0-9.-]+/gi) ?? []) {
-      assert.match(domain, /@(example\.com|chanlytics\.com|mail\.chanlytics\.com|email\.amazonses\.com)$/, `${f}: ${domain} is not a platform or placeholder address`);
+      assert.match(
+        domain,
+        /@(example\.com|chanlytics\.com|mail\.chanlytics\.com|email\.amazonses\.com)$/,
+        `${f}: ${domain} is not a platform or placeholder address`,
+      );
     }
   }
 });

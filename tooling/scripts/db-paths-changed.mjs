@@ -43,7 +43,14 @@ export const DB_PATHS = [
 
 const escape = (s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
 const toRegExp = (glob) =>
-  new RegExp("^" + glob.split("**").map((part) => part.split("*").map(escape).join("[^/]*")).join(".*") + "$");
+  new RegExp(
+    "^" +
+      glob
+        .split("**")
+        .map((part) => part.split("*").map(escape).join("[^/]*"))
+        .join(".*") +
+      "$",
+  );
 const MATCHERS = DB_PATHS.map(toRegExp);
 
 /** The first of these repository paths the replay depends on, or null. */
@@ -60,7 +67,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   let input = "";
   process.stdin.setEncoding("utf8");
   for await (const chunk of process.stdin) input += chunk;
-  const files = input.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const files = input
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
   const hit = firstDatabasePath(files);
   if (hit) {
     console.error(`${hit} is something the replay depends on, so the migrations replay from zero.`);

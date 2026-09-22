@@ -10,6 +10,7 @@
  * number is registered for Cloud API messaging with a two-step PIN. Every
  * call reports the API's own error message; nothing is retried blindly.
  */
+import { env } from "./env.js";
 
 export const GRAPH_VERSION = "v25.0";
 
@@ -21,13 +22,15 @@ export const GRAPH_VERSION = "v25.0";
  */
 export const DEFAULT_META_APP_ID = "1823820738182125";
 export function metaAppId(): string {
-  return process.env.META_APP_ID || DEFAULT_META_APP_ID;
+  return env.META_APP_ID || DEFAULT_META_APP_ID;
 }
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 export type GraphResult<T> = { ok: true; data: T } | { ok: false; error: string; code: number | null; status: number };
 
-interface GraphError { error?: { message?: string; code?: number; error_subcode?: number; type?: string } }
+interface GraphError {
+  error?: { message?: string; code?: number; error_subcode?: number; type?: string };
+}
 
 async function call<T>(path: string, init: RequestInit & { token?: string }): Promise<GraphResult<T>> {
   const { token, ...rest } = init;
@@ -43,13 +46,22 @@ async function call<T>(path: string, init: RequestInit & { token?: string }): Pr
   }
   const body = (await res.json().catch(() => ({}))) as T & GraphError;
   if (!res.ok || body.error) {
-    return { ok: false, error: body.error?.message ?? `graph ${res.status}`, code: body.error?.code ?? null, status: res.status };
+    return {
+      ok: false,
+      error: body.error?.message ?? `graph ${res.status}`,
+      code: body.error?.code ?? null,
+      status: res.status,
+    };
   }
   return { ok: true, data: body };
 }
 
 /** The Embedded Signup code, exchanged for the business's own token. */
-export function exchangeCode(appId: string, appSecret: string, code: string): Promise<GraphResult<{ access_token: string; token_type?: string }>> {
+export function exchangeCode(
+  appId: string,
+  appSecret: string,
+  code: string,
+): Promise<GraphResult<{ access_token: string; token_type?: string }>> {
   const qs = new URLSearchParams({ client_id: appId, client_secret: appSecret, code });
   return call(`/oauth/access_token?${qs}`, { method: "GET" });
 }
@@ -65,7 +77,10 @@ export interface PhoneNumberInfo {
 
 /** The number as Meta holds it: its display form, its verified name, its quality. */
 export function phoneNumber(token: string, phoneNumberId: string): Promise<GraphResult<PhoneNumberInfo>> {
-  return call(`/${encodeURIComponent(phoneNumberId)}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type`, { method: "GET", token });
+  return call(
+    `/${encodeURIComponent(phoneNumberId)}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type`,
+    { method: "GET", token },
+  );
 }
 
 /** The WABA, to prove the token sees it. */
@@ -83,7 +98,11 @@ export function subscribeWaba(token: string, wabaId: string): Promise<GraphResul
  * that is already registered answers with an error the caller may treat as
  * done; the PIN is kept with the credentials so a re-registration can reuse it.
  */
-export function registerNumber(token: string, phoneNumberId: string, pin: string): Promise<GraphResult<{ success?: boolean }>> {
+export function registerNumber(
+  token: string,
+  phoneNumberId: string,
+  pin: string,
+): Promise<GraphResult<{ success?: boolean }>> {
   return call(`/${encodeURIComponent(phoneNumberId)}/register`, {
     method: "POST",
     token,

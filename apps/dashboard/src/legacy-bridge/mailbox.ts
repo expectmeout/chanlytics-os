@@ -27,7 +27,8 @@ declare global {
 
 export function installMailbox(win: Window = window): void {
   win.__mailbox = {
-    create: ({ localPart, fromName }) => api()("POST mailboxes", { body: { local_part: localPart, from_name: fromName } }),
+    create: ({ localPart, fromName }) =>
+      api()("POST mailboxes", { body: { local_part: localPart, from_name: fromName } }),
     rename: (id, fromName) => api()("PUT mailboxes/[id]", { params: { id }, body: { from_name: fromName } }),
     whyNotALocalPart,
     whyNotAFromName,

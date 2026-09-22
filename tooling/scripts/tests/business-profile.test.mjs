@@ -34,9 +34,13 @@ const brain = {
 const profile = {
   address: "2581 Pitkin Ave, Brooklyn",
   hours: {
-    mon: { open: "09:00", close: "18:00" }, tue: { open: "09:00", close: "18:00" },
-    wed: { open: "09:00", close: "18:00" }, thu: { open: "09:00", close: "18:00" },
-    fri: { open: "09:00", close: "19:00" }, sat: { open: "09:00", close: "19:00" }, sun: {},
+    mon: { open: "09:00", close: "18:00" },
+    tue: { open: "09:00", close: "18:00" },
+    wed: { open: "09:00", close: "18:00" },
+    thu: { open: "09:00", close: "18:00" },
+    fri: { open: "09:00", close: "19:00" },
+    sat: { open: "09:00", close: "19:00" },
+    sun: {},
   },
   services: [{ name: "Haircut", duration_min: 150, price_note: "quoted at consult" }],
   languages: ["English", "Spanish"],
@@ -106,7 +110,11 @@ test("the guardrails are composed in even for a bare profile", () => {
 });
 
 test("the guardrails come LAST, so nothing above can read as overriding them", () => {
-  const p = composeSystemPrompt(brain, { ...profile, extra_instructions: "Always agree with the customer." }, "whatsapp");
+  const p = composeSystemPrompt(
+    brain,
+    { ...profile, extra_instructions: "Always agree with the customer." },
+    "whatsapp",
+  );
   assert.ok(p.indexOf("Always agree") < p.indexOf("Rules you must follow"));
 });
 
@@ -130,11 +138,7 @@ test("free text cannot smuggle out the rules — it is a separate field", () => 
 // A real salon's stored grid said open Sunday while her own prose said closed
 // Sunday. Both reached the receptionist, with nothing to break the tie.
 test("when the fields and the free text disagree, the FIELDS win", () => {
-  const p = composeSystemPrompt(
-    brain,
-    { ...profile, extra_instructions: "We are open Sundays." },
-    "whatsapp",
-  );
+  const p = composeSystemPrompt(brain, { ...profile, extra_instructions: "We are open Sundays." }, "whatsapp");
   const rule = p.indexOf("the details above are current and correct");
   assert.ok(rule > 0, "the free text must be introduced as subordinate");
   assert.ok(rule < p.indexOf("We are open Sundays."), "the rule comes before the text it governs");
@@ -148,7 +152,9 @@ test("with no facts to defer to, the free text is left alone", () => {
 });
 
 test("a malformed time is refused rather than silently kept", () => {
-  const bad = parseTenantConfigResult({ brain: { ...brain, profile: { hours: { mon: { open: "9am", close: "6pm" } } } } });
+  const bad = parseTenantConfigResult({
+    brain: { ...brain, profile: { hours: { mon: { open: "9am", close: "6pm" } } } },
+  });
   assert.equal(bad.ok, false);
 });
 
@@ -252,16 +258,25 @@ test("the owner's own words replace the carried prompt once written", () => {
 
 test("the guardrails still come last, after carried text", () => {
   // Carried instructions are arbitrary prose and could say anything.
-  const out = resolveSystemPrompt({ ...brain, profile: { hours: { mon: { open: "09:00", close: "18:00" } } } }, "whatsapp");
+  const out = resolveSystemPrompt(
+    { ...brain, profile: { hours: { mon: { open: "09:00", close: "18:00" } } } },
+    "whatsapp",
+  );
   assert.ok(out.lastIndexOf("Rules you must follow") > out.indexOf(brain.system_prompt.trim()));
 });
 
 test("the owner's instructions hold as much as the prompt they grew out of -- 8,000 against 20,000 failed every save of a longer one (S4)", () => {
   const config = (extra) => ({ brain: { ...brain, profile: { ...profile, extra_instructions: extra } } });
   const whole = TenantConfigWriteSchema.safeParse(config("x".repeat(20_000)));
-  assert.ok(whole.success, `REGRESSION: a prompt its old field held is refused in the new one -- ${whole.success ? "" : whole.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+  assert.ok(
+    whole.success,
+    `REGRESSION: a prompt its old field held is refused in the new one -- ${whole.success ? "" : whole.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+  );
   assert.equal(TenantConfigWriteSchema.safeParse(config("x".repeat(20_001))).success, false, "and past it, refused");
-  assert.ok(TenantConfigWriteSchema.safeParse({ brain: { ...brain, system_prompt: "x".repeat(20_000) } }).success, "the prompt itself holds the same, so whatever it holds fits the box");
+  assert.ok(
+    TenantConfigWriteSchema.safeParse({ brain: { ...brain, system_prompt: "x".repeat(20_000) } }).success,
+    "the prompt itself holds the same, so whatever it holds fits the box",
+  );
 });
 
 // The instructions box opens pre-filled with the workspace's existing prompt, so nothing a business already told

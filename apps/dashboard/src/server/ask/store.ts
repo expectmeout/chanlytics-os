@@ -1,5 +1,13 @@
 import "server-only";
-import { AppError, type AskMessageVM, type AskProposal, type AskProposalOutcome, type AskScope, type AskThreadVM, citationRoute } from "@chanlytics/contracts";
+import {
+  AppError,
+  type AskMessageVM,
+  type AskProposal,
+  type AskProposalOutcome,
+  type AskScope,
+  type AskThreadVM,
+  citationRoute,
+} from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 
@@ -10,14 +18,30 @@ import type { RouteContext } from "../with-route";
  * closing, not an error.
  */
 
-interface ThreadRow { id: string; title: string; scope: Json | null; last_at: string; created_at: string }
-interface MessageRow { id: string; role: string; content: Json; created_at: string }
+interface ThreadRow {
+  id: string;
+  title: string;
+  scope: Json | null;
+  last_at: string;
+  created_at: string;
+}
+interface MessageRow {
+  id: string;
+  role: string;
+  content: Json;
+  created_at: string;
+}
 
 const THREADS_CAP = 40;
 const MESSAGES_CAP = 60;
 
 export function toThreadVM(r: ThreadRow): AskThreadVM {
-  return { id: r.id, title: r.title || "Untitled", lastAtMs: Date.parse(r.last_at) || 0, scope: (r.scope as AskScope | null) ?? null };
+  return {
+    id: r.id,
+    title: r.title || "Untitled",
+    lastAtMs: Date.parse(r.last_at) || 0,
+    scope: (r.scope as AskScope | null) ?? null,
+  };
 }
 
 /** The stored assistant turn, back into the shape the palette draws. */
@@ -54,7 +78,10 @@ export async function listThreads(ctx: RouteContext, tenantId: string): Promise<
   return (data ?? []).map(toThreadVM);
 }
 
-export async function readThread(ctx: RouteContext, id: string): Promise<{ thread: AskThreadVM; messages: AskMessageVM[]; tenantId: string } | null> {
+export async function readThread(
+  ctx: RouteContext,
+  id: string,
+): Promise<{ thread: AskThreadVM; messages: AskMessageVM[]; tenantId: string } | null> {
   const { data: t, error } = await ctx.supabase
     .from("ask_threads")
     .select("id, tenant_id, title, scope, last_at, created_at")
@@ -72,7 +99,12 @@ export async function readThread(ctx: RouteContext, id: string): Promise<{ threa
   return { thread: toThreadVM(t), messages: (msgs ?? []).map(toMessageVM), tenantId: t.tenant_id };
 }
 
-export async function createThread(ctx: RouteContext, tenantId: string, title: string, scope: AskScope | null): Promise<AskThreadVM> {
+export async function createThread(
+  ctx: RouteContext,
+  tenantId: string,
+  title: string,
+  scope: AskScope | null,
+): Promise<AskThreadVM> {
   const { data, error } = await ctx.supabase
     .from("ask_threads")
     .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: (scope as unknown as Json) ?? null })
@@ -100,12 +132,18 @@ export async function appendMessage(
 
 /** A thread's title, once its first answer says what it was about. */
 export async function retitleThread(ctx: RouteContext, threadId: string, title: string): Promise<void> {
-  const { error } = await ctx.supabase.from("ask_threads").update({ title: title.slice(0, 80), last_at: new Date().toISOString() }).eq("id", threadId);
+  const { error } = await ctx.supabase
+    .from("ask_threads")
+    .update({ title: title.slice(0, 80), last_at: new Date().toISOString() })
+    .eq("id", threadId);
   if (error) console.error("ask_thread_retitle_failed", error.message);
 }
 
 export async function touchThread(ctx: RouteContext, threadId: string): Promise<void> {
-  const { error } = await ctx.supabase.from("ask_threads").update({ last_at: new Date().toISOString() }).eq("id", threadId);
+  const { error } = await ctx.supabase
+    .from("ask_threads")
+    .update({ last_at: new Date().toISOString() })
+    .eq("id", threadId);
   if (error) console.error("ask_thread_touch_failed", error.message);
 }
 
@@ -120,7 +158,11 @@ export async function setProposalOutcome(
   proposalId: string,
   outcome: AskProposalOutcome,
 ): Promise<AskProposal> {
-  const { data: m, error } = await ctx.supabase.from("ask_messages").select("id, content").eq("id", messageId).maybeSingle();
+  const { data: m, error } = await ctx.supabase
+    .from("ask_messages")
+    .select("id, content")
+    .eq("id", messageId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
   const content = (m.content ?? {}) as Record<string, unknown>;

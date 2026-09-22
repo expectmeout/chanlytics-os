@@ -10,18 +10,23 @@ import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const skip = !URL_ || !KEY
-  ? "no database in env"
-  : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
-    ? "refusing a database that is not on this machine: this suite writes due jobs"
-    : false;
+const skip =
+  !URL_ || !KEY
+    ? "no database in env"
+    : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+      ? "refusing a database that is not on this machine: this suite writes due jobs"
+      : false;
 
 let db;
 let tenantId;
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  const t = await db.from("tenants").insert({ slug: `line-provision-${Date.now()}`, name: "Line provision" }).select("id").single();
+  const t = await db
+    .from("tenants")
+    .insert({ slug: `line-provision-${Date.now()}`, name: "Line provision" })
+    .select("id")
+    .single();
   assert.equal(t.error, null, t.error?.message);
   tenantId = t.data.id;
 });
@@ -34,7 +39,16 @@ after(async () => {
 test("a line_provision job is accepted, due now, and claimed like any other", { skip }, async () => {
   const payload = { line_id: "00000000-0000-0000-0000-000000000001", by: "owner" };
   const write = async () => {
-    const ins = await db.from("jobs").insert({ tenant_id: tenantId, kind: "line_provision", due_at: new Date(Date.now() - 1000).toISOString(), payload }).select("id").single();
+    const ins = await db
+      .from("jobs")
+      .insert({
+        tenant_id: tenantId,
+        kind: "line_provision",
+        due_at: new Date(Date.now() - 1000).toISOString(),
+        payload,
+      })
+      .select("id")
+      .single();
     assert.equal(ins.error, null, ins.error?.message);
     return ins.data.id;
   };
@@ -53,8 +67,10 @@ test("a line_provision job is accepted, due now, and claimed like any other", { 
     mine = (data ?? []).find((r) => r.id === id) ?? null;
     if (!mine) {
       const gone = await db.from("jobs").select("state, lease_until").eq("id", id).single();
-      assert.ok(gone.data && gone.data.state === "fired" && Date.parse(gone.data.lease_until) > Date.now(),
-        `attempt ${attempt}: the row did not come back, and no other claim is holding it either (${JSON.stringify(gone.data)})`);
+      assert.ok(
+        gone.data && gone.data.state === "fired" && Date.parse(gone.data.lease_until) > Date.now(),
+        `attempt ${attempt}: the row did not come back, and no other claim is holding it either (${JSON.stringify(gone.data)})`,
+      );
     }
   }
   assert.ok(mine, "claimed by the heartbeat's own function");
@@ -63,7 +79,9 @@ test("a line_provision job is accepted, due now, and claimed like any other", { 
 });
 
 test("a kind nobody declared is still refused", { skip }, async () => {
-  const bad = await db.from("jobs").insert({ tenant_id: tenantId, kind: "line_teleport", due_at: new Date().toISOString(), payload: {} });
+  const bad = await db
+    .from("jobs")
+    .insert({ tenant_id: tenantId, kind: "line_teleport", due_at: new Date().toISOString(), payload: {} });
   assert.notEqual(bad.error, null);
   assert.match(bad.error.message, /jobs_kind_check|violates check constraint/);
 });

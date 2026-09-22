@@ -15,8 +15,10 @@
  */
 
 export const PLACES_BASE = "https://places.googleapis.com/v1";
-export const PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
-export const PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews";
+export const PLACES_SEARCH_MASK =
+  "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
+export const PLACES_DETAILS_MASK =
+  "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews";
 /** Candidates shown to the owner: a handful, never a page of twenty. */
 export const PLACES_SEARCH_LIMIT = 5;
 export const PLACES_TIMEOUT_MS = 10_000;
@@ -32,7 +34,10 @@ export interface PlacesRequest {
 export type PlacesHttp = (req: PlacesRequest) => Promise<{ status: number; body: string }>;
 
 export class PlacesError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "PlacesError";
   }
@@ -74,7 +79,11 @@ function headers(key: string, mask: string, json = false): Record<string, string
 }
 
 /** Text Search: the query as the owner or the facts give it; a handful of results. */
-export function placesSearchRequest(key: string, query: string, opts: { limit?: number; languageCode?: string } = {}): PlacesRequest {
+export function placesSearchRequest(
+  key: string,
+  query: string,
+  opts: { limit?: number; languageCode?: string } = {},
+): PlacesRequest {
   const pageSize = Math.max(1, Math.min(20, opts.limit ?? PLACES_SEARCH_LIMIT));
   return {
     url: `${PLACES_BASE}/places:searchText`,
@@ -85,7 +94,11 @@ export function placesSearchRequest(key: string, query: string, opts: { limit?: 
 }
 
 /** Place Details: the listing by its id, with the reviews. */
-export function placesDetailsRequest(key: string, placeId: string, opts: { languageCode?: string } = {}): PlacesRequest {
+export function placesDetailsRequest(
+  key: string,
+  placeId: string,
+  opts: { languageCode?: string } = {},
+): PlacesRequest {
   const q = new URLSearchParams({ languageCode: opts.languageCode ?? "en" });
   return {
     url: `${PLACES_BASE}/places/${encodeURIComponent(placeId)}?${q.toString()}`,
@@ -108,7 +121,13 @@ function candidateOf(p: Obj): PlaceCandidate | null {
   const id = str(p.id);
   const name = localized(p.displayName).text;
   if (!id || !name) return null;
-  return { place_id: id, name, address: str(p.formattedAddress), maps_uri: str(p.googleMapsUri), business_status: str(p.businessStatus) };
+  return {
+    place_id: id,
+    name,
+    address: str(p.formattedAddress),
+    maps_uri: str(p.googleMapsUri),
+    business_status: str(p.businessStatus),
+  };
 }
 
 /** A review's id is the last segment of its resource name, places/{place}/reviews/{review}. */
@@ -148,7 +167,9 @@ export function parsePlaceDetails(json: unknown): PlaceDetails {
   const id = str(p?.id);
   const name = localized(p?.displayName).text;
   if (!p || !id || !name) throw new PlacesError(502, "Google answered without a place");
-  const reviews = Array.isArray(p.reviews) ? p.reviews.map((r) => (obj(r) ? reviewOf(obj(r)!) : null)).filter((r): r is PlaceReview => r !== null) : [];
+  const reviews = Array.isArray(p.reviews)
+    ? p.reviews.map((r) => (obj(r) ? reviewOf(obj(r)!) : null)).filter((r): r is PlaceReview => r !== null)
+    : [];
   return {
     place_id: id,
     name,
@@ -169,7 +190,9 @@ function refusal(status: number, body: string): PlacesError {
     const m = str(e?.message);
     const s = str(e?.status);
     if (m) message = s ? `${s}: ${m}` : m;
-  } catch { /* the status is the message */ }
+  } catch {
+    /* the status is the message */
+  }
   return new PlacesError(status, message);
 }
 
@@ -183,18 +206,33 @@ async function call(http: PlacesHttp, req: PlacesRequest): Promise<unknown> {
   }
 }
 
-export async function searchPlaces(http: PlacesHttp, key: string, query: string, opts: { limit?: number; languageCode?: string } = {}): Promise<PlaceCandidate[]> {
+export async function searchPlaces(
+  http: PlacesHttp,
+  key: string,
+  query: string,
+  opts: { limit?: number; languageCode?: string } = {},
+): Promise<PlaceCandidate[]> {
   return parsePlacesSearch(await call(http, placesSearchRequest(key, query, opts)));
 }
 
-export async function getPlace(http: PlacesHttp, key: string, placeId: string, opts: { languageCode?: string } = {}): Promise<PlaceDetails> {
+export async function getPlace(
+  http: PlacesHttp,
+  key: string,
+  placeId: string,
+  opts: { languageCode?: string } = {},
+): Promise<PlaceDetails> {
   return parsePlaceDetails(await call(http, placesDetailsRequest(key, placeId, opts)));
 }
 
 /** The real port: fetch with a timeout, the body as text whatever the status. */
 export function placesFetch(fetchImpl: typeof fetch = fetch, timeoutMs = PLACES_TIMEOUT_MS): PlacesHttp {
   return async (req) => {
-    const r = await fetchImpl(req.url, { method: req.method, headers: req.headers, body: req.body, signal: AbortSignal.timeout(timeoutMs) });
+    const r = await fetchImpl(req.url, {
+      method: req.method,
+      headers: req.headers,
+      body: req.body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     return { status: r.status, body: await r.text() };
   };
 }

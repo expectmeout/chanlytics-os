@@ -30,6 +30,7 @@ import { planCallStart } from "../lib/call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../lib/packages/db.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { logger } from "../lib/log.js";
+import { env } from "../lib/env.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
@@ -38,13 +39,17 @@ export async function POST(request: Request): Promise<Response> {
   // An unset or empty secret matches nothing: an empty key must never open this
   // door because the configured secret is empty too. retell-webhook.ts guards
   // the same variable the same way.
-  const secret = process.env.RETELL_FN_SECRET;
+  const secret = env.RETELL_FN_SECRET;
   if (!secret || new URL(request.url).searchParams.get("key") !== secret) {
     return json(401, { ok: false });
   }
   const raw = await request.text();
   let body: { call_inbound?: { call_id?: string; from_number?: string; agent_id?: string } } = {};
-  try { body = JSON.parse(raw); } catch { /* fall through with empty body */ }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    /* fall through with empty body */
+  }
   const inbound = body.call_inbound || {};
   const from = String(inbound.from_number || "").replace(/^\+/, "");
   const agentId = inbound.agent_id;
@@ -80,7 +85,9 @@ export async function POST(request: Request): Promise<Response> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
       alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {}),
-      new Promise((r) => { timer = setTimeout(r, ALERT_BUDGET_MS); }),
+      new Promise((r) => {
+        timer = setTimeout(r, ALERT_BUDGET_MS);
+      }),
     ]).finally(() => clearTimeout(timer));
   }
 
@@ -104,6 +111,11 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  L.info("retell_inbound", { facts: start.facts, memory: start.memory, facts_chars: start.variables.business_facts.length, hold: held });
+  L.info("retell_inbound", {
+    facts: start.facts,
+    memory: start.memory,
+    facts_chars: start.variables.business_facts.length,
+    hold: held,
+  });
   return json(200, { call_inbound: { dynamic_variables: start.variables } });
 }

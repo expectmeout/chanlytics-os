@@ -37,7 +37,10 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
   const checked_at = now.toISOString();
   const [health, backlog] = await Promise.all([db.rpc("sweep_health"), db.rpc("jobs_backlog")]);
   if (health.error) {
-    return { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "health_unreadable" } };
+    return {
+      status: 503,
+      body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "health_unreadable" },
+    };
   }
   const rows = (Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
   const jobs_backlog = backlog.error ? null : typeof backlog.data === "number" ? backlog.data : null;
@@ -76,7 +79,16 @@ export async function GET(): Promise<Response> {
   const db = pg();
   const checked_at = new Date().toISOString();
   if (!db) {
-    return answer(503, JSON.stringify({ ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "no_database" } satisfies HealthAnswer));
+    return answer(
+      503,
+      JSON.stringify({
+        ok: false,
+        unhealthy: [],
+        jobs_backlog: null,
+        checked_at,
+        reason: "no_database",
+      } satisfies HealthAnswer),
+    );
   }
   let judged: { status: number; body: HealthAnswer };
   try {

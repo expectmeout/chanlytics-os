@@ -16,6 +16,7 @@
   flex: none;
 }
 @keyframes lf-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lf-panel, .lf-strip { animation: none; } }
 .lf-compose { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; }
 .lf-spark { color: var(--ink-dim); display: inline-flex; }
 .lf-spark.live { color: var(--accent); }
@@ -437,8 +438,6 @@
    900px and under: cards, one bar, and the work first. Nothing above the rows
    but the bar and the strip. */
 
-.ld-bar { display: none; }
-
 @media (max-width: 900px) {
   /* One gutter for the pane, owned by the scope. The bar, the strip, the band, the chips, the bench, the map and the
      first day read --gutter-page, and at this width the pane's is People's 16px (the cards' wrap, the standing line
@@ -447,17 +446,11 @@
      touch phone at 375. */
   .leads-scope { --gutter-page: 16px; }
 
-  /* One bar replaces the rail and the controls row. The rail is already
-     display: none at this width (mobile.css) and the Leads scope draws
-     neither of them here; the rule stands for a window dragged past the band
-     between two state changes, and it is scoped to Leads, because People's own
-     controls row at this width is People's business. */
+  /* One bar replaces the rail and the controls row: People's (PeoplePhoneBar, clients.css .pp-bar), with Find as its
+     last control. The rail is already display: none at this width (mobile.css) and the Leads scope draws neither of
+     them here; the rule stands for a window dragged past the band between two state changes, and it is scoped to
+     Leads, because People's own controls row at this width is People's business. */
   .leads-scope .cl-controls { display: none; }
-  .ld-bar { display: flex; align-items: center; gap: 8px; padding: 8px var(--gutter-page) 10px; flex: none; }
-  .ld-bar .pt-scope { margin: 0; }
-  .ld-bar .pt-scope button { height: 32px; min-width: 62px; }
-  .ld-bar-lists { height: 32px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font: inherit; font-size: var(--text-sm); color: var(--ink); white-space: nowrap; cursor: pointer; }
-  .ld-bar-search { flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); padding: 0 10px; font: inherit; font-size: var(--text-md); color: var(--ink); }
   .ld-bar-find { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--accent); cursor: pointer; }
 
   /* The classes and the chips give up the gutter, not their words. */
@@ -533,13 +526,6 @@
   .pl-finder .lf-acts .btn { width: 100%; min-height: 48px; justify-content: center; }
 }
 
-/* 720px and under: the same bar, slimmer. The list's name gives up its words
-   before the switch or Find give up a pixel. */
-@media (max-width: 720px) {
-  .ld-bar { gap: 6px; }
-  .ld-bar-lists { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; }
-}
-
 /* ============================== the row, re-cut (D5, docs/plans/…D5-the-page.md) ====
    The Lead Finder Redesign canvas on the product's own tokens: the meaning
    colours are the kit's four -- checked, unconfirmed, nothing found, bad --
@@ -551,18 +537,13 @@
    nothing-found colour, so a check in flight and a search that found no address were the same mark. */
 .leads-scope { --lead-ok: var(--ok-ink); --lead-part: var(--warn-ink); --lead-none: var(--ink-dim); --lead-bad: var(--danger-ink); --lead-wait: var(--info-ink); }
 
-/* A view on its way: the rows drawn are the last view's, so they fade a little and hold still, and come back the
-   moment the surface holds the view the address names (the table wears aria-busy for a screen reader). The fade
-   waits 150ms, so a view painted from what the tab already holds never dims at all. */
-.leads-scope .cl-table tbody { transition: opacity 120ms ease 150ms; }
-.leads-scope[data-loading] .cl-table tbody { opacity: 0.45; pointer-events: none; }
-.leads-scope[data-loading] .cl-table tbody tr { cursor: progress; }
-@media (prefers-reduced-motion: reduce) { .leads-scope .cl-table tbody { transition: none; } }
+/* A view on its way is the standard's one rule (components.css, [data-loading] [data-dims]): .leads-scope wears
+   data-loading, the table's rows are what it dims. */
 
 /* The row: 62px, so the tile has room and the sub-line breathes. */
-.leads-scope .cl-table tbody tr:has(td.ld-biz-cell) td { padding-top: 7px; padding-bottom: 7px; }
-.leads-scope .cl-table tbody tr:has(td.ld-biz-cell) { height: 62px; }
-.leads-scope .cl-table tbody tr:has(td.ld-biz-cell) td:first-child { position: relative; }
+.leads-scope .cl-table tbody tr.ld-row td { padding-top: 7px; padding-bottom: 7px; }
+.leads-scope .cl-table tbody tr.ld-row { height: 62px; }
+.leads-scope .cl-table tbody tr.ld-row td:first-child { position: relative; }
 .ld-row-name { gap: 12px; }
 .ld-biz-cell .cl-row-fullname { display: flex; align-items: center; gap: 6px; font-size: var(--text-base); overflow: visible; }
 .ld-biz-cell .cl-row-fullname .ld-biz-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -694,8 +675,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-card-count { font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-bar-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) 40px; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-dim); margin-top: 3px; }
 .ld-bar-row .n { text-align: right; }
-/* One star's track, named through its row: .ld-bar alone is also the phone's bar (the switch, search and Find), and
-   this rule, later and unconditional, drew that bar as a 5px track with all four clipped out of sight. */
+/* One star's track, named through its row: .ld-bar alone was also the phone's bar (the switch, search and Find) until
+   the phone pass gave both scopes one bar (.pp-bar), and this rule, later and unconditional, drew that bar as a 5px
+   track with all four clipped out of sight. */
 .ld-bar-row .ld-bar { display: block; height: 5px; border-radius: 3px; background: var(--bg-active); overflow: hidden; }
 .ld-bar-row .ld-bar span { display: block; height: 100%; border-radius: 3px; background: var(--warn); }
 
@@ -720,7 +702,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
    the template lacks is not dropped: it opens implicit tracks past the grid. Fit and Stage still named the areas
    of the card before D5, and those tracks squeezed the name to a few letters and put Call mid-card. */
 @media (max-width: 900px) {
-  .clients .cl-table tbody tr:has(td.ld-biz-cell) {
+  .clients .cl-table tbody tr.ld-row {
     grid-template-columns: 28px minmax(0, 1fr) auto 44px;
     grid-template-areas:
       "sel business business call"
@@ -744,9 +726,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-row-actions > :not(.ld-call) { display: none; }
   .ld-row-actions .ld-call { width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); display: grid; place-items: center; }
   /* A left-out card is its name and, under it, what left it out: nothing about it was checked. */
-  .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) { grid-template-areas: "sel business business call"; }
-  .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-reach-cell,
-  .clients .cl-table tbody tr:has(td.ld-biz-cell.excluded) td.ld-rated-cell { display: none; }
+  .clients .cl-table tbody tr.ld-cls-excluded { grid-template-areas: "sel business business call"; }
+  .clients .cl-table tbody tr.ld-cls-excluded td.ld-reach-cell,
+  .clients .cl-table tbody tr.ld-cls-excluded td.ld-rated-cell { display: none; }
   .ld-tile { width: 40px !important; height: 40px !important; }
   /* The table's tile is a button, the one thing on the card that opens the photo, and on a touch screen legacy.css
      makes every button at least 44px tall: this square stood 40 wide and 44 tall, with the photo cropped to fit. It

@@ -43,11 +43,7 @@ export async function consentPageFor(slug: string): Promise<ConsentPageRow | nul
   const clean = slug.trim().toLowerCase();
   if (!SLUG.test(clean)) return null;
   const db = serviceDb();
-  const { data: tenant, error } = await db
-    .from("tenants")
-    .select("id, name, status")
-    .eq("slug", clean)
-    .maybeSingle();
+  const { data: tenant, error } = await db.from("tenants").select("id, name, status").eq("slug", clean).maybeSingle();
   if (error) throw new Error(`reading the workspace: ${error.message}`);
   if (!tenant || tenant.status === "test") return null;
 
@@ -63,7 +59,17 @@ export async function consentPageFor(slug: string): Promise<ConsentPageRow | nul
   // address -- so the privacy and terms links beside the asks are the
   // business's own rather than Chanlytics'. Read, never written; no record is
   // simply no page.
-  const { data: record } = await db.from("business_records").select("legal_name, street, city").eq("tenant_id", tenant.id).maybeSingle();
+  const { data: record } = await db
+    .from("business_records")
+    .select("legal_name, street, city")
+    .eq("tenant_id", tenant.id)
+    .maybeSingle();
   const businessPage = !!(record && record.legal_name.trim() && record.street.trim() && record.city.trim());
-  return { businessName: tenant.name, slug: clean, businessPage, whatsappE164: numberOf("whatsapp"), smsE164: numberOf("sms") };
+  return {
+    businessName: tenant.name,
+    slug: clean,
+    businessPage,
+    whatsappE164: numberOf("whatsapp"),
+    smsE164: numberOf("sms"),
+  };
 }

@@ -10,16 +10,44 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent, listPolicies } from "./packages/db.js";
 import {
-  getPlace, placesFetch, planListingCheck, planProfileSync, searchPlaces,
-  tokenExchangeRequest, tokenRefreshRequest, revokeRequest, parseTokenResponse, grantHasScope, idTokenClaims,
-  listAccounts, listLocations, listReviews, replyToReview, reviewParent,
-  type PlaceCandidate, type PlaceDetails, type OAuthClient, type GbpLocation, type PlacesHttp, type TokenGrant,
+  getPlace,
+  placesFetch,
+  planListingCheck,
+  planProfileSync,
+  searchPlaces,
+  tokenExchangeRequest,
+  tokenRefreshRequest,
+  revokeRequest,
+  parseTokenResponse,
+  grantHasScope,
+  idTokenClaims,
+  listAccounts,
+  listLocations,
+  listReviews,
+  replyToReview,
+  reviewParent,
+  type PlaceCandidate,
+  type PlaceDetails,
+  type OAuthClient,
+  type GbpLocation,
+  type PlacesHttp,
+  type TokenGrant,
 } from "./packages/channels.js";
-import { autoReplyBell, autoReplyCandidates, localDate, parseTenantConfig, reviewReplyModeOf, type GoogleAudience, type ReviewReplyFacts, type ReviewReplyMode } from "./packages/contracts.js";
+import {
+  autoReplyBell,
+  autoReplyCandidates,
+  localDate,
+  parseTenantConfig,
+  reviewReplyModeOf,
+  type GoogleAudience,
+  type ReviewReplyFacts,
+  type ReviewReplyMode,
+} from "./packages/contracts.js";
 import { draftReviewReply } from "./review-reply.js";
 import { recordNotification } from "./notify.js";
 import { logger } from "./log.js";
 import { readAllRows } from "./paged.js";
+import { env } from "./env.js";
 
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];
@@ -30,14 +58,14 @@ const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 const TOKEN_SLACK_MS = 60_000;
 
 export function placesKey(): string | null {
-  return process.env.GOOGLE_PLACES_API_KEY || null;
+  return env.GOOGLE_PLACES_API_KEY || null;
 }
 
 /** The OAuth client for the Business Profile door, when the environment has all three parts. */
 export function profileClient(): OAuthClient | null {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  const clientId = env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const redirectUri = env.GOOGLE_OAUTH_REDIRECT_URI;
   return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri } : null;
 }
 
@@ -49,7 +77,7 @@ export function profileClient(): OAuthClient | null {
  * says nothing rather than something wrong.
  */
 export function googleAudience(): GoogleAudience | null {
-  const a = process.env.GOOGLE_OAUTH_AUDIENCE;
+  const a = env.GOOGLE_OAUTH_AUDIENCE;
   return a === "testing" || a === "unverified" || a === "verified" ? a : null;
 }
 
@@ -103,7 +131,8 @@ export async function readPlace(key: string, placeId: string): Promise<PlaceDeta
   return getPlace(http, key, placeId);
 }
 
-export type CheckResult = { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
+export type CheckResult =
+  { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
 
 async function connectionOf(db: Db, tenantId: string): Promise<ConnectionRow | null> {
   const { data, error } = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
@@ -137,12 +166,26 @@ export async function reviewFacts(db: Db, tenantId: string): Promise<ReviewReply
 }
 
 /** A draft for one review on record, for a person to send. Never posts. */
-export async function draftFor(db: Db, tenantId: string, rowId: string): Promise<{ ok: true; text: string } | { ok: false; error: string; detail?: string }> {
-  const review = await db.from("google_reviews").select("id, rating, author, body, published_at").eq("tenant_id", tenantId).eq("id", rowId).maybeSingle();
+export async function draftFor(
+  db: Db,
+  tenantId: string,
+  rowId: string,
+): Promise<{ ok: true; text: string } | { ok: false; error: string; detail?: string }> {
+  const review = await db
+    .from("google_reviews")
+    .select("id, rating, author, body, published_at")
+    .eq("tenant_id", tenantId)
+    .eq("id", rowId)
+    .maybeSingle();
   if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
   if (!review.data) return { ok: false, error: "no_review" };
   const facts = await reviewFacts(db, tenantId);
-  const d = await draftReviewReply(facts, { rating: review.data.rating, author: review.data.author, text: review.data.body, written_at: review.data.published_at });
+  const d = await draftReviewReply(facts, {
+    rating: review.data.rating,
+    author: review.data.author,
+    text: review.data.body,
+    written_at: review.data.published_at,
+  });
   return d.ok ? { ok: true, text: d.text } : { ok: false, error: d.error, detail: d.detail };
 }
 
@@ -153,7 +196,13 @@ export async function draftFor(db: Db, tenantId: string, rowId: string): Promise
  * reply Google refuses is logged and left for the next hour; nothing here
  * stops the sync that called it. Returns what was answered, for the bell.
  */
-async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now: Date, net: PlacesHttp = http): Promise<Array<{ id: string; author: string | null; text: string }>> {
+async function answerNewReviews(
+  db: Db,
+  conn: ConnectionRow,
+  parent: string,
+  now: Date,
+  net: PlacesHttp = http,
+): Promise<Array<{ id: string; author: string | null; text: string }>> {
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];
   const unreplied = await db
@@ -172,7 +221,12 @@ async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now
   const facts = await reviewFacts(db, conn.tenant_id);
   const answered: Array<{ id: string; author: string | null; text: string }> = [];
   for (const r of picks) {
-    const d = await draftReviewReply(facts, { rating: r.rating, author: r.author, text: r.body, written_at: r.published_at });
+    const d = await draftReviewReply(facts, {
+      rating: r.rating,
+      author: r.author,
+      text: r.body,
+      written_at: r.published_at,
+    });
     if (!d.ok) {
       L.warn("google_auto_reply_undrafted", { id: r.id, error: d.error });
       continue;
@@ -184,9 +238,18 @@ async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now
       L.warn("google_auto_reply_refused", { id: r.id, error: e instanceof Error ? e.message : String(e) });
       continue;
     }
-    const up = await db.from("google_reviews").update({ reply_text: reply.reply_text, replied_at: reply.replied_at }).eq("id", r.id).eq("tenant_id", conn.tenant_id);
+    const up = await db
+      .from("google_reviews")
+      .update({ reply_text: reply.reply_text, replied_at: reply.replied_at })
+      .eq("id", r.id)
+      .eq("tenant_id", conn.tenant_id);
     if (up.error) throw new Error(up.error.message);
-    await emitEvent(db, conn.tenant_id, "google.replied", "google", "review", r.id, { review_id: r.review_id, chars: d.text.length, by: "receptionist", usage: d.usage }).catch(() => {});
+    await emitEvent(db, conn.tenant_id, "google.replied", "google", "review", r.id, {
+      review_id: r.review_id,
+      chars: d.text.length,
+      by: "receptionist",
+      usage: d.usage,
+    }).catch(() => {});
     answered.push({ id: r.id, author: r.author, text: d.text });
   }
   return answered;
@@ -221,7 +284,10 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
     // past a permanently failing row needs its own `last_attempt_at` column,
     // which is a migration, not a stamp borrowed from a column that means
     // something else.
-    const { error: upErr } = await db.from("google_listings").update({ check_error: error }).eq("tenant_id", row.tenant_id);
+    const { error: upErr } = await db
+      .from("google_listings")
+      .update({ check_error: error })
+      .eq("tenant_id", row.tenant_id);
     if (upErr) throw new Error(upErr.message);
     L.warn("google_check_failed", { error });
     return { ok: false, error };
@@ -247,7 +313,9 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
 
   const listing = await db.from("google_listings").update(plan.listing).eq("tenant_id", row.tenant_id);
   if (listing.error) throw new Error(listing.error.message);
-  const day = await db.from("google_listing_days").upsert({ tenant_id: row.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
+  const day = await db
+    .from("google_listing_days")
+    .upsert({ tenant_id: row.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
   if (day.error) throw new Error(day.error.message);
   if (plan.reviews.length) {
     // first_seen_at is not in the payload: an existing row keeps its own.
@@ -271,14 +339,31 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
     if (reviews.error) throw new Error(reviews.error.message);
   }
   for (const b of plan.bells) {
-    await recordNotification(row.tenant_id, { kind: "review", title: b.title, body: b.body, route: "reports", about: b.review_id ? { type: "review", id: b.review_id } : null });
+    await recordNotification(row.tenant_id, {
+      kind: "review",
+      title: b.title,
+      body: b.body,
+      route: "reports",
+      about: b.review_id ? { type: "review", id: b.review_id } : null,
+    });
   }
   if (plan.fresh.length || plan.counted) {
     await emitEvent(db, row.tenant_id, "google.reviews", "google", "listing", null, {
-      source: "places", fresh: plan.fresh.length, counted: plan.counted, rating: plan.listing.rating, review_count: plan.listing.review_count,
+      source: "places",
+      fresh: plan.fresh.length,
+      counted: plan.counted,
+      rating: plan.listing.rating,
+      review_count: plan.listing.review_count,
     }).catch(() => {});
   }
-  L.info("google_checked", { rating: plan.listing.rating, review_count: plan.listing.review_count, shown: plan.reviews.length, fresh: plan.fresh.length, counted: plan.counted, profile: !carriesReviews });
+  L.info("google_checked", {
+    rating: plan.listing.rating,
+    review_count: plan.listing.review_count,
+    shown: plan.reviews.length,
+    fresh: plan.fresh.length,
+    counted: plan.counted,
+    profile: !carriesReviews,
+  });
   return { ok: true, fresh: plan.fresh.length, counted: plan.counted };
 }
 
@@ -331,16 +416,31 @@ async function readCredentials(db: Db, tenantId: string): Promise<StoredCredenti
   const { data, error } = await db.rpc("get_google_credentials", { p_tenant_id: tenantId });
   if (error) throw new Error(`credentials: ${error.message}`);
   const c = data as Partial<StoredCredentials> | null;
-  return c && typeof c.refresh_token === "string" ? { refresh_token: c.refresh_token, access_token: c.access_token ?? null, expires_at: typeof c.expires_at === "number" ? c.expires_at : null, scope: c.scope ?? null } : null;
+  return c && typeof c.refresh_token === "string"
+    ? {
+        refresh_token: c.refresh_token,
+        access_token: c.access_token ?? null,
+        expires_at: typeof c.expires_at === "number" ? c.expires_at : null,
+        scope: c.scope ?? null,
+      }
+    : null;
 }
 
 async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>, net: PlacesHttp = http): Promise<TokenGrant> {
   const r = await net(req);
   let json: unknown = null;
-  try { json = JSON.parse(r.body); } catch { /* below */ }
+  try {
+    json = JSON.parse(r.body);
+  } catch {
+    /* below */
+  }
   if (r.status < 200 || r.status >= 300) {
     const o = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
-    throw new Error(typeof o.error === "string" ? `${o.error}${typeof o.error_description === "string" ? `: ${o.error_description}` : ""}` : `Google answered ${r.status}`);
+    throw new Error(
+      typeof o.error === "string"
+        ? `${o.error}${typeof o.error_description === "string" ? `: ${o.error_description}` : ""}`
+        : `Google answered ${r.status}`,
+    );
   }
   return parseTokenResponse(json);
 }
@@ -349,15 +449,26 @@ async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>, net: Plac
  * An access token for the workspace's profile: the stored one while it
  * lasts, else a fresh one from the refresh token, kept for next time.
  */
-export async function tokenFor(db: Db, tenantId: string, now = Date.now(), net: PlacesHttp = http): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+export async function tokenFor(
+  db: Db,
+  tenantId: string,
+  now = Date.now(),
+  net: PlacesHttp = http,
+): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
   const client = profileClient();
   if (!client) return { ok: false, error: "no_oauth_client" };
   const creds = await readCredentials(db, tenantId);
   if (!creds) return { ok: false, error: "no_credentials" };
-  if (creds.access_token && creds.expires_at && creds.expires_at - TOKEN_SLACK_MS > now) return { ok: true, token: creds.access_token };
+  if (creds.access_token && creds.expires_at && creds.expires_at - TOKEN_SLACK_MS > now)
+    return { ok: true, token: creds.access_token };
   try {
     const grant = await grantFrom(tokenRefreshRequest(client, creds.refresh_token), net);
-    await storeCredentials(db, tenantId, { refresh_token: creds.refresh_token, access_token: grant.access_token, expires_at: now + grant.expires_in * 1000, scope: grant.scope || creds.scope });
+    await storeCredentials(db, tenantId, {
+      refresh_token: creds.refresh_token,
+      access_token: grant.access_token,
+      expires_at: now + grant.expires_in * 1000,
+      scope: grant.scope || creds.scope,
+    });
     return { ok: true, token: grant.access_token };
   } catch (e) {
     return { ok: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 300) };
@@ -402,7 +513,15 @@ async function allLocations(token: string, net: PlacesHttp = http): Promise<Loca
  * stopping short of `answerNewReviews` would let a test post a real reply on a
  * real business's listing and bill a real model call to write it.
  */
-export async function connectProfile(db: Db, tenantId: string, userId: string | null, code: string, tz: string, now = new Date(), net: PlacesHttp = http): Promise<ConnectResult> {
+export async function connectProfile(
+  db: Db,
+  tenantId: string,
+  userId: string | null,
+  code: string,
+  tz: string,
+  now = new Date(),
+  net: PlacesHttp = http,
+): Promise<ConnectResult> {
   const client = profileClient();
   if (!client) return { ok: false, error: "no_oauth_client" };
   let grant: TokenGrant;
@@ -460,7 +579,12 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
   const saved = await db.from("google_connections").upsert(row, { onConflict: "tenant_id" }).select("*").single();
   if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
   try {
-    await storeCredentials(db, tenantId, { refresh_token: grant.refresh_token, access_token: grant.access_token, expires_at: now.getTime() + grant.expires_in * 1000, scope: grant.scope });
+    await storeCredentials(db, tenantId, {
+      refresh_token: grant.refresh_token,
+      access_token: grant.access_token,
+      expires_at: now.getTime() + grant.expires_in * 1000,
+      scope: grant.scope,
+    });
   } catch (e) {
     // Without the token the row is a lie. Deleting it unconditionally was the
     // lie's cure and somebody else's outage: a workspace whose profile was
@@ -486,7 +610,13 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
     if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
   }
-  await emitEvent(db, tenantId, "google.connected", "google", "listing", null, { email: claims.email, accounts: new Set(locations.map((l) => l.account_name)).size, locations: locations.length, on_maps: onMaps.length, by: userId }).catch(() => {});
+  await emitEvent(db, tenantId, "google.connected", "google", "listing", null, {
+    email: claims.email,
+    accounts: new Set(locations.map((l) => l.account_name)).size,
+    locations: locations.length,
+    on_maps: onMaps.length,
+    by: userId,
+  }).catch(() => {});
   if (onMaps.length === 1) {
     const bound = await bindLocation(db, saved.data, first, userId, tz, now, net);
     if (!bound.ok) return { ok: false, error: bound.error, detail: bound.detail };
@@ -496,7 +626,10 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
 }
 
 /** The locations a pending (or connected) profile may choose among, read again. */
-export async function locationsFor(db: Db, tenantId: string): Promise<{ ok: true; locations: LocationChoice[] } | { ok: false; error: string }> {
+export async function locationsFor(
+  db: Db,
+  tenantId: string,
+): Promise<{ ok: true; locations: LocationChoice[] } | { ok: false; error: string }> {
   const t = await tokenFor(db, tenantId);
   if (!t.ok) return t;
   try {
@@ -511,7 +644,15 @@ export async function locationsFor(db: Db, tenantId: string): Promise<{ ok: true
  * and the connection's location, then the profile is synced at once. A
  * listing that named another place forgets what was read from it.
  */
-export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationChoice, userId: string | null, tz: string, now = new Date(), net: PlacesHttp = http): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string }> {
+export async function bindLocation(
+  db: Db,
+  conn: ConnectionRow,
+  loc: LocationChoice,
+  userId: string | null,
+  tz: string,
+  now = new Date(),
+  net: PlacesHttp = http,
+): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string }> {
   if (!loc.place_id) return { ok: false, error: "not_on_maps" };
   const existing = await db.from("google_listings").select("place_id").eq("tenant_id", conn.tenant_id).maybeSingle();
   if (existing.error) return { ok: false, error: "listing_read_failed", detail: existing.error.message };
@@ -519,18 +660,42 @@ export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationCho
     await db.from("google_reviews").delete().eq("tenant_id", conn.tenant_id);
     await db.from("google_listing_days").delete().eq("tenant_id", conn.tenant_id);
   }
-  const listing = await db
-    .from("google_listings")
-    .upsert(
-      existing.data && existing.data.place_id === loc.place_id
-        ? { tenant_id: conn.tenant_id, place_id: loc.place_id, name: loc.title, address: loc.address, maps_uri: loc.maps_uri }
-        : { tenant_id: conn.tenant_id, place_id: loc.place_id, name: loc.title, address: loc.address, maps_uri: loc.maps_uri, business_status: null, linked_by: userId, linked_at: now.toISOString(), rating: null, review_count: null, checked_at: null, check_error: null },
-      { onConflict: "tenant_id" },
-    );
+  const listing = await db.from("google_listings").upsert(
+    existing.data && existing.data.place_id === loc.place_id
+      ? {
+          tenant_id: conn.tenant_id,
+          place_id: loc.place_id,
+          name: loc.title,
+          address: loc.address,
+          maps_uri: loc.maps_uri,
+        }
+      : {
+          tenant_id: conn.tenant_id,
+          place_id: loc.place_id,
+          name: loc.title,
+          address: loc.address,
+          maps_uri: loc.maps_uri,
+          business_status: null,
+          linked_by: userId,
+          linked_at: now.toISOString(),
+          rating: null,
+          review_count: null,
+          checked_at: null,
+          check_error: null,
+        },
+    { onConflict: "tenant_id" },
+  );
   if (listing.error) return { ok: false, error: "listing_write_failed", detail: listing.error.message };
   const saved = await db
     .from("google_connections")
-    .update({ account_name: loc.account_name, account_title: loc.account_title, location_name: loc.name, location_title: loc.title, last_synced_at: null, sync_error: null })
+    .update({
+      account_name: loc.account_name,
+      account_title: loc.account_title,
+      location_name: loc.name,
+      location_title: loc.title,
+      last_synced_at: null,
+      sync_error: null,
+    })
     .eq("tenant_id", conn.tenant_id)
     .select("*")
     .single();
@@ -547,7 +712,13 @@ export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationCho
  * and is history: it raises nothing. A failed sync leaves its words on the
  * connection and is tried again next hour.
  */
-export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now = new Date(), net: PlacesHttp = http): Promise<CheckResult> {
+export async function syncProfile(
+  db: Db,
+  conn: ConnectionRow,
+  tz: string,
+  now = new Date(),
+  net: PlacesHttp = http,
+): Promise<CheckResult> {
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if (!conn.location_name) return { ok: false, error: "no_location" };
   const failed = async (error: string) => {
@@ -556,7 +727,10 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
     // a failed first attempt made the next real sync think it had run before —
     // leaving the Places reviews on file as duplicates for ever and answering
     // reviews the owner had already seen.
-    const { error: upErr } = await db.from("google_connections").update({ sync_error: error.slice(0, 300) }).eq("tenant_id", conn.tenant_id);
+    const { error: upErr } = await db
+      .from("google_connections")
+      .update({ sync_error: error.slice(0, 300) })
+      .eq("tenant_id", conn.tenant_id);
     if (upErr) throw new Error(upErr.message);
     L.warn("google_profile_sync_failed", { error });
     return { ok: false as const, error };
@@ -570,12 +744,26 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
     return failed(e instanceof Error ? e.message : String(e));
   }
   const first = !conn.last_synced_at;
-  const known = await readAllRows<{ review_id: string; replied_at: string | null; reply_text: string | null; origin: string }>("google_reviews", (from, to) =>
-    db.from("google_reviews").select("review_id, replied_at, reply_text, origin").eq("tenant_id", conn.tenant_id).order("review_id").range(from, to),
+  const known = await readAllRows<{
+    review_id: string;
+    replied_at: string | null;
+    reply_text: string | null;
+    origin: string;
+  }>("google_reviews", (from, to) =>
+    db
+      .from("google_reviews")
+      .select("review_id, replied_at, reply_text, origin")
+      .eq("tenant_id", conn.tenant_id)
+      .order("review_id")
+      .range(from, to),
   );
   const plan = planProfileSync(
     { last_synced_at: conn.last_synced_at },
-    new Map(known.filter((k) => k.origin === "profile").map((k) => [k.review_id, { updated_at: k.replied_at, reply_text: k.reply_text }])),
+    new Map(
+      known
+        .filter((k) => k.origin === "profile")
+        .map((k) => [k.review_id, { updated_at: k.replied_at, reply_text: k.reply_text }]),
+    ),
     page,
     localDate(tz, now),
     now.getTime(),
@@ -612,33 +800,69 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
     if (l.error) throw new Error(l.error.message);
   }
   if (plan.day) {
-    const d = await db.from("google_listing_days").upsert({ tenant_id: conn.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
+    const d = await db
+      .from("google_listing_days")
+      .upsert({ tenant_id: conn.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
     if (d.error) throw new Error(d.error.message);
   }
-  const done = await db.from("google_connections").update({ last_synced_at: plan.synced_at, sync_error: null }).eq("tenant_id", conn.tenant_id);
+  const done = await db
+    .from("google_connections")
+    .update({ last_synced_at: plan.synced_at, sync_error: null })
+    .eq("tenant_id", conn.tenant_id);
   if (done.error) throw new Error(done.error.message);
   for (const b of plan.bells) {
-    await recordNotification(conn.tenant_id, { kind: "review", title: b.title, body: b.body, route: "reports", about: b.review_id ? { type: "review", id: b.review_id } : null });
+    await recordNotification(conn.tenant_id, {
+      kind: "review",
+      title: b.title,
+      body: b.body,
+      route: "reports",
+      about: b.review_id ? { type: "review", id: b.review_id } : null,
+    });
   }
   // The first sync is history, never answered. After that, the auto mode
   // answers what came in on duty; a failure here is logged, not thrown.
-  const answered = first ? [] : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch((e) => {
-    L.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
-    return [];
-  });
+  const answered = first
+    ? []
+    : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch((e) => {
+        L.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
+        return [];
+      });
   const bell = autoReplyBell(answered);
   if (bell) {
-    await recordNotification(conn.tenant_id, { kind: "review", title: bell.title, body: bell.body, route: "reports", about: answered.length === 1 ? { type: "review", id: answered[0].id } : null });
+    await recordNotification(conn.tenant_id, {
+      kind: "review",
+      title: bell.title,
+      body: bell.body,
+      route: "reports",
+      about: answered.length === 1 ? { type: "review", id: answered[0].id } : null,
+    });
   }
   if (plan.fresh.length) {
-    await emitEvent(db, conn.tenant_id, "google.reviews", "google", "listing", null, { source: "profile", fresh: plan.fresh.length, counted: 0, rating: plan.listing?.rating ?? null, review_count: plan.listing?.review_count ?? null }).catch(() => {});
+    await emitEvent(db, conn.tenant_id, "google.reviews", "google", "listing", null, {
+      source: "profile",
+      fresh: plan.fresh.length,
+      counted: 0,
+      rating: plan.listing?.rating ?? null,
+      review_count: plan.listing?.review_count ?? null,
+    }).catch(() => {});
   }
-  L.info("google_profile_synced", { read: plan.reviews.length, fresh: plan.fresh.length, replied: plan.replied.length, answered: answered.length, first, rating: plan.listing?.rating ?? null, review_count: plan.listing?.review_count ?? null });
+  L.info("google_profile_synced", {
+    read: plan.reviews.length,
+    fresh: plan.fresh.length,
+    replied: plan.replied.length,
+    answered: answered.length,
+    first,
+    rating: plan.listing?.rating ?? null,
+    review_count: plan.listing?.review_count ?? null,
+  });
   return { ok: true, fresh: plan.fresh.length, counted: 0, answered: answered.length };
 }
 
 /** The grant given back to Google, the token gone from Vault, the row gone, the profile's reviews gone. The listing stays. */
-export async function disconnectProfile(db: Db, tenantId: string): Promise<{ ok: true; removed: boolean; revoked: boolean }> {
+export async function disconnectProfile(
+  db: Db,
+  tenantId: string,
+): Promise<{ ok: true; removed: boolean; revoked: boolean }> {
   const conn = await connectionOf(db, tenantId);
   if (!conn) return { ok: true, removed: false, revoked: false };
   let revoked = false;
@@ -652,15 +876,32 @@ export async function disconnectProfile(db: Db, tenantId: string): Promise<{ ok:
   if (gone.error) throw new Error(gone.error.message);
   const del = await db.from("google_connections").delete().eq("tenant_id", tenantId);
   if (del.error) throw new Error(del.error.message);
-  await emitEvent(db, tenantId, "google.disconnected", "google", "listing", null, { email: conn.google_email, location: conn.location_name, revoked }).catch(() => {});
+  await emitEvent(db, tenantId, "google.disconnected", "google", "listing", null, {
+    email: conn.google_email,
+    location: conn.location_name,
+    revoked,
+  }).catch(() => {});
   return { ok: true, removed: true, revoked };
 }
 
 /** An answer to a review, on Google and on the row. The ledger entry is the dashboard's. */
-export async function replyOnProfile(db: Db, tenantId: string, rowId: string, comment: string, now = new Date()): Promise<{ ok: true; reply_text: string | null; replied_at: string | null } | { ok: false; error: string; detail?: string }> {
+export async function replyOnProfile(
+  db: Db,
+  tenantId: string,
+  rowId: string,
+  comment: string,
+  now = new Date(),
+): Promise<
+  { ok: true; reply_text: string | null; replied_at: string | null } | { ok: false; error: string; detail?: string }
+> {
   const conn = await connectionOf(db, tenantId);
   if (!conn || !conn.location_name) return { ok: false, error: "not_connected" };
-  const review = await db.from("google_reviews").select("id, review_id, origin").eq("tenant_id", tenantId).eq("id", rowId).maybeSingle();
+  const review = await db
+    .from("google_reviews")
+    .select("id, review_id, origin")
+    .eq("tenant_id", tenantId)
+    .eq("id", rowId)
+    .maybeSingle();
   if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
   if (!review.data) return { ok: false, error: "no_review" };
   if (review.data.origin !== "profile") return { ok: false, error: "not_from_profile" };
@@ -668,12 +909,24 @@ export async function replyOnProfile(db: Db, tenantId: string, rowId: string, co
   if (!t.ok) return { ok: false, error: "no_token", detail: t.error };
   let reply;
   try {
-    reply = await replyToReview(http, t.token, `${reviewParent(conn.account_name, conn.location_name)}/reviews/${review.data.review_id}`, comment);
+    reply = await replyToReview(
+      http,
+      t.token,
+      `${reviewParent(conn.account_name, conn.location_name)}/reviews/${review.data.review_id}`,
+      comment,
+    );
   } catch (e) {
     return { ok: false, error: "google_refused", detail: e instanceof Error ? e.message : String(e) };
   }
-  const up = await db.from("google_reviews").update({ reply_text: reply.reply_text, replied_at: reply.replied_at }).eq("id", rowId).eq("tenant_id", tenantId);
+  const up = await db
+    .from("google_reviews")
+    .update({ reply_text: reply.reply_text, replied_at: reply.replied_at })
+    .eq("id", rowId)
+    .eq("tenant_id", tenantId);
   if (up.error) return { ok: false, error: "review_write_failed", detail: up.error.message };
-  await emitEvent(db, tenantId, "google.replied", "google", "review", rowId, { review_id: review.data.review_id, chars: comment.length }).catch(() => {});
+  await emitEvent(db, tenantId, "google.replied", "google", "review", rowId, {
+    review_id: review.data.review_id,
+    chars: comment.length,
+  }).catch(() => {});
   return { ok: true, ...reply };
 }

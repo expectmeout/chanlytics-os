@@ -17,7 +17,11 @@ const file = path.join(ROOT, OUT);
 
 test("the generated registry is current", () => {
   if (process.env.UPDATE_ROUTE_TYPES === "1") fs.writeFileSync(file, current.text);
-  assert.equal(fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n"), current.text, "run UPDATE_ROUTE_TYPES=1 to regenerate");
+  assert.equal(
+    fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n"),
+    current.text,
+    "run UPDATE_ROUTE_TYPES=1 to regenerate",
+  );
 });
 
 test("the registry and the policy file name the same handlers", () => {
@@ -27,5 +31,8 @@ test("the registry and the policy file name the same handlers", () => {
 
 test("the registry imports types only: no route module reaches the client bundle", () => {
   for (const line of current.text.split("\n")) assert.ok(!/^import /.test(line), line);
-  assert.ok(/typeof import\("\.\.\/\.\.\/app\/api\/v1\/settings\/route"\)\.GET/.test(current.text), "type-only import expressions");
+  assert.ok(
+    /typeof import\("\.\.\/\.\.\/app\/api\/v1\/settings\/route"\)\.GET/.test(current.text),
+    "type-only import expressions",
+  );
 });

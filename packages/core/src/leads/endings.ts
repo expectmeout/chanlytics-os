@@ -13,11 +13,16 @@ export const FINAL_RUN_STATES: ReadonlySet<string> = new Set(["succeeded", "fail
 /** The provider's status as the row's state; anything else is still running. */
 export function runStateOf(status: string): "running" | "succeeded" | "failed" | "aborted" | "timed_out" {
   switch (status) {
-    case "SUCCEEDED": return "succeeded";
-    case "FAILED": return "failed";
-    case "TIMED-OUT": return "timed_out";
-    case "ABORTED": return "aborted";
-    default: return "running";
+    case "SUCCEEDED":
+      return "succeeded";
+    case "FAILED":
+      return "failed";
+    case "TIMED-OUT":
+      return "timed_out";
+    case "ABORTED":
+      return "aborted";
+    default:
+      return "running";
   }
 }
 
@@ -29,7 +34,11 @@ export function termsShortOf(runs: LeadRunRow[], askedOf: (run: LeadRunRow) => n
   });
 }
 
-export function discoveryEnding(round: LeadRoundRow, runs: LeadRunRow[], x: { counted: number; target: number; termsShort: boolean[]; stopped: boolean }): LeadRoundEnding {
+export function discoveryEnding(
+  round: LeadRoundRow,
+  runs: LeadRunRow[],
+  x: { counted: number; target: number; termsShort: boolean[]; stopped: boolean },
+): LeadRoundEnding {
   const discover = runs.filter((r) => r.purpose === "discover");
   return endingOfRound({
     counted: x.counted,

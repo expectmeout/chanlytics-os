@@ -1,5 +1,14 @@
 import "server-only";
-import { parseParamSpecs, PLAYBOOK_TRIGGERS, playbookRunReach, toPersonRowVM, type PersonRowDto, type PlaybookDto, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
+import {
+  parseParamSpecs,
+  PLAYBOOK_TRIGGERS,
+  playbookRunReach,
+  toPersonRowVM,
+  type PersonRowDto,
+  type PlaybookDto,
+  type PlaybookPolicyClass,
+  type PlaybookTrigger,
+} from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
@@ -16,7 +25,8 @@ import { everyone } from "@/server/people";
  * are the send route's own, so a playbook can never name a template a
  * broadcast could not send or a slot the workspace cannot fill.
  */
-const COLUMNS = "id, name, trigger, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at";
+const COLUMNS =
+  "id, name, trigger, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at";
 
 /** One run on a card's history: the day it ran for, and what it earned. */
 export interface RunSummary {
@@ -116,6 +126,12 @@ export interface TriggerPool {
   noYes: number;
   stopped: number;
   noNumber: number;
+  /**
+   * How many the moment names said the yes the playbook needs, a number or not.
+   * `noNumber` counts everyone without one, yes or no, so only this tells a
+   * list whose yes has no number from a list nobody said yes to (#663's rule).
+   */
+  saidYes: number;
 }
 
 /**
@@ -125,29 +141,66 @@ export interface TriggerPool {
  * the one page of People it had loaded, which slice D of the data program had
  * made a page of a thousand.
  */
-export async function triggerPools(ctx: RouteContext, tenantId: string, touched: Record<string, string>, tz: string, now: Date): Promise<{ pools: Record<string, TriggerPool>; calendar: "ok" | "unavailable" | "none" }> {
-  // The pools are a reading, never the page: a People read that fails leaves
-  // the chips at zero and the playbooks themselves untouched.
+export async function triggerPools(
+  ctx: RouteContext,
+  tenantId: string,
+  touched: Record<string, string>,
+  tz: string,
+  now: Date,
+): Promise<{ pools: Record<string, TriggerPool | null>; calendar: "ok" | "unavailable" | "none" }> {
+  // The pools are a reading, never the page: a read that fails leaves the
+  // playbooks themselves untouched. A moment it could not count is null, never
+  // a zero: the page drew empty pools as "0 of 0" and "nobody to send to", and
+  // offered the QR for a yes nobody knew was missing.
   let rows: PersonRowDto[];
   try {
     rows = await everyone(ctx, tenantId);
   } catch (e) {
-    console.error("playbook_pools_people_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    return { pools: {}, calendar: "none" };
+    console.error(
+      "playbook_pools_people_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
+    return { pools: Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null])), calendar: "none" };
   }
   const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
-    console.error("playbook_pools_visits_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "playbook_pools_visits_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     return null;
   });
   const calendar = pv?.calendar.state ?? "none";
-  const vms = rows.map((r) => toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now));
-  const breath = { byThis: new Map<string, number>(), byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])) };
+  const vms = rows.map((r) =>
+    toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now),
+  );
+  const breath = {
+    byThis: new Map<string, number>(),
+    byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])),
+  };
   // One pass per moment, the runner's own: who it would pick, who waits for the
-  // week's breath, and who it names and leaves out whatever the week.
-  const pools: Record<string, TriggerPool> = {};
+  // week's breath, and who it names and leaves out whatever the week. A moment
+  // the calendar names is not counted when the calendar could not be read.
+  const pools: Record<string, TriggerPool | null> = {};
   for (const t of PLAYBOOK_TRIGGERS) {
-    const { reach } = playbookRunReach(vms, { trigger: t.id as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, breath, now.getTime());
-    pools[t.id] = { candidates: reach.will, held: reach.heardAny, pool: reach.pool, noYes: reach.noYes, stopped: reach.stopped, noNumber: reach.noNumber };
+    if (t.kind === "visit" && !pv) {
+      pools[t.id] = null;
+      continue;
+    }
+    const { reach, saidYes } = playbookRunReach(
+      vms,
+      { trigger: t.id as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 },
+      breath,
+      now.getTime(),
+    );
+    pools[t.id] = {
+      candidates: reach.will,
+      held: reach.heardAny,
+      pool: reach.pool,
+      noYes: reach.noYes,
+      stopped: reach.stopped,
+      noNumber: reach.noNumber,
+      saidYes,
+    };
   }
   return { pools, calendar };
 }
@@ -163,7 +216,16 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
   const totals = new Map<string, PlaybookTotals>();
   for (const b of runs) {
     if (!b.playbook_id) continue;
-    const t = totals.get(b.playbook_id) ?? { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] };
+    const t = totals.get(b.playbook_id) ?? {
+      runs: 0,
+      sent: 0,
+      delivered: 0,
+      replied: 0,
+      held: 0,
+      lastRun: null,
+      waiting: null,
+      history: [],
+    };
     t.runs += 1;
     t.sent += b.counts.sent;
     t.delivered += b.counts.delivered;
@@ -171,12 +233,20 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
     t.held += b.counts.skipped + b.counts.failed;
     if (t.history.length < HISTORY_ON_CARD) {
       t.history.push({
-        id: b.id, run_for: b.run_for, state: b.state, scheduled_for: b.scheduled_for, recipient_count: b.recipient_count,
-        sent: b.counts.sent, held: b.counts.skipped + b.counts.failed, delivered: b.counts.delivered, replied: b.counts.replied,
+        id: b.id,
+        run_for: b.run_for,
+        state: b.state,
+        scheduled_for: b.scheduled_for,
+        recipient_count: b.recipient_count,
+        sent: b.counts.sent,
+        held: b.counts.skipped + b.counts.failed,
+        delivered: b.counts.delivered,
+        replied: b.counts.replied,
       });
     }
     if (!t.lastRun) t.lastRun = { id: b.id, state: b.state, run_for: b.run_for, recipient_count: b.recipient_count };
-    if (b.state === "pending_approval" && !t.waiting) t.waiting = { id: b.id, recipient_count: b.recipient_count, name: b.name };
+    if (b.state === "pending_approval" && !t.waiting)
+      t.waiting = { id: b.id, recipient_count: b.recipient_count, name: b.name };
     totals.set(b.playbook_id, t);
   }
   return (rows ?? []).map((r) => ({
@@ -185,13 +255,26 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
     policy_class: r.policy_class as PlaybookPolicyClass,
     state: r.state as PlaybookDto["state"],
     params: parseParamSpecs(r.params),
-    totals: totals.get(r.id) ?? { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
+    totals: totals.get(r.id) ?? {
+      runs: 0,
+      sent: 0,
+      delivered: 0,
+      replied: 0,
+      held: 0,
+      lastRun: null,
+      waiting: null,
+      history: [],
+    },
   }));
 }
 
 export type { PlaybookInput };
 
 /** Everything a playbook names, checked the way the send route checks a broadcast: core's checkPlaybook over this workspace's template and link. */
-export async function checkPlaybookInput(ctx: RouteContext, tenantId: string, body: Record<string, unknown> | null): Promise<PlaybookInput> {
+export async function checkPlaybookInput(
+  ctx: RouteContext,
+  tenantId: string,
+  body: Record<string, unknown> | null,
+): Promise<PlaybookInput> {
   return checkPlaybook(templateValuePorts(ctx, tenantId), body);
 }

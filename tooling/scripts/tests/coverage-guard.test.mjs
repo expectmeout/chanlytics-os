@@ -24,6 +24,6 @@ test("a run that claims to cover Postgres actually can", { skip: REQUIRED ? fals
     missing,
     [],
     `REQUIRE_SERVICE_CREDENTIALS=1 but ${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} absent, ` +
-    "so every integration suite would skip and this run would report success having touched no database at all",
+      "so every integration suite would skip and this run would report success having touched no database at all",
   );
 });

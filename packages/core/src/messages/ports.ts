@@ -15,7 +15,13 @@ export interface SendQueuedPorts {
    * read: a read that FAILED and a message that is genuinely gone are
    * different facts, and collapsing them is how a reply once vanished.
    */
-  queued(messageId: string): Promise<{ status: string; body: string | null; channel: string | null; sender: string | null; /** The frozen request, on an email's row. */ email?: Delivery["email"] | null } | null>;
+  queued(messageId: string): Promise<{
+    status: string;
+    body: string | null;
+    channel: string | null;
+    sender: string | null;
+    /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
+  } | null>;
   /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
   purposeOf(template: { name: string; language: string } | undefined): Promise<SendPurpose>;
   deliver: Door;
@@ -29,13 +35,40 @@ export interface SendQueuedPorts {
 
 export interface ProvisionLinePorts {
   /** The saga, or its resumption: the edge's, because the provider and the credentials live there. Absent in a runtime that holds none. */
-  provision?(lineId: string, by: "owner" | "support" | "sweep"): Promise<{ ok: boolean; step?: string; error?: string }>;
+  provision?(
+    lineId: string,
+    by: "owner" | "support" | "sweep",
+  ): Promise<{ ok: boolean; step?: string; error?: string }>;
 }
 
-export interface BroadcastRow { id: string; state: string; name: string; template_name: string; template_language: string; params: unknown; recipient_count: number | null; playbook_id: string | null; audience: unknown }
-export interface RecipientRow { contact_id: string; facts: unknown }
-export interface ContactRow { id: string; phone_e164: string | null; erased_at: string | null; display_name: string | null; wa_profile_name: string | null }
-export type RecipientMark = { state: "sent" | "skipped" | "failed"; reason?: string | null; message_id?: string | null; sent_at?: string | null };
+export interface BroadcastRow {
+  id: string;
+  state: string;
+  name: string;
+  template_name: string;
+  template_language: string;
+  params: unknown;
+  recipient_count: number | null;
+  playbook_id: string | null;
+  audience: unknown;
+}
+export interface RecipientRow {
+  contact_id: string;
+  facts: unknown;
+}
+export interface ContactRow {
+  id: string;
+  phone_e164: string | null;
+  erased_at: string | null;
+  display_name: string | null;
+  wa_profile_name: string | null;
+}
+export type RecipientMark = {
+  state: "sent" | "skipped" | "failed";
+  reason?: string | null;
+  message_id?: string | null;
+  sent_at?: string | null;
+};
 
 export interface BroadcastBatchPorts {
   /** The broadcast, or null when it is gone; throws when it cannot be read. */
@@ -45,7 +78,10 @@ export interface BroadcastBatchPorts {
   /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
   startSending(id: string): Promise<boolean>;
   /** The template as Meta has it: its status, its words, its category. Null when gone; throws when it cannot be read. */
-  template(name: string, language: string): Promise<{ meta_status: string | null; body_preview: string | null; category: string | null } | null>;
+  template(
+    name: string,
+    language: string,
+  ): Promise<{ meta_status: string | null; body_preview: string | null; category: string | null } | null>;
   /** The workspace's own words for the slots that name it. */
   facts(): Promise<{ businessName: string; bookingLink: string | null }>;
   /** Up to `limit` people still queued; throws when it cannot be read. */
@@ -82,4 +118,8 @@ export interface BroadcastBatchPorts {
   now(): number;
   sleep(ms: number): Promise<void>;
 }
-export interface BroadcastBatchCommand { tenantId: string; broadcastId: string; deadline: number }
+export interface BroadcastBatchCommand {
+  tenantId: string;
+  broadcastId: string;
+  deadline: number;
+}

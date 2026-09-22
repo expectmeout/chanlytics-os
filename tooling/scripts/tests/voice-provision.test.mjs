@@ -44,7 +44,10 @@ test("the LLM body is the shell itself, so the converger plans nothing against i
   assert.equal(body.model, VOICE_LLM_DEFAULTS.model);
   assert.equal(body.model_temperature, 0);
   assert.equal(body.start_speaker, "agent");
-  assert.deepEqual(planVoiceConvergence(body, desiredVoiceShell(DEFAULT_FN_URL, { "x-fn-secret": S.fnSecret })).drift, []);
+  assert.deepEqual(
+    planVoiceConvergence(body, desiredVoiceShell(DEFAULT_FN_URL, { "x-fn-secret": S.fnSecret })).drift,
+    [],
+  );
   assert.equal(voiceShellDrift(body).converged, true, "the diagnostic reads it as on the shell");
   const transfer = body.general_tools.find((t) => t.name === "transfer_to_staff");
   assert.equal(transfer.transfer_destination.number, HANDOFF_VAR, "the transfer dials the per-call variable");
@@ -60,21 +63,35 @@ test("the agent body carries the product's voice and every setting the pipeline 
   assert.deepEqual(body.response_engine, { type: "retell-llm", llm_id: "llm_abc", version: 0 });
   assert.equal(body.voice_id, VOICE_AGENT_DEFAULTS.voice_id);
   assert.equal(body.language.length, 10, "multilingual, like the live line");
-  assert.equal(body.webhook_url, "https://chanlytics-messaging.vercel.app/api/retell-webhook", "the call webhook carries no key: the signature is its credential");
+  assert.equal(
+    body.webhook_url,
+    "https://chanlytics-messaging.vercel.app/api/retell-webhook",
+    "the call webhook carries no key: the signature is its credential",
+  );
   assert.deepEqual(body.webhook_events, ["call_started", "call_ended", "call_analyzed", "transcript_updated"]);
   assert.equal(body.webhook_timeout_ms, 20000);
   assert.equal(body.opt_in_signed_url, true);
   assert.equal(body.data_storage_retention_days, 90);
   assert.equal(body.end_call_after_silence_ms, 30000);
-  assert.deepEqual(body.post_call_analysis_data.map((f) => f.name), ["caller_wanted", "outcome", "follow_up", "caller_name"]);
+  assert.deepEqual(
+    body.post_call_analysis_data.map((f) => f.name),
+    ["caller_wanted", "outcome", "follow_up", "caller_name"],
+  );
   assert.deepEqual(planAgentSettings(body, { retentionDays: 90 }).drift, [], "the agent converger plans nothing");
   assert.equal(agentSettingsDrift(body).converged, true);
   const noVersion = voiceAgentCreateBody({ llmId: "llm_abc", llmVersion: null, agentName: "x" }, S);
-  assert.deepEqual(noVersion.response_engine, { type: "retell-llm", llm_id: "llm_abc" }, "an unknown LLM version is left to the provider");
+  assert.deepEqual(
+    noVersion.response_engine,
+    { type: "retell-llm", llm_id: "llm_abc" },
+    "an unknown LLM version is left to the provider",
+  );
 });
 
 test("the number is bound to the agent, pinned to latest_published, with the inbound webhook that fills the facts", () => {
-  const buy = voiceNumberCreateBody({ areaCode: 305, agentId: "agent_1", pinned: true, nickname: "Northside Movers · Chanlytics" }, S);
+  const buy = voiceNumberCreateBody(
+    { areaCode: 305, agentId: "agent_1", pinned: true, nickname: "Northside Movers · Chanlytics" },
+    S,
+  );
   assert.equal(buy.area_code, 305);
   assert.equal(buy.country_code, "US");
   assert.equal(buy.number_provider, "twilio");
@@ -82,7 +99,11 @@ test("the number is bound to the agent, pinned to latest_published, with the inb
   assert.equal(buy.inbound_webhook_url, `https://chanlytics-messaging.vercel.app/api/retell-inbound?key=${S.fnSecret}`);
   assert.ok(!("toll_free" in buy), "local by default");
   const bind = voiceNumberBindBody({ agentId: "agent_1", pinned: false, nickname: "n" }, S);
-  assert.deepEqual(bind.inbound_agents, [{ agent_id: "agent_1", weight: 1 }], "unpublished: the number follows the latest version, and says so elsewhere");
+  assert.deepEqual(
+    bind.inbound_agents,
+    [{ agent_id: "agent_1", weight: 1 }],
+    "unpublished: the number follows the latest version, and says so elsewhere",
+  );
   assert.equal(bind.inbound_webhook_url, buy.inbound_webhook_url);
   assert.ok(!("area_code" in bind));
 });
@@ -95,7 +116,10 @@ test("the endpoints derive from the one base the shell pins; the key rides the q
     webhook: "https://chanlytics-messaging.vercel.app/api/retell-webhook",
     inbound: "https://chanlytics-messaging.vercel.app/api/retell-inbound",
   });
-  assert.equal(voiceEndpoints("https://preview.example/api/retell-fn").inbound, "https://preview.example/api/retell-inbound");
+  assert.equal(
+    voiceEndpoints("https://preview.example/api/retell-fn").inbound,
+    "https://preview.example/api/retell-inbound",
+  );
   assert.equal(withKey("https://x/api/retell-webhook", "a b&c"), "https://x/api/retell-webhook?key=a%20b%26c");
   assert.equal(stripKey("https://x/api/retell-webhook?key=secret"), "https://x/api/retell-webhook");
   assert.equal(stripKey(null), null);
@@ -105,31 +129,55 @@ test("the plan for a fresh workspace: LLM, agent, publish, then the number, the 
   const buy = planVoiceProvision(fresh({ areaCode: 305 }));
   assert.equal(buy.ok, true);
   assert.equal(buy.nothing, false);
-  assert.deepEqual(buy.steps.map((s) => `${s.id}:${s.action}`), ["llm:create", "agent:create", "publish:publish", "number:buy", "channel:insert", "notify:notify"]);
+  assert.deepEqual(
+    buy.steps.map((s) => `${s.id}:${s.action}`),
+    ["llm:create", "agent:create", "publish:publish", "number:buy", "channel:insert", "notify:notify"],
+  );
   assert.deepEqual(buy.names, { agent: "Northside Movers front desk", nickname: "Northside Movers · Chanlytics" });
   assert.match(buy.steps[3].detail, /area code 305/);
   const bind = planVoiceProvision(fresh({ number: "+13055550100" }));
-  assert.deepEqual(bind.steps.map((s) => `${s.id}:${s.action}`), ["llm:create", "agent:create", "publish:publish", "number:bind", "channel:insert", "notify:notify"]);
+  assert.deepEqual(
+    bind.steps.map((s) => `${s.id}:${s.action}`),
+    ["llm:create", "agent:create", "publish:publish", "number:bind", "channel:insert", "notify:notify"],
+  );
   const none = planVoiceProvision(fresh({}));
-  assert.deepEqual(none.steps.map((s) => `${s.id}:${s.action}`), ["llm:create", "agent:create", "publish:publish", "number:skip"], "no number: nothing is written — a row that exists is a line that works");
+  assert.deepEqual(
+    none.steps.map((s) => `${s.id}:${s.action}`),
+    ["llm:create", "agent:create", "publish:publish", "number:skip"],
+    "no number: nothing is written — a row that exists is a line that works",
+  );
   assert.match(none.steps[3].detail, /number .* or area_code/);
 });
 
 test("resume: an LLM or an agent from a failed run is read back and reused, never made twice", () => {
   const llm = planVoiceProvision(fresh({ llmId: "llm_abc123", areaCode: 305 }));
-  assert.deepEqual(llm.steps.slice(0, 2).map((s) => `${s.id}:${s.action}`), ["llm:reuse", "agent:create"]);
+  assert.deepEqual(
+    llm.steps.slice(0, 2).map((s) => `${s.id}:${s.action}`),
+    ["llm:reuse", "agent:create"],
+  );
   assert.match(llm.steps[0].detail, /read from the provider first/);
   const agent = planVoiceProvision(fresh({ agentId: "agent_abc123", number: "+13055550100" }));
-  assert.deepEqual(agent.steps.map((s) => `${s.id}:${s.action}`), ["llm:skip", "agent:adopt", "publish:publish", "number:bind", "channel:insert", "notify:notify"]);
+  assert.deepEqual(
+    agent.steps.map((s) => `${s.id}:${s.action}`),
+    ["llm:skip", "agent:adopt", "publish:publish", "number:bind", "channel:insert", "notify:notify"],
+  );
 });
 
 test("idempotent: a workspace with a voice row plans nothing, and says why", () => {
-  const on = planVoiceProvision({ tenant, channel: { id: "c1", status: "active", agentId: "agent_live", number: "+13083368109" }, request: { areaCode: 305 } });
+  const on = planVoiceProvision({
+    tenant,
+    channel: { id: "c1", status: "active", agentId: "agent_live", number: "+13083368109" },
+    request: { areaCode: 305 },
+  });
   assert.equal(on.nothing, true);
   assert.deepEqual(on.steps, []);
   assert.match(on.reason, /already answering on \+13083368109/);
   assert.match(on.reason, /voice-converge/);
-  const off = planVoiceProvision({ tenant, channel: { id: "c1", status: "disabled", agentId: "agent_live", number: null }, request: {} });
+  const off = planVoiceProvision({
+    tenant,
+    channel: { id: "c1", status: "disabled", agentId: "agent_live", number: null },
+    request: {},
+  });
   assert.equal(off.nothing, true);
   assert.match(off.reason, /disabled/);
   assert.match(off.reason, /Connections/, "the pane an owner is sent to, by the name the tab now has");
@@ -141,9 +189,13 @@ test("the request is checked before anything is planned", () => {
   assert.deepEqual(bad.errors, ["number must be E.164, like +13055550100"]);
   assert.deepEqual(bad.steps, []);
   assert.deepEqual(planVoiceProvision(fresh({ areaCode: 12 })).errors, ["area_code must be three digits, like 305"]);
-  assert.deepEqual(planVoiceProvision(fresh({ areaCode: 305, number: "+13055550100" })).errors, ["give a number to bind or an area code to buy in, not both"]);
+  assert.deepEqual(planVoiceProvision(fresh({ areaCode: 305, number: "+13055550100" })).errors, [
+    "give a number to bind or an area code to buy in, not both",
+  ]);
   assert.deepEqual(planVoiceProvision(fresh({ llmId: "nope" })).errors, ["llm_id does not look like a Retell LLM id"]);
-  assert.deepEqual(planVoiceProvision(fresh({ agentId: "nope" })).errors, ["agent_id does not look like a Retell agent id"]);
+  assert.deepEqual(planVoiceProvision(fresh({ agentId: "nope" })).errors, [
+    "agent_id does not look like a Retell agent id",
+  ]);
 });
 
 test("the receptionist is made once, in the lib both line paths share: the shell, the agent over it, the first version published, a resumed id read from the provider first; the endpoint has more than the default budget", () => {
@@ -152,24 +204,40 @@ test("the receptionist is made once, in the lib both line paths share: the shell
   // secrets never echoed, the read-back planning nothing -- is run in
   // voice-doors.test.mjs.
   const agent = readCode("apps/edge/lib/voice-agent.ts");
-  for (const pin of ["createRetellLlm(cfg, voiceLlmCreateBody(secrets))", "createAgent(cfg, voiceAgentCreateBody(", 'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")']) {
+  for (const pin of [
+    "createRetellLlm(cfg, voiceLlmCreateBody(secrets))",
+    "createAgent(cfg, voiceAgentCreateBody(",
+    'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")',
+  ]) {
     assert.ok(agent.includes(pin), pin);
   }
   // Resume reads the provider before trusting an id.
   assert.ok(agent.includes("await getAgentRaw(cfg, o.agentId)") && agent.includes("await getRetellLlm(cfg, llmId)"));
   assert.ok(EVENT_KINDS.includes("voice.provisioned"));
   assert.ok(!agent.includes("...w.body"), "a success body echoes the webhook URL with its key");
-  assert.ok(readRaw("apps/edge/vercel.json").includes('"api/admin/voice-provision.ts"'), "several provider calls need more than the default budget");
+  assert.ok(
+    readRaw("apps/edge/vercel.json").includes('"api/admin/voice-provision.ts"'),
+    "several provider calls need more than the default budget",
+  );
   assert.ok(!/key_[0-9a-f]{16}/.test(agent), "no literal provider key");
 });
 
 test("the laptop script is retired: the key lives on the edge and nowhere else", () => {
-  assert.ok(!fs.existsSync(path.join(ROOT, "tooling/scripts/setup_voice.py")), "the Python provisioning script is gone");
+  assert.ok(
+    !fs.existsSync(path.join(ROOT, "tooling/scripts/setup_voice.py")),
+    "the Python provisioning script is gone",
+  );
   const adapter = readCode("packages/channels/src/voice-retell.ts");
   for (const fn of ["createRetellLlm", "createAgent", "createPhoneNumber", "updatePhoneNumber", "getPhoneNumber"]) {
-    assert.ok(adapter.includes(`export function ${fn}(`) || adapter.includes(`export async function ${fn}(`), `${fn} is the adapter's`);
+    assert.ok(
+      adapter.includes(`export function ${fn}(`) || adapter.includes(`export async function ${fn}(`),
+      `${fn} is the adapter's`,
+    );
   }
-  assert.ok(adapter.includes('"/create-phone-number"') && adapter.includes("/update-phone-number/${encodeURIComponent(number)}"));
+  assert.ok(
+    adapter.includes('"/create-phone-number"') &&
+      adapter.includes("/update-phone-number/${encodeURIComponent(number)}"),
+  );
   assert.ok(readCode("packages/channels/src/index.ts").includes('export * from "./voice-provision";'));
   // The diagnostic saying which model each line runs is run in diag-door.test.mjs.
 });

@@ -43,12 +43,16 @@ import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { pgSafe, IngestFailed } from "../lib/whatsapp/persist.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { PAUSE_MS } from "../lib/whatsapp/steps.js";
+import { env } from "../lib/env.js";
+import { logger, errField } from "../lib/log.js";
+
+const L = logger();
 
 export const config = { maxDuration: 60 };
 
 export async function GET(request: Request): Promise<Response> {
   const q = new URL(request.url).searchParams;
-  if (q.get("hub.mode") === "subscribe" && q.get("hub.verify_token") === process.env.WHATSAPP_VERIFY_TOKEN) {
+  if (q.get("hub.mode") === "subscribe" && q.get("hub.verify_token") === env.WHATSAPP_VERIFY_TOKEN) {
     return text(200, q.get("hub.challenge") || "");
   }
   return text(403, "verification failed");
@@ -58,9 +62,9 @@ export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
 
   // fail-closed: a missing secret is a config error, never a verification skip
-  const secret = process.env.META_APP_SECRET;
+  const secret = env.META_APP_SECRET;
   if (!secret) {
-    console.error("wa_missing_app_secret");
+    L.error("wa_missing_app_secret");
     return json(401, { ok: false, error: "bad_signature" });
   }
   const sig = String(request.headers.get("x-hub-signature-256") || "");
@@ -75,7 +79,11 @@ export async function POST(request: Request): Promise<Response> {
     entry?: Array<{ id?: string; changes?: Array<{ field?: string; value?: WaChangeValue }> }>;
   }
   let body: WebhookBody = {};
-  try { body = JSON.parse(raw) as WebhookBody; } catch { /* ack anyway */ }
+  try {
+    body = JSON.parse(raw) as WebhookBody;
+  } catch {
+    /* ack anyway */
+  }
   // Messages the database did not accept in this batch: the one thing this
   // handler must not acknowledge.
   let unrecorded = 0;
@@ -97,33 +105,37 @@ export async function POST(request: Request): Promise<Response> {
         if (db && field && WABA_FIELDS.has(field)) {
           const wabaId = String(entry.id || "");
           const outcome = wabaId
-            ? await handleWabaChange(db, wabaId, { field, value: v as unknown as Record<string, unknown> }, (tid) => notificationsFor(db, tid))
+            ? await handleWabaChange(db, wabaId, { field, value: v as unknown as Record<string, unknown> }, (tid) =>
+                notificationsFor(db, tid),
+              )
             : "unrouted";
-          console.log("wa_waba_event", JSON.stringify({ field, waba_id: wabaId || null, outcome }));
+          L.info("wa_waba_event", { field, waba_id: wabaId || null, outcome });
           continue;
         }
         const phoneNumberId = v.metadata?.phone_number_id;
-        const isEnvDefault = !!phoneNumberId && phoneNumberId === (process.env.WHATSAPP_PHONE_ID || "");
+        const isEnvDefault = !!phoneNumberId && phoneNumberId === (env.WHATSAPP_PHONE_ID || "");
         if (db && phoneNumberId) {
           const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "whatsapp", phoneNumberId);
-          if (routed) { tenantId = routed.tenantId; routedChannel = routed; }
-          else if (lookupFailed) {
+          if (routed) {
+            tenantId = routed.tenantId;
+            routedChannel = routed;
+          } else if (lookupFailed) {
             // The database did not answer. That is an infra blip, not a
             // decision: nothing is recorded and nothing is said, and the 503
             // below has the provider redeliver once the read works.
             routingFailed = true;
-            console.error("wa_routing_lookup_failed", phoneNumberId);
+            L.error("wa_routing_lookup_failed", { phone_number_id: phoneNumberId });
           } else {
             // The database ANSWERED and this channel is not active — disabled,
             // deleted, or never ours. That is a deliberate state, so we neither
             // reply nor persist. A log line disappears; a metric built on
             // messages_in would undercount this traffic invisibly and forever.
             unroutable = true;
-            console.error("wa_unroutable", phoneNumberId);
-            await emitEvent(
-              db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null,
-              { channel: "whatsapp", phone_number_id: phoneNumberId } as Json,
-            ).catch(() => {});
+            L.error("wa_unroutable", { phone_number_id: phoneNumberId });
+            await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null, {
+              channel: "whatsapp",
+              phone_number_id: phoneNumberId,
+            } as Json).catch(() => {});
           }
         }
         if (field === "messages" && v.messages && routingFailed) {
@@ -134,24 +146,26 @@ export async function POST(request: Request): Promise<Response> {
           // no exception: it once rode a blip out on a baked copy of its
           // profile, and now waits for the read like every other workspace.
           unrecorded += v.messages.length;
-          console.error("wa_skip_routing_failed", JSON.stringify({
-            phone_number_id: phoneNumberId, messages: v.messages.length,
-          }));
+          L.error("wa_skip_routing_failed", {
+            phone_number_id: phoneNumberId,
+            messages: v.messages.length,
+          });
           await alertUnroutable("whatsapp_unreadable", phoneNumberId, v.messages.length);
         } else if (field === "messages" && v.messages && unroutable) {
           // Customers are texting a line whose channel is switched off. Nobody
           // is answering them and nothing is being recorded, so this has to
           // reach a human — throttled, because the alternative is one email per
           // inbound message for as long as the channel stays off.
-          console.error("wa_skip_unroutable", JSON.stringify({
-            phone_number_id: phoneNumberId, messages: v.messages.length,
-          }));
+          L.error("wa_skip_unroutable", {
+            phone_number_id: phoneNumberId,
+            messages: v.messages.length,
+          });
           await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);
         } else if (field === "messages" && v.messages) {
           for (const m of v.messages) {
             // A tail and a type, never the number or the words: the row under RLS
             // holds those, and a log is read by whoever reads logs.
-            console.log("wa_inbound", JSON.stringify({ from_tail: phoneTail(m.from), type: m.type, id: m.id }));
+            L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });
             // Per MESSAGE, not per batch. Any throw used to unwind to the one
             // outer catch below, which returns 200 — so a single failure meant
             // Meta never retried AND every remaining message in the batch was
@@ -161,18 +175,26 @@ export async function POST(request: Request): Promise<Response> {
               await handleInbound(m, v, tenantId, routedChannel, isEnvDefault);
             } catch (e) {
               if (e instanceof IngestFailed) unrecorded += 1;
-              console.error("wa_inbound_failed", m.id, e instanceof Error ? e.message : e);
+              L.error("wa_inbound_failed", { id: m.id, error: errField(e) });
             }
           }
         } else if (field === "messages" && v.statuses) {
-          await Promise.all((v.statuses ?? []).map(async (s) => {
-            console.log("wa_status", JSON.stringify({ id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors }));
-            if (db && tenantId && s.id && s.status && ["sent", "delivered", "read", "failed"].includes(s.status)) {
-              await pgSafe("status", () =>
-                recordStatusByExternalId(db, tenantId!, s.id!, s.status as "sent" | "delivered" | "read" | "failed",
-                  s.errors ? ({ errors: s.errors } as unknown as Json) : undefined));
-            }
-          }));
+          await Promise.all(
+            (v.statuses ?? []).map(async (s) => {
+              L.info("wa_status", { id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors });
+              if (db && tenantId && s.id && s.status && ["sent", "delivered", "read", "failed"].includes(s.status)) {
+                await pgSafe("status", () =>
+                  recordStatusByExternalId(
+                    db,
+                    tenantId!,
+                    s.id!,
+                    s.status as "sent" | "delivered" | "read" | "failed",
+                    s.errors ? ({ errors: s.errors } as unknown as Json) : undefined,
+                  ),
+                );
+              }
+            }),
+          );
         } else if (field === "smb_message_echoes") {
           // The owner (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
           try {
@@ -182,7 +204,7 @@ export async function POST(request: Request): Promise<Response> {
             // read per echo batch, never per echo.
             const echoRt = db && routedChannel ? await loadTenantRuntime(db, routedChannel) : null;
             const echoLimits = echoRt?.policy["reply"]?.limits ?? {};
-            const echoPauseMs = (echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS);
+            const echoPauseMs = echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS;
             for (const echo of v.message_echoes || []) {
               const to = echo.to;
               if (to) {
@@ -192,24 +214,29 @@ export async function POST(request: Request): Promise<Response> {
                 if (db && tenantId) {
                   await pgSafe("echo", () =>
                     recordEchoAndPause(db, {
-                      tenantId, customerPhoneDigits: to,
-                      body: echo.text?.body ?? null, externalId: echo.id ?? null,
+                      tenantId,
+                      customerPhoneDigits: to,
+                      body: echo.text?.body ?? null,
+                      externalId: echo.id ?? null,
                       pausedUntilIso: new Date(Date.now() + echoPauseMs).toISOString(),
-                    }));
+                    }),
+                  );
                 }
-                console.log("wa_paused_by_echo", phoneTail(to));
+                L.info("wa_paused_by_echo", { to_tail: phoneTail(to) });
               }
             }
-          } catch (e) { console.error("echo_handling_error", e instanceof Error ? e.message : e); }
+          } catch (e) {
+            L.error("echo_handling_error", { error: errField(e) });
+          }
         } else if (field === "history") {
-          console.log("wa_history_sync_batch");
+          L.info("wa_history_sync_batch");
         } else {
-          console.log("wa_event", field);
+          L.info("wa_event", { field });
         }
       }
     }
   } catch (e) {
-    console.error("wa_webhook_error", e instanceof Error ? e.message : e);
+    L.error("wa_webhook_error", { error: errField(e) });
   }
   // A message the database did not accept is not acknowledged: Meta retries
   // any non-200 with decreasing frequency for up to seven days, and the

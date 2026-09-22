@@ -58,31 +58,95 @@ before(async () => {
   const at = (i) => new Date(base + i * 1000).toISOString();
   const rows = [
     // chronological; inserted out of order on purpose so ordering is tested
-    { seq: 3, channel: "whatsapp", direction: "outbound", sender: "ai", type: "text",
-      body: "We're open till 7 today.", status: "delivered", created_at: at(3) },
-    { seq: 1, channel: "whatsapp", direction: "inbound", sender: "customer", type: "text",
-      body: "hi are you open?", status: "received", created_at: at(1) },
+    {
+      seq: 3,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "ai",
+      type: "text",
+      body: "We're open till 7 today.",
+      status: "delivered",
+      created_at: at(3),
+    },
+    {
+      seq: 1,
+      channel: "whatsapp",
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "hi are you open?",
+      status: "received",
+      created_at: at(1),
+    },
     // never left the building — must NOT appear as something "we said"
-    { seq: 4, channel: "whatsapp", direction: "outbound", sender: "human", type: "text",
-      body: "DRAFT THAT WAS CANCELED", status: "canceled", created_at: at(4) },
+    {
+      seq: 4,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "human",
+      type: "text",
+      body: "DRAFT THAT WAS CANCELED",
+      status: "canceled",
+      created_at: at(4),
+    },
     // media placeholder: no text to reason over
-    { seq: 2, channel: "whatsapp", direction: "inbound", sender: "customer", type: "media",
-      body: null, status: "received", created_at: at(2) },
+    {
+      seq: 2,
+      channel: "whatsapp",
+      direction: "inbound",
+      sender: "customer",
+      type: "media",
+      body: null,
+      status: "received",
+      created_at: at(2),
+    },
     // cross-channel memory: the call the customer made
-    { seq: 5, channel: "voice", direction: "inbound", sender: "system", type: "call_summary",
-      body: "Caller asked about gel refills.", status: "received", created_at: at(5) },
-    { seq: 6, channel: "whatsapp", direction: "outbound", sender: "human", type: "text",
-      body: "Melany here — happy to help.", status: "sent", created_at: at(6) },
+    {
+      seq: 5,
+      channel: "voice",
+      direction: "inbound",
+      sender: "system",
+      type: "call_summary",
+      body: "Caller asked about gel refills.",
+      status: "received",
+      created_at: at(5),
+    },
+    {
+      seq: 6,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "human",
+      type: "text",
+      body: "Melany here — happy to help.",
+      status: "sent",
+      created_at: at(6),
+    },
     // Blob-era duplicate of the call above, imported by the backfill. The
     // native call_summary row is canonical; this must not double the call.
-    { seq: 7, channel: "whatsapp", direction: "outbound", sender: "ai", type: "text",
+    {
+      seq: 7,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "ai",
+      type: "text",
       body: "[voice call note 2026-08-26T20:59] Caller phoned the salon line. Summary: gel refills.",
-      status: "sent", created_at: at(7), meta: { backfill: true } },
+      status: "sent",
+      created_at: at(7),
+      meta: { backfill: true },
+    },
     // An imported reply: its created_at is when the IMPORT ran, so it must not
     // spend today's rate cap.
-    { seq: 8, channel: "whatsapp", direction: "outbound", sender: "ai", type: "text",
-      body: "Imported reply from the old thread.", status: "sent",
-      created_at: at(8), meta: { backfill: true } },
+    {
+      seq: 8,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "ai",
+      type: "text",
+      body: "Imported reply from the old thread.",
+      status: "sent",
+      created_at: at(8),
+      meta: { backfill: true },
+    },
   ];
   const { error: mErr } = await db.from("messages").insert(
     rows.map((r) => ({
@@ -125,10 +189,7 @@ test("history is chronological and maps senders to model roles", { skip }, async
 
 test("a canceled send is never presented to the model as something we said", { skip }, async () => {
   const s = await readThreadState(db, tenantId, conversationId, null);
-  assert.ok(
-    !s.history.some((h) => h.content.includes("CANCELED")),
-    "canceled outbound leaked into the bot's memory",
-  );
+  assert.ok(!s.history.some((h) => h.content.includes("CANCELED")), "canceled outbound leaked into the bot's memory");
 });
 
 test("media rows with no text are skipped rather than sent as empty turns", { skip }, async () => {
@@ -164,12 +225,7 @@ test("pausedUntil comes straight from the conversation row", { skip }, async () 
 });
 
 test("history is scoped to the tenant — another tenant's id returns nothing", { skip }, async () => {
-  const { data: other } = await db
-    .from("tenants")
-    .select("id")
-    .neq("slug", SMOKE_SLUG)
-    .limit(1)
-    .single();
+  const { data: other } = await db.from("tenants").select("id").neq("slug", SMOKE_SLUG).limit(1).single();
   const s = await readThreadState(db, other.id, conversationId, null);
   assert.deepEqual(s.history, [], "conversation rows crossed a tenant boundary");
   assert.equal(s.replies.length, 0);

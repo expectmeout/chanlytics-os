@@ -8,7 +8,19 @@ import assert from "node:assert/strict";
 import { dedupeFeed, tzClock } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
-const row = (over) => ({ key: "x", kind: "alert", at: 1, title: "", message: "", to: "", icon: "", tone: "", action: "", unread: true, ...over });
+const row = (over) => ({
+  key: "x",
+  kind: "alert",
+  at: 1,
+  title: "",
+  message: "",
+  to: "",
+  icon: "",
+  tone: "",
+  action: "",
+  unread: true,
+  ...over,
+});
 
 test("the bell says a thing once: a kept handoff or call-back row hides while the derived needs-you row for its thread stands", () => {
   const derived = row({ key: "needs:th-c1", kind: "needs_you" });
@@ -16,8 +28,15 @@ test("the bell says a thing once: a kept handoff or call-back row hides while th
   const keptOther = row({ key: "n:2", kind: "handoff", about: { type: "conversation", id: "c2" } });
   const keptCall = row({ key: "n:3", kind: "call", about: { type: "call", id: "k9" } });
   const keptCallback = row({ key: "n:4", kind: "call", about: { type: "conversation", id: "c1" } });
-  assert.deepEqual(dedupeFeed([derived, keptSame, keptOther, keptCall, keptCallback]).map((r) => r.key), ["needs:th-c1", "n:2", "n:3"]);
-  assert.deepEqual(dedupeFeed([keptSame, keptCallback]).map((r) => r.key), ["n:1", "n:4"], "answered: the derived row is gone and the record stays");
+  assert.deepEqual(
+    dedupeFeed([derived, keptSame, keptOther, keptCall, keptCallback]).map((r) => r.key),
+    ["needs:th-c1", "n:2", "n:3"],
+  );
+  assert.deepEqual(
+    dedupeFeed([keptSame, keptCallback]).map((r) => r.key),
+    ["n:1", "n:4"],
+    "answered: the derived row is gone and the record stays",
+  );
 });
 
 test("the clock names the day when it is not today", () => {
@@ -31,28 +50,67 @@ test("the clock names the day when it is not today", () => {
 
 test("the wiring: words on the edge, a bounded reply on both sides, the layout fixes, and nothing of the workshop on a customer's screen", () => {
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
-  assert.ok(alerts.includes("subject: `${name} needs a person — ${why}`") && alerts.includes("about: ctx.about ?? null,") && alerts.includes('"passed to a human": "asked for a person"'), "a handoff is said in the owner's words, about its thread");
+  assert.ok(
+    alerts.includes("subject: `${name} needs a person — ${why}`") &&
+      alerts.includes("about: ctx.about ?? null,") &&
+      alerts.includes('"passed to a human": "asked for a person"'),
+    "a handoff is said in the owner's words, about its thread",
+  );
   assert.ok(!alerts.includes("WhatsApp handoff needed"));
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
   // One closure builds the context now, so the name and the thread are stated
   // once rather than retyped at a dozen call sites — and every call site goes
   // through it, which is what is asserted instead of a count.
-  assert.ok(inbound.includes("who: n.profileName ?? null,") && inbound.includes("about: ing ? { type: \"conversation\", id: ing.conversation_id } : null,"), "every handoff carries the name and the thread");
+  assert.ok(
+    inbound.includes("who: n.profileName ?? null,") &&
+      inbound.includes('about: ing ? { type: "conversation", id: ing.conversation_id } : null,'),
+    "every handoff carries the name and the thread",
+  );
   assert.ok((inbound.match(/\btell\(/g) ?? []).length >= 12, "and reaches the owner through the one closure");
   // A call said by name, about its call or the thread that needs a call back, runs: retell-webhook-door.test.mjs.
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/notifications.ts").includes("dedupeFeed([...applyReadState("), "the bridge shows the feed once");
+  assert.ok(
+    /dedupeFeed\(\[\s*\.\.\.applyReadState\(/.test(readCode("apps/dashboard/src/legacy-bridge/notifications.ts")),
+    "the bridge shows the feed once",
+  );
   const server = readCode("apps/dashboard/src/server/broadcasts.ts");
-  assert.ok(server.includes("REPLY_WINDOW_MS,") && server.includes("<= REPLY_WINDOW_MS) {") && server.includes("replied.set(m.conversation_id, m.created_at)"), "a reply is an inbound inside the contracts' one window (its value runs in reports-honest.test.mjs), and the FIRST one is kept with its time (slice C)");
+  assert.ok(
+    server.includes("REPLY_WINDOW_MS,") &&
+      server.includes("<= REPLY_WINDOW_MS) {") &&
+      server.includes("replied.set(m.conversation_id, m.created_at)"),
+    "a reply is an inbound inside the contracts' one window (its value runs in reports-honest.test.mjs), and the FIRST one is kept with its time (slice C)",
+  );
   const mig = readRaw("supabase/migrations/00064_campaign_reply_window.sql");
-  assert.ok(mig.includes("and i.created_at <= s.sent_at + interval '72 hours')  as replied") && mig.includes("create or replace function public.campaign_series"), "the SQL series keeps the same window");
+  assert.ok(
+    mig.includes("and i.created_at <= s.sent_at + interval '72 hours')  as replied") &&
+      mig.includes("create or replace function public.campaign_series"),
+    "the SQL series keeps the same window",
+  );
   assert.ok(readCode("packages/contracts/src/campaign-report.ts").includes("wrote back ${REPLY_WINDOW_WORDS}"));
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".brief-beat-text { flex: 1; min-width: 0; }"), "a long beat wraps beside its dot, not under it");
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/components.css").includes("  overflow-wrap: anywhere;\n}\n.stat-cell-meta.pos"), "a long meta wraps in its own cell, not into the next");
-  assert.ok(readCode("apps/dashboard/src/legacy/components/data-bits.jsx").includes('title={typeof meta === "string" ? meta : undefined}'));
+  assert.ok(
+    readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(
+      ".brief-beat-text { flex: 1; min-width: 0; }",
+    ),
+    "a long beat wraps beside its dot, not under it",
+  );
+  assert.ok(
+    readRaw("apps/dashboard/src/legacy/styles/components.css").includes(
+      "  overflow-wrap: anywhere;\n}\n.stat-cell-meta.pos",
+    ),
+    "a long meta wraps in its own cell, not into the next",
+  );
+  assert.ok(
+    readCode("apps/dashboard/src/legacy/components/data-bits.jsx").includes(
+      'title={typeof meta === "string" ? meta : undefined}',
+    ),
+  );
   const today = readCode("packages/contracts/src/today.ts");
   assert.ok((today.match(/tzClock\(/g) ?? []).length >= 5, "every closing time names its day");
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");
   const topbar = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
-  assert.ok(topbar.includes("{window.__DEMO_MODE && (") && topbar.indexOf("{window.__DEMO_MODE && (") < topbar.indexOf('btnClass="btn btn-ghost btn-sm tb-presence"'), "presence is the mockup's");
+  assert.ok(
+    topbar.includes("{window.__DEMO_MODE && (") &&
+      topbar.indexOf("{window.__DEMO_MODE && (") < topbar.indexOf('btnClass="btn btn-ghost btn-sm tb-presence"'),
+    "presence is the mockup's",
+  );
 });

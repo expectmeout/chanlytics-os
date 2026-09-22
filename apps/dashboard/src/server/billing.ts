@@ -11,10 +11,15 @@ import type { EdgeAnswer } from "./lines";
 import { deployment } from "./deployment";
 import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
-export const BILLING_COLUMNS = "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
+export const BILLING_COLUMNS =
+  "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
 
 export async function billingFor(db: SupabaseClient<Database>, tenantId: string): Promise<BillingAccountDto | null> {
-  const { data, error } = await db.from("billing_accounts").select(BILLING_COLUMNS).eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await db
+    .from("billing_accounts")
+    .select(BILLING_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? billingAccountDto(data) : null;
 }
@@ -28,12 +33,17 @@ export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_
   try {
     const r = await fetch(`${edgeUrl()}/api/admin/billing`, {
       method: "POST",
-      headers: edgeHeaders("/api/admin/billing", { workspace: typeof body.tenant_id === "string" ? body.tenant_id : null }),
+      headers: edgeHeaders("/api/admin/billing", {
+        workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+      }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
     const parsed = (await r.json().catch(() => null)) as unknown;
-    return { status: r.status, body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null };
+    return {
+      status: r.status,
+      body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null,
+    };
   } catch (e) {
     return { status: 503, body: { ok: false, error: e instanceof Error ? e.message : String(e) } };
   }
@@ -62,9 +72,15 @@ export async function billingReadiness(now = Date.now()): Promise<BillingReadine
   const a = await edgeBilling({ op: "status" }, 6_000);
   const b = a.body ?? {};
   const price = b.price && typeof b.price === "object" ? (b.price as BillingPriceDto) : null;
-  const value: BillingReadiness = a.status === 200 && b.ok === true
-    ? { ready: b.ready === true, livemode: typeof b.livemode === "boolean" ? b.livemode : null, price, trial_days: typeof b.trial_days === "number" ? b.trial_days : 14 }
-    : NOT_READY;
+  const value: BillingReadiness =
+    a.status === 200 && b.ok === true
+      ? {
+          ready: b.ready === true,
+          livemode: typeof b.livemode === "boolean" ? b.livemode : null,
+          price,
+          trial_days: typeof b.trial_days === "number" ? b.trial_days : 14,
+        }
+      : NOT_READY;
   readyCache = { at: now, value };
   return value;
 }

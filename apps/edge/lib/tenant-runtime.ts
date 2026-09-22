@@ -19,6 +19,8 @@ import {
   type KnownFacts,
 } from "./packages/contracts.js";
 import type { RoutedChannel } from "./packages/db.js";
+import { env } from "./env.js";
+import { logger, errField } from "./log.js";
 
 export interface TenantRuntime {
   tenantId: string;
@@ -87,7 +89,7 @@ const cache = new Map<string, { v: TenantRuntime; exp: number; stamp: string | n
 async function runtimeStamp(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
   const { data, error } = await db.rpc("runtime_stamp", { p_tenant_id: tenantId });
   if (error) {
-    console.error("runtime_stamp_failed", JSON.stringify({ tenant: tenantId, error: error.message }));
+    logger({ tenant: tenantId }).error("runtime_stamp_failed", { error: error.message });
     return null;
   }
   return typeof data === "string" ? data : "";
@@ -95,14 +97,14 @@ async function runtimeStamp(db: SupabaseClient<Database>, tenantId: string): Pro
 
 /** Whether a WhatsApp channel's provider id is the environment's own pilot line. */
 function isEnvNumber(externalId: string | null | undefined): boolean {
-  const env = process.env.WHATSAPP_PHONE_ID || "";
-  return !!env && externalId === env;
+  const envPhoneId = env.WHATSAPP_PHONE_ID || "";
+  return !!envPhoneId && externalId === envPhoneId;
 }
 
 /** The environment pair, when both halves exist. */
 function envPair(): { phoneId: string; accessToken: string } | null {
-  const phoneId = process.env.WHATSAPP_PHONE_ID || "";
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || "";
+  const phoneId = env.WHATSAPP_PHONE_ID || "";
+  const accessToken = env.WHATSAPP_ACCESS_TOKEN || "";
   return phoneId && accessToken ? { phoneId, accessToken } : null;
 }
 
@@ -149,7 +151,7 @@ async function resolveWaCredentials(
   if (!channelId || !ref) return { creds: null, envNumber };
   const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: channelId });
   if (error) {
-    console.error("wa_credentials_lookup_failed", routed.tenantId, error.message);
+    logger().error("wa_credentials_lookup_failed", { tenant: routed.tenantId, error: error.message });
     return { creds: null, envNumber };
   }
   const c = data as { access_token?: string; phone_id?: string } | null;
@@ -159,10 +161,7 @@ async function resolveWaCredentials(
   };
 }
 
-export async function loadTenantRuntime(
-  db: SupabaseClient<Database>,
-  routed: RoutedChannel,
-): Promise<TenantRuntime> {
+export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: RoutedChannel): Promise<TenantRuntime> {
   const hit = cache.get(routed.tenantId);
   if (hit && hit.exp > Date.now()) {
     // Fresh while the stamp agrees. A setting saved on the dashboard is a new
@@ -174,11 +173,7 @@ export async function loadTenantRuntime(
   try {
     const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", routed.tenantId).maybeSingle(),
-      db
-        .from("policies")
-        .select("class, mode, limits")
-        .eq("tenant_id", routed.tenantId)
-        .is("subject_type", null),
+      db.from("policies").select("class, mode, limits").eq("tenant_id", routed.tenantId).is("subject_type", null),
       // WhatsApp credentials belong to the tenant's WHATSAPP channel, not to
       // whichever channel happened to route this request.
       //
@@ -216,9 +211,10 @@ export async function loadTenantRuntime(
     // place. The offending path is named in the log.
     const parseResult = parseTenantConfigResult(cfgQ.data?.config);
     if (!parseResult.ok) {
-      console.error("tenant_config_parse_failed", JSON.stringify({
-        tenant: routed.tenantId, issues: parseResult.issues.slice(0, 5),
-      }));
+      logger().error("tenant_config_parse_failed", {
+        tenant: routed.tenantId,
+        issues: parseResult.issues.slice(0, 5),
+      });
     }
     const parsed = parseResult.ok ? parseResult.config : null;
     const policy: TenantRuntime["policy"] = {};
@@ -251,7 +247,7 @@ export async function loadTenantRuntime(
     cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });
     return rt;
   } catch (e) {
-    console.error("tenant_runtime_load_failed", e instanceof Error ? e.message : e);
+    logger().error("tenant_runtime_load_failed", { tenant: routed.tenantId, error: errField(e) });
     // Never cache a failure — the next message retries. loadFailed makes the
     // runtime unusable, so the handler holds the thread for a person: a read
     // that failed is never a persona, for any tenant.
@@ -287,6 +283,7 @@ export async function waCredentialsForTenant(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<{ phoneId: string; accessToken: string } | null> {
+  const L = logger();
   try {
     const { data: ch, error: chErr } = await db
       .from("tenant_channels")
@@ -297,14 +294,14 @@ export async function waCredentialsForTenant(
       .limit(1)
       .maybeSingle();
     if (chErr) {
-      console.error("wa_credentials_channel_unreadable", tenantId, chErr.message);
+      L.error("wa_credentials_channel_unreadable", { tenant: tenantId, error: chErr.message });
       return null;
     }
     if (!ch) return null;
     if (ch.credentials_ref) {
       const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
       if (error) {
-        console.error("wa_credentials_for_tenant_failed", tenantId, error.message);
+        L.error("wa_credentials_for_tenant_failed", { tenant: tenantId, error: error.message });
         return null;
       }
       const c = data as { access_token?: string; phone_id?: string } | null;
@@ -312,7 +309,7 @@ export async function waCredentialsForTenant(
     }
     return isEnvNumber(ch.external_id) ? envPair() : null;
   } catch (e) {
-    console.error("wa_credentials_for_tenant_threw", tenantId, e instanceof Error ? e.message : e);
+    L.error("wa_credentials_for_tenant_threw", { tenant: tenantId, error: errField(e) });
     return null;
   }
 }
@@ -348,6 +345,7 @@ export async function loadTenantNotifications(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<{ notifications: NotificationsConfig | null; isEnvDefault: boolean }> {
+  const L = logger();
   try {
     const [cfgQ, chQ] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
@@ -370,20 +368,20 @@ export async function loadTenantNotifications(
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     const parsed = parseTenantConfigResult(cfgQ.data?.config);
-    const envPhoneId = process.env.WHATSAPP_PHONE_ID || "";
+    const envPhoneId = env.WHATSAPP_PHONE_ID || "";
     // A channel we could not read leaves ONE question unanswered -- whether
     // this workspace is the environment's own -- and the recipients are not
     // that question. Throwing here would land in the catch below and withhold
     // the customer's words from a workspace whose mailbox we just read
     // perfectly well, which is the outcome this whole function exists to
     // avoid; `isEnvDefault` simply falls back to its safe answer.
-    if (chQ.error) console.error("tenant_notifications_channel_unreadable", tenantId, chQ.error.message);
+    if (chQ.error) L.error("tenant_notifications_channel_unreadable", { tenant: tenantId, error: chQ.error.message });
     return {
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
       isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
     };
   } catch (e) {
-    console.error("tenant_notifications_load_failed", tenantId, e instanceof Error ? e.message : e);
+    L.error("tenant_notifications_load_failed", { tenant: tenantId, error: errField(e) });
     // Unknown recipients: notify() will withhold customer content rather than
     // guess a mailbox.
     return { notifications: null, isEnvDefault: false };

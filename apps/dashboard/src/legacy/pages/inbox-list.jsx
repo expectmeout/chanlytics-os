@@ -19,6 +19,14 @@ const ixAnswerer = (t) => {
   return window.__identity ? window.__identity.member({ email: m.email, display_name: m.displayName || null }).name : (m.displayName || m.email || "A teammate");
 };
 
+// Where the member was in the Inbox -- the bucket and the words in the search -- kept in this tab (the loading
+// standard's place, tab-memory.ts): a refresh or a trip to another page brings it back. The open thread is the
+// address's (inbox/<thread>). Where no store is published (the standalone harness), it lives for the page.
+const ixPlace = () => (window.__tabMemory && window.__tabMemory.place("inbox", "list")) || {};
+const ixKeepPlace = (patch) => { if (window.__tabMemory) window.__tabMemory.keepPlace("inbox", "list", { ...ixPlace(), ...patch }); };
+window.ixPlace = ixPlace;
+window.ixKeepPlace = ixKeepPlace;
+
 const InboxList = ({
   threads,
   allThreads = [],
@@ -43,7 +51,9 @@ const InboxList = ({
   /** Seconds until a thread's own reply goes out, or null: the row says them where its time would be. */
   sendingIn = () => null,
 }) => {
-  const [query, setQuery] = React.useState("");
+  // The words in the search come back after a refresh or a trip to another page, in this tab (the Inbox's place).
+  const [query, setQueryNow] = React.useState(() => { const p = window.ixPlace(); return typeof p.q === "string" ? p.q : ""; });
+  const setQuery = (v) => { setQueryNow(v); window.ixKeepPlace({ q: v }); };
   const [showViews, setShowViews] = React.useState(false);
   // Archiving real threads cannot be undone, so the bar asks first; a cleared selection drops the question.
   const [askArchive, setAskArchive] = React.useState(false);

@@ -95,8 +95,10 @@ async function boxOf(where: Locator, what: string): Promise<{ x: number; y: numb
   expect(b, `${what} has no box on screen`).not.toBeNull();
   return { x: b!.x, y: b!.y, w: b!.width, h: b!.height };
 }
-const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }): boolean =>
-  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const overlaps = (
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number },
+): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 test.describe("Settings › Business on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -104,7 +106,9 @@ test.describe("Settings › Business on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the standing line's door opens the row it names, and focus lands inside it and comes back to the act", async ({ page }) => {
+  test("the standing line's door opens the row it names, and focus lands inside it and comes back to the act", async ({
+    page,
+  }) => {
     const before = await readConfig(page);
     await openRecord(page);
 
@@ -131,7 +135,9 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("Cancel with changes asks, and Keep editing puts focus back in the fold rather than on the document", async ({ page }) => {
+  test("Cancel with changes asks, and Keep editing puts focus back in the fold rather than on the document", async ({
+    page,
+  }) => {
     const before = await readConfig(page);
     await openRecord(page);
 
@@ -157,7 +163,9 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("a shift's remove, an Add and an item of the week's copy menu each leave focus in the fold", async ({ page }) => {
+  test("a shift's remove, an Add and an item of the week's copy menu each leave focus in the fold", async ({
+    page,
+  }) => {
     const before = await readConfig(page);
     await openRecord(page);
 
@@ -187,7 +195,9 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("a closed day's Add puts focus in the new row's first box, and its remove puts focus back in the row above", async ({ page }) => {
+  test("a closed day's Add puts focus in the new row's first box, and its remove puts focus back in the row above", async ({
+    page,
+  }) => {
     const before = await readConfig(page);
     await openRecord(page);
 
@@ -222,8 +232,10 @@ test.describe("Settings › Business on a real workspace", () => {
     // Somewhere on the page that is not the fold, and not a control that would open anything.
     await page.locator(".bt-title").click();
     const away = await focusedNow(page);
-    expect(await page.evaluate(() => !!document.activeElement?.closest('[data-testid="rec-fold-tone"]')),
-      "the click did not take focus out of the fold").toBe(false);
+    expect(
+      await page.evaluate(() => !!document.activeElement?.closest('[data-testid="rec-fold-tone"]')),
+      "the click did not take focus out of the fold",
+    ).toBe(false);
 
     // Anything that draws the page again: the settings surface being read once more, which the page listens for.
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("surface:settings")));
@@ -249,7 +261,9 @@ test.describe("Settings › Business on a real workspace", () => {
     const tokens = page.locator('[data-testid="rec-languages-tokens"] .bt-token');
     const already = (await tokens.allInnerTexts()).map((t) => t.trim().toLowerCase());
     // One this record does not answer in yet, whatever it already answers in: the check is the gesture, not the word.
-    const fresh = ["Portuguese", "Swedish", "Finnish", "Czech", "Greek"].find((l) => !already.includes(l.toLowerCase()));
+    const fresh = ["Portuguese", "Swedish", "Finnish", "Czech", "Greek"].find(
+      (l) => !already.includes(l.toLowerCase()),
+    );
     expect(fresh, "this record already answers in every language the check could type").toBeTruthy();
     const was = await tokens.count();
     await box.click();
@@ -335,7 +349,9 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("the services sheet fits a phone: three boxes to a row, the remove at its right, and a foot that holds still", async ({ page }) => {
+  test("the services sheet fits a phone: three boxes to a row, the remove at its right, and a foot that holds still", async ({
+    page,
+  }) => {
     const before = await readConfig(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await openRecord(page);
@@ -356,7 +372,9 @@ test.describe("Settings › Business on a real workspace", () => {
     const price = await boxOf(row.locator(":scope > .rec-box").nth(1), "the price box");
     const remove = await boxOf(page.getByTestId(`rec-service-remove-${was}`), "the remove");
     expect(Math.abs(name.y - remove.y), "the remove is not on the name's line").toBeLessThan(name.h);
-    expect(Math.round(remove.x + remove.w), "the remove is not at the row's right edge").toBe(Math.round(whole.x + whole.w));
+    expect(Math.round(remove.x + remove.w), "the remove is not at the row's right edge").toBe(
+      Math.round(whole.x + whole.w),
+    );
     expect(minutes.y, "how long it takes is not under the name").toBeGreaterThan(name.y + name.h - 1);
     expect(Math.abs(minutes.y - price.y), "the price is not beside how long it takes").toBeLessThan(4);
     expect(price.x, "the price is not to the right of how long it takes").toBeGreaterThan(minutes.x);
@@ -364,16 +382,24 @@ test.describe("Settings › Business on a real workspace", () => {
     // Neither the page nor the sheet scrolls sideways.
     await expectNoSidewaysScroll(page, "the services sheet on a phone", [PANE]);
     const body = page.locator(".rec-sheet-body");
-    expect(await body.evaluate((el) => el.scrollWidth - el.clientWidth), "the sheet's rows scroll sideways").toBeLessThanOrEqual(1);
+    expect(
+      await body.evaluate((el) => el.scrollWidth - el.clientWidth),
+      "the sheet's rows scroll sideways",
+    ).toBeLessThanOrEqual(1);
 
     // Enough rows that the list actually scrolls, then: the foot holds still under them. (The columns' head is not
     // drawn at this width -- the row's shape names them -- so there is nothing of it to hold.)
     for (let i = 0; i < 12 && (await body.evaluate((el) => el.scrollHeight <= el.clientHeight)); i++) {
       await page.getByTestId("rec-services-add").click();
     }
-    expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight), "the sheet's rows never came to scroll").toBe(true);
+    expect(
+      await body.evaluate((el) => el.scrollHeight > el.clientHeight),
+      "the sheet's rows never came to scroll",
+    ).toBe(true);
     const footBefore = await boxOf(page.locator(".rec-sheet-foot"), "the sheet's foot");
-    await body.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    await body.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
     const footAfter = await boxOf(page.locator(".rec-sheet-foot"), "the sheet's foot");
     expect(footAfter.y, "the foot moved when the rows scrolled").toBe(footBefore.y);
     await expect(page.getByTestId("rec-sheet-save-services")).toBeInViewport({ ratio: 1 });
@@ -389,13 +415,23 @@ test.describe("Settings › Business on a real workspace", () => {
     for (let i = 0; i < 24 && (await body.evaluate((el) => el.scrollHeight <= el.clientHeight)); i++) {
       await page.getByTestId("rec-services-add").click();
     }
-    expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight), "the sheet's rows never came to scroll").toBe(true);
+    expect(
+      await body.evaluate((el) => el.scrollHeight > el.clientHeight),
+      "the sheet's rows never came to scroll",
+    ).toBe(true);
     const head = page.locator(".bt-service-head");
     const headBefore = await boxOf(head, "the columns' head");
     const footBefore = await boxOf(page.locator(".rec-sheet-foot"), "the sheet's foot");
-    await body.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    expect((await boxOf(head, "the columns' head")).y, "the columns' head scrolled away from its rows").toBe(headBefore.y);
-    expect((await boxOf(page.locator(".rec-sheet-foot"), "the sheet's foot")).y, "the foot moved when the rows scrolled").toBe(footBefore.y);
+    await body.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    expect((await boxOf(head, "the columns' head")).y, "the columns' head scrolled away from its rows").toBe(
+      headBefore.y,
+    );
+    expect(
+      (await boxOf(page.locator(".rec-sheet-foot"), "the sheet's foot")).y,
+      "the foot moved when the rows scrolled",
+    ).toBe(footBefore.y);
     await discard(page, "services", "sheet");
   });
 

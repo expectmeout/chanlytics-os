@@ -33,12 +33,30 @@ const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const L1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
 const USER = "u1";
-const membership = (tenant_id, role, slug, created_at) => ({ user_id: USER, tenant_id, role, tenants: { slug }, created_at });
+const membership = (tenant_id, role, slug, created_at) => ({
+  user_id: USER,
+  tenant_id,
+  role,
+  tenants: { slug },
+  created_at,
+});
 /** A member of two workspaces: harbor (the older membership, so the default) and bayside. */
-const both = (harbor, bayside) => [membership(A, harbor, "harbor", "2026-01-01T00:00:00Z"), membership(B, bayside, "bayside", "2026-02-01T00:00:00Z")];
-const ctxFor = (tables, params = {}, rpcs = {}) => ({ supabase: fakeDb(tables, {}, rpcs), userId: USER, email: "ada@example.com", params });
+const both = (harbor, bayside) => [
+  membership(A, harbor, "harbor", "2026-01-01T00:00:00Z"),
+  membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
+];
+const ctxFor = (tables, params = {}, rpcs = {}) => ({
+  supabase: fakeDb(tables, {}, rpcs),
+  userId: USER,
+  email: "ada@example.com",
+  params,
+});
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
-const send = (method, body, q = "") => new Request(`http://localhost/api/v1/x${q}`, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+const send = (method, body, q = "") =>
+  new Request(`http://localhost/api/v1/x${q}`, {
+    method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 const inA = `?workspace=${A}`;
 const inB = `?workspace=${B}`;
 async function refused(p, code, status, words) {
@@ -63,9 +81,27 @@ test("the eight declare their policy: the back office on the platform scope with
   assert.deepEqual(release.POST.policy, act("platform_line_release"));
   assert.deepEqual(retry.POST.policy, act("platform_line_retry"));
   // A read of the invoices takes from its own ceiling: pressing Show invoices never locks an owner out of Checkout for the hour.
-  assert.deepEqual(invoices.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "billing_read", spend: false });
-  assert.deepEqual(resume.POST.policy, { kind: "write", scope: "workspace", role: "owner", rate: "billing", spend: false });
-  assert.deepEqual(sync.POST.policy, { kind: "write", scope: "workspace", role: "operator", rate: "billing", spend: false });
+  assert.deepEqual(invoices.GET.policy, {
+    kind: "read",
+    scope: "workspace",
+    role: "owner",
+    rate: "billing_read",
+    spend: false,
+  });
+  assert.deepEqual(resume.POST.policy, {
+    kind: "write",
+    scope: "workspace",
+    role: "owner",
+    rate: "billing",
+    spend: false,
+  });
+  assert.deepEqual(sync.POST.policy, {
+    kind: "write",
+    scope: "workspace",
+    role: "operator",
+    rate: "billing",
+    spend: false,
+  });
 });
 
 test("the back office's door: the database says who may look across workspaces, a customer who guessed the URL learns nothing, and a database that cannot answer is not a no", async () => {
@@ -78,9 +114,19 @@ test("the back office's door: the database says who may look across workspaces, 
     ["release", () => release.POST.run(send("POST", body), ctxFor(tables, {}, admin(false)))],
     ["retry", () => retry.POST.run(send("POST", body), ctxFor(tables, {}, admin(false)))],
   ]) {
-    await refused(run(), "not_found", 404, "No such page.").catch((e) => { throw new Error(`${name}: ${e.message}`); });
+    await refused(run(), "not_found", 404, "No such page.").catch((e) => {
+      throw new Error(`${name}: ${e.message}`);
+    });
   }
-  const hiccup = ctxFor(tables, {}, { is_platform_admin: () => { throw new Error("connection reset"); } });
+  const hiccup = ctxFor(
+    tables,
+    {},
+    {
+      is_platform_admin: () => {
+        throw new Error("connection reset");
+      },
+    },
+  );
   await refused(overview.GET.run(get(), hiccup), "internal", 503, "Could not check that just now");
   const refusedAction = ctxFor(tables, {}, admin(false));
   await refused(refile.POST.run(send("POST", body), refusedAction), "not_found", 404);
@@ -89,7 +135,10 @@ test("the back office's door: the database says who may look across workspaces, 
 
 test("behind the door: the overview is the database's own list; a workspace's page and the three actions check their ids before anything reaches the service client or the edge", async () => {
   const tables = { memberships: both("owner", "owner") };
-  const rows = [{ id: A, slug: "harbor", name: "Harbor", status: "active" }, { id: B, slug: "bayside", name: "Bayside", status: "active" }];
+  const rows = [
+    { id: A, slug: "harbor", name: "Harbor", status: "active" },
+    { id: B, slug: "bayside", name: "Bayside", status: "active" },
+  ];
   const out = await overview.GET.run(get(), ctxFor(tables, {}, admin(true, { platform_overview: () => rows })));
   assert.deepEqual(out.tenants, rows);
   // The platform's health rides on this same read. It goes through the
@@ -100,21 +149,56 @@ test("behind the door: the overview is the database's own list; a workspace's pa
   assert.equal(out.health.backlog, null, "unread, which is not the same as zero");
   assert.equal(out.health.ok, false, "and unread is never reported as all clear");
   assert.deepEqual(out.health.unhealthy, []);
-  await refused(tenant.GET.run(get(), ctxFor(tables, { id: "not-a-uuid" }, admin(true))), "not_found", 404, "That workspace does not exist.");
+  await refused(
+    tenant.GET.run(get(), ctxFor(tables, { id: "not-a-uuid" }, admin(true))),
+    "not_found",
+    404,
+    "That workspace does not exist.",
+  );
   for (const route of [refile, release, retry]) {
-    await refused(route.POST.run(send("POST", { tenant_id: "x", line_id: L1 }), ctxFor(tables, {}, admin(true))), "not_found", 404, "That workspace does not exist.");
-    await refused(route.POST.run(send("POST", { tenant_id: A, line_id: "x" }), ctxFor(tables, {}, admin(true))), "not_found", 404, "That line does not exist.");
+    await refused(
+      route.POST.run(send("POST", { tenant_id: "x", line_id: L1 }), ctxFor(tables, {}, admin(true))),
+      "not_found",
+      404,
+      "That workspace does not exist.",
+    );
+    await refused(
+      route.POST.run(send("POST", { tenant_id: A, line_id: "x" }), ctxFor(tables, {}, admin(true))),
+      "not_found",
+      404,
+      "That line does not exist.",
+    );
   }
 });
 
 test("billing's three: the invoices and a resume the owner's, a refresh an operator's, each stopping at the edge's credential in the words the owner reads", async () => {
   const tables = { memberships: both("operator", "owner") };
   await refused(invoices.GET.run(get(inA), ctxFor(tables)), "forbidden", 403, "Only an owner");
-  await refused(invoices.GET.run(get(inB), ctxFor(tables)), "upstream_auth", 503, "The invoices could not be read (no_edge_credential).");
+  await refused(
+    invoices.GET.run(get(inB), ctxFor(tables)),
+    "upstream_auth",
+    503,
+    "The invoices could not be read (no_edge_credential).",
+  );
   await refused(resume.POST.run(send("POST", undefined, inA), ctxFor(tables)), "forbidden", 403, "Only an owner");
-  await refused(resume.POST.run(send("POST", undefined, inB), ctxFor(tables)), "upstream_auth", 503, "The subscription could not be resumed (no_edge_credential).");
+  await refused(
+    resume.POST.run(send("POST", undefined, inB), ctxFor(tables)),
+    "upstream_auth",
+    503,
+    "The subscription could not be resumed (no_edge_credential).",
+  );
   const viewer = { memberships: both("viewer", "operator") };
-  await refused(sync.POST.run(send("POST", undefined, inA), ctxFor(viewer)), "forbidden", 403, "Viewers can see everything");
-  await refused(sync.POST.run(send("POST", undefined, inB), ctxFor(viewer)), "upstream_auth", 503, "Billing could not be refreshed (no_edge_credential).");
+  await refused(
+    sync.POST.run(send("POST", undefined, inA), ctxFor(viewer)),
+    "forbidden",
+    403,
+    "Viewers can see everything",
+  );
+  await refused(
+    sync.POST.run(send("POST", undefined, inB), ctxFor(viewer)),
+    "upstream_auth",
+    503,
+    "Billing could not be refreshed (no_edge_credential).",
+  );
   await refused(sync.POST.run(send("POST"), ctxFor(viewer)), "choose_workspace", 400);
 });

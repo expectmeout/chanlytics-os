@@ -23,9 +23,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DASH = path.join(here, "../../../apps/dashboard/src");
-const registry = await import(
-  pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
-);
+const registry = await import(pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href);
 const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor } = await import(
   pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
 );
@@ -45,14 +43,8 @@ function routedPages() {
 const SELF_HONEST = new Set(["soon"]);
 
 test("every route the shell declares is classified", () => {
-  const missing = [...routedPages()].filter(
-    (p) => !SELF_HONEST.has(p) && !(p in SURFACE_STATES),
-  );
-  assert.deepEqual(
-    missing,
-    [],
-    "unclassified routes — each would render whatever it renders, gated by nothing",
-  );
+  const missing = [...routedPages()].filter((p) => !SELF_HONEST.has(p) && !(p in SURFACE_STATES));
+  assert.deepEqual(missing, [], "unclassified routes — each would render whatever it renders, gated by nothing");
 });
 
 test("the registry classifies nothing the shell does not route", () => {
@@ -60,9 +52,7 @@ test("the registry classifies nothing the shell does not route", () => {
   const routed = routedPages();
   // A sub-route is legitimate when its PAGE is routed — the shell reaches
   // admin/workspace through the admin branch, not a literal of its own.
-  const stale = Object.keys(SURFACE_STATES).filter(
-    (p) => !routed.has(p) && !routed.has(p.split("/")[0]),
-  );
+  const stale = Object.keys(SURFACE_STATES).filter((p) => !routed.has(p) && !routed.has(p.split("/")[0]));
   assert.deepEqual(stale, [], "classified but not routed");
 });
 
@@ -86,18 +76,46 @@ test("the real set is exactly the converted surfaces", () => {
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["admin/activity", "admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/platform", "admin/profile", "admin/setup", "admin/team", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "leads", "live", "messages", "outbound", "reports", "segments", "today"]);
+  assert.deepEqual(real, [
+    "admin/activity",
+    "admin/autonomy",
+    "admin/billing",
+    "admin/integrations",
+    "admin/memory",
+    "admin/notifications",
+    "admin/platform",
+    "admin/profile",
+    "admin/setup",
+    "admin/team",
+    "admin/workspace",
+    "broadcasts",
+    "calendar",
+    "clients",
+    "conversations",
+    "inbox",
+    "leads",
+    "live",
+    "messages",
+    "outbound",
+    "reports",
+    "segments",
+    "today",
+  ]);
   // The back office tab, asked the way the shell asks: by page and pane. It
   // was never listed, fell through to the page's "demo", and a platform admin
   // who clicked Back office got the Not-in-this-release card.
   assert.equal(surfaceStateFor("admin", "platform"), "real");
-  assert.equal(routeSurfaceFor("admin", "platform"), "settings", "and the gate waits for the settings surface, like every pane");
+  assert.equal(
+    routeSurfaceFor("admin", "platform"),
+    "settings",
+    "and the gate waits for the settings surface, like every pane",
+  );
 });
 
 test("the shell consults the registry through one interception, not per-route conditionals", () => {
   // The design property: ONE gate derived from the table. Per-route
   // __DEMO_MODE checks are how fifteen branches got missed the first time.
-  assert.ok(shell.includes("window.__surfaceState(page, param) === \"demo\""), "the interception is gone");
+  assert.ok(shell.includes('window.__surfaceState(page, param) === "demo"'), "the interception is gone");
   const adHoc = [...shell.matchAll(/page === "[a-z-]+"[^\n]*__DEMO_MODE/g)];
   assert.deepEqual(
     adHoc.map((m) => m[0]),
@@ -170,13 +188,13 @@ test("REGRESSION: an unconfigured workspace is not shown somebody else's busines
     settings.includes("const unconfigured = connected && !real;"),
     "'no configuration' and 'this is the demo' must not be the same branch",
   );
-  assert.ok(settings.includes("if (unconfigured) return <window.BtCreateCard"), "and the card must take the honest one");
+  assert.ok(
+    settings.includes("if (unconfigured) return <window.BtCreateCard"),
+    "and the card must take the honest one",
+  );
   // Task 3.7: the empty state, and the fold that sets a receptionist up from it, are the page's own card.
   const create = fs.readFileSync(path.join(DASH, "legacy/pages/business-tab-create.jsx"), "utf8");
-  assert.ok(
-    create.includes("This workspace has no receptionist yet"),
-    "an empty workspace says so",
-  );
+  assert.ok(create.includes("This workspace has no receptionist yet"), "an empty workspace says so");
 });
 
 test("REGRESSION: the team card reads real members, not the seed store", () => {
@@ -204,7 +222,7 @@ test("a real workspace is not given an invented seat plan", () => {
   // invitations nobody has accepted, and an invitation is not a person. "3
   // people" has to mean three people.
   const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
-  assert.ok(settings.includes('Array.isArray(realTeam) ? realTeam.length : S.seatsUsed()'));
+  assert.ok(settings.includes("Array.isArray(realTeam) ? realTeam.length : S.seatsUsed()"));
   assert.ok(
     !settings.includes("seatsIncluded - seatsUsed") ||
       settings.includes("Array.isArray(realTeam) ? 1 : S.seatsIncluded - seatsUsed"),
@@ -240,7 +258,6 @@ test("every default pane is one the registry classifies", () => {
 // the page says it at the top instead: the standing line names the one gap most worth closing and IS the door to
 // the row that closes it (the spec's 4.1). Drawn and pressed, not read -- business-tab-page.test.mjs, "a missing
 // voice is named in the band, and the link opens its row".
-
 
 /* ------------------ the gate must resolve the same way ------------------- */
 
@@ -305,10 +322,7 @@ test("REGRESSION: a team we could not READ is not a team of four strangers", () 
   assert.ok(settings.includes("const teamUnavailable = realTeam === null;"), "null is its own state");
   assert.ok(settings.includes("{!teamUnavailable && team.map("), "the seeded roster must not render");
   assert.ok(settings.includes('what="your team"'), "and it must say what happened, through the one FailedRead");
-  assert.ok(
-    settings.includes("{!teamUnavailable && (!seatsFull"),
-    "no Invite button over a roster we could not read",
-  );
+  assert.ok(settings.includes("{!teamUnavailable && (!seatsFull"), "no Invite button over a roster we could not read");
 });
 
 test("a failed team read still uses the REAL role, not the seed's opinion", () => {
@@ -329,8 +343,9 @@ test("the tab bar offers what the registry says is real, and only that", () => {
   // The registry is the source of truth for both, so this is the rule rather
   // than two more corrections.
   const tabsSrc = fs.readFileSync(path.join(DASH, "legacy/components/surface-tabs.jsx"), "utf8");
-  const rows = [...tabsSrc.matchAll(/\{ id: "([a-z-]+)", label: "[^"]+", to: "([a-z-]+)"([^}]*)\}/g)]
-    .map(([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }));
+  const rows = [...tabsSrc.matchAll(/\{ id: "([a-z-]+)", label: "[^"]+", to: "([a-z-]+)"([^}]*)\}/g)].map(
+    ([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }),
+  );
   assert.ok(rows.length >= 12, `parsed ${rows.length} tabs — the shape of the file changed`);
 
   for (const t of rows) {
@@ -350,7 +365,10 @@ test("the tab bar offers what the registry says is real, and only that", () => {
       // real surface that moved has no page left at the old address at all --
       // and a demo-only tab pointing at one is caught a line above, because a
       // real surface may not be hidden outside a demo.
-      assert.ok(!registry.SURFACE_RETIRED[t.to], `${t.id} → ${t.to} is retired; the bar offers where it went, not where it was`);
+      assert.ok(
+        !registry.SURFACE_RETIRED[t.to],
+        `${t.id} → ${t.to} is retired; the bar offers where it went, not where it was`,
+      );
     }
   }
 

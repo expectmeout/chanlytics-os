@@ -13,9 +13,13 @@ test.describe("Setup on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the rows, each with a state in words, a sentence and at most one verb; Setup is the first Workspace tab, after Profile", async ({ page }) => {
+  test("the rows, each with a state in words, a sentence and at most one verb; Setup is the first Workspace tab, after Profile", async ({
+    page,
+  }) => {
     // Nine rows, and a tenth for the Google listing where the platform can look one up.
-    const google = (await (await apiGet(page, "/api/v1/google")).json()).data as { google: { ready: { places: boolean } } };
+    const google = (await (await apiGet(page, "/api/v1/google")).json()).data as {
+      google: { ready: { places: boolean } };
+    };
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("setup-readiness")).toBeVisible();
@@ -27,7 +31,17 @@ test.describe("Setup on a real workspace", () => {
     const rows = page.getByTestId("setup-rows").locator(".cl-attn-row");
     await expect(rows).toHaveCount(google.google.ready.places ? 10 : 9);
     for (const row of await rows.all()) {
-      await expect(row.locator(".cl-attn-status .lead")).toHaveText(/^(Not started|Waiting on you|Waiting on us|Waiting on Meta|Ready)$/);
+      // The row reads across: its glyph, then its words, then its verbs. Today's queue hides its own disc, and while
+      // that rule named only .tq -- the card these rows sit in too -- it hid Setup's glyphs as well: every row's
+      // words fell into the glyph's 36px column and its title was cut to four letters.
+      await expect(row.locator(".cl-attn-avatar")).toBeVisible();
+      expect(
+        await row.locator(".cl-attn-who").evaluate((el) => el.scrollWidth <= el.clientWidth),
+        "the title is whole",
+      ).toBe(true);
+      await expect(row.locator(".cl-attn-status .lead")).toHaveText(
+        /^(Not started|Waiting on you|Waiting on us|Waiting on Meta|Ready)$/,
+      );
       expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
       expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
       expect(await row.getByTestId("setup-verb").count()).toBeLessThanOrEqual(1);
@@ -41,7 +55,9 @@ test.describe("Setup on a real workspace", () => {
     }
   });
 
-  test("later is a preference on this device: an optional open row fades and leaves the count, and comes back", async ({ page }) => {
+  test("later is a preference on this device: an optional open row fades and leaves the count, and comes back", async ({
+    page,
+  }) => {
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("setup-readiness")).toBeVisible();
@@ -57,7 +73,9 @@ test.describe("Setup on a real workspace", () => {
     await expect(page.locator(".setup-later")).toHaveCount(0);
   });
 
-  test("Today carries one Setup line only while something is open, with the same count as the page", async ({ page }) => {
+  test("Today carries one Setup line only while something is open, with the same count as the page", async ({
+    page,
+  }) => {
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");
     const count = (await page.getByTestId("setup-count").innerText()).match(/^(\d+) of (\d+)/);

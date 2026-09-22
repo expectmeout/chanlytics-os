@@ -56,7 +56,10 @@ test("every sentence is one an owner could act on", () => {
   for (const raw of ["", "12345", "5551234", "1234567890123456", "x"]) {
     const said = whyNotAPhone(raw);
     assert.ok(said && said.endsWith("."), `${JSON.stringify(raw)}: a sentence, ending in a full stop`);
-    assert.ok(!/E\.?164|regex|validation|null/i.test(said), `${JSON.stringify(raw)}: no vocabulary from inside the machine`);
+    assert.ok(
+      !/E\.?164|regex|validation|null/i.test(said),
+      `${JSON.stringify(raw)}: no vocabulary from inside the machine`,
+    );
   }
 });
 
@@ -70,7 +73,10 @@ test("the shared normalizer is NOT tightened, because two of its callers fail op
   // forwarding: a destination that will not parse makes `dest` falsy, and the
   // whole guard is skipped — a line marked verified by the wrong call.
   const fwd = readCode("packages/contracts/src/forwarding.ts");
-  assert.ok(fwd.includes("if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;"), "still guarded only when dest parses");
+  assert.ok(
+    fwd.includes("if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;"),
+    "still guarded only when dest parses",
+  );
 
   // retell-fn: `asked ?? caller` turns a refusal into a text to the caller
   // instead of to the number they gave -- run in retell-fn-door.test.mjs, where
@@ -123,5 +129,7 @@ test("the receptionist records a short code and does not answer it", () => {
 
   assert.ok(EVENT_KINDS.includes("ingest.unreachable_sender"), "the event is one the product knows");
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
-  assert.ok(persist.includes('emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id)'));
+  assert.ok(
+    persist.includes('emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id)'),
+  );
 });

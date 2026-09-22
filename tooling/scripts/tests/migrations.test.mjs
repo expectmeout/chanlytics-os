@@ -24,7 +24,10 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const DIR = path.join(ROOT, "supabase", "migrations");
-const files = fs.readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort();
+const files = fs
+  .readdirSync(DIR)
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
 
 test("every migration has a version of its own", () => {
   const byVersion = new Map();
@@ -38,8 +41,8 @@ test("every migration has a version of its own", () => {
     [],
     shared.length
       ? `two migrations on one version: ${shared.map(([v, names]) => `${v} -> ${names.join(" and ")}`).join("; ")}.\n` +
-        "The CLI applies by version, so one of them would be skipped in silence on the next replay. " +
-        "Move the newer file to the next free number -- and take the number that is free NOW, not the one that was free when you started."
+          "The CLI applies by version, so one of them would be skipped in silence on the next replay. " +
+          "Move the newer file to the next free number -- and take the number that is free NOW, not the one that was free when you started."
       : "",
   );
 });
@@ -58,5 +61,9 @@ test("the numbers only go up", () => {
   // right outcome -- but that reading the folder in name order is reading it in
   // the order the database will apply it.
   const versions = files.map((f) => Number(f.split("_")[0]));
-  assert.deepEqual(versions, [...versions].sort((a, b) => a - b), "the folder's name order is the apply order; a version out of sequence reads as applied when it is not");
+  assert.deepEqual(
+    versions,
+    [...versions].sort((a, b) => a - b),
+    "the folder's name order is the apply order; a version out of sequence reads as applied when it is not",
+  );
 });

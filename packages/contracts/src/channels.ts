@@ -133,8 +133,18 @@ export function channelKindWords(kind: string): string {
 export const CHANNEL_ANSWERED: ReadonlySet<string> = new Set(["whatsapp", "voice", "sms"]);
 
 const KIND_META: Record<string, { name: string; what: string; icon: ChannelVM["icon"]; noun: string }> = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message",
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call",
+  },
   sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" },
@@ -142,7 +152,12 @@ const KIND_META: Record<string, { name: string; what: string; icon: ChannelVM["i
 
 export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
   const nowMs = now.getTime();
-  const meta = KIND_META[dto.kind] ?? { name: channelKindWords(dto.kind), what: "", icon: "chat" as const, noun: "message" };
+  const meta = KIND_META[dto.kind] ?? {
+    name: channelKindWords(dto.kind),
+    what: "",
+    icon: "chat" as const,
+    noun: "message",
+  };
   const last = dto.last_inbound_at ? new Date(dto.last_inbound_at).getTime() : null;
   const on = dto.status === "active";
   let health: ChannelHealth;
@@ -155,9 +170,10 @@ export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
     // no facts to answer with and is not recorded. This sentence said the
     // opposite of both until 12 Sep 2026.
     health = "off";
-    healthLabel = dto.kind === "voice"
-      ? "Switched off — calls are picked up without your facts and are not recorded; Chanlytics is told, you are not"
-      : `Switched off — ${meta.noun}s to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not`;
+    healthLabel =
+      dto.kind === "voice"
+        ? "Switched off — calls are picked up without your facts and are not recorded; Chanlytics is told, you are not"
+        : `Switched off — ${meta.noun}s to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not`;
   } else if (last === null) {
     health = "unused";
     healthLabel = `On — no ${meta.noun} has arrived yet`;

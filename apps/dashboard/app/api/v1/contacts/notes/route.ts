@@ -4,7 +4,11 @@ import { NOTE_LINE_MAX, appendNotesMany } from "@/server/people-many";
 
 const Body = z.object({
   ids: z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time."),
-  append: z.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`),
+  append: z
+    .string()
+    .trim()
+    .min(1, "Write the note first.")
+    .max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`),
 });
 
 /**

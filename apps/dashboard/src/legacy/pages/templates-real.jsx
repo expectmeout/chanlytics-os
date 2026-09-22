@@ -39,27 +39,40 @@ const starterWords = (d) => {
 };
 
 const TemplateComposer = ({ onDone, onCancel, businessName = "", translate = null }) => {
-  const [brief, setBrief] = React.useState("");
-  const [category, setCategory] = React.useState(translate && translate.category ? translate.category : "marketing");
-  const [language, setLanguage] = React.useState(translate ? translate.language : "en_US");
-  const [name, setName] = React.useState(translate ? translate.name || "" : "");
-  const [body, setBody] = React.useState("");
-  const [footer, setFooter] = React.useState("");
-  const [examples, setExamples] = React.useState([]);
-  const [labels, setLabels] = React.useState([]);
+  // Words written here and not submitted come back when the composer opens again (the tab's draft, useUnsavedWork):
+  // a new message under "new", a translation under the message and its language -- so a translation the assistant
+  // wrote once is not paid for twice.
+  const draftKey = translate ? `${translate.name}|${translate.language}` : "new";
+  const [kept] = React.useState(() => (window.tabDraft ? window.tabDraft("template", draftKey) : null));
+  const K = (k, fallback) => (kept && kept[k] !== undefined ? kept[k] : fallback);
+  const [brief, setBrief] = React.useState(K("brief", ""));
+  const [category, setCategory] = React.useState(K("category", translate && translate.category ? translate.category : "marketing"));
+  const [language, setLanguage] = React.useState(K("language", translate ? translate.language : "en_US"));
+  const [name, setName] = React.useState(K("name", translate ? translate.name || "" : ""));
+  const [body, setBody] = React.useState(K("body", ""));
+  const [footer, setFooter] = React.useState(K("footer", ""));
+  const [examples, setExamples] = React.useState(K("examples", []));
+  const [labels, setLabels] = React.useState(K("labels", []));
   // The words on a button under the message. Empty means no button.
-  const [buttonText, setButtonText] = React.useState("");
+  const [buttonText, setButtonText] = React.useState(K("buttonText", ""));
   // Where a translated message's button goes: the address its own button opens,
   // never the booking link guessed at. Null outside a translation.
-  const [buttonUrl, setButtonUrl] = React.useState(null);
-  const [warnings, setWarnings] = React.useState([]);
-  const [drafting, setDrafting] = React.useState(!!translate);
+  const [buttonUrl, setButtonUrl] = React.useState(K("buttonUrl", null));
+  const [warnings, setWarnings] = React.useState(K("warnings", []));
+  const [drafting, setDrafting] = React.useState(!!translate && !kept);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState(null);
   // A translation that could not be written: the words are not there to change,
   // so the only thing to offer is another try.
   const [failed, setFailed] = React.useState(false);
-  const asked = React.useRef(false);
+  const asked = React.useRef(!!kept);
+  // Any words in it are kept, and Cancel asks before they go; the message's name alone (a translation keeps its) is not words.
+  const wrote = !!(brief.trim() || body.trim() || footer.trim() || buttonText.trim() || (!translate && name.trim()) || examples.some((x) => String(x || "").trim()));
+  const work = window.useUnsavedWork("template", draftKey, {
+    value: { brief, category, language, name, body, footer, examples, labels, buttonText, buttonUrl, warnings },
+    dirty: wrote,
+    onLeave: () => { if (onCancel) onCancel(); },
+  });
   // Who may draft or submit: the role store's answer, View-as included.
   const canEdit = !!(window.canDo && window.canDo("approve"));
   const slots = tcSlots(body);
@@ -120,6 +133,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "", translate = nul
     const r = await window.__templates.create({ name: name.trim(), language, category, body, footer: footer.trim() || null, examples: slots.map((n, i) => exampleFor(i).trim()), labels: slots.map((n, i) => (labels[i] || "").trim()), button });
     setSubmitting(false);
     if (!r.ok) { setError(r.message || "WhatsApp did not accept it."); return; }
+    work.done();
     if (onDone) onDone(r.data);
   };
   // A starter's words in the chosen language, to change or submit as they are.
@@ -195,10 +209,14 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "", translate = nul
         {!drafting && !failed && warnings.length > 0 && <div className="bc-excl-hint" data-testid="tpl-warnings">{warnings.join(" ")}</div>}
         {!drafting && !failed && <window.FieldError message={error} testid="tpl-error" />}
         <div className="bc-actions">
-          <span className="bc-excl-hint">The same message, <span className="mono">{translate.name}</span>, in one more language — WhatsApp reviews it on its own.</span>
-          <span className="bc-actions-spacer" />
-          {onCancel && <button className="cl-bucket-link" onClick={onCancel} data-testid="tpl-cancel">Cancel</button>}
-          <button className="btn btn-primary btn-sm" disabled={!ready} onClick={submit} data-testid="tpl-submit" {...(window.gate ? window.gate("approve", "submit a template") : {})}>{submitting ? "Submitting…" : "Submit to WhatsApp"}</button>
+          {work.asking ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} what="submitted" testid="tpl-leave" /> : (
+            <>
+              <span className="bc-excl-hint">The same message, <span className="mono">{translate.name}</span>, in one more language — WhatsApp reviews it on its own.</span>
+              <span className="bc-actions-spacer" />
+              {onCancel && <button className="cl-bucket-link" onClick={work.leave} data-testid="tpl-cancel">Cancel</button>}
+              <button className="btn btn-primary btn-sm" disabled={!ready} onClick={submit} data-testid="tpl-submit" {...(window.gate ? window.gate("approve", "submit a template") : {})}>{submitting ? "Submitting…" : "Submit to WhatsApp"}</button>
+            </>
+          )}
         </div>
       </section>
     );
@@ -209,7 +227,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "", translate = nul
       <div className="ct-sec-head">
         <span className="ct-sec-title">New template</span>
         <span className="ct-sec-meta">WhatsApp reviews it before it can be sent — usually minutes, sometimes a day</span>
-        {onCancel && <button className="cl-bucket-link" onClick={onCancel}>Close</button>}
+        {onCancel && <button className="cl-bucket-link" onClick={work.leave} data-testid="tpl-close">Close</button>}
       </div>
       {window.__starters && (
         <div className="tpl-row">
@@ -244,9 +262,14 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "", translate = nul
       {warnings.length > 0 && <div className="bc-excl-hint" data-testid="tpl-warnings">{warnings.join(" ")}</div>}
       <window.FieldError message={error} testid="tpl-error" />
       <div className="bc-actions">
-        <span className="bc-excl-hint">The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}</span>
-        <span className="bc-actions-spacer" />
-        <button className="btn btn-primary btn-sm" disabled={!ready} onClick={submit} data-testid="tpl-submit" {...(window.gate ? window.gate("approve", "submit a template") : {})}>{submitting ? "Submitting…" : "Submit to WhatsApp"}</button>
+        {/* Close, with words in it: the one question first (UnsavedAsk), where the submit was. */}
+        {work.asking ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} what="submitted" testid="tpl-leave" /> : (
+          <>
+            <span className="bc-excl-hint">The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}</span>
+            <span className="bc-actions-spacer" />
+            <button className="btn btn-primary btn-sm" disabled={!ready} onClick={submit} data-testid="tpl-submit" {...(window.gate ? window.gate("approve", "submit a template") : {})}>{submitting ? "Submitting…" : "Submit to WhatsApp"}</button>
+          </>
+        )}
       </div>
     </section>
   );

@@ -34,7 +34,11 @@ export function askSpeech(win: Window) {
       }
     },
     stopSpeaking: () => {
-      try { w.speechSynthesis?.cancel(); } catch { /* fine */ }
+      try {
+        w.speechSynthesis?.cancel();
+      } catch {
+        /* fine */
+      }
     },
   };
 }

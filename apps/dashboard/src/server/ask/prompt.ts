@@ -1,5 +1,15 @@
 import "server-only";
-import { DAYS, POLICY_CLASSES, POLICY_CLASS_WORDS, describeNow, guardrailsInForce, hoursRuns, parseTenantConfig, type TenantConfig } from "@chanlytics/contracts";
+import {
+  DAYS,
+  NO_NUMBER_REACH,
+  POLICY_CLASSES,
+  POLICY_CLASS_WORDS,
+  describeNow,
+  guardrailsInForce,
+  hoursRuns,
+  parseTenantConfig,
+  type TenantConfig,
+} from "@chanlytics/contracts";
 import type { AskScope } from "@chanlytics/contracts";
 
 /**
@@ -14,24 +24,36 @@ import type { AskScope } from "@chanlytics/contracts";
 
 /** The words the pages use, so the assistant uses the same ones. */
 export const ASK_DEFINITIONS: Record<string, string> = {
-  "needs you": "A thread the receptionist handed to a person: the customer asked for one, the receptionist was unsure, or a rule said so. It waits in the Inbox until someone takes it over, replies, or resolves it.",
+  "needs you":
+    "A thread the receptionist handed to a person: the customer asked for one, the receptionist was unsure, or a rule said so. It waits in the Inbox until someone takes it over, replies, or resolves it.",
   "waiting on you": "A thread a person has taken over. The receptionist stays quiet on it until it is handed back.",
-  "held draft": "A reply the receptionist wrote but did not send: either it was not sure enough (below the confidence dial) or the reply policy holds every draft for a short window. It sends itself when the window ends unless someone edits, holds or takes over.",
-  "answering": "The receptionist is replying on its own on that thread.",
-  "snoozed": "A thread put aside until a chosen time; it wakes on its own.",
+  "held draft":
+    "A reply the receptionist wrote but did not send: either it was not sure enough (below the confidence dial) or the reply policy holds every draft for a short window. It sends itself when the window ends unless someone edits, holds or takes over.",
+  answering: "The receptionist is replying on its own on that thread.",
+  snoozed: "A thread put aside until a chosen time; it wakes on its own.",
   "opted out": "The customer asked not to be messaged. Nothing goes out to them except a reply to something they send.",
-  "24-hour window": "WhatsApp delivers a free-form reply only within 24 hours of the customer's last message. Outside it, only an approved template can be sent. Only WhatsApp has a window — a text or an email may be answered whenever, so `window_open` on a thread is this question answered for that thread's own wire.",
-  "escalation": "The record that a thread needed a person, with the reason. Resolving it closes the record; the thread itself stays.",
-  "confidence dial": "The minimum confidence the receptionist needs to send a reply alone. Below it, the reply is held for a person.",
-  "token budget": "A daily cap on the receptionist's model usage. When spent, the receptionist holds replies for a person instead of answering.",
+  "24-hour window":
+    "WhatsApp delivers a free-form reply only within 24 hours of the customer's last message. Outside it, only an approved template can be sent. Only WhatsApp has a window — a text or an email may be answered whenever, so `window_open` on a thread is this question answered for that thread's own wire.",
+  escalation:
+    "The record that a thread needed a person, with the reason. Resolving it closes the record; the thread itself stays.",
+  "confidence dial":
+    "The minimum confidence the receptionist needs to send a reply alone. Below it, the reply is held for a person.",
+  "token budget":
+    "A daily cap on the receptionist's model usage. When spent, the receptionist holds replies for a person instead of answering.",
   "veto window": "The reply policy mode where every draft waits a short while before sending, so a person can stop it.",
   "missed call": "A phone call the receptionist did not answer, or that ended before anyone spoke.",
-  "median reply time": "The middle value of how long the receptionist took to answer, over the period; half the replies were faster.",
-  "said yes": "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a broadcast.",
-  "broadcast": "One approved WhatsApp template sent to the people on a list who said yes — everyone, a People list, or a list kept by hand. Sent now or at a time, 25 at a time; replies land in the Inbox, where the receptionist answers them.",
-  "held back": "A person on a broadcast the send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their thread.",
-  "calendar": "The owner's calendar as the receptionist reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. The receptionist offers only the open windows and sends the booking link; it never books, moves or cancels anything itself.",
-  "playbook": "A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (quiet 30 days), welcome (new this week), save our number (only ever phoned) or the month's offer (everyone who said yes, on a cadence). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it 30 minutes later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.",
+  "median reply time":
+    "The middle value of how long the receptionist took to answer, over the period; half the replies were faster.",
+  "said yes":
+    "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a broadcast.",
+  broadcast:
+    "One approved WhatsApp template sent to the people on a list who said yes — everyone, a People list, or a list kept by hand. Sent now or at a time, 25 at a time; replies land in the Inbox, where the receptionist answers them.",
+  "held back":
+    "A person on a broadcast the send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their thread.",
+  calendar:
+    "The owner's calendar as the receptionist reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. The receptionist offers only the open windows and sends the booking link; it never books, moves or cancels anything itself.",
+  playbook:
+    "A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (quiet 30 days), welcome (new this week), save our number (only ever phoned) or the month's offer (everyone who said yes, on a cadence). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it 30 minutes later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.",
 };
 
 export const ASK_RULES = [
@@ -44,7 +66,7 @@ export const ASK_RULES = [
   "The workspace right now is given to you at the start of every turn: who needs a person, the held drafts, the newest threads with their last messages, today's calls, the counts. Answer from it when it is enough, in one round. Read only for what it does not hold: a whole conversation or transcript (get_thread, get_call), a person's profile (get_person), a report, openings, settings, or threads and calls older than it shows (list_threads, list_calls). Name people by their name when there is one; a number is the name only when nothing else is on file.",
   "Cite what you read: every citation must use the exact id a tool returned this turn, with the kind the tool named. Do not cite what you did not read.",
   "You never act. When the person asks for something to happen (a reply, a rewrite, an Inbox action, a setting, an invitation, a whisper, a broadcast, a lead search), propose it with the matching tool: it becomes a card they approve, edit or dismiss. Read first when the proposal needs an id. Then say what you proposed in one sentence; never say it was sent, changed or done.",
-  "A broadcast goes only to people who said yes. Read list_audiences first: it names every audience with how many said yes, the approved templates with their values, and whether the number may send. When nobody on the audience said yes, say so and point to their profiles; never propose a broadcast to nobody.",
+  `Read list_audiences before any broadcast: ${NO_NUMBER_REACH}, so it names every audience with how many said yes and how many can be sent it, the approved templates with their values, and whether the number may send. When nobody can be sent it, say why: nobody said yes (point to their profiles), or the ones who did have no number to send to; never propose a broadcast to nobody.`,
   "Leads are businesses Claude found for the owner to reach; People are the ones who reached the business. To find businesses, read list_lead_searches, then propose_lead_search: one plan, never a search. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved.",
   "Only in the US. Never find people at home: suggest businesses whose clients need the owner next. A lead is emailed or called by the owner from their own inbox and phone; texts and offers wait for the lead's own yes, so never propose a broadcast, a playbook or a consent change for a lead.",
   "A proposal is one card. When they ask for several things, propose each; when what they ask is not something a tool can propose, say what they can do and where, and offer to open it.",
@@ -74,7 +96,12 @@ export interface WorkspaceFacts {
 }
 
 /** The facts the receptionist itself runs on, in a few lines. */
-export function workspaceFacts(name: string, timezone: string, rawConfig: unknown, policies: ReadonlyArray<{ class: string; mode: string }> = []): WorkspaceFacts {
+export function workspaceFacts(
+  name: string,
+  timezone: string,
+  rawConfig: unknown,
+  policies: ReadonlyArray<{ class: string; mode: string }> = [],
+): WorkspaceFacts {
   const cfg: TenantConfig | null = parseTenantConfig(rawConfig);
   const profile = cfg?.brain?.profile;
   const guardrails: string[] = [];
@@ -87,7 +114,9 @@ export function workspaceFacts(name: string, timezone: string, rawConfig: unknow
   return {
     businessName: cfg?.brain?.business_name || name,
     timezone,
-    hoursLines: hoursRuns(profile?.hours).map((r) => (r.from === r.to ? `${r.from}: ${r.text}` : `${r.from}–${r.to}: ${r.text}`)),
+    hoursLines: hoursRuns(profile?.hours).map((r) =>
+      r.from === r.to ? `${r.from}: ${r.text}` : `${r.from}–${r.to}: ${r.text}`,
+    ),
     closures: (profile?.closures ?? []).slice(0, 12),
     services: (profile?.services ?? []).slice(0, 40),
     languages: profile?.languages ?? [],
@@ -107,19 +136,35 @@ export function factsBlock(f: WorkspaceFacts): string {
   const lines: string[] = [];
   lines.push(`Business: ${f.businessName}. Time zone: ${f.timezone}.`);
   if (f.hoursLines.length) lines.push(`Hours (${DAYS.join("/")}): ${f.hoursLines.join("; ")}.`);
-  if (f.closures.length) lines.push(`Closures: ${f.closures.map((c) => `${c.date}${c.until ? `–${c.until}` : ""}${c.note ? ` (${c.note})` : ""}`).join(", ")}.`);
-  if (f.services.length) lines.push(`Services: ${f.services.map((s) => `${s.name}${s.duration_min ? ` ${s.duration_min}min` : ""}${s.price_note ? ` (${s.price_note})` : ""}`).join(", ")}.`);
+  if (f.closures.length)
+    lines.push(
+      `Closures: ${f.closures.map((c) => `${c.date}${c.until ? `–${c.until}` : ""}${c.note ? ` (${c.note})` : ""}`).join(", ")}.`,
+    );
+  if (f.services.length)
+    lines.push(
+      `Services: ${f.services.map((s) => `${s.name}${s.duration_min ? ` ${s.duration_min}min` : ""}${s.price_note ? ` (${s.price_note})` : ""}`).join(", ")}.`,
+    );
   if (f.languages.length) lines.push(`Languages the receptionist answers in: ${f.languages.join(", ")}.`);
   if (f.guardrails.length) lines.push(`The receptionist ${f.guardrails.join(", ")}.`);
-  if (f.autonomy.length) lines.push(`Autonomy, class by class (auto: on its own · veto: after a short hold unless someone stops it · ask: waits for a person · never: not at all): ${f.autonomy.join("; ")}. Money is always never, by charter.`);
-  if (f.notes.length) lines.push(`Notes the receptionist follows: ${f.notes.map((n) => `${n.title}: ${n.text}`).join(" | ")}.`);
+  if (f.autonomy.length)
+    lines.push(
+      `Autonomy, class by class (auto: on its own · veto: after a short hold unless someone stops it · ask: waits for a person · never: not at all): ${f.autonomy.join("; ")}. Money is always never, by charter.`,
+    );
+  if (f.notes.length)
+    lines.push(`Notes the receptionist follows: ${f.notes.map((n) => `${n.title}: ${n.text}`).join(" | ")}.`);
   if (f.bookingNotes.length) lines.push(`Booking notes: ${f.bookingNotes.join("; ")}.`);
-  lines.push(f.hasCalendar ? "A calendar feed is connected: openings can be read with get_openings." : "No calendar feed is connected, so openings cannot be read; the business's hours are the only availability fact.");
+  lines.push(
+    f.hasCalendar
+      ? "A calendar feed is connected: openings can be read with get_openings."
+      : "No calendar feed is connected, so openings cannot be read; the business's hours are the only availability fact.",
+  );
   return lines.join("\n");
 }
 
 export function definitionsBlock(): string {
-  return Object.entries(ASK_DEFINITIONS).map(([k, v]) => `${k}: ${v}`).join("\n");
+  return Object.entries(ASK_DEFINITIONS)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
 }
 
 /** The cached block: rules, definitions, facts. Same text for every turn until settings change. */
@@ -158,15 +203,26 @@ export interface TurnFacts {
 export function turnSystem(t: TurnFacts): string {
   const lines: string[] = [];
   lines.push(describeNow(t.timezone, t.now ?? new Date(), t.closures));
-  if (t.snapshot) lines.push("The workspace right now is in the block above. Its rows are what get_today, list_threads (needs_you, held, recent) and list_calls (today, missed) return: answer from it, and do not call those for what is there.");
-  if (t.prefetched) lines.push("The reads made for this question are above as well: cite their ids, and do not read the same thing again.");
+  if (t.snapshot)
+    lines.push(
+      "The workspace right now is in the block above. Its rows are what get_today, list_threads (needs_you, held, recent) and list_calls (today, missed) return: answer from it, and do not call those for what is there.",
+    );
+  if (t.prefetched)
+    lines.push(
+      "The reads made for this question are above as well: cite their ids, and do not read the same thing again.",
+    );
   const can =
-    t.role === "owner" ? "an owner: they can do everything on the pages, including settings, team and exports"
-    : t.role === "operator" ? "an operator: they can reply, take over, snooze and resolve threads and change autonomy, but not settings, team or exports"
-    : "a viewer: they can read everything and change nothing";
+    t.role === "owner"
+      ? "an owner: they can do everything on the pages, including settings, team and exports"
+      : t.role === "operator"
+        ? "an operator: they can reply, take over, snooze and resolve threads and change autonomy, but not settings, team or exports"
+        : "a viewer: they can read everything and change nothing";
   lines.push(`You are speaking with ${t.personLabel}, ${can}.`);
   if (t.surface) lines.push(`They are on the ${t.surface} page.`);
-  if (t.scope) lines.push(`They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. Read it before answering about it.`);
+  if (t.scope)
+    lines.push(
+      `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. Read it before answering about it.`,
+    );
   if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
   else if (t.language === "en") lines.push("They wrote in English; answer in English.");
   return lines.join("\n");
@@ -183,8 +239,14 @@ export function titleFromQuestion(q: string): string {
  * one (the card it put up), by the question otherwise. Two threads that
  * asked the same thing keep the same title; the rail shows when.
  */
-export function resultTitle(question: string, proposals: Array<{ title: string }>, navigate: { label: string } | null): string {
-  if (proposals.length) return proposals.length === 1 ? proposals[0].title : `${proposals[0].title} +${proposals.length - 1}`;
-  if (navigate && navigate.label && /^(open|show|ver|abrir|mostrar)/i.test(question.trim())) return navigate.label.slice(0, 60);
+export function resultTitle(
+  question: string,
+  proposals: Array<{ title: string }>,
+  navigate: { label: string } | null,
+): string {
+  if (proposals.length)
+    return proposals.length === 1 ? proposals[0].title : `${proposals[0].title} +${proposals.length - 1}`;
+  if (navigate && navigate.label && /^(open|show|ver|abrir|mostrar)/i.test(question.trim()))
+    return navigate.label.slice(0, 60);
   return titleFromQuestion(question);
 }

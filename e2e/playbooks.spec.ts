@@ -12,7 +12,14 @@ import { apiGet } from "./workspace";
  * that fit the moment (or the honest line). Nothing is made here — the
  * workspace keeps no test playbook.
  */
-const INVENTED = ["Birthday offer", "Recovery Agent", "Review Bot", "Referral thank-you", "Attributed", "Spring couples"];
+const INVENTED = [
+  "Birthday offer",
+  "Recovery Agent",
+  "Review Bot",
+  "Referral thank-you",
+  "Attributed",
+  "Spring couples",
+];
 
 test.describe("Playbooks on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -20,20 +27,21 @@ test.describe("Playbooks on a real workspace", () => {
     await signIn(page);
   });
 
-  test("renders the real page from the workspace's playbooks, offers the six triggers, and never invents a number", async ({ page }) => {
+  test("renders the real page from the workspace's playbooks, offers the six triggers, and never invents a number", async ({
+    page,
+  }) => {
     await page.goto("/#/outbound");
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("playbooks-real");
     await expect(real).toBeVisible();
 
-    const [pb, tpl] = await Promise.all([
-      apiGet(page, "/api/v1/playbooks"),
-      apiGet(page, "/api/v1/templates"),
-    ]);
+    const [pb, tpl] = await Promise.all([apiGet(page, "/api/v1/playbooks"), apiGet(page, "/api/v1/templates")]);
     expect(pb.status()).toBe(200);
     expect(tpl.status()).toBe(200);
     const playbooks = (await pb.json()).data.playbooks as { id: string; state: string }[];
-    const approved = ((await tpl.json()).data.templates as { channel: string; meta_status: string }[]).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved");
+    const approved = ((await tpl.json()).data.templates as { channel: string; meta_status: string }[]).filter(
+      (t) => t.channel === "whatsapp" && t.meta_status === "approved",
+    );
 
     // The cards are exactly the route's rows; none, and the page says so.
     await expect(real.getByTestId("pb-card")).toHaveCount(playbooks.length);
@@ -76,7 +84,9 @@ test.describe("Playbooks on a real workspace", () => {
 
     const bc = await apiGet(page, "/api/v1/broadcasts");
     expect(bc.status()).toBe(200);
-    const waiting = ((await bc.json()).data.broadcasts as { state: string }[]).filter((b) => b.state === "pending_approval").length;
+    const waiting = ((await bc.json()).data.broadcasts as { state: string }[]).filter(
+      (b) => b.state === "pending_approval",
+    ).length;
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("brief-run-row")).toHaveCount(Math.min(2, waiting));
@@ -137,7 +147,10 @@ test.describe("Playbooks on a real workspace", () => {
    * page edge to share and the check could only skip it.
    */
   test("Campaigns: the standing line shares its page edge with the work below it", async ({ page }) => {
-    for (const [route, line] of [["outbound", "pb-standing"], ["messages", "messages-standing"]] as const) {
+    for (const [route, line] of [
+      ["outbound", "pb-standing"],
+      ["messages", "messages-standing"],
+    ] as const) {
       await page.goto(`/#/${route}`);
       await page.waitForLoadState("networkidle");
       const standing = page.getByTestId(line);
@@ -154,7 +167,10 @@ test.describe("Playbooks on a real workspace", () => {
       const below = page.locator(".rp-body > *").first();
       if ((await below.count()) === 0) continue;
       const box = await below.boundingBox();
-      expect(box && Math.abs(Math.round(box.x) - inkLeft) <= 1, `${route}: the line starts at ${inkLeft} and the work below it at ${Math.round(box?.x ?? -1)}`).toBe(true);
+      expect(
+        box && Math.abs(Math.round(box.x) - inkLeft) <= 1,
+        `${route}: the line starts at ${inkLeft} and the work below it at ${Math.round(box?.x ?? -1)}`,
+      ).toBe(true);
     }
   });
 });

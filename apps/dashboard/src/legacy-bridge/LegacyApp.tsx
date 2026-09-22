@@ -10,14 +10,38 @@
  * sign-out, and flags stale deployments (version heartbeat).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { resolveTheme, isThemePref, isSidebarPref, type PendingWorkspace, type ThemePref, type SidebarPref } from "@chanlytics/contracts";
+import {
+  resolveTheme,
+  themePrefOf,
+  DEFAULT_THEME_PREF,
+  DEVICE_PREFS_STORAGE,
+  isSidebarPref,
+  type PendingWorkspace,
+  type ThemePref,
+  type SidebarPref,
+} from "@chanlytics/contracts";
 import { authErrorInHash } from "@/auth/hash-error";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, switchWorkspace, type Workspace, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride } from "./surface-data";
+import {
+  workspaceOverride,
+  conversationsOverride,
+  inboxOverride,
+  todayOverride,
+  settingsOverride,
+  peopleOverride,
+  reportsOverride,
+  liveOverride,
+  switchWorkspace,
+  type Workspace,
+  broadcastsOverride,
+  playbooksOverride,
+  calendarOverride,
+  notificationsOverride,
+} from "./surface-data";
 import {
   getConnection,
   getSurfaceStatuses,
@@ -32,6 +56,7 @@ import { hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier } from "./people-detail";
 import { installLeadsCourier, leadsOverride } from "./leads";
+import { installTabMemory } from "./tab-memory";
 import { installLists } from "./people-lists";
 import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
@@ -58,6 +83,8 @@ import CreateWorkspace from "./CreateWorkspace";
 
 // First: every page says a time by the workspace's clock (zone.ts), from the first paint.
 installClock();
+// What a tab keeps for its pages -- a view's place, a half-done draft -- before any page reads it (tab-memory.ts).
+installTabMemory();
 installInboxVerbs();
 installPeopleCourier();
 // The Leads scope of People: its surface reads by view and patches what is
@@ -110,8 +137,33 @@ markHydrated(hydrateSurfaceCache());
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
 // leadsOverride rides beside peopleOverride: Leads is the other scope of that page.
-const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, leadsOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride, setupOverride, googleOverride, billingOverride];
-const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Calls", calendar: "Calendar" };
+const SURFACES = [
+  workspaceOverride,
+  conversationsOverride,
+  inboxOverride,
+  todayOverride,
+  settingsOverride,
+  peopleOverride,
+  leadsOverride,
+  reportsOverride,
+  liveOverride,
+  broadcastsOverride,
+  playbooksOverride,
+  calendarOverride,
+  notificationsOverride,
+  setupOverride,
+  googleOverride,
+  billingOverride,
+];
+const SURFACE_LABELS: Record<string, string> = {
+  conversations: "Conversations",
+  inbox: "Inbox",
+  today: "Today",
+  people: "People",
+  reports: "Reports",
+  live: "Calls",
+  calendar: "Calendar",
+};
 
 // Which flipped surface backs each route, and which routes are real at all —
 // both live in surface-registry.ts so the classification and the wiring cannot
@@ -199,15 +251,21 @@ interface Prefs {
   inboxDensity: "compact" | "medium" | "rich";
   showInboxAgentRail: boolean;
 }
-const PREF_DEFAULTS: Prefs = { theme: "dark", sidebar: "open", inboxDensity: "medium", showInboxAgentRail: false };
-const PREFS_KEY = "chanlytics-os-prefs";
+const PREF_DEFAULTS: Prefs = {
+  theme: DEFAULT_THEME_PREF,
+  sidebar: "open",
+  inboxDensity: "medium",
+  showInboxAgentRail: false,
+};
+// The document's head reads the theme from the same place before first paint (contracts themeBootScript).
+const PREFS_KEY = DEVICE_PREFS_STORAGE;
 
 /** This device's preferences, with anything unknown or stale replaced by the default. */
 function loadPrefs(): Prefs {
   try {
     const stored = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as Partial<Prefs>;
     const p = { ...PREF_DEFAULTS, ...stored };
-    return { ...p, theme: isThemePref(p.theme) ? p.theme : PREF_DEFAULTS.theme, sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar };
+    return { ...p, theme: themePrefOf(p.theme), sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar };
   } catch {
     return PREF_DEFAULTS;
   }
@@ -215,7 +273,9 @@ function loadPrefs(): Prefs {
 
 /** Whether the device prefers dark, kept current while the app is open. */
 function useSystemDark(): boolean {
-  const [dark, setDark] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+  const [dark, setDark] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-color-scheme: dark)").matches,
+  );
   useEffect(() => {
     const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
     if (!mq) return undefined;
@@ -260,17 +320,16 @@ export default function LegacyApp() {
     publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));
   }, []);
 
-  const missing = useMemo(
-    () => REQUIRED.filter((k) => !(window as unknown as Record<string, unknown>)[k]),
-    [],
-  );
+  const missing = useMemo(() => REQUIRED.filter((k) => !(window as unknown as Record<string, unknown>)[k]), []);
 
   const setPref = useCallback(<K extends keyof Prefs>(key: K, value: Prefs[K]) => {
     setPrefs((p) => {
       const next = { ...p, [key]: value };
       try {
         localStorage.setItem(PREFS_KEY, JSON.stringify(next));
-      } catch { /* private mode etc. — prefs just don't persist */ }
+      } catch {
+        /* private mode etc. — prefs just don't persist */
+      }
       return next;
     });
   }, []);
@@ -308,8 +367,13 @@ export default function LegacyApp() {
         const j = (await r.json()) as { sha?: string };
         if (!j.sha) return;
         if (initial === null) initial = j.sha;
-        else if (j.sha !== initial && !staleRef.current) { staleRef.current = true; publishStatus(); }
-      } catch { /* offline — ignore */ }
+        else if (j.sha !== initial && !staleRef.current) {
+          staleRef.current = true;
+          publishStatus();
+        }
+      } catch {
+        /* offline — ignore */
+      }
     };
     void check();
     const onVisible = () => document.visibilityState === "visible" && void check();
@@ -327,7 +391,15 @@ export default function LegacyApp() {
 
   if (missing.length) {
     return (
-      <div style={{ height: "100vh", display: "grid", placeItems: "center", fontFamily: "Geist, sans-serif", color: "#666" }}>
+      <div
+        style={{
+          height: "100vh",
+          display: "grid",
+          placeItems: "center",
+          fontFamily: "Geist, sans-serif",
+          color: "#666",
+        }}
+      >
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: "#333" }}>Chanlytics didn&apos;t finish loading</div>
           <div style={{ fontSize: 13, marginTop: 6 }}>Missing: {missing.join(", ")} — refresh to retry.</div>
@@ -348,10 +420,12 @@ export default function LegacyApp() {
     const me = (window as unknown as { __ME?: { email?: string | null } }).__ME;
     // What sign-up kept: the name and clock they typed before the code, so
     // the first workspace is one press rather than the same form twice.
-    const pending = (window as unknown as { __PENDING_WORKSPACE?: PendingWorkspace | null }).__PENDING_WORKSPACE ?? null;
+    const pending =
+      (window as unknown as { __PENDING_WORKSPACE?: PendingWorkspace | null }).__PENDING_WORKSPACE ?? null;
     // The door this first workspace meets -- the invite code, or the list --
     // for an account that arrived through Google and never saw the sign-up form.
-    const posture = (window as unknown as { __SIGNUP_POSTURE?: "open" | "waitlist" | "invite" }).__SIGNUP_POSTURE ?? "open";
+    const posture =
+      (window as unknown as { __SIGNUP_POSTURE?: "open" | "waitlist" | "invite" }).__SIGNUP_POSTURE ?? "open";
     return (
       <CreateWorkspace
         email={me?.email ?? null}
@@ -391,7 +465,7 @@ export default function LegacyApp() {
       <ChanlyticsApp
         theme={theme}
         themePref={prefs.theme}
-        onTheme={(v) => setPref("theme", isThemePref(v) ? v : PREF_DEFAULTS.theme)}
+        onTheme={(v) => setPref("theme", themePrefOf(v))}
         sidebar={prefs.sidebar}
         onSidebar={(v) => setPref("sidebar", isSidebarPref(v) ? v : PREF_DEFAULTS.sidebar)}
         inboxDensity={prefs.inboxDensity}

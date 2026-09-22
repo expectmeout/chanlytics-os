@@ -43,19 +43,26 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
     await signIn(page);
   });
 
-  test("Today names it -- nobody can be sent an offer -- with its arithmetic, and its door lands on the QR", async ({ page }) => {
+  test("Today names it -- nobody can be sent an offer -- with its arithmetic, and its door lands on the QR", async ({
+    page,
+  }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     const rows = await expectLeaksWellFormed(page);
     const reach = rows.find((r) => r.id === "unreachable");
-    expect(reach, `the seeded workspace said yes to messages and nothing to offers; the band said: ${JSON.stringify(rows)}`).toBeTruthy();
+    expect(
+      reach,
+      `the seeded workspace said yes to messages and nothing to offers; the band said: ${JSON.stringify(rows)}`,
+    ).toBeTruthy();
     expect(reach!.text).toMatch(/^\d+ people have said yes to messages, but nobody has said yes to offers\.$/);
     expect(reach!.doors).toContain("Get their yes to offers");
     await page.getByTestId("today-leak-unreachable").getByRole("button", { name: "Get their yes to offers" }).click();
     await expectQrInView(page);
   });
 
-  test("Today's number is People's number: the band re-prints a list, it never counts one of its own", async ({ page }) => {
+  test("Today's number is People's number: the band re-prints a list, it never counts one of its own", async ({
+    page,
+  }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     const reach = (await expectLeaksWellFormed(page)).find((r) => r.id === "unreachable");
@@ -63,12 +70,17 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
     const said = Number(/^(\d+) people/.exec(reach!.text)?.[1]);
     // The row's own door to the list, not a URL typed here: the number and the
     // list it opens are the claim.
-    await page.getByTestId("today-leak-unreachable").getByRole("button", { name: /Open People/ }).click();
+    await page
+      .getByTestId("today-leak-unreachable")
+      .getByRole("button", { name: /Open People/ })
+      .click();
     await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/seg:opted_in");
     await expect(page.locator(".cl-table tbody tr:not(:has(.empty))")).toHaveCount(said);
   });
 
-  test("People's list step is the door to that yes, not a disabled button beside a sentence about it", async ({ page }) => {
+  test("People's list step is the door to that yes, not a disabled button beside a sentence about it", async ({
+    page,
+  }) => {
     await page.goto("/#/clients/seg:opted_in");
     await page.waitForLoadState("networkidle");
     const step = page.getByTestId("list-action");

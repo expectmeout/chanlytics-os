@@ -11,8 +11,14 @@ import assert from "node:assert/strict";
 import { runTick } from "../../../packages/jobs/src/tick.ts";
 import { RUN_INTERRUPTED, MAX_ATTEMPTS } from "../../../packages/jobs/src/ledger.ts";
 
-const job = (id, kind = "line_provision", attempts = 1) =>
-  ({ id, tenant_id: "t1", kind, payload: {}, due_at: "2026-01-01T00:00:00Z", attempts });
+const job = (id, kind = "line_provision", attempts = 1) => ({
+  id,
+  tenant_id: "t1",
+  kind,
+  payload: {},
+  due_at: "2026-01-01T00:00:00Z",
+  attempts,
+});
 
 const OPTS = { claimForMs: 20_000, yieldAtMs: 45_000, leaseSeconds: 90 };
 
@@ -75,7 +81,10 @@ function fakes(jobs, o = {}) {
 test("every due job runs once, in order, and is recorded done; the tick ends when nothing is due", async () => {
   const { ports, calls } = fakes([job("a"), job("b"), job("c")]);
   const counts = await runTick(ports, OPTS);
-  assert.deepEqual(calls.dispatch.map(([id]) => id), ["a", "b", "c"]);
+  assert.deepEqual(
+    calls.dispatch.map(([id]) => id),
+    ["a", "b", "c"],
+  );
   assert.deepEqual(calls.complete, ["a", "b", "c"]);
   assert.deepEqual(calls.claim, [90, 90, 90, 90], "each claim carries the lease; the fourth finds nothing");
   assert.deepEqual(counts, { claimed: 3, done: 3, failed: 0, gaveUp: 0, deferred: 0 });
@@ -92,18 +101,24 @@ test("a job is claimed only when it is about to run", async () => {
 });
 
 test("a handler that throws is failed, settled as an unknown outcome and reported; the rest still run", async () => {
-  const { ports, calls } = fakes(
-    [job("a", "outbound_send"), job("b", "outbound_send"), job("c", "outbound_send")],
-    { throwOn: new Set(["b"]) },
-  );
+  const { ports, calls } = fakes([job("a", "outbound_send"), job("b", "outbound_send"), job("c", "outbound_send")], {
+    throwOn: new Set(["b"]),
+  });
   const counts = await runTick(ports, OPTS);
-  assert.deepEqual(calls.dispatch.map(([id]) => id), ["a", "b", "c"]);
+  assert.deepEqual(
+    calls.dispatch.map(([id]) => id),
+    ["a", "b", "c"],
+  );
   assert.deepEqual(calls.fail, [["b", "boom b"]]);
   assert.deepEqual(calls.settle, [["b", false]], "it ran, so whether it sent is not known");
   assert.equal(calls.alert.length, 1);
   assert.equal(calls.alert[0].subject, "A outbound_send job failed");
   assert.match(calls.alert[0].body, /boom b/);
-  assert.match(calls.alert[0].body, /marked failed, so it is no longer shown as on its way/, "and what became of the message");
+  assert.match(
+    calls.alert[0].body,
+    /marked failed, so it is no longer shown as on its way/,
+    "and what became of the message",
+  );
   assert.deepEqual(counts, { claimed: 3, done: 2, failed: 1, gaveUp: 0, deferred: 0 });
   assert.deepEqual(calls.defer, [], "a send is never kept to be tried again: a second try could reach a person twice");
 });
@@ -116,10 +131,23 @@ const at = (ms) => new Date(ms).toISOString();
 test("an email intake that throws is kept and tried again later, not failed: its lease is put off, and nothing is settled or told", async () => {
   // 18 Sep 2026: the deployment's key could send but not read, so the fetch
   // was refused with 401, the job was failed for good, and the email was lost.
-  const { ports, calls, logged } = fakes([job("i", "email_ingest", 1), job("j", "email_ingest", 2)], { throwOn: new Set(["i", "j"]) });
+  const { ports, calls, logged } = fakes([job("i", "email_ingest", 1), job("j", "email_ingest", 2)], {
+    throwOn: new Set(["i", "j"]),
+  });
   const counts = await runTick(ports, OPTS);
-  assert.deepEqual(calls.defer, [["i", at(5 * MIN), "boom i"], ["j", at(30 * MIN), "boom j"]], "five minutes after the first try, thirty after the second, with why kept on the row");
-  assert.deepEqual([calls.fail, calls.settle, calls.alert], [[], [], []], "not failed, so nothing to settle and nobody to tell yet");
+  assert.deepEqual(
+    calls.defer,
+    [
+      ["i", at(5 * MIN), "boom i"],
+      ["j", at(30 * MIN), "boom j"],
+    ],
+    "five minutes after the first try, thirty after the second, with why kept on the row",
+  );
+  assert.deepEqual(
+    [calls.fail, calls.settle, calls.alert],
+    [[], [], []],
+    "not failed, so nothing to settle and nobody to tell yet",
+  );
   assert.ok(logged("warn", "job_deferred"));
   assert.deepEqual(counts, { claimed: 2, done: 0, failed: 0, gaveUp: 0, deferred: 2 });
 });
@@ -129,7 +157,11 @@ test("the last try of an intake fails it for good and tells the owner how many t
   const counts = await runTick(ports, OPTS);
   assert.deepEqual(calls.defer, []);
   assert.deepEqual(calls.fail, [["i", "boom i"]]);
-  assert.deepEqual(calls.settle, [["i", false]], "settled as a failure is: the mailbox says so, and the thread is held");
+  assert.deepEqual(
+    calls.settle,
+    [["i", false]],
+    "settled as a failure is: the mailbox says so, and the thread is held",
+  );
   assert.match(calls.alert[0].body, new RegExp(`failed after ${MAX_ATTEMPTS} tries and will not retry on its own`));
   assert.deepEqual(counts, { claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0 });
 });
@@ -151,11 +183,20 @@ test("internal work not written to be run again still fails on its first throw",
   // line_provision is the internal kind with no waits in RETRY_WAITS_MS: its
   // saga reads its own receipts, so a resumed run repeats nothing and a throw
   // is a failure to tell somebody about rather than something to sit out.
-  const { ports, calls } = fakes([job("a", "line_provision", 1), job("b", "line_provision", 1)], { throwOn: new Set(["a", "b"]) });
+  const { ports, calls } = fakes([job("a", "line_provision", 1), job("b", "line_provision", 1)], {
+    throwOn: new Set(["a", "b"]),
+  });
   const counts = await runTick(ports, OPTS);
   assert.deepEqual(calls.defer, []);
-  assert.deepEqual(calls.fail.map(([id]) => id), ["a", "b"]);
-  assert.match(calls.alert[0].body, /\(line_provision\) failed and will not retry on its own/, "a first try says no count");
+  assert.deepEqual(
+    calls.fail.map(([id]) => id),
+    ["a", "b"],
+  );
+  assert.match(
+    calls.alert[0].body,
+    /\(line_provision\) failed and will not retry on its own/,
+    "a first try says no count",
+  );
   assert.equal(counts.failed, 2);
 });
 
@@ -176,18 +217,29 @@ test("a send whose run died is never run a second time", async () => {
     assert.deepEqual(calls.fail, [["a", RUN_INTERRUPTED]]);
     assert.deepEqual(calls.settle, [["a", false]]);
     assert.match(calls.alert[0].subject, /did not finish/);
-    assert.deepEqual([calls.alert[0].kind, calls.alert[0].route], ["job_failed", "inbox"], "the one alert that IS a job not finishing says so itself");
+    assert.deepEqual(
+      [calls.alert[0].kind, calls.alert[0].route],
+      ["job_failed", "inbox"],
+      "the one alert that IS a job not finishing says so itself",
+    );
     assert.equal(counts.gaveUp, 1);
   }
   const { ports, calls } = fakes([job("a", "outbound_send", 2)]);
   await runTick(ports, OPTS);
-  assert.match(calls.alert[0].body, /may or may not have reached the customer/, "the owner is told to look before sending again");
+  assert.match(
+    calls.alert[0].body,
+    /may or may not have reached the customer/,
+    "the owner is told to look before sending again",
+  );
 });
 
 test("internal work whose run died is run again, and given up past the cap", async () => {
   const { ports, calls } = fakes([job("a", "line_provision", 2), job("b", "line_provision", MAX_ATTEMPTS + 1)]);
   const counts = await runTick(ports, OPTS);
-  assert.deepEqual(calls.dispatch.map(([id]) => id), ["a"]);
+  assert.deepEqual(
+    calls.dispatch.map(([id]) => id),
+    ["a"],
+  );
   assert.deepEqual(calls.complete, ["a"]);
   assert.deepEqual(calls.fail, [["b", RUN_INTERRUPTED]]);
   assert.equal(counts.done, 1);
@@ -201,8 +253,19 @@ test("claiming stops when the window closes, and every handler gets the same yie
     clock: (i) => readings[Math.min(i, readings.length - 1)],
   });
   await runTick(ports, OPTS);
-  assert.deepEqual(calls.dispatch, [["a", 46_000], ["b", 46_000]], "start + yieldAtMs, for everything this tick runs");
-  assert.deepEqual(queue.map((j) => j.id), ["c"], "c was never claimed, so it is simply still due for the next tick");
+  assert.deepEqual(
+    calls.dispatch,
+    [
+      ["a", 46_000],
+      ["b", 46_000],
+    ],
+    "start + yieldAtMs, for everything this tick runs",
+  );
+  assert.deepEqual(
+    queue.map((j) => j.id),
+    ["c"],
+    "c was never claimed, so it is simply still due for the next tick",
+  );
 });
 
 test("a completion that matched no row is logged, not thrown, and not counted done", async () => {
@@ -235,7 +298,10 @@ test("a failure another run already recorded is not settled or announced twice",
 test("an alert that cannot be sent does not un-record the failure", async () => {
   const { ports, calls, logged } = fakes([job("a")], { throwOn: new Set(["a"]), alertThrows: true });
   const counts = await runTick(ports, OPTS);
-  assert.deepEqual(calls.fail.map(([id]) => id), ["a"]);
+  assert.deepEqual(
+    calls.fail.map(([id]) => id),
+    ["a"],
+  );
   assert.equal(counts.failed, 1);
   assert.ok(logged("error", "job_alert_failed"));
 });
@@ -252,7 +318,9 @@ test("a settlement that could not be written reaches the owner as exactly that",
 
 test("a settlement that throws still leaves the owner told", async () => {
   const { ports, calls, logged } = fakes([job("a", "outbound_send")], { throwOn: new Set(["a"]) });
-  ports.settle = async () => { throw new Error("socket hang up"); };
+  ports.settle = async () => {
+    throw new Error("socket hang up");
+  };
   await runTick(ports, OPTS);
   assert.match(calls.alert[0].body, /could not be checked/);
   assert.ok(logged("error", "job_settle_failed"));
@@ -260,6 +328,8 @@ test("a settlement that throws still leaves the owner told", async () => {
 
 test("a ledger that cannot be claimed from ends the tick with the error", async () => {
   const { ports } = fakes([]);
-  ports.claim = async () => { throw new Error("claim_due_jobs: connection refused"); };
+  ports.claim = async () => {
+    throw new Error("claim_due_jobs: connection refused");
+  };
   await assert.rejects(runTick(ports, OPTS), /connection refused/, "the route answers 503, which sweep_health() reads");
 });

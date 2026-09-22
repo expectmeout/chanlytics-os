@@ -176,6 +176,9 @@ export async function notifyPlatformSignup(tenantId: string, email: string): Pro
       signal: AbortSignal.timeout(4_000),
     });
   } catch (e) {
-    console.warn("signup_notify_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.warn(
+      "signup_notify_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
   }
 }

@@ -28,14 +28,30 @@ export const LEAD_ROUND_STATES = ["queued", "probing", "waiting_on_owner", "runn
 export type LeadRoundState = (typeof LEAD_ROUND_STATES)[number];
 /** The nine endings, one closed set (§0.5, S7). */
 export const LEAD_ROUND_ENDINGS = [
-  "target_reached", "searched_everything", "month_leads_used", "budget_used", "few_new_matches",
-  "stopped", "source_failed", "question_unanswered", "paused",
+  "target_reached",
+  "searched_everything",
+  "month_leads_used",
+  "budget_used",
+  "few_new_matches",
+  "stopped",
+  "source_failed",
+  "question_unanswered",
+  "paused",
 ] as const;
 export type LeadRoundEnding = (typeof LEAD_ROUND_ENDINGS)[number];
 export const LEAD_ROUND_ANSWERS = ["keep", "include", "stop"] as const;
 export type LeadRoundAnswer = (typeof LEAD_ROUND_ANSWERS)[number];
 export const LEAD_RUN_PURPOSES = ["discover", "check"] as const;
-export const LEAD_RUN_STATES = ["claimed", "starting", "running", "succeeded", "failed", "aborted", "timed_out", "unknown"] as const;
+export const LEAD_RUN_STATES = [
+  "claimed",
+  "starting",
+  "running",
+  "succeeded",
+  "failed",
+  "aborted",
+  "timed_out",
+  "unknown",
+] as const;
 export type LeadRunState = (typeof LEAD_RUN_STATES)[number];
 /** The five words of §10.4, plus `checking` while a batch is out. */
 export const LEAD_EMAIL_STATES = ["none", "checking", "ok", "catch_all", "unknown", "invalid"] as const;
@@ -48,7 +64,16 @@ export const LEAD_FITS = ["strong", "look", "long"] as const;
 export type LeadFit = (typeof LEAD_FITS)[number];
 export const LEAD_COUNTER_KINDS = ["allowance", "budget", "day"] as const;
 /** A's six, and release B's two: a lead's stage, and many at once. */
-export const LEAD_OPERATION_KINDS = ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"] as const;
+export const LEAD_OPERATION_KINDS = [
+  "undo_search",
+  "keep",
+  "exclude",
+  "put_back",
+  "include",
+  "stop",
+  "stage",
+  "bulk",
+] as const;
 export const LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"] as const;
 export const LEAD_SUPPRESSION_KINDS = ["email", "place", "phone"] as const;
 export const LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased"] as const;
@@ -111,9 +136,19 @@ export const LEAD_QUESTION_WAIT_MS = 24 * 3_600_000;
 export type LeadContactStandard = "phone" | "email";
 /** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
 export type LeadCriterionStandard = "likely" | "seen";
-export interface LeadCriterion { key: string; text: string; standard: LeadCriterionStandard; required: boolean; }
+export interface LeadCriterion {
+  key: string;
+  text: string;
+  standard: LeadCriterionStandard;
+  required: boolean;
+}
 /** A "Leaving out" chip. The judge answers it as a required criterion: `fail` means the place is what is left out. */
-export interface LeadExclusion { key: string; text: string; origin: "claude" | "you_said"; category_key?: string; }
+export interface LeadExclusion {
+  key: string;
+  text: string;
+  origin: "claude" | "you_said";
+  category_key?: string;
+}
 export interface LeadArea {
   kind: "zip" | "city" | "radius";
   /** As the sentence says it: "Austin, TX". */
@@ -144,14 +179,57 @@ export interface LeadSearchPlan {
 
 /** The fifty states and DC, as a listing spells them; also the plan schema's set of valid state codes. */
 const US_STATES: Record<string, string> = {
-  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT",
-  delaware: "DE", "district of columbia": "DC", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL",
-  indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD",
-  massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE",
-  nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY", "north carolina": "NC",
-  "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI",
-  "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA",
-  washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY",
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
 };
 const US_CODES = new Set(Object.values(US_STATES));
 
@@ -159,48 +237,91 @@ const KEY = /^[a-z][a-z0-9_]{0,39}$/;
 // Control/format characters (bidi overrides, tag characters) and newlines are stripped from every
 // plan-authored text field before it can reach the judge's rubric (26; security review, item 9).
 const stripUnsafe = (s: string) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-const words = (min: number, max: number) => z.string().transform((s) => stripUnsafe(s).trim()).pipe(z.string().min(min).max(max));
+const words = (min: number, max: number) =>
+  z
+    .string()
+    .transform((s) => stripUnsafe(s).trim())
+    .pipe(z.string().min(min).max(max));
 
 /** The route's input and the door's: the same shape, checked twice on purpose. */
-export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z.object({
-  version: z.number().int().min(1),
-  card: z.literal("local_businesses"),
-  name: words(2, 80),
-  asked: words(1, 400),
-  terms: z.array(words(2, 60)).min(1).max(5),
-  area: z.object({
-    kind: z.enum(["zip", "city", "radius"]),
-    label: words(2, 80),
-    state: z.string().regex(/^[A-Z]{2}$/),
-    center: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).nullable(),
-    radius_m: z.number().int().min(500).max(200_000),
-    zip: z.string().regex(/^\d{5}$/).optional(),
-    query: words(2, 120),
-  }),
-  count: z.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z.enum(["phone", "email"]),
-  criteria: z.array(z.object({ key: z.string().regex(KEY), text: words(2, 120), standard: z.enum(["likely", "seen"]), required: z.boolean() })).max(8),
-  exclusions: z.array(z.object({ key: z.string().regex(KEY), text: words(2, 80), origin: z.enum(["claude", "you_said"]), category_key: z.string().regex(KEY).optional() })).max(8),
-}).superRefine((p, ctx) => {
-  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
-  const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-});
+export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z
+  .object({
+    version: z.number().int().min(1),
+    card: z.literal("local_businesses"),
+    name: words(2, 80),
+    asked: words(1, 400),
+    terms: z.array(words(2, 60)).min(1).max(5),
+    area: z.object({
+      kind: z.enum(["zip", "city", "radius"]),
+      label: words(2, 80),
+      state: z.string().regex(/^[A-Z]{2}$/),
+      center: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).nullable(),
+      radius_m: z.number().int().min(500).max(200_000),
+      zip: z
+        .string()
+        .regex(/^\d{5}$/)
+        .optional(),
+      query: words(2, 120),
+    }),
+    count: z.number().int().min(1).max(LEAD_MAX_PLACES),
+    contact: z.enum(["phone", "email"]),
+    criteria: z
+      .array(
+        z.object({
+          key: z.string().regex(KEY),
+          text: words(2, 120),
+          standard: z.enum(["likely", "seen"]),
+          required: z.boolean(),
+        }),
+      )
+      .max(8),
+    exclusions: z
+      .array(
+        z.object({
+          key: z.string().regex(KEY),
+          text: words(2, 80),
+          origin: z.enum(["claude", "you_said"]),
+          category_key: z.string().regex(KEY).optional(),
+        }),
+      )
+      .max(8),
+  })
+  .superRefine((p, ctx) => {
+    const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+    if (new Set(keys).size !== keys.length)
+      ctx.addIssue({
+        code: "custom",
+        message: "every criterion and exclusion has a key of its own",
+        path: ["criteria"],
+      });
+    const lowerTerms = p.terms.map((t) => t.toLowerCase());
+    if (new Set(lowerTerms).size !== lowerTerms.length)
+      ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+    if (p.area.kind === "radius" && p.area.center === null)
+      ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+    if (p.area.kind === "zip" && !p.area.zip)
+      ctx.addIssue({
+        code: "custom",
+        message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+        path: ["area", "zip"],
+      });
+    if (!US_CODES.has(p.area.state))
+      ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  });
 
 const isLowerLetter = (ch: string) => ch !== undefined && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 /** Lowercases the first letter only when the second is itself lowercase, so an acronym ("CVS") keeps its own case. */
 const lowerFirst = (s: string) => (s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
-const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+const list = (xs: string[]) =>
+  xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 
 /** A place clause the model may have written into the plural it was asked for ("hair salons in Brooklyn"). */
 const PLACE_CLAUSE = /\s+(?:in|near|around|within|across|throughout|at|inside|serving)\s+\S.*$/i;
 /** A label that already says where it is ("in Brooklyn, NY", "within 25 miles of Austin"). */
 const SAYS_WHERE = /^(?:in|near|around|within|across|throughout|at|inside)\s+/i;
-const US_NAMES: Record<string, string> = Object.fromEntries(Object.entries(US_STATES).map(([name, code]) => [code, name]));
+const US_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(US_STATES).map(([name, code]) => [code, name]),
+);
 const bits = (s: string): string[] => s.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
 
 /**
@@ -217,7 +338,11 @@ export function planWho(plan: LeadSearchPlan): string {
   const a = plan.area;
   const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
   const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
-  const cut = whole ? "" : m && bits(m[0]).some((w) => known.has(w)) ? plan.name.slice(0, m.index).trim() : plan.name.trim();
+  const cut = whole
+    ? ""
+    : m && bits(m[0]).some((w) => known.has(w))
+      ? plan.name.slice(0, m.index).trim()
+      : plan.name.trim();
   return lowerFirst(cut) || list(plan.terms.map(lowerFirst));
 }
 
@@ -237,7 +362,11 @@ export function planWhere(area: LeadArea): string {
  * place word and a radius phrase taken off, so nothing says "in" twice.
  */
 export function planArea(area: LeadArea): string {
-  const bare = area.label.trim().replace(/^within\s+[\d.]+\s*\w+\s+of\s+/i, "").replace(/^(?:in|at|inside|near|around|throughout|across)\s+/i, "").trim();
+  const bare = area.label
+    .trim()
+    .replace(/^within\s+[\d.]+\s*\w+\s+of\s+/i, "")
+    .replace(/^(?:in|at|inside|near|around|throughout|across)\s+/i, "")
+    .trim();
   return bare || area.label.trim();
 }
 
@@ -270,17 +399,26 @@ export function planWords(plan: LeadSearchPlan): LeadPlanWord[] {
   ];
   for (const c of plan.criteria) {
     out.push({ text: " ", pick: null });
-    out.push({ text: c.standard === "seen" ? `${lowerFirst(c.text)} (confirmed)` : lowerFirst(c.text), pick: "criterion", key: c.key });
+    out.push({
+      text: c.standard === "seen" ? `${lowerFirst(c.text)} (confirmed)` : lowerFirst(c.text),
+      pick: "criterion",
+      key: c.key,
+    });
   }
   out.push({ text: ", ", pick: null });
-  out.push({ text: plan.contact === "email" ? "then find their email and check it" : "a phone is enough", pick: "contact" });
+  out.push({
+    text: plan.contact === "email" ? "then find their email and check it" : "a phone is enough",
+    pick: "contact",
+  });
   out.push({ text: ".", pick: null });
   return out;
 }
 
 /** What the sentence's words say, with nothing marked: the sentence itself. */
 export function planSaid(plan: LeadSearchPlan): string {
-  return planWords(plan).map((w) => w.text).join("");
+  return planWords(plan)
+    .map((w) => w.text)
+    .join("");
 }
 
 /** What the plan leaves out, as one clause: " Leaving out: chain gyms." Empty when it leaves out nothing. */
@@ -332,7 +470,9 @@ const same = (a: unknown, b: unknown) => stableStringify(a) === stableStringify(
 /** The changed plan, with its version bumped when the area, count, contact standard, criteria or exclusions moved (S15). */
 export function planVersionOf(plan: LeadSearchPlan, changed: Partial<LeadSearchPlan>): LeadSearchPlan {
   const next: LeadSearchPlan = { ...plan, ...changed, version: plan.version };
-  const material = (["area", "count", "contact", "criteria", "exclusions"] as const).some((k) => !same(plan[k], next[k]));
+  const material = (["area", "count", "contact", "criteria", "exclusions"] as const).some(
+    (k) => !same(plan[k], next[k]),
+  );
   return { ...next, version: material ? plan.version + 1 : plan.version };
 }
 
@@ -359,8 +499,15 @@ export const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string> = {
  * and the next step is another round in the same area.
  */
 export function endingOfRound(x: {
-  counted: number; target: number; termsShort: boolean[]; budgetLeftUsd: number; allowanceLeft: number;
-  stopped: boolean; sourceFailed: boolean; unanswered: boolean; paused: boolean;
+  counted: number;
+  target: number;
+  termsShort: boolean[];
+  budgetLeftUsd: number;
+  allowanceLeft: number;
+  stopped: boolean;
+  sourceFailed: boolean;
+  unanswered: boolean;
+  paused: boolean;
 }): LeadRoundEnding {
   if (x.counted >= x.target) return "target_reached";
   if (x.paused) return "paused";
@@ -410,7 +557,12 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
       "businesses outside the US",
     ],
-    settings: ["terms (up to five search phrases, widest first)", "area (a city, a ZIP, or a center and radius)", "count (1 to 1000)", "contact standard (phone, or email checked)"],
+    settings: [
+      "terms (up to five search phrases, widest first)",
+      "area (a city, a ZIP, or a center and radius)",
+      "count (1 to 1000)",
+      "contact standard (phone, or email checked)",
+    ],
     costPerPlaceUsd: 0.003,
     contactsPerPlaceUsd: 0.002,
     judgePerPlaceUsd: 0.0023,
@@ -445,7 +597,11 @@ const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 export function estimateRoundUsd(plan: LeadSearchPlan, purpose: LeadRoundPurpose, placesToAsk: number): number {
   const c = cardOf(plan);
   const places = Math.max(0, Math.floor(placesToAsk));
-  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
+  const perPlace =
+    c.costPerPlaceUsd +
+    c.contactsPerPlaceUsd +
+    c.judgePerPlaceUsd +
+    (plan.contact === "email" ? c.checkPerEmailUsd : 0);
   const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
   return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
 }
@@ -466,7 +622,11 @@ function spread(total: number, n: number, cap: number): number[] {
  * for nothing at all; when the total is smaller than the number of terms, a
  * term asked for 0 got nothing to ask for, and a caller skips it.
  */
-export function placesToAsk(plan: LeadSearchPlan, remaining: number, yieldSoFar: number | null): { total: number; perTerm: number[] } {
+export function placesToAsk(
+  plan: LeadSearchPlan,
+  remaining: number,
+  yieldSoFar: number | null,
+): { total: number; perTerm: number[] } {
   const n = Math.max(1, plan.terms.length);
   const cap = cardOf(plan).maxPerTerm;
   if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
@@ -510,10 +670,17 @@ export const LEAD_EMAIL_REASON = /^email:/;
  * or one outside the area, or a contact standard not met, also sends it to
  * review. Everything else qualifies. A fit band is derived for ordering.
  */
-export function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: PlaceFacts, emailState: LeadEmailState, inArea: boolean): LeadClassification {
+export function classify(
+  plan: LeadSearchPlan,
+  answer: JudgePlaceAnswer,
+  facts: PlaceFacts,
+  emailState: LeadEmailState,
+  inArea: boolean,
+): LeadClassification {
   // Nothing to call and nothing to write to: not a lead, whatever the judge said. A null phone match is the
   // place having no phone at all (the phone:none reason below reads it the same way).
-  if (facts.phone_matches_site === null && facts.emails.length === 0) return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
+  if (facts.phone_matches_site === null && facts.emails.length === 0)
+    return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons: string[] = [];
   const rubric = [
     { key: LEAD_KIND_KEY, standard: "likely" as const, required: true },
@@ -528,11 +695,26 @@ export function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: 
     const verdict = a?.answer ?? "unknown";
     const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
     if (verdict === "fail") {
-      if (r.required) { excludedBy = excludedBy ?? r.key; reasons.push(`fail:${r.key}`); } else { softFail = true; }
+      if (r.required) {
+        excludedBy = excludedBy ?? r.key;
+        reasons.push(`fail:${r.key}`);
+      } else {
+        softFail = true;
+      }
     } else if (verdict === "unknown") {
-      if (r.required) { unknown = true; reasons.push(`unknown:${r.key}`); } else { softFail = true; }
+      if (r.required) {
+        unknown = true;
+        reasons.push(`unknown:${r.key}`);
+      } else {
+        softFail = true;
+      }
     } else if (r.standard === "seen" && readOnly) {
-      if (r.required) { unknown = true; reasons.push(`inferred:${r.key}`); } else { softFail = true; }
+      if (r.required) {
+        unknown = true;
+        reasons.push(`inferred:${r.key}`);
+      } else {
+        softFail = true;
+      }
     }
   }
   if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
@@ -545,10 +727,13 @@ export function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: 
 
 /* --------------------------------------------- the question after 25 (P4) -- */
 
-export interface ProbeMember { class: LeadMemberClass; excluded_by: string | null; term?: string | null; }
+export interface ProbeMember {
+  class: LeadMemberClass;
+  excluded_by: string | null;
+  term?: string | null;
+}
 export type LeadQuestion =
-  | { ask: true; sentence: string; criterionKey: string; dropTerm: string | null }
-  | { ask: false };
+  { ask: true; sentence: string; criterionKey: string; dropTerm: string | null } | { ask: false };
 
 /**
  * An intent check, never an accuracy measure (P4). Measured by exclusion, not
@@ -575,10 +760,15 @@ export function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[])
   if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
   const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
   const tally = new Map<string, number>();
-  for (const m of members) if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by)) tally.set(m.excluded_by, (tally.get(m.excluded_by) ?? 0) + 1);
+  for (const m of members)
+    if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by))
+      tally.set(m.excluded_by, (tally.get(m.excluded_by) ?? 0) + 1);
   const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
   if (!top) return { ask: false };
-  const textOf = (key: string) => lowerFirst(plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key);
+  const textOf = (key: string) =>
+    lowerFirst(
+      plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key,
+    );
   const namedShare = top[1] / n;
   const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
   const what = excluded > top[1] ? `${textOf(top[0])} and other kinds of places` : textOf(top[0]);
@@ -586,48 +776,148 @@ export function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[])
   if (plan.terms.length > 1) {
     const statOf = (term: string) => {
       const of = members.filter((m) => m.term === term);
-      return { count: of.length, excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0 };
+      return {
+        count: of.length,
+        excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0,
+      };
     };
     for (const term of plan.terms) {
       const s = statOf(term);
       if (s.count < 5 || s.excludedShare < 2 / 3) continue;
-      const anotherWorks = plan.terms.some((other) => other !== term && (() => { const o = statOf(other); return o.count >= 5 && o.excludedShare < 2 / 3; })());
-      if (anotherWorks) { dropTerm = term; break; }
+      const anotherWorks = plan.terms.some(
+        (other) =>
+          other !== term &&
+          (() => {
+            const o = statOf(other);
+            return o.count >= 5 && o.excludedShare < 2 / 3;
+          })(),
+      );
+      if (anotherWorks) {
+        dropTerm = term;
+        break;
+      }
     }
   }
   const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
-  return { ask: true, sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`, criterionKey: top[0], dropTerm };
+  return {
+    ask: true,
+    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
+    criterionKey: top[0],
+    dropTerm,
+  };
 }
 
 /* ---------------------------------------------------- the cleaner (§7.2) -- */
 
 /** Hosts that are a booking platform or a social page: a business there has no site of its own. */
 export const LEAD_PLATFORM_HOSTS = [
-  "vagaro.com", "square.site", "squareup.com", "glossgenius.com", "godaddysites.com", "wixsite.com", "business.site",
-  "facebook.com", "instagram.com", "linktr.ee", "yelp.com", "booksy.com", "fresha.com", "styleseat.com",
-  "schedulicity.com", "mindbodyonline.com", "setmore.com", "acuityscheduling.com", "google.com",
+  "vagaro.com",
+  "square.site",
+  "squareup.com",
+  "glossgenius.com",
+  "godaddysites.com",
+  "wixsite.com",
+  "business.site",
+  "facebook.com",
+  "instagram.com",
+  "linktr.ee",
+  "yelp.com",
+  "booksy.com",
+  "fresha.com",
+  "styleseat.com",
+  "schedulicity.com",
+  "mindbodyonline.com",
+  "setmore.com",
+  "acuityscheduling.com",
+  "google.com",
 ] as const;
 /** Address domains that are never the business: platforms, builders' placeholders, trackers. */
 export const LEAD_JUNK_EMAIL_DOMAINS = [
-  "vagaro.com", "square.site", "squareup.com", "glossgenius.com", "godaddy.com", "wix.com", "wixpress.com",
-  "sentry.io", "example.com", "domain.com", "yourdomain.com", "email.com",
+  "vagaro.com",
+  "square.site",
+  "squareup.com",
+  "glossgenius.com",
+  "godaddy.com",
+  "wix.com",
+  "wixpress.com",
+  "sentry.io",
+  "example.com",
+  "domain.com",
+  "yourdomain.com",
+  "email.com",
 ] as const;
 /** Local parts that are a template's placeholder, not a mailbox. */
 export const LEAD_PLACEHOLDER_LOCALS = [
-  "filler", "yourdomain", "youremail", "your", "example", "email", "name", "user", "username", "test", "noreply", "no-reply", "donotreply",
+  "filler",
+  "yourdomain",
+  "youremail",
+  "your",
+  "example",
+  "email",
+  "name",
+  "user",
+  "username",
+  "test",
+  "noreply",
+  "no-reply",
+  "donotreply",
 ] as const;
 /** Corporate roles that are not how a business takes a customer (§7.2). */
-export const LEAD_ROLE_LOCALS = ["careers", "career", "jobs", "recruiting", "recruitment", "hr", "media", "press", "pr", "privacy", "legal", "webmaster", "abuse", "postmaster"] as const;
-export const LEAD_FREE_MAIL = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "aol.com", "live.com", "msn.com", "me.com", "protonmail.com", "proton.me"] as const;
+export const LEAD_ROLE_LOCALS = [
+  "careers",
+  "career",
+  "jobs",
+  "recruiting",
+  "recruitment",
+  "hr",
+  "media",
+  "press",
+  "pr",
+  "privacy",
+  "legal",
+  "webmaster",
+  "abuse",
+  "postmaster",
+] as const;
+export const LEAD_FREE_MAIL = [
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "icloud.com",
+  "aol.com",
+  "live.com",
+  "msn.com",
+  "me.com",
+  "protonmail.com",
+  "proton.me",
+] as const;
 /** A front desk's addresses, first among a business's own. */
-const DESK_LOCALS = ["intake", "info", "hello", "contact", "office", "team", "book", "booking", "bookings", "appointments", "studio", "frontdesk", "admin"];
+const DESK_LOCALS = [
+  "intake",
+  "info",
+  "hello",
+  "contact",
+  "office",
+  "team",
+  "book",
+  "booking",
+  "bookings",
+  "appointments",
+  "studio",
+  "frontdesk",
+  "admin",
+];
 
 const has = (xs: readonly string[], v: string) => xs.includes(v);
 
 export interface CleanedEmails {
   /** Best first: the business's own (five at most, a front desk first), free-mail (three), another company's (two). */
   kept: string[];
-  dropped: { email: string; why: "malformed" | "duplicate" | "junk_domain" | "placeholder" | "role" | "image" | "foreign_list" | "over_limit" }[];
+  dropped: {
+    email: string;
+    why: "malformed" | "duplicate" | "junk_domain" | "placeholder" | "role" | "image" | "foreign_list" | "over_limit";
+  }[];
 }
 
 /**
@@ -643,23 +933,50 @@ export function cleanEmailCandidates(emails: string[], host: string | null): Cle
   const foreign: string[] = [];
   const dropped: CleanedEmails["dropped"] = [];
   for (const raw of emails) {
-    const fixed = String(raw ?? "").trim().replace(/^mailto:/i, "").replace(/@www\./i, "@");
+    const fixed = String(raw ?? "")
+      .trim()
+      .replace(/^mailto:/i, "")
+      .replace(/@www\./i, "@");
     const address = normalizeEmail(fixed);
-    if (!address) { dropped.push({ email: String(raw ?? ""), why: "malformed" }); continue; }
-    if (seen.has(address)) { dropped.push({ email: address, why: "duplicate" }); continue; }
+    if (!address) {
+      dropped.push({ email: String(raw ?? ""), why: "malformed" });
+      continue;
+    }
+    if (seen.has(address)) {
+      dropped.push({ email: address, why: "duplicate" });
+      continue;
+    }
     seen.add(address);
     const [local, domain] = address.split("@");
-    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) { dropped.push({ email: address, why: "junk_domain" }); continue; }
-    if (has(LEAD_PLACEHOLDER_LOCALS, local)) { dropped.push({ email: address, why: "placeholder" }); continue; }
-    if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0])) { dropped.push({ email: address, why: "role" }); continue; }
-    if (/\.(png|jpe?g|gif|webp|svg)$/.test(domain)) { dropped.push({ email: address, why: "image" }); continue; }
+    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+      dropped.push({ email: address, why: "junk_domain" });
+      continue;
+    }
+    if (has(LEAD_PLACEHOLDER_LOCALS, local)) {
+      dropped.push({ email: address, why: "placeholder" });
+      continue;
+    }
+    if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0])) {
+      dropped.push({ email: address, why: "role" });
+      continue;
+    }
+    if (/\.(png|jpe?g|gif|webp|svg)$/.test(domain)) {
+      dropped.push({ email: address, why: "image" });
+      continue;
+    }
     const isOwn = !!host && (domain === host || domain.endsWith(`.${host}`));
     (isOwn ? own : has(LEAD_FREE_MAIL, domain) ? free : foreign).push(address);
   }
-  const deskRank = (a: string) => { const i = DESK_LOCALS.indexOf(a.split("@")[0]); return i < 0 ? DESK_LOCALS.length : i; };
+  const deskRank = (a: string) => {
+    const i = DESK_LOCALS.indexOf(a.split("@")[0]);
+    return i < 0 ? DESK_LOCALS.length : i;
+  };
   own.sort((a, b) => deskRank(a) - deskRank(b));
   const foreignDomains = new Set(foreign.map((a) => a.split("@")[1]));
-  const keep = (xs: string[], limit: number) => { for (const x of xs.slice(limit)) dropped.push({ email: x, why: "over_limit" }); return xs.slice(0, limit); };
+  const keep = (xs: string[], limit: number) => {
+    for (const x of xs.slice(limit)) dropped.push({ email: x, why: "over_limit" });
+    return xs.slice(0, limit);
+  };
   const kept = [...keep(own, 5), ...keep(free, 3)];
   if (foreignDomains.size <= 3) kept.push(...keep(foreign, 2));
   else for (const x of foreign) dropped.push({ email: x, why: "foreign_list" });

@@ -38,10 +38,21 @@ test("a freshly applied agent, with the provider's own defaults added, is conver
   assert.deepEqual(plan.drift, [], "REGRESSION: the provider's defaults read as drift forever");
   assert.equal(plan.llmPatch, null);
   // A field WE set that differs still counts.
-  const cold = { ...live, general_tools: live.general_tools.map((t) => (t.name === "transfer_to_staff" ? { ...t, transfer_option: { ...t.transfer_option, type: "cold_transfer" } } : t)) };
+  const cold = {
+    ...live,
+    general_tools: live.general_tools.map((t) =>
+      t.name === "transfer_to_staff" ? { ...t, transfer_option: { ...t.transfer_option, type: "cold_transfer" } } : t,
+    ),
+  };
   assert.ok(planVoiceConvergence(cold, desired).drift.some((l) => l.includes("transfer_to_staff differs")));
-  assert.ok(!JSON.stringify(desired.general_tools).includes('"required"'), "an empty required list is the provider's default and is dropped on save");
-  assert.ok(!JSON.stringify(voiceLlmCreateBody({ fnSecret: "s" }).general_tools).includes('"required"'), "provisioning sends none either");
+  assert.ok(
+    !JSON.stringify(desired.general_tools).includes('"required"'),
+    "an empty required list is the provider's default and is dropped on save",
+  );
+  assert.ok(
+    !JSON.stringify(voiceLlmCreateBody({ fnSecret: "s" }).general_tools).includes('"required"'),
+    "provisioning sends none either",
+  );
 });
 
 // The diagnostic listing which credential each delivery passed, beside a
@@ -61,6 +72,9 @@ test("The transfer number is compared with the receptionist's own line, not the 
   // card reads F.voice_line and asks the check with it, which business-tab-page.test.mjs presses.
   const phone = readCode("packages/contracts/src/phone.ts");
   assert.ok(phone.includes("normalizePhone(norm) === normalizePhone(ownLine)"));
-  assert.ok(!/phone_?[Dd]isplay/.test(phone), "REGRESSION: the salon's own human line was refused as the receptionist's");
+  assert.ok(
+    !/phone_?[Dd]isplay/.test(phone),
+    "REGRESSION: the salon's own human line was refused as the receptionist's",
+  );
   // (The prompt card saying which channel reads it is settings-truth.test.mjs's F33.)
 });

@@ -50,7 +50,10 @@ test("the provider's answer is read for the four facts that matter, and an answe
   assert.equal(mailDomainsFrom("not json at all"), null);
   assert.deepEqual(mailDomainsFrom(answer()), []);
   // A row with no name names nothing and is dropped; the rest of the list survives it.
-  assert.deepEqual(mailDomainsFrom(answer({ status: "verified" }, domain())).map((d) => d.name), [OURS]);
+  assert.deepEqual(
+    mailDomainsFrom(answer({ status: "verified" }, domain())).map((d) => d.name),
+    [OURS],
+  );
   // The name is compared, so it is compared in one spelling.
   assert.equal(mailDomainsFrom(answer(domain({ name: " MAIL.Chanlytics.com " })))[0].name, OURS);
   // A status the provider did not send is not "verified".
@@ -65,8 +68,11 @@ test("verified, sending and receiving: nothing to say", () => {
 
 test("a domain the provider has never heard of, and one that is somebody else's", () => {
   assert.deepEqual(judge(), { kind: "absent" });
-  assert.deepEqual(judge(domain({ name: "chanlytics.com" })), { kind: "absent" },
-    "another domain on the same account is not the one we send and receive on");
+  assert.deepEqual(
+    judge(domain({ name: "chanlytics.com" })),
+    { kind: "absent" },
+    "another domain on the same account is not the one we send and receive on",
+  );
 });
 
 test("never verified says so, and so does a status this code has never heard of", () => {
@@ -74,8 +80,10 @@ test("never verified says so, and so does a status this code has never heard of"
   assert.deepEqual(judge(domain({ status: "pending" })), { kind: "never_verified", status: "pending" });
   // The allow-list property: only "verified" is healthy. A status invented
   // after this was written alarms rather than buying silence.
-  assert.deepEqual(judge(domain({ status: "quarantined_by_some_future_release" })),
-    { kind: "never_verified", status: "quarantined_by_some_future_release" });
+  assert.deepEqual(judge(domain({ status: "quarantined_by_some_future_release" })), {
+    kind: "never_verified",
+    status: "quarantined_by_some_future_release",
+  });
 });
 
 test("a domain that WAS verified and stopped is its own kind: somebody's mail is being lost now", () => {
@@ -105,14 +113,24 @@ test("one half verified and the other not", () => {
 });
 
 test("verified with a half switched off: the address is published and accepts nothing", () => {
-  assert.deepEqual(judge(domain({ capabilities: { sending: "enabled", receiving: "disabled" } })),
-    { kind: "off", sending: "enabled", receiving: "disabled" });
-  assert.deepEqual(judge(domain({ capabilities: { sending: "disabled", receiving: "enabled" } })),
-    { kind: "off", sending: "disabled", receiving: "enabled" });
-  assert.match(describeMailDomainTrouble({ kind: "off", sending: "enabled", receiving: "disabled" }, OURS).body,
-    /accepts nothing/);
-  assert.match(describeMailDomainTrouble({ kind: "off", sending: "disabled", receiving: "enabled" }, OURS).body,
-    /no reply can leave/);
+  assert.deepEqual(judge(domain({ capabilities: { sending: "enabled", receiving: "disabled" } })), {
+    kind: "off",
+    sending: "enabled",
+    receiving: "disabled",
+  });
+  assert.deepEqual(judge(domain({ capabilities: { sending: "disabled", receiving: "enabled" } })), {
+    kind: "off",
+    sending: "disabled",
+    receiving: "enabled",
+  });
+  assert.match(
+    describeMailDomainTrouble({ kind: "off", sending: "enabled", receiving: "disabled" }, OURS).body,
+    /accepts nothing/,
+  );
+  assert.match(
+    describeMailDomainTrouble({ kind: "off", sending: "disabled", receiving: "enabled" }, OURS).body,
+    /no reply can leave/,
+  );
 });
 
 test("a capability the provider stopped sending is a release note, not an outage", () => {
@@ -139,16 +157,28 @@ test("the page names the domain, what the provider said, and what it costs", () 
 
 test("a deployment with no email, and one with no provider key, check nothing", async () => {
   let asked = 0;
-  const domains = async () => { asked += 1; return []; };
-  assert.deepEqual(await checkMailDomain({ domain: null, apiKey: "re_x", domains }), { trouble: null, skipped: "email_off" });
-  assert.deepEqual(await checkMailDomain({ domain: OURS, apiKey: undefined, domains }), { trouble: null, skipped: "no_key" });
+  const domains = async () => {
+    asked += 1;
+    return [];
+  };
+  assert.deepEqual(await checkMailDomain({ domain: null, apiKey: "re_x", domains }), {
+    trouble: null,
+    skipped: "email_off",
+  });
+  assert.deepEqual(await checkMailDomain({ domain: OURS, apiKey: undefined, domains }), {
+    trouble: null,
+    skipped: "no_key",
+  });
   assert.equal(asked, 0, "neither one may call the provider");
 });
 
 test("a provider we could not reach pages nobody, and is not silence either", async () => {
   const out = await checkMailDomain({
-    domain: OURS, apiKey: "re_x",
-    domains: async () => { throw new Error("resend: domains answered 503: upstream"); },
+    domain: OURS,
+    apiKey: "re_x",
+    domains: async () => {
+      throw new Error("resend: domains answered 503: upstream");
+    },
   });
   assert.equal(out.trouble, null, "an outage at the provider must not page as an outage of ours");
   assert.match(out.error, /503/, "and it is said, so the tick logs it and the next one asks again");
@@ -157,8 +187,12 @@ test("a provider we could not reach pages nobody, and is not silence either", as
 test("the check carries the judgement through, and asks with the key it was given", async () => {
   let saw = null;
   const out = await checkMailDomain({
-    domain: OURS, apiKey: "re_live",
-    domains: async (cfg) => { saw = cfg; return mailDomainsFrom(answer(domain({ status: "temporary_failure" }))); },
+    domain: OURS,
+    apiKey: "re_live",
+    domains: async (cfg) => {
+      saw = cfg;
+      return mailDomainsFrom(answer(domain({ status: "temporary_failure" })));
+    },
   });
   assert.deepEqual(saw, { apiKey: "re_live" });
   assert.deepEqual(out, { trouble: { kind: "stopped", status: "temporary_failure" } });

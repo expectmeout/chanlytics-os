@@ -21,7 +21,11 @@ export const POST = write({
     if (call.status !== "ongoing") {
       throw new AppError("conflict", "This call is not in progress — there is nobody on the line to pass to you.", 409);
     }
-    const { data, error } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", call.tenant_id).maybeSingle();
+    const { data, error } = await ctx.supabase
+      .from("tenant_config")
+      .select("config")
+      .eq("tenant_id", call.tenant_id)
+      .maybeSingle();
     if (error) throw new Error(error.message);
     const parsed = parseTenantConfigResult(data?.config);
     const line = parsed.ok ? (parsed.config.brain?.profile?.handoff_number ?? null) : null;
@@ -42,7 +46,10 @@ export const POST = write({
         502,
       );
     }
-    const decision_id = await recordDecision(ctx, call.tenant_id, "call", call.id, "take_over", { how: "transfer", line });
+    const decision_id = await recordDecision(ctx, call.tenant_id, "call", call.id, "take_over", {
+      how: "transfer",
+      line,
+    });
     return { ok: true, decision_id, line };
   },
 });

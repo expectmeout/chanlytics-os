@@ -23,10 +23,16 @@ test("a token opens the door it was minted for, and names the workspace and the 
 test("another door, another minute, another secret, a forged signature, nonsense: each refused for its own reason", () => {
   const t = signEdgeToken(S, "/api/admin/lines", { workspace: "ws1", user: "u1" }, T0);
   assert.deepEqual(verifyEdgeToken(S, t, "/api/admin/billing", T0 + 1_000), { ok: false, reason: "audience" });
-  assert.deepEqual(verifyEdgeToken(S, t, "/api/admin/lines", T0 + EDGE_TOKEN_TTL_MS + 1), { ok: false, reason: "expired" });
+  assert.deepEqual(verifyEdgeToken(S, t, "/api/admin/lines", T0 + EDGE_TOKEN_TTL_MS + 1), {
+    ok: false,
+    reason: "expired",
+  });
   assert.deepEqual(verifyEdgeToken("another-secret", t, "/api/admin/lines", T0), { ok: false, reason: "signature" });
   const [payload] = t.split(".");
-  assert.deepEqual(verifyEdgeToken(S, `${payload}.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`, "/api/admin/lines", T0), { ok: false, reason: "signature" });
+  assert.deepEqual(
+    verifyEdgeToken(S, `${payload}.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`, "/api/admin/lines", T0),
+    { ok: false, reason: "signature" },
+  );
   assert.deepEqual(verifyEdgeToken(S, "nonsense", "/api/admin/lines", T0), { ok: false, reason: "malformed" });
   assert.deepEqual(verifyEdgeToken(S, "", "/api/admin/lines", T0), { ok: false, reason: "malformed" });
 });

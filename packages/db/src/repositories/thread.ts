@@ -60,13 +60,11 @@ const DAY_MS = 24 * 3600 * 1000;
 const IMPORTED_CALL_NOTE = /^\[voice call note /;
 
 const isBackfill = (m: { meta?: unknown }): boolean =>
-  !!m.meta && typeof m.meta === "object" &&
-  (m.meta as Record<string, unknown>).backfill === true;
+  !!m.meta && typeof m.meta === "object" && (m.meta as Record<string, unknown>).backfill === true;
 
 /** "Got it, a person will look" is a courtesy, not an answer: it must not spend the cap that stops loops. */
 const isAcknowledgement = (m: { meta?: unknown }): boolean =>
-  !!m.meta && typeof m.meta === "object" &&
-  (m.meta as Record<string, unknown>).ack === true;
+  !!m.meta && typeof m.meta === "object" && (m.meta as Record<string, unknown>).ack === true;
 
 /** True event time. A backfilled row has no channel_ts and its created_at is
  *  when the IMPORT ran, so it can only ever be placed approximately. */
@@ -288,10 +286,13 @@ export function describeLead(lead: LeadContext, now = new Date()): string {
       ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 86_400_000)
       : null;
     const when =
-      days === null ? "" :
-      days <= 0 ? " Last in touch today." :
-      days === 1 ? " Last in touch yesterday." :
-      ` Last in touch ${days} days ago.`;
+      days === null
+        ? ""
+        : days <= 0
+          ? " Last in touch today."
+          : days === 1
+            ? " Last in touch yesterday."
+            : ` Last in touch ${days} days ago.`;
     bits.push(`Returning contact.${when}`);
   } else {
     bits.push("First time reaching out.");

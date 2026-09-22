@@ -22,7 +22,18 @@
  * (ports.webhookToken), so a job tried again can rebuild the URL its earlier
  * try sent without the row's stored hash ever being rewritten (E1).
  */
-import { type LeadArea, LEAD_CARDS, LEAD_ESTIMATE_MARGIN, LEAD_JUDGE_BATCH, classify, type JudgePlaceAnswer, type LeadEmailState, type LeadRoundState, type LeadRunState, type LeadSearchPlan } from "@chanlytics/contracts";
+import {
+  type LeadArea,
+  LEAD_CARDS,
+  LEAD_ESTIMATE_MARGIN,
+  LEAD_JUDGE_BATCH,
+  classify,
+  type JudgePlaceAnswer,
+  type LeadEmailState,
+  type LeadRoundState,
+  type LeadRunState,
+  type LeadSearchPlan,
+} from "@chanlytics/contracts";
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
 import { CARDS, CHECKER_RUN_TIMEOUT_SECS, MAPS_RUN_TIMEOUT_SECS, areaCenter, type LeadCardRunner } from "./cards";
 import { cleanPlace, type CleanPlace } from "./clean";
@@ -32,7 +43,16 @@ import { leadMarkFrom } from "./mark";
 import { runIdFor, sha256Hex } from "./ids";
 import { foldDuplicates, identityOf, shareKeysOf, sharesWithin } from "./identity";
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, factsOf, judgeBatch, opIdFor, type JudgedBatch } from "./judge";
-import type { CollectCommitResult, CollectPage, CollectPlace, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow, LeadShare } from "./ports";
+import type {
+  CollectCommitResult,
+  CollectPage,
+  CollectPlace,
+  LeadMemberRow,
+  LeadPorts,
+  LeadRoundRow,
+  LeadRunRow,
+  LeadShare,
+} from "./ports";
 import { afterProbe } from "./question";
 import { mainAsk, probeAsk, probeYield, runCaps } from "./sizing";
 
@@ -81,10 +101,12 @@ export class LeadRetry extends Error {
 const iso = (d: Date) => d.toISOString();
 /** The provider's two kinds of trouble, told by name: the class may come from another copy of the channels package (its dist, or a test's fake). */
 const isRefused = (e: unknown): boolean => (e as { name?: string } | null)?.name === "ApifyRefused";
-const isRetryable = (e: unknown): e is { name: string; status: number | null } => (e as { name?: string } | null)?.name === "ApifyRetryable";
+const isRetryable = (e: unknown): e is { name: string; status: number | null } =>
+  (e as { name?: string } | null)?.name === "ApifyRetryable";
 const minute = (p: LeadPorts) => Math.floor(p.now().getTime() / 60_000);
 const outOfTime = (p: LeadPorts, marginMs: number = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
-const webhookUrl = (p: LeadPorts, runRowId: string, token: string) => `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
+const webhookUrl = (p: LeadPorts, runRowId: string, token: string) =>
+  `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
 /** Round 1 runs to the plan's count (its probe asks for 25 of it); a later round to what lead_search_more set as its target. */
 export const targetOf = (round: LeadRoundRow): number => (round.purpose === "probe" ? round.plan.count : round.target);
 /** A member the judge answered for, as opposed to one left out or held by rule. */
@@ -103,7 +125,11 @@ export type StartOutcome =
   | { kind: "started"; phase: Phase; runs: { term: string; kind: TermOutcome }[] };
 
 /** The provider's run that carries this row's id in its input, if one exists. */
-async function findOurRun(p: LeadPorts, actor: string, row: LeadRunRow): Promise<{ id: string; status: string; datasetId: string | null } | null> {
+async function findOurRun(
+  p: LeadPorts,
+  actor: string,
+  row: LeadRunRow,
+): Promise<{ id: string; status: string; datasetId: string | null } | null> {
   const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * 60_000);
   const runs = await p.apify.listActorRuns(actor, iso(since));
   for (const r of runs.slice(0, PROVIDER_RUN_PAGE)) {
@@ -119,7 +145,12 @@ async function findOurRun(p: LeadPorts, actor: string, row: LeadRunRow): Promise
  * provider first: found, it is reconciled and "recovered"; not found, it is
  * "mine" to start. Anybody else's is "not_mine".
  */
-async function claimOrRecover(p: LeadPorts, actor: string, row: LeadRunRow, owner: string): Promise<"mine" | "recovered" | "not_mine"> {
+async function claimOrRecover(
+  p: LeadPorts,
+  actor: string,
+  row: LeadRunRow,
+  owner: string,
+): Promise<"mine" | "recovered" | "not_mine"> {
   if (await p.db.runClaim(row.id, owner)) return "mine";
   if (!(row.claimed_by === owner && row.state === "starting")) return "not_mine";
   const found = await findOurRun(p, actor, row);
@@ -185,9 +216,19 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     wanted.push({ id, term, hash: await sha256Hex(await p.webhookToken(id)), places: ask.perTerm[i], cap: caps[i] });
   }
   if (!wanted.length) return { kind: "started", phase, runs: [] };
-  const rows = await p.db.runsEnsure(wanted.map((w) => ({
-    id: w.id, tenant_id: round.tenant_id, round_id: round.id, purpose: "discover", term: w.term, actor: card.actor, build: card.build, webhook_token_hash: w.hash, cap_usd: w.cap,
-  })));
+  const rows = await p.db.runsEnsure(
+    wanted.map((w) => ({
+      id: w.id,
+      tenant_id: round.tenant_id,
+      round_id: round.id,
+      purpose: "discover",
+      term: w.term,
+      actor: card.actor,
+      build: card.build,
+      webhook_token_hash: w.hash,
+      cap_usd: w.cap,
+    })),
+  );
 
   const outcomes: { term: string; kind: TermOutcome }[] = [];
   for (const w of wanted) {
@@ -207,7 +248,9 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     const input = { ...(card.buildInput(plan, w.term, w.places) as Record<string, unknown>), [INPUT_MARKER]: row.id };
     try {
       const started = await p.apify.startRun(card.actor, input, {
-        build: card.build, timeoutSecs: MAPS_RUN_TIMEOUT_SECS, maxTotalChargeUsd: w.cap,
+        build: card.build,
+        timeoutSecs: MAPS_RUN_TIMEOUT_SECS,
+        maxTotalChargeUsd: w.cap,
         webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }],
       });
       await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, w.cap);
@@ -230,7 +273,14 @@ export type CollectOutcome =
   | { kind: "round_closing" }
   | { kind: "busy" }
   | { kind: "lost"; why: Exclude<CollectCommitResult, { ok: true }>["why"] }
-  | { kind: "committed"; commits: number; toOffset: number; runState: LeadRunState | null; roundState: LeadRoundState | null; judgeRefused: string | null }
+  | {
+      kind: "committed";
+      commits: number;
+      toOffset: number;
+      runState: LeadRunState | null;
+      roundState: LeadRoundState | null;
+      judgeRefused: string | null;
+    }
   | { kind: "checked"; results: number; last: boolean }
   | { kind: "stopped" }
   | { kind: "polling" };
@@ -246,7 +296,9 @@ interface Prepared {
 export function centerOf(plan: LeadSearchPlan, members: LeadMemberRow[]): { center: LatLng | null; radiusM: number } {
   const fixed = areaCenter(plan);
   if (fixed) return { center: fixed, radiusM: plan.area.radius_m };
-  const points = members.filter((m): m is LeadMemberRow & { lat: number; lng: number } => m.lat !== null && m.lng !== null).map((m) => ({ lat: m.lat, lng: m.lng }));
+  const points = members
+    .filter((m): m is LeadMemberRow & { lat: number; lng: number } => m.lat !== null && m.lng !== null)
+    .map((m) => ({ lat: m.lat, lng: m.lng }));
   const center = medianCenter(points);
   return { center, radiusM: center ? radiusFromSpread(center, points) : plan.area.radius_m };
 }
@@ -262,13 +314,29 @@ export function nearbyFor(plan: LeadSearchPlan, members: LeadMemberRow[]): LeadA
 }
 
 /** One place as the commit takes it: the lead's columns, the member's class decided by code (§0.1), its shares. */
-export function memberOf(plan: LeadSearchPlan, term: string, c: CleanPlace, a: JudgePlaceAnswer | null, opId: string | null, model: string | null, rule: Prepared["rule"], geo: { center: LatLng | null; radiusM: number }, shares: LeadShare[], duplicateOf: string | null): CollectPlace {
+export function memberOf(
+  plan: LeadSearchPlan,
+  term: string,
+  c: CleanPlace,
+  a: JudgePlaceAnswer | null,
+  opId: string | null,
+  model: string | null,
+  rule: Prepared["rule"],
+  geo: { center: LatLng | null; radiusM: number },
+  shares: LeadShare[],
+  duplicateOf: string | null,
+): CollectPlace {
   const loc = c.raw.location;
   const distance = geo.center && loc ? haversineM(geo.center, loc) : null;
-  const picked = a && a.email_index !== null ? c.emails[a.email_index] ?? null : null;
+  const picked = a && a.email_index !== null ? (c.emails[a.email_index] ?? null) : null;
   const emailState: LeadEmailState = picked ? "checking" : "none";
   // The class is code's (§0.1): contracts' classify from the judge's answers, or a rule that never reached the judge.
-  let verdict: { class: "qualified" | "review" | "excluded"; excluded_by: string | null; fit: "strong" | "look" | "long" | null; reasons: string[] };
+  let verdict: {
+    class: "qualified" | "review" | "excluded";
+    excluded_by: string | null;
+    fit: "strong" | "look" | "long" | null;
+    reasons: string[];
+  };
   let reason: string;
   if (rule) {
     verdict = { class: rule.class, excluded_by: rule.excluded_by, fit: null, reasons: [rule.token] };
@@ -283,26 +351,55 @@ export function memberOf(plan: LeadSearchPlan, term: string, c: CleanPlace, a: J
   const excluded = verdict.class === "excluded";
   return {
     place: {
-      place_id: c.raw.placeId, business_name: c.raw.title, category: c.raw.category, street: c.raw.street, city: c.raw.city, region: c.region ?? c.raw.state,
-      postal_code: c.raw.postalCode, country: "US", lat: loc?.lat ?? null, lng: loc?.lng ?? null, website_host: c.host, instagram_url: c.raw.instagram,
-      phone_e164: c.phone, phone_sources: c.phoneSources,
+      place_id: c.raw.placeId,
+      business_name: c.raw.title,
+      category: c.raw.category,
+      street: c.raw.street,
+      city: c.raw.city,
+      region: c.region ?? c.raw.state,
+      postal_code: c.raw.postalCode,
+      country: "US",
+      lat: loc?.lat ?? null,
+      lng: loc?.lng ?? null,
+      website_host: c.host,
+      instagram_url: c.raw.instagram,
+      phone_e164: c.phone,
+      phone_sources: c.phoneSources,
       // A left-out place never stores its candidate emails (PRD §0.4, §15).
       email: excluded ? null : picked,
-      email_alternates: excluded ? [] : c.emails.filter((e) => e !== picked).slice(0, 4).map((e) => ({ email: e, why: c.host && e.endsWith(`@${c.host}`) ? "on their own domain" : "another domain" })),
+      email_alternates: excluded
+        ? []
+        : c.emails
+            .filter((e) => e !== picked)
+            .slice(0, 4)
+            .map((e) => ({
+              email: e,
+              why: c.host && e.endsWith(`@${c.host}`) ? "on their own domain" : "another domain",
+            })),
       email_state: excluded ? "none" : emailState,
-      rating: c.raw.rating, reviews: c.raw.reviews,
+      rating: c.raw.rating,
+      reviews: c.raw.reviews,
       // What the listing shows about the business (D2): kept for a lead, never for a left-out place (§0.4).
       neighborhood: excluded ? null : c.raw.neighborhood,
-      about: excluded ? null : c.raw.about, hours: excluded ? [] : c.raw.hours, image_url: excluded ? null : c.raw.imageUrl,
-      price: excluded ? null : c.raw.price, reviews_dist: excluded ? null : c.raw.reviewsDist,
-      facebook_url: excluded ? null : c.raw.facebook, linkedin_url: excluded ? null : c.raw.linkedin, tiktok_url: excluded ? null : c.raw.tiktok,
-      claimed: excluded ? null : c.raw.claimed, maps_url: excluded ? null : c.raw.mapsUrl, rank: excluded ? null : c.raw.rank,
+      about: excluded ? null : c.raw.about,
+      hours: excluded ? [] : c.raw.hours,
+      image_url: excluded ? null : c.raw.imageUrl,
+      price: excluded ? null : c.raw.price,
+      reviews_dist: excluded ? null : c.raw.reviewsDist,
+      facebook_url: excluded ? null : c.raw.facebook,
+      linkedin_url: excluded ? null : c.raw.linkedin,
+      tiktok_url: excluded ? null : c.raw.tiktok,
+      claimed: excluded ? null : c.raw.claimed,
+      maps_url: excluded ? null : c.raw.mapsUrl,
+      rank: excluded ? null : c.raw.rank,
       // The business's own mark (D6): read from its home page after the judge has decided, by markPlaces below.
       logo_url: null,
     },
     member: {
       judgment: { op_id: opId, term, answer: a, model, reasons: verdict.reasons },
-      class: verdict.class, excluded_by: verdict.excluded_by, fit: verdict.fit,
+      class: verdict.class,
+      excluded_by: verdict.excluded_by,
+      fit: verdict.fit,
       reason: reason.slice(0, 120),
       distance_m: distance,
     },
@@ -312,7 +409,11 @@ export function memberOf(plan: LeadSearchPlan, term: string, c: CleanPlace, a: J
 }
 
 /** The next batch of items from `cursor`: at most LEAD_JUDGE_BATCH places the judge must see, with the items around them. */
-export function takeBatch(card: LeadCardRunner, items: unknown[], cursor: number): { end: number; prepared: Prepared[] } {
+export function takeBatch(
+  card: LeadCardRunner,
+  items: unknown[],
+  cursor: number,
+): { end: number; prepared: Prepared[] } {
   const prepared: Prepared[] = [];
   let judgeable = 0;
   let end = cursor;
@@ -322,7 +423,9 @@ export function takeBatch(card: LeadCardRunner, items: unknown[], cursor: number
       const clean = cleanPlace(mapped);
       const rule: Prepared["rule"] = mapped.closed
         ? { class: "excluded", reason: CLOSED_REASON, token: "closed", excluded_by: "closed" }
-        : mapped.location === null ? { class: "review", reason: NO_LOCATION_REASON, token: "out_of_area", excluded_by: null } : null;
+        : mapped.location === null
+          ? { class: "review", reason: NO_LOCATION_REASON, token: "out_of_area", excluded_by: null }
+          : null;
       if (!rule) {
         if (judgeable >= LEAD_JUDGE_BATCH) break;
         judgeable += 1;
@@ -342,7 +445,8 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
   if (run.purpose === "check") return collectCheck(p, round, run, owner);
   if (seq === "stop" || seq.startsWith("stop.")) return stopRun(p, round, run, owner);
   if (round.state === "ended") {
-    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id).catch(() => undefined);
+    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state))
+      await p.apify.abortRun(run.apify_run_id).catch(() => undefined);
     return { kind: "round_ended" };
   }
   // A round on its way out decides nothing more (PRD §0.5, decision 17). Stop
@@ -353,7 +457,8 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
   // provider or write over the ending the owner asked for. Nothing is
   // committed here, and anything still running is stopped.
   if (round.state === "checking" || round.ending_pending !== null) {
-    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id).catch(() => undefined);
+    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state))
+      await p.apify.abortRun(run.apify_run_id).catch(() => undefined);
     return { kind: "round_closing" };
   }
   if (!run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) return { kind: "not_started" };
@@ -369,7 +474,13 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
   }
 }
 
-async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, owner: string, gen: number): Promise<CollectOutcome> {
+async function collectHeld(
+  p: LeadPorts,
+  round: LeadRoundRow,
+  run: LeadRunRow,
+  owner: string,
+  gen: number,
+): Promise<CollectOutcome> {
   const plan = round.plan;
   const card = CARDS[plan.card];
   const phase: Phase = (await runIdFor(round.id, "probe", run.term ?? "")) === run.id ? "probe" : "main";
@@ -422,9 +533,19 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
     const { folded } = foldDuplicates(cleans);
     const keys = cleans.map(shareKeysOf);
     const [held, supp, shares] = await Promise.all([
-      p.db.placeIdsHeld(round.tenant_id, cleans.map((c) => c.raw.placeId)),
-      p.db.suppressed(round.tenant_id, { emails: keys.flatMap((k) => k.emails), placeIds: cleans.map((c) => c.raw.placeId) }),
-      p.db.sharesOf(round.tenant_id, { phones: keys.flatMap((k) => k.phones), emails: keys.flatMap((k) => k.emails), hosts: keys.flatMap((k) => k.hosts) }),
+      p.db.placeIdsHeld(
+        round.tenant_id,
+        cleans.map((c) => c.raw.placeId),
+      ),
+      p.db.suppressed(round.tenant_id, {
+        emails: keys.flatMap((k) => k.emails),
+        placeIds: cleans.map((c) => c.raw.placeId),
+      }),
+      p.db.sharesOf(round.tenant_id, {
+        phones: keys.flatMap((k) => k.phones),
+        emails: keys.flatMap((k) => k.emails),
+        hosts: keys.flatMap((k) => k.hosts),
+      }),
     ]);
     const within = sharesWithin(cleans.filter((c) => !folded.has(c.raw.placeId)));
     const toJudge: { prep: Prepared; ref: number }[] = [];
@@ -433,7 +554,8 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
       const idn = identityOf(prep.clean, held, supp.placeIds, shares);
       if (idn.kind === "already_yours" || idn.kind === "hidden") continue;
       const dup = folded.get(prep.clean.raw.placeId) ?? null;
-      if (!prep.rule && geo.center && !inArea(geo.center, geo.radiusM, prep.clean.raw.location)) prep.rule = { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null };
+      if (!prep.rule && geo.center && !inArea(geo.center, geo.radiusM, prep.clean.raw.location))
+        prep.rule = { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null };
       // A suppressed address is not a hidden place, but the email is never offered again.
       prep.clean.emails = prep.clean.emails.filter((e) => !supp.emails.has(e));
       rows.push({ prep, shares: [...idn.shares, ...(within.get(prep.clean.raw.placeId) ?? [])], duplicateOf: dup });
@@ -443,15 +565,34 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
     let judged: JudgedBatch = { answers: new Map(), judgment: null, model: null, refused: false, why: null };
     if (toJudge.length) {
       if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
-      judged = await judgeBatch(p.judge, plan, toJudge.map((t) => factsOf(t.ref, t.prep.clean)), opIdFor(run.id, from, 0));
+      judged = await judgeBatch(
+        p.judge,
+        plan,
+        toJudge.map((t) => factsOf(t.ref, t.prep.clean)),
+        opIdFor(run.id, from, 0),
+      );
       // The members say the plan's sentence; the judge's own word for the refusal rides the outcome, so the collect's line says why.
       if (judged.refused && judged.why) judgeRefused = judged.why;
     }
     const places = rows.map((r) => {
       const ref = toJudge.find((t) => t.prep === r.prep)?.ref;
-      const answer = ref === undefined ? null : judged.answers.get(ref) ?? null;
-      const rule = r.duplicateOf && !r.prep.rule ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" } : r.prep.rule;
-      return memberOf(plan, run.term ?? "", r.prep.clean, answer, judged.judgment?.op_id ?? null, judged.model, rule, geo, r.shares, r.duplicateOf);
+      const answer = ref === undefined ? null : (judged.answers.get(ref) ?? null);
+      const rule =
+        r.duplicateOf && !r.prep.rule
+          ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" }
+          : r.prep.rule;
+      return memberOf(
+        plan,
+        run.term ?? "",
+        r.prep.clean,
+        answer,
+        judged.judgment?.op_id ?? null,
+        judged.model,
+        rule,
+        geo,
+        r.shares,
+        r.duplicateOf,
+      );
     });
     // Their own marks, read from their own sites, before the page is committed with everything else about them.
     await markPlaces(p, places);
@@ -461,8 +602,22 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
     const runDone = isLastOfPage && pageShort && remoteFinal;
     const stopHere = !isLastOfPage && outOfTime(p);
     // The next collect rides the commit when this invocation will not read on: the page ended, or time is short.
-    const next: CollectPage["next"] = runDone ? null : !isLastOfPage && !stopHere ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: isLastOfPage && pageShort ? POLL_SECONDS : 0 };
-    const decision = runDone ? await roundDecision(p, round, run, phase, remoteState, [...members, ...memberRows(newMembers, run.term)], seen + end) : null;
+    const next: CollectPage["next"] = runDone
+      ? null
+      : !isLastOfPage && !stopHere
+        ? null
+        : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: isLastOfPage && pageShort ? POLL_SECONDS : 0 };
+    const decision = runDone
+      ? await roundDecision(
+          p,
+          round,
+          run,
+          phase,
+          remoteState,
+          [...members, ...memberRows(newMembers, run.term)],
+          seen + end,
+        )
+      : null;
     const page: CollectPage = {
       judgment: judged.judgment,
       places,
@@ -483,14 +638,33 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
     if (stopHere || runDone) break;
   } while (cursor < items.length);
 
-  return { kind: "committed", commits, toOffset: from, runState: lastRunState, roundState: lastRoundState, judgeRefused };
+  return {
+    kind: "committed",
+    commits,
+    toOffset: from,
+    runState: lastRunState,
+    roundState: lastRoundState,
+    judgeRefused,
+  };
 }
 
 /** The rows just committed, as members of the round, for a decision made in the same invocation. */
 function memberRows(places: CollectPlace[], term: string | null): LeadMemberRow[] {
   return places.map((x) => ({
-    lead_id: x.place.place_id, class: x.member.class, excluded_by: x.member.excluded_by, fit: x.member.fit, reason: x.member.reason, distance_m: x.member.distance_m,
-    counted: false, judgment: x.member.judgment, lat: x.place.lat, lng: x.place.lng, phone: x.place.phone_e164, email: x.place.email, email_state: x.place.email_state, term,
+    lead_id: x.place.place_id,
+    class: x.member.class,
+    excluded_by: x.member.excluded_by,
+    fit: x.member.fit,
+    reason: x.member.reason,
+    distance_m: x.member.distance_m,
+    counted: false,
+    judgment: x.member.judgment,
+    lat: x.place.lat,
+    lng: x.place.lng,
+    phone: x.place.phone_e164,
+    email: x.place.email,
+    email_state: x.place.email_state,
+    term,
   }));
 }
 
@@ -501,25 +675,47 @@ interface Decision {
 }
 
 /** When a run's last item is committed: is the phase over, and what follows (§7.2, §0.5). */
-async function roundDecision(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, phase: Phase, runState: LeadRunState, members: LeadMemberRow[], itemsSeenNow: number): Promise<Decision | null> {
-  const runs = (await p.db.runsOfRound(round.id)).map((r) => (r.id === run.id ? { ...r, state: runState, items_seen: itemsSeenNow } : r));
+async function roundDecision(
+  p: LeadPorts,
+  round: LeadRoundRow,
+  run: LeadRunRow,
+  phase: Phase,
+  runState: LeadRunState,
+  members: LeadMemberRow[],
+  itemsSeenNow: number,
+): Promise<Decision | null> {
+  const runs = (await p.db.runsOfRound(round.id)).map((r) =>
+    r.id === run.id ? { ...r, state: runState, items_seen: itemsSeenNow } : r,
+  );
   const phaseOf = new Map<string, Phase>();
-  for (const r of runs) if (r.purpose === "discover" && r.term !== null) phaseOf.set(r.id, (await runIdFor(round.id, "probe", r.term)) === r.id ? "probe" : "main");
+  for (const r of runs)
+    if (r.purpose === "discover" && r.term !== null)
+      phaseOf.set(r.id, (await runIdFor(round.id, "probe", r.term)) === r.id ? "probe" : "main");
   const inPhase = runs.filter((r) => r.purpose === "discover" && phaseOf.get(r.id) === phase);
   if (!inPhase.every((r) => FINAL_RUN_STATES.has(r.state))) return null;
 
   // What will have counted once this page settles: a phone standard counts qualified places now; an email standard counts nothing until the checks.
   const countedNow = members.filter((m) => m.counted).length;
-  const countable = round.plan.contact === "phone" ? members.filter((m) => !m.counted && m.class === "qualified").length : 0;
+  const countable =
+    round.plan.contact === "phone" ? members.filter((m) => !m.counted && m.class === "qualified").length : 0;
   const counted = countedNow + Math.min(countable, Math.max(0, round.allowance_reserved - round.allowance_used));
-  const toChecks: Decision = { round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" }, next: null, after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0) };
+  const toChecks: Decision = {
+    round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" },
+    next: null,
+    after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0),
+  };
 
   if (phase === "probe") {
     // The probe alone may reach the count: nothing more is asked for, and the round goes to its checks.
     if (counted >= targetOf(round)) return toChecks;
     const judged = members.filter(wasJudged);
-    const a = afterProbe(round.plan, judged.map((m) => ({ class: m.class, excluded_by: m.excluded_by, term: m.term, phone: m.phone, email: m.email })), p.now());
-    if (a.kind === "ask") return { round: { state: "waiting_on_owner", question: a.question, ending: null }, next: null };
+    const a = afterProbe(
+      round.plan,
+      judged.map((m) => ({ class: m.class, excluded_by: m.excluded_by, term: m.term, phone: m.phone, email: m.email })),
+      p.now(),
+    );
+    if (a.kind === "ask")
+      return { round: { state: "waiting_on_owner", question: a.question, ending: null }, next: null };
     // The probe passed: the round runs on to the plan's count (the door raised the target the same way for an answered question).
     return {
       round: { state: "running", question: null, ending: null, target: targetOf(round) },
@@ -534,11 +730,22 @@ async function roundDecision(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow,
     const input = (await p.apify.runInput(r.apify_run_id).catch(() => null)) as Record<string, unknown> | null;
     asked.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
   }
-  const ending = discoveryEnding(round, runs, { counted, target: targetOf(round), termsShort: termsShortOf(inPhase, (r) => asked.get(r.id) ?? null), stopped: false });
+  const ending = discoveryEnding(round, runs, {
+    counted,
+    target: targetOf(round),
+    termsShort: termsShortOf(inPhase, (r) => asked.get(r.id) ?? null),
+    stopped: false,
+  });
   // A round that ran dry says where to look next (D3): written with its ending, before the round is final.
   const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
   return {
-    round: { state: "checking", question: null, ending: null, ending_pending: ending, ...(nearby.length ? { nearby } : {}) },
+    round: {
+      state: "checking",
+      question: null,
+      ending: null,
+      ending_pending: ending,
+      ...(nearby.length ? { nearby } : {}),
+    },
     next: null,
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0),
   };
@@ -556,8 +763,16 @@ async function stopRun(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, owner
   }
   try {
     const page: CollectPage = {
-      judgment: null, places: [], usage_usd: run.usage_usd, items_seen: run.items_seen, run_state: FINAL_RUN_STATES.has(run.state) ? null : "aborted", next: null,
-      round: round.state === "ended" || round.state === "checking" ? null : { state: "checking", question: null, ending: null, ending_pending: "stopped" },
+      judgment: null,
+      places: [],
+      usage_usd: run.usage_usd,
+      items_seen: run.items_seen,
+      run_state: FINAL_RUN_STATES.has(run.state) ? null : "aborted",
+      next: null,
+      round:
+        round.state === "ended" || round.state === "checking"
+          ? null
+          : { state: "checking", question: null, ending: null, ending_pending: "stopped" },
     };
     const res = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset, page);
     if (!res.ok) return { kind: "lost", why: res.why };
@@ -570,12 +785,20 @@ async function stopRun(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, owner
 
 /* ------------------------------------------------------------- the check */
 
-export type CheckOutcome = { kind: "not_open" } | { kind: "paused" } | { kind: "nothing_to_check" } | { kind: "started"; emails: number; more: boolean } | { kind: "already" } | { kind: "unknown" } | { kind: "refused" };
+export type CheckOutcome =
+  | { kind: "not_open" }
+  | { kind: "paused" }
+  | { kind: "nothing_to_check" }
+  | { kind: "started"; emails: number; more: boolean }
+  | { kind: "already" }
+  | { kind: "unknown" }
+  | { kind: "refused" };
 
 /** Check again (D3, 00145): the nonce that gives the run an id of its own, and the leads the owner named. */
 export type CheckAgain = { nonce: string; leadIds: string[] };
 /** A run started by Check again: the door's nonce is in its term, so the round may have ended by the time it commits. */
-export const isAgainRun = (run: Pick<LeadRunRow, "purpose" | "term">): boolean => run.purpose === "check" && (run.term ?? "").startsWith("again:");
+export const isAgainRun = (run: Pick<LeadRunRow, "purpose" | "term">): boolean =>
+  run.purpose === "check" && (run.term ?? "").startsWith("again:");
 
 /**
  * The business's own mark (D6), for the places this page is about to commit: one small GET of each new lead's home
@@ -596,23 +819,36 @@ export async function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<
   for (let i = 0; i < want.length; i += MARK_AT_ONCE) {
     const left = until - p.now().getTime();
     if (left <= 250) break;
-    await Promise.all(want.slice(i, i + MARK_AT_ONCE).map(async (x) => {
-      const origin = `https://${x.place.website_host}`;
-      const html = await fetchText(origin, left).catch(() => null);
-      if (!html) return;
-      const mark = leadMarkFrom(html, origin);
-      if (mark) { x.place.logo_url = mark; marked += 1; }
-    }));
+    await Promise.all(
+      want.slice(i, i + MARK_AT_ONCE).map(async (x) => {
+        const origin = `https://${x.place.website_host}`;
+        const html = await fetchText(origin, left).catch(() => null);
+        if (!html) return;
+        const mark = leadMarkFrom(html, origin);
+        if (mark) {
+          x.place.logo_url = mark;
+          marked += 1;
+        }
+      }),
+    );
   }
   return marked;
 }
 
 /** The members whose picked address still waits for its check, in one fixed order. */
 export function checkable(members: LeadMemberRow[]): LeadMemberRow[] {
-  return members.filter((m) => m.email !== null && m.email_state === "checking").sort((a, b) => (a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0));
+  return members
+    .filter((m) => m.email !== null && m.email_state === "checking")
+    .sort((a, b) => (a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0));
 }
 
-export async function check(p: LeadPorts, roundId: string, batch: number, owner: string, again: CheckAgain | null = null): Promise<CheckOutcome> {
+export async function check(
+  p: LeadPorts,
+  roundId: string,
+  batch: number,
+  owner: string,
+  again: CheckAgain | null = null,
+): Promise<CheckOutcome> {
   const round = await p.db.round(roundId);
   // A round that ended is closed to its own checks; a Check again runs under it after it ended, by design (00145).
   if (!round || (round.state === "ended" && !again)) return { kind: "not_open" };
@@ -625,7 +861,14 @@ export async function check(p: LeadPorts, roundId: string, batch: number, owner:
   // still waiting say "Couldn't check", and the round ends the word the
   // endings carry for it.
   if (!(await p.db.leadSearchesOn(round.tenant_id))) {
-    if (slice.length) await p.db.checkCommit(round.id, null, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown" as const, checked_at: iso(p.now()) })), 0, false);
+    if (slice.length)
+      await p.db.checkCommit(
+        round.id,
+        null,
+        slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown" as const, checked_at: iso(p.now()) })),
+        0,
+        false,
+      );
     if (!again) await p.db.roundEnd(round.id, "paused");
     return { kind: "paused" };
   }
@@ -638,35 +881,73 @@ export async function check(p: LeadPorts, roundId: string, batch: number, owner:
   const token = await p.webhookToken(id);
   const emails = [...new Set(slice.map((m) => m.email as string))];
   const brief = LEAD_CARDS.find((c) => c.id === round.plan.card);
-  const capUsd = Math.max(0.5, Math.round(emails.length * (brief?.checkPerEmailUsd ?? 0.00089) * LEAD_ESTIMATE_MARGIN * 100) / 100);
-  const rows = await p.db.runsEnsure([{ id, tenant_id: round.tenant_id, round_id: round.id, purpose: "check", term, actor: card.checker.actor, build: card.checker.build, webhook_token_hash: await sha256Hex(token), cap_usd: capUsd }]);
+  const capUsd = Math.max(
+    0.5,
+    Math.round(emails.length * (brief?.checkPerEmailUsd ?? 0.00089) * LEAD_ESTIMATE_MARGIN * 100) / 100,
+  );
+  const rows = await p.db.runsEnsure([
+    {
+      id,
+      tenant_id: round.tenant_id,
+      round_id: round.id,
+      purpose: "check",
+      term,
+      actor: card.checker.actor,
+      build: card.checker.build,
+      webhook_token_hash: await sha256Hex(token),
+      cap_usd: capUsd,
+    },
+  ]);
   const row = rows.find((r) => r.id === id);
-  if (!row || (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner))) return { kind: "already" };
+  if (!row || (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)))
+    return { kind: "already" };
   if (outOfTime(p)) throw new LeadRetry("out of time before the checker");
   const claim = await claimOrRecover(p, card.checker.actor, row, owner);
   if (claim !== "mine") return { kind: "already" };
   try {
-    const started = await p.apify.startRun(card.checker.actor, { ...(card.checker.buildInput(emails) as Record<string, unknown>), [INPUT_MARKER]: row.id }, {
-      build: card.checker.build, timeoutSecs: CHECKER_RUN_TIMEOUT_SECS, maxTotalChargeUsd: capUsd,
-      webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }],
-    });
+    const started = await p.apify.startRun(
+      card.checker.actor,
+      { ...(card.checker.buildInput(emails) as Record<string, unknown>), [INPUT_MARKER]: row.id },
+      {
+        build: card.checker.build,
+        timeoutSecs: CHECKER_RUN_TIMEOUT_SECS,
+        maxTotalChargeUsd: capUsd,
+        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }],
+      },
+    );
     await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, capUsd);
     await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
     const more = all.length > (batch + 1) * CHECK_BATCH;
-    if (more) await p.schedule("lead_check", { round_id: round.id, batch: batch + 1, ...(again ? { again: again.nonce, lead_ids: again.leadIds } : {}) }, 0);
+    if (more)
+      await p.schedule(
+        "lead_check",
+        { round_id: round.id, batch: batch + 1, ...(again ? { again: again.nonce, lead_ids: again.leadIds } : {}) },
+        0,
+      );
     return { kind: "started", emails: emails.length, more };
   } catch (e) {
     const kind = await startFailed(p, row, owner, e);
     if (kind === "refused") {
       // These addresses cannot be checked: "Couldn't check", so the round can end.
-      await p.db.checkCommit(round.id, row.id, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown" as const, checked_at: iso(p.now()) })), 0, !again && all.length <= (batch + 1) * CHECK_BATCH);
+      await p.db.checkCommit(
+        round.id,
+        row.id,
+        slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown" as const, checked_at: iso(p.now()) })),
+        0,
+        !again && all.length <= (batch + 1) * CHECK_BATCH,
+      );
     }
     return { kind };
   }
 }
 
 /** A checker run's collect: read its answers once the run is over, and hand them to lead_check_commit. */
-async function collectCheck(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, owner: string): Promise<CollectOutcome> {
+async function collectCheck(
+  p: LeadPorts,
+  round: LeadRoundRow,
+  run: LeadRunRow,
+  owner: string,
+): Promise<CollectOutcome> {
   // A Check again run commits after its round ended: it decides nothing, and it is never the round's last check.
   const again = isAgainRun(run);
   if (round.state === "ended" && !again) return { kind: "round_ended" };
@@ -699,7 +980,8 @@ async function collectCheck(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, 
     }
     const byEmail = new Map<string, LeadEmailState>();
     let items: unknown[] = [];
-    if (state === "succeeded" && datasetId) items = (await p.apify.listItems(datasetId, 0, CHECK_BATCH, [...card.checker.fields])).items;
+    if (state === "succeeded" && datasetId)
+      items = (await p.apify.listItems(datasetId, 0, CHECK_BATCH, [...card.checker.fields])).items;
     for (const it of items) {
       const r = card.checker.mapItem(it);
       if (r) byEmail.set(r.email, r.state);
@@ -708,11 +990,24 @@ async function collectCheck(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, 
     // A run that succeeded answers the addresses it was given; one that did not leaves every address still waiting "Couldn't check".
     const results = waiting
       .filter((m) => state !== "succeeded" || byEmail.has(m.email as string))
-      .map((m) => ({ lead_id: m.lead_id, email_state: byEmail.get(m.email as string) ?? ("unknown" as const), checked_at: iso(p.now()) }));
+      .map((m) => ({
+        lead_id: m.lead_id,
+        email_state: byEmail.get(m.email as string) ?? ("unknown" as const),
+        checked_at: iso(p.now()),
+      }));
     const others = (await p.db.runsOfRound(round.id)).filter((r) => r.purpose === "check" && r.id !== run.id);
     const answered = new Set(results.map((r) => r.lead_id));
-    const last = !again && others.every((r) => FINAL_RUN_STATES.has(r.state)) && waiting.every((m) => answered.has(m.lead_id));
-    const commit = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset + items.length, { judgment: null, places: [], usage_usd: usage, items_seen: items.length, run_state: FINAL_RUN_STATES.has(run.state) ? null : state, next: null, round: null });
+    const last =
+      !again && others.every((r) => FINAL_RUN_STATES.has(r.state)) && waiting.every((m) => answered.has(m.lead_id));
+    const commit = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset + items.length, {
+      judgment: null,
+      places: [],
+      usage_usd: usage,
+      items_seen: items.length,
+      run_state: FINAL_RUN_STATES.has(run.state) ? null : state,
+      next: null,
+      round: null,
+    });
     if (!commit.ok) return { kind: "lost", why: commit.why };
     // The run's own total, never a delta: the commit above settled it already, so nothing settles twice (E4).
     await p.db.checkCommit(round.id, run.id, results, usage, last);

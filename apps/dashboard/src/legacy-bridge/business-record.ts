@@ -10,10 +10,21 @@
  * map re-reads Setup, whose rows state these facts.
  */
 import {
-  businessRecordProblems, emptyBusinessRecord, businessFieldsFor, businessGroupWordsFor, businessRecordLine,
-  registrationPathOf, businessRecordForPath, soleProprietorLimits, industryWords,
-  REGISTRATION_PATHS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS,
-  type BusinessRecordDto, type RegistrationPath,
+  businessRecordProblems,
+  emptyBusinessRecord,
+  businessFieldsFor,
+  businessGroupWordsFor,
+  businessRecordLine,
+  registrationPathOf,
+  businessRecordForPath,
+  soleProprietorLimits,
+  industryWords,
+  REGISTRATION_PATHS,
+  REGISTRATION_QUESTION,
+  REGISTRATION_PATH_WORDS,
+  REGISTRATION_COST_WORDS,
+  type BusinessRecordDto,
+  type RegistrationPath,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 
@@ -23,9 +34,18 @@ export interface BusinessRecordApi {
    * is for — `path: null` when there is nothing on file and nobody has answered
    * the question yet.
    */
-  read(): Promise<{ ok: boolean; record: BusinessRecordDto | null; path: RegistrationPath | null; problems: Record<string, string>; message: string }>;
+  read(): Promise<{
+    ok: boolean;
+    record: BusinessRecordDto | null;
+    path: RegistrationPath | null;
+    problems: Record<string, string>;
+    message: string;
+  }>;
   /** Keep it, for the registration the owner said it is for. Owners only; the route says so. */
-  save(record: BusinessRecordDto, path: RegistrationPath): Promise<{ ok: boolean; message: string; title?: string; problems: Record<string, string> }>;
+  save(
+    record: BusinessRecordDto,
+    path: RegistrationPath,
+  ): Promise<{ ok: boolean; message: string; title?: string; problems: Record<string, string> }>;
   /** File this line with the carriers. Costs money, so the page asks first. */
   register(lineId: string): Promise<{ ok: boolean; pending: boolean; message: string }>;
   /** The fields this registration asks for, their words and their closed lists. */
@@ -78,7 +98,7 @@ export function installBusinessRecord(win: Window = window): void {
           ? "Filed. The carriers have your brand; texting switches on by itself when they are through."
           : r.data.ok
             ? "Filed with the carriers. This page updates by itself."
-            : r.data.error ?? "The carriers did not accept it.",
+            : (r.data.error ?? "The carriers did not accept it."),
       };
     },
     fieldsFor: businessFieldsFor,

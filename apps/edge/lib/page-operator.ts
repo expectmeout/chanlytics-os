@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
 import { post, platformFrom, platformTo } from "./notify.js";
+import { logger, errField } from "./log.js";
 
 export const PAGE_WINDOW_MS = 6 * 3600_000;
 
@@ -34,6 +35,7 @@ export interface PagePorts {
 }
 
 export async function pageOperator(ports: PagePorts, key: string, subject: string, body: string): Promise<PageOutcome> {
+  const L = logger();
   const now = ports.now?.() ?? Date.now();
   const send = ports.send ?? post;
   const { data: row, error: readErr } = await ports.db
@@ -44,7 +46,7 @@ export async function pageOperator(ports: PagePorts, key: string, subject: strin
   if (readErr) {
     // A pager that cannot read its own memory pages anyway: a duplicate page
     // is cheaper than a silence nobody chose.
-    console.error(JSON.stringify({ level: "error", event: "operator_page_memory_unreadable", key, error: readErr.message }));
+    L.error("operator_page_memory_unreadable", { key, error: readErr.message });
   }
   // The count is left alone when the read failed. `(row?.count ?? 0) + 1` cannot
   // tell "no row yet" from "the row is there and I could not read it", and on
@@ -53,20 +55,23 @@ export async function pageOperator(ports: PagePorts, key: string, subject: strin
   // by the very database trouble most likely to be firing it.
   const memory = { key, last_at: new Date(now).toISOString(), ...(readErr ? {} : { count: (row?.count ?? 0) + 1 }) };
   const { error: writeErr } = await ports.db.from("operator_pages").upsert(memory, { onConflict: "key" });
-  if (writeErr) console.error(JSON.stringify({ level: "error", event: "operator_page_memory_unwritable", key, error: writeErr.message }));
+  if (writeErr) L.error("operator_page_memory_unwritable", { key, error: writeErr.message });
   if (row?.alerted_at && now - Date.parse(row.alerted_at) < PAGE_WINDOW_MS) return "suppressed";
   const to = platformTo();
   const from = platformFrom();
   if (!to.length || !from) {
-    console.error(JSON.stringify({ level: "error", event: "operator_page_unaddressed", key, subject }));
+    L.error("operator_page_unaddressed", { key, subject });
     return "unaddressed";
   }
   const ok = await send(from, to, `[Chanlytics] ${subject}`, body).catch((e: unknown) => {
-    console.error(JSON.stringify({ level: "error", event: "operator_page_send_threw", key, error: e instanceof Error ? e.message : String(e) }));
+    L.error("operator_page_send_threw", { key, error: errField(e) });
     return false;
   });
   if (!ok) return "failed";
-  await ports.db.from("operator_pages").update({ alerted_at: new Date(now).toISOString() }).eq("key", key);
+  await ports.db
+    .from("operator_pages")
+    .update({ alerted_at: new Date(now).toISOString() })
+    .eq("key", key);
   return "sent";
 }
 
@@ -109,5 +114,7 @@ export function pageStates(rows: PageRow[], now = Date.now()): PageState[] {
 
 /** The conditions that fired inside the window and reached nobody: what an operator reading diag must act on. */
 export function untoldPages(rows: PageRow[], now = Date.now()): string[] {
-  return pageStates(rows, now).filter((s) => s.recent && !s.told).map((s) => s.key);
+  return pageStates(rows, now)
+    .filter((s) => s.recent && !s.told)
+    .map((s) => s.key);
 }

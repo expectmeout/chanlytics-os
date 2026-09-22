@@ -46,7 +46,16 @@ test("every shape the write rules reject still READS", () => {
   const bad = [
     { hours: { mon: { open: "09:00" } } },
     { hours: { mon: { open: "18:00", close: "09:00" } } },
-    { hours: { wed: { intervals: [{ open: "09:00", close: "18:00" }, { open: "10:00", close: "12:00" }] } } },
+    {
+      hours: {
+        wed: {
+          intervals: [
+            { open: "09:00", close: "18:00" },
+            { open: "10:00", close: "12:00" },
+          ],
+        },
+      },
+    },
     { hours: { wed: { intervals: Array.from({ length: 9 }, () => ({ open: "09:00", close: "10:00" })) } } },
     { closures: [{ date: "2026-11-31" }] },
     { closures: [{ date: "2027-01-02", until: "2026-12-24" }] },
@@ -76,13 +85,31 @@ test("a day that closes before it opens is refused, and named", () => {
 });
 
 test("TOUCHING shifts are allowed — two stylists back to back is a normal day", () => {
-  const r = write({ hours: { wed: { intervals: [{ open: "09:00", close: "13:00" }, { open: "13:00", close: "19:00" }] } } });
+  const r = write({
+    hours: {
+      wed: {
+        intervals: [
+          { open: "09:00", close: "13:00" },
+          { open: "13:00", close: "19:00" },
+        ],
+      },
+    },
+  });
   assert.equal(r.success, true, JSON.stringify(issues({})));
 });
 
 test("overlapping shifts are refused", () => {
   assert.deepEqual(
-    issues({ hours: { wed: { intervals: [{ open: "09:00", close: "18:00" }, { open: "10:00", close: "12:00" }] } } }),
+    issues({
+      hours: {
+        wed: {
+          intervals: [
+            { open: "09:00", close: "18:00" },
+            { open: "10:00", close: "12:00" },
+          ],
+        },
+      },
+    }),
     ["brain.profile.hours.wed.intervals.1.open|Wednesday: two shifts overlap."],
   );
 });
@@ -91,14 +118,24 @@ test("typing the afternoon shift first is not an error", () => {
   // The owner is not told their day is wrong merely because of entry order —
   // the composer sorts, so the rules compare sorted copies too.
   assert.equal(
-    write({ hours: { wed: { intervals: [{ open: "15:00", close: "19:00" }, { open: "09:30", close: "13:00" }] } } }).success,
+    write({
+      hours: {
+        wed: {
+          intervals: [
+            { open: "15:00", close: "19:00" },
+            { open: "09:30", close: "13:00" },
+          ],
+        },
+      },
+    }).success,
     true,
   );
 });
 
 test("the shift cap the form enforces is the cap the schema enforces", () => {
   const tooMany = Array.from({ length: MAX_INTERVALS_PER_DAY + 1 }, (_, n) => ({
-    open: `0${n}:00`, close: `0${n}:30`,
+    open: `0${n}:00`,
+    close: `0${n}:30`,
   }));
   assert.deepEqual(issues({ hours: { wed: { intervals: tooMany } } }), [
     `brain.profile.hours.wed.intervals|Wednesday can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`,
@@ -123,21 +160,42 @@ test("a closure cannot end before it starts", () => {
 });
 
 test("a shift that closes at or before it opens is refused, and named by its slot", () => {
-  const out = issues({ hours: { thu: { intervals: [{ open: "09:00", close: "13:00" }, { open: "15:00", close: "14:00" }] } } });
+  const out = issues({
+    hours: {
+      thu: {
+        intervals: [
+          { open: "09:00", close: "13:00" },
+          { open: "15:00", close: "14:00" },
+        ],
+      },
+    },
+  });
   assert.deepEqual(out, ["brain.profile.hours.thu.intervals.1.close|Thursday: a shift has to close after it opens."]);
-  assert.deepEqual(issues({ hours: { thu: { intervals: [{ open: "09:00", close: "09:00" }] } } }), ["brain.profile.hours.thu.intervals.0.close|Thursday: a shift has to close after it opens."], "a zero-length shift is not a shift");
+  assert.deepEqual(
+    issues({ hours: { thu: { intervals: [{ open: "09:00", close: "09:00" }] } } }),
+    ["brain.profile.hours.thu.intervals.0.close|Thursday: a shift has to close after it opens."],
+    "a zero-length shift is not a shift",
+  );
 });
 
 test("a closure's end has to be a day on the calendar, like its start", () => {
-  assert.deepEqual(issues({ closures: [{ date: "2026-12-24", until: "2026-12-32" }] }), ["brain.profile.closures.0.until|2026-12-32 is not a date on the calendar."]);
-  assert.deepEqual(issues({ closures: [{ date: "2026-12-24", until: "2027-02-29" }] }), ["brain.profile.closures.0.until|2027-02-29 is not a date on the calendar."], "not a leap year");
+  assert.deepEqual(issues({ closures: [{ date: "2026-12-24", until: "2026-12-32" }] }), [
+    "brain.profile.closures.0.until|2026-12-32 is not a date on the calendar.",
+  ]);
+  assert.deepEqual(
+    issues({ closures: [{ date: "2026-12-24", until: "2027-02-29" }] }),
+    ["brain.profile.closures.0.until|2027-02-29 is not a date on the calendar."],
+    "not a leap year",
+  );
 });
 
 test("at most sixty closures: the sixty-first is refused, in one sentence, and the cap is the form's", () => {
   const day = (n) => `2027-${String(1 + Math.floor(n / 28)).padStart(2, "0")}-${String(1 + (n % 28)).padStart(2, "0")}`;
   const sixty = Array.from({ length: MAX_CLOSURES }, (_, n) => ({ date: day(n) }));
   assert.equal(write({ closures: sixty }).success, true, "sixty is allowed");
-  assert.deepEqual(issues({ closures: [...sixty, { date: "2027-06-01" }] }), [`brain.profile.closures|At most ${MAX_CLOSURES} closures.`]);
+  assert.deepEqual(issues({ closures: [...sixty, { date: "2027-06-01" }] }), [
+    `brain.profile.closures|At most ${MAX_CLOSURES} closures.`,
+  ]);
   assert.equal(MAX_CLOSURES, 60);
 });
 

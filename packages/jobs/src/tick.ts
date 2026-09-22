@@ -77,11 +77,17 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
     c.claimed += 1;
 
     if (verdictFor(job) === "give_up") {
-      await conclude(ports, job, RUN_INTERRUPTED, false, `A ${job.kind} job did not finish`,
+      await conclude(
+        ports,
+        job,
+        RUN_INTERRUPTED,
+        false,
+        `A ${job.kind} job did not finish`,
         `Job ${job.id} (${job.kind}) started and never reported back, so ${RUN_INTERRUPTED}.` +
-        (job.kind === "outbound_send"
-          ? " If this was a reply, it may or may not have reached the customer; check the conversation before sending it again."
-          : ""));
+          (job.kind === "outbound_send"
+            ? " If this was a reply, it may or may not have reached the customer; check the conversation before sending it again."
+            : ""),
+      );
       c.gaveUp += 1;
       continue;
     }
@@ -99,7 +105,14 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
         const untilIso = new Date(ports.now() + wait).toISOString();
         try {
           if (await ports.defer(job, untilIso, msg)) {
-            ports.log.warn("job_deferred", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, until: untilIso, error: msg });
+            ports.log.warn("job_deferred", {
+              job_id: job.id,
+              tenant_id: job.tenant_id,
+              kind: job.kind,
+              attempts: job.attempts,
+              until: untilIso,
+              error: msg,
+            });
           } else {
             ports.log.warn("job_defer_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
           }
@@ -110,15 +123,27 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
         c.deferred += 1;
         continue;
       }
-      await conclude(ports, job, msg, false, `A ${job.kind} job failed`,
-        `Job ${job.id} (${job.kind}) failed${job.attempts > 1 ? ` after ${job.attempts} tries` : ""} and will not retry on its own.\n\n${msg}`);
+      await conclude(
+        ports,
+        job,
+        msg,
+        false,
+        `A ${job.kind} job failed`,
+        `Job ${job.id} (${job.kind}) failed${job.attempts > 1 ? ` after ${job.attempts} tries` : ""} and will not retry on its own.\n\n${msg}`,
+      );
       c.failed += 1;
       continue;
     }
 
     if (outcome === "unknown_kind") {
-      await conclude(ports, job, `unknown job kind ${job.kind}`, true, `A ${job.kind} job could not run`,
-        `Job ${job.id} has a kind this runner does not know (${job.kind}), so nothing ran.`);
+      await conclude(
+        ports,
+        job,
+        `unknown job kind ${job.kind}`,
+        true,
+        `A ${job.kind} job could not run`,
+        `Job ${job.id} has a kind this runner does not know (${job.kind}), so nothing ran.`,
+      );
       c.failed += 1;
       continue;
     }
@@ -144,7 +169,12 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
  * be written is said in the alert, and an alert that could not be sent is logged.
  */
 async function conclude(
-  ports: TickPorts, job: LedgerRow, reason: string, certain: boolean, subject: string, lead: string,
+  ports: TickPorts,
+  job: LedgerRow,
+  reason: string,
+  certain: boolean,
+  subject: string,
+  lead: string,
 ): Promise<void> {
   let failed: boolean;
   try {
@@ -166,19 +196,32 @@ async function conclude(
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });
       // Written, but not the write that was wanted: the broadcast is failed
       // rather than carried on, and why is worth a line of its own.
-      else if (s.notResumed) ports.log.warn("broadcast_not_resumed", { job_id: job.id, tenant_id: job.tenant_id, reason: s.notResumed });
+      else if (s.notResumed)
+        ports.log.warn("broadcast_not_resumed", { job_id: job.id, tenant_id: job.tenant_id, reason: s.notResumed });
     }
     wreckage = saySettled(settled);
   } catch (e) {
     ports.log.error("job_settle_failed", { job_id: job.id, error: errText(e) });
-    wreckage = "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
+    wreckage =
+      "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
   }
-  ports.log.info("job_failed", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, reason });
+  ports.log.info("job_failed", {
+    job_id: job.id,
+    tenant_id: job.tenant_id,
+    kind: job.kind,
+    attempts: job.attempts,
+    reason,
+  });
 
   try {
     // conclude() is only ever reached for a job that failed or never came
     // back, so this is the one place job_failed is the truth.
-    await ports.alert(job, { kind: "job_failed", route: "inbox", subject, body: wreckage ? `${lead}\n\n${wreckage}` : lead });
+    await ports.alert(job, {
+      kind: "job_failed",
+      route: "inbox",
+      subject,
+      body: wreckage ? `${lead}\n\n${wreckage}` : lead,
+    });
   } catch (e) {
     ports.log.error("job_alert_failed", { job_id: job.id, error: errText(e) });
   }

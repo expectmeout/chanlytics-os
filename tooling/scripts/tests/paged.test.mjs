@@ -24,7 +24,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { readAllRows, MAX_ROWS, DEFAULT_ROW_CAP } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/paged.js")).href);
+const { readAllRows, MAX_ROWS, DEFAULT_ROW_CAP } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/paged.js")).href
+);
 
 /** A table of n rows that answers a range the way PostgREST does, capped at `cap`. */
 function pager(n, cap = MAX_ROWS) {
@@ -58,7 +60,11 @@ test("an answer the server truncates is read to the end", async () => {
   assert.equal(rows.length, 2500, "all of it, not the first thousand");
   assert.deepEqual(rows.map((r) => r.i).slice(0, 3), [0, 1, 2]);
   assert.equal(rows[2499].i, 2499, "and in order, with nothing skipped across the page boundaries");
-  assert.deepEqual(p.calls, [[0, 999], [1000, 1999], [2000, 2999]]);
+  assert.deepEqual(p.calls, [
+    [0, 999],
+    [1000, 1999],
+    [2000, 2999],
+  ]);
 });
 
 test("an answer exactly one page long costs one extra round trip and no rows", async () => {
@@ -77,7 +83,10 @@ test("the cap bounds the read and says so rather than truncating in silence", as
   } finally {
     console.error = err;
   }
-  assert.ok(said.some((l) => l.includes("paged_read_capped") && l.includes("events")), "a bounded answer is a logged answer");
+  assert.ok(
+    said.some((l) => l.includes("paged_read_capped") && l.includes("events")),
+    "a bounded answer is a logged answer",
+  );
   assert.ok(DEFAULT_ROW_CAP > MAX_ROWS, "and the default bound is more than one page");
 });
 
@@ -92,7 +101,9 @@ test("a read error is thrown, named, and never returned as a short answer", asyn
 test("it pages a real query builder, ordered so nothing repeats or is skipped", async () => {
   const rows = Array.from({ length: 1200 }, (_, i) => ({ id: String(i).padStart(5, "0"), tenant_id: "t1" }));
   const db = fakeDb({ broadcasts: rows });
-  const got = await readAllRows("broadcasts", (from, to) => db.from("broadcasts").select("id").eq("tenant_id", "t1").order("id").range(from, to));
+  const got = await readAllRows("broadcasts", (from, to) =>
+    db.from("broadcasts").select("id").eq("tenant_id", "t1").order("id").range(from, to),
+  );
   assert.equal(got.length, 1200);
   assert.equal(new Set(got.map((r) => r.id)).size, 1200, "no row twice");
 });

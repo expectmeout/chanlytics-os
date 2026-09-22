@@ -92,10 +92,20 @@ export async function openingsBlock(
     // copy of its arithmetic: this expression and the edge's were identical
     // byte for byte, and nothing said they were meant to be.
     const parsed = parseIcs(feed.text, cfg.tz, { horizon: seasonHorizon(now, daysAhead) });
-    const openings = freeWindows({ hours: profile.hours, closures: profile.closures, tz: cfg.tz, busy: parsed.busy, rules, now });
+    const openings = freeWindows({
+      hours: profile.hours,
+      closures: profile.closures,
+      tz: cfg.tz,
+      busy: parsed.busy,
+      rules,
+      now,
+    });
     return describeOpenings(openings, cfg.tz, { daysAhead });
   } catch (e) {
-    console.error("prompt_preview_openings_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "prompt_preview_openings_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     return null;
   }
 }
@@ -121,7 +131,10 @@ export async function promptPreview(
   try {
     policy = Object.fromEntries((await listPolicies(ctx.supabase, tenantId)).map((p) => [p.class, { mode: p.mode }]));
   } catch (e) {
-    console.error("prompt_preview_policy_unreadable", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "prompt_preview_policy_unreadable",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     return null;
   }
   const openings = await openingsBlock(tenantId, { url: cfg.calendarUrl, brain, tz }, now);
@@ -129,7 +142,10 @@ export async function promptPreview(
     return composePromptPreview(brain, { tz, policy, known, openings }, now);
   } catch (e) {
     // A config the composer refuses is a real answer, and the card says nothing rather than something else.
-    console.error("prompt_preview_refused", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "prompt_preview_refused",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     return null;
   }
 }

@@ -13,7 +13,17 @@ import { apiGet } from "./workspace";
  * pretends.
  */
 const INVENTED = ["Reauthorize by May 1", "7 of 7 healthy", "Twilio", "Apple Calendar", "Email Agent"];
-const KINDS = ["whatsapp", "phone", "sms", "google_profile", "google_listing", "calendar", "instagram", "email", "deposits"];
+const KINDS = [
+  "whatsapp",
+  "phone",
+  "sms",
+  "google_profile",
+  "google_listing",
+  "calendar",
+  "instagram",
+  "email",
+  "deposits",
+];
 
 test.describe("Settings → Integrations on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -46,7 +56,9 @@ test.describe("Settings → Integrations on a real workspace", () => {
     for (const s of INVENTED) expect(text, `invented service: "${s}"`).not.toContain(s);
   });
 
-  test("a workspace without a WhatsApp channel is offered the connection, or told why it cannot start", async ({ page }) => {
+  test("a workspace without a WhatsApp channel is offered the connection, or told why it cannot start", async ({
+    page,
+  }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
     const row = page.getByTestId("connection-whatsapp");
@@ -95,7 +107,9 @@ test.describe("Settings → Integrations on a real workspace", () => {
     for (const k of ["whatsapp", "phone"]) {
       const row = card.getByTestId(`connection-${k}`);
       if (!(await row.count())) continue;
-      await expect(row, "each channel states its health in the schema's words").toContainText(/Receiving|Quiet|Switched off|no (message|call) has arrived yet/);
+      await expect(row, "each channel states its health in the schema's words").toContainText(
+        /Receiving|Quiet|Switched off|no (message|call) has arrived yet/,
+      );
       await expect(row.locator(".pill")).toContainText(/^On$|^Off$/);
     }
   });

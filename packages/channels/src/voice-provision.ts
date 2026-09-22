@@ -61,7 +61,12 @@ export const VOICE_NUMBER_DEFAULTS = {
 } as const;
 
 /** The product's voice endpoints, from the one base the shell already pins. */
-export function voiceEndpoints(fnUrl: string = DEFAULT_FN_URL): { fn: string; availability: string; webhook: string; inbound: string } {
+export function voiceEndpoints(fnUrl: string = DEFAULT_FN_URL): {
+  fn: string;
+  availability: string;
+  webhook: string;
+  inbound: string;
+} {
   const base = fnUrl.replace(/\/api\/retell-fn$/, "");
   return {
     fn: fnUrl,
@@ -103,7 +108,11 @@ export function voiceAgentCreateBody(
 ): Record<string, unknown> {
   return {
     agent_name: o.agentName,
-    response_engine: { type: "retell-llm", llm_id: o.llmId, ...(o.llmVersion === null ? {} : { version: o.llmVersion }) },
+    response_engine: {
+      type: "retell-llm",
+      llm_id: o.llmId,
+      ...(o.llmVersion === null ? {} : { version: o.llmVersion }),
+    },
     ...VOICE_AGENT_DEFAULTS,
     language: [...VOICE_AGENT_DEFAULTS.language],
     webhook_url: voiceEndpoints(fnUrl).webhook,
@@ -195,7 +204,8 @@ export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan 
   const number = r.number ?? null;
   const area = r.areaCode ?? null;
   if (number !== null && !E164.test(number)) errors.push("number must be E.164, like +13055550100");
-  if (area !== null && !(Number.isInteger(area) && area >= 200 && area <= 999)) errors.push("area_code must be three digits, like 305");
+  if (area !== null && !(Number.isInteger(area) && area >= 200 && area <= 999))
+    errors.push("area_code must be three digits, like 305");
   if (number !== null && area !== null) errors.push("give a number to bind or an area code to buy in, not both");
   if (r.llmId && !/^llm_[a-z0-9]+$/i.test(r.llmId)) errors.push("llm_id does not look like a Retell LLM id");
   if (r.agentId && !/^agent_[a-z0-9]+$/i.test(r.agentId)) errors.push("agent_id does not look like a Retell agent id");
@@ -224,7 +234,11 @@ export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan 
     steps.push(
       r.llmId
         ? { id: "llm", action: "reuse", detail: `${r.llmId}, read from the provider first` }
-        : { id: "llm", action: "create", detail: `the shell: placeholders, the four tools, spoken defaults; ${VOICE_LLM_DEFAULTS.model} at temperature ${VOICE_LLM_DEFAULTS.model_temperature}` },
+        : {
+            id: "llm",
+            action: "create",
+            detail: `the shell: placeholders, the four tools, spoken defaults; ${VOICE_LLM_DEFAULTS.model} at temperature ${VOICE_LLM_DEFAULTS.model_temperature}`,
+          },
     );
     steps.push({
       id: "agent",
@@ -232,13 +246,41 @@ export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan 
       detail: `"${names.agent}": the product's voice, the webhook with its events, the analysis fields, ${VOICE_AGENT_DEFAULTS.data_storage_retention_days}-day retention`,
     });
   }
-  steps.push({ id: "publish", action: "publish", detail: "the first version, so the number can pin to latest_published" });
-  if (number) steps.push({ id: "number", action: "bind", detail: `${number} → the agent, pinned to latest_published, inbound webhook set` });
-  else if (area !== null) steps.push({ id: "number", action: "buy", detail: `a local number in area code ${area} from Retell (Twilio), bound and pinned, inbound webhook set` });
-  else steps.push({ id: "number", action: "skip", detail: "no number asked for — give number (an existing Retell number) or area_code (buy one); the row is not written until a number answers" });
+  steps.push({
+    id: "publish",
+    action: "publish",
+    detail: "the first version, so the number can pin to latest_published",
+  });
+  if (number)
+    steps.push({
+      id: "number",
+      action: "bind",
+      detail: `${number} → the agent, pinned to latest_published, inbound webhook set`,
+    });
+  else if (area !== null)
+    steps.push({
+      id: "number",
+      action: "buy",
+      detail: `a local number in area code ${area} from Retell (Twilio), bound and pinned, inbound webhook set`,
+    });
+  else
+    steps.push({
+      id: "number",
+      action: "skip",
+      detail:
+        "no number asked for — give number (an existing Retell number) or area_code (buy one); the row is not written until a number answers",
+    });
   if (number || area !== null) {
-    steps.push({ id: "channel", action: "insert", detail: "tenant_channels: kind voice, the agent as external_id, the number, active" });
-    steps.push({ id: "notify", action: "notify", detail: "the workspace's bell says the line is ready; a voice.provisioned event" });
+    steps.push({
+      id: "channel",
+      action: "insert",
+      detail: "tenant_channels: kind voice, the agent as external_id, the number, active",
+    });
+    steps.push({
+      id: "notify",
+      action: "notify",
+      detail: "the workspace's bell says the line is ready; a voice.provisioned event",
+    });
   }
   return { ok: true, errors, nothing: false, reason: null, steps, names };
 }

@@ -12,29 +12,61 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, roleGate, stateOf, billingAccountDto, connectionRows, CONNECTION_GROUP_WORDS } from "@chanlytics/contracts";
+import {
+  ROLE_PERMS,
+  roleGate,
+  stateOf,
+  billingAccountDto,
+  connectionRows,
+  CONNECTION_GROUP_WORDS,
+} from "@chanlytics/contracts";
 
 /* ---------------------------------- the window ---------------------------------- */
 
 const tipped = [];
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null, querySelector: () => null,
+  body: { appendChild() {} },
+  activeElement: null,
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById: () => null,
+  querySelector: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 /** Who is looking: the role store answers from contracts' own table, as the bridge publishes it. */
 const role = { now: "owner" };
-const asRole = (r) => { role.now = r; globalThis.window.__ME = { email: "dana@northside.example", role: r }; };
+const asRole = (r) => {
+  role.now = r;
+  globalThis.window.__ME = { email: "dana@northside.example", role: r };
+};
 globalThis.window = {
-  location: { pathname: "/w/studio", hash: "#/admin/billing", search: "", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/studio",
+    hash: "#/admin/billing",
+    search: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   history: { replaceState() {} },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener() {},
   removeEventListener() {},
-  dispatchEvent() { return true; },
+  dispatchEvent() {
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   __roleGate: roleGate,
@@ -49,7 +81,10 @@ let cells = new Map();
 let frames = [];
 let dirty = false;
 let lastTree = null;
-const slot = () => { const f = frames[frames.length - 1]; return `${f.key}#${f.hook++}`; };
+const slot = () => {
+  const f = frames[frames.length - 1];
+  return `${f.key}#${f.hook++}`;
+};
 const same = (a, b) => !!a && !!b && a.length === b.length && a.every((d, i) => Object.is(d, b[i]));
 const memo = (make, deps) => {
   const k = slot();
@@ -68,17 +103,41 @@ globalThis.React = {
       const name = type.name || "anon";
       parent.kids[name] = (parent.kids[name] || 0) + 1;
       frames.push({ key: `${parent.key}/${name}:${parent.kids[name]}`, hook: 0, kids: {} });
-      try { node.rendered = type(props); } finally { frames.pop(); }
+      try {
+        node.rendered = type(props);
+      } finally {
+        frames.pop();
+      }
     }
     return node;
   },
   useState: (init) => {
     const k = slot();
     if (!cells.has(k)) cells.set(k, typeof init === "function" ? init() : init);
-    return [cells.get(k), (v) => { cells.set(k, typeof v === "function" ? v(cells.get(k)) : v); dirty = true; }];
+    return [
+      cells.get(k),
+      (v) => {
+        cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
+        dirty = true;
+      },
+    ];
   },
-  useReducer: (red, init) => { const k = slot(); if (!cells.has(k)) cells.set(k, init); return [cells.get(k), (a) => { cells.set(k, red(cells.get(k), a)); dirty = true; }]; },
-  useRef: (init) => { const k = slot(); if (!cells.has(k)) cells.set(k, { current: init }); return cells.get(k); },
+  useReducer: (red, init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, init);
+    return [
+      cells.get(k),
+      (a) => {
+        cells.set(k, red(cells.get(k), a));
+        dirty = true;
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, { current: init });
+    return cells.get(k);
+  },
   useMemo: (fn, deps) => memo(fn, deps),
   useCallback: (fn, deps) => memo(() => fn, deps),
   useEffect: (fn, deps) => {
@@ -110,13 +169,26 @@ await import("../../../apps/dashboard/src/legacy/pages/integrations-real.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
 // A drawn component is walked twice, as the children it was given and as what it rendered: each node counts once.
-const all = (tree, pred) => { const out = []; const seen = new Set(); walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } }); return out; };
+const all = (tree, pred) => {
+  const out = [];
+  const seen = new Set();
+  walk(tree, (n) => {
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
@@ -127,11 +199,34 @@ const textOf = (n) => {
   return textOf(n.props?.children);
 };
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
-const pressOf = () => ({ prevented: false, stopped: false, currentTarget: { control: true }, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } });
-const press = (node) => { const e = pressOf(); node.props.onClick(e); return e; };
+const pressOf = () => ({
+  prevented: false,
+  stopped: false,
+  currentTarget: { control: true },
+  preventDefault() {
+    this.prevented = true;
+  },
+  stopPropagation() {
+    this.stopped = true;
+  },
+});
+const press = (node) => {
+  const e = pressOf();
+  node.props.onClick(e);
+  return e;
+};
 const flush = () => new Promise((r) => setImmediate(r));
-const draw = (C, props) => { frames = [{ key: "root", hook: 0, kids: {} }]; dirty = false; lastTree = C(props); return lastTree; };
-const render = (C, props = {}) => { cells = new Map(); tipped.length = 0; return draw(C, props); };
+const draw = (C, props) => {
+  frames = [{ key: "root", hook: 0, kids: {} }];
+  dirty = false;
+  lastTree = C(props);
+  return lastTree;
+};
+const render = (C, props = {}) => {
+  cells = new Map();
+  tipped.length = 0;
+  return draw(C, props);
+};
 const settle = (C, props = {}) => (dirty ? draw(C, props) : lastTree);
 
 /* ------------------------------ Billing ------------------------------ */
@@ -140,18 +235,68 @@ const Billing = (props) => globalThis.window.PaneBillingReal(props);
 const PRICE = { id: "price_1", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Chanlytics OS" };
 /** The row as the edge reads it (contracts billingAccountDto), in one Stripe state, on live keys unless a case says otherwise. */
 const billing = (over = {}, livemode = true) => {
-  const account = billingAccountDto({ mode: "stripe", status: "none", price_id: "price_1", current_period_end: null, trial_end: null, cancel_at: null, cancel_at_period_end: false, card_brand: null, card_last4: null, last_payment_failed_at: null, last_paid_at: null, updated_at: "2026-09-15T12:00:00Z", ...over });
-  globalThis.window.__BILLING_ACCOUNT = { dto: { ready: true, livemode, account, price: PRICE, trial_days: 14, role: "owner" }, fetchedAt: Date.now() };
+  const account = billingAccountDto({
+    mode: "stripe",
+    status: "none",
+    price_id: "price_1",
+    current_period_end: null,
+    trial_end: null,
+    cancel_at: null,
+    cancel_at_period_end: false,
+    card_brand: null,
+    card_last4: null,
+    last_payment_failed_at: null,
+    last_paid_at: null,
+    updated_at: "2026-09-15T12:00:00Z",
+    ...over,
+  });
+  globalThis.window.__BILLING_ACCOUNT = {
+    dto: { ready: true, livemode, account, price: PRICE, trial_days: 14, role: "owner" },
+    fetchedAt: Date.now(),
+  };
 };
 const INVOICES = [
-  { id: "in_2", number: "NS-0002", status: "open", amount_due: 4900, amount_paid: 0, currency: "usd", created_at: "2026-09-15T15:00:00Z", hosted_url: "https://invoice.stripe.com/i/2", pdf_url: null },
-  { id: "in_1", number: "NS-0001", status: "paid", amount_due: 4900, amount_paid: 4900, currency: "usd", created_at: "2026-08-15T15:00:00Z", hosted_url: "https://invoice.stripe.com/i/1", pdf_url: null },
+  {
+    id: "in_2",
+    number: "NS-0002",
+    status: "open",
+    amount_due: 4900,
+    amount_paid: 0,
+    currency: "usd",
+    created_at: "2026-09-15T15:00:00Z",
+    hosted_url: "https://invoice.stripe.com/i/2",
+    pdf_url: null,
+  },
+  {
+    id: "in_1",
+    number: "NS-0001",
+    status: "paid",
+    amount_due: 4900,
+    amount_paid: 4900,
+    currency: "usd",
+    created_at: "2026-08-15T15:00:00Z",
+    hosted_url: "https://invoice.stripe.com/i/1",
+    pdf_url: null,
+  },
 ];
 /** The bridge's verbs, recorded: nothing here reaches Stripe. */
 const stripe = () => {
   const called = [];
-  const ok = (what) => async () => { called.push(what); return { ok: true, message: "" }; };
-  Object.assign(globalThis.window.__billing, { checkout: ok("checkout"), portal: ok("portal"), resume: ok("resume"), sync: ok("sync"), outcome: () => null, invoices: async () => { called.push("invoices"); return { ok: true, invoices: INVOICES, message: "" }; } });
+  const ok = (what) => async () => {
+    called.push(what);
+    return { ok: true, message: "" };
+  };
+  Object.assign(globalThis.window.__billing, {
+    checkout: ok("checkout"),
+    portal: ok("portal"),
+    resume: ok("resume"),
+    sync: ok("sync"),
+    outcome: () => null,
+    invoices: async () => {
+      called.push("invoices");
+      return { ok: true, invoices: INVOICES, message: "" };
+    },
+  });
   return called;
 };
 
@@ -161,13 +306,21 @@ test("REGRESSION (one gate): Billing's doors to Stripe stay on the page for a ro
   const called = stripe();
   let tree = render(Billing, { flash() {} });
   const start = byTestId(tree, "billing-checkout");
-  assert.equal(start.props["aria-disabled"], true, "REGRESSION: a disabled Start the trial takes no focus and gives no reason");
+  assert.equal(
+    start.props["aria-disabled"],
+    true,
+    "REGRESSION: a disabled Start the trial takes no focus and gives no reason",
+  );
   assert.equal(start.props.disabled, false);
   assert.equal(start.props["data-tip"], "Only an owner can start the subscription.");
   assert.ok(press(start).prevented, "pressing it opens nothing");
   assert.equal(tipped.length, 1, "but shows the reason where the control is");
   assert.deepEqual(called, [], "and nothing reached Stripe");
-  assert.equal(textOf(tree).split("Only an owner can start or manage the subscription.").length - 1, 1, "the pane says why once, as the gate says it");
+  assert.equal(
+    textOf(tree).split("Only an owner can start or manage the subscription.").length - 1,
+    1,
+    "the pane says why once, as the gate says it",
+  );
 
   billing({ status: "trialing", trial_end: "2026-09-25T15:00:00Z", card_brand: "visa", card_last4: "4242" });
   tree = render(Billing, { flash() {} });
@@ -175,11 +328,19 @@ test("REGRESSION (one gate): Billing's doors to Stripe stay on the page for a ro
   assert.equal(byTestId(tree, "billing-sync").props["aria-disabled"], undefined, "an operator may read Stripe again");
   asRole("viewer");
   tree = render(Billing, { flash() {} });
-  assert.equal(byTestId(tree, "billing-sync").props["data-tip"], "Only an owner or operator can read Stripe again.", "a viewer may not");
+  assert.equal(
+    byTestId(tree, "billing-sync").props["data-tip"],
+    "Only an owner or operator can read Stripe again.",
+    "a viewer may not",
+  );
 
   asRole("owner");
   tree = render(Billing, { flash() {} });
-  assert.equal(byTestId(tree, "billing-portal").props["aria-disabled"], undefined, "an owner's doors are ordinary buttons");
+  assert.equal(
+    byTestId(tree, "billing-portal").props["aria-disabled"],
+    undefined,
+    "an owner's doors are ordinary buttons",
+  );
   assert.ok(!textOf(tree).includes("Only an owner can"));
 });
 
@@ -204,8 +365,16 @@ test("REGRESSION (S20): Billing says what a state means for the receptionist, an
   await flush();
   tree = settle(Billing, { flash() {} });
   // The invoices are a table now: a row each, its status a pill in its own cell, in the owner's words.
-  const statuses = all(byTestId(tree, "billing-invoices"), (n) => n.props?.["data-testid"] === "billing-invoice")
-    .map((row) => all(row, (n) => String(n.props?.className || "").split(" ").includes("pill")).map(textOf).join(""));
+  const statuses = all(byTestId(tree, "billing-invoices"), (n) => n.props?.["data-testid"] === "billing-invoice").map(
+    (row) =>
+      all(row, (n) =>
+        String(n.props?.className || "")
+          .split(" ")
+          .includes("pill"),
+      )
+        .map(textOf)
+        .join(""),
+  );
   assert.ok(statuses.length > 0, "every invoice is a row of the table");
   assert.ok(statuses.includes("Paid"), `REGRESSION: ${statuses.join(" | ")}`);
   assert.ok(statuses.includes("Not paid yet"), statuses.join(" | "));
@@ -218,8 +387,15 @@ test("REGRESSION (S9): on Stripe's test keys the pane says test mode, beside its
   const trialing = { status: "trialing", trial_end: "2026-09-25T15:00:00Z", card_brand: "visa", card_last4: "4242" };
   billing(trialing, false);
   let tree = render(Billing, { flash() {} });
-  assert.equal(textOf(byTestId(tree, "billing-test-mode")), "Test mode", "REGRESSION: nothing on the pane said test mode");
-  assert.equal(textOf(byTestId(tree, "billing-test-mode-note")), "Billing is in test mode, so only Stripe's test cards work and no real money moves.");
+  assert.equal(
+    textOf(byTestId(tree, "billing-test-mode")),
+    "Test mode",
+    "REGRESSION: nothing on the pane said test mode",
+  );
+  assert.equal(
+    textOf(byTestId(tree, "billing-test-mode-note")),
+    "Billing is in test mode, so only Stripe's test cards work and no real money moves.",
+  );
   // Said once: the sentence about the trial already names the card, so the pane does not add "Card on file" under it.
   assert.equal(textOf(tree).split("Visa ending 4242").length - 1, 1, "the card is still said, and once");
 
@@ -234,25 +410,48 @@ test("REGRESSION (S9): on Stripe's test keys the pane says test mode, beside its
 
   billing({ mode: "direct", status: "active" }, false);
   tree = render(Billing, { flash() {} });
-  assert.equal(byTestId(tree, "billing-test-mode"), null, "a direct arrangement charges nothing here, whatever the keys");
+  assert.equal(
+    byTestId(tree, "billing-test-mode"),
+    null,
+    "a direct arrangement charges nothing here, whatever the keys",
+  );
 });
 
 /* ------------------------------ the business record ------------------------------ */
 
 const Form = (props) => globalThis.window.BusinessRecordForm(props);
 const businessRecord = (sent) => ({
-  read: async () => ({ ok: true, record: { legal_name: "Northside Studio LLC", ein: "12-3456789" }, path: "standard", problems: {}, message: "" }),
-  save: async () => { sent.push("save"); return { ok: true, message: "Saved.", problems: {} }; },
-  register: async () => { sent.push("file"); return { ok: true, pending: true, message: "Filed." }; },
+  read: async () => ({
+    ok: true,
+    record: { legal_name: "Northside Studio LLC", ein: "12-3456789" },
+    path: "standard",
+    problems: {},
+    message: "",
+  }),
+  save: async () => {
+    sent.push("save");
+    return { ok: true, message: "Saved.", problems: {} };
+  },
+  register: async () => {
+    sent.push("file");
+    return { ok: true, pending: true, message: "Filed." };
+  },
   problems: () => ({}),
   fieldsFor: () => [
     { name: "legal_name", label: "Legal name", group: "business", required: true },
     { name: "ein", label: "Tax ID", group: "business", required: true, hint: "Nine digits" },
   ],
-  groupsFor: () => ({ business: { title: "The business", sub: "" }, address: { title: "", sub: "" }, contact: { title: "", sub: "" } }),
+  groupsFor: () => ({
+    business: { title: "The business", sub: "" },
+    address: { title: "", sub: "" },
+    contact: { title: "", sub: "" },
+  }),
   paths: ["standard", "sole_proprietor"],
   question: { title: "", sub: "", nudge: "" },
-  pathWords: { standard: { filed: "A business with a tax ID", sub: "", choice: "" }, sole_proprietor: { filed: "", sub: "", choice: "" } },
+  pathWords: {
+    standard: { filed: "A business with a tax ID", sub: "", choice: "" },
+    sole_proprietor: { filed: "", sub: "", choice: "" },
+  },
   costWords: { standard: "", sole_proprietor: "" },
   limits: () => [],
   forPath: (r) => r,
@@ -282,7 +481,11 @@ test("REGRESSION (one gate): the business record shows Save and File to a role t
   tree = settle(Form, props);
   assert.equal(byTestId(tree, "biz-file-confirm"), null, "a gated File arms nothing");
   assert.deepEqual(sent, [], "nothing saved, nothing filed");
-  assert.equal(textOf(tree).split("Only an owner can fill in the business record.").length - 1, 1, "the form says why once");
+  assert.equal(
+    textOf(tree).split("Only an owner can fill in the business record.").length - 1,
+    1,
+    "the form says why once",
+  );
 
   asRole("owner");
   render(Form, props);
@@ -303,15 +506,43 @@ test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Discon
     __CHANNELS: [],
     __SETUP: null,
     // Connected, with the location still to choose: the row's body is the chooser.
-    __GOOGLE: { dto: { ready: { places: false, profile: true }, listing: null, connection: { google_email: "dana@northside.example", account_title: "Northside", location_name: null, location_title: null, connected_at: "2026-09-15T14:00:00Z", last_synced_at: null, sync_error: null } } },
+    __GOOGLE: {
+      dto: {
+        ready: { places: false, profile: true },
+        listing: null,
+        connection: {
+          google_email: "dana@northside.example",
+          account_title: "Northside",
+          location_name: null,
+          location_title: null,
+          connected_at: "2026-09-15T14:00:00Z",
+          last_synced_at: null,
+          sync_error: null,
+        },
+      },
+    },
     __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
     __waConnect: { config: async () => null },
     __google: {
       outcome: () => null,
       outcomeWords: {},
-      locations: async () => ({ ok: true, locations: [{ account_name: "accounts/1", location_name: "locations/1", title: "Northside Studio", address: "1 Main St", account_title: "Northside" }] }),
+      locations: async () => ({
+        ok: true,
+        locations: [
+          {
+            account_name: "accounts/1",
+            location_name: "locations/1",
+            title: "Northside Studio",
+            address: "1 Main St",
+            account_title: "Northside",
+          },
+        ],
+      }),
       choose: async () => ({ ok: true, read: true, message: "" }),
-      disconnect: async () => { done.push("disconnect"); return { ok: true, message: "" }; },
+      disconnect: async () => {
+        done.push("disconnect");
+        return { ok: true, message: "" };
+      },
       unlink: async () => ({ ok: true, message: "" }),
     },
   });
@@ -324,7 +555,11 @@ test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Discon
   await flush();
   tree = settle(Connections);
   assert.deepEqual(done, [], "REGRESSION: pressing it disconnected Google with no question");
-  assert.match(textOf(byTestId(tree, "google-disconnect-confirm")), /Disconnect Google\?/, "it asks, in the row's own words");
+  assert.match(
+    textOf(byTestId(tree, "google-disconnect-confirm")),
+    /Disconnect Google\?/,
+    "it asks, in the row's own words",
+  );
   press(byTestId(tree, "google-disconnect-yes"));
   await flush();
   assert.deepEqual(done, ["disconnect"], "and Yes disconnects, once");
@@ -335,12 +570,34 @@ test("the email row's form: offered from the business's name, judged under its o
   const { installMailbox } = await import("../../../apps/dashboard/src/legacy-bridge/mailbox.ts");
   installMailbox(globalThis.window);
   const asked = [];
-  let answer = { ok: false, code: "conflict", status: 409, title: "Not possible right now", message: "That address is taken. Try another.", retryAfterS: null, fields: null };
-  Object.assign(globalThis.window.__mailbox, { create: async (input) => { asked.push(input); return answer; } });
+  let answer = {
+    ok: false,
+    code: "conflict",
+    status: 409,
+    title: "Not possible right now",
+    message: "That address is taken. Try another.",
+    retryAfterS: null,
+    fields: null,
+  };
+  Object.assign(globalThis.window.__mailbox, {
+    create: async (input) => {
+      asked.push(input);
+      return answer;
+    },
+  });
   const email = { ready: true, domain: "mail.chanlytics.com", mailbox: null };
   Object.assign(globalThis.window, {
-    __CHANNELS: [], __GOOGLE: null,
-    __SETUP: { dto: { business: { name: "Best Movers" }, lines: { rows: [], ready: false }, requests: { line: null }, calendar: null, email } },
+    __CHANNELS: [],
+    __GOOGLE: null,
+    __SETUP: {
+      dto: {
+        business: { name: "Best Movers" },
+        lines: { rows: [], ready: false },
+        requests: { line: null },
+        calendar: null,
+        email,
+      },
+    },
     __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
     __waConnect: { config: async () => null },
     refusalToast: (r) => ({ tone: "danger", msg: r.message }),
@@ -369,9 +626,23 @@ test("the email row's form: offered from the business's name, judged under its o
   await flush();
   tree = settle(Connections);
   assert.deepEqual(asked, [{ localPart: "bestmovers", fromName: "Best Movers" }]);
-  assert.equal(textOf(byTestId(tree, "email-local-problem")), "That address is taken. Try another.", "said under the box that caused it, not in a toast");
+  assert.equal(
+    textOf(byTestId(tree, "email-local-problem")),
+    "That address is taken. Try another.",
+    "said under the box that caused it, not in a toast",
+  );
 
-  answer = { ok: true, data: { mailbox: { id: "mb1", address: "bestmovers2@mail.chanlytics.com", from_name: "Best Movers", last_received_at: null } } };
+  answer = {
+    ok: true,
+    data: {
+      mailbox: {
+        id: "mb1",
+        address: "bestmovers2@mail.chanlytics.com",
+        from_name: "Best Movers",
+        last_received_at: null,
+      },
+    },
+  };
   box().props.onChange({ target: { value: "bestmovers2" } });
   tree = settle(Connections);
   press(byTestId(tree, "email-save"));
@@ -384,9 +655,24 @@ test("the email row's form: offered from the business's name, judged under its o
 
 test("REGRESSION (S23): the attention row's buttons say they are busy and take no second press while their verb is on its way", async () => {
   await import("../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
-  const row = (cta, also) => render(globalThis.window.AttnRow, { name: "Your line", sentence: "", cta, also, testid: "row", ctaTestid: "row-cta" });
-  let tree = row({ label: "Retry", onClick() {}, busy: true }, { label: "Later", onClick() {}, busy: true, testid: "row-also" });
-  assert.equal(byTestId(tree, "row-cta").props.disabled, true, "REGRESSION: a button whose verb was on its way could be pressed again");
+  const row = (cta, also) =>
+    render(globalThis.window.AttnRow, {
+      name: "Your line",
+      sentence: "",
+      cta,
+      also,
+      testid: "row",
+      ctaTestid: "row-cta",
+    });
+  let tree = row(
+    { label: "Retry", onClick() {}, busy: true },
+    { label: "Later", onClick() {}, busy: true, testid: "row-also" },
+  );
+  assert.equal(
+    byTestId(tree, "row-cta").props.disabled,
+    true,
+    "REGRESSION: a button whose verb was on its way could be pressed again",
+  );
   assert.equal(byTestId(tree, "row-cta").props["aria-busy"], true, "and says so to a screen reader");
   assert.equal(byTestId(tree, "row-also").props.disabled, true, "the row's other button too");
   tree = row({ label: "Retry", onClick() {} }, null);

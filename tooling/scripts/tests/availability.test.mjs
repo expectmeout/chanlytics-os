@@ -11,8 +11,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  parseIcs, freeWindows, describeOpenings, localToUtcMs, dayInZone,
-  composeSystemPrompt, parseTenantConfigResult, TenantConfigWriteSchema,
+  parseIcs,
+  freeWindows,
+  describeOpenings,
+  localToUtcMs,
+  dayInZone,
+  composeSystemPrompt,
+  parseTenantConfigResult,
+  TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -65,21 +71,44 @@ test("the feed: zones, folding, all-day, cancelled and free events, recurring co
   assert.equal(feed.events, 6);
   assert.equal(feed.recurringExpanded, 1, "the weekly event is expanded inside the horizon");
   assert.equal(feed.skippedRecurring, 0);
-  assert.ok(feed.busy.length >= 4, "two appointments, the training day, and the weekly occurrences; not the cancelled one, not the free one");
+  assert.ok(
+    feed.busy.length >= 4,
+    "two appointments, the training day, and the weekly occurrences; not the cancelled one, not the free one",
+  );
   const ny = (h, m = 0) => localToUtcMs(TZ, 2026, 9, 9, h, m);
   assert.deepEqual(feed.busy[0], { start: ny(11), end: ny(13) }, "a TZID time is that zone's wall clock");
   assert.deepEqual(feed.busy[1], { start: ny(15), end: ny(16) }, "19:00Z is 3 PM in New York in September");
-  assert.deepEqual(feed.busy[2], { start: localToUtcMs(TZ, 2026, 9, 10, 0, 0), end: localToUtcMs(TZ, 2026, 9, 11, 0, 0) }, "an all-day event takes the whole local day");
+  assert.deepEqual(
+    feed.busy[2],
+    { start: localToUtcMs(TZ, 2026, 9, 10, 0, 0), end: localToUtcMs(TZ, 2026, 9, 11, 0, 0) },
+    "an all-day event takes the whole local day",
+  );
 });
 
-const hours = { wed: { open: "09:30", close: "18:00" }, thu: { open: "09:30", close: "18:00" }, fri: { open: "09:30", close: "19:00" }, sun: {} };
+const hours = {
+  wed: { open: "09:30", close: "18:00" },
+  thu: { open: "09:30", close: "18:00" },
+  fri: { open: "09:30", close: "19:00" },
+  sun: {},
+};
 
 test("open windows: the hours minus what is taken, widened by the buffer, never before now plus the lead", () => {
   // Wednesday 9 September 2026, 8:00 AM New York.
   const now = new Date(localToUtcMs(TZ, 2026, 9, 9, 8, 0));
   const feed = parseIcs(ICS, TZ);
-  const out = freeWindows({ hours, closures: [], tz: TZ, busy: feed.busy, rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 3, slot_min: 30 }, now });
-  assert.deepEqual(out.map((o) => o.key), ["2026-09-09", "2026-09-11"], "Thursday is the all-day training day; Friday is open");
+  const out = freeWindows({
+    hours,
+    closures: [],
+    tz: TZ,
+    busy: feed.busy,
+    rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 3, slot_min: 30 },
+    now,
+  });
+  assert.deepEqual(
+    out.map((o) => o.key),
+    ["2026-09-09", "2026-09-11"],
+    "Thursday is the all-day training day; Friday is open",
+  );
   const wed = out[0].windows.map((w) => describe(w));
   // 9:30 opens, but now + 2 h = 10:00; the balayage 11–13 is widened to 10:45–13:15; 15:00–16:00 becomes 14:45–16:15.
   assert.deepEqual(wed, ["10:00 AM – 10:45 AM", "1:15 PM – 2:45 PM", "4:15 PM – 6:00 PM"]);
@@ -93,29 +122,61 @@ test("open windows: the hours minus what is taken, widened by the buffer, never 
 test("REGRESSION (C5): the first open time is on the slot grid -- now plus the lead, to the minute, offered '1:29 PM'", () => {
   const at = (hh, mm, ss = 0) => new Date(localToUtcMs(TZ, 2026, 9, 9, hh, mm) + ss * 1000);
   const first = (now, rules) => {
-    const out = freeWindows({ hours: { wed: { open: "09:00", close: "18:00" } }, tz: TZ, busy: [], rules: { lead_hours: 2, max_days_ahead: 1, ...rules }, now });
-    return new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(new Date(out[0].windows[0].start));
+    const out = freeWindows({
+      hours: { wed: { open: "09:00", close: "18:00" } },
+      tz: TZ,
+      busy: [],
+      rules: { lead_hours: 2, max_days_ahead: 1, ...rules },
+      now,
+    });
+    return new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(
+      new Date(out[0].windows[0].start),
+    );
   };
   assert.equal(first(at(11, 29, 37), { slot_min: 30 }), "1:30 PM", "REGRESSION: 1:29 PM, to the minute it was asked");
   assert.equal(first(at(11, 30), { slot_min: 30 }), "1:30 PM", "a time already on the grid stays");
   assert.equal(first(at(11, 30, 1), { slot_min: 30 }), "2:00 PM", "a second past the notice is past it");
   assert.equal(first(at(11, 29), { slot_min: 20 }), "1:40 PM", "twenty-minute slots: :00, :20, :40");
-  assert.equal(first(at(11, 29), { slot_min: 45 }), "1:30 PM", "a slot that does not divide the hour rounds to the quarter");
+  assert.equal(
+    first(at(11, 29), { slot_min: 45 }),
+    "1:30 PM",
+    "a slot that does not divide the hour rounds to the quarter",
+  );
   assert.equal(first(at(8, 0), { slot_min: 30 }), "10:00 AM", "the day's own opening is untouched");
 });
 
 test("a closure removes the day; a window shorter than a slot is not offered; no zone guess", () => {
   const now = new Date(localToUtcMs(TZ, 2026, 9, 9, 8, 0));
-  const closed = freeWindows({ hours, closures: [{ date: "2026-09-09" }], tz: TZ, busy: [], rules: { max_days_ahead: 1 }, now });
+  const closed = freeWindows({
+    hours,
+    closures: [{ date: "2026-09-09" }],
+    tz: TZ,
+    busy: [],
+    rules: { max_days_ahead: 1 },
+    now,
+  });
   assert.deepEqual(closed, []);
-  const tight = freeWindows({ hours: { wed: { open: "09:30", close: "10:15" } }, tz: TZ, busy: [], rules: { lead_hours: 0, slot_min: 60, max_days_ahead: 1 }, now });
+  const tight = freeWindows({
+    hours: { wed: { open: "09:30", close: "10:15" } },
+    tz: TZ,
+    busy: [],
+    rules: { lead_hours: 0, slot_min: 60, max_days_ahead: 1 },
+    now,
+  });
   assert.deepEqual(tight, [], "45 minutes is not a 60-minute slot");
   assert.equal(dayInZone(TZ, now.getTime()).weekday, "wed", "9 September 2026 is a Wednesday");
 });
 
 test("the words: a few days, the windows on each, and the rule that the calendar decides", () => {
   const now = new Date(localToUtcMs(TZ, 2026, 9, 9, 8, 0));
-  const out = freeWindows({ hours, closures: [], tz: TZ, busy: parseIcs(ICS, TZ).busy, rules: { lead_hours: 2, max_days_ahead: 3 }, now });
+  const out = freeWindows({
+    hours,
+    closures: [],
+    tz: TZ,
+    busy: parseIcs(ICS, TZ).busy,
+    rules: { lead_hours: 2, max_days_ahead: 3 },
+    now,
+  });
   const text = describeOpenings(out, TZ);
   assert.match(text, /^Open times \(from the calendar, checked just now/);
   assert.match(text, /- Wednesday, September 9: 10:00 AM – 11:00 AM, 1:00 PM – 3:00 PM, 4:00 PM – 6:00 PM/);
@@ -126,23 +187,55 @@ test("the words: a few days, the windows on each, and the rule that the calendar
 /* --------------------------------- config, composer, runtime, settings -- */
 
 const brain = {
-  business_name: "Melany's Beauty Salon", phone_display: "(646) 932-5775", booking_link: "https://booksy.com/x",
-  system_prompt: "x".repeat(50), fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  business_name: "Melany's Beauty Salon",
+  phone_display: "(646) 932-5775",
+  booking_link: "https://booksy.com/x",
+  system_prompt: "x".repeat(50),
+  fallbacks: { greeting: "g", error: "e", non_text: "n" },
 };
 
 test("booking rules and the calendar feed are config the schemas accept, and the composer states the rules", () => {
-  const cfg = { brain: { ...brain, profile: { hours, booking_rules: { lead_hours: 2, buffer_min: 15, consult_first: ["Color correction"], party_max: 4, notes: ["No chemical services after 4 PM"] } } }, calendar: { ical_url: "webcal://calendar.google.com/calendar/ical/x/private-y/basic.ics" } };
+  const cfg = {
+    brain: {
+      ...brain,
+      profile: {
+        hours,
+        booking_rules: {
+          lead_hours: 2,
+          buffer_min: 15,
+          consult_first: ["Color correction"],
+          party_max: 4,
+          notes: ["No chemical services after 4 PM"],
+        },
+      },
+    },
+    calendar: { ical_url: "webcal://calendar.google.com/calendar/ical/x/private-y/basic.ics" },
+  };
   assert.equal(parseTenantConfigResult(cfg).ok, true);
   assert.equal(TenantConfigWriteSchema.safeParse(cfg).success, true);
-  assert.equal(parseTenantConfigResult({ ...cfg, calendar: { ical_url: "not a url" } }).ok, false, "a feed address must be https or webcal");
+  assert.equal(
+    parseTenantConfigResult({ ...cfg, calendar: { ical_url: "not a url" } }).ok,
+    false,
+    "a feed address must be https or webcal",
+  );
   const text = composeSystemPrompt(brain, cfg.brain.profile, "whatsapp");
   assert.ok(text.includes("Booking rules:\n- At least 2 hours' notice for any appointment."));
   assert.ok(text.includes("These need a consultation before they can be booked: Color correction."));
   assert.ok(text.includes("Up to 4 people per booking; larger groups go to a person."));
   assert.ok(text.includes("No chemical services after 4 PM"));
-  assert.ok(text.includes("If open times are listed after these instructions, offer up to three that fit"), "both channels are told how to use the openings");
-  assert.ok(text.indexOf("If open times are listed") < text.indexOf("Rules you must follow"), "and the guardrails still come last");
-  assert.ok(composeSystemPrompt(brain, { hours }, "voice").includes("If none are listed, do not guess at open times; send the link."));
+  assert.ok(
+    text.includes("If open times are listed after these instructions, offer up to three that fit"),
+    "both channels are told how to use the openings",
+  );
+  assert.ok(
+    text.indexOf("If open times are listed") < text.indexOf("Rules you must follow"),
+    "and the guardrails still come last",
+  );
+  assert.ok(
+    composeSystemPrompt(brain, { hours }, "voice").includes(
+      "If none are listed, do not guess at open times; send the link.",
+    ),
+  );
 });
 
 test("the edge reads the feed once per five minutes and tells both receptionists, after the clock", () => {
@@ -150,13 +243,22 @@ test("the edge reads the feed once per five minutes and tells both receptionists
   assert.ok(lib.includes("const CACHE_MS = 5 * 60 * 1000;"));
   assert.ok(lib.includes("AbortSignal.timeout(FETCH_TIMEOUT_MS)"));
   assert.ok(lib.includes('u.replace(/^webcal:\\/\\//i, "https://")'));
-  assert.ok(lib.includes("feeds.set(key, { text, at, parsed: null, tz, daysAhead });"), "a failure is cached briefly too");
-  assert.ok(lib.includes("if (hit?.parsed && sameTerms(hit)) return hit.parsed;"), "parsed once per fetch, on the terms it was asked for");
+  assert.ok(
+    lib.includes("feeds.set(key, { text, at, parsed: null, tz, daysAhead });"),
+    "a failure is cached briefly too",
+  );
+  assert.ok(
+    lib.includes("if (hit?.parsed && sameTerms(hit)) return hit.parsed;"),
+    "parsed once per fetch, on the terms it was asked for",
+  );
   // Keyed on the workspace ALONE, an owner correcting a wrong feed address was
   // not a cache miss: the receptionist answered from the old calendar, and a
   // cached failure kept a fixed address reading as broken, for five minutes.
   assert.ok(lib.includes("const cacheKey = (tenantId: string, url: string) =>"), "the address is part of the key");
-  assert.ok(lib.includes("c.text === text && c.tz === tz && c.daysAhead === daysAhead"), "and the horizon is part of the parse's");
+  assert.ok(
+    lib.includes("c.text === text && c.tz === tz && c.daysAhead === daysAhead"),
+    "and the horizon is part of the parse's",
+  );
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(rt.includes("calendar: parsed?.calendar ?? null,"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");

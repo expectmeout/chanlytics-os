@@ -69,9 +69,12 @@ export function judgeMailDomain(domains: MailDomainFacts[], wanted: string): Mai
   if (d.status !== VERIFIED) {
     if (d.status.startsWith("partially_")) return { kind: "half", status: d.status };
     if (d.status === "failed") return { kind: "given_up", status: d.status };
-    return WAS_VERIFIED.has(d.status) ? { kind: "stopped", status: d.status } : { kind: "never_verified", status: d.status };
+    return WAS_VERIFIED.has(d.status)
+      ? { kind: "stopped", status: d.status }
+      : { kind: "never_verified", status: d.status };
   }
-  if (d.sending === "disabled" || d.receiving === "disabled") return { kind: "off", sending: d.sending, receiving: d.receiving };
+  if (d.sending === "disabled" || d.receiving === "disabled")
+    return { kind: "off", sending: d.sending, receiving: d.receiving };
   return null;
 }
 
@@ -97,11 +100,12 @@ function consequence(t: MailDomainTrouble): string {
 
 /** The page: what the provider said, what it costs, and the one place to go and look. */
 export function describeMailDomainTrouble(t: MailDomainTrouble, domain: string): { subject: string; body: string } {
-  const said = t.kind === "absent"
-    ? "the provider has no domain by that name"
-    : t.kind === "off"
-      ? `verified, sending ${t.sending}, receiving ${t.receiving}`
-      : `status "${t.status}"`;
+  const said =
+    t.kind === "absent"
+      ? "the provider has no domain by that name"
+      : t.kind === "off"
+        ? `verified, sending ${t.sending}, receiving ${t.receiving}`
+        : `status "${t.status}"`;
   return {
     subject: `The mail domain ${domain} is not working: ${said}`,
     body:
@@ -128,7 +132,9 @@ export interface MailDomainPorts {
  * not be reached is `error`, which is logged and changes nothing — an outage at
  * the provider must not page as an outage of ours, and the next tick asks again.
  */
-export async function checkMailDomain(p: MailDomainPorts): Promise<{ trouble: MailDomainTrouble | null; error?: string; skipped?: "email_off" | "no_key" }> {
+export async function checkMailDomain(
+  p: MailDomainPorts,
+): Promise<{ trouble: MailDomainTrouble | null; error?: string; skipped?: "email_off" | "no_key" }> {
   if (!p.domain) return { trouble: null, skipped: "email_off" };
   if (!p.apiKey) return { trouble: null, skipped: "no_key" };
   const ask = p.domains ?? fetchMailDomains;

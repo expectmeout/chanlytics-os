@@ -35,7 +35,11 @@ export function searchNeedle(q: string | null | undefined): string {
   return (q ?? "").trim().replace(/[,()"'\\%*_]/g, "");
 }
 
-export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: string, page: PeoplePage = {}): Promise<PersonRowDto[]> {
+export async function listPeople(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  page: PeoplePage = {},
+): Promise<PersonRowDto[]> {
   const q = searchNeedle(page.q) || null;
   const offset = page.offset ?? 0;
   const limit = page.limit ?? PEOPLE_PAGE;
@@ -57,7 +61,9 @@ export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: 
     .eq("class", "reply");
   if (polErr) console.error("people_policies_read_failed", polErr.message);
   const workspaceMode = pols?.find((p) => p.subject_type === null)?.mode ?? null;
-  const personMode = new Map((pols ?? []).filter((p) => p.subject_type === "contact").map((p) => [p.subject_id, p.mode]));
+  const personMode = new Map(
+    (pols ?? []).filter((p) => p.subject_type === "contact").map((p) => [p.subject_id, p.mode]),
+  );
   return ((data ?? []) as PersonRowDto[]).map((r) => ({
     ...r,
     effective_reply_mode: personMode.get(r.id) ?? workspaceMode,
@@ -92,7 +98,11 @@ export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: st
  * kept to the characters a name or a number holds, so a comma cannot reach
  * the filter grammar.
  */
-export async function countPeople(ctx: Pick<RouteContext, "supabase">, tenantId: string, q: string | null): Promise<number> {
+export async function countPeople(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  q: string | null,
+): Promise<number> {
   let query = ctx.supabase
     .from("contacts")
     .select("id", { count: "exact", head: true })
@@ -102,7 +112,12 @@ export async function countPeople(ctx: Pick<RouteContext, "supabase">, tenantId:
   const needle = searchNeedle(q);
   if (needle) {
     const digits = needle.replace(/\D/g, "");
-    const clauses = [`display_name.ilike.*${needle}*`, `wa_profile_name.ilike.*${needle}*`, `email.ilike.*${needle}*`, ...(digits.length >= 3 ? [`phone_e164.ilike.*${digits}*`] : [])];
+    const clauses = [
+      `display_name.ilike.*${needle}*`,
+      `wa_profile_name.ilike.*${needle}*`,
+      `email.ilike.*${needle}*`,
+      ...(digits.length >= 3 ? [`phone_e164.ilike.*${digits}*`] : []),
+    ];
     query = query.or(clauses.join(","));
   }
   const { count, error } = await query;

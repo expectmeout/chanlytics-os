@@ -6,8 +6,15 @@
  * this keeps both current after a change and tells the chrome.
  */
 import {
-  identityWords, memberWords, personInitials, type IdentityInput,
-  timezoneWords, timezoneCity, knownTimezones, usableDeviceTimezone, DEFAULT_TIMEZONE,
+  identityWords,
+  memberWords,
+  personInitials,
+  type IdentityInput,
+  timezoneWords,
+  timezoneCity,
+  knownTimezones,
+  usableDeviceTimezone,
+  DEFAULT_TIMEZONE,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import type { Me } from "./surface-data";

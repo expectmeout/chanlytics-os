@@ -7,7 +7,23 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayLeaks as todayLeaksV2, todayAwayGrouped, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved, toBroadcastVM, unreadCount, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows, toPersonRowVM, PEOPLE_LISTS, peopleListAction, GET_YES_ROUTE } from "@chanlytics/contracts";
+import {
+  todayLeaks as todayLeaksV2,
+  todayAwayGrouped,
+  todayPeriodLine,
+  todayRunWords,
+  todayRunsSub,
+  todayRunApproved,
+  toBroadcastVM,
+  unreadCount,
+  TODAY_LEAK_MAX,
+  SERVER_NOTIFICATION_KINDS,
+  serverNotificationRows,
+  toPersonRowVM,
+  PEOPLE_LISTS,
+  peopleListAction,
+  GET_YES_ROUTE,
+} from "@chanlytics/contracts";
 // The mockup's sample is a real ReportsSurface (reportDto through toReportVM): the round trip the period line is tested on.
 import { reportsSample } from "../../../apps/dashboard/src/legacy-bridge/reports-sample.ts";
 
@@ -21,9 +37,17 @@ const act = (cta, to, enabled = true) => ({ text: "", cta, to, enabled });
 /** The salon's own numbers on 17 Sep 2026, which is where every rule below came from. */
 const reports = (over = {}) => ({
   vm: {
-    days: 30, rangeLabel: "30 days", since: "Aug 19", until: "Sep 17", empty: false, tiles: [],
+    days: 30,
+    rangeLabel: "30 days",
+    since: "Aug 19",
+    until: "Sep 17",
+    empty: false,
+    tiles: [],
     answered: { totals: { in: 21, ai: 16, you: 1, none: 4 } },
-    reasons: [{ id: "manual", label: "Flagged by you", value: 2 }, { id: "opt_out", label: "Asked to stop", value: 1 }],
+    reasons: [
+      { id: "manual", label: "Flagged by you", value: 2 },
+      { id: "opt_out", label: "Asked to stop", value: 1 },
+    ],
     ...(over.vm || {}),
   },
   campaigns: { tiles: [], empty: false },
@@ -34,26 +58,70 @@ const reports = (over = {}) => ({
 const NOW = new Date("2026-09-21T16:00:00Z");
 const at = (days) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
 /** A person as the People surface holds them: the database's row through contracts' toPersonRowVM. A yes to messages. */
-const personRow = (id, name, over = {}) => toPersonRowVM({
-  id, display_name: name, wa_profile_name: null, phone_e164: null, email: null,
-  consent: "opted_in", consent_source: "in_person", consent_updated_at: at(20), dnc: false,
-  marketing_consent: null, marketing_consent_source: null, marketing_consent_updated_at: null,
-  channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
-  latest_conversation_id: null, latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null,
-  last_message_at: at(3), last_message_direction: "inbound", last_message_sender: "customer", last_inbound_text: "Thanks!", last_inbound_at: at(3),
-  last_call_at: null, call_count: 0, call_seconds: 0, first_contact_at: at(30), earliest_row_at: at(30), has_backfill: false, has_chat: true, queued_reply_at: null,
-  ...over,
-}, "America/New_York", NOW);
+const personRow = (id, name, over = {}) =>
+  toPersonRowVM(
+    {
+      id,
+      display_name: name,
+      wa_profile_name: null,
+      phone_e164: null,
+      email: null,
+      consent: "opted_in",
+      consent_source: "in_person",
+      consent_updated_at: at(20),
+      dnc: false,
+      marketing_consent: null,
+      marketing_consent_source: null,
+      marketing_consent_updated_at: null,
+      channels: ["whatsapp"],
+      conversation_count: 1,
+      escalation_count: 0,
+      needs_human: false,
+      open_escalation_reason: null,
+      open_escalation_since: null,
+      latest_conversation_id: null,
+      latest_state: "open",
+      latest_paused_until: null,
+      latest_assignee_user_id: null,
+      latest_snooze_until: null,
+      latest_wa_inbound_at: null,
+      last_message_at: at(3),
+      last_message_direction: "inbound",
+      last_message_sender: "customer",
+      last_inbound_text: "Thanks!",
+      last_inbound_at: at(3),
+      last_call_at: null,
+      call_count: 0,
+      call_seconds: 0,
+      first_contact_at: at(30),
+      earliest_row_at: at(30),
+      has_backfill: false,
+      has_chat: true,
+      queued_reply_at: null,
+      ...over,
+    },
+    "America/New_York",
+    NOW,
+  );
 /** The seven under the salon's reach numbers below: a number each, a yes to messages, nothing to offers. */
-const saidYesToMessages = Array.from({ length: 7 }, (_, i) => personRow(`k-${i}`, `Guest ${i}`, { phone_e164: `+1305555010${i}` }));
+const saidYesToMessages = Array.from({ length: 7 }, (_, i) =>
+  personRow(`k-${i}`, `Guest ${i}`, { phone_e164: `+1305555010${i}` }),
+);
 
 const people = (over = []) => ({
-  lists: over.length ? over : [
-    list("asked_never_booked", "Asked, never booked", 17, act("Text the booking link", "broadcasts/asked_never_booked")),
-    list("opted_in", "Said yes to messages", 7, act("Get their yes to offers", "broadcasts/get-yes")),
-    list("offers_ok", "Can receive offers", 0, act("Broadcast to everyone who said yes", "broadcasts", false)),
-    list("quiet", "Quiet 30+ days", 6, act("Reach out", "broadcasts/quiet")),
-  ],
+  lists: over.length
+    ? over
+    : [
+        list(
+          "asked_never_booked",
+          "Asked, never booked",
+          17,
+          act("Text the booking link", "broadcasts/asked_never_booked"),
+        ),
+        list("opted_in", "Said yes to messages", 7, act("Get their yes to offers", "broadcasts/get-yes")),
+        list("offers_ok", "Can receive offers", 0, act("Broadcast to everyone who said yes", "broadcasts", false)),
+        list("quiet", "Quiet 30+ days", 6, act("Reach out", "broadcasts/quiet")),
+      ],
   aggregates: { total: 28 },
   rows: saidYesToMessages,
 });
@@ -61,7 +129,10 @@ const people = (over = []) => ({
 test("the leak that costs a customer comes first, and it carries the arithmetic that makes it believable", () => {
   const out = todayLeaks(reports(), people());
   assert.equal(out.length, TODAY_LEAK_MAX, "two, never a list");
-  assert.deepEqual(out.map((l) => l.id), ["never-booked", "unanswered"]);
+  assert.deepEqual(
+    out.map((l) => l.id),
+    ["never-booked", "unanswered"],
+  );
   const [first] = out;
   assert.equal(first.text, "18 people wrote or called in the last 30 days. Not one of them is on the calendar.");
   assert.equal(first.math, "0 of 18 booked · 17 on Asked, never booked", "both pages' numbers, said together");
@@ -73,7 +144,10 @@ test("the leak that costs a customer comes first, and it carries the arithmetic 
 });
 
 test("a healthy workspace gets no band at all -- nothing here congratulates anyone", () => {
-  const clean = reports({ vm: { answered: { totals: { in: 21, ai: 20, you: 1, none: 0 } } }, booking: { present: true, headline: "16 of 18 booked", sub: "", pct: 89, asked: 18, booked: 16 } });
+  const clean = reports({
+    vm: { answered: { totals: { in: 21, ai: 20, you: 1, none: 0 } } },
+    booking: { present: true, headline: "16 of 18 booked", sub: "", pct: 89, asked: 18, booked: 16 },
+  });
   assert.deepEqual(todayLeaks(clean, people([list("quiet", "Quiet 30+ days", 1, null)])), []);
   assert.deepEqual(todayLeaks(null, null), []);
   assert.deepEqual(todayLeaks(clean, null), []);
@@ -82,8 +156,20 @@ test("a healthy workspace gets no band at all -- nothing here congratulates anyo
 test("small numbers never fire: two people who did not book is a quiet week", () => {
   const tiny = reports({ booking: { present: true, headline: "0 of 4 booked", sub: "", pct: 0, asked: 4, booked: 0 } });
   assert.ok(!todayLeaks(tiny, people(), 4).some((l) => l.id === "never-booked"), "four asked is under the floor");
-  const noCal = reports({ booking: { present: false, headline: "—", sub: "Connect your calendar under Settings › Business to see who booked.", pct: null, asked: 0, booked: 0 } });
-  assert.ok(!todayLeaks(noCal, people(), 4).some((l) => l.id === "never-booked"), "no calendar is not a leak, it is a setup step");
+  const noCal = reports({
+    booking: {
+      present: false,
+      headline: "—",
+      sub: "Connect your calendar under Settings › Business to see who booked.",
+      pct: null,
+      asked: 0,
+      booked: 0,
+    },
+  });
+  assert.ok(
+    !todayLeaks(noCal, people(), 4).some((l) => l.id === "never-booked"),
+    "no calendar is not a leak, it is a setup step",
+  );
 });
 
 test("every rule has a floor, and each floor is a number somebody chose", () => {
@@ -97,8 +183,14 @@ test("every rule has a floor, and each floor is a number somebody chose", () => 
   assert.ok(ids(two).includes("unanswered"));
 
   // One person who said yes is not yet a list nobody can mail.
-  const healthy = reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } });
-  const few = [list("opted_in", "Said yes to messages", 2, act("Get their yes to offers", "broadcasts")), list("offers_ok", "Can receive offers", 0, null)];
+  const healthy = reports({
+    vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
+    booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+  });
+  const few = [
+    list("opted_in", "Said yes to messages", 2, act("Get their yes to offers", "broadcasts")),
+    list("offers_ok", "Can receive offers", 0, null),
+  ];
   assert.ok(!ids(healthy, { lists: few, rows: saidYesToMessages.slice(0, 2) }).includes("unreachable"));
   few[0].count = 3;
   assert.ok(ids(healthy, { lists: few, rows: saidYesToMessages.slice(0, 3) }).includes("unreachable"));
@@ -110,20 +202,41 @@ test("every rule has a floor, and each floor is a number somebody chose", () => 
 });
 
 test("some booked, but few: the sentence changes and the number is theirs", () => {
-  const some = reports({ vm: { answered: { totals: { in: 21, ai: 21, you: 0, none: 0 } } }, booking: { present: true, headline: "3 of 18 booked", sub: "", pct: 17, asked: 18, booked: 3 } });
+  const some = reports({
+    vm: { answered: { totals: { in: 21, ai: 21, you: 0, none: 0 } } },
+    booking: { present: true, headline: "3 of 18 booked", sub: "", pct: 17, asked: 18, booked: 3 },
+  });
   const [one] = todayLeaks(some, people());
   assert.equal(one.text, "Only 3 of the 18 people who wrote or called in the last 30 days got onto the calendar.");
 });
 
 test("a list nobody can be mailed, and a list gone quiet -- the two that cost a chance, in that order", () => {
-  const quietBooks = reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } });
+  const quietBooks = reports({
+    vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
+    booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+  });
   const out = todayLeaks(quietBooks, people(), 4);
-  assert.deepEqual(out.map((l) => l.id), ["unreachable", "quiet"]);
+  assert.deepEqual(
+    out.map((l) => l.id),
+    ["unreachable", "quiet"],
+  );
   assert.equal(out[0].text, "7 people have said yes to messages, but nobody has said yes to offers.");
-  assert.deepEqual(out[0].also, { label: "Get their yes to offers", to: "broadcasts/get-yes" }, "the door lands on the QR, not on the composer above it");
+  assert.deepEqual(
+    out[0].also,
+    { label: "Get their yes to offers", to: "broadcasts/get-yes" },
+    "the door lands on the QR, not on the composer above it",
+  );
   assert.equal(out[1].math, "of 28 in People");
-  assert.deepEqual(out[1].also, { label: "Reach out", to: "broadcasts/quiet" }, "the list's own step, when the list can run it");
-  const held = todayLeaks(quietBooks, { lists: [list("quiet", "Quiet 30+ days", 6, act("Reach out", "broadcasts/quiet", false))] }, 4);
+  assert.deepEqual(
+    out[1].also,
+    { label: "Reach out", to: "broadcasts/quiet" },
+    "the list's own step, when the list can run it",
+  );
+  const held = todayLeaks(
+    quietBooks,
+    { lists: [list("quiet", "Quiet 30+ days", 6, act("Reach out", "broadcasts/quiet", false))] },
+    4,
+  );
   assert.equal(held[0].also, null, "a step nobody can take is not offered");
 });
 
@@ -134,13 +247,27 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
     rows,
     lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar).map((l) => {
       const members = rows.filter(l.test);
-      return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
+      return {
+        id: l.id,
+        label: l.label,
+        group: l.group,
+        count: members.length,
+        ids: members.map((r) => r.id),
+        action: peopleListAction(l.id, members),
+      };
     }),
     aggregates: { total: rows.length },
   });
   // Three with a number who said yes to messages and nothing to offers: the nightly's own workspace.
-  const three = [row("p1", "Rosa Diaz", { phone_e164: "+13055550101" }), row("p2", "Mia Chen", { phone_e164: "+13055550102" }), row("p3", "Ivy Park", { phone_e164: "+13055550103" })];
-  const bookedWell = reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } });
+  const three = [
+    row("p1", "Rosa Diaz", { phone_e164: "+13055550101" }),
+    row("p2", "Mia Chen", { phone_e164: "+13055550102" }),
+    row("p3", "Ivy Park", { phone_e164: "+13055550103" }),
+  ];
+  const bookedWell = reports({
+    vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
+    booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+  });
   const reach = (rows) => todayLeaksV2(bookedWell, surface(rows)).rows.find((l) => l.id === "unreachable");
 
   // Nobody said yes to offers: the sentence the nightly pins, and the door to the QR, where that yes is got.
@@ -152,28 +279,71 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
   // Ana wrote in by email and said yes to both there: nobody can be sent an offer still, and it is not for want of a
   // yes. Said as People's list step and the send screen say it (#663, #811) -- and no door to the QR, which would ask
   // her for the yes she gave.
-  const ana = row("p4", "Ana Reyes", { email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent: "opted_in", marketing_consent_source: "customer_message", marketing_consent_updated_at: at(20) });
+  const ana = row("p4", "Ana Reyes", {
+    email: "ana@example.com",
+    channels: ["email"],
+    consent_source: "customer_message",
+    marketing_consent: "opted_in",
+    marketing_consent_source: "customer_message",
+    marketing_consent_updated_at: at(20),
+  });
   const noNumber = reach([...three, ana]);
-  assert.equal(noNumber.text, "4 people have said yes to messages, but nobody can be sent an offer yet.", "REGRESSION: '4 people have said yes to messages, but nobody has said yes to offers.'");
+  assert.equal(
+    noNumber.text,
+    "4 people have said yes to messages, but nobody can be sent an offer yet.",
+    "REGRESSION: '4 people have said yes to messages, but nobody has said yes to offers.'",
+  );
   assert.equal(noNumber.math, "a broadcast reaches only a recorded yes with a number to send to · 0 can receive one");
   assert.equal(noNumber.also, null, "REGRESSION: a door asking Ana for the yes she gave");
-  assert.deepEqual(noNumber.cta, { label: "Open People", to: "clients/seg:opted_in" }, "the number is People's list, and the door opens it");
-  assert.equal(noNumber.ask, "4 people have said yes to messages, but nobody can be sent an offer yet. A broadcast reaches only a recorded yes with a number to send to · 0 can receive one. Why is that?");
+  assert.deepEqual(
+    noNumber.cta,
+    { label: "Open People", to: "clients/seg:opted_in" },
+    "the number is People's list, and the door opens it",
+  );
+  assert.equal(
+    noNumber.ask,
+    "4 people have said yes to messages, but nobody can be sent an offer yet. A broadcast reaches only a recorded yes with a number to send to · 0 can receive one. Why is that?",
+  );
 
   // The yes is anyone's in the workspace, as the broadcast to everyone counts it: Cleo said yes to offers on a paper
   // form and to nothing else, so she is on no list of People's -- and the sentence may not say nobody did.
-  const cleo = row("p5", "Cleo Park", { consent: null, consent_source: null, consent_updated_at: null, channels: [], has_chat: false, marketing_consent: "opted_in", marketing_consent_source: "form", marketing_consent_updated_at: at(5) });
+  const cleo = row("p5", "Cleo Park", {
+    consent: null,
+    consent_source: null,
+    consent_updated_at: null,
+    channels: [],
+    has_chat: false,
+    marketing_consent: "opted_in",
+    marketing_consent_source: "form",
+    marketing_consent_updated_at: at(5),
+  });
   const outside = reach([...three, cleo]);
   assert.equal(outside.text, "3 people have said yes to messages, but nobody can be sent an offer yet.");
   assert.equal(outside.also, null);
   // A yes to offers that was taken back with a STOP is no yes at all.
-  const stopped = row("p6", "Dee Wolf", { consent: "opted_out", consent_source: "customer_message", marketing_consent: "opted_in" });
-  assert.equal(reach([...three, stopped]).text, "3 people have said yes to messages, but nobody has said yes to offers.");
+  const stopped = row("p6", "Dee Wolf", {
+    consent: "opted_out",
+    consent_source: "customer_message",
+    marketing_consent: "opted_in",
+  });
+  assert.equal(
+    reach([...three, stopped]).text,
+    "3 people have said yes to messages, but nobody has said yes to offers.",
+  );
 });
 
 /* --------------------------- while you were away ------------------------- */
 
-const bell = (id, kind, title, tone = "", about = null) => ({ id, kind, title, message: "", tone, icon: "bell", unread: true, about });
+const bell = (id, kind, title, tone = "", about = null) => ({
+  id,
+  kind,
+  title,
+  message: "",
+  tone,
+  icon: "bell",
+  unread: true,
+  about,
+});
 
 test("a conversation already in the queue above is not said again here", () => {
   const rows = [
@@ -182,7 +352,10 @@ test("a conversation already in the queue above is not said again here", () => {
     bell("n:3", "review", "1 new rating on Google", "ok"),
   ];
   const out = todayAwayGrouped(rows, ["cv-1", "cv-2"]);
-  assert.deepEqual(out.groups.map((g) => g.row.id), ["n:3"]);
+  assert.deepEqual(
+    out.groups.map((g) => g.row.id),
+    ["n:3"],
+  );
   assert.equal(out.total, 3, "the head IS what the bell holds; the foot says how many of them are not drawn here");
   assert.equal(out.more, 2);
   const noQueue = todayAwayGrouped(rows, []);
@@ -190,22 +363,39 @@ test("a conversation already in the queue above is not said again here", () => {
   assert.equal(noQueue.groups[0].title, "2 conversations need you");
 });
 
-test("REGRESSION: the DERIVED \"needs you\" row is dropped too -- it is the one a real workspace has", () => {
+test('REGRESSION: the DERIVED "needs you" row is dropped too -- it is the one a real workspace has', () => {
   // A kept row carries `about`; a derived one is computed from the Inbox this
   // browser holds and carries nothing but its key. dedupeFeed drops the KEPT
   // row while a derived one stands, so on the salon’s own workspace every row
   // about a queued conversation arrived in the form this test uses -- and the
   // first cut of this rule, which read `about` alone, matched none of them.
   // Today printed Zoe, Daniela and Emily at the top of the page and again here.
-  const derived = (cv) => ({ id: `needs:th-${cv}`, key: `needs:th-${cv}`, kind: "needs_you", title: "Zoe Martin needs you", message: "", tone: "warn", icon: "alert", unread: true, about: null });
+  const derived = (cv) => ({
+    id: `needs:th-${cv}`,
+    key: `needs:th-${cv}`,
+    kind: "needs_you",
+    title: "Zoe Martin needs you",
+    message: "",
+    tone: "warn",
+    icon: "alert",
+    unread: true,
+    about: null,
+  });
   const rows = [derived("cv-1"), derived("cv-2"), bell("n:9", "review", "1 new rating on Google", "ok")];
   const out = todayAwayGrouped(rows, ["cv-1", "cv-2"]);
-  assert.deepEqual(out.groups.map((g) => g.row.id), ["n:9"], "REGRESSION: a conversation in the queue was said twice on one page");
+  assert.deepEqual(
+    out.groups.map((g) => g.row.id),
+    ["n:9"],
+    "REGRESSION: a conversation in the queue was said twice on one page",
+  );
   assert.equal(out.total, 3, "dropped from the list, still counted on the head -- it is still in the bell");
   // Not in the queue: it belongs here, and it is still never grouped -- a
   // conversation waiting for a person is one person, not a count.
   const still = todayAwayGrouped(rows, ["cv-1"]);
-  assert.deepEqual(still.groups.map((g) => g.row.id), ["needs:th-cv-2", "n:9"]);
+  assert.deepEqual(
+    still.groups.map((g) => g.row.id),
+    ["needs:th-cv-2", "n:9"],
+  );
   assert.ok(still.groups.every((g) => g.title === null));
 });
 
@@ -220,12 +410,11 @@ test("twelve calls from the same line are one row that says twelve, and the warn
   ];
   const { groups, more, total } = todayAwayGrouped(rows, [], 5);
   assert.equal(total, 17);
-  assert.deepEqual(groups.map((g) => g.title ?? g.row.title), [
-    "2 jobs did not finish",
-    "WhatsApp number: quality rating is now Yellow",
-    "12 calls",
-    "2 new ratings on Google",
-  ], "warnings first, then the bell's own order; five identical hangups no longer bury the downgrade");
+  assert.deepEqual(
+    groups.map((g) => g.title ?? g.row.title),
+    ["2 jobs did not finish", "WhatsApp number: quality rating is now Yellow", "12 calls", "2 new ratings on Google"],
+    "warnings first, then the bell's own order; five identical hangups no longer bury the downgrade",
+  );
   assert.equal(more, 0);
   const calls = groups.find((g) => g.title === "12 calls");
   assert.equal(calls.count, 12);
@@ -243,10 +432,11 @@ test("two broadcasts that went out are not counted into the jobs that did not fi
   ];
   const { groups, total } = todayAwayGrouped(rows, [], 5);
   assert.equal(total, 3);
-  assert.deepEqual(groups.map((g) => g.title ?? g.row.title), [
-    "A outbound_send job did not finish",
-    "2 broadcasts finished",
-  ], "the failure stands alone; the two sends are their own group, in their own words");
+  assert.deepEqual(
+    groups.map((g) => g.title ?? g.row.title),
+    ["A outbound_send job did not finish", "2 broadcasts finished"],
+    "the failure stands alone; the two sends are their own group, in their own words",
+  );
   assert.equal(groups[0].count, 1, "one job did not finish, not three");
   assert.equal(groups[1].row.tone, "ok", "and good news does not outrank the warning");
 });
@@ -257,42 +447,104 @@ test("a template that can be sent does not wear a warning's colour, and neither 
   // dressed as bad news about the phone line. Since the away card sorts
   // warnings first, it also outranked real news and could push a genuine
   // quality downgrade off the bottom.
-  const dto = (id, kind, title) => ({ id, kind, title, body: "", route: null, subject_type: null, subject_id: null, created_at: "2026-09-17T12:00:00Z", read: false, dismissed: false });
-  const rows = serverNotificationRows({ seen_at: null, notifications: [
-    dto("a", "template_ready", "Template “save_our_number” approved"),
-    dto("b", "template_blocked", "Template “x” rejected"),
-    dto("c", "number", "WhatsApp number: quality rating is now Yellow"),
-  ] });
-  assert.deepEqual(rows.map((r) => [r.kind, r.tone, r.icon, r.to, r.action]), [
-    ["template_ready", "ok", "check", "messages", "Open Templates"],
-    ["template_blocked", "warn", "alert", "messages", "Open Templates"],
-    ["number", "warn", "shield", "admin/integrations", "Open Connections"],
-  ]);
+  const dto = (id, kind, title) => ({
+    id,
+    kind,
+    title,
+    body: "",
+    route: null,
+    subject_type: null,
+    subject_id: null,
+    created_at: "2026-09-17T12:00:00Z",
+    read: false,
+    dismissed: false,
+  });
+  const rows = serverNotificationRows({
+    seen_at: null,
+    notifications: [
+      dto("a", "template_ready", "Template “save_our_number” approved"),
+      dto("b", "template_blocked", "Template “x” rejected"),
+      dto("c", "number", "WhatsApp number: quality rating is now Yellow"),
+    ],
+  });
+  assert.deepEqual(
+    rows.map((r) => [r.kind, r.tone, r.icon, r.to, r.action]),
+    [
+      ["template_ready", "ok", "check", "messages", "Open Templates"],
+      ["template_blocked", "warn", "alert", "messages", "Open Templates"],
+      ["number", "warn", "shield", "admin/integrations", "Open Connections"],
+    ],
+  );
   // And the away card sorts on that: the downgrade and the rejection above the approval.
-  const { groups } = todayAwayGrouped(rows.map((r) => ({ ...r, id: r.key })), [], 5);
-  assert.deepEqual(groups.map((g) => g.row.kind), ["template_blocked", "number", "template_ready"]);
-  assert.ok(SERVER_NOTIFICATION_KINDS.includes("template_ready") && SERVER_NOTIFICATION_KINDS.includes("template_blocked"), "the closed list carries them, so serverNotificationRows does not fall back to \"alert\"");
+  const { groups } = todayAwayGrouped(
+    rows.map((r) => ({ ...r, id: r.key })),
+    [],
+    5,
+  );
+  assert.deepEqual(
+    groups.map((g) => g.row.kind),
+    ["template_blocked", "number", "template_ready"],
+  );
+  assert.ok(
+    SERVER_NOTIFICATION_KINDS.includes("template_ready") && SERVER_NOTIFICATION_KINDS.includes("template_blocked"),
+    'the closed list carries them, so serverNotificationRows does not fall back to "alert"',
+  );
 });
 
 test("several templates at once are one row each way -- a sync can approve a batch", () => {
-  const t = (id, kind, title) => ({ id, kind, title, message: "", tone: kind === "template_ready" ? "ok" : "warn", icon: "check", unread: true, about: null });
+  const t = (id, kind, title) => ({
+    id,
+    kind,
+    title,
+    message: "",
+    tone: kind === "template_ready" ? "ok" : "warn",
+    icon: "check",
+    unread: true,
+    about: null,
+  });
   // A run the queue holds for a word is not said again here; a run it does not hold is news.
   const readyRun = (id, name) => t(id, "playbook", `Playbook “${name}” is ready: 1 person`);
-  const withRun = todayAwayGrouped([readyRun("r1", "Win-back · quiet 30 days"), readyRun("r2", "Birthday offer")], [{ runLabel: "Win-back · quiet 30 days" }], 5);
-  assert.deepEqual(withRun.groups.map((g) => g.row.id), ["r2"], "the queued run's row is the queue's; the other stands");
+  const withRun = todayAwayGrouped(
+    [readyRun("r1", "Win-back · quiet 30 days"), readyRun("r2", "Birthday offer")],
+    [{ runLabel: "Win-back · quiet 30 days" }],
+    5,
+  );
+  assert.deepEqual(
+    withRun.groups.map((g) => g.row.id),
+    ["r2"],
+    "the queued run's row is the queue's; the other stands",
+  );
   assert.equal(withRun.queued, 1);
-  assert.equal(todayAwayGrouped([readyRun("r1", "Win-back · quiet 30 days")], [], 5).groups.length, 1, "nothing queued, nothing hidden");
-  const ready = todayAwayGrouped([t("1", "template_ready", "a"), t("2", "template_ready", "b"), t("3", "template_ready", "c")]);
+  assert.equal(
+    todayAwayGrouped([readyRun("r1", "Win-back · quiet 30 days")], [], 5).groups.length,
+    1,
+    "nothing queued, nothing hidden",
+  );
+  const ready = todayAwayGrouped([
+    t("1", "template_ready", "a"),
+    t("2", "template_ready", "b"),
+    t("3", "template_ready", "c"),
+  ]);
   assert.equal(ready.groups[0].title, "3 templates are ready to send");
   const blocked = todayAwayGrouped([t("4", "template_blocked", "a"), t("5", "template_blocked", "b")]);
   assert.equal(blocked.groups[0].title, "2 templates cannot be sent");
-  assert.equal(todayAwayGrouped([t("6", "template_ready", "only one")]).groups[0].title, null, "one is news, not a count");
+  assert.equal(
+    todayAwayGrouped([t("6", "template_ready", "only one")]).groups[0].title,
+    null,
+    "one is news, not a count",
+  );
 });
 
 test("a kind with no noun never groups: a new alert shows itself rather than joining a total", () => {
-  const rows = [bell("a", "billing", "Your card was declined", "warn"), bell("b", "billing", "Your trial ends Friday", "warn")];
+  const rows = [
+    bell("a", "billing", "Your card was declined", "warn"),
+    bell("b", "billing", "Your trial ends Friday", "warn"),
+  ];
   const { groups } = todayAwayGrouped(rows);
-  assert.deepEqual(groups.map((g) => g.row.id), ["a", "b"]);
+  assert.deepEqual(
+    groups.map((g) => g.row.id),
+    ["a", "b"],
+  );
   assert.ok(groups.every((g) => g.title === null && g.count === 1));
 });
 
@@ -305,7 +557,14 @@ test("read rows are not away rows, the cap counts groups, and an empty bell says
   assert.equal(out.groups.length, 5);
   assert.equal(out.more, 2);
   assert.equal(out.total, 7);
-  assert.deepEqual(todayAwayGrouped([]), { groups: [], total: 0, more: 0, queued: 0, foot: null, empty: { icon: "check", text: "All caught up." } });
+  assert.deepEqual(todayAwayGrouped([]), {
+    groups: [],
+    total: 0,
+    more: 0,
+    queued: 0,
+    foot: null,
+    empty: { icon: "check", text: "All caught up." },
+  });
 });
 
 test("the head is the bell's own number, and the head, the rows and the foot add up", () => {
@@ -313,7 +572,16 @@ test("the head is the bell's own number, and the head, the rows and the foot add
     bell("n:1", "handoff", "Zoe Martin needs you", "warn", { type: "conversation", id: "cv-1" }),
     bell("n:2", "handoff", "Daniela Reyes needs you", "warn", { type: "conversation", id: "cv-2" }),
     bell("n:3", "review", "1 new rating on Google", "ok"),
-    { id: "n:4", kind: "alert", title: "read already", message: "", tone: "", icon: "bell", unread: false, about: null },
+    {
+      id: "n:4",
+      kind: "alert",
+      title: "read already",
+      message: "",
+      tone: "",
+      icon: "bell",
+      unread: false,
+      about: null,
+    },
   ];
   const out = todayAwayGrouped(rows, ["cv-1", "cv-2"], 5);
   assert.equal(out.total, unreadCount(rows), "the card's head and the bell's badge are one number");
@@ -321,14 +589,25 @@ test("the head is the bell's own number, and the head, the rows and the foot add
   assert.equal(out.queued, 2);
   const onScreen = out.groups.reduce((n, g) => n + g.count, 0);
   assert.equal(out.total, onScreen + out.more, "head = what is drawn + what the foot says");
-  assert.equal(out.foot, "2 more in the bell, already in the queue above", "true of the bell, because both rows are in it");
+  assert.equal(
+    out.foot,
+    "2 more in the bell, already in the queue above",
+    "true of the bell, because both rows are in it",
+  );
   assert.equal(out.empty, null);
 });
 
-test("REGRESSION: a card empty only because the queue above has everything does not say \"All caught up.\" beside a bell of 4", () => {
+test('REGRESSION: a card empty only because the queue above has everything does not say "All caught up." beside a bell of 4', () => {
   const rows = ["cv-1", "cv-2", "cv-3", "cv-4"].map((cv, i) => ({
-    id: `needs:th-${cv}`, key: `needs:th-${cv}`, kind: "needs_you", title: `person ${i} needs you`,
-    message: "", tone: "warn", icon: "alert", unread: true, about: null,
+    id: `needs:th-${cv}`,
+    key: `needs:th-${cv}`,
+    kind: "needs_you",
+    title: `person ${i} needs you`,
+    message: "",
+    tone: "warn",
+    icon: "alert",
+    unread: true,
+    about: null,
   }));
   const out = todayAwayGrouped(rows, ["cv-1", "cv-2", "cv-3", "cv-4"], 5);
   assert.deepEqual(out.groups, [], "none of them is said twice on one page");
@@ -350,7 +629,11 @@ test("under the cap and already in the queue are two different absences, and the
   assert.equal(out.queued, 2);
   assert.equal(out.more, 4, "two left under the cap and two the queue above already holds");
   assert.equal(out.foot, "4 more in the bell, 2 of them already in the queue above");
-  assert.equal(/(\d+) more/.exec(out.foot)[1], "4", "the foot's first number is the one that makes head = drawn + more");
+  assert.equal(
+    /(\d+) more/.exec(out.foot)[1],
+    "4",
+    "the foot's first number is the one that makes head = drawn + more",
+  );
 });
 
 test("a row the bell keyed rather than numbered still carries its id through a group", () => {
@@ -365,13 +648,47 @@ test("a row the bell keyed rather than numbered still carries its id through a g
 
 test("each row wears a word and an icon for its tone, and offers Ask its own facts with their arithmetic", () => {
   const { rows } = todayLeaksV2(reports(), people());
-  assert.deepEqual(rows.map((l) => [l.id, l.tag, l.icon]), [["never-booked", "Booking gap", "calendar"], ["unanswered", "No reply", "alert"]]);
-  assert.equal(rows[0].ask, "18 people wrote or called in the last 30 days. Not one of them is on the calendar. 0 of 18 booked · 17 on Asked, never booked. Why is that?", "the sentence and the arithmetic under it, so Ask grounds the answer in the same numbers");
-  assert.equal(rows[1].ask, "4 customer messages never got an answer at all. Of 21 in the last 30 days · the receptionist answered 16, you answered 1. Why is that?", "the arithmetic takes a capital once it is a sentence of its own");
-  const { rows: reach } = todayLeaksV2(reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } }), people());
-  assert.deepEqual(reach.map((l) => [l.id, l.tag, l.icon]), [["unreachable", "Reach", "users"], ["quiet", "Gone quiet", "clock"]]);
-  assert.equal(reach[0].text, "7 people have said yes to messages, but nobody has said yes to offers.", "the sentence the nightly pins stays");
-  assert.deepEqual([reach[0].cta.label, reach[0].also.label], ["Open People", "Get their yes to offers"], "and so do its two doors");
+  assert.deepEqual(
+    rows.map((l) => [l.id, l.tag, l.icon]),
+    [
+      ["never-booked", "Booking gap", "calendar"],
+      ["unanswered", "No reply", "alert"],
+    ],
+  );
+  assert.equal(
+    rows[0].ask,
+    "18 people wrote or called in the last 30 days. Not one of them is on the calendar. 0 of 18 booked · 17 on Asked, never booked. Why is that?",
+    "the sentence and the arithmetic under it, so Ask grounds the answer in the same numbers",
+  );
+  assert.equal(
+    rows[1].ask,
+    "4 customer messages never got an answer at all. Of 21 in the last 30 days · the receptionist answered 16, you answered 1. Why is that?",
+    "the arithmetic takes a capital once it is a sentence of its own",
+  );
+  const { rows: reach } = todayLeaksV2(
+    reports({
+      vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
+      booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+    }),
+    people(),
+  );
+  assert.deepEqual(
+    reach.map((l) => [l.id, l.tag, l.icon]),
+    [
+      ["unreachable", "Reach", "users"],
+      ["quiet", "Gone quiet", "clock"],
+    ],
+  );
+  assert.equal(
+    reach[0].text,
+    "7 people have said yes to messages, but nobody has said yes to offers.",
+    "the sentence the nightly pins stays",
+  );
+  assert.deepEqual(
+    [reach[0].cta.label, reach[0].also.label],
+    ["Open People", "Get their yes to offers"],
+    "and so do its two doors",
+  );
 });
 
 test("a third problem is counted, not dropped in silence", () => {
@@ -394,10 +711,21 @@ test("the unanswered row names who is waiting NOW, up to two, from the threads T
     { conversationId: "cv-x", who: "Ana", sinceMs: 3, to: "inbox/th-cv-x" },
   ];
   const row = todayLeaksV2(reports(), people(), waiting).rows.find((l) => l.id === "unanswered");
-  assert.deepEqual(row.people, [{ id: "cv-d", name: "Dulce Amaro", to: "inbox/th-cv-d" }, { id: "cv-r", name: "Renata Solís", to: "inbox/th-cv-r" }]);
-  assert.equal(row.text, "4 customer messages never got an answer at all.", "the count stays Reports' over its period; the names are the threads waiting right now, and the page says so");
+  assert.deepEqual(row.people, [
+    { id: "cv-d", name: "Dulce Amaro", to: "inbox/th-cv-d" },
+    { id: "cv-r", name: "Renata Solís", to: "inbox/th-cv-r" },
+  ]);
+  assert.equal(
+    row.text,
+    "4 customer messages never got an answer at all.",
+    "the count stays Reports' over its period; the names are the threads waiting right now, and the page says so",
+  );
   assert.deepEqual(todayLeaksV2(reports(), people()).rows.find((l) => l.id === "unanswered").people, []);
-  assert.deepEqual(todayLeaksV2(reports(), people(), waiting).rows.find((l) => l.id === "never-booked").people, [], "only the unanswered row names people");
+  assert.deepEqual(
+    todayLeaksV2(reports(), people(), waiting).rows.find((l) => l.id === "never-booked").people,
+    [],
+    "only the unanswered row names people",
+  );
 });
 
 /* ------------------------------ while you were away, v2 ------------------------------ */
@@ -405,41 +733,106 @@ test("the unanswered row names who is waiting NOW, up to two, from the threads T
 test("the dedupe covers all four queue kinds: a closing window's thread, a call worth a listen, a call-back's call", () => {
   const rows = [
     bell("n:1", "handoff", "Zoe Martin needs you", "warn", { type: "conversation", id: "cv-1" }),
-    { ...bell("draft:m-9", "held_draft", "A reply to Renata is waiting for you"), actions: [{ label: "Review", to: "inbox/th-cv-w", primary: true }] },
-    { ...bell("call:k-3", "missed_call", "Missed call · Kenia", "warn"), actions: [{ label: "See the call", to: "conversations/cv-k-3", primary: true }] },
+    {
+      ...bell("draft:m-9", "held_draft", "A reply to Renata is waiting for you"),
+      actions: [{ label: "Review", to: "inbox/th-cv-w", primary: true }],
+    },
+    {
+      ...bell("call:k-3", "missed_call", "Missed call · Kenia", "warn"),
+      actions: [{ label: "See the call", to: "conversations/cv-k-3", primary: true }],
+    },
     bell("n:7", "call", "+1 (929) 370-9606 phoned", "", { type: "call", id: "k-9" }),
     bell("n:8", "review", "1 new rating on Google", "ok"),
     // A row as serverNotificationRows shapes it: its door on `to`, nothing on `about`.
     { ...bell("n:9", "handoff", "Priya Nair needs you", "warn"), to: "inbox/th-cv-p" },
   ];
   const queue = [
-    { conversationId: "cv-1", callId: null },                 // a handoff
-    { conversationId: "cv-w", callId: null },                 // a reply window closing
-    { conversationId: null, callId: "k-3" },                  // a call worth a listen
-    { conversationId: "cv-k", callId: "k-9" },                // a call-back and its call
-    { conversationId: "cv-p", callId: null },                 // a handoff whose bell row names its thread only by its door
+    { conversationId: "cv-1", callId: null }, // a handoff
+    { conversationId: "cv-w", callId: null }, // a reply window closing
+    { conversationId: null, callId: "k-3" }, // a call worth a listen
+    { conversationId: "cv-k", callId: "k-9" }, // a call-back and its call
+    { conversationId: "cv-p", callId: null }, // a handoff whose bell row names its thread only by its door
   ];
   const out = todayAwayGrouped(rows, queue, 5);
-  assert.deepEqual(out.groups.map((g) => g.row.id), ["n:8"], "every row about something the queue above holds is dropped");
+  assert.deepEqual(
+    out.groups.map((g) => g.row.id),
+    ["n:8"],
+    "every row about something the queue above holds is dropped",
+  );
   assert.equal(out.total, 6, "and still counted on the head, because it is still in the bell");
   assert.equal(out.queued, 5);
   assert.equal(out.foot, "5 more in the bell, already in the queue above");
   const strings = todayAwayGrouped(rows, ["cv-1"], 5);
-  assert.deepEqual(strings.groups.map((g) => g.row.id), ["call:k-3", "n:9", "draft:m-9", "n:7", "n:8"], "a bare string is still a conversation id; the warnings sort first, as ever");
+  assert.deepEqual(
+    strings.groups.map((g) => g.row.id),
+    ["call:k-3", "n:9", "draft:m-9", "n:7", "n:8"],
+    "a bare string is still a conversation id; the warnings sort first, as ever",
+  );
 });
 
 /* ------------------------------ the period, in one line ------------------------------ */
 
 test("the last seven days in one sentence, in Reports' own numbers and words, each read from the view model Reports draws", () => {
-  const r = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "23", meta: "", delta: null, spark: [], compare: "up from 19" }, { id: "calls", label: "Calls", value: "4", meta: "", delta: null, spark: [], compare: null }], answered: { totals: { in: 23, ai: 21, you: 1, none: 1 }, share: 21 / 23 }, replyTime: { count: 21, medianLabel: "34s" }, calls: { total: 4 }, period: { now: "Last 7 days" }, rangeLabel: "7 days" } });
-  assert.deepEqual(todayPeriodLine(r), { text: "Last 7 days: 23 customer messages (up from 19), 91% answered by the receptionist, median reply 34s, 4 calls.", to: "reports" });
-  const quiet = reports({ vm: { tiles: [], answered: { totals: { in: 0, ai: 0, you: 0, none: 0 }, share: null }, empty: true, period: { now: "Last 30 days" }, rangeLabel: "30 days" } });
+  const r = reports({
+    vm: {
+      tiles: [
+        {
+          id: "messages",
+          label: "Customer messages",
+          value: "23",
+          meta: "",
+          delta: null,
+          spark: [],
+          compare: "up from 19",
+        },
+        { id: "calls", label: "Calls", value: "4", meta: "", delta: null, spark: [], compare: null },
+      ],
+      answered: { totals: { in: 23, ai: 21, you: 1, none: 1 }, share: 21 / 23 },
+      replyTime: { count: 21, medianLabel: "34s" },
+      calls: { total: 4 },
+      period: { now: "Last 7 days" },
+      rangeLabel: "7 days",
+    },
+  });
+  assert.deepEqual(todayPeriodLine(r), {
+    text: "Last 7 days: 23 customer messages (up from 19), 91% answered by the receptionist, median reply 34s, 4 calls.",
+    to: "reports",
+  });
+  const quiet = reports({
+    vm: {
+      tiles: [],
+      answered: { totals: { in: 0, ai: 0, you: 0, none: 0 }, share: null },
+      empty: true,
+      period: { now: "Last 30 days" },
+      rangeLabel: "30 days",
+    },
+  });
   assert.equal(todayPeriodLine(quiet).text, "Last 30 days: nobody wrote or called.");
-  const noReplies = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "1", meta: "", delta: null, spark: [] }], answered: { totals: { in: 1, ai: 0, you: 1, none: 0 }, share: 0 }, replyTime: { count: 0, medianLabel: "—" }, calls: { total: 1 }, rangeLabel: "7 days" } });
-  assert.equal(todayPeriodLine(noReplies).text, "Last 7 days: 1 customer message, 0% answered by the receptionist, 1 call.", "no median without a reply; no comparison without one; the singulars; the lead from the range when Reports gives no period words");
+  const noReplies = reports({
+    vm: {
+      tiles: [{ id: "messages", label: "Customer messages", value: "1", meta: "", delta: null, spark: [] }],
+      answered: { totals: { in: 1, ai: 0, you: 1, none: 0 }, share: 0 },
+      replyTime: { count: 0, medianLabel: "—" },
+      calls: { total: 1 },
+      rangeLabel: "7 days",
+    },
+  });
+  assert.equal(
+    todayPeriodLine(noReplies).text,
+    "Last 7 days: 1 customer message, 0% answered by the receptionist, 1 call.",
+    "no median without a reply; no comparison without one; the singulars; the lead from the range when Reports gives no period words",
+  );
   assert.equal(todayPeriodLine(null), null);
-  assert.equal(todayPeriodLine(reports({ vm: { answered: undefined } })), null, "nothing to count from: no line rather than a zero");
-  assert.equal(todayPeriodLine(reports({ campaigns: null })).to, "reports", "the offers' read failing touches nothing here (#686's first defect)");
+  assert.equal(
+    todayPeriodLine(reports({ vm: { answered: undefined } })),
+    null,
+    "nothing to count from: no line rather than a zero",
+  );
+  assert.equal(
+    todayPeriodLine(reports({ campaigns: null })).to,
+    "reports",
+    "the offers' read failing touches nothing here (#686's first defect)",
+  );
 });
 
 test("the period line reads the view model Reports itself draws: a round trip through toReportVM", () => {
@@ -449,7 +842,11 @@ test("the period line reads the view model Reports itself draws: a round trip th
   const line = todayPeriodLine(surface);
   assert.equal(line.to, "reports");
   assert.ok(line.text.startsWith(`${vm.period.now}: ${vm.answered.totals.in} customer messages`), line.text);
-  assert.ok(line.text.includes(`% answered by the receptionist`) && line.text.includes(`${Math.round(vm.answered.share * 100)}%`), "Reports' own share, rounded as its tile is");
+  assert.ok(
+    line.text.includes(`% answered by the receptionist`) &&
+      line.text.includes(`${Math.round(vm.answered.share * 100)}%`),
+    "Reports' own share, rounded as its tile is",
+  );
   assert.ok(line.text.includes(`median reply ${vm.replyTime.medianLabel}`), line.text);
   assert.ok(line.text.endsWith(`${vm.calls.total} call${vm.calls.total === 1 ? "" : "s"}.`), line.text);
   assert.ok(!line.text.includes("—"), "no em dash in a new sentence");
@@ -458,23 +855,70 @@ test("the period line reads the view model Reports itself draws: a round trip th
 /* ------------------------------ the runs' words ------------------------------ */
 
 test("the sentences the queue and the card say about a playbook's run come from here, without an em dash", () => {
-  const run = { id: "b1", state: "pending_approval", playbook_id: "pb-1", name: "Win-back", audience: { label: "Win-back" }, recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", started_at: null, when: "today 9:00 AM", counts: { sent: 0, replied: 0 } };
+  const run = {
+    id: "b1",
+    state: "pending_approval",
+    playbook_id: "pb-1",
+    name: "Win-back",
+    audience: { label: "Win-back" },
+    recipient_count: 3,
+    scheduled_for: "2026-09-15T13:00:00Z",
+    started_at: null,
+    when: "today 9:00 AM",
+    counts: { sent: 0, replied: 0 },
+  };
   const w = todayRunWords(run);
   assert.equal(w.people, "3 people");
-  assert.deepEqual(w.waiting, { sentence: "3 people. Nothing sends until you say so.", status: ["Waiting for your approval"] });
-  assert.deepEqual(w.soon, { meta: "Playbook · sends today 9:00 AM", sentence: "3 people. Stop it if you'd rather not.", status: ["Scheduled", "sends today 9:00 AM"] });
-  for (const s of [w.waiting.sentence, w.soon.sentence, w.soon.meta, ...w.waiting.status, ...w.soon.status]) assert.ok(!s.includes("—"), `an em dash in a new sentence: ${s}`);
-  assert.deepEqual(todayRunWords({ ...run, state: "sent", counts: { sent: 6, replied: 1 } }).done, { counts: "6 sent, 1 replied", still: false });
-  assert.deepEqual(todayRunWords({ ...run, state: "sending", recipient_count: 1, counts: { sent: 1, replied: 0 } }).done, { counts: "1 sent", still: true });
+  assert.deepEqual(w.waiting, {
+    sentence: "3 people. Nothing sends until you say so.",
+    status: ["Waiting for your approval"],
+  });
+  assert.deepEqual(w.soon, {
+    meta: "Playbook · sends today 9:00 AM",
+    sentence: "3 people. Stop it if you'd rather not.",
+    status: ["Scheduled", "sends today 9:00 AM"],
+  });
+  for (const s of [w.waiting.sentence, w.soon.sentence, w.soon.meta, ...w.waiting.status, ...w.soon.status])
+    assert.ok(!s.includes("—"), `an em dash in a new sentence: ${s}`);
+  assert.deepEqual(todayRunWords({ ...run, state: "sent", counts: { sent: 6, replied: 1 } }).done, {
+    counts: "6 sent, 1 replied",
+    still: false,
+  });
+  assert.deepEqual(
+    todayRunWords({ ...run, state: "sending", recipient_count: 1, counts: { sent: 1, replied: 0 } }).done,
+    { counts: "1 sent", still: true },
+  );
   assert.equal(todayRunWords({ ...run, recipient_count: 1 }).people, "1 person");
   assert.equal(todayRunsSub(2), "2 runs waiting");
   assert.equal(todayRunsSub(1), "1 run waiting");
   assert.equal(todayRunsSub(0), null);
-  assert.deepEqual(todayRunApproved("Win-back", 3, "sending now"), { lead: "Win-back", rest: "approved: 3 people, sending now" }, "the name apart, for the page to set in bold");
+  assert.deepEqual(
+    todayRunApproved("Win-back", 3, "sending now"),
+    { lead: "Win-back", rest: "approved: 3 people, sending now" },
+    "the name apart, for the page to set in bold",
+  );
 });
 
 test("the runs' words read a real broadcast view model: a round trip through toBroadcastVM", () => {
-  const dto = { id: "b1", name: "Win-back · 2026-09-18", template_id: "t-1", template_name: "quick_note", template_language: "en", params: [], audience: { kind: "playbook", id: "pb-1", label: "Win-back" }, state: "scheduled", scheduled_for: "2026-09-18T17:00:00Z", started_at: null, finished_at: null, recipient_count: 3, failure: null, created_at: "2026-09-18T15:00:00Z", playbook_id: "pb-1", run_for: "2026-09-18", counts: { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } };
+  const dto = {
+    id: "b1",
+    name: "Win-back · 2026-09-18",
+    template_id: "t-1",
+    template_name: "quick_note",
+    template_language: "en",
+    params: [],
+    audience: { kind: "playbook", id: "pb-1", label: "Win-back" },
+    state: "scheduled",
+    scheduled_for: "2026-09-18T17:00:00Z",
+    started_at: null,
+    finished_at: null,
+    recipient_count: 3,
+    failure: null,
+    created_at: "2026-09-18T15:00:00Z",
+    playbook_id: "pb-1",
+    run_for: "2026-09-18",
+    counts: { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 },
+  };
   const vm = toBroadcastVM(dto, "America/New_York", new Date("2026-09-18T15:30:00Z"));
   assert.match(vm.when, /^today .*1:00 PM$/, "the business's clock, as toBroadcastVM says it");
   const w = todayRunWords(vm);

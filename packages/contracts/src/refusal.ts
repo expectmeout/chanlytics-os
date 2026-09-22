@@ -22,7 +22,10 @@
 import { ROLE_PERMS, ROLES, type Role } from "./config";
 
 /** The title of a no, by the least role the door wanted: the gate says it before the press (roleGate), the refusal after it. */
-export const NEEDS_TITLE: Readonly<Record<"owner" | "operator", string>> = { owner: "Owner only", operator: "Not for viewers" };
+export const NEEDS_TITLE: Readonly<Record<"owner" | "operator", string>> = {
+  owner: "Owner only",
+  operator: "Not for viewers",
+};
 
 export interface RefusalInput {
   /** The envelope's code; absent when the answer was not an envelope. `network`, `timeout` and `client` are the client's own. */
@@ -106,8 +109,10 @@ const NETWORK_WRITE = "Network error — nothing was changed.";
 const NETWORK_READ = "Chanlytics could not be reached.";
 const TIMEOUT_WRITE = "Chanlytics took too long to answer — this may still go through, so check before trying again.";
 const TIMEOUT_READ = "Chanlytics took too long to answer — try again in a moment.";
-const NO_ANSWER_WRITE = "Chanlytics didn't answer properly, so this may or may not have gone through — check before trying again.";
-const UNCONFIRMED_WRITE = "Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.";
+const NO_ANSWER_WRITE =
+  "Chanlytics didn't answer properly, so this may or may not have gone through — check before trying again.";
+const UNCONFIRMED_WRITE =
+  "Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.";
 const READ_AGAIN = "Chanlytics couldn't read this just now — try again in a moment.";
 const OUT_OF_DATE = "This page is out of date — reload it and try again.";
 
@@ -120,7 +125,8 @@ function waitWords(seconds: number): string {
 
 /** The wait: the details the server counted first, else the header, in seconds or as a date. */
 function retryAfterOf(details: unknown, header: string | null | undefined, nowMs: number): number | null {
-  const counted = details && typeof details === "object" ? (details as { retry_after_s?: unknown }).retry_after_s : undefined;
+  const counted =
+    details && typeof details === "object" ? (details as { retry_after_s?: unknown }).retry_after_s : undefined;
   if (typeof counted === "number" && Number.isFinite(counted) && counted >= 0) return Math.max(1, Math.ceil(counted));
   const h = typeof header === "string" ? header.trim() : "";
   if (!h) return null;
@@ -144,7 +150,8 @@ function fieldsOf(details: unknown): Readonly<Record<string, string>> | null {
 
 /** The address a held email reply will go to, when that is what the server is asking about. */
 function confirmEmailToOf(details: unknown): string | null {
-  const to = details && typeof details === "object" ? (details as { confirm_email_to?: unknown }).confirm_email_to : undefined;
+  const to =
+    details && typeof details === "object" ? (details as { confirm_email_to?: unknown }).confirm_email_to : undefined;
   return typeof to === "string" && to.trim() ? to.trim() : null;
 }
 
@@ -155,7 +162,15 @@ export function refusalOf(input: RefusalInput): Refusal {
   const fields = fieldsOf(input.details);
   const code = typeof input.code === "string" && input.code ? input.code : null;
   const confirmEmailTo = confirmEmailToOf(input.details);
-  const refusal = (c: string, title: string, message: string): Refusal => ({ code: c, status, title, message, retryAfterS, fields, ...(confirmEmailTo ? { confirmEmailTo } : {}) });
+  const refusal = (c: string, title: string, message: string): Refusal => ({
+    code: c,
+    status,
+    title,
+    message,
+    retryAfterS,
+    fields,
+    ...(confirmEmailTo ? { confirmEmailTo } : {}),
+  });
 
   if (!code) {
     // Not an envelope: nothing answered, a gateway answered for us, or this page
@@ -174,12 +189,25 @@ export function refusalOf(input: RefusalInput): Refusal {
     case "timeout":
       return refusal(code, "No answer in time", input.write ? TIMEOUT_WRITE : TIMEOUT_READ);
     case "internal":
-      return refusal(code, "Something went wrong", said && said !== SERVER_CATCH_ALL ? said : input.write ? UNCONFIRMED_WRITE : READ_AGAIN);
+      return refusal(
+        code,
+        "Something went wrong",
+        said && said !== SERVER_CATCH_ALL ? said : input.write ? UNCONFIRMED_WRITE : READ_AGAIN,
+      );
     case "rate_limited":
-      return refusal(code, "Too many at once", said || `Too many at once — try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`);
+      return refusal(
+        code,
+        "Too many at once",
+        said || `Too many at once — try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`,
+      );
     case "forbidden": {
-      const needs = input.details && typeof input.details === "object" ? (input.details as { needs?: unknown }).needs : undefined;
-      return refusal(code, needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed", said || (SAID.get(code) as string));
+      const needs =
+        input.details && typeof input.details === "object" ? (input.details as { needs?: unknown }).needs : undefined;
+      return refusal(
+        code,
+        needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed",
+        said || (SAID.get(code) as string),
+      );
     }
     default:
       return refusal(code, TITLES.get(code) ?? "Not done", said || SAID.get(code) || "That didn't go through.");
@@ -213,10 +241,18 @@ export const PERM_DOING: Readonly<Record<RolePerm, string>> = {
  * press ("Only an owner can change the business details."). A role that is not
  * one, or none yet, is a viewer: the gate fails closed, as the page's role does.
  */
-export function roleGate(role: string | null | undefined, perm: RolePerm, doing?: string | null): { needs: "owner" | "operator"; title: string; reason: string } | null {
+export function roleGate(
+  role: string | null | undefined,
+  perm: RolePerm,
+  doing?: string | null,
+): { needs: "owner" | "operator"; title: string; reason: string } | null {
   const who: Role = (ROLES as readonly string[]).includes(role ?? "") ? (role as Role) : "viewer";
   if (ROLE_PERMS[who]?.[perm]) return null;
   const needs = ROLE_PERMS.operator?.[perm] ? "operator" : "owner";
   const what = doing?.trim() || PERM_DOING[perm] || "do this";
-  return { needs, title: NEEDS_TITLE[needs], reason: needs === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.` };
+  return {
+    needs,
+    title: NEEDS_TITLE[needs],
+    reason: needs === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.`,
+  };
 }

@@ -20,10 +20,22 @@ import assert from "node:assert/strict";
 
 /* ------------------------------- the window ------------------------------ */
 
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 // The window's events, as a page hears them: the surface's own event is how the page learns a row changed.
 const listeners = {};
-globalThis.CustomEvent = class CustomEvent { constructor(type, init) { this.type = type; this.detail = init && init.detail; } };
+globalThis.CustomEvent = class CustomEvent {
+  constructor(type, init) {
+    this.type = type;
+    this.detail = init && init.detail;
+  }
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.window = {
@@ -34,14 +46,24 @@ globalThis.window = {
   __ACTIVE_WORKSPACE: "ws-harbor",
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
-  fetch: async () => { throw new Error("no wire"); },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
+  fetch: async () => {
+    throw new Error("no wire");
+  },
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
-const { installLeadsCourier, leadsOverride, forgetLeadsViews } = await import("../../../apps/dashboard/src/legacy-bridge/leads.ts");
+const { installLeadsCourier, leadsOverride, forgetLeadsViews, leadsBootView } =
+  await import("../../../apps/dashboard/src/legacy-bridge/leads.ts");
 installLeadsCourier();
 
 /* -------------------------------- fixtures ------------------------------- */
@@ -54,20 +76,54 @@ const PLAN = {
   name: "personal trainers",
   asked: "personal trainers in Austin who train people one to one",
   terms: ["personal trainer"],
-  area: { kind: "city", label: "Austin, TX", state: "TX", center: { lat: 30.2672, lng: -97.7431 }, radius_m: 20000, query: "Austin, TX" },
+  area: {
+    kind: "city",
+    label: "Austin, TX",
+    state: "TX",
+    center: { lat: 30.2672, lng: -97.7431 },
+    radius_m: 20000,
+    query: "Austin, TX",
+  },
   count: 300,
   contact: "email",
   criteria: [{ key: "one_to_one", text: "trains people one to one", standard: "likely", required: true }],
   exclusions: [{ key: "big_gyms", text: "big gym chains", origin: "claude" }],
 };
 const round = (over = {}) => ({
-  id: "b2c3d4e5-6f70-4812-9a3b-4c5d6e7f8091", seq: 2, purpose: "main", state: "ended", ending: "target_reached",
-  question: null, target: 300, counted: 322, qualified: 272, review: 31, excluded: 19,
-  emails_checked: 188, with_phone: 241, ending_pending: false, waiting_since: null,
-  cost_usd: 4.12, ended_at: "2026-09-18T15:04:00.000Z", undo_op_id: OP, undo_version: 4, ...over,
+  id: "b2c3d4e5-6f70-4812-9a3b-4c5d6e7f8091",
+  seq: 2,
+  purpose: "main",
+  state: "ended",
+  ending: "target_reached",
+  question: null,
+  target: 300,
+  counted: 322,
+  qualified: 272,
+  review: 31,
+  excluded: 19,
+  emails_checked: 188,
+  with_phone: 241,
+  ending_pending: false,
+  waiting_since: null,
+  cost_usd: 4.12,
+  ended_at: "2026-09-18T15:04:00.000Z",
+  undo_op_id: OP,
+  undo_version: 4,
+  ...over,
 });
-const SEARCH_DONE = { id: SEARCH_ID, name: "Personal trainers · Austin", asked: PLAN.asked, asked_on: "2026-09-18T14:10:00.000Z", plan: PLAN, plan_version: 1, round: round() };
-const SEARCH_RUNNING = { ...SEARCH_DONE, round: round({ state: "running", ending: null, ended_at: null, undo_op_id: null, undo_version: null }) };
+const SEARCH_DONE = {
+  id: SEARCH_ID,
+  name: "Personal trainers · Austin",
+  asked: PLAN.asked,
+  asked_on: "2026-09-18T14:10:00.000Z",
+  plan: PLAN,
+  plan_version: 1,
+  round: round(),
+};
+const SEARCH_RUNNING = {
+  ...SEARCH_DONE,
+  round: round({ state: "running", ending: null, ended_at: null, undo_op_id: null, undo_version: null }),
+};
 
 let seq = 0;
 /** One row in `leads_page`'s shape (4.6's `LeadRowDto`), with fictional values: .example domains, 555-01xx, ChIJfixture place ids. */
@@ -79,15 +135,42 @@ const leadRow = (over = {}) => {
     place_id: `ChIJfixture${String(n).padStart(4, "0")}`,
     business_name: `Travis Heights Coaching ${n}`,
     category: "Personal trainer",
-    city: "Austin", state: "TX", street: `${100 + n} Live Oak St`, postal_code: "78704",
+    city: "Austin",
+    state: "TX",
+    street: `${100 + n} Live Oak St`,
+    postal_code: "78704",
     search_name: "Personal trainers · Austin",
-    phone: `+1512555${String(100 + (n % 100)).padStart(4, "0")}`, phone_agrees: true, phone_wrong: false,
-    email: `hello@travisheights${n}.example`, email_state: "ok", email_checked_at: "2026-09-18T14:40:00.000Z",
-    website: `https://travisheights${n}.example`, instagram: null, rating: 4.9, reviews: 16,
-    stage: "ready", closed_reason: null, contact_id: null,
-    last_outcome: null, last_note: null, contacted_at: null, converted_at: null,
-    places: 1, found_at: "2026-09-18T14:32:00.000Z", exported_at: null, version: 1,
-    member: { class: "qualified", fit: "strong", reason: "Trains one to one, own studio", excluded_by: null, distance_m: 2400, counted: true, checks: [], other_emails: [] },
+    phone: `+1512555${String(100 + (n % 100)).padStart(4, "0")}`,
+    phone_agrees: true,
+    phone_wrong: false,
+    email: `hello@travisheights${n}.example`,
+    email_state: "ok",
+    email_checked_at: "2026-09-18T14:40:00.000Z",
+    website: `https://travisheights${n}.example`,
+    instagram: null,
+    rating: 4.9,
+    reviews: 16,
+    stage: "ready",
+    closed_reason: null,
+    contact_id: null,
+    last_outcome: null,
+    last_note: null,
+    contacted_at: null,
+    converted_at: null,
+    places: 1,
+    found_at: "2026-09-18T14:32:00.000Z",
+    exported_at: null,
+    version: 1,
+    member: {
+      class: "qualified",
+      fit: "strong",
+      reason: "Trains one to one, own studio",
+      excluded_by: null,
+      distance_m: 2400,
+      counted: true,
+      checks: [],
+      other_emails: [],
+    },
     ...over,
   };
 };
@@ -108,15 +191,31 @@ const SUGGESTIONS = {
   by_owner: false,
   made_at: "2026-09-19T09:00:00.000Z",
   items: [
-    { words: "wedding planners in Austin", who_for: "brides booking hair and make-up", category_key: "wedding_planner", reach: "about 6 in 10 have an email" },
-    { words: "photography studios in Austin", who_for: "shoots that need hair and make-up", category_key: "photographer", reach: null },
-    { words: "boutique hotels in Austin", who_for: "guests asking the desk for a salon", category_key: "hotel", reach: null },
+    {
+      words: "wedding planners in Austin",
+      who_for: "brides booking hair and make-up",
+      category_key: "wedding_planner",
+      reach: "about 6 in 10 have an email",
+    },
+    {
+      words: "photography studios in Austin",
+      who_for: "shoots that need hair and make-up",
+      category_key: "photographer",
+      reach: null,
+    },
+    {
+      words: "boutique hotels in Austin",
+      who_for: "guests asking the desk for a salon",
+      category_key: "hotel",
+      reach: null,
+    },
   ],
 };
 
 /* --------------------------------- the wire ------------------------------ */
 
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /**
  * A fake `window.fetch` answering the four reads and every write.
@@ -146,7 +245,13 @@ function wire(opts = {}) {
   const freed = [];
   const parked = [];
   const allowed = (url) => freed.some((m) => (typeof m === "function" ? m(url) : url.includes(m)));
-  const gate = (url) => (opts.hold ? new Promise((res) => { if (allowed(url)) res(); else parked.push({ url, res }); }) : Promise.resolve());
+  const gate = (url) =>
+    opts.hold
+      ? new Promise((res) => {
+          if (allowed(url)) res();
+          else parked.push({ url, res });
+        })
+      : Promise.resolve();
   const rowsOf = (query) => (typeof state.rows === "function" ? state.rows(query) : state.rows);
 
   globalThis.window.fetch = async (url, init = {}) => {
@@ -156,14 +261,22 @@ function wire(opts = {}) {
     if (method === "GET") reads.push(String(url));
     else writes.push({ key: `${method} ${path}`, body: init.body ? JSON.parse(init.body) : undefined });
     await gate(String(url));
-    if (state.fail === `${method} ${path}`) return json(500, { ok: false, error: { code: "internal", message: "boom" } });
-    if (path === "/api/v1/lead-searches" && method === "GET") return json(200, { ok: true, data: { searches: state.searches, counts: state.counts } });
-    if (path === "/api/v1/lead-suggestions" && method === "GET") return json(200, { ok: true, data: state.suggestions });
+    if (state.fail === `${method} ${path}`)
+      return json(500, { ok: false, error: { code: "internal", message: "boom" } });
+    if (path === "/api/v1/lead-searches" && method === "GET")
+      return json(200, { ok: true, data: { searches: state.searches, counts: state.counts } });
+    if (path === "/api/v1/lead-suggestions" && method === "GET")
+      return json(200, { ok: true, data: state.suggestions });
     if (path === "/api/v1/leads" && method === "GET") {
-      if (query.after_key) return json(200, { ok: true, data: { rows: state.next ?? [], next: null, counts: state.counts } });
+      if (query.after_key)
+        return json(200, { ok: true, data: { rows: state.next ?? [], next: null, counts: state.counts } });
       const rows = rowsOf(query);
-      const more = state.next && state.next.length ? { key: "k-page-one", id: rows.length ? rows[rows.length - 1].id : "" } : null;
-      return json(200, { ok: true, data: { rows, next: more, counts: state.counts, ...(state.month ? { month: state.month } : {}) } });
+      const more =
+        state.next && state.next.length ? { key: "k-page-one", id: rows.length ? rows[rows.length - 1].id : "" } : null;
+      return json(200, {
+        ok: true,
+        data: { rows, next: more, counts: state.counts, ...(state.month ? { month: state.month } : {}) },
+      });
     }
     if (method !== "GET") return json(200, { ok: true, data: { done: true } });
     return json(404, { ok: false, error: { code: "not_found", message: "no" } });
@@ -174,7 +287,14 @@ function wire(opts = {}) {
     writes,
     /** What the server would answer from now on: a run that committed a page, a lead somebody changed. */
     now: (patch) => Object.assign(state, patch),
-    release: (m) => { freed.push(m); for (const p of parked) if (!p.done && (typeof m === "function" ? m(p.url) : p.url.includes(m))) { p.done = true; p.res(); } },
+    release: (m) => {
+      freed.push(m);
+      for (const p of parked)
+        if (!p.done && (typeof m === "function" ? m(p.url) : p.url.includes(m))) {
+          p.done = true;
+          p.res();
+        }
+    },
   };
 }
 
@@ -188,7 +308,16 @@ test("the Leads surface reads the searches and one view's rows, and publishes th
   await leadsOverride.apply();
   assert.deepEqual(w.reads, [`/api/v1/lead-searches?${WS}`, `/api/v1/leads?list=all&sort=fit&dir=asc&limit=500&${WS}`]);
   assert.deepEqual(
-    [L().rows.length, L().view.list, L().counts.all, L().searches[0].name, L().next, L().offered, L().route, L().readFailed],
+    [
+      L().rows.length,
+      L().view.list,
+      L().counts.all,
+      L().searches[0].name,
+      L().next,
+      L().offered,
+      L().route,
+      L().readFailed,
+    ],
     [ROWS.length, "all", 322, "Personal trainers · Austin", null, 0, "clients/leads", false],
   );
   assert.equal(L().rows[0].name, ROWS[0].business_name, "a row is the view model, never the stored row");
@@ -197,11 +326,13 @@ test("the Leads surface reads the searches and one view's rows, and publishes th
 
 test("a read is keyed by the view: a slow answer for an old view is dropped, and the rows are the new view's", async () => {
   const w = wire({
-    searches: [SEARCH_DONE], counts: COUNTS, hold: true,
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    hold: true,
     rows: (q) => (q.list === "ready" ? READY : NURTURE),
   });
-  const first = globalThis.window.__leadsView("clients/leads:l-ready");          // held
-  const second = globalThis.window.__leadsView("clients/leads:l-nurture");       // held
+  const first = globalThis.window.__leadsView("clients/leads:l-ready"); // held
+  const second = globalThis.window.__leadsView("clients/leads:l-nurture"); // held
   w.release("lead-searches");
   w.release("list=nurture");
   await second;
@@ -209,7 +340,10 @@ test("a read is keyed by the view: a slow answer for an old view is dropped, and
   await first;
   assert.equal(L().view.list, "nurture");
   assert.equal(L().rows.length, NURTURE.length);
-  assert.ok(L().rows.every((r) => r.stage === "nurture"), "the ready rows never landed");
+  assert.ok(
+    L().rows.every((r) => r.stage === "nurture"),
+    "the ready rows never landed",
+  );
 });
 
 test("a refresh patches changed rows, keeps the loaded pages, and offers what is new under a fit sort", async () => {
@@ -218,7 +352,7 @@ test("a refresh patches changed rows, keeps the loaded pages, and offers what is
   await globalThis.window.__leadsMore();
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length);
   w.now({ rows: [{ ...PAGE1[0], stage: "nurture" }, ...PAGE1.slice(1), NEW_A, NEW_B, NEW_C] });
-  await leadsOverride.apply();                                          // what refresh-map and Realtime call
+  await leadsOverride.apply(); // what refresh-map and Realtime call
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length, "no page was dropped");
   assert.equal(L().rows[0].stage, "nurture", "the changed row was patched in place");
   assert.equal(L().offered, 3, "12 new, said as a count; nothing re-sorted under the owner");
@@ -232,7 +366,11 @@ test("under the found sort new rows append in the order found", async () => {
   await globalThis.window.__leadsView({ sort: "found", dir: "desc" });
   w.now({ rows: [NEW_A, ...PAGE1] });
   await leadsOverride.apply();
-  assert.deepEqual([L().offered, L().rows.at(-1).id], [0, NEW_A.id], "appended after what the owner is reading, not on top of it");
+  assert.deepEqual(
+    [L().offered, L().rows.at(-1).id],
+    [0, NEW_A.id],
+    "appended after what the owner is reading, not on top of it",
+  );
 });
 
 test("leadsMore appends only under the same view; its late answer after a view change is dropped", async () => {
@@ -241,12 +379,15 @@ test("leadsMore appends only under the same view; its late answer after a view c
   w.release("lead-searches");
   w.release(pageOne);
   await globalThis.window.__leadsView("clients/leads");
-  const more = globalThis.window.__leadsMore();                         // held on the second page
+  const more = globalThis.window.__leadsMore(); // held on the second page
   await globalThis.window.__leadsView("clients/leads:l-ready");
   w.release("after_key");
   await more;
   assert.equal(L().view.list, "ready");
-  assert.ok(!L().rows.some((r) => PAGE2.some((p) => p.id === r.id)), "page two of the old view never joined the new one");
+  assert.ok(
+    !L().rows.some((r) => PAGE2.some((p) => p.id === r.id)),
+    "page two of the old view never joined the new one",
+  );
 });
 
 test("a failed read is its own state, never an empty list", async () => {
@@ -262,31 +403,69 @@ test("the first day's suggestions are read only when the workspace has no search
   assert.equal(L().suggestions.items.length, 3);
   const w2 = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, suggestions: SUGGESTIONS });
   await globalThis.window.__leadsView("clients/leads");
-  assert.ok(!w2.reads.some((u) => u.includes("lead-suggestions")), "a workspace with a search has work to read instead");
+  assert.ok(
+    !w2.reads.some((u) => u.includes("lead-suggestions")),
+    "a workspace with a search has work to read instead",
+  );
 });
 
 test("every act goes through its route with the id and the version it saw, never with rows", async () => {
   const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
   await globalThis.window.__leadUndo(OP, 4);
   await globalThis.window.__leadKeep(SEARCH_DONE.id, ROWS[0].id);
-  await globalThis.window.__leadsBulk({ by: "view", action: "contacted", view: { list: "all", sort: "fit", dir: "asc" } });
+  await globalThis.window.__leadsBulk({
+    by: "view",
+    action: "contacted",
+    view: { list: "all", sort: "fit", dir: "asc" },
+  });
   await globalThis.window.__leadStage(ROWS[0].id, { kind: "outcome", outcome: "interested", note: "Tuesday" });
   await globalThis.window.__leadSearchUndo(SEARCH_DONE.id);
-  assert.deepEqual(w.writes.map((x) => [x.key, x.body]), [
-    [`POST /api/v1/lead-operations/${OP}/undo`, { version: 4 }],
-    [`POST /api/v1/leads/${ROWS[0].id}/keep`, { search_id: SEARCH_DONE.id }],
-    ["POST /api/v1/leads/bulk", { by: "view", action: "contacted", view: { list: "all", sort: "fit", dir: "asc" } }],
-    [`POST /api/v1/leads/${ROWS[0].id}/stage`, { kind: "outcome", outcome: "interested", note: "Tuesday" }],
-    [`POST /api/v1/lead-searches/${SEARCH_DONE.id}/undo`, undefined],
-  ]);
+  assert.deepEqual(
+    w.writes.map((x) => [x.key, x.body]),
+    [
+      [`POST /api/v1/lead-operations/${OP}/undo`, { version: 4 }],
+      [`POST /api/v1/leads/${ROWS[0].id}/keep`, { search_id: SEARCH_DONE.id }],
+      ["POST /api/v1/leads/bulk", { by: "view", action: "contacted", view: { list: "all", sort: "fit", dir: "asc" } }],
+      [`POST /api/v1/leads/${ROWS[0].id}/stage`, { kind: "outcome", outcome: "interested", note: "Tuesday" }],
+      [`POST /api/v1/lead-searches/${SEARCH_DONE.id}/undo`, undefined],
+    ],
+  );
 });
 
 /* ------------------------------ acts, at once ------------------------------ */
 
-const REVIEW = leadRow({ member: { class: "review", fit: "look", reason: "Couldn't check the email", reasons: ["email:unknown"], excluded_by: null, distance_m: 2400, counted: false, checks: [], other_emails: [] } });
-const LEFT_OUT = leadRow({ member: { class: "excluded", fit: null, reason: "A chain with 40 locations", excluded_by: "chain", distance_m: 2400, counted: false, checks: [], other_emails: [] } });
+const REVIEW = leadRow({
+  member: {
+    class: "review",
+    fit: "look",
+    reason: "Couldn't check the email",
+    reasons: ["email:unknown"],
+    excluded_by: null,
+    distance_m: 2400,
+    counted: false,
+    checks: [],
+    other_emails: [],
+  },
+});
+const LEFT_OUT = leadRow({
+  member: {
+    class: "excluded",
+    fit: null,
+    reason: "A chain with 40 locations",
+    excluded_by: "chain",
+    distance_m: 2400,
+    counted: false,
+    checks: [],
+    other_emails: [],
+  },
+});
 const clsOf = (id) => L().rows.find((r) => r.id === id).cls;
-const heardSurface = () => { const heard = []; const on = () => heard.push(clsOf(REVIEW.id)); globalThis.window.addEventListener("surface:leads", on); return { heard, off: () => globalThis.window.removeEventListener("surface:leads", on) }; };
+const heardSurface = () => {
+  const heard = [];
+  const on = () => heard.push(clsOf(REVIEW.id));
+  globalThis.window.addEventListener("surface:leads", on);
+  return { heard, off: () => globalThis.window.removeEventListener("surface:leads", on) };
+};
 
 test("Keep, Exclude and Put back show on the row at once, and answer when the door accepts: the re-read is behind them, not in front of the next press", async () => {
   wire({ searches: [SEARCH_DONE], rows: [REVIEW, LEFT_OUT, ...ROWS], counts: COUNTS });
@@ -300,7 +479,11 @@ test("Keep, Exclude and Put back show on the row at once, and answer when the do
   assert.deepEqual(page.heard, ["qualified"], "and the page was told, once");
   w.release(`/leads/${REVIEW.id}/keep`);
   const r = await kept;
-  assert.equal(r.ok, true, "answered with both re-reads still out: a press a second is a list worked at the owner's pace");
+  assert.equal(
+    r.ok,
+    true,
+    "answered with both re-reads still out: a press a second is a list worked at the owner's pace",
+  );
   // That the re-read still goes out behind the answer is the client's own rule (client-refresh-behind.test.mjs);
   // no runner is mounted here, so refresh-map's "POST leads/[id]/keep": leads has nothing to call.
   const back = globalThis.window.__leadPutBack(SEARCH_DONE.id, LEFT_OUT.id);
@@ -319,7 +502,12 @@ test("Keep, Exclude and Put back show on the row at once, and answer when the do
 test("a Keep the door refuses puts the row back as it was and says why: nothing on the page is left saying it was kept", async () => {
   wire({ searches: [SEARCH_DONE], rows: [REVIEW, ...ROWS], counts: COUNTS });
   await globalThis.window.__leadsView("clients/leads");
-  wire({ searches: [SEARCH_DONE], rows: [REVIEW, ...ROWS], counts: COUNTS, fail: `POST /api/v1/leads/${REVIEW.id}/keep` });
+  wire({
+    searches: [SEARCH_DONE],
+    rows: [REVIEW, ...ROWS],
+    counts: COUNTS,
+    fail: `POST /api/v1/leads/${REVIEW.id}/keep`,
+  });
   const page = heardSurface();
   const r = await globalThis.window.__leadKeep(SEARCH_DONE.id, REVIEW.id);
   page.off();
@@ -336,7 +524,11 @@ test("a row an act has changed is not put back by a re-read that no longer holds
   assert.equal(r.ok, true);
   w.now({ rows: ROWS });
   await leadsOverride.apply();
-  assert.equal(clsOf(REVIEW.id), "qualified", "REGRESSION: the row stayed on the page as Needs review, its Keep still offered, until the view was read again");
+  assert.equal(
+    clsOf(REVIEW.id),
+    "qualified",
+    "REGRESSION: the row stayed on the page as Needs review, its Keep still offered, until the view was read again",
+  );
 });
 
 test("a stage change shows on the row at once, as the door will spell it (stageArgs), and a refused one is taken back; what the door alone decides is left to the re-read", async () => {
@@ -372,7 +564,11 @@ test("a bulk act over ids shows on every row at once; one over a whole view show
   const w = wire({ searches: [SEARCH_DONE], rows: [REVIEW, ...ROWS], counts: COUNTS, hold: true });
   const ids = [ROWS[0].id, ROWS[1].id];
   const p = globalThis.window.__leadsBulk({ by: "ids", action: "contacted", ids });
-  assert.deepEqual(ids.map(stageOf), ["nurture", "nurture"], "Mark contacted: both rows are Contacted before the door answers");
+  assert.deepEqual(
+    ids.map(stageOf),
+    ["nurture", "nurture"],
+    "Mark contacted: both rows are Contacted before the door answers",
+  );
   assert.equal(stageOf(ROWS[2].id), "ready", "and the row not picked is not");
   w.release("/leads/bulk");
   assert.equal((await p).ok, true);
@@ -381,8 +577,16 @@ test("a bulk act over ids shows on every row at once; one over a whole view show
   w.release("/leads/bulk");
   await k;
   const before = L().rows.map((r) => [r.stage, r.cls]);
-  const v = globalThis.window.__leadsBulk({ by: "view", action: "not_a_fit", view: { list: "all", sort: "fit", dir: "asc" } });
-  assert.deepEqual(L().rows.map((r) => [r.stage, r.cls]), before, "select all 1,240 that match: the rows wait for the re-read");
+  const v = globalThis.window.__leadsBulk({
+    by: "view",
+    action: "not_a_fit",
+    view: { list: "all", sort: "fit", dir: "asc" },
+  });
+  assert.deepEqual(
+    L().rows.map((r) => [r.stage, r.cls]),
+    before,
+    "select all 1,240 that match: the rows wait for the re-read",
+  );
   w.release("/leads/bulk");
   await v;
   w.release(() => true);
@@ -396,27 +600,52 @@ test("a bulk act over ids shows on every row at once; one over a whole view show
 /* ------------------------------ views, held ------------------------------ */
 
 test("a view the surface has already read paints at once on the way back, with its Show more pages, and is refreshed behind: a rail pick used to be a round trip each way", async () => {
-  wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1), next: PAGE2 });
+  wire({
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1),
+    next: PAGE2,
+  });
   await globalThis.window.__leadsView("clients/leads");
   await globalThis.window.__leadsMore();
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length);
   await globalThis.window.__leadsView("clients/leads:l-ready");
   assert.equal(L().rows.length, READY.length);
   // Back to all leads, with every answer held: what is on the page is what the surface held, before any read lands.
-  const held = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : PAGE1), next: PAGE2, hold: true });
+  const held = wire({
+    keep: true,
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    rows: (q) => (q.list === "ready" ? READY : PAGE1),
+    next: PAGE2,
+    hold: true,
+  });
   const heard = [];
   const on = () => heard.push([L().route, L().rows.length]);
   globalThis.window.addEventListener("surface:leads", on);
   const back = globalThis.window.__leadsView("clients/leads");
-  assert.deepEqual([L().route, L().rows.length, L().next], ["clients/leads", PAGE1.length + PAGE2.length, null], "the held view, its Show more pages with it, before the wire has answered");
+  assert.deepEqual(
+    [L().route, L().rows.length, L().next],
+    ["clients/leads", PAGE1.length + PAGE2.length, null],
+    "the held view, its Show more pages with it, before the wire has answered",
+  );
   assert.deepEqual(heard, [["clients/leads", PAGE1.length + PAGE2.length]], "and the page was told at once");
-  assert.ok(held.reads.some((u) => u.includes("list=all")), "read again behind it all the same");
+  assert.ok(
+    held.reads.some((u) => u.includes("list=all")),
+    "read again behind it all the same",
+  );
   held.release(() => true);
   await back;
   globalThis.window.removeEventListener("surface:leads", on);
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length, "the refresh patched what it holds and dropped no page");
   // The other way too, and a view never read still reads first.
-  const again = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1), hold: true });
+  const again = wire({
+    keep: true,
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1),
+    hold: true,
+  });
   const toReady = globalThis.window.__leadsView("clients/leads:l-ready");
   assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length]);
   again.release(() => true);
@@ -428,14 +657,61 @@ test("a view the surface has already read paints at once on the way back, with i
   assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-nurture", NURTURE.length]);
 });
 
+test("REGRESSION: the surface names the view its rows are of -- a refresh of the old view that lands while a new one is on its way leaves it on its way", async () => {
+  // In a browser over the real bridge: a rail pick to a view never read, while the refresh behind the view on screen
+  // was still out. That refresh landed first and published the OLD rows under the NEW view's route, so the page took
+  // the view for landed: the dim ended at ~200ms and the last view's rows stood under the new title until ~650ms.
+  wire({
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1),
+  });
+  await globalThis.window.__leadsView("clients/leads:l-ready");
+  await globalThis.window.__leadsView("clients/leads");
+  const w = wire({
+    keep: true,
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1),
+    hold: true,
+  });
+  const back = globalThis.window.__leadsView("clients/leads:l-ready"); // held: painted at once, refreshed behind (parked)
+  assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length]);
+  const cold = globalThis.window.__leadsView("clients/leads:l-nurture"); // never read: on its way (parked)
+  w.release((u) => u.includes("list=ready") || u.includes("lead-searches"));
+  await back;
+  assert.deepEqual(
+    [L().route, L().rows.length],
+    ["clients/leads:l-ready", READY.length],
+    "REGRESSION: Ready's rows were published under Nurture's route, and the page said Nurture had landed",
+  );
+  w.release(() => true);
+  await cold;
+  assert.deepEqual(
+    [L().route, L().rows.length],
+    ["clients/leads:l-nurture", NURTURE.length],
+    "the new view lands under its own name",
+  );
+});
+
 test("a view held stays held across a write: a Keep on one view does not make the way back to another a read again", async () => {
   wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : [REVIEW, ...PAGE1]) });
   await globalThis.window.__leadsView("clients/leads:l-ready");
   await globalThis.window.__leadsView("clients/leads");
   assert.equal((await globalThis.window.__leadKeep(SEARCH_DONE.id, REVIEW.id)).ok, true);
-  const held = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : PAGE1), hold: true });
+  const held = wire({
+    keep: true,
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    rows: (q) => (q.list === "ready" ? READY : PAGE1),
+    hold: true,
+  });
   const back = globalThis.window.__leadsView("clients/leads:l-ready");
-  assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length], "painted from what is held, the write notwithstanding: it is read again behind");
+  assert.deepEqual(
+    [L().route, L().rows.length],
+    ["clients/leads:l-ready", READY.length],
+    "painted from what is held, the write notwithstanding: it is read again behind",
+  );
   held.release(() => true);
   await back;
 });
@@ -448,11 +724,24 @@ test("a view is warmed on intent: the read goes out, nothing on the page moves, 
   const on = () => heard.push(L().route);
   globalThis.window.addEventListener("surface:leads", on);
   await globalThis.window.__leadsWarm(`clients/leads:s-${SEARCH_ID}`);
-  assert.ok(w.reads.slice(before).some((u) => u.includes(`search=${SEARCH_ID}`)), "the search's page was read");
+  assert.ok(
+    w.reads.slice(before).some((u) => u.includes(`search=${SEARCH_ID}`)),
+    "the search's page was read",
+  );
   assert.deepEqual([L().route, heard], ["clients/leads", []], "and the page stayed where it was, told nothing");
-  const held = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.search === SEARCH_ID ? READY : PAGE1), hold: true });
+  const held = wire({
+    keep: true,
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    rows: (q) => (q.search === SEARCH_ID ? READY : PAGE1),
+    hold: true,
+  });
   const pick = globalThis.window.__leadsView(`clients/leads:s-${SEARCH_ID}`);
-  assert.deepEqual([L().route, L().rows.length], [`clients/leads:s-${SEARCH_ID}`, READY.length], "picked: painted from what the warm read, before the wire answers");
+  assert.deepEqual(
+    [L().route, L().rows.length],
+    [`clients/leads:s-${SEARCH_ID}`, READY.length],
+    "picked: painted from what the warm read, before the wire answers",
+  );
   held.release(() => true);
   await pick;
   globalThis.window.removeEventListener("surface:leads", on);
@@ -462,16 +751,96 @@ test("a view is warmed on intent: the read goes out, nothing on the page moves, 
   assert.equal(held.reads.length, twice, "held already: no read");
 });
 
+// Measured on the salon's workspace, 21 Sep: a refresh on a search's Needs review read ALL leads first (500 rows,
+// list=all, no search), drew them dimmed over the restored rows of the view the owner was on, then read that view.
+// A cold boot has only the address and what the tab's cache restored; it read neither. (The boot itself, run in a
+// fresh module: leads-cold-boot.test.mjs.)
+test("the view a cold boot reads: the one the address names, in the order this tab last read", () => {
+  const PEEK = "1a2b3c4d-0000-4000-8000-000000000001";
+  const restored = (over) => ({
+    view: { searchId: null, list: "all", cls: null, chips: {}, sort: "rating", dir: "desc", ...over },
+  });
+  assert.deepEqual(
+    leadsBootView(
+      `#/clients/leads:s-${SEARCH_ID}:c-review:p-${PEEK}`,
+      restored({ searchId: SEARCH_ID, cls: "review" }),
+    ),
+    { searchId: SEARCH_ID, list: "all", cls: "review", chips: {}, sort: "rating", dir: "desc" },
+    "the lead open over the view is no part of it",
+  );
+  assert.deepEqual(
+    leadsBootView("#/clients/leads:l-ready", null),
+    { searchId: null, list: "ready", cls: null, chips: {}, sort: "fit", dir: "asc" },
+    "nothing restored: the view's own default order",
+  );
+  assert.deepEqual(
+    leadsBootView("#/today", restored({})),
+    { searchId: null, list: "all", cls: null, chips: {}, sort: "rating", dir: "desc" },
+    "off the page: all leads, in the order the page will ask for when it opens",
+  );
+  assert.deepEqual(
+    leadsBootView("#/clients/leads", restored({ sort: "nonsense", dir: "sideways" })),
+    { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" },
+    "an order the server does not know is never sent",
+  );
+  assert.deepEqual(leadsBootView("#/clients/leads", { view: "garbage" }), {
+    searchId: null,
+    list: "all",
+    cls: null,
+    chips: {},
+    sort: "fit",
+    dir: "asc",
+  });
+  assert.deepEqual(
+    leadsBootView("", undefined),
+    { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" },
+    "what it always read",
+  );
+});
+
 test("the courier installs exactly the names the page and the screens call, and no words of its own", () => {
-  const installed = Object.keys(globalThis.window).filter((k) => k.startsWith("__lead")).sort();
+  const installed = Object.keys(globalThis.window)
+    .filter((k) => k.startsWith("__lead"))
+    .sort();
   assert.deepEqual(installed, [
-    "__leadBusinessLine", "__leadCheckAgain", "__leadDraft", "__leadErase", "__leadExclude", "__leadKeep", "__leadPeekVM", "__leadPutBack",
-    "__leadRail", "__leadSearchAnswer", "__leadSearchMore", "__leadSearchRemove", "__leadSearchRename",
-    "__leadSearchStop", "__leadSearchUndo", "__leadSearchWords", "__leadStage", "__leadUndo",
-    "__leadsBulk", "__leadsMore", "__leadsRouteOf", "__leadsRouteParse", "__leadsStanding", "__leadsTakeOffered", "__leadsView", "__leadsWarm",
+    "__leadBusinessLine",
+    "__leadCheckAgain",
+    "__leadDraft",
+    "__leadErase",
+    "__leadExclude",
+    "__leadKeep",
+    "__leadPeekVM",
+    "__leadPutBack",
+    "__leadRail",
+    "__leadSearchAnswer",
+    "__leadSearchMore",
+    "__leadSearchRemove",
+    "__leadSearchRename",
+    "__leadSearchStop",
+    "__leadSearchUndo",
+    "__leadSearchWords",
+    "__leadStage",
+    "__leadUndo",
+    "__leadsBulk",
+    "__leadsMore",
+    "__leadsRouteOf",
+    "__leadsRouteParse",
+    "__leadsStanding",
+    "__leadsTakeOffered",
+    "__leadsView",
+    "__leadsWarm",
   ]);
-  assert.equal(globalThis.window.__leadsRouteOf({ searchId: SEARCH_ID, list: "ready", cls: null }), `clients/leads:s-${SEARCH_ID}:l-ready`);
-  assert.deepEqual(globalThis.window.__leadsRouteParse(`clients/leads:s-${SEARCH_ID}:l-ready`), { searchId: SEARCH_ID, list: "ready", cls: null, chips: {}, peek: null });
+  assert.equal(
+    globalThis.window.__leadsRouteOf({ searchId: SEARCH_ID, list: "ready", cls: null }),
+    `clients/leads:s-${SEARCH_ID}:l-ready`,
+  );
+  assert.deepEqual(globalThis.window.__leadsRouteParse(`clients/leads:s-${SEARCH_ID}:l-ready`), {
+    searchId: SEARCH_ID,
+    list: "ready",
+    cls: null,
+    chips: {},
+    peek: null,
+  });
   assert.equal(globalThis.window.__leadRail(COUNTS, [SEARCH_DONE]).searches[0].count, 322);
   assert.equal(globalThis.window.__leadsStanding(COUNTS, [SEARCH_DONE]).total, "322 leads");
   // The words a lead wears are seeded whole in seed-globals.ts (__LEAD_WORDS, __LEAD_VM); the courier carries acts.
@@ -481,7 +850,13 @@ test("the courier installs exactly the names the page and the screens call, and 
 
 test("the surface declares the globals it owns, the tables a run writes, and its own event", () => {
   assert.deepEqual(
-    [leadsOverride.key, leadsOverride.globals, leadsOverride.events, leadsOverride.refreshOnTables, leadsOverride.debounceMs],
+    [
+      leadsOverride.key,
+      leadsOverride.globals,
+      leadsOverride.events,
+      leadsOverride.refreshOnTables,
+      leadsOverride.debounceMs,
+    ],
     ["leads", ["__LEADS"], ["surface:leads"], ["leads", "lead_searches", "lead_rounds", "lead_search_members"], 800],
   );
 });
@@ -489,12 +864,20 @@ test("the surface declares the globals it owns, the tables a run writes, and its
 test("the month's standing rides the surface, from the first page's own answer", async () => {
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, month: { used: 262, left: 238, renewsOn: "Oct 1" } });
   await leadsOverride.apply();
-  assert.deepEqual(L().month, { used: 262, left: 238, renewsOn: "Oct 1" }, "what a press costs is read from the surface, never from a page's own arithmetic");
+  assert.deepEqual(
+    L().month,
+    { used: 262, left: 238, renewsOn: "Oct 1" },
+    "what a press costs is read from the surface, never from a page's own arithmetic",
+  );
   // A Keep just spent one, so a refresh moves it; a refresh whose page carried none keeps what was last known.
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, month: { used: 263, left: 237, renewsOn: "Oct 1" } });
   await leadsOverride.apply();
   assert.deepEqual(L().month, { used: 263, left: 237, renewsOn: "Oct 1" });
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
   await leadsOverride.apply();
-  assert.deepEqual(L().month, { used: 263, left: 237, renewsOn: "Oct 1" }, "what was last known, never a number the page made up");
+  assert.deepEqual(
+    L().month,
+    { used: 263, left: 237, renewsOn: "Oct 1" },
+    "what was last known, never a number the page made up",
+  );
 });

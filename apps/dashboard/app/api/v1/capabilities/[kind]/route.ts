@@ -31,13 +31,29 @@ export const POST = write({
     const kind = kindOf(ctx.params.kind);
     const dto = await setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" });
     const before = capabilityStatus(kind, dto);
-    if (!before.ready) throw new AppError("conflict", `Not ready to activate: ${before.blockers[0]?.words ?? "the records say no."}`, 409);
+    if (!before.ready)
+      throw new AppError(
+        "conflict",
+        `Not ready to activate: ${before.blockers[0]?.words ?? "the records say no."}`,
+        409,
+      );
     const now = new Date().toISOString();
-    const { error } = await ctx.supabase
-      .from("capability_activations")
-      .upsert({ tenant_id: member.tenantId, capability: kind, activated_at: now, activated_by: ctx.userId, deactivated_at: null, note: input.note ?? null }, { onConflict: "tenant_id,capability" });
+    const { error } = await ctx.supabase.from("capability_activations").upsert(
+      {
+        tenant_id: member.tenantId,
+        capability: kind,
+        activated_at: now,
+        activated_by: ctx.userId,
+        deactivated_at: null,
+        note: input.note ?? null,
+      },
+      { onConflict: "tenant_id,capability" },
+    );
     if (error) throw new Error(error.message);
-    const activations = [...(dto.activations ?? []).filter((a) => a.capability !== kind), { capability: kind, activated_at: now, activated_by: ctx.userId, deactivated_at: null }];
+    const activations = [
+      ...(dto.activations ?? []).filter((a) => a.capability !== kind),
+      { capability: kind, activated_at: now, activated_by: ctx.userId, deactivated_at: null },
+    ];
     return { capability: kind, status: capabilityStatus(kind, { ...dto, activations }) };
   },
 });

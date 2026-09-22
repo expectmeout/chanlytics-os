@@ -25,7 +25,10 @@ import * as contracts from "@chanlytics/contracts";
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
 
-const S = 1000, M = 60 * S, H = 60 * M, D = 24 * H;
+const S = 1000,
+  M = 60 * S,
+  H = 60 * M,
+  D = 24 * H;
 const NOW = new Date("2026-09-04T16:00:00Z");
 const nowMs = NOW.getTime();
 const iso = (msAgo) => new Date(nowMs - msAgo).toISOString();
@@ -75,17 +78,50 @@ const list = (id) => PEOPLE_LISTS.find((l) => l.id === id);
 /* ------------------------------ the state rule --------------------------- */
 
 test("an open escalation is needs_you, even for someone who opted out", () => {
-  assert.equal(personStateFor(row({ open_escalation_reason: "human_token", open_escalation_since: iso(H) }), nowMs), "needs_you");
-  assert.equal(personStateFor(row({ open_escalation_reason: "human_token", consent: "opted_out" }), nowMs), "needs_you");
+  assert.equal(
+    personStateFor(row({ open_escalation_reason: "human_token", open_escalation_since: iso(H) }), nowMs),
+    "needs_you",
+  );
+  assert.equal(
+    personStateFor(row({ open_escalation_reason: "human_token", consent: "opted_out" }), nowMs),
+    "needs_you",
+  );
   assert.equal(personStateFor(row({ needs_human: true }), nowMs), "needs_you");
-  assert.equal(personStateFor(row({ open_escalation_reason: "policy_block", needs_human: true, latest_state: "needs_human", latest_paused_until: iso(-20 * H) }), nowMs), "needs_you", "the receptionist's own pause on a handoff is nobody's — it still needs you");
+  assert.equal(
+    personStateFor(
+      row({
+        open_escalation_reason: "policy_block",
+        needs_human: true,
+        latest_state: "needs_human",
+        latest_paused_until: iso(-20 * H),
+      }),
+      nowMs,
+    ),
+    "needs_you",
+    "the receptionist's own pause on a handoff is nobody's — it still needs you",
+  );
 });
 
 test("waiting_on_you means a human owns the thread AND the last word was theirs", () => {
   assert.equal(personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs), "waiting_on_you");
-  assert.equal(personStateFor(row({ latest_paused_until: iso(-3 * H) }), nowMs), "waiting_on_you", "paused into the future = owned");
-  assert.equal(personStateFor(row({ latest_assignee_user_id: "u1", last_message_direction: "outbound", last_message_sender: "human" }), nowMs), "active", "you replied — nobody is waiting");
-  assert.equal(personStateFor(row({ latest_paused_until: iso(3 * H) }), nowMs), "active", "a pause that expired is not ownership");
+  assert.equal(
+    personStateFor(row({ latest_paused_until: iso(-3 * H) }), nowMs),
+    "waiting_on_you",
+    "paused into the future = owned",
+  );
+  assert.equal(
+    personStateFor(
+      row({ latest_assignee_user_id: "u1", last_message_direction: "outbound", last_message_sender: "human" }),
+      nowMs,
+    ),
+    "active",
+    "you replied — nobody is waiting",
+  );
+  assert.equal(
+    personStateFor(row({ latest_paused_until: iso(3 * H) }), nowMs),
+    "active",
+    "a pause that expired is not ownership",
+  );
 });
 
 test("opted_out outranks new: a fresh STOP is not a new customer to chase", () => {
@@ -106,11 +142,18 @@ test("quiet is 30 days without a message or a call; a call counts as contact", (
   assert.equal(personStateFor(row(old), nowMs), "quiet");
   assert.equal(personStateFor(row({ ...old, last_message_at: iso(29 * D) }), nowMs), "active");
   assert.equal(personStateFor(row({ ...old, last_call_at: iso(2 * D) }), nowMs), "active", "a recent call rescues");
-  assert.equal(personStateFor(row({ last_message_at: null, last_message_direction: null, last_call_at: null }), nowMs), "quiet", "no timestamp at all is not 'active'");
+  assert.equal(
+    personStateFor(row({ last_message_at: null, last_message_direction: null, last_call_at: null }), nowMs),
+    "quiet",
+    "no timestamp at all is not 'active'",
+  );
 });
 
 test("the tabs are the states, in the order they are evaluated", () => {
-  assert.deepEqual(PEOPLE_TABS.map((t) => t.id), ["all", "needs_you", "waiting_on_you", "new", "quiet", "active"]);
+  assert.deepEqual(
+    PEOPLE_TABS.map((t) => t.id),
+    ["all", "needs_you", "waiting_on_you", "new", "quiet", "active"],
+  );
 });
 
 /* --------------------------------- names --------------------------------- */
@@ -133,12 +176,16 @@ test("first contact is a date when there is evidence, and 'Before <import>' when
 
   const imported = toPersonRowVM(
     row({ first_contact_at: null, has_backfill: true, earliest_row_at: "2026-08-27T12:00:00Z" }),
-    ZONE, NOW,
+    ZONE,
+    NOW,
   ).firstContact;
   assert.equal(imported.label, "Before Aug 27");
   assert.equal(imported.estimate, true);
 
-  assert.equal(toPersonRowVM(row({ first_contact_at: null, earliest_row_at: null }), ZONE, NOW).firstContact.label, "—");
+  assert.equal(
+    toPersonRowVM(row({ first_contact_at: null, earliest_row_at: null }), ZONE, NOW).firstContact.label,
+    "—",
+  );
 });
 
 /* ------------------------------ last contact ----------------------------- */
@@ -146,18 +193,32 @@ test("first contact is a date when there is evidence, and 'Before <import>' when
 test("last contact says who and how long ago, and the newer of message vs call wins", () => {
   assert.equal(toPersonRowVM(row(), ZONE, NOW).lastContact.label, "They wrote · 2h ago");
   assert.equal(
-    toPersonRowVM(row({ last_message_at: iso(3 * D), last_message_direction: "outbound", last_message_sender: "ai" }), ZONE, NOW).lastContact.label,
+    toPersonRowVM(
+      row({ last_message_at: iso(3 * D), last_message_direction: "outbound", last_message_sender: "ai" }),
+      ZONE,
+      NOW,
+    ).lastContact.label,
     "Receptionist replied · 3d ago",
   );
   assert.equal(
-    toPersonRowVM(row({ last_message_at: iso(3 * D), last_message_direction: "outbound", last_message_sender: "human" }), ZONE, NOW).lastContact.label,
+    toPersonRowVM(
+      row({ last_message_at: iso(3 * D), last_message_direction: "outbound", last_message_sender: "human" }),
+      ZONE,
+      NOW,
+    ).lastContact.label,
     "You replied · 3d ago",
   );
   const called = toPersonRowVM(row({ last_call_at: iso(H) }), ZONE, NOW).lastContact;
   assert.equal(called.kind, "call");
   assert.equal(called.label, "Phoned · 1h ago");
-  assert.match(toPersonRowVM(row({ last_message_at: iso(20 * D) }), ZONE, NOW).lastContact.label, /^They wrote · [A-Z][a-z]{2} \d{1,2}$/);
-  assert.equal(toPersonRowVM(row({ last_message_at: null, last_call_at: null }), ZONE, NOW).lastContact.label, "No contact recorded");
+  assert.match(
+    toPersonRowVM(row({ last_message_at: iso(20 * D) }), ZONE, NOW).lastContact.label,
+    /^They wrote · [A-Z][a-z]{2} \d{1,2}$/,
+  );
+  assert.equal(
+    toPersonRowVM(row({ last_message_at: null, last_call_at: null }), ZONE, NOW).lastContact.label,
+    "No contact recorded",
+  );
 });
 
 /* --------------------------- channels are facts -------------------------- */
@@ -171,16 +232,42 @@ test("channels come from identities OR from what actually happened — a chat im
 });
 
 test("a person who only ever wrote by email is not on WhatsApp: the list says which wires their words travelled (00127), and a row read without it keeps the old reading", () => {
-  const emailOnly = toPersonRowVM(row({ channels: ["email"], has_chat: true, message_channels: ["email"], call_count: 0, phone_e164: null, email: "ana@example.com" }), ZONE, NOW);
+  const emailOnly = toPersonRowVM(
+    row({
+      channels: ["email"],
+      has_chat: true,
+      message_channels: ["email"],
+      call_count: 0,
+      phone_e164: null,
+      email: "ana@example.com",
+    }),
+    ZONE,
+    NOW,
+  );
   assert.deepEqual(emailOnly.channels, ["email"], "REGRESSION guard: has_chat alone read as WhatsApp");
-  assert.deepEqual(toPersonRowVM(row({ channels: ["whatsapp", "email"], has_chat: true, message_channels: ["email", "whatsapp"], call_count: 2 }), ZONE, NOW).channels, ["whatsapp", "voice", "email"]);
+  assert.deepEqual(
+    toPersonRowVM(
+      row({ channels: ["whatsapp", "email"], has_chat: true, message_channels: ["email", "whatsapp"], call_count: 2 }),
+      ZONE,
+      NOW,
+    ).channels,
+    ["whatsapp", "voice", "email"],
+  );
   // A text is its own wire now. It still wears the chat bubble (ChannelGlyph
   // draws sms as chat); what changed is the WORD -- a person who had only ever
   // texted was introduced as "WhatsApp" at the top of their page.
-  const texter = toPersonRowVM(row({ channels: [], has_chat: true, message_channels: ["sms"], call_count: 0 }), ZONE, NOW);
+  const texter = toPersonRowVM(
+    row({ channels: [], has_chat: true, message_channels: ["sms"], call_count: 0 }),
+    ZONE,
+    NOW,
+  );
   assert.deepEqual(texter.channels, ["sms"]);
   assert.equal(texter.channelWords, "Text");
-  assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: true, call_count: 0 }), ZONE, NOW).channels, ["whatsapp"], "no message_channels on the row: the old reading, which is the strictest");
+  assert.deepEqual(
+    toPersonRowVM(row({ channels: [], has_chat: true, call_count: 0 }), ZONE, NOW).channels,
+    ["whatsapp"],
+    "no message_channels on the row: the old reading, which is the strictest",
+  );
 });
 
 test("REGRESSION: a person reached only by email is not held by WhatsApp's window, and their page does not say Phone", () => {
@@ -188,23 +275,50 @@ test("REGRESSION: a person reached only by email is not held by WhatsApp's windo
   // window: Closed · template only" and offered to "Send the booking-link
   // template" -- three answers to "which wire is this person on", each wrong,
   // each derived somewhere different.
-  const emailOnly = toPersonRowVM(row({ channels: ["email"], has_chat: true, message_channels: ["email"], call_count: 0, phone_e164: null, email: "ana@example.com", latest_wa_inbound_at: null }), ZONE, NOW);
+  const emailOnly = toPersonRowVM(
+    row({
+      channels: ["email"],
+      has_chat: true,
+      message_channels: ["email"],
+      call_count: 0,
+      phone_e164: null,
+      email: "ana@example.com",
+      latest_wa_inbound_at: null,
+    }),
+    ZONE,
+    NOW,
+  );
   assert.equal(emailOnly.channelWords, "Email");
   assert.equal(emailOnly.replyVia, "Email");
   assert.equal(emailOnly.replyWindow.open, true, "only WhatsApp has a window");
-  assert.deepEqual(emailOnly.bookingLinkAction, { label: "Email the booking link", title: "Opens the thread with the link ready to send by email", ready: true });
+  assert.deepEqual(emailOnly.bookingLinkAction, {
+    label: "Email the booking link",
+    title: "Opens the thread with the link ready to send by email",
+    ready: true,
+  });
 
   // WhatsApp's own words are unchanged, open and shut.
-  const open = toPersonRowVM(row({ message_channels: ["whatsapp"], latest_wa_inbound_at: iso(2 * 3_600_000) }), ZONE, NOW);
+  const open = toPersonRowVM(
+    row({ message_channels: ["whatsapp"], latest_wa_inbound_at: iso(2 * 3_600_000) }),
+    ZONE,
+    NOW,
+  );
   assert.equal(open.replyVia, "WhatsApp");
   assert.equal(open.bookingLinkAction.label, "Text the booking link");
   assert.equal(open.bookingLinkAction.ready, true);
   const shut = toPersonRowVM(row({ message_channels: ["whatsapp"], latest_wa_inbound_at: iso(3 * D) }), ZONE, NOW);
-  assert.deepEqual([shut.bookingLinkAction.label, shut.bookingLinkAction.ready], ["Send the booking-link template", false]);
+  assert.deepEqual(
+    [shut.bookingLinkAction.label, shut.bookingLinkAction.ready],
+    ["Send the booking-link template", false],
+  );
 
   // A row that cannot tell which wire came last reads WhatsApp's window, the
   // strictest there is: it may say a reply is held when it is not, never the reverse.
-  const both = toPersonRowVM(row({ message_channels: ["email", "whatsapp"], latest_wa_inbound_at: iso(3 * D) }), ZONE, NOW);
+  const both = toPersonRowVM(
+    row({ message_channels: ["email", "whatsapp"], latest_wa_inbound_at: iso(3 * D) }),
+    ZONE,
+    NOW,
+  );
   assert.equal(both.replyWindow.open, false);
 
   // Somebody who has only phoned has no reply wire at all.
@@ -215,7 +329,17 @@ test("REGRESSION: a person reached only by email is not held by WhatsApp's windo
 /* ------------------------- lists and aggregates -------------------------- */
 
 test("smart lists: phoned-only, and opted-out includes someone who also needs you", () => {
-  const phoned = toPersonRowVM(row({ has_chat: false, call_count: 1, last_message_at: null, last_message_direction: null, last_call_at: iso(2 * D) }), ZONE, NOW);
+  const phoned = toPersonRowVM(
+    row({
+      has_chat: false,
+      call_count: 1,
+      last_message_at: null,
+      last_message_direction: null,
+      last_call_at: iso(2 * D),
+    }),
+    ZONE,
+    NOW,
+  );
   assert.equal(list("phoned_only").test(phoned), true);
   assert.equal(list("phoned_only").test(toPersonRowVM(row(), ZONE, NOW)), false);
   const both = toPersonRowVM(row({ open_escalation_reason: "human_token", consent: "opted_out" }), ZONE, NOW);
@@ -240,16 +364,37 @@ test("aggregates count measured facts and honour the evidence rule", () => {
 });
 
 test("recency cells put a two-hour-old contact in the first bucket and a quiet one at the tail", () => {
-  const cells = recencyCells([toPersonRowVM(row(), ZONE, NOW), toPersonRowVM(row({ last_message_at: iso(100 * D), last_inbound_at: iso(100 * D) }), ZONE, NOW)], nowMs);
+  const cells = recencyCells(
+    [
+      toPersonRowVM(row(), ZONE, NOW),
+      toPersonRowVM(row({ last_message_at: iso(100 * D), last_inbound_at: iso(100 * D) }), ZONE, NOW),
+    ],
+    nowMs,
+  );
   assert.equal(cells[0].count, 1);
   assert.equal(cells[cells.length - 1].count, 1);
-  assert.equal(cells.reduce((a, c) => a + c.count, 0), 2);
+  assert.equal(
+    cells.reduce((a, c) => a + c.count, 0),
+    2,
+  );
 });
 
 /* -------------------------------- profile -------------------------------- */
 
 function msg(over) {
-  return { id: over.id ?? Math.random().toString(36).slice(2), direction: "inbound", sender: "customer", type: "text", body: "hi", media: null, meta: {}, status: "received", created_at: over.at, channel_ts: over.at, ...over };
+  return {
+    id: over.id ?? Math.random().toString(36).slice(2),
+    direction: "inbound",
+    sender: "customer",
+    type: "text",
+    body: "hi",
+    media: null,
+    meta: {},
+    status: "received",
+    created_at: over.at,
+    channel_ts: over.at,
+    ...over,
+  };
 }
 
 function detail(over = {}) {
@@ -258,30 +403,117 @@ function detail(over = {}) {
     identities: [{ channel: "whatsapp", external_id: "17865550181", created_at: iso(60 * D) }],
     conversations: [
       {
-        id: "cv1", state: "open", paused_until: null, snooze_until: null, assignee_user_id: null,
-        last_wa_inbound_at: iso(2 * H), last_message_at: iso(2 * H),
-        contact: { id: "c1", display_name: "Daniela R.", wa_profile_name: "Dani", phone_e164: "+17865550181", consent: "unknown", dnc: false },
+        id: "cv1",
+        state: "open",
+        paused_until: null,
+        snooze_until: null,
+        assignee_user_id: null,
+        last_wa_inbound_at: iso(2 * H),
+        last_message_at: iso(2 * H),
+        contact: {
+          id: "c1",
+          display_name: "Daniela R.",
+          wa_profile_name: "Dani",
+          phone_e164: "+17865550181",
+          consent: "unknown",
+          dnc: false,
+        },
         messages: [
           msg({ id: "m1", at: iso(60 * D), body: "Hi! Do you have anything Thursday?" }),
-          msg({ id: "m2", at: iso(D), direction: "outbound", sender: "human", status: "delivered", body: "Yes we can do 4pm Thursday" }),
+          msg({
+            id: "m2",
+            at: iso(D),
+            direction: "outbound",
+            sender: "human",
+            status: "delivered",
+            body: "Yes we can do 4pm Thursday",
+          }),
           msg({ id: "m3", at: iso(2 * H), body: "Can I move Saturday to 11?" }),
-          msg({ id: "m4", at: iso(2 * H - 30 * S), direction: "outbound", sender: "ai", status: "delivered", body: "Of course — let me get someone." }),
-          msg({ id: "m5", at: iso(7 * D), sender: "system", type: "call_summary", body: "Inbound call · 2 min — asked about balayage" }),
-          msg({ id: "m6", at: iso(2 * D), direction: "outbound", sender: "ai", status: "canceled", body: "never sent" }),
+          msg({
+            id: "m4",
+            at: iso(2 * H - 30 * S),
+            direction: "outbound",
+            sender: "ai",
+            status: "delivered",
+            body: "Of course — let me get someone.",
+          }),
+          msg({
+            id: "m5",
+            at: iso(7 * D),
+            sender: "system",
+            type: "call_summary",
+            body: "Inbound call · 2 min — asked about balayage",
+          }),
+          msg({
+            id: "m6",
+            at: iso(2 * D),
+            direction: "outbound",
+            sender: "ai",
+            status: "canceled",
+            body: "never sent",
+          }),
         ],
       },
     ],
     calls: [
-      { id: "k1", retell_call_id: "r1", direction: "inbound", call_type: "phone_call", status: "ended", from_e164: "+17865550181", from_raw: null, to_e164: null,
-        started_at: iso(7 * D), ended_at: iso(7 * D - 112 * S), duration_ms: 112000, disconnection_reason: null, sentiment: null, call_successful: true, in_voicemail: false,
-        summary: "Asked about balayage pricing. Wants Saturday.", transcript_object: null, recording: { fetch_state: "stored" }, conversation_id: "cv1", contact_id: "c1", message_id: "m5", contact: null },
+      {
+        id: "k1",
+        retell_call_id: "r1",
+        direction: "inbound",
+        call_type: "phone_call",
+        status: "ended",
+        from_e164: "+17865550181",
+        from_raw: null,
+        to_e164: null,
+        started_at: iso(7 * D),
+        ended_at: iso(7 * D - 112 * S),
+        duration_ms: 112000,
+        disconnection_reason: null,
+        sentiment: null,
+        call_successful: true,
+        in_voicemail: false,
+        summary: "Asked about balayage pricing. Wants Saturday.",
+        transcript_object: null,
+        recording: { fetch_state: "stored" },
+        conversation_id: "cv1",
+        contact_id: "c1",
+        message_id: "m5",
+        contact: null,
+      },
     ],
     escalations: [
-      { id: "e1", conversation_id: "cv1", reason: "human_token", state: "open", details: null, created_at: iso(2 * H - 40 * S), updated_at: iso(2 * H - 40 * S), resolved_by_user_id: null },
+      {
+        id: "e1",
+        conversation_id: "cv1",
+        reason: "human_token",
+        state: "open",
+        details: null,
+        created_at: iso(2 * H - 40 * S),
+        updated_at: iso(2 * H - 40 * S),
+        resolved_by_user_id: null,
+      },
     ],
     decisions: [
-      { id: "d1", verb: "take_over", subject_type: "conversation", subject_id: "cv1", actor_type: "user", actor_user_id: "u1", created_at: iso(D + H), payload: null },
-      { id: "d2", verb: "hand_back", subject_type: "conversation", subject_id: "cv1", actor_type: "user", actor_user_id: "u1", created_at: iso(D - H), payload: null },
+      {
+        id: "d1",
+        verb: "take_over",
+        subject_type: "conversation",
+        subject_id: "cv1",
+        actor_type: "user",
+        actor_user_id: "u1",
+        created_at: iso(D + H),
+        payload: null,
+      },
+      {
+        id: "d2",
+        verb: "hand_back",
+        subject_type: "conversation",
+        subject_id: "cv1",
+        actor_type: "user",
+        actor_user_id: "u1",
+        created_at: iso(D - H),
+        payload: null,
+      },
     ],
     ...over,
   };
@@ -329,29 +561,58 @@ test("REGRESSION: right now says a thread the owner answered is theirs, as the R
   // so the card said "Needs you · Stopped, and nobody has taken the thread
   // yet" while the Receptionist fact said a person owns it.
   const vmOf = (over) => toPersonVM(detail({ row: row(over), escalations: [], decisions: [] }), ZONE, NOW);
-  const answered = vmOf({ needs_human: true, latest_state: "needs_human", latest_assignee_user_id: "u1", latest_paused_until: iso(-23 * H), last_message_direction: "outbound", last_message_sender: "human" });
+  const answered = vmOf({
+    needs_human: true,
+    latest_state: "needs_human",
+    latest_assignee_user_id: "u1",
+    latest_paused_until: iso(-23 * H),
+    last_message_direction: "outbound",
+    last_message_sender: "human",
+  });
   assert.equal(answered.rightNow.tone, "paused");
   assert.doesNotMatch(answered.rightNow.detail, /nobody has taken/);
 
   // Both read one row; the card is receptionistOf's answer in more words.
   let n = 0;
-  for (const assignee of [null, "u1"]) for (const paused of [null, iso(-H)]) for (const reason of [null, "human_token"])
-    for (const nh of [false, true]) for (const queued of [null, iso(5 * S)]) for (const snoozed of [false, true]) for (const [consent, dnc] of [["unknown", false], ["opted_out", false], ["unknown", true]]) {
-      const over = {
-        latest_assignee_user_id: assignee, latest_paused_until: paused,
-        open_escalation_reason: reason, open_escalation_since: reason ? iso(H) : null,
-        needs_human: nh, latest_state: snoozed ? "snoozed" : nh ? "needs_human" : "open", latest_snooze_until: snoozed ? iso(-18 * H) : null,
-        queued_reply_at: queued, consent, dnc,
-      };
-      assert.equal(vmOf(over).rightNow.tone, toPersonRowVM(row(over), ZONE, NOW).receptionist.tone, JSON.stringify(over));
-      n++;
-    }
+  for (const assignee of [null, "u1"])
+    for (const paused of [null, iso(-H)])
+      for (const reason of [null, "human_token"])
+        for (const nh of [false, true])
+          for (const queued of [null, iso(5 * S)])
+            for (const snoozed of [false, true])
+              for (const [consent, dnc] of [
+                ["unknown", false],
+                ["opted_out", false],
+                ["unknown", true],
+              ]) {
+                const over = {
+                  latest_assignee_user_id: assignee,
+                  latest_paused_until: paused,
+                  open_escalation_reason: reason,
+                  open_escalation_since: reason ? iso(H) : null,
+                  needs_human: nh,
+                  latest_state: snoozed ? "snoozed" : nh ? "needs_human" : "open",
+                  latest_snooze_until: snoozed ? iso(-18 * H) : null,
+                  queued_reply_at: queued,
+                  consent,
+                  dnc,
+                };
+                assert.equal(
+                  vmOf(over).rightNow.tone,
+                  toPersonRowVM(row(over), ZONE, NOW).receptionist.tone,
+                  JSON.stringify(over),
+                );
+                n++;
+              }
   assert.equal(n, 192, "every combination was drawn");
 });
 
 test("the profile's facts, about rail and thread link are measured, and a phone-only person has no thread to open", () => {
   const vm = toPersonVM(detail(), ZONE, NOW);
-  assert.deepEqual(vm.facts.map((f) => f.label), ["First contact", "Last contact", "Conversations", "Calls", "Receptionist"]);
+  assert.deepEqual(
+    vm.facts.map((f) => f.label),
+    ["First contact", "Last contact", "Conversations", "Calls", "Receptionist"],
+  );
   assert.equal(vm.facts[3].value, 1);
   assert.equal(vm.openThread, "inbox/th-cv1");
   assert.ok(vm.about.some((a) => a.k === "Phone"));
@@ -359,7 +620,8 @@ test("the profile's facts, about rail and thread link are measured, and a phone-
 
   const phoneOnly = toPersonVM(
     detail({ row: row({ has_chat: false, call_count: 1, latest_conversation_id: "cv1" }), conversations: [] }),
-    ZONE, NOW,
+    ZONE,
+    NOW,
   );
   assert.equal(phoneOnly.openThread, null);
   assert.ok(!phoneOnly.about.some((a) => a.k === "Reply window"), "no WhatsApp thread, no reply window");
@@ -372,7 +634,7 @@ test("the view model never carries a number the schema does not hold", () => {
   for (const f of vm.facts) assert.ok(!banned.test(f.label), f.label);
 });
 
-test("a person known only by number is never called \"+1\": the speaker label is the whole number", () => {
+test('a person known only by number is never called "+1": the speaker label is the whole number', () => {
   const d = detail({ row: row({ display_name: null, wa_profile_name: null }) });
   d.conversations[0].contact.display_name = null;
   d.conversations[0].contact.wa_profile_name = null;
@@ -385,7 +647,11 @@ test("a person known only by number is never called \"+1\": the speaker label is
 
 test("the profile carries the person's own receptionist mode and the workspace's, and never invents one", () => {
   const vm = toPersonVM(detail({ receptionist_mode: "never", workspace_reply_mode: "veto" }), ZONE, NOW);
-  assert.deepEqual(vm.receptionistMode, { person: "never", workspace: "auto" }, "veto answers after a hold, so it reads as Answer");
+  assert.deepEqual(
+    vm.receptionistMode,
+    { person: "never", workspace: "auto" },
+    "veto answers after a hold, so it reads as Answer",
+  );
   const following = toPersonVM(detail({ receptionist_mode: null, workspace_reply_mode: "ask" }), ZONE, NOW);
   assert.deepEqual(following.receptionistMode, { person: null, workspace: "ask" });
   const junk = toPersonVM(detail({ receptionist_mode: "sometimes", workspace_reply_mode: undefined }), ZONE, NOW);
@@ -393,38 +659,79 @@ test("the profile carries the person's own receptionist mode and the workspace's
 });
 
 test("consent reads with how it was given; the offers list is exactly the opted-in", () => {
-  const yes = toPersonRowVM(row({ consent: "opted_in", consent_source: "in_person", consent_updated_at: iso(2 * D) }), ZONE, NOW);
+  const yes = toPersonRowVM(
+    row({ consent: "opted_in", consent_source: "in_person", consent_updated_at: iso(2 * D) }),
+    ZONE,
+    NOW,
+  );
   assert.equal(yes.consent.state, "opted_in");
   assert.ok(yes.consent.sub.startsWith("In person · "), yes.consent.sub);
   assert.equal(yes.consent.source, "in_person");
   assert.equal(list("opted_in").test(yes), true);
   assert.equal(list("opted_out").test(yes), false);
-  const stop = toPersonRowVM(row({ consent: "opted_out", dnc: true, consent_source: "customer_message", consent_updated_at: iso(D) }), ZONE, NOW);
+  const stop = toPersonRowVM(
+    row({ consent: "opted_out", dnc: true, consent_source: "customer_message", consent_updated_at: iso(D) }),
+    ZONE,
+    NOW,
+  );
   assert.ok(stop.consent.sub.startsWith("STOP received"), stop.consent.sub);
   assert.equal(list("opted_in").test(stop), false);
-  const no = toPersonRowVM(row({ consent: "opted_out", dnc: true, consent_source: "phone", consent_updated_at: iso(D) }), ZONE, NOW);
+  const no = toPersonRowVM(
+    row({ consent: "opted_out", dnc: true, consent_source: "phone", consent_updated_at: iso(D) }),
+    ZONE,
+    NOW,
+  );
   assert.ok(no.consent.sub.startsWith("On the phone · "), no.consent.sub);
   assert.equal(list("opted_in").test(toPersonRowVM(row(), ZONE, NOW)), false, "not asked is not a yes");
 });
 
 test("the offers answer in a word, as People's Offers column says it -- so a list's Offers column can never show the other answer", () => {
   assert.equal(toPersonRowVM(row(), ZONE, NOW).consent.marketingLabel, "Not asked");
-  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_in" }), ZONE, NOW).consent.marketingLabel, "Yes");
-  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_out" }), ZONE, NOW).consent.marketingLabel, "No");
-  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: null }), ZONE, NOW).consent.marketingLabel, "Not asked", "a yes to messages is not a yes to offers");
-  assert.equal(toPersonRowVM(row({ consent: "opted_out", marketing_consent: "opted_in" }), ZONE, NOW).consent.marketingLabel, "No", "a STOP stops offers too");
+  assert.equal(
+    toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_in" }), ZONE, NOW).consent.marketingLabel,
+    "Yes",
+  );
+  assert.equal(
+    toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_out" }), ZONE, NOW).consent.marketingLabel,
+    "No",
+  );
+  assert.equal(
+    toPersonRowVM(row({ consent: "opted_in", marketing_consent: null }), ZONE, NOW).consent.marketingLabel,
+    "Not asked",
+    "a yes to messages is not a yes to offers",
+  );
+  assert.equal(
+    toPersonRowVM(row({ consent: "opted_out", marketing_consent: "opted_in" }), ZONE, NOW).consent.marketingLabel,
+    "No",
+    "a STOP stops offers too",
+  );
 });
 
 test("where a person came from, in the words People says it: one per stored value, and nothing for what this build does not know", () => {
   assert.deepEqual(contracts.PERSON_CAME_FROM_WORDS, {
-    whatsapp: "WhatsApp", sms: "Text", email: "Email", call: "Phone",
-    calendar: "Your calendar", manual: "Added by hand", import: "Imported history", lead: "A lead you found",
+    whatsapp: "WhatsApp",
+    sms: "Text",
+    email: "Email",
+    call: "Phone",
+    calendar: "Your calendar",
+    manual: "Added by hand",
+    import: "Imported history",
+    lead: "A lead you found",
   });
-  for (const [key, label] of Object.entries(contracts.PERSON_CAME_FROM_WORDS)) assert.deepEqual(contracts.cameFromOf({ came_from: key }), { key, label });
+  for (const [key, label] of Object.entries(contracts.PERSON_CAME_FROM_WORDS))
+    assert.deepEqual(contracts.cameFromOf({ came_from: key }), { key, label });
   assert.equal(contracts.cameFromOf({ came_from: null }), null, "nothing known, nothing said");
   assert.equal(contracts.cameFromOf({}), null, "a row read before 00138 has no came_from at all");
-  assert.equal(contracts.cameFromOf({ came_from: "carrier_pigeon" }), null, "a value this build does not know is never shown raw");
+  assert.equal(
+    contracts.cameFromOf({ came_from: "carrier_pigeon" }),
+    null,
+    "a value this build does not know is never shown raw",
+  );
   assert.equal(contracts.cameFromOf({ came_from: "toString" }), null, "nor one every object answers to");
-  assert.deepEqual(toPersonRowVM(row({ came_from: "calendar" }), ZONE, NOW).cameFrom, { key: "calendar", label: "Your calendar" }, "the row carries it");
+  assert.deepEqual(
+    toPersonRowVM(row({ came_from: "calendar" }), ZONE, NOW).cameFrom,
+    { key: "calendar", label: "Your calendar" },
+    "the row carries it",
+  );
   assert.equal(toPersonRowVM(row(), ZONE, NOW).cameFrom, null);
 });

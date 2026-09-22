@@ -7,7 +7,11 @@ import { steerDraft } from "@/server/service";
 const MAX_CHARS = 500;
 
 const Body = z.object({
-  text: z.string().trim().min(1, "Say what should change.").max(MAX_CHARS, `Keep it under ${MAX_CHARS} characters — it is worked into one reply.`),
+  text: z
+    .string()
+    .trim()
+    .min(1, "Say what should change.")
+    .max(MAX_CHARS, `Keep it under ${MAX_CHARS} characters — it is worked into one reply.`),
 });
 
 /**
@@ -38,16 +42,19 @@ export const POST = write({
             ? "The rewrite would have quoted a price, so the original draft stays."
             : r.reason === "already_sent"
               ? "That reply went out while it was being rewritten, so nothing was changed."
-              // Both spellings: the edge called this `no_whatsapp_channel` until
-              // it learned that a held draft can be a text, and the two apps
-              // deploy independently.
-              : r.reason === "no_channel" || r.reason === "no_whatsapp_channel"
+              : // Both spellings: the edge called this `no_whatsapp_channel` until
+                // it learned that a held draft can be a text, and the two apps
+                // deploy independently.
+                r.reason === "no_channel" || r.reason === "no_whatsapp_channel"
                 ? "This workspace has no connected channel to send a rewrite on."
                 : `The receptionist could not rewrite it (${r.reason}).`,
         502,
       );
     }
-    const decisionId = await recordDecision(ctx, m.tenant_id, "message", m.id, "edit", { steer: text, new_message_id: r.messageId });
+    const decisionId = await recordDecision(ctx, m.tenant_id, "message", m.id, "edit", {
+      steer: text,
+      new_message_id: r.messageId,
+    });
     return { ok: true, message_id: r.messageId, text: r.text, decision_id: decisionId };
   },
 });

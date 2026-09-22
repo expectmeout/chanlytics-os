@@ -18,7 +18,9 @@ test.describe("Which workspace a request means", () => {
     await signIn(page);
   });
 
-  test("a read that names its workspace is answered; one that names none is refused when the account holds two, and answered when it holds one", async ({ page }) => {
+  test("a read that names its workspace is answered; one that names none is refused when the account holds two, and answered when it holds one", async ({
+    page,
+  }) => {
     const ws = await page.request.get("/api/v1/workspaces");
     expect(ws.status()).toBe(200);
     const { data } = await ws.json();
@@ -36,7 +38,11 @@ test.describe("Which workspace a request means", () => {
       expect(body.error.code).toBe("choose_workspace");
       expect(body.error.message).toContain("say which one first");
     } else {
-      test.info().annotations.push({ type: "note", description: "this account holds one workspace, so the refusal cannot be provoked here; the unit suite proves it on two" });
+      test.info().annotations.push({
+        type: "note",
+        description:
+          "this account holds one workspace, so the refusal cannot be provoked here; the unit suite proves it on two",
+      });
       expect(bare.status(), "one workspace: nothing to choose").toBe(200);
     }
 

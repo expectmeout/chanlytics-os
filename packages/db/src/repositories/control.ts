@@ -17,9 +17,7 @@ import type { Database } from "../database.types";
 type Db = SupabaseClient<Database>;
 
 /** A person mid-conversation, or a call in progress. */
-export type ControlHolder =
-  | { kind: "person"; userId: string }
-  | { kind: "call"; callId: string };
+export type ControlHolder = { kind: "person"; userId: string } | { kind: "call"; callId: string };
 
 /**
  * How long a hold lasts unless it is renewed or let go.

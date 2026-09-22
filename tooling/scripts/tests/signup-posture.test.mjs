@@ -31,7 +31,10 @@ test("one environment variable, three postures", () => {
 
 test("the waitlist branch creates nothing, and returns before it could", () => {
   const route = readCode("apps/dashboard/app/api/v1/signup/route.ts");
-  const branch = route.slice(route.indexOf('if (posture === "waitlist")'), route.indexOf('if (posture === "invite" && !inviteCodeMatches(input.code))'));
+  const branch = route.slice(
+    route.indexOf('if (posture === "waitlist")'),
+    route.indexOf('if (posture === "invite" && !inviteCodeMatches(input.code))'),
+  );
   assert.ok(branch.includes("await joinWaitlist("), "it writes the queue row");
   assert.ok(!branch.includes("signUp("), "and never the workspace");
   assert.ok(branch.includes("return NextResponse.json"), "and returns before the sign-up path can run");
@@ -48,7 +51,7 @@ test("the waitlist branch creates nothing, and returns before it could", () => {
   // The limiter runs FIRST, deliberately: this is the posture a launch runs in,
   // so it is the one that most needs limiting, and a queue is what a script
   // would want to flood.
-  assert.ok(route.indexOf('takeRate(`ip:') < route.indexOf('if (posture === "waitlist")'));
+  assert.ok(route.indexOf("takeRate(`ip:") < route.indexOf('if (posture === "waitlist")'));
 });
 
 /**
@@ -69,16 +72,24 @@ test("the waitlist branch creates nothing, and returns before it could", () => {
  */
 test("the page is told which posture to render, and older clients still work", () => {
   const route = readCode("apps/dashboard/app/api/v1/signup/route.ts");
-  assert.ok(route.includes("ok({ posture, open: posture !== \"waitlist\", code_required: posture === \"invite\" })"));
+  assert.ok(route.includes('ok({ posture, open: posture !== "waitlist", code_required: posture === "invite" })'));
   // The page and the API ship separately, so the two booleans a client already
   // reads keep their old meaning rather than disappearing under it.
-  assert.ok(readRaw("apps/dashboard/app/api/v1/signup/route.ts").includes("keeps working, which matters because the page and the API ship separately"));
+  assert.ok(
+    readRaw("apps/dashboard/app/api/v1/signup/route.ts").includes(
+      "keeps working, which matters because the page and the API ship separately",
+    ),
+  );
 });
 
 test("the words say what is true and when they will hear", () => {
   assert.match(SIGNUP_WORDS.waitlistLead, /small groups/);
   assert.match(SIGNUP_WORDS.waitlistSent("a@b.com"), /a@b\.com/);
-  assert.match(SIGNUP_WORDS.waitlistSent("a@b.com"), /within a week/, "a promise with a number in it, or it is not a promise");
+  assert.match(
+    SIGNUP_WORDS.waitlistSent("a@b.com"),
+    /within a week/,
+    "a promise with a number in it, or it is not a promise",
+  );
   // No apology and no marketing. The reason given is the real one.
   for (const w of [SIGNUP_WORDS.waitlistTitle, SIGNUP_WORDS.waitlistLead, SIGNUP_WORDS.waitlistCta]) {
     assert.doesNotMatch(w, /sorry|unfortunately|exclusive|VIP|early access/i, w);
@@ -88,7 +99,11 @@ test("the words say what is true and when they will hear", () => {
 test("the table is a queue, not a mailing list", () => {
   const sql = readRaw("supabase/migrations/00088_waitlist.sql");
   assert.match(sql, /create table public\.waitlist/);
-  assert.match(sql, /create unique index waitlist_email_idx on public\.waitlist \(lower\(email\)\)/, "one row per address");
+  assert.match(
+    sql,
+    /create unique index waitlist_email_idx on public\.waitlist \(lower\(email\)\)/,
+    "one row per address",
+  );
   assert.match(sql, /where invited_at is null/, "the partial index is the queue");
   // Deny-all: the people on this list have no workspace to be scoped to, so
   // there is no membership that could make a row legitimately session-readable.
@@ -104,19 +119,22 @@ test("the page renders the door it actually is", () => {
   // has said which door this is.
   assert.ok(page.includes('const [posture, setPosture] = useState<"open" | "waitlist" | "invite" | null>(null);'));
   assert.ok(page.includes("disabled={busy || posture === null}"), "disabled until the posture is known");
-  assert.ok(page.includes("waiting ? SIGNUP_WORDS.waitlistCta : \"Create workspace\""));
+  assert.match(page, /waiting\s*\?\s*SIGNUP_WORDS\.waitlistCta\s*:\s*"Create workspace"/);
   assert.ok(page.includes("waiting ? SIGNUP_WORDS.waitlistTitle : SIGNUP_WORDS.title"));
 
   // A waitlist submission has nowhere to navigate: no code is coming and no
   // screen would accept one.
-  assert.ok(page.includes("if (j.data?.waitlisted) { setJoined(true); return; }"));
+  assert.match(page, /if \(j\.data\?\.waitlisted\) \{\s*setJoined\(true\);\s*return;\s*\}/);
   assert.ok(page.includes('data-testid="signup-joined"'));
 
   // The code field belongs to the invite posture alone — an open sign-up must
   // never show a blank the person cannot fill.
   assert.ok(page.includes('{posture === "invite" && ('));
   // The STATE is gone; SIGNUP_WORDS.codeRequired is a sentence and stays.
-  assert.ok(!/\bconst \[codeRequired/.test(page) && !/\bcodeRequired &&/.test(page), "the old boolean state is gone from the page");
+  assert.ok(
+    !/\bconst \[codeRequired/.test(page) && !/\bcodeRequired &&/.test(page),
+    "the old boolean state is gone from the page",
+  );
 
   // The API and the page ship separately, so an older API is still understood.
   assert.ok(page.includes('setPosture(j?.data?.posture ?? (j?.data?.code_required ? "invite" : "open"))'));

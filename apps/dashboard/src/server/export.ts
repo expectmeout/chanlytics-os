@@ -21,7 +21,10 @@ export interface ExportOpts {
   exportedAt?: Date;
 }
 
-type ContactLike = { display_name?: string | null; wa_profile_name?: string | null; phone_e164?: string | null; email?: string | null } | null | undefined;
+type ContactLike =
+  | { display_name?: string | null; wa_profile_name?: string | null; phone_e164?: string | null; email?: string | null }
+  | null
+  | undefined;
 
 /**
  * The name a person goes by -- contracts personName, the one rule every
@@ -37,7 +40,12 @@ function formatterFor(tz: string): Intl.DateTimeFormat {
   const hit = formatters.get(tz);
   if (hit) return hit;
   const opts: Intl.DateTimeFormatOptions = {
-    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
   };
   let f: Intl.DateTimeFormat;
   try {
@@ -63,10 +71,14 @@ export function stamp(iso: string | null | undefined, tz: string): string {
 /** Who a line is from, in the words an owner uses. */
 export function speaker(m: Pick<MessageDto, "sender" | "direction">, customer: string): string {
   switch (m.sender) {
-    case "customer": return customer;
-    case "ai": return "Receptionist";
-    case "human": return "Staff";
-    default: return m.direction === "inbound" ? customer : "System";
+    case "customer":
+      return customer;
+    case "ai":
+      return "Receptionist";
+    case "human":
+      return "Staff";
+    default:
+      return m.direction === "inbound" ? customer : "System";
   }
 }
 
@@ -79,7 +91,14 @@ function messageLine(m: MessageDto, customer: string, tz: string): string {
   else if (m.type === "note") body = `[note] ${body}`;
   else if (m.type === "template") body = `[template] ${body}`;
   if (!body) body = "[empty]";
-  const flag = m.status === "canceled" ? "[withdrawn] " : m.status === "failed" ? "[failed] " : m.status === "queued" ? "[queued] " : "";
+  const flag =
+    m.status === "canceled"
+      ? "[withdrawn] "
+      : m.status === "failed"
+        ? "[failed] "
+        : m.status === "queued"
+          ? "[queued] "
+          : "";
   return `[${when}] ${speaker(m, customer)}: ${flag}${body}`;
 }
 
@@ -117,7 +136,7 @@ function mmss(seconds: number | undefined): string {
 /** A phone call as plain text: the facts, the summary, then the turns. */
 export function callText(call: CallDto, opts: ExportOpts): string {
   const named = personLabel(call.contact);
-  const who = named !== "Unknown" ? named : call.from_e164 ?? "Unknown caller";
+  const who = named !== "Unknown" ? named : (call.from_e164 ?? "Unknown caller");
   const phone = call.contact?.phone_e164 ?? call.from_e164;
   const at = opts.exportedAt ?? new Date();
   const dur = call.duration_ms ? mmss(call.duration_ms / 1000) : null;
@@ -191,7 +210,12 @@ export function peopleCsv(rows: PersonRowDto[], tz: string): string {
 /** A filename-safe form of a name: letters, digits, dot, dash; never empty. */
 export function safeName(s: string): string {
   return (
-    s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "export"
+    s
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w.-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "export"
   );
 }
 

@@ -33,14 +33,19 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, wha
   let text = "";
   let stop: string | null = null;
   try {
-    for await (const ev of stream({ ...call, request: { ...request, output_config: { effort: "low", format: { type: "json_schema", schema: json } } } })) {
+    for await (const ev of stream({
+      ...call,
+      request: { ...request, output_config: { effort: "low", format: { type: "json_schema", schema: json } } },
+    })) {
       if (ev.type === "text") text += ev.text;
       else if (ev.type === "stop") stop = ev.stopReason;
-      else if (ev.type === "error") throw new AppError("upstream_anthropic", `The ${what} could not be written just now. Try again in a moment.`);
+      else if (ev.type === "error")
+        throw new AppError("upstream_anthropic", `The ${what} could not be written just now. Try again in a moment.`);
     }
   } catch (e) {
     if (e instanceof GatewayRefused) {
-      if (e.refusal.kind === "budget") throw new AppError("rate_limited", `Today's assistant budget is spent, so the ${what} waits until tomorrow.`);
+      if (e.refusal.kind === "budget")
+        throw new AppError("rate_limited", `Today's assistant budget is spent, so the ${what} waits until tomorrow.`);
       throw new AppError("upstream_anthropic", `The ${what} is not available here right now.`, 503);
     }
     throw e;

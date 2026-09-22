@@ -31,7 +31,11 @@ async function smokeTenantId() {
 }
 
 async function cleanup(tenantId) {
-  const { data: calls } = await db.from("calls").select("id").eq("tenant_id", tenantId).like("retell_call_id", `${PREFIX}%`);
+  const { data: calls } = await db
+    .from("calls")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .like("retell_call_id", `${PREFIX}%`);
   for (const k of calls ?? []) await db.from("events").delete().eq("subject_id", k.id);
   await db.from("calls").delete().eq("tenant_id", tenantId).like("retell_call_id", `${PREFIX}%`);
   const { data: rows } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", PHONE);
@@ -54,17 +58,41 @@ const ok = (res) => {
 
 function call(retellCallId, over = {}) {
   return {
-    retellCallId, agentId: AGENT, direction: "inbound", callType: "phone_call",
-    fromE164: PHONE, fromRaw: PHONE, toE164: null, status: "ongoing",
-    startedAtIso: new Date().toISOString(), endedAtIso: null, durationMs: null,
-    disconnectionReason: null, sentiment: null, callSuccessful: null, inVoicemail: null,
-    summary: null, transcript: null, transcriptObject: null, recordingUrl: null,
-    publicLogUrl: null, cost: null, latency: null, ...over,
+    retellCallId,
+    agentId: AGENT,
+    direction: "inbound",
+    callType: "phone_call",
+    fromE164: PHONE,
+    fromRaw: PHONE,
+    toE164: null,
+    status: "ongoing",
+    startedAtIso: new Date().toISOString(),
+    endedAtIso: null,
+    durationMs: null,
+    disconnectionReason: null,
+    sentiment: null,
+    callSuccessful: null,
+    inVoicemail: null,
+    summary: null,
+    transcript: null,
+    transcriptObject: null,
+    recordingUrl: null,
+    publicLogUrl: null,
+    cost: null,
+    latency: null,
+    ...over,
   };
 }
 
 async function row(tenantId, retellCallId) {
-  return ok(await db.from("calls").select("id, status, duration_ms, transcript_object, recording, updated_at").eq("tenant_id", tenantId).eq("retell_call_id", retellCallId).single());
+  return ok(
+    await db
+      .from("calls")
+      .select("id, status, duration_ms, transcript_object, recording, updated_at")
+      .eq("tenant_id", tenantId)
+      .eq("retell_call_id", retellCallId)
+      .single(),
+  );
 }
 
 async function usageRows(callId) {
@@ -89,10 +117,19 @@ test("a call's status only moves forward, and a stale event is a no-op that says
     assert.deepEqual((await row(tenantId, id)).transcript_object, [{ role: "agent", content: "hello" }]);
 
     // call_ended: the duration becomes known HERE, on the second event
-    const ended = await ingestCall(db, tenantId, call(id, {
-      status: "ended", endedAtIso: new Date().toISOString(), durationMs: 65_000,
-      transcriptObject: [{ role: "agent", content: "hello" }, { role: "user", content: "hi" }],
-    }));
+    const ended = await ingestCall(
+      db,
+      tenantId,
+      call(id, {
+        status: "ended",
+        endedAtIso: new Date().toISOString(),
+        durationMs: 65_000,
+        transcriptObject: [
+          { role: "agent", content: "hello" },
+          { role: "user", content: "hi" },
+        ],
+      }),
+    );
     assert.equal(ended.is_new, false);
     assert.equal(ended.skipped, false);
     const afterEnd = await row(tenantId, id);
@@ -113,7 +150,11 @@ test("a call's status only moves forward, and a stale event is a no-op that says
     assert.equal((await ingestCall(db, tenantId, call(id, { status: "registered" }))).skipped, true);
 
     // call_analyzed (same rank as ended) enriches, and does not meter twice.
-    const analyzed = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 65_000, summary: "Asked about Saturday.", sentiment: "Positive" }));
+    const analyzed = await ingestCall(
+      db,
+      tenantId,
+      call(id, { status: "ended", durationMs: 65_000, summary: "Asked about Saturday.", sentiment: "Positive" }),
+    );
     assert.equal(analyzed.skipped, false);
     assert.equal((await usageRows(analyzed.call_id)).length, 1);
     assert.equal((await row(tenantId, id)).status, "ended");
@@ -127,12 +168,20 @@ test("a dial that never connected is stored as not_connected and counted nowhere
   await cleanup(tenantId);
   try {
     // One real call, so the counts have a baseline of exactly one.
-    const real = await ingestCall(db, tenantId, call(`${PREFIX}-real`, { status: "ended", durationMs: 30_000, endedAtIso: new Date().toISOString() }));
+    const real = await ingestCall(
+      db,
+      tenantId,
+      call(`${PREFIX}-real`, { status: "ended", durationMs: 30_000, endedAtIso: new Date().toISOString() }),
+    );
     const before = ok(await db.rpc("metrics_summary", { p_tenant_id: tenantId, p_days: 1 }));
     const peopleBefore = ok(await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: real.contact_id }));
     assert.equal(peopleBefore[0].call_count, 1);
 
-    const missed = await ingestCall(db, tenantId, call(`${PREFIX}-missed`, { status: "not_connected", disconnectionReason: "dial_failed" }));
+    const missed = await ingestCall(
+      db,
+      tenantId,
+      call(`${PREFIX}-missed`, { status: "not_connected", disconnectionReason: "dial_failed" }),
+    );
     assert.equal(missed.is_new, true);
     assert.equal((await row(tenantId, `${PREFIX}-missed`)).status, "not_connected");
 
@@ -145,8 +194,12 @@ test("a dial that never connected is stored as not_connected and counted nowhere
     assert.ok(today.calls >= 1, "the real call is in the report");
     // The missed dial is not: if it were, today's count would be one higher
     // than the connected calls the tenant made.
-    const { count } = await db.from("calls").select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId).neq("status", "not_connected").gte("started_at", new Date(Date.now() - 86_400_000).toISOString());
+    const { count } = await db
+      .from("calls")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .neq("status", "not_connected")
+      .gte("started_at", new Date(Date.now() - 86_400_000).toISOString());
     assert.ok(today.calls <= count, "report counts only connected calls");
   } finally {
     await cleanup(tenantId);
@@ -174,8 +227,23 @@ test("no provider URL is stored on the row; the audit copy keeps its analysis", 
   await cleanup(tenantId);
   const id = `${PREFIX}-scrub`;
   try {
-    const rawEnded = { call_id: id, recording_url: "https://cdn.invalid/a.wav", public_log_url: "https://logs.invalid/x", call_status: "ended" };
-    const res = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 5_000, recordingUrl: "https://cdn.invalid/a.wav", publicLogUrl: "https://logs.invalid/x" }), rawEnded);
+    const rawEnded = {
+      call_id: id,
+      recording_url: "https://cdn.invalid/a.wav",
+      public_log_url: "https://logs.invalid/x",
+      call_status: "ended",
+    };
+    const res = await ingestCall(
+      db,
+      tenantId,
+      call(id, {
+        status: "ended",
+        durationMs: 5_000,
+        recordingUrl: "https://cdn.invalid/a.wav",
+        publicLogUrl: "https://logs.invalid/x",
+      }),
+      rawEnded,
+    );
     const row = ok(await db.from("calls").select("raw, public_log_url, recording").eq("id", res.call_id).single());
     assert.equal(row.raw.recording_url, undefined);
     assert.equal(row.raw.public_log_url, undefined);
@@ -184,7 +252,10 @@ test("no provider URL is stored on the row; the audit copy keeps its analysis", 
     assert.equal(row.recording.fetch_state, "pending");
 
     // call_analyzed, then a retried call_ended (same rank): the analysis stays.
-    await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 5_000, summary: "Booked." }), { ...rawEnded, call_analysis: { call_summary: "Booked." } });
+    await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 5_000, summary: "Booked." }), {
+      ...rawEnded,
+      call_analysis: { call_summary: "Booked." },
+    });
     await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 5_000 }), rawEnded);
     const after = ok(await db.from("calls").select("raw, summary").eq("id", res.call_id).single());
     assert.equal(after.summary, "Booked.");
@@ -194,45 +265,96 @@ test("no provider URL is stored on the row; the audit copy keeps its analysis", 
   }
 });
 
-test("a recording's copy state survives re-ingest: pending keeps its attempts, failed and stored are terminal", { skip }, async () => {
-  const tenantId = await smokeTenantId();
-  await cleanup(tenantId);
-  const id = `${PREFIX}-rec`;
-  const url = "https://example.invalid/recording.wav";
-  try {
-    const first = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }));
-    assert.equal(first.recording_state, "pending");
-
-    // The webhook's copy timed out twice: the row carries the attempts.
-    ok(await db.from("calls").update({ recording: { provider_url: url, fetch_state: "pending", attempts: 2, error: "timeout" } }).eq("id", first.call_id));
-    const again = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 10_000, recordingUrl: url, summary: "analyzed" }));
-    assert.equal(again.recording_state, "pending");
-    assert.equal(again.recording_attempts, 2, "call_analyzed must not reset the sweep's bound");
-
-    ok(await db.from("calls").update({ recording: { provider_url: url, fetch_state: "failed", attempts: 3 } }).eq("id", first.call_id));
-    const afterFail = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }));
-    assert.equal(afterFail.recording_state, "failed", "given up is given up");
-  } finally {
+test(
+  "a recording's copy state survives re-ingest: pending keeps its attempts, failed and stored are terminal",
+  { skip },
+  async () => {
+    const tenantId = await smokeTenantId();
     await cleanup(tenantId);
-  }
-});
+    const id = `${PREFIX}-rec`;
+    const url = "https://example.invalid/recording.wav";
+    try {
+      const first = await ingestCall(
+        db,
+        tenantId,
+        call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }),
+      );
+      assert.equal(first.recording_state, "pending");
 
-test("a recording removed on schedule stays removed: a re-ingest carrying the provider's URL does not reopen the copy", { skip }, async () => {
-  const tenantId = await smokeTenantId();
-  await cleanup(tenantId);
-  const id = `${PREFIX}-purged`;
-  const url = "https://example.invalid/recording.wav";
-  try {
-    const first = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }));
-    // The marker purgeExpiredRecordings leaves once the audio is out of the bucket (apps/edge/lib/call-recording.ts).
-    const purged = { fetch_state: "purged", purged_at: new Date().toISOString(), retention_days: RECORDING_RETENTION_DAYS, mime: "audio/wav" };
-    ok(await db.from("calls").update({ recording: purged }).eq("id", first.call_id));
+      // The webhook's copy timed out twice: the row carries the attempts.
+      ok(
+        await db
+          .from("calls")
+          .update({ recording: { provider_url: url, fetch_state: "pending", attempts: 2, error: "timeout" } })
+          .eq("id", first.call_id),
+      );
+      const again = await ingestCall(
+        db,
+        tenantId,
+        call(id, { status: "ended", durationMs: 10_000, recordingUrl: url, summary: "analyzed" }),
+      );
+      assert.equal(again.recording_state, "pending");
+      assert.equal(again.recording_attempts, 2, "call_analyzed must not reset the sweep's bound");
 
-    // A late call_analyzed, or the sweep re-ingesting what the provider reports, carries the URL again.
-    const again = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 10_000, recordingUrl: url, summary: "analyzed" }));
-    assert.equal(again.recording_state, "purged", "the webhook copies whenever this answer is not final, and the copy would put the audio back in the bucket");
-    assert.deepEqual((await row(tenantId, id)).recording, purged, "the call still says its recording was removed after the retention, and when");
-  } finally {
+      ok(
+        await db
+          .from("calls")
+          .update({ recording: { provider_url: url, fetch_state: "failed", attempts: 3 } })
+          .eq("id", first.call_id),
+      );
+      const afterFail = await ingestCall(
+        db,
+        tenantId,
+        call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }),
+      );
+      assert.equal(afterFail.recording_state, "failed", "given up is given up");
+    } finally {
+      await cleanup(tenantId);
+    }
+  },
+);
+
+test(
+  "a recording removed on schedule stays removed: a re-ingest carrying the provider's URL does not reopen the copy",
+  { skip },
+  async () => {
+    const tenantId = await smokeTenantId();
     await cleanup(tenantId);
-  }
-});
+    const id = `${PREFIX}-purged`;
+    const url = "https://example.invalid/recording.wav";
+    try {
+      const first = await ingestCall(
+        db,
+        tenantId,
+        call(id, { status: "ended", durationMs: 10_000, recordingUrl: url }),
+      );
+      // The marker purgeExpiredRecordings leaves once the audio is out of the bucket (apps/edge/lib/call-recording.ts).
+      const purged = {
+        fetch_state: "purged",
+        purged_at: new Date().toISOString(),
+        retention_days: RECORDING_RETENTION_DAYS,
+        mime: "audio/wav",
+      };
+      ok(await db.from("calls").update({ recording: purged }).eq("id", first.call_id));
+
+      // A late call_analyzed, or the sweep re-ingesting what the provider reports, carries the URL again.
+      const again = await ingestCall(
+        db,
+        tenantId,
+        call(id, { status: "ended", durationMs: 10_000, recordingUrl: url, summary: "analyzed" }),
+      );
+      assert.equal(
+        again.recording_state,
+        "purged",
+        "the webhook copies whenever this answer is not final, and the copy would put the audio back in the bucket",
+      );
+      assert.deepEqual(
+        (await row(tenantId, id)).recording,
+        purged,
+        "the call still says its recording was removed after the retention, and when",
+      );
+    } finally {
+      await cleanup(tenantId);
+    }
+  },
+);

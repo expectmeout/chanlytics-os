@@ -1,7 +1,11 @@
 import { read, write, workspace } from "@/server/route";
 import {
-  AppError, businessRecordProblems, registrationPathOf, REGISTRATION_PATHS,
-  type BusinessRecordDto, type RegistrationPath,
+  AppError,
+  businessRecordProblems,
+  registrationPathOf,
+  REGISTRATION_PATHS,
+  type BusinessRecordDto,
+  type RegistrationPath,
 } from "@chanlytics/contracts";
 import { edgeLines } from "@/server/lines";
 import type { RouteContext } from "@/server/with-route";
@@ -32,7 +36,13 @@ export const GET = read({
     if (!data) return { record: null, path: null, problems: {} };
     const { tenant_id: _tenant, created_at: _created, ...record } = data;
     const path = registrationPathOf(record) ?? "standard";
-    return { record, path, problems: businessRecordProblems(record as BusinessRecordDto, path, { ourNumbers: await ourNumbers(ctx, member.tenantId) }) };
+    return {
+      record,
+      path,
+      problems: businessRecordProblems(record as BusinessRecordDto, path, {
+        ourNumbers: await ourNumbers(ctx, member.tenantId),
+      }),
+    };
   },
 });
 
@@ -86,8 +96,10 @@ export const PUT = write({
 
     const a = await edgeLines({ op: "record", tenant_id: member.tenantId, record, path }, 20_000);
     const b = a.body ?? {};
-    if (a.status === 400) throw new AppError("validation", typeof b.error === "string" ? b.error : "That could not be saved.", 400);
-    if (a.status === 503 && typeof b.error === "string" && b.error === "preview") throw new AppError("conflict", "Saving the business on record only works on the production dashboard.", 409);
+    if (a.status === 400)
+      throw new AppError("validation", typeof b.error === "string" ? b.error : "That could not be saved.", 400);
+    if (a.status === 503 && typeof b.error === "string" && b.error === "preview")
+      throw new AppError("conflict", "Saving the business on record only works on the production dashboard.", 409);
     if (a.status !== 200) throw new AppError("internal", "The record could not be saved. Try again in a moment.", 502);
     return { record: b.record ?? null };
   },

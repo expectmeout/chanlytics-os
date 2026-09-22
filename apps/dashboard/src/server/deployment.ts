@@ -26,8 +26,12 @@ export interface Deployment {
  * plain local dev mirrored pauses into the live store.
  */
 export function deploymentFrom(env: Record<string, string | undefined>): Deployment {
-  const name: DeploymentEnv = env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview" ? env.VERCEL_ENV : "development";
+  const name: DeploymentEnv =
+    env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview" ? env.VERCEL_ENV : "development";
   return { env: name, providersLive: name === "production" || env.EDGE_PROVIDERS === "live" };
 }
 
-export const deployment: Deployment = deploymentFrom({ VERCEL_ENV: process.env.VERCEL_ENV, EDGE_PROVIDERS: process.env.EDGE_PROVIDERS });
+export const deployment: Deployment = deploymentFrom({
+  VERCEL_ENV: process.env.VERCEL_ENV,
+  EDGE_PROVIDERS: process.env.EDGE_PROVIDERS,
+});

@@ -31,8 +31,14 @@ export function stripComments(src) {
       out += c;
       i++;
       while (i < src.length && src[i] !== c) {
-        if (src[i] === "\\") { out += src[i]; i++; }
-        if (i < src.length) { out += src[i]; i++; }
+        if (src[i] === "\\") {
+          out += src[i];
+          i++;
+        }
+        if (i < src.length) {
+          out += src[i];
+          i++;
+        }
       }
       out += src[i] ?? "";
       i++;

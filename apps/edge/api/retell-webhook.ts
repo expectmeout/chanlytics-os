@@ -49,6 +49,10 @@ import { erasedBeforeCall } from "../lib/erased.js";
 import { upsertEscalation } from "../lib/packages/jobs.js";
 import { callOutcomeWords, formatPhoneDisplay, guardSpokenTurns, frameGuardrail } from "../lib/packages/contracts.js";
 import type { RoutedChannel } from "../lib/packages/db.js";
+import { env } from "../lib/env.js";
+import { logger, errField } from "../lib/log.js";
+
+const L = logger();
 
 export const config = { maxDuration: 60 };
 
@@ -85,15 +89,23 @@ const CORRECTED_MAX = 500;
  * holds. Platform-scoped, no call content, best-effort; /api/diag lists the
  * last few.
  */
-async function recordWebhookAuth(sig: boolean, key: boolean, forms: { raw: boolean; restringified: boolean }): Promise<void> {
+async function recordWebhookAuth(
+  sig: boolean,
+  key: boolean,
+  forms: { raw: boolean; restringified: boolean },
+): Promise<void> {
   try {
     const db = pg();
     if (!db) return;
     await emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, {
-      provider: "retell", sig, key, sig_raw: forms.raw, sig_restringified: forms.restringified,
+      provider: "retell",
+      sig,
+      key,
+      sig_raw: forms.raw,
+      sig_restringified: forms.restringified,
     });
   } catch (e) {
-    console.error("webhook_auth_event_failed", e instanceof Error ? e.message : e);
+    L.error("webhook_auth_event_failed", { error: errField(e) });
   }
 }
 
@@ -107,7 +119,10 @@ async function recordWebhookAuth(sig: boolean, key: boolean, forms: { raw: boole
  * used to be dropped before ingest, silently, leaving a live transcript
  * frozen on the dashboard while the provider streamed turns.
  */
-async function routeByKnownCall(db: NonNullable<ReturnType<typeof pg>>, retellCallId: string): Promise<RoutedChannel | null> {
+async function routeByKnownCall(
+  db: NonNullable<ReturnType<typeof pg>>,
+  retellCallId: string,
+): Promise<RoutedChannel | null> {
   const { data } = await db.from("calls").select("agent_id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
   const agentId = (data as { agent_id?: string | null } | null)?.agent_id ?? null;
   return agentId ? resolveChannel(db, "voice", agentId) : null;
@@ -127,9 +142,12 @@ async function recordDelivery(
   data: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await emitEvent(db, tenantId, "webhook.delivery", "ingest", callId ? "call" : null, callId, { provider: "retell", ...data });
+    await emitEvent(db, tenantId, "webhook.delivery", "ingest", callId ? "call" : null, callId, {
+      provider: "retell",
+      ...data,
+    });
   } catch (e) {
-    console.error("webhook_delivery_event_failed", e instanceof Error ? e.message : e);
+    L.error("webhook_delivery_event_failed", { error: errField(e) });
   }
 }
 
@@ -152,19 +170,24 @@ export async function POST(request: Request): Promise<Response> {
   // the badged key for verification alone; empty, the API key is tried, as
   // before, so nothing moves until it is set.
   const signature = request.headers.get("x-retell-signature");
-  const webhookKey = process.env.RETELL_WEBHOOK_KEY || process.env.RETELL_API_KEY;
-  if (!process.env.RETELL_WEBHOOK_KEY) {
+  const webhookKey = env.RETELL_WEBHOOK_KEY || env.RETELL_API_KEY;
+  if (!env.RETELL_WEBHOOK_KEY) {
     // Named, every delivery, so the one configuration step that stands between
     // this door and a real signature is not a thing someone has to already
     // know. The API key is tried underneath, as before.
-    console.warn("retell_webhook_key_unset", JSON.stringify({ trying: "RETELL_API_KEY", fix: "set RETELL_WEBHOOK_KEY to the badged key" }));
+    L.warn("retell_webhook_key_unset", { trying: "RETELL_API_KEY", fix: "set RETELL_WEBHOOK_KEY to the badged key" });
   }
   const sigRaw = verifyRetellSignature(raw, signature, webhookKey);
   let restringified: string | null = null;
-  try { restringified = JSON.stringify(JSON.parse(raw)); } catch { /* not JSON: nothing to re-serialise */ }
-  const sigRestringified = !sigRaw && restringified !== null && restringified !== raw
-    ? verifyRetellSignature(restringified, signature, webhookKey)
-    : sigRaw;
+  try {
+    restringified = JSON.stringify(JSON.parse(raw));
+  } catch {
+    /* not JSON: nothing to re-serialise */
+  }
+  const sigRestringified =
+    !sigRaw && restringified !== null && restringified !== raw
+      ? verifyRetellSignature(restringified, signature, webhookKey)
+      : sigRaw;
   const sigOk = sigRaw || sigRestringified;
   // The signature is the only credential. The `?key=` that once opened this
   // door beside it was a secret in Retell's dashboard and in access logs, and
@@ -175,7 +198,7 @@ export async function POST(request: Request): Promise<Response> {
   // string; a key that still rides on an old URL is ignored, never read. The
   // auth row keeps its `key` field, always false now, for the diagnostic's
   // shape.
-  console.log("retell_webhook_auth", JSON.stringify({ sig: sigOk }));
+  L.info("retell_webhook_auth", { sig: sigOk });
   // AWAITED, not fired and forgotten. A serverless invocation is frozen when it
   // answers and nothing in this app registers a waitUntil, so an un-awaited
   // insert only lands if another delivery happens to thaw the instance in
@@ -199,9 +222,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   let body: { event?: string; call?: RetellCall } = {};
-  try { body = JSON.parse(raw); } catch { return json(200, { ok: true }); }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return json(200, { ok: true });
+  }
   const { event, call } = body;
-  console.log("retell_event", event, call && call.call_id);
+  L.info("retell_event", { retell_event: event, call_id: call?.call_id ?? null });
   if (!call?.call_id) return json(200, { ok: true });
 
   // A transcript update is proof the call is IN PROGRESS. The per-turn
@@ -252,11 +279,19 @@ export async function POST(request: Request): Promise<Response> {
       try {
         erased = await erasedBeforeCall(db, routedEarly.tenantId, n.fromE164, n.startedAtIso);
       } catch (e) {
-        console.error("retell_call_erasure_unreadable", JSON.stringify({ call: n.retellCallId, tenant: routedEarly.tenantId, error: e instanceof Error ? e.message : String(e) }));
+        L.error("retell_call_erasure_unreadable", {
+          call: n.retellCallId,
+          tenant: routedEarly.tenantId,
+          error: errField(e),
+        });
         return json(503, { ok: false, error: "erasure_unreadable" });
       }
       if (erased) {
-        console.log("retell_call_skipped_erased", JSON.stringify({ call: n.retellCallId, tenant: routedEarly.tenantId, event }));
+        L.info("retell_call_skipped_erased", {
+          call: n.retellCallId,
+          tenant: routedEarly.tenantId,
+          retell_event: event,
+        });
         return json(200, { ok: true, skipped: "erased" });
       }
     }
@@ -270,11 +305,15 @@ export async function POST(request: Request): Promise<Response> {
   // ---- canonical calls row (additive; never breaks the legacy path) ----
   if (db) {
     try {
-      const routed = n.agentId ? await resolveChannel(db, "voice", n.agentId) : await routeByKnownCall(db, n.retellCallId);
+      const routed = n.agentId
+        ? await resolveChannel(db, "voice", n.agentId)
+        : await routeByKnownCall(db, n.retellCallId);
       if (!routed) {
-        console.error("retell_unroutable_agent", n.agentId);
-        await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null,
-          { channel: "voice", agent_id: n.agentId }).catch(() => {});
+        L.error("retell_unroutable_agent", { agent_id: n.agentId });
+        await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null, {
+          channel: "voice",
+          agent_id: n.agentId,
+        }).catch(() => {});
       } else {
         const res = await ingestCall(db, routed.tenantId, n, call);
         if (res.call_id) callAbout = { type: "call", id: res.call_id };
@@ -285,11 +324,17 @@ export async function POST(request: Request): Promise<Response> {
         // lands, and the owner's Setup page then says "Testing —" through the
         // whole call it was waiting for. Outside an open test window it is one
         // select that returns nothing.
-        if (res.call_id && n.direction === "inbound") await markForwardingVerified(db, routed.tenantId, { fromE164: n.fromE164, toE164: n.toE164, startedAtIso: n.startedAtIso, callId: res.call_id });
+        if (res.call_id && n.direction === "inbound")
+          await markForwardingVerified(db, routed.tenantId, {
+            fromE164: n.fromE164,
+            toE164: n.toE164,
+            startedAtIso: n.startedAtIso,
+            callId: res.call_id,
+          });
         if (res.skipped) {
           // Older than the row: a retried call_started after call_ended, or a
           // partial transcript after the final one. Nothing was written.
-          console.log("retell_event_stale", event, n.retellCallId);
+          L.info("retell_event_stale", { retell_event: event, call_id: n.retellCallId });
         }
         // Awaited: this row IS /api/diag's answer to "what did the provider
         // actually send", and the deliveries it was written for — call_started
@@ -335,11 +380,17 @@ export async function POST(request: Request): Promise<Response> {
         if (res.conversation_id) {
           const over = n.status === "ended" || n.status === "error" || event === "call_analyzed";
           const holder = { kind: "call" as const, callId: n.retellCallId };
-          await (over
-            ? releaseControl(db, { tenantId: routed.tenantId, conversationId: res.conversation_id, holder })
-            : claimControl(db, { tenantId: routed.tenantId, conversationId: res.conversation_id, holder, seconds: CALL_CONTROL_S })
+          await (
+            over
+              ? releaseControl(db, { tenantId: routed.tenantId, conversationId: res.conversation_id, holder })
+              : claimControl(db, {
+                  tenantId: routed.tenantId,
+                  conversationId: res.conversation_id,
+                  holder,
+                  seconds: CALL_CONTROL_S,
+                })
           ).catch((e: unknown) => {
-            console.error("retell_call_hold_failed", JSON.stringify({ call: n.retellCallId, over, error: e instanceof Error ? e.message : String(e) }));
+            L.error("retell_call_hold_failed", { call: n.retellCallId, over, error: errField(e) });
           });
         }
 
@@ -352,10 +403,21 @@ export async function POST(request: Request): Promise<Response> {
           const todo = say(n.analysis.follow_up) || say(n.analysis.caller_wanted) || "The caller needs a call back.";
           const rt = await loadTenantRuntime(db, routed);
           const pauseHours = rt.policy["reply"]?.limits.pause_hours ?? 24;
-          await pauseConversation(db, routed.tenantId, res.conversation_id, new Date(Date.now() + pauseHours * 3_600_000).toISOString());
-          const opened = await upsertEscalation(db, routed.tenantId, res.conversation_id, "callback", todo.slice(0, 400));
+          await pauseConversation(
+            db,
+            routed.tenantId,
+            res.conversation_id,
+            new Date(Date.now() + pauseHours * 3_600_000).toISOString(),
+          );
+          const opened = await upsertEscalation(
+            db,
+            routed.tenantId,
+            res.conversation_id,
+            "callback",
+            todo.slice(0, 400),
+          );
           callAbout = { type: "conversation", id: res.conversation_id };
-          console.log("call_callback_needed", JSON.stringify({ tenant: routed.tenantId, call: res.call_id, escalation: opened }));
+          L.info("call_callback_needed", { tenant: routed.tenantId, call: res.call_id, escalation: opened });
         }
 
         // A STANDING RULE BROKEN OUT LOUD.
@@ -371,16 +433,27 @@ export async function POST(request: Request): Promise<Response> {
           alreadyCorrected: corrected.has(n.retellCallId),
         });
         if (guard.escalate && guard.breach && res.conversation_id) {
-          const said = await upsertEscalation(db, routed.tenantId, res.conversation_id, guard.escalate.reason, guard.escalate.details);
+          const said = await upsertEscalation(
+            db,
+            routed.tenantId,
+            res.conversation_id,
+            guard.escalate.reason,
+            guard.escalate.details,
+          );
           // The words the agent said are the owner's to read in the Inbox,
           // never the platform's log: the turn number and the outcome are
           // what a search needs.
-          console.warn("voice_policy_block_price", JSON.stringify({ tenant: routed.tenantId, call: res.call_id, turn: guard.breach.turn, escalation: said }));
+          L.warn("voice_policy_block_price", {
+            tenant: routed.tenantId,
+            call: res.call_id,
+            turn: guard.breach.turn,
+            escalation: said,
+          });
         }
-        if (guard.correct && guard.breach && process.env.RETELL_API_KEY) {
+        if (guard.correct && guard.breach && env.RETELL_API_KEY) {
           if (corrected.size >= CORRECTED_MAX) corrected.clear();
           corrected.add(n.retellCallId);
-          const put = await updateLiveCall({ apiKey: process.env.RETELL_API_KEY }, n.retellCallId, {
+          const put = await updateLiveCall({ apiKey: env.RETELL_API_KEY }, n.retellCallId, {
             additionalContext: frameGuardrail(guard.breach.rule),
             // Never by decree. Every whisper this product sends is worked
             // into the next answer rather than spoken on command, and a
@@ -388,7 +461,12 @@ export async function POST(request: Request): Promise<Response> {
             // on top of the first.
             triggerResponse: false,
           });
-          console.log("voice_guardrail_correction", JSON.stringify({ call: n.retellCallId, rule: guard.breach.rule, ok: put.ok, status: put.status }));
+          L.info("voice_guardrail_correction", {
+            call: n.retellCallId,
+            rule: guard.breach.rule,
+            ok: put.ok,
+            status: put.status,
+          });
         }
 
         // The email and the memory note below happen ONCE per call. Retell
@@ -407,7 +485,9 @@ export async function POST(request: Request): Promise<Response> {
         // call's audio was taken out after its retention and must stay out.
         if (
           n.recordingUrl &&
-          res.recording_state !== "stored" && res.recording_state !== "failed" && res.recording_state !== "purged" &&
+          res.recording_state !== "stored" &&
+          res.recording_state !== "failed" &&
+          res.recording_state !== "purged" &&
           (event === "call_analyzed" || n.status === "ended")
         ) {
           await copyRecording(db, {
@@ -425,7 +505,7 @@ export async function POST(request: Request): Promise<Response> {
       // whose analysis failed to land read "No summary" forever — while the
       // email below still went out. The side effects are idempotent now (the
       // notification claim), so a retry is safe.
-      console.error("ingest_call_failed", e instanceof Error ? e.message : e);
+      L.error("ingest_call_failed", { error: errField(e) });
       return json(500, { ok: false, error: "ingest_failed" });
     }
   }
@@ -433,7 +513,7 @@ export async function POST(request: Request): Promise<Response> {
   if (event === "call_analyzed") {
     if (notifyClaim === false) {
       // A retry or a replay: the row says this call's email and note went out.
-      console.log("retell_analyzed_duplicate", n.retellCallId);
+      L.info("retell_analyzed_duplicate", { call_id: n.retellCallId });
       return json(200, { ok: true, duplicate: true });
     }
     const summary = n.summary || "(no summary)";
@@ -456,9 +536,10 @@ export async function POST(request: Request): Promise<Response> {
     // and it used to fall back to a hardcoded personal address: with a second
     // tenant, one business's call recording summary delivered to another
     // business's owner. It now goes only to a mailbox we know is this tenant's.
-    const addressing = db2 && routedForCall
-      ? await loadTenantNotifications(db2, routedForCall.tenantId)
-      : { notifications: null, isEnvDefault: false };
+    const addressing =
+      db2 && routedForCall
+        ? await loadTenantNotifications(db2, routedForCall.tenantId)
+        : { notifications: null, isEnvDefault: false };
     await notify(
       { tenantId: routedForCall?.tenantId ?? null, ...addressing },
       {

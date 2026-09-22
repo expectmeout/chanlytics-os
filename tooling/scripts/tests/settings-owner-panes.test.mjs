@@ -12,7 +12,18 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, roleGate, stateOf, clockStamp, clockTime, clockDateYear, clockDayLabel, zoneDayKey, POLICY_MODES, POLICY_MODE_WORDS } from "@chanlytics/contracts";
+import {
+  ROLE_PERMS,
+  roleGate,
+  stateOf,
+  clockStamp,
+  clockTime,
+  clockDateYear,
+  clockDayLabel,
+  zoneDayKey,
+  POLICY_MODES,
+  POLICY_MODE_WORDS,
+} from "@chanlytics/contracts";
 import { installPolicyStore } from "../../../apps/dashboard/src/legacy-bridge/policy-store.ts";
 
 const TID = "t-studio";
@@ -21,22 +32,47 @@ const TID = "t-studio";
 
 const listeners = {};
 const tipped = [];
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+  body: { appendChild() {} },
+  activeElement: null,
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  location: { pathname: "/w/studio", hash: "#/admin/notifications", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/studio",
+    hash: "#/admin/notifications",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   history: { replaceState() {} },
   innerHeight: 800,
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
@@ -55,7 +91,10 @@ let cells = new Map();
 let frames = [];
 let dirty = false;
 let lastTree = null;
-const slot = () => { const f = frames[frames.length - 1]; return `${f.key}#${f.hook++}`; };
+const slot = () => {
+  const f = frames[frames.length - 1];
+  return `${f.key}#${f.hook++}`;
+};
 const same = (a, b) => !!a && !!b && a.length === b.length && a.every((d, i) => Object.is(d, b[i]));
 const memo = (make, deps) => {
   const k = slot();
@@ -77,17 +116,41 @@ globalThis.React = {
       const name = type.name || "anon";
       parent.kids[name] = (parent.kids[name] || 0) + 1;
       frames.push({ key: `${parent.key}/${name}:${parent.kids[name]}`, hook: 0, kids: {} });
-      try { node.rendered = type(props); } finally { frames.pop(); }
+      try {
+        node.rendered = type(props);
+      } finally {
+        frames.pop();
+      }
     }
     return node;
   },
   useState: (init) => {
     const k = slot();
     if (!cells.has(k)) cells.set(k, typeof init === "function" ? init() : init);
-    return [cells.get(k), (v) => { cells.set(k, typeof v === "function" ? v(cells.get(k)) : v); dirty = true; }];
+    return [
+      cells.get(k),
+      (v) => {
+        cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
+        dirty = true;
+      },
+    ];
   },
-  useReducer: (red, init) => { const k = slot(); if (!cells.has(k)) cells.set(k, init); return [cells.get(k), (a) => { cells.set(k, red(cells.get(k), a)); dirty = true; }]; },
-  useRef: (init) => { const k = slot(); if (!cells.has(k)) cells.set(k, { current: init }); return cells.get(k); },
+  useReducer: (red, init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, init);
+    return [
+      cells.get(k),
+      (a) => {
+        cells.set(k, red(cells.get(k), a));
+        dirty = true;
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, { current: init });
+    return cells.get(k);
+  },
   useMemo: (fn, deps) => memo(fn, deps),
   useCallback: (fn, deps) => memo(() => fn, deps),
   useId: () => `id-${slot()}`,
@@ -130,10 +193,17 @@ Object.assign(globalThis.window, {
     };
   })(),
   __href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=studio`,
-  __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
+  __saveSettings: (config, version, accepted) => {
+    saved.push({ config, version });
+    accepted();
+    return Promise.resolve({ ok: true });
+  },
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) => String(name || email).slice(0, 2).toUpperCase(),
+    initials: (name, email) =>
+      String(name || email)
+        .slice(0, 2)
+        .toUpperCase(),
     words: (me) => ({ name: me.display_name || me.email, email: me.email }),
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
@@ -144,13 +214,26 @@ await import("../../../apps/dashboard/src/legacy/pages/activity.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
 // A drawn component is walked twice, as the children it was given and as what it rendered: each node counts once.
-const all = (tree, pred) => { const out = []; const seen = new Set(); walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } }); return out; };
+const all = (tree, pred) => {
+  const out = [];
+  const seen = new Set();
+  walk(tree, (n) => {
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
@@ -162,13 +245,40 @@ const textOf = (n) => {
 };
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const labelled = (tree, tag, label) => find(tree, (n) => n.type === tag && n.props["aria-label"] === label);
-const pressOf = () => ({ prevented: false, stopped: false, currentTarget: { control: true }, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } });
-const press = (node) => { const e = pressOf(); node.props.onClick(e); return e; };
+const pressOf = () => ({
+  prevented: false,
+  stopped: false,
+  currentTarget: { control: true },
+  preventDefault() {
+    this.prevented = true;
+  },
+  stopPropagation() {
+    this.stopped = true;
+  },
+});
+const press = (node) => {
+  const e = pressOf();
+  node.props.onClick(e);
+  return e;
+};
 const type = (node, value) => node.props.onChange({ target: { value } });
 const flush = () => new Promise((r) => setImmediate(r));
-const fresh = () => { cells = new Map(); saved.length = 0; tipped.length = 0; for (const k of Object.keys(listeners)) delete listeners[k]; };
-const draw = (tab) => { frames = [{ key: "root", hook: 0, kids: {} }]; dirty = false; lastTree = globalThis.window.SettingsPage({ tab, onTab() {} }); return lastTree; };
-const settings = (tab) => { fresh(); return draw(tab); };
+const fresh = () => {
+  cells = new Map();
+  saved.length = 0;
+  tipped.length = 0;
+  for (const k of Object.keys(listeners)) delete listeners[k];
+};
+const draw = (tab) => {
+  frames = [{ key: "root", hook: 0, kids: {} }];
+  dirty = false;
+  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  return lastTree;
+};
+const settings = (tab) => {
+  fresh();
+  return draw(tab);
+};
 const again = draw;
 const settle = (tab) => (dirty ? draw(tab) : lastTree);
 
@@ -177,7 +287,8 @@ const workspace = (role, over = {}) => {
   Object.assign(globalThis.window, {
     __ME: { email: "dana@northside.example", role, display_name: "Dana" },
     __SETTINGS: {
-      role, version: 3,
+      role,
+      version: 3,
       config: {
         brain: { business_name: "Northside Studio", booking_link: "https://book.example/northside" },
         notifications: { escalation_emails: ["dana@northside.example", "desk@northside.example"] },
@@ -210,12 +321,25 @@ const feed = (people = []) => {
   return {
     asked,
     waiting,
-    list: (f) => { asked.push(f); return new Promise((resolve) => waiting.push(resolve)); },
+    list: (f) => {
+      asked.push(f);
+      return new Promise((resolve) => waiting.push(resolve));
+    },
     people: async () => people,
   };
 };
-const answer = (resolve, rows, kinds = ["message.sent", "call.ended"]) => resolve({ ok: true, message: "", data: { rows, actors: {}, kinds, page: { has_more: false } } });
-const entry = (id, text) => ({ id, at: "2026-09-15T14:00:00Z", text, source: "decision", actor_type: "human", actor_user_id: null, subject_type: null, subject_id: null });
+const answer = (resolve, rows, kinds = ["message.sent", "call.ended"]) =>
+  resolve({ ok: true, message: "", data: { rows, actors: {}, kinds, page: { has_more: false } } });
+const entry = (id, text) => ({
+  id,
+  at: "2026-09-15T14:00:00Z",
+  text,
+  source: "decision",
+  actor_type: "human",
+  actor_user_id: null,
+  subject_type: null,
+  subject_id: null,
+});
 const rowsOn = (tree) => all(tree, (n) => n.props?.["data-testid"] === "act-row");
 
 /* ------------------------------ one gate ------------------------------ */
@@ -243,7 +367,11 @@ test("REGRESSION (one gate): Notifications offers its Add to a role that may not
   workspace("owner");
   const own = settings("notifications");
   assert.equal(buttonSaying(own, "Add").props["aria-disabled"], undefined, "an owner's Add is an ordinary button");
-  assert.equal(all(own, (n) => n.type === "button" && textOf(n).trim() === "Remove").length, 2, "with one Remove per address");
+  assert.equal(
+    all(own, (n) => n.type === "button" && textOf(n).trim() === "Remove").length,
+    2,
+    "with one Remove per address",
+  );
   assert.ok(!textOf(own).includes(reason));
 });
 
@@ -271,7 +399,11 @@ test("REGRESSION (one gate): Team shows Invite to a role that may not invite, ga
   assert.equal(invite.props["data-tip"], "Only an owner can invite a teammate.");
   press(invite);
   tree = again("team");
-  assert.equal(find(tree, (n) => n.type === "input" && n.props.type === "email"), null, "pressing it opens nothing");
+  assert.equal(
+    find(tree, (n) => n.type === "input" && n.props.type === "email"),
+    null,
+    "pressing it opens nothing",
+  );
   assert.ok(textOf(tree).includes("Only an owner can change the team."), "the card says why once, as the gate says it");
 
   // An owner previewing as an operator sees what an operator sees; as themself, an ordinary Invite.
@@ -287,7 +419,10 @@ test("REGRESSION (one gate): Activity follows an owner's View-as preview like ev
   const A = (globalThis.window.__activity = feed());
   globalThis.window.ST_STORE.viewAsRole = "viewer";
   const tree = settings("activity");
-  assert.ok(textOf(tree).includes("Only an owner can read the activity log"), "REGRESSION: a preview as a viewer read the whole log");
+  assert.ok(
+    textOf(tree).includes("Only an owner can read the activity log"),
+    "REGRESSION: a preview as a viewer read the whole log",
+  );
   assert.equal(A.asked.length, 0, "and nothing is read for it");
   globalThis.window.ST_STORE.viewAsRole = null;
 });
@@ -318,7 +453,10 @@ test("REGRESSION (S21): Activity says it is reading and names its filters -- the
   press(buttonSaying(tree, "Ana Ruiz"));
   tree = settle("activity");
   const clear = find(byTestId(tree, "act-person"), (n) => n.type === "button");
-  assert.ok(String(clear?.props["aria-label"] || "").length > 2, "REGRESSION: the chip's clear button had only a title");
+  assert.ok(
+    String(clear?.props["aria-label"] || "").length > 2,
+    "REGRESSION: the chip's clear button had only a title",
+  );
 });
 
 test("REGRESSION (S21): the kind filter asks when a kind is chosen, not on every keystroke, and keeps what was typed", async () => {
@@ -362,7 +500,11 @@ test("REGRESSION (S21): a slow answer never lands over a newer one", async () =>
   answer(A.waiting[1], [entry("e1", "A message was sent")]);
   await flush();
   tree = settle("activity");
-  assert.deepEqual(rowsOn(tree).map((r) => textOf(r).includes("A call ended")), [true], "REGRESSION: the older answer replaced the newer one");
+  assert.deepEqual(
+    rowsOn(tree).map((r) => textOf(r).includes("A call ended")),
+    [true],
+    "REGRESSION: the older answer replaced the newer one",
+  );
 });
 
 test("Activity without its bridge says it cannot be read here, instead of reading for ever", () => {
@@ -388,10 +530,11 @@ const autonomy = (rows, over = {}) => {
   installPolicyStore(globalThis.window);
   return settings("autonomy");
 };
-const headCells = (tree) => all(tree, (n) => n.props?.className === "pol-mode").map((n) => ({
-  head: textOf(find(n, (k) => k.props?.className === "pol-mode-head")),
-  sub: textOf(find(n, (k) => k.props?.className === "pol-mode-sub")),
-}));
+const headCells = (tree) =>
+  all(tree, (n) => n.props?.className === "pol-mode").map((n) => ({
+    head: textOf(find(n, (k) => k.props?.className === "pol-mode-head")),
+    sub: textOf(find(n, (k) => k.props?.className === "pol-mode-sub")),
+  }));
 
 test("the matrix's headings say what the receptionist does, not how the mode is filed", () => {
   const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
@@ -400,9 +543,15 @@ test("the matrix's headings say what the receptionist does, not how the mode is 
     ["Sends it", "Holds it", "Asks you", "Stays quiet"],
     "REGRESSION: the columns read Auto · Veto · Ask · Never, and a salon owner does not say veto",
   );
-  assert.deepEqual(headCells(tree).map((c) => c.sub), ["right away", "you can stop it", "nothing sent", "nothing happens"]);
+  assert.deepEqual(
+    headCells(tree).map((c) => c.sub),
+    ["right away", "you can stop it", "nothing sent", "nothing happens"],
+  );
   // The words are contracts', said once.
-  assert.deepEqual(headCells(tree).map((c) => c.head), POLICY_MODES.map((m) => POLICY_MODE_WORDS[m].head));
+  assert.deepEqual(
+    headCells(tree).map((c) => c.head),
+    POLICY_MODES.map((m) => POLICY_MODE_WORDS[m].head),
+  );
   // No heading names a duration: a reply waits the workspace's hold window and a
   // playbook run waits thirty minutes, so "30s" would be wrong on four rows.
   for (const c of headCells(tree)) assert.ok(!/\d/.test(c.head + c.sub), `"${c.head} ${c.sub}" names a number`);
@@ -412,16 +561,31 @@ test("a phone names each dot with the same words -- it is a list there, and the 
   const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
   const cells = all(tree, (n) => n.props?.className === "pol-cell");
   const names = [...new Set(cells.map((n) => n.props["data-mode"]))];
-  assert.deepEqual(names, ["Sends it", "Holds it", "Asks you", "Stays quiet"], "REGRESSION: .pol-cell::before printed Auto/Veto/Ask/Never on a phone");
+  assert.deepEqual(
+    names,
+    ["Sends it", "Holds it", "Asks you", "Stays quiet"],
+    "REGRESSION: .pol-cell::before printed Auto/Veto/Ask/Never on a phone",
+  );
 });
 
 test("a control says what it will do, in the words above it", () => {
   const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
   const dots = all(tree, (n) => n.type === "button" && /^Replies to customers: /.test(n.props["aria-label"] || ""));
-  assert.deepEqual(dots.map((d) => d.props["aria-label"]), [
-    "Replies to customers: Sends it", "Replies to customers: Holds it", "Replies to customers: Asks you", "Replies to customers: Stays quiet",
-  ], "REGRESSION: a screen reader heard the filing word");
-  assert.equal(dots[1].props.title, POLICY_MODE_WORDS.veto.does, "the whole sentence is still there, on the control rather than the heading");
+  assert.deepEqual(
+    dots.map((d) => d.props["aria-label"]),
+    [
+      "Replies to customers: Sends it",
+      "Replies to customers: Holds it",
+      "Replies to customers: Asks you",
+      "Replies to customers: Stays quiet",
+    ],
+    "REGRESSION: a screen reader heard the filing word",
+  );
+  assert.equal(
+    dots[1].props.title,
+    POLICY_MODE_WORDS.veto.does,
+    "the whole sentence is still there, on the control rather than the heading",
+  );
   assert.equal(dots[1].props["aria-pressed"], true, "and the stored mode is still the one shown");
 });
 
@@ -436,17 +600,38 @@ test("the row the charter fixes states its rule instead of ticking a column that
   // "Stays quiet · nothing happens" is the one thing money is not: it comes to you.
   assert.ok(!/Stays quiet/.test(words));
   const moneyRow = find(tree, (n) => n.type === "tr" && /Refunds/.test(textOf(n)));
-  assert.equal(find(moneyRow, (n) => n.props?.className === "set-mark"), null, "and the note is not also behind an info mark");
-  assert.equal(all(moneyRow, (n) => n.type === "button" && (n.props.className || "").includes("pol-dot")).length, 0, "nothing to press");
+  assert.equal(
+    find(moneyRow, (n) => n.props?.className === "set-mark"),
+    null,
+    "and the note is not also behind an info mark",
+  );
+  assert.equal(
+    all(moneyRow, (n) => n.type === "button" && (n.props.className || "").includes("pol-dot")).length,
+    0,
+    "nothing to press",
+  );
 });
 
 test("a class that cannot honour a mode still shows a dash there, and the rest still set", async () => {
   const put = [];
-  const tree = autonomy([{ class: "faq", mode: "auto", limits: {} }, { class: "reply", mode: "ask", limits: {} }]);
-  globalThis.window.__setPolicy = async (cls, mode) => { put.push([cls, mode]); return { ok: true }; };
+  const tree = autonomy([
+    { class: "faq", mode: "auto", limits: {} },
+    { class: "reply", mode: "ask", limits: {} },
+  ]);
+  globalThis.window.__setPolicy = async (cls, mode) => {
+    put.push([cls, mode]);
+    return { ok: true };
+  };
   const faq = find(tree, (n) => n.type === "tr" && /Service/.test(textOf(n)));
-  assert.equal(all(faq, (n) => n.props?.className === "pol-dash").length, 2, "Holds it and Stays quiet are not on offer for a question");
-  const asks = all(faq, (n) => n.type === "button" && n.props["aria-label"] === "Service & pricing questions: Asks you");
+  assert.equal(
+    all(faq, (n) => n.props?.className === "pol-dash").length,
+    2,
+    "Holds it and Stays quiet are not on offer for a question",
+  );
+  const asks = all(
+    faq,
+    (n) => n.type === "button" && n.props["aria-label"] === "Service & pricing questions: Asks you",
+  );
   press(asks[0]);
   await flush();
   assert.deepEqual(put, [["faq", "ask"]], "REGRESSION: the heading changed and the stored word went with it");
@@ -460,8 +645,17 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
   const W = globalThis.window;
   const was = { unsaved: W.__settingsUnsaved, saving: W.__settingsSaving };
   const went = [];
-  const drawRail = () => { frames = [{ key: "root", hook: 0, kids: {} }]; dirty = false; lastTree = W.SettingsPage({ tab: "profile", onTab: (id) => went.push(id) }); return lastTree; };
-  const railTab = (tree, label) => find(tree, (n) => n.type === "button" && (n.props.className || "").includes("set-nav-row") && textOf(n).trim() === label);
+  const drawRail = () => {
+    frames = [{ key: "root", hook: 0, kids: {} }];
+    dirty = false;
+    lastTree = W.SettingsPage({ tab: "profile", onTab: (id) => went.push(id) });
+    return lastTree;
+  };
+  const railTab = (tree, label) =>
+    find(
+      tree,
+      (n) => n.type === "button" && (n.props.className || "").includes("set-nav-row") && textOf(n).trim() === label,
+    );
   try {
     workspace("owner");
     fresh();
@@ -488,7 +682,9 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
     press(byTestId(drawRail(), "set-leave-yes"));
     assert.deepEqual(went, ["team"]);
   } finally {
-    if (was.unsaved) W.__settingsUnsaved = was.unsaved; else delete W.__settingsUnsaved;
-    if (was.saving) W.__settingsSaving = was.saving; else delete W.__settingsSaving;
+    if (was.unsaved) W.__settingsUnsaved = was.unsaved;
+    else delete W.__settingsUnsaved;
+    if (was.saving) W.__settingsSaving = was.saving;
+    else delete W.__settingsSaving;
   }
 });

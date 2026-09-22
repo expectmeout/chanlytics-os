@@ -29,7 +29,13 @@ import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
 import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/packages/channels.js";
 import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from "../../lib/packages/db.js";
-import { copyRecording, purgeExpiredRecordings, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
+import {
+  copyRecording,
+  purgeExpiredRecordings,
+  RECORDING_MAX_ATTEMPTS,
+  SWEEP_COPY_TIMEOUT_MS,
+} from "../../lib/call-recording.js";
+import { env } from "../../lib/env.js";
 
 /** Only look at rows that have had time to settle — a call that started
  *  seconds ago is not evidence of anything, and asking about it wastes a
@@ -74,17 +80,21 @@ export async function POST(request: Request): Promise<Response> {
   // ---- recordings past their retention are removed, on the schedule the privacy page states ----
   // Before the provider check: this leg needs the bucket, not Retell, and a
   // deployment without the key must still keep the promise the page makes.
-  const purge = await purgeExpiredRecordings(db, {
-    now: new Date(),
-    remove: async (paths) => {
-      const { data, error } = await db.storage.from("media").remove(paths);
-      return { removed: (data ?? []).map((o) => o.name), error: error?.message ?? null };
+  const purge = await purgeExpiredRecordings(
+    db,
+    {
+      now: new Date(),
+      remove: async (paths) => {
+        const { data, error } = await db.storage.from("media").remove(paths);
+        return { removed: (data ?? []).map((o) => o.name), error: error?.message ?? null };
+      },
     },
-  }, MAX_PURGE_PER_TICK);
+    MAX_PURGE_PER_TICK,
+  );
   if (purge.error) L.error("calls_sweep_purge_failed", { error: purge.error, candidates: purge.candidates });
   else if (purge.candidates) L.info("calls_sweep_purged", { purged: purge.purged });
 
-  const apiKey = process.env.RETELL_API_KEY;
+  const apiKey = env.RETELL_API_KEY;
   if (!apiKey) {
     // Without the provider there is no authority to reconcile against, and
     // guessing is the one thing this sweep exists not to do.
@@ -99,7 +109,9 @@ export async function POST(request: Request): Promise<Response> {
     // Two reasons to ask: nobody has heard from the call for SETTLE_MS, or it
     // has simply run past OVERLONG_MS — long calls happen, and the Live page
     // says such a call is being checked, which has to be true.
-    .or(`updated_at.lt.${new Date(Date.now() - SETTLE_MS).toISOString()},started_at.lt.${new Date(Date.now() - OVERLONG_MS).toISOString()}`)
+    .or(
+      `updated_at.lt.${new Date(Date.now() - SETTLE_MS).toISOString()},started_at.lt.${new Date(Date.now() - OVERLONG_MS).toISOString()}`,
+    )
     .order("updated_at", { ascending: true })
     .limit(MAX_PER_TICK);
   if (error) {
@@ -172,7 +184,11 @@ export async function POST(request: Request): Promise<Response> {
       // first in line on every run.
       const attempt = (rec.attempts ?? 0) + 1;
       const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
-      await setCallRecording(db, row.tenant_id, row.id, { fetch_state: exhausted ? "failed" : "pending", attempts: attempt, error: "provider_no_url" });
+      await setCallRecording(db, row.tenant_id, row.id, {
+        fetch_state: exhausted ? "failed" : "pending",
+        attempts: attempt,
+        error: "provider_no_url",
+      });
       recordings[exhausted ? "failed" : "retry"]++;
       continue;
     }
@@ -192,7 +208,9 @@ export async function POST(request: Request): Promise<Response> {
   const notes = { candidates: 0, written: 0 };
   const { data: unnoted, error: noteErr } = await db
     .from("calls")
-    .select("id, tenant_id, retell_call_id, conversation_id, contact_id, direction, duration_ms, in_voicemail, summary, started_at")
+    .select(
+      "id, tenant_id, retell_call_id, conversation_id, contact_id, direction, duration_ms, in_voicemail, summary, started_at",
+    )
     .in("status", ["ended", "error"])
     .is("message_id", null)
     .not("conversation_id", "is", null)
@@ -223,8 +241,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   L.info("calls_sweep_done", {
-    candidates: stale?.length ?? 0, closed, still_live: stillLive, unknown,
-    recordings: JSON.stringify(recordings), notes: JSON.stringify(notes), purge: JSON.stringify(purge),
+    candidates: stale?.length ?? 0,
+    closed,
+    still_live: stillLive,
+    unknown,
+    recordings: JSON.stringify(recordings),
+    notes: JSON.stringify(notes),
+    purge: JSON.stringify(purge),
   });
   const counts = { candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes };
   // A purge that failed is the privacy page's ninety days not being kept, so

@@ -12,13 +12,21 @@
 import { json } from "../../../lib/http.js";
 import { authorizeAdmin } from "../../../lib/admin-auth.js";
 import { GRAPH_VERSION, metaAppId } from "../../../lib/meta-graph.js";
+import { env } from "../../../lib/env.js";
 
 export async function GET(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whatsapp/signup-config");
   if (!auth.ok) return auth.response;
   const appId = metaAppId();
-  const configId = process.env.META_ES_CONFIG_ID || null;
-  const secret = !!process.env.META_APP_SECRET;
+  const configId = env.META_ES_CONFIG_ID || null;
+  const secret = !!env.META_APP_SECRET;
   const reason = !secret ? "no_app_secret" : !configId ? "no_config_id" : null;
-  return json(200, { ok: true, app_id: appId, config_id: configId, graph_version: GRAPH_VERSION, ready: reason === null, reason });
+  return json(200, {
+    ok: true,
+    app_id: appId,
+    config_id: configId,
+    graph_version: GRAPH_VERSION,
+    ready: reason === null,
+    reason,
+  });
 }

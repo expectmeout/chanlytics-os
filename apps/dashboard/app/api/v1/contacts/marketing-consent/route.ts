@@ -5,7 +5,9 @@ import { recordConsentMany } from "@/server/consent";
 
 const Body = z.object({
   ids: z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time."),
-  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], { message: "Consent must be one of: opted_in, opted_out, unknown." }),
+  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], {
+    message: "Consent must be one of: opted_in, opted_out, unknown.",
+  }),
   source: z.string().optional(),
   note: z.string().optional(),
 });

@@ -28,7 +28,11 @@ function capture(fn) {
   console.log = (l) => lines.push({ stream: "log", ...JSON.parse(l) });
   console.warn = (l) => lines.push({ stream: "warn", ...JSON.parse(l) });
   console.error = (l) => lines.push({ stream: "error", ...JSON.parse(l) });
-  try { fn(); } finally { Object.assign(console, real); }
+  try {
+    fn();
+  } finally {
+    Object.assign(console, real);
+  }
   return lines;
 }
 
@@ -56,9 +60,14 @@ test("a child logger narrows without losing the parent's context", () => {
 test("levels route to the stream an operator's tooling expects", () => {
   const lines = capture(() => {
     const L = logger();
-    L.info("a"); L.warn("b"); L.error("c");
+    L.info("a");
+    L.warn("b");
+    L.error("c");
   });
-  assert.deepEqual(lines.map((l) => l.stream), ["log", "warn", "error"]);
+  assert.deepEqual(
+    lines.map((l) => l.stream),
+    ["log", "warn", "error"],
+  );
 });
 
 test("absent fields are omitted, not serialised as null", () => {
@@ -104,12 +113,23 @@ test("the message path's event names are unchanged by the conversion", () => {
   // atomic is_new claim — `wa_skip_pg_dupe`, still here — is the dedupe. With
   // the store gone there is no second gate left for it to name.
   // The message path and the webhook: the names span both files now.
-  const src = fs.readFileSync(path.join(EDGE, "lib/whatsapp/inbound.ts"), "utf8") + fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
+  const src =
+    fs.readFileSync(path.join(EDGE, "lib/whatsapp/inbound.ts"), "utf8") +
+    fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
   const required = [
-    "wa_replied", "wa_skip_pg_dupe", "wa_skip_paused",
-    "wa_skip_ratecap", "wa_skip_opt_out", "wa_held_by_policy", "wa_state_unavailable",
-    "policy_block_price", "brain_failed", "wa_unroutable", "wa_skip_unroutable",
-    "wa_stale_escalated", "wa_late_but_answering",
+    "wa_replied",
+    "wa_skip_pg_dupe",
+    "wa_skip_paused",
+    "wa_skip_ratecap",
+    "wa_skip_opt_out",
+    "wa_held_by_policy",
+    "wa_state_unavailable",
+    "policy_block_price",
+    "brain_failed",
+    "wa_unroutable",
+    "wa_skip_unroutable",
+    "wa_stale_escalated",
+    "wa_late_but_answering",
   ];
   for (const name of required) {
     assert.ok(src.includes(`"${name}"`), `event name ${name} disappeared from the message path`);
@@ -125,7 +145,7 @@ test("the converted message-path lines carry the tenant", () => {
     /const L = logger\(\{ tenant_id: tenantId, wamid: m\.id, from_tail: phoneTail\(from\), type: m\.type \}\)/,
     "handleInbound must bind the tenant into its logger",
   );
-  for (const call of ["L.info(\"wa_replied\"", "L.info(\"wa_skip_opt_out\"", "L.error(\"wa_state_unavailable\""]) {
+  for (const call of ['L.info("wa_replied"', 'L.info("wa_skip_opt_out"', 'L.error("wa_state_unavailable"']) {
     assert.ok(src.includes(call), `${call} reverted to an unbound console call`);
   }
 });

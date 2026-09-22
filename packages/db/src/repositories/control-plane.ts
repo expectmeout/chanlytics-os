@@ -159,7 +159,12 @@ export async function personReplyMode(db: Db, tenantId: string, contactId: strin
  * under RLS (00029); a forbidden insert raises, and the route decides the
  * role before getting here.
  */
-export async function setPersonReplyMode(db: Db, tenantId: string, contactId: string, mode: string | null): Promise<void> {
+export async function setPersonReplyMode(
+  db: Db,
+  tenantId: string,
+  contactId: string,
+  mode: string | null,
+): Promise<void> {
   if (mode === null) {
     const { error } = await db
       .from("policies")

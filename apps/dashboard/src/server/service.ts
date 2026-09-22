@@ -43,9 +43,20 @@ export async function schedule(
  * a call's and is not blocked by a colleague's -- so this answers with nothing,
  * and a failure throws rather than being read as a hold we do not have.
  */
-export async function takeThreadControl(tenantId: string, conversationId: string, userId: string, seconds: number): Promise<void> {
-  const outcome = await claimControl(serviceDb(), { tenantId, conversationId, holder: { kind: "person", userId }, seconds });
-  if (outcome === "gone") throw new Error(`takeThreadControl: no conversation ${conversationId} in workspace ${tenantId}`);
+export async function takeThreadControl(
+  tenantId: string,
+  conversationId: string,
+  userId: string,
+  seconds: number,
+): Promise<void> {
+  const outcome = await claimControl(serviceDb(), {
+    tenantId,
+    conversationId,
+    holder: { kind: "person", userId },
+    seconds,
+  });
+  if (outcome === "gone")
+    throw new Error(`takeThreadControl: no conversation ${conversationId} in workspace ${tenantId}`);
 }
 
 /** This person's hold, let go. Somebody else's is left where it is. */
@@ -92,7 +103,11 @@ export async function signedMediaUrl(storagePath: string, seconds = 300): Promis
  * contacts, and the route has already judged the owner. Idempotent: a second
  * request finds the block written and changes nothing.
  */
-export async function beginErasure(tenantId: string, contactId: string, ids: { phone: string | null; email: string | null }): Promise<void> {
+export async function beginErasure(
+  tenantId: string,
+  contactId: string,
+  ids: { phone: string | null; email: string | null },
+): Promise<void> {
   const phoneHash = ids.phone ? await erasedPhoneHash(tenantId, ids.phone) : null;
   const emailHash = ids.email ? await erasedEmailHash(tenantId, ids.email) : null;
   const { error } = await serviceDb()
@@ -168,7 +183,10 @@ export async function stopLiveCall(retellCallId: string): Promise<{ ok: true } |
  * receptionist the owner is picking up and overrides the line its transfer
  * tool dials. Same guard, same shape of answer.
  */
-export async function handOverLiveCall(retellCallId: string, line: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function handOverLiveCall(
+  retellCallId: string,
+  line: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${edgeUrl()}/api/admin/hand-over`, {
     method: "POST",
@@ -198,7 +216,10 @@ export async function tellPlatformOfSetupRequest(tenantId: string, what: string,
     if (!r.ok) console.error("setup_request_tell_failed", JSON.stringify({ tenant: tenantId, what, status: r.status }));
     return r.ok;
   } catch (e) {
-    console.error("setup_request_tell_failed", JSON.stringify({ tenant: tenantId, what, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "setup_request_tell_failed",
+      JSON.stringify({ tenant: tenantId, what, error: e instanceof Error ? e.message : String(e) }),
+    );
     return false;
   }
 }
@@ -295,10 +316,7 @@ async function noteTeamChange(
     console.error("team_audit_failed", verb, e instanceof Error ? e.message : String(e));
   }
 }
-export async function teamRoster(
-  db: SupabaseClient<Database>,
-  tenantId: string,
-) {
+export async function teamRoster(db: SupabaseClient<Database>, tenantId: string) {
   const [members, invites] = await Promise.all([
     db.rpc("team_roster", { p_tenant_id: tenantId }),
     // Plain RLS: invitations_member_read already scopes this to the caller's
@@ -372,7 +390,9 @@ export async function inviteMember(
       .single();
     if (error) throw new Error(error.message);
     await noteTeamChange({ supabase: caller, userId: invitedBy, via }, tenantId, "membership", created.id, "invite", {
-      email, role, joined_existing_account: true,
+      email,
+      role,
+      joined_existing_account: true,
     });
     return { added: true as const };
   }
@@ -394,7 +414,10 @@ export async function inviteMember(
   }
   // On the ledger once the email is on its way: an invitation is a decision
   // to hand out the power to message customers, and this path recorded none.
-  await noteTeamChange({ supabase: caller, userId: invitedBy, via }, tenantId, "invitation", inv.id, "invite", { email, role });
+  await noteTeamChange({ supabase: caller, userId: invitedBy, via }, tenantId, "invitation", inv.id, "invite", {
+    email,
+    role,
+  });
   return { invited: true as const };
 }
 
@@ -472,7 +495,8 @@ export async function removeMember(
     .eq("id", id)
     .maybeSingle();
   if (!target) throw new AppError("not_found", "That person is not on this team.", 404);
-  if (target.user_id === callerUserId) throw new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
+  if (target.user_id === callerUserId)
+    throw new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
   if (target.role === "owner") {
     const { count } = await db
       .from("memberships")
@@ -573,19 +597,43 @@ export interface SignupConfig {
 
 /** What the browser needs to start Embedded Signup; honest about what is missing. */
 export async function whatsappSignupConfig(): Promise<SignupConfig> {
-  if (!deployment.providersLive) return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview" };
+  if (!deployment.providersLive)
+    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview" };
   try {
-    const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/signup-config`, { headers: edgeHeaders("/api/admin/whatsapp/signup-config"), cache: "no-store" });
+    const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/signup-config`, {
+      headers: edgeHeaders("/api/admin/whatsapp/signup-config"),
+      cache: "no-store",
+    });
     const j = (await r.json().catch(() => null)) as (SignupConfig & { ok?: boolean }) | null;
-    if (!r.ok || !j?.ok) return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: `edge ${r.status}` };
-    return { app_id: j.app_id, config_id: j.config_id, graph_version: j.graph_version, ready: j.ready, reason: j.reason };
+    if (!r.ok || !j?.ok)
+      return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: `edge ${r.status}` };
+    return {
+      app_id: j.app_id,
+      config_id: j.config_id,
+      graph_version: j.graph_version,
+      ready: j.ready,
+      reason: j.reason,
+    };
   } catch (e) {
-    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: e instanceof Error ? e.message : "unreachable" };
+    return {
+      app_id: null,
+      config_id: null,
+      graph_version: "v25.0",
+      ready: false,
+      reason: e instanceof Error ? e.message : "unreachable",
+    };
   }
 }
 
 export type ConnectOutcome =
-  | { ok: true; channelId: string; numberE164: string | null; verifiedName: string | null; qualityRating: string | null; registration: string }
+  | {
+      ok: true;
+      channelId: string;
+      numberE164: string | null;
+      verifiedName: string | null;
+      qualityRating: string | null;
+      registration: string;
+    }
   | { ok: false; reason: string; detail?: string };
 
 /** The owner's number becomes a channel: the edge exchanges the code, registers the number and stores the token. */
@@ -600,9 +648,25 @@ export async function connectWhatsApp(
     headers: edgeHeaders("/api/admin/whatsapp/connect", { workspace: tenantId, user: userId }),
     body: JSON.stringify({ tenant_id: tenantId, user_id: userId, ...body }),
   });
-  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; channel_id?: string; number_e164?: string | null; verified_name?: string | null; quality_rating?: string | null; registration?: string; error?: string; detail?: string };
+  const j = (await r.json().catch(() => ({}))) as {
+    ok?: boolean;
+    channel_id?: string;
+    number_e164?: string | null;
+    verified_name?: string | null;
+    quality_rating?: string | null;
+    registration?: string;
+    error?: string;
+    detail?: string;
+  };
   if (r.ok && j.ok && j.channel_id) {
-    return { ok: true, channelId: j.channel_id, numberE164: j.number_e164 ?? null, verifiedName: j.verified_name ?? null, qualityRating: j.quality_rating ?? null, registration: j.registration ?? "registered" };
+    return {
+      ok: true,
+      channelId: j.channel_id,
+      numberE164: j.number_e164 ?? null,
+      verifiedName: j.verified_name ?? null,
+      qualityRating: j.quality_rating ?? null,
+      registration: j.registration ?? "registered",
+    };
   }
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
@@ -621,21 +685,44 @@ export async function syncTemplates(tenantId: string): Promise<SyncOutcome> {
     headers: edgeHeaders("/api/admin/whatsapp/templates-sync", { workspace: tenantId }),
     body: JSON.stringify({ tenant_id: tenantId }),
   });
-  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; seen?: number; approved?: number; marketing?: number; synced_at?: string; error?: string; detail?: string };
+  const j = (await r.json().catch(() => ({}))) as {
+    ok?: boolean;
+    seen?: number;
+    approved?: number;
+    marketing?: number;
+    synced_at?: string;
+    error?: string;
+    detail?: string;
+  };
   if (r.ok && j.ok) {
-    return { ok: true, seen: j.seen ?? 0, approved: j.approved ?? 0, marketing: j.marketing ?? 0, syncedAt: j.synced_at ?? new Date().toISOString() };
+    return {
+      ok: true,
+      seen: j.seen ?? 0,
+      approved: j.approved ?? 0,
+      marketing: j.marketing ?? 0,
+      syncedAt: j.synced_at ?? new Date().toISOString(),
+    };
   }
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
 
 /* ---- Templates written here: the edge submits to Meta and keeps the row ---- */
 
-export type TemplateCreateOutcome = { ok: true; id: string; metaStatus: string } | { ok: false; reason: string; detail?: string };
+export type TemplateCreateOutcome =
+  { ok: true; id: string; metaStatus: string } | { ok: false; reason: string; detail?: string };
 
 export async function createTemplate(
   tenantId: string,
   userId: string,
-  t: { name: string; language: string; category: string; components: unknown[]; body: string; examples: string[]; labels?: string[] },
+  t: {
+    name: string;
+    language: string;
+    category: string;
+    components: unknown[];
+    body: string;
+    examples: string[];
+    labels?: string[];
+  },
 ): Promise<TemplateCreateOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/templates-create`, {
@@ -643,7 +730,13 @@ export async function createTemplate(
     headers: edgeHeaders("/api/admin/whatsapp/templates-create", { workspace: tenantId, user: userId }),
     body: JSON.stringify({ tenant_id: tenantId, user_id: userId, ...t }),
   });
-  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; id?: string; meta_status?: string; error?: string; detail?: string };
+  const j = (await r.json().catch(() => ({}))) as {
+    ok?: boolean;
+    id?: string;
+    meta_status?: string;
+    error?: string;
+    detail?: string;
+  };
   if (r.ok && j.ok && j.id) return { ok: true, id: j.id, metaStatus: j.meta_status ?? "pending" };
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
@@ -665,25 +758,55 @@ export async function deleteTemplate(tenantId: string, templateId: string): Prom
 /* ---- Playbooks: one run now, the same implementation the hourly sweep uses ---- */
 
 export type RunPlaybookOutcome =
-  | { ok: true; outcome: "sent" | "held" | "empty" | "off"; eligible?: number; broadcastId?: string; skipped?: string; scheduledFor: string | null; movedFrom: string | null }
+  | {
+      ok: true;
+      outcome: "sent" | "held" | "empty" | "off";
+      eligible?: number;
+      broadcastId?: string;
+      skipped?: string;
+      scheduledFor: string | null;
+      movedFrom: string | null;
+    }
   | { ok: false; reason: string; detail?: string };
 
 /**
  * The edge runs it (lib/playbooks.ts) as this person's decision: it sends
  * now unless the class is set to never, one run per local day.
  */
-export async function runPlaybookNow(tenantId: string, playbookId: string, userId: string): Promise<RunPlaybookOutcome> {
+export async function runPlaybookNow(
+  tenantId: string,
+  playbookId: string,
+  userId: string,
+): Promise<RunPlaybookOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${edgeUrl()}/api/admin/playbooks-run`, {
     method: "POST",
     headers: edgeHeaders("/api/admin/playbooks-run", { workspace: tenantId, user: userId }),
     body: JSON.stringify({ tenant_id: tenantId, playbook_id: playbookId, user_id: userId }),
   });
-  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; outcome?: string; eligible?: number; broadcast_id?: string; skipped?: string; scheduled_for?: unknown; moved_from?: unknown; error?: string; detail?: string };
+  const j = (await r.json().catch(() => ({}))) as {
+    ok?: boolean;
+    outcome?: string;
+    eligible?: number;
+    broadcast_id?: string;
+    skipped?: string;
+    scheduled_for?: unknown;
+    moved_from?: unknown;
+    error?: string;
+    detail?: string;
+  };
   if (r.ok && j.ok && (j.outcome === "sent" || j.outcome === "held" || j.outcome === "empty" || j.outcome === "off")) {
     // When a sent run really goes, and what was asked for when the hours moved it; an edge older than this gives neither.
     const at = (v: unknown) => (typeof v === "string" ? v : null);
-    return { ok: true, outcome: j.outcome, eligible: j.eligible, broadcastId: j.broadcast_id, skipped: j.skipped, scheduledFor: at(j.scheduled_for), movedFrom: at(j.moved_from) };
+    return {
+      ok: true,
+      outcome: j.outcome,
+      eligible: j.eligible,
+      broadcastId: j.broadcast_id,
+      skipped: j.skipped,
+      scheduledFor: at(j.scheduled_for),
+      movedFrom: at(j.moved_from),
+    };
   }
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
@@ -701,8 +824,15 @@ export async function saveLeadSuggestions(
   tenantId: string,
   row: { business_line: string; by_owner: boolean; items: Json },
 ): Promise<void> {
-  const { error } = await serviceDb()
-    .from("lead_suggestions")
-    .upsert({ tenant_id: tenantId, business_line: row.business_line, by_owner: row.by_owner, items: row.items, made_at: new Date().toISOString() }, { onConflict: "tenant_id" });
+  const { error } = await serviceDb().from("lead_suggestions").upsert(
+    {
+      tenant_id: tenantId,
+      business_line: row.business_line,
+      by_owner: row.by_owner,
+      items: row.items,
+      made_at: new Date().toISOString(),
+    },
+    { onConflict: "tenant_id" },
+  );
   if (error) throw new Error(`lead_suggestions: ${error.message}`);
 }

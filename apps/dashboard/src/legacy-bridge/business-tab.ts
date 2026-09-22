@@ -9,12 +9,49 @@
  * below are neither a verb nor a request.
  */
 import {
-  standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
-  promptBlocks, resolveSystemPrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema, openWeekWords, closuresAheadWords,
-  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
-  TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS,
-  guardrailsInForce, hoursLines, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, PROFILE_LIMITS, profileRefusal, writtenOutDetail,
-  type PromptBlockVM, type ProfileCrossing, type BusinessProfile,
+  standingLine,
+  abilityRows,
+  cannotRows,
+  bookingHeld,
+  bookingTemplate,
+  ruleStrength,
+  GUARDRAIL_KEYS,
+  promptBlocks,
+  resolveSystemPrompt,
+  hasProfile,
+  PROFILE_CROSSING_WORDS,
+  TenantConfigWriteSchema,
+  openWeekWords,
+  closuresAheadWords,
+  servicesWords,
+  servicesToldWords,
+  servicesSaveWords,
+  blockShareWords,
+  bookingRulesWords,
+  BOOKING_RULE_HINTS,
+  needsConsultation,
+  foldName,
+  serviceUndoName,
+  servicesFoundWords,
+  bookingRuleRefusal,
+  TONE_PRESETS,
+  handoffWords,
+  handoffChatWords,
+  handoffCallWords,
+  notesWords,
+  instructionsWords,
+  fallbacksWords,
+  RULES_WITHOUT_FIELDS_WORDS,
+  guardrailsInForce,
+  hoursLines,
+  MAX_INTERVALS_PER_DAY,
+  MAX_CLOSURES,
+  PROFILE_LIMITS,
+  profileRefusal,
+  writtenOutDetail,
+  type PromptBlockVM,
+  type ProfileCrossing,
+  type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 
@@ -132,10 +169,14 @@ export function consequenceFor(
   now: Date,
 ): ConsequenceVM | null {
   if (!Object.prototype.hasOwnProperty.call(FOLD_BLOCK, section)) {
-    throw new TypeError(`consequenceOf knows no fold named ${JSON.stringify(section)}. It knows ${Object.keys(FOLD_BLOCK).join(", ")}.`);
+    throw new TypeError(
+      `consequenceOf knows no fold named ${JSON.stringify(section)}. It knows ${Object.keys(FOLD_BLOCK).join(", ")}.`,
+    );
   }
   if (channel !== "whatsapp" && channel !== "voice") {
-    throw new TypeError(`consequenceOf needs the channel it will be told on, "whatsapp" or "voice", not ${JSON.stringify(channel)}.`);
+    throw new TypeError(
+      `consequenceOf needs the channel it will be told on, "whatsapp" or "voice", not ${JSON.stringify(channel)}.`,
+    );
   }
   const row = FOLD_BLOCK[section];
   if (!row) return null;
@@ -171,7 +212,10 @@ function consequenceOf(section: FoldSection, next: unknown, channel: "whatsapp" 
  * Null when the save crosses nothing; and, as consequenceFor is, for a draft the save's schema refuses, since nothing
  * true can be said of a save that will not go, or when there is no stored brain to compare it with.
  */
-export function profileCrossing(stored: unknown, next: unknown): { crossing: ProfileCrossing; sentence: string } | null {
+export function profileCrossing(
+  stored: unknown,
+  next: unknown,
+): { crossing: ProfileCrossing; sentence: string } | null {
   if (!stored || typeof stored !== "object") return null;
   const parsed = TenantConfigWriteSchema.safeParse({ brain: next });
   if (!parsed.success || !parsed.data.brain) return null;
@@ -198,7 +242,10 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
   if (!part || typeof part !== "object") return [];
   const parsed = TenantConfigWriteSchema.safeParse(part);
   if (parsed.success) return [];
-  return parsed.error.issues.map((i) => ({ path: i.path.filter((p): p is string | number => typeof p === "string" || typeof p === "number"), message: i.message }));
+  return parsed.error.issues.map((i) => ({
+    path: i.path.filter((p): p is string | number => typeof p === "string" || typeof p === "number"),
+    message: i.message,
+  }));
 }
 
 // openWeekWords and closuresAheadWords are the When you're open card's two sentences with a number in them; the
@@ -216,10 +263,43 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // which it asks the resolver's own test of (hasProfile), never a copy of it. guardrailsInForce is which rules are in
 // force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by.
 export const BUSINESS_TAB = {
-  standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing, saveIssues, openWeekWords, closuresAheadWords,
-  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
-  TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS, hasProfile, guardrailsInForce,
-  PROFILE_LIMITS, profileRefusal, writtenOutDetail,
+  standingLine,
+  abilityRows,
+  cannotRows,
+  bookingHeld,
+  bookingTemplate,
+  ruleStrength,
+  GUARDRAIL_KEYS,
+  promptBlocks,
+  consequenceOf,
+  profileCrossing,
+  saveIssues,
+  openWeekWords,
+  closuresAheadWords,
+  servicesWords,
+  servicesToldWords,
+  servicesSaveWords,
+  blockShareWords,
+  bookingRulesWords,
+  BOOKING_RULE_HINTS,
+  needsConsultation,
+  foldName,
+  serviceUndoName,
+  servicesFoundWords,
+  bookingRuleRefusal,
+  TONE_PRESETS,
+  handoffWords,
+  handoffChatWords,
+  handoffCallWords,
+  notesWords,
+  instructionsWords,
+  fallbacksWords,
+  RULES_WITHOUT_FIELDS_WORDS,
+  hasProfile,
+  guardrailsInForce,
+  PROFILE_LIMITS,
+  profileRefusal,
+  writtenOutDetail,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 

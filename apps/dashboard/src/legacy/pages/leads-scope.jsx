@@ -92,7 +92,7 @@ const LeadTile = ({ l, size = 48, onExpand }) => {
   const cls = `ld-tile tint-${l.tile.tint}`;
   const layers = (
     <>
-      {l.tile.image ? <img className="ph" src={l.tile.image} alt="" loading="lazy" onError={hide} /> : null}
+      {l.tile.image ? <img className="ph" src={l.tile.image} alt="" loading="lazy" decoding="async" onError={hide} /> : null}
       {l.tile.logo ? <img className="lg" src={l.tile.logo} alt="" loading="lazy" onError={hide} /> : null}
     </>
   );
@@ -189,6 +189,9 @@ const LeadRatedCard = ({ l }) => {
 // wear, and one quiet line about where -- or, for a row that waits, what would resolve it; for a left-out row,
 // what left it out. The two tags are the app's one StatePill, on the registry's tones (tone.ts): they were a
 // hand-styled pair of their own, and a Contacted tag drew grey while its dot, its pin and the registry said info.
+// The row's classes on its tr (leads.css): a lead's row, its state, and its class. One function, so a memoised
+// row sees the same one each draw. The stylesheet reads them rather than asking every tr :has(td.ld-biz-cell).
+const ldRowClass = (l) => `ld-row ld-row-${l.state} ld-cls-${l.cls}`;
 const ldBusinessCell = (l, x) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
@@ -608,7 +611,10 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
 // a file. Each acts on the rows shown AND selected; the header box's "Select all N that match" hands the view's
 // filters to the server instead of a list of ids, so a view of 1,240 does not become 1,240 ids in a request.
-const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref, review = null }) => {
+const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref, review = null, phone = false, sheet = null, onSheet = () => {} }) => {
+  // The view models, for what a check costs. Check again read V with no V in its scope (the other `const V` in this
+  // file are other functions' own), so a selection of leads to check again threw as the bar drew.
+  const V = window.__LEAD_VM || {};
   const picked = rows.filter((l) => sel.has(l.id));
   const ids = picked.map((l) => l.id);
   const count = allMatching ? total : ids.length;
@@ -619,6 +625,52 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
   // and Find an email draw only where their couriers exist, so nothing here is ever a dead control.
   const acts = review && !allMatching && picked.length > 0 && picked.every((l) => l.cls === "review") ? review.actsFor(ids) : [];
   const gate = canFind ? {} : window.gate("find", "work these leads");
+  // On a phone (spec 4.5): People's row -- ✕, the count, the act most selections get (Mark contacted) and ⋯ -- and a
+  // sheet with the rest. Not a fit asks its five whys as the sheet's step: the peek's own list (LeadNotFitWhy) wears
+  // .pl-peek, which a phone draws full screen (leads.css), so from this bar it covered the page. The whys are the peek's
+  // words, from their one list (__LEAD_WORDS.whys). The step is the page's (`sheet`), so its keyboard listener shuts
+  // the sheet on Esc.
+  if (phone) {
+    const Sheet = window.PhoneSheet;
+    const Row = window.PhoneSheetRow;
+    const W = window.__LEAD_WORDS || {};
+    const scope = (action) => (allMatching ? { by: "view", action, view } : { by: "ids", action, ids });
+    const shut = (fn) => () => { onSheet(null); fn(); };
+    return (
+      <>
+        <div className="cl-bulk ld-bulk pp-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
+          <button type="button" className="pp-bar-icon" aria-label="Clear the selection" onClick={onClear} data-testid="leads-bulk-clear"><Icon name="x" size={18} /></button>
+          <span className="cl-bulk-count"><b>{count.toLocaleString()}</b> selected{hidden > 0 ? <span data-testid="leads-bulk-hidden"> · {hidden} more not shown</span> : null}</span>
+          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onContacted(scope("contacted"))} data-testid="leads-bulk-contacted" {...(canFind ? {} : window.gate("find", "mark these leads contacted"))}>Mark contacted</button>
+          <button type="button" className="pp-bar-icon" aria-label={`More for the ${count} selected`} aria-haspopup="dialog" onClick={() => onSheet("more")} data-testid="leads-bulk-more"><Icon name="more" size={18} /></button>
+        </div>
+        {sheet === "more" && (
+          <Sheet title={`${count.toLocaleString()} selected`} onClose={() => onSheet(null)} testid="leads-bulk-sheet">
+            <div className="pp-sheet-rows">
+              {!allMatching && total > rows.length ? <Row icon="check" label={`Select all ${total.toLocaleString()} that match`} onClick={shut(onSelectAllMatching)} testid="leads-select-matching" /> : null}
+              {acts.includes("check_again") && review.canCheckAgain ? <Row icon="refresh" label={`Check ${ids.length} again`} meta={`about ${V.leadCheckAgainCents ? V.leadCheckAgainCents(ids.length) : ids.length}¢`} disabled={busy} onClick={shut(() => review.onCheckAgain(ids))} testid="leads-bulk-check-again" gate={canFind ? null : gate} /> : null}
+              {acts.includes("find_email") && review.canFindEmail ? <Row icon="search" label={`Find ${ids.length === 1 ? "an email" : `${ids.length} emails`}`} disabled={busy} onClick={shut(() => review.onFindEmail(ids))} testid="leads-bulk-find-email" gate={canFind ? null : gate} /> : null}
+              {acts.includes("keep") ? <Row icon="check" label={`Keep ${ids.length}`} disabled={busy} onClick={shut(() => review.onKeep(ids))} testid="leads-bulk-keep" gate={canFind ? null : gate} /> : null}
+              {acts.includes("exclude") ? <Row icon="x" label={`Exclude ${ids.length}`} disabled={busy} onClick={shut(() => review.onExclude(ids))} testid="leads-bulk-exclude" gate={canFind ? null : gate} /> : null}
+              <Row icon="copy" label="Copy emails" disabled={busy} onClick={shut(() => onCopyEmails(picked))} testid="leads-bulk-copy" />
+              <Row icon="ban" label="Not a fit" next disabled={busy} onClick={() => onSheet("why")} testid="leads-bulk-not-a-fit" gate={canFind ? null : window.gate("find", "mark these leads not a fit")} />
+              {canExport
+                ? <a className="pp-sheet-row" href={exportHref} download onClick={() => onSheet(null)} data-testid="leads-bulk-export"><Icon name="external" size={16} /><span className="pp-sheet-row-words">Export</span><span className="pp-sheet-row-meta">CSV</span></a>
+                : <Row icon="external" label="Export" meta="CSV" gate={window.gate("export", "export these leads")} testid="leads-bulk-export" />}
+              {whyNot ? <p className="pp-sheet-hint pp-sheet-rows-note">{whyNot}</p> : null}
+            </div>
+          </Sheet>
+        )}
+        {sheet === "why" && (
+          <Sheet title={W.notFitTitle || "Not a fit"} onBack={() => onSheet("more")} onClose={() => onSheet(null)} testid="leads-bulk-why">
+            <div className="pp-sheet-rows">
+              {(W.whys || []).map((w) => <Row key={w.id} label={w.label} disabled={busy} onClick={shut(() => onNotAFit(w.id, scope("not_a_fit")))} testid={`leads-bulk-why-${w.id}`} />)}
+            </div>
+          </Sheet>
+        )}
+      </>
+    );
+  }
   return (
     <div className="cl-bulk ld-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
       <span className="cl-bulk-count"><b>{count}</b> selected{hidden > 0 ? <span data-testid="leads-bulk-hidden"> · {hidden} more not shown</span> : null}</span>
@@ -648,41 +700,42 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 
 /* ---------------------------------------------------------------- the phone */
 
-// The phone's one bar (<=900px, the band People's own cards begin at): the People | Leads switch, the list it is
-// showing, search and Find. Nothing else sits above the rows -- no title, no sub-headline, no stat cards and no
-// second control row (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen, q, onQ, searchRef, onFind, canFind }) => (
-  <div className="ld-bar" data-testid="leads-phone-bar">
-    <div className="pt-scope" role="tablist" aria-label="Which people">
-      <button type="button" role="tab" aria-selected={scope === "people"} className={scope === "people" ? "on" : ""} onClick={() => onScope("people")}>People</button>
-      <button type="button" role="tab" aria-selected={scope === "leads"} className={scope === "leads" ? "on" : ""} onClick={() => onScope("leads")}>Leads</button>
-    </div>
-    <button type="button" className="ld-bar-lists" onClick={onLists} aria-expanded={!!listsOpen} data-testid="leads-phone-lists">
-      {listLabel}
-      <Icon name="chevron-down" size={11} />
-    </button>
-    <input
-      ref={searchRef}
-      className="ld-bar-search"
-      type="search"
-      value={q}
-      placeholder="Search leads"
-      aria-label="Search leads"
-      data-testid="leads-phone-search"
-      onChange={(e) => onQ(e.target.value)}
+// The phone's one bar (<=900px, the band People's own rows begin at), Leads' way: People's bar (PeoplePhoneBar,
+// clients-a.jsx) with Find as its last control. The switch, the list and search are the same bar on both scopes, and
+// nothing else sits above the rows -- no title, no sub-headline, no stat cards and no second control row
+// (legacy/CLAUDE.md, the phone shows the work first).
+const LeadsPhoneBar = ({ scope, onScope, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind, canFind }) => {
+  const Bar = window.PeoplePhoneBar;
+  return (
+    <Bar
+      scope={scope}
+      onScope={onScope}
+      listLabel={listLabel}
+      listCount={listCount}
+      onLists={onLists}
+      listsOpen={listsOpen}
+      q={q}
+      onQ={onQ}
+      searchRef={searchRef}
+      searchOpen={searchOpen}
+      onSearchOpen={onSearchOpen}
+      searchLabel="Search leads"
+      testid="leads"
+      trailing={(
+        <button
+          type="button"
+          className="ld-bar-find"
+          aria-label="Find leads"
+          data-testid="leads-phone-find"
+          onClick={onFind}
+          {...(canFind ? {} : window.gate("find", "find businesses for you"))}
+        >
+          <Icon name="sparkle" size={20} />
+        </button>
+      )}
     />
-    <button
-      type="button"
-      className="ld-bar-find"
-      aria-label="Find leads"
-      data-testid="leads-phone-find"
-      onClick={onFind}
-      {...(canFind ? {} : window.gate("find", "find businesses for you"))}
-    >
-      <Icon name="sparkle" size={20} />
-    </button>
-  </div>
-);
+  );
+};
 
 // The finder, as a sheet from the bottom of a phone. No listener of its own: the page's one keydown listener
 // closes the finder on Esc before anything else and holds every other key while it is open (Task 2), so a second
@@ -706,9 +759,10 @@ const LeadsScope = (p) => {
   const chips = ldExcludedChips(L.rows);
   const search = p.search;
   // The same band People's cards use (clients.css) and the same one the page's listener judges the Columns menu
-  // by. Read on every draw, not stored: a window resized past it must draw the other shape on the next state
-  // change, and nothing here is a hook.
-  const phone = !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+  // by. The page hands it down (plPhone, clients-a.jsx): it listens to the query, so a window resized past the band
+  // draws the other shape at once, where this read it on every draw and drew the other shape only on the next state
+  // change. Nothing here is a hook.
+  const phone = !!p.phone;
   const railRows = (
     <LeadsRailRows
           rail={rail}
@@ -751,11 +805,14 @@ const LeadsScope = (p) => {
               scope="leads"
               onScope={p.onScope}
               listLabel={p.railLabel}
+              listCount={p.railCount}
               onLists={p.onLists}
               listsOpen={p.listsOpen}
               q={p.q}
               onQ={p.onQ}
               searchRef={p.searchRef}
+              searchOpen={p.searchOpen}
+              onSearchOpen={p.onSearchOpen}
               onFind={p.onFind}
               canFind={p.canFind}
             />
@@ -919,7 +976,7 @@ const LeadsScope = (p) => {
                 columns={p.columns}
                 ctx={p.cellCtx}
                 rows={p.rows}
-                rowClass={(l) => `ld-row-${l.state}`}
+                rowClass={ldRowClass}
                 total={p.total}
                 sortBy={p.sortBy}
                 sortDir={p.sortDir}
@@ -965,6 +1022,9 @@ const LeadsScope = (p) => {
             whyOpen={p.bulkWhy}
             onWhyOpen={p.onBulkWhy}
             exportHref={p.exportHref}
+            phone={phone}
+            sheet={p.bulkSheet}
+            onSheet={p.onBulkSheet}
           />
         )}
         {/* The peek (Task 12): the page's state and its setters, so its own acts (LeadPeekActions) are built

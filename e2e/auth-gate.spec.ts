@@ -62,7 +62,9 @@ test.describe("unauthenticated", () => {
     expect(res.headers()["location"]).toBe("/login");
   });
 
-  test("the sign-in callback is public, and with nothing to exchange it sends the visitor to sign in", async ({ request }) => {
+  test("the sign-in callback is public, and with nothing to exchange it sends the visitor to sign in", async ({
+    request,
+  }) => {
     // A provider sends the browser here with a code and no session. Opened
     // bare, there is nothing to exchange: a sign-in to start, never cached.
     const res = await request.get("/auth/callback", { maxRedirects: 0 });

@@ -66,17 +66,36 @@ export interface ParseOptions {
 
 /* ------------------------------------------------------------- zone math */
 
-interface ZoneParts { y: number; m: number; d: number; hh: number; mm: number; ss: number; weekday: string }
+interface ZoneParts {
+  y: number;
+  m: number;
+  d: number;
+  hh: number;
+  mm: number;
+  ss: number;
+  weekday: string;
+}
 
 function zoneParts(tz: string, at: Date): ZoneParts {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz, hourCycle: "h23", weekday: "short",
-    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZone: tz,
+    hourCycle: "h23",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   }).formatToParts(at);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   return {
-    y: Number(get("year")), m: Number(get("month")), d: Number(get("day")),
-    hh: Number(get("hour")) % 24, mm: Number(get("minute")), ss: Number(get("second")),
+    y: Number(get("year")),
+    m: Number(get("month")),
+    d: Number(get("day")),
+    hh: Number(get("hour")) % 24,
+    mm: Number(get("minute")),
+    ss: Number(get("second")),
     weekday: get("weekday").toLowerCase().slice(0, 3),
   };
 }
@@ -136,12 +155,18 @@ const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
  * steps a DATE to a date; this is the one that starts from an instant, which
  * is where reading "now" went wrong.
  */
-export function dayPlusInZone(tz: string, atMs: number, days: number): { key: string; weekday: string; y: number; m: number; d: number } {
+export function dayPlusInZone(
+  tz: string,
+  atMs: number,
+  days: number,
+): { key: string; weekday: string; y: number; m: number; d: number } {
   const from = dayInZone(tz, atMs);
   if (days === 0) return from;
   const at = new Date((dayNumber(from.y, from.m, from.d) + days) * 86400000);
   const pad = (n: number) => String(n).padStart(2, "0");
-  const y = at.getUTCFullYear(), m = at.getUTCMonth() + 1, d = at.getUTCDate();
+  const y = at.getUTCFullYear(),
+    m = at.getUTCMonth() + 1,
+    d = at.getUTCDate();
   return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at.getUTCDay()], y, m, d };
 }
 
@@ -172,8 +197,11 @@ function splitLine(line: string): { name: string; params: Record<string, string>
   let q = false;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === "\"") q = !q;
-    else if (ch === ":" && !q) { colon = i; break; }
+    if (ch === '"') q = !q;
+    else if (ch === ":" && !q) {
+      colon = i;
+      break;
+    }
   }
   if (colon === -1) return null;
   const head = line.slice(0, colon);
@@ -182,8 +210,15 @@ function splitLine(line: string): { name: string; params: Record<string, string>
   let cur = "";
   q = false;
   for (const ch of head) {
-    if (ch === "\"") { q = !q; continue; }
-    if (ch === ";" && !q) { parts.push(cur); cur = ""; continue; }
+    if (ch === '"') {
+      q = !q;
+      continue;
+    }
+    if (ch === ";" && !q) {
+      parts.push(cur);
+      cur = "";
+      continue;
+    }
     cur += ch;
   }
   parts.push(cur);
@@ -224,7 +259,11 @@ function toMs(value: string, params: Record<string, string>, fallbackTz: string)
 
 /** The wall-clock parts of an iCal date-time in the zone it names (or the
  *  fallback), so a recurring series can be stepped by calendar days. */
-function localPartsOf(value: string, params: Record<string, string>, fallbackTz: string): { tz: string; y: number; m: number; d: number; hh: number; mm: number; allDay: boolean } | null {
+function localPartsOf(
+  value: string,
+  params: Record<string, string>,
+  fallbackTz: string,
+): { tz: string; y: number; m: number; d: number; hh: number; mm: number; allDay: boolean } | null {
   const v = value.trim();
   const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
   if (date || params.VALUE === "DATE") {
@@ -235,23 +274,45 @@ function localPartsOf(value: string, params: Record<string, string>, fallbackTz:
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
   if (m[7]) {
-    const p = zoneParts(fallbackTz, new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))));
+    const p = zoneParts(
+      fallbackTz,
+      new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))),
+    );
     return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
   }
-  return { tz: params.TZID ?? fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: Number(m[4]), mm: Number(m[5]), allDay: false };
+  return {
+    tz: params.TZID ?? fallbackTz,
+    y: Number(m[1]),
+    m: Number(m[2]),
+    d: Number(m[3]),
+    hh: Number(m[4]),
+    mm: Number(m[5]),
+    allDay: false,
+  };
 }
 
 const WEEKDAYS = ["su", "mo", "tu", "we", "th", "fr", "sa"];
 
-interface Rule { freq: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"; interval: number; count: number | null; until: number | null; byday: number[] | null; bymonthday: number | null }
+interface Rule {
+  freq: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  interval: number;
+  count: number | null;
+  until: number | null;
+  byday: number[] | null;
+  bymonthday: number | null;
+}
 
 /** RRULE, in the forms a salon's calendar actually carries. Null = not understood. */
 function parseRule(value: string, fallbackTz: string): Rule | null {
   const parts: Record<string, string> = {};
-  for (const kv of value.split(";")) { const eq = kv.indexOf("="); if (eq > 0) parts[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1); }
+  for (const kv of value.split(";")) {
+    const eq = kv.indexOf("=");
+    if (eq > 0) parts[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
+  }
   const freq = parts.FREQ as Rule["freq"] | undefined;
   if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
-  for (const k of Object.keys(parts)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
+  for (const k of Object.keys(parts))
+    if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
   const interval = Math.max(1, Number(parts.INTERVAL ?? 1) || 1);
   const count = parts.COUNT ? Number(parts.COUNT) : null;
   let until: number | null = null;
@@ -299,7 +360,9 @@ function occurrences(
   for (let n = 0; n < 20000; n++) {
     const day = first + n;
     const at = new Date(day * 86400000);
-    const y = at.getUTCFullYear(), m = at.getUTCMonth() + 1, d = at.getUTCDate();
+    const y = at.getUTCFullYear(),
+      m = at.getUTCMonth() + 1,
+      d = at.getUTCDate();
     let hit = false;
     if (rule.freq === "DAILY") hit = n % rule.interval === 0;
     else if (rule.freq === "WEEKLY") {
@@ -328,7 +391,9 @@ function durationMs(v: string): number | null {
   const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim());
   if (!m) return null;
   const sign = m[1] === "-" ? -1 : 1;
-  return sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1000);
+  return (
+    sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1000)
+  );
 }
 
 /** One VEVENT as the text gives it, before it is read. */
@@ -374,16 +439,32 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
   const raws: RawEvent[] = [];
   let cur: RawEvent | null = null;
   for (const line of unfold(text)) {
-    if (line === "BEGIN:VEVENT") { cur = { props: {}, exdates: [], rdates: [], attendees: [] }; continue; }
-    if (line === "END:VEVENT") { if (cur) raws.push(cur); cur = null; continue; }
+    if (line === "BEGIN:VEVENT") {
+      cur = { props: {}, exdates: [], rdates: [], attendees: [] };
+      continue;
+    }
+    if (line === "END:VEVENT") {
+      if (cur) raws.push(cur);
+      cur = null;
+      continue;
+    }
     if (!cur) continue;
     const s = splitLine(line);
     if (!s) continue;
-    if (s.name === "EXDATE") { cur.exdates.push({ params: s.params, value: s.value }); continue; }
-    if (s.name === "RDATE") { cur.rdates.push({ params: s.params, value: s.value }); continue; }
+    if (s.name === "EXDATE") {
+      cur.exdates.push({ params: s.params, value: s.value });
+      continue;
+    }
+    if (s.name === "RDATE") {
+      cur.rdates.push({ params: s.params, value: s.value });
+      continue;
+    }
     if (s.name === "ATTENDEE") {
       const v = s.value.trim();
-      cur.attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
+      cur.attendees.push({
+        name: s.params.CN?.trim() || null,
+        email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null,
+      });
       continue;
     }
     cur.props[s.name] = { params: s.params, value: s.value };
@@ -399,7 +480,10 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     const ms = toMs(rid.value, rid.params, fallbackTz);
     if (ms === null) continue;
     let set = overridden.get(uid);
-    if (!set) { set = new Set(); overridden.set(uid, set); }
+    if (!set) {
+      set = new Set();
+      overridden.set(uid, set);
+    }
     set.add(ms);
   }
 
@@ -412,8 +496,10 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     const start = toMs(p.DTSTART.value, p.DTSTART.params, fallbackTz);
     let end: number | null = null;
     if (p.DTEND) end = toMs(p.DTEND.value, p.DTEND.params, fallbackTz);
-    else if (p.DURATION && start !== null) { const d = durationMs(p.DURATION.value); end = d === null ? null : start + d; }
-    else if (start !== null) {
+    else if (p.DURATION && start !== null) {
+      const d = durationMs(p.DURATION.value);
+      end = d === null ? null : start + d;
+    } else if (start !== null) {
       // No end: an all-day event takes the day; a timed one takes nothing we can name.
       end = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim()) ? start + 86400000 : start;
     }
@@ -430,14 +516,22 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
-    const push = (o: BusyBlock) => { busy.push(o); items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer }); };
+    const push = (o: BusyBlock) => {
+      busy.push(o);
+      items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer });
+    };
 
     if (p.RRULE && !isOverride && rule && local) {
       const ex = new Set<number>(instantsOf(r.exdates, fallbackTz));
-      for (const ms of uid ? overridden.get(uid) ?? [] : []) ex.add(ms);
+      for (const ms of uid ? (overridden.get(uid) ?? []) : []) ex.add(ms);
       const seen = new Set<number>();
       const occ = occurrences(local, dur, rule, ex, horizon);
-      for (const o of occ) { if (!seen.has(o.start)) { seen.add(o.start); push(o); } }
+      for (const o of occ) {
+        if (!seen.has(o.start)) {
+          seen.add(o.start);
+          push(o);
+        }
+      }
       // RDATE: dates the rule does not produce, added to the series.
       for (const ms of instantsOf(r.rdates, fallbackTz)) {
         if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
@@ -557,7 +651,9 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
   const slotMs = rules.slot_min * 60_000;
   // The first moment worth offering: now plus the least notice, up to the slot grid on the business's clock (C5).
   const earliest = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
-  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
+  const busy = input.busy
+    .map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs }))
+    .sort((a, b) => a.start - b.start);
   const out: Opening[] = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
     const day = dayPlusInZone(input.tz, input.now.getTime(), offset);
@@ -565,7 +661,8 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
     const ranges = dayIntervals(input.hours?.[day.weekday]);
     const windows: Array<{ start: number; end: number }> = [];
     for (const [open, close] of ranges) {
-      const o = hhmm(open), c = hhmm(close);
+      const o = hhmm(open),
+        c = hhmm(close);
       if (!o || !c) continue;
       let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
       const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
@@ -584,8 +681,12 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
         // Noon on that local day: an instant the day owns whichever way the
         // clock moved, where midnight on a spring-forward day may not exist
         // and 1 AM on an autumn one happens twice.
-        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" })
-          .format(new Date(localToUtcMs(input.tz, day.y, day.m, day.d, 12, 0))),
+        label: new Intl.DateTimeFormat("en-US", {
+          timeZone: input.tz,
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        }).format(new Date(localToUtcMs(input.tz, day.y, day.m, day.d, 12, 0))),
         windows,
       });
     }
@@ -594,8 +695,23 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
 }
 
 const DAY_NAMES: Record<string, string> = {
-  mon: "mon", monday: "mon", tue: "tue", tues: "tue", tuesday: "tue", wed: "wed", wednesday: "wed",
-  thu: "thu", thur: "thu", thurs: "thu", thursday: "thu", fri: "fri", friday: "fri", sat: "sat", saturday: "sat", sun: "sun", sunday: "sun",
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun",
 };
 
 /**
@@ -629,13 +745,19 @@ function span(tz: string, start: number, end: number): string {
  * each, and the rule that the calendar decides. Text on both channels; the
  * phone agent reads it aloud in its own words.
  */
-export function describeOpenings(openings: Opening[], tz: string, opts: { maxDays?: number; daysAhead?: number } = {}): string {
+export function describeOpenings(
+  openings: Opening[],
+  tz: string,
+  opts: { maxDays?: number; daysAhead?: number } = {},
+): string {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
   if (!openings.length) {
     return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
   }
-  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
+  const lines = openings
+    .slice(0, maxDays)
+    .map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
   return (
     `Open times (from the calendar, checked just now — these change as bookings come in):\n${lines.join("\n")}\n` +
     `Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`
@@ -643,13 +765,20 @@ export function describeOpenings(openings: Opening[], tz: string, opts: { maxDay
 }
 
 /** A service the business lists, as far as matching one needs it. */
-export interface ServiceLike { name: string; duration_min?: number }
+export interface ServiceLike {
+  name: string;
+  duration_min?: number;
+}
 
 // Accents off and case folded: "unas" finds "Uñas de gel", and a caller who
 // says "depilacion" means the service written "Depilación". Exported for the
 // Business tab's services sheet, whose search folds a name the same way: one
 // rule for what counts as the same name, not a copy of it in the page.
-export const foldName = (s: string): string => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+export const foldName = (s: string): string =>
+  s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
 const wordsOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
 /**
@@ -675,13 +804,18 @@ export function matchService<S extends ServiceLike>(services: readonly S[] | und
   for (const { s, n } of named) {
     const own = wordsOf(n);
     const score = asks.filter((w) => own.includes(w)).length;
-    if (score > bestScore) { best = s; bestScore = score; }
+    if (score > bestScore) {
+      best = s;
+      bestScore = score;
+    }
   }
   return best;
 }
 
 /** The booking rules as far as a consultation needs them. */
-export interface ConsultRules { consult_first?: readonly string[] }
+export interface ConsultRules {
+  consult_first?: readonly string[];
+}
 
 /**
  * Whether a listed service needs a consultation before it can be booked, as Business lists them. Accents, case and the
@@ -712,10 +846,15 @@ export interface ServiceOffer<S extends ServiceLike = ServiceLike> {
  * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
  * its own length while the prompt said a consultation comes first (C5b).
  */
-export function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown): ServiceOffer<S> | null {
+export function offerFor<S extends ServiceLike>(
+  services: readonly S[] | undefined,
+  rules: ConsultRules | null | undefined,
+  asked: unknown,
+): ServiceOffer<S> | null {
   const service = matchService(services, asked);
   if (!service) return null;
-  if (!needsConsultation(service.name, rules)) return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
+  if (!needsConsultation(service.name, rules))
+    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
   const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
   let consultationService: S | null = null;
   let best = -1;
@@ -723,7 +862,10 @@ export function offerFor<S extends ServiceLike>(services: readonly S[] | undefin
     const n = foldName(s.name);
     if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
     const score = wordsOf(n).filter((w) => own.includes(w)).length;
-    if (score > best) { consultationService = s; best = score; }
+    if (score > best) {
+      consultationService = s;
+      best = score;
+    }
   }
   return { service, consultation: true, consultationService, minMinutes: consultationService?.duration_min ?? null };
 }
@@ -734,8 +876,16 @@ export function offerFor<S extends ServiceLike>(services: readonly S[] | undefin
  */
 export function offerLead(offer: ServiceOffer | null): string {
   if (!offer) return "";
-  if (!offer.consultation) return offer.service.duration_min ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): ` : "";
+  if (!offer.consultation)
+    return offer.service.duration_min
+      ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): `
+      : "";
   const c = offer.consultationService;
-  const detail = [c && foldName(c.name.trim()) !== "consultation" ? c.name : "", offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""].filter(Boolean).join(", ");
+  const detail = [
+    c && foldName(c.name.trim()) !== "consultation" ? c.name : "",
+    offer.minMinutes ? `about ${offer.minMinutes} minutes` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
 }

@@ -12,9 +12,25 @@
  * The preview is a read of a feed the workspace has not saved yet; it
  * changes nothing.
  */
-import { clockLabel, coversSpan, frameOf, monthLabelOf, shiftKey, shiftMonth, spanForView, windowFor, type CalendarView } from "@chanlytics/contracts";
+import {
+  clockLabel,
+  coversSpan,
+  frameOf,
+  monthLabelOf,
+  shiftKey,
+  shiftMonth,
+  spanForView,
+  windowFor,
+  type CalendarView,
+} from "@chanlytics/contracts";
 import { api } from "./api";
-import { calendarOverride, getCalendarSpan, setCalendarFresh, setCalendarSpan } from "./surface-data";
+import {
+  calendarOverride,
+  getCalendarSpan,
+  paintHeldCalendar,
+  setCalendarFresh,
+  setCalendarSpan,
+} from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 
 /** Load `days` days starting on `from` (a day key); a null `from` is the window around today. */
@@ -22,6 +38,12 @@ export async function goTo(from: string | null, days = 63): Promise<boolean> {
   const prev = getCalendarSpan();
   setCalendarSpan(from, days);
   api().forget();
+  // A window this tab has read paints at once; the read behind it keeps it current (the loading standard's held
+  // views). Only a window never read waits for its read.
+  if (paintHeldCalendar()) {
+    void refreshSurfaces([calendarOverride]);
+    return true;
+  }
   await refreshSurfaces([calendarOverride]);
   const got = (window as unknown as { __CALENDAR?: { vm?: { from?: string; days?: unknown[] } } }).__CALENDAR?.vm;
   if ((from && got?.from !== from) || (got?.days && got.days.length !== days)) {
@@ -34,7 +56,8 @@ export async function goTo(from: string | null, days = 63): Promise<boolean> {
 /** Make sure the window covers what a view needs from its anchor; reads only when it does not. */
 export async function ensure(view: CalendarView, anchor: string): Promise<boolean> {
   const need = spanForView(view, anchor);
-  const have = (window as unknown as { __CALENDAR?: { vm?: { days?: Array<{ key: string }> } } }).__CALENDAR?.vm?.days ?? [];
+  const have =
+    (window as unknown as { __CALENDAR?: { vm?: { days?: Array<{ key: string }> } } }).__CALENDAR?.vm?.days ?? [];
   if (coversSpan(have, need.from, need.days)) return true;
   const w = windowFor(anchor);
   return goTo(w.from, w.days);
@@ -76,7 +99,21 @@ export async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean> 
   return stamp() !== before;
 }
 
-export const calendar = { goTo, ensure, home, previewFeed, refresh, spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel };
+export const calendar = {
+  goTo,
+  ensure,
+  home,
+  previewFeed,
+  refresh,
+  spanFor: spanForView,
+  windowFor,
+  covers: coversSpan,
+  frameOf,
+  shiftKey,
+  shiftMonth,
+  monthLabel: monthLabelOf,
+  clockLabel,
+};
 
 declare global {
   interface Window {

@@ -11,14 +11,22 @@ import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 import { deployment } from "./deployment";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
-export const LINE_COLUMNS = "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
+export const LINE_COLUMNS =
+  "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
 
 /** A forwarded line's facts, in words only — never a provider id from a provisioned line's facts. */
 function forwardingOf(kind: string, facts: unknown): LineDto["forwarding"] {
   if (kind !== "forwarded" || !facts || typeof facts !== "object" || Array.isArray(facts)) return null;
   const f = facts as Record<string, unknown>;
   const str = (k: string) => (typeof f[k] === "string" ? (f[k] as string) : null);
-  return { carrier: str("carrier") ?? "other", mode: str("mode") ?? "unanswered", destination_e164: str("destination_e164"), test_from: str("test_from"), test_until: str("test_until"), verified_at: str("verified_at") };
+  return {
+    carrier: str("carrier") ?? "other",
+    mode: str("mode") ?? "unanswered",
+    destination_e164: str("destination_e164"),
+    test_from: str("test_from"),
+    test_until: str("test_until"),
+    verified_at: str("verified_at"),
+  };
 }
 
 export async function linesFor(db: SupabaseClient<Database>, tenantId: string): Promise<LineDto[]> {
@@ -76,12 +84,17 @@ export async function edgeLines(body: Record<string, unknown>, timeoutMs = 60_00
   try {
     const r = await fetch(`${edgeUrl()}/api/admin/lines`, {
       method: "POST",
-      headers: edgeHeaders("/api/admin/lines", { workspace: typeof body.tenant_id === "string" ? body.tenant_id : null }),
+      headers: edgeHeaders("/api/admin/lines", {
+        workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+      }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
     const parsed = (await r.json().catch(() => null)) as unknown;
-    return { status: r.status, body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null };
+    return {
+      status: r.status,
+      body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null,
+    };
   } catch (e) {
     return { status: 503, body: { ok: false, error: e instanceof Error ? e.message : String(e) } };
   }
@@ -106,13 +119,18 @@ const STATUS_NOT_READY_TTL_MS = 30_000;
  * "we set it up with you" rather than a verb that cannot work.
  */
 export async function linesStatus(now = Date.now()): Promise<LinesStatus> {
-  if (statusCache && now - statusCache.at < (statusCache.value.ready ? STATUS_TTL_MS : STATUS_NOT_READY_TTL_MS)) return statusCache.value;
+  if (statusCache && now - statusCache.at < (statusCache.value.ready ? STATUS_TTL_MS : STATUS_NOT_READY_TTL_MS))
+    return statusCache.value;
   const a = await edgeLines({ op: "status" }, 4_000);
   const b = a.body ?? {};
-  const costs = b.costs && typeof b.costs === "object" ? { ...DEFAULT_COSTS, ...(b.costs as Partial<typeof DEFAULT_COSTS>) } : DEFAULT_COSTS;
-  const value: LinesStatus = a.status === 200 && b.ok === true
-    ? { ready: b.ready === true, provider: typeof b.provider === "string" ? b.provider : null, costs }
-    : { ready: false, provider: null, costs };
+  const costs =
+    b.costs && typeof b.costs === "object"
+      ? { ...DEFAULT_COSTS, ...(b.costs as Partial<typeof DEFAULT_COSTS>) }
+      : DEFAULT_COSTS;
+  const value: LinesStatus =
+    a.status === 200 && b.ok === true
+      ? { ready: b.ready === true, provider: typeof b.provider === "string" ? b.provider : null, costs }
+      : { ready: false, provider: null, costs };
   statusCache = { at: now, value };
   return value;
 }

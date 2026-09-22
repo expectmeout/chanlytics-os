@@ -34,7 +34,13 @@ export interface VoiceAgent {
 
 export type VoiceAgentResult =
   | { ok: true; agent: VoiceAgent }
-  | { ok: false; step: "llm" | "agent"; status: number; detail: unknown; partial: { llmId: string | null; llmVersion: number | null } };
+  | {
+      ok: false;
+      step: "llm" | "agent";
+      status: number;
+      detail: unknown;
+      partial: { llmId: string | null; llmVersion: number | null };
+    };
 
 /**
  * Create the receptionist, or adopt one a failed run left behind: `llmId`
@@ -57,10 +63,23 @@ export async function createVoiceAgent(
 
   if (o.agentId) {
     const a = await getAgentRaw(cfg, o.agentId);
-    if (!a) return { ok: false, step: "agent", status: 404, detail: `${o.agentId} is not readable with this key`, partial: { llmId, llmVersion } };
+    if (!a)
+      return {
+        ok: false,
+        step: "agent",
+        status: 404,
+        detail: `${o.agentId} is not readable with this key`,
+        partial: { llmId, llmVersion },
+      };
     const engine = (a.response_engine ?? {}) as Record<string, unknown>;
     if (engine.type !== "retell-llm" || typeof engine.llm_id !== "string") {
-      return { ok: false, step: "agent", status: 422, detail: "the adopted agent is not on a Retell LLM", partial: { llmId, llmVersion } };
+      return {
+        ok: false,
+        step: "agent",
+        status: 422,
+        detail: "the adopted agent is not on a Retell LLM",
+        partial: { llmId, llmVersion },
+      };
     }
     agentId = o.agentId;
     llmId = engine.llm_id;
@@ -70,17 +89,26 @@ export async function createVoiceAgent(
   } else {
     if (llmId) {
       const l = await getRetellLlm(cfg, llmId);
-      if (!l) return { ok: false, step: "llm", status: 404, detail: `${llmId} is not readable with this key`, partial: { llmId: null, llmVersion: null } };
+      if (!l)
+        return {
+          ok: false,
+          step: "llm",
+          status: 404,
+          detail: `${llmId} is not readable with this key`,
+          partial: { llmId: null, llmVersion: null },
+        };
       llmVersion = l.version;
     } else {
       const w = await createRetellLlm(cfg, voiceLlmCreateBody(secrets));
-      if (!w.ok || typeof w.body?.llm_id !== "string") return { ok: false, step: "llm", status: w.status, detail: w.body, partial: { llmId: null, llmVersion: null } };
+      if (!w.ok || typeof w.body?.llm_id !== "string")
+        return { ok: false, step: "llm", status: w.status, detail: w.body, partial: { llmId: null, llmVersion: null } };
       llmId = w.body.llm_id;
       llmVersion = typeof w.body.version === "number" ? w.body.version : null;
       created.llm = true;
     }
     const w = await createAgent(cfg, voiceAgentCreateBody({ llmId, llmVersion, agentName: o.agentName }, secrets));
-    if (!w.ok || typeof w.body?.agent_id !== "string") return { ok: false, step: "agent", status: w.status, detail: w.body, partial: { llmId, llmVersion } };
+    if (!w.ok || typeof w.body?.agent_id !== "string")
+      return { ok: false, step: "agent", status: w.status, detail: w.body, partial: { llmId, llmVersion } };
     agentId = w.body.agent_id;
     agentVersion = typeof w.body.version === "number" ? w.body.version : null;
     published = w.body.is_published === true;
@@ -91,10 +119,21 @@ export async function createVoiceAgent(
   if (!published && agentVersion !== null) {
     const p = await publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge");
     if (p.ok) published = true;
-    else publish = { ok: false, status: p.status, detail: p.body, note: "the number follows the latest version instead of latest_published; publish and pin with voice-converge later" };
+    else
+      publish = {
+        ok: false,
+        status: p.status,
+        detail: p.body,
+        note: "the number follows the latest version instead of latest_published; publish and pin with voice-converge later",
+      };
   }
-  publish ??= published ? { ok: true, version: agentVersion } : { ok: false, note: "no version to publish; the number follows the latest version" };
-  return { ok: true, agent: { llmId, llmVersion, agentId, agentVersion, published, pinned: published, created, publish } };
+  publish ??= published
+    ? { ok: true, version: agentVersion }
+    : { ok: false, note: "no version to publish; the number follows the latest version" };
+  return {
+    ok: true,
+    agent: { llmId, llmVersion, agentId, agentVersion, published, pinned: published, created, publish },
+  };
 }
 
 /**
@@ -120,10 +159,18 @@ export async function ensureVoiceAgent(
   if (error) throw new Error(`reading the voice row: ${error.message}`);
   if (data?.external_id) {
     const a = await getAgentRaw(cfg, data.external_id);
-    const c = data.config && typeof data.config === "object" && !Array.isArray(data.config) ? (data.config as Record<string, unknown>) : {};
-    return { agentId: data.external_id, llmId: typeof c.llm_id === "string" ? c.llm_id : null, pinned: a?.is_published === true };
+    const c =
+      data.config && typeof data.config === "object" && !Array.isArray(data.config)
+        ? (data.config as Record<string, unknown>)
+        : {};
+    return {
+      agentId: data.external_id,
+      llmId: typeof c.llm_id === "string" ? c.llm_id : null,
+      pinned: a?.is_published === true,
+    };
   }
   const r = await createVoiceAgent(cfg, secrets, { agentName: `${tenant.name} front desk` });
-  if (!r.ok) throw new Error(`receptionist ${r.step}: HTTP ${r.status} ${JSON.stringify(r.detail ?? {}).slice(0, 200)}`);
+  if (!r.ok)
+    throw new Error(`receptionist ${r.step}: HTTP ${r.status} ${JSON.stringify(r.detail ?? {}).slice(0, 200)}`);
   return { agentId: r.agent.agentId, llmId: r.agent.llmId, pinned: r.agent.pinned };
 }

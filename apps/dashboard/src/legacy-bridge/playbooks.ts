@@ -8,8 +8,17 @@
  * a broadcast, so the cards and the runs must move together — never a row
  * the page invented while it waited.
  */
-import { PLAYBOOK_REACH_DOOR, PLAYBOOK_REACH_WORDS, playbookName, playbookReach, poolWords, reachLines } from "@chanlytics/contracts";
+import {
+  PLAYBOOK_REACH_WORDS,
+  playbookName,
+  playbookNoNumberWords,
+  playbookReach,
+  playbookReachDoor,
+  poolWords,
+  reachLines,
+} from "@chanlytics/contracts";
 import { api } from "./api";
+import type { Output } from "../client/api";
 import { playbooksOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 
@@ -31,17 +40,33 @@ export async function refreshPlaybooks(): Promise<void> {
   await refreshSurfaces([playbooksOverride]);
 }
 
+/** Each act says so the moment the server takes it (`onAccepted`, with what it answered), not once both surfaces are read again behind it. */
+type Accepted<
+  K extends
+    | "PUT playbooks/[id]"
+    | "DELETE playbooks/[id]"
+    | "POST playbooks/[id]/run"
+    | "POST broadcasts/[id]/approve"
+    | "POST broadcasts/[id]/cancel",
+> = { onAccepted?: (data: Output<K>) => void };
+
 export const playbooks = {
   create: (body: PlaybookBody) => api()("POST playbooks", { body }),
   update: (id: string, body: PlaybookBody) => api()("PUT playbooks/[id]", { params: { id }, body }),
-  pause: (id: string) => api()("PUT playbooks/[id]", { params: { id }, body: { state: "paused" } }),
-  resume: (id: string) => api()("PUT playbooks/[id]", { params: { id }, body: { state: "running" } }),
-  remove: (id: string) => api()("DELETE playbooks/[id]", { params: { id } }),
+  pause: (id: string, opts: Accepted<"PUT playbooks/[id]"> = {}) =>
+    api()("PUT playbooks/[id]", { params: { id }, body: { state: "paused" }, onAccepted: opts.onAccepted }),
+  resume: (id: string, opts: Accepted<"PUT playbooks/[id]"> = {}) =>
+    api()("PUT playbooks/[id]", { params: { id }, body: { state: "running" }, onAccepted: opts.onAccepted }),
+  remove: (id: string, opts: Accepted<"DELETE playbooks/[id]"> = {}) =>
+    api()("DELETE playbooks/[id]", { params: { id }, onAccepted: opts.onAccepted }),
   /** A run now, at this person's request: sends now unless the class is set to never. */
-  runNow: (id: string) => api()("POST playbooks/[id]/run", { params: { id } }),
+  runNow: (id: string, opts: Accepted<"POST playbooks/[id]/run"> = {}) =>
+    api()("POST playbooks/[id]/run", { params: { id }, onAccepted: opts.onAccepted }),
   /** A run that waited for a person goes out now, or is skipped — both are the broadcast's own doors. */
-  approveRun: (broadcastId: string) => api()("POST broadcasts/[id]/approve", { params: { id: broadcastId } }),
-  skipRun: (broadcastId: string) => api()("POST broadcasts/[id]/cancel", { params: { id: broadcastId } }),
+  approveRun: (broadcastId: string, opts: Accepted<"POST broadcasts/[id]/approve"> = {}) =>
+    api()("POST broadcasts/[id]/approve", { params: { id: broadcastId }, onAccepted: opts.onAccepted }),
+  skipRun: (broadcastId: string, opts: Accepted<"POST broadcasts/[id]/cancel"> = {}) =>
+    api()("POST broadcasts/[id]/cancel", { params: { id: broadcastId }, onAccepted: opts.onAccepted }),
 };
 
 declare global {
@@ -51,7 +76,9 @@ declare global {
     /** What the next run will actually do -- the card reads it beside the state. */
     __playbookReach?: typeof playbookReach;
     __playbookReachWords?: typeof PLAYBOOK_REACH_WORDS;
-    __playbookReachDoor?: typeof PLAYBOOK_REACH_DOOR;
+    __playbookReachDoor?: typeof playbookReachDoor;
+    /** A card's count when its yes has no number to send to, in the send screen's words; null when its own count stands. */
+    __playbookNoNumberWords?: typeof playbookNoNumberWords;
     /** Who a moment names and why the rest are left out, in the words the approval sheet says them. */
     __reachLines?: typeof reachLines;
     /** What "of 312" counts on a card: "on the list", "in People", "with a visit tomorrow". */
@@ -66,7 +93,8 @@ export function installPlaybooks(): void {
   window.__refreshPlaybooks = refreshPlaybooks;
   window.__playbookReach = playbookReach;
   window.__playbookReachWords = PLAYBOOK_REACH_WORDS;
-  window.__playbookReachDoor = PLAYBOOK_REACH_DOOR;
+  window.__playbookReachDoor = playbookReachDoor;
+  window.__playbookNoNumberWords = playbookNoNumberWords;
   window.__reachLines = reachLines;
   window.__poolWords = poolWords;
   window.__playbookName = playbookName;

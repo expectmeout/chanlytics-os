@@ -16,7 +16,9 @@ import assert from "node:assert/strict";
 import { parseTranscriptText, liveTurns } from "@chanlytics/channels";
 
 test("the plain transcript text becomes turns; a line with no speaker continues the turn before it", () => {
-  const turns = parseTranscriptText("Agent: Thank you for calling!\nUser: What time are you open?\nAgent: Tomorrow is Saturday,\n9:30 to 7.\n\nUser: Thanks.");
+  const turns = parseTranscriptText(
+    "Agent: Thank you for calling!\nUser: What time are you open?\nAgent: Tomorrow is Saturday,\n9:30 to 7.\n\nUser: Thanks.",
+  );
   assert.deepEqual(turns, [
     { role: "agent", content: "Thank you for calling!" },
     { role: "user", content: "What time are you open?" },

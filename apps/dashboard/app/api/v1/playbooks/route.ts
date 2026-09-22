@@ -24,7 +24,11 @@ export const GET = read({
   handle: async ({ ctx, member }) => {
     const tenantId = member.tenantId;
     const now = new Date();
-    const [playbooks, facts, touched] = await Promise.all([listPlaybooks(ctx, tenantId), tenantFacts(ctx.supabase, tenantId), recentTouches(ctx, tenantId, now)]);
+    const [playbooks, facts, touched] = await Promise.all([
+      listPlaybooks(ctx, tenantId),
+      tenantFacts(ctx.supabase, tenantId),
+      recentTouches(ctx, tenantId, now),
+    ]);
     const { pools, calendar } = await triggerPools(ctx, tenantId, touched, facts.timezone, now);
     return { playbooks, timezone: facts.timezone, touched, pools, calendar };
   },
@@ -59,7 +63,12 @@ export const POST = write({
       .single();
     if (error || !made) throw new Error(error?.message ?? "playbook not created");
     const decisionId = await recordDecision(ctx, member.tenantId, "playbook", made.id, "start_playbook", {
-      name: v.name, trigger: v.trigger, template: `${v.template_name}/${v.template_language}`, policy_class: v.policy_class, run_hour: v.run_hour, cap_per_run: v.cap_per_run,
+      name: v.name,
+      trigger: v.trigger,
+      template: `${v.template_name}/${v.template_language}`,
+      policy_class: v.policy_class,
+      run_hour: v.run_hour,
+      cap_per_run: v.cap_per_run,
     });
     return { id: made.id, name: v.name, state: "running", decision_id: decisionId };
   },

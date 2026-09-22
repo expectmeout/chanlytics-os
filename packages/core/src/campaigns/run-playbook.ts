@@ -1,4 +1,16 @@
-import { localDate, nextOpenMoment, parseParamSpecs, planRun, playbookRunReach, triggerOf, visitFactsFor, type PersonRowVM, type PlaybookTrigger, type RunPlan, type RunReach } from "@chanlytics/contracts";
+import {
+  localDate,
+  nextOpenMoment,
+  parseParamSpecs,
+  planRun,
+  playbookRunReach,
+  triggerOf,
+  visitFactsFor,
+  type PersonRowVM,
+  type PlaybookTrigger,
+  type RunPlan,
+  type RunReach,
+} from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import type { RunOutcome, RunPlaybookCommand, RunPlaybookPorts } from "./ports";
 
@@ -26,7 +38,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  const record = (data: Record<string, unknown>) => ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
+  const record = (data: Record<string, unknown>) =>
+    ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
   // No row for the class means ask — the safest.
   const mode = ctx.modes.get(p.policy_class) ?? "ask";
   // Off, and the run says why -- recorded, unless the day's run already stands.
@@ -35,9 +48,12 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     return { outcome: "off", mode, skipped };
   };
   // A person who asks has decided: it sends now, unless the class is never.
-  const plan: RunPlan = by.kind === "user"
-    ? (mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now })
-    : planRun(mode, now);
+  const plan: RunPlan =
+    by.kind === "user"
+      ? mode === "never"
+        ? { kind: "off" }
+        : { kind: "send", state: "scheduled", at: now }
+      : planRun(mode, now);
   if (plan.kind === "off") return off("never");
   // Never at 3 AM, whoever asks: the same hours a run keeps on its own, by
   // the business's clock. A send that would go out past them moves to nine.
@@ -68,7 +84,12 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // 94 never said yes" instead of only the rules that made its list.
   const drawn = playbookRunReach(
     ctx.people,
-    { trigger: p.trigger as PlaybookTrigger, cap_per_run: p.cap_per_run, gap_days: p.gap_days, cadence_days: p.cadence_days },
+    {
+      trigger: p.trigger as PlaybookTrigger,
+      cap_per_run: p.cap_per_run,
+      gap_days: p.gap_days,
+      cadence_days: p.cadence_days,
+    },
     { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny },
     now.getTime(),
   );
@@ -84,7 +105,10 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     reach.overLimit = dropped;
     reach.will = eligible.length;
   }
-  if (eligible.length === 0) { await record({ mode, eligible: 0, reach, ...(dropped ? { dropped } : {}) }); return { outcome: "empty", eligible: 0, mode }; }
+  if (eligible.length === 0) {
+    await record({ mode, eligible: 0, reach, ...(dropped ? { dropped } : {}) });
+    return { outcome: "empty", eligible: 0, mode };
+  }
 
   const specs = parseParamSpecs(p.params);
   // A visit run keeps each person's words on their row — the visit's time
@@ -94,7 +118,12 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // nine, and "tomorrow" said at eleven is "today" by then.
   const factsOf = (r: PersonRowVM) => {
     const v = ctx.visits.get(r.id);
-    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? (v?.next ?? null) : (v?.last ?? null), ctx.tz, open ? open.at : now);
+    return visitFactsFor(
+      p.trigger,
+      p.trigger === "visit_tomorrow" ? (v?.next ?? null) : (v?.last ?? null),
+      ctx.tz,
+      open ? open.at : now,
+    );
   };
   const n = eligible.length;
   const made = await assembleRun(ports, {
@@ -121,16 +150,43 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   if (open) {
     // The ledger: a run the sweep sends is the system's decision under the
     // mode the owner chose; a run a person asked for is theirs.
-    await ports.decide({ broadcastId: made.id, by, payload: { playbook_id: p.id, playbook: p.name, mode, recipients: n, scheduled_for: open.at.toISOString(), run_now: by.kind === "user", ...(movedFrom ? { moved_from: movedFrom } : {}) } });
+    await ports.decide({
+      broadcastId: made.id,
+      by,
+      payload: {
+        playbook_id: p.id,
+        playbook: p.name,
+        mode,
+        recipients: n,
+        scheduled_for: open.at.toISOString(),
+        run_now: by.kind === "user",
+        ...(movedFrom ? { moved_from: movedFrom } : {}),
+      },
+    });
   } else {
     await ports.notify(
       `Playbook “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
       `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do.`,
     );
   }
-  await record({ mode, eligible: n, reach, broadcast_id: made.id, state: plan.state, ...(movedFrom ? { moved_from: movedFrom } : {}) });
+  await record({
+    mode,
+    eligible: n,
+    reach,
+    broadcast_id: made.id,
+    state: plan.state,
+    ...(movedFrom ? { moved_from: movedFrom } : {}),
+  });
   // A sent run says when it really goes, so the person who asked is not told "now" over a run moved to nine.
   return open
-    ? { outcome: "sent", broadcast_id: made.id, eligible: n, mode, state: plan.state, scheduled_for: open.at.toISOString(), moved_from: movedFrom }
+    ? {
+        outcome: "sent",
+        broadcast_id: made.id,
+        eligible: n,
+        mode,
+        state: plan.state,
+        scheduled_for: open.at.toISOString(),
+        moved_from: movedFrom,
+      }
     : { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
 }

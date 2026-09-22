@@ -23,27 +23,37 @@ const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const T1 = "11111111-1111-4111-8111-111111111111";
 
 /** The typed client on a fake fetch that answers every call with `res()`. */
-const answering = (res) => createApi({
-  fetch: async () => res(),
-  workspace: () => A,
-  onSignedOut() {},
-  onChooseWorkspace() {},
-  refresh: async () => {},
-  now: () => 1_000,
-});
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const answering = (res) =>
+  createApi({
+    fetch: async () => res(),
+    workspace: () => A,
+    onSignedOut() {},
+    onChooseWorkspace() {},
+    refresh: async () => {},
+    now: () => 1_000,
+  });
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 test("REGRESSION: a thread that is gone reads as gone, and a read that failed reads as failed -- both were null, and the palette dropped the thread", async () => {
   const thread = { id: T1, title: "Saturday", scope: null };
   const read = await askApi(answering(() => json(200, { ok: true, data: { thread, messages: [] } }))).thread(T1);
   assert.deepEqual(read, { thread, messages: [] });
 
-  const gone = await askApi(answering(() => json(404, { ok: false, error: { code: "not_found", message: "Thread not found." } }))).thread(T1);
+  const gone = await askApi(
+    answering(() => json(404, { ok: false, error: { code: "not_found", message: "Thread not found." } })),
+  ).thread(T1);
   assert.deepEqual(gone, { missing: true }, "a thread that is not there any more");
 
-  const failed = await askApi(answering(() => json(500, { ok: false, error: { code: "internal", message: "boom" } }))).thread(T1);
+  const failed = await askApi(
+    answering(() => json(500, { ok: false, error: { code: "internal", message: "boom" } })),
+  ).thread(T1);
   assert.equal(failed, null, "a read that failed is not a thread that was deleted");
 
-  const offline = await askApi(answering(() => { throw new TypeError("Failed to fetch"); })).thread(T1);
+  const offline = await askApi(
+    answering(() => {
+      throw new TypeError("Failed to fetch");
+    }),
+  ).thread(T1);
   assert.equal(offline, null, "nor is a network that dropped");
 });

@@ -1,4 +1,11 @@
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, OWN_MESSAGE_REFUSALS, offersYesRefusal, type SendPurpose } from "@chanlytics/contracts";
+import {
+  AppError,
+  CONSENT_RESET_SOURCE,
+  CONSENT_SOURCES,
+  OWN_MESSAGE_REFUSALS,
+  offersYesRefusal,
+  type SendPurpose,
+} from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
 
@@ -36,7 +43,10 @@ export interface ManyOutcome {
 export function consentSourceOf(consent: string, source: string | undefined, purpose: SendPurpose): string {
   const s = consent === "unknown" ? CONSENT_RESET_SOURCE : source;
   if (typeof s !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((k) => k.id === s))) {
-    throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
+    throw new AppError(
+      "validation",
+      "Say how they told you: in person, on the phone, on a form, or in their own message.",
+    );
   }
   // Their own message names the one message it was given in (00137), and one
   // message is not every person's: that answer is recorded on a person's page.
@@ -77,12 +87,23 @@ export async function recordConsentMany(
   for (const c of ours) {
     const doorErr =
       purpose === "marketing"
-        ? (await ctx.supabase.rpc("set_marketing_consent", {
-            p_tenant_id: tenantId, p_contact_id: c.id, p_consent: input.consent, p_source: source, ...(note ? { p_note: note } : {}),
-          })).error
-        : (await ctx.supabase.rpc("set_contact_consent", {
-            p_contact_id: c.id, p_consent: input.consent, p_source: source, ...(note ? { p_note: note } : {}),
-          })).error;
+        ? (
+            await ctx.supabase.rpc("set_marketing_consent", {
+              p_tenant_id: tenantId,
+              p_contact_id: c.id,
+              p_consent: input.consent,
+              p_source: source,
+              ...(note ? { p_note: note } : {}),
+            })
+          ).error
+        : (
+            await ctx.supabase.rpc("set_contact_consent", {
+              p_contact_id: c.id,
+              p_consent: input.consent,
+              p_source: source,
+              ...(note ? { p_note: note } : {}),
+            })
+          ).error;
     if (doorErr) {
       failed.push({ id: c.id, message: doorErr.message });
       continue;

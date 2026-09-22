@@ -7,7 +7,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import {
+  installLegacyReact,
+  again,
+  unmount,
+  remount,
+  settle,
+  all,
+  find,
+  byTestId,
+  textOf,
+  classes,
+  press,
+} from "./_legacy-react.mjs";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
@@ -30,7 +42,10 @@ const W = globalThis.window;
  * A new tree, drawn as today-page.test.mjs draws one, over the last one unmounted as React replaces a tree: its effects
  * clean up (a fold's hold on the registry among them), its cells are forgotten, and the component is created.
  */
-const draw = (Comp, props = {}) => { unmount(); return W.React.createElement(Comp, props); };
+const draw = (Comp, props = {}) => {
+  unmount();
+  return W.React.createElement(Comp, props);
+};
 /** The same tree again, over the same hook cells, as React draws it after a state change. */
 const redraw = (Comp, props = {}) => again(() => W.React.createElement(Comp, props));
 /** Everything in a tree that a press acts on. */
@@ -40,7 +55,11 @@ const byId = (tree, id) => find(tree, (n) => n.props?.id === id);
 /* ------------------------------------ the row ------------------------------------ */
 
 test("a row draws its label, its value and one act", () => {
-  const tree = draw(W.RecordRow, { label: "Website", value: "melanysbeautysalon.com", act: { label: "Change", onClick: () => {} } });
+  const tree = draw(W.RecordRow, {
+    label: "Website",
+    value: "melanysbeautysalon.com",
+    act: { label: "Change", onClick: () => {} },
+  });
   assert.match(textOf(tree), /Website/);
   assert.match(textOf(tree), /melanysbeautysalon\.com/);
   assert.match(textOf(tree), /Change/);
@@ -50,27 +69,58 @@ test("a row draws its label, its value and one act", () => {
 test("an act's arrow is drawn beside its words, never inside the box a phone clips to a pixel", () => {
   // At a phone's width the act's words are a 1px clipped box for a screen reader (record.css), and an arrow drawn
   // inside it was laid out 40px past the screen's right edge: the Business tab's "Answers on" door at 390px.
-  const tree = draw(W.RecordRow, { id: "voice_line", label: "Answers on", value: "+1 (305) 555-0100", act: { label: "Connections", icon: "arrow-right", name: "Connections, where the line it answers on is set up", onClick: () => {} } });
+  const tree = draw(W.RecordRow, {
+    id: "voice_line",
+    label: "Answers on",
+    value: "+1 (305) 555-0100",
+    act: {
+      label: "Connections",
+      icon: "arrow-right",
+      name: "Connections, where the line it answers on is set up",
+      onClick: () => {},
+    },
+  });
   const act = find(tree, (n) => classes(n).includes("rec-row-act"));
   const words = find(act, (n) => classes(n).includes("rec-row-act-words"));
   assert.equal(textOf(words), "Connections");
-  assert.equal(find(words, (n) => n.type === "Icon"), null, "nothing but the words in the clipped box");
+  assert.equal(
+    find(words, (n) => n.type === "Icon"),
+    null,
+    "nothing but the words in the clipped box",
+  );
   const icon = find(act, (n) => classes(n).includes("rec-row-act-icon"));
   assert.equal(find(icon, (n) => n.type === "Icon").props.name, "arrow-right", "the arrow, beside them");
   assert.equal(icon.props["aria-hidden"], "true", "a picture of where it goes, which the act's name already says");
   const kids = [].concat(act.props.children).filter(Boolean);
   assert.ok(kids.indexOf(words) < kids.indexOf(icon), "after the words");
   // An act with no icon draws none.
-  const plain = draw(W.RecordRow, { id: "website", label: "Website", value: "x.example", act: { label: "Change", onClick: () => {} } });
-  assert.equal(find(plain, (n) => classes(n).includes("rec-row-act-icon")), null);
+  const plain = draw(W.RecordRow, {
+    id: "website",
+    label: "Website",
+    value: "x.example",
+    act: { label: "Change", onClick: () => {} },
+  });
+  assert.equal(
+    find(plain, (n) => classes(n).includes("rec-row-act-icon")),
+    null,
+  );
 });
 
 test("an empty row says so and keeps its act reachable", () => {
-  const tree = draw(W.RecordRow, { label: "Website", value: null, empty: "Not set", act: { label: "Add one", onClick: () => {} } });
+  const tree = draw(W.RecordRow, {
+    label: "Website",
+    value: null,
+    empty: "Not set",
+    act: { label: "Add one", onClick: () => {} },
+  });
   assert.match(textOf(tree), /Not set/);
   const row = find(tree, (n) => classes(n).includes("rec-row"));
   assert.equal(row.props["data-empty"], "true");
-  assert.equal(find(row, (n) => classes(n).includes("rec-row-act"))?.type, "button", "the act is a real button, on the row");
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-row-act"))?.type,
+    "button",
+    "the act is a real button, on the row",
+  );
 });
 
 test("a source chip is the one pill, in the fact kind's tone", () => {
@@ -98,34 +148,83 @@ test("a disputed fact wears warn and offers the other answer", () => {
   assert.equal(used.length, 1, "the row offers the fill, it does not just record the difference");
 
   const kept = [];
-  const keeping = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Avenue", source: "typed", disputed: { ...disputed, onKeep: () => kept.push(1) } });
+  const keeping = draw(W.RecordRow, {
+    label: "Address",
+    value: "2581 Pitkin Avenue",
+    source: "typed",
+    disputed: { ...disputed, onKeep: () => kept.push(1) },
+  });
   press(find(keeping, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Keep mine"));
   assert.equal(kept.length, 1, "and keeping yours is a press too");
 });
 
 test("something wrong is on its row at full strength: a serious disagreement, or a sentence the page names", () => {
   const rowOf = (tree) => find(tree, (n) => classes(n).includes("rec-row"));
-  assert.equal(rowOf(draw(W.RecordRow, { label: "Website", value: "melanys.com" })).props["data-state"], undefined, "nothing wrong, no state");
+  assert.equal(
+    rowOf(draw(W.RecordRow, { label: "Website", value: "melanys.com" })).props["data-state"],
+    undefined,
+    "nothing wrong, no state",
+  );
   // Severity is factConflicts' (contracts facts.ts), and it is about the customer: the published number that does not
   // reach the receptionist is serious; an address written two ways is minor.
   const serious = { value: "+1 (308) 336-8109", source: "provisioned", severity: "serious", onUse: () => {} };
-  assert.equal(rowOf(draw(W.RecordRow, { label: "Tells customers to call", value: "+1 (646) 932-5775", source: "typed", disputed: serious })).props["data-state"], "warn", "a serious disagreement is a person's to settle, and the row says so");
+  assert.equal(
+    rowOf(
+      draw(W.RecordRow, {
+        label: "Tells customers to call",
+        value: "+1 (646) 932-5775",
+        source: "typed",
+        disputed: serious,
+      }),
+    ).props["data-state"],
+    "warn",
+    "a serious disagreement is a person's to settle, and the row says so",
+  );
 
   const sentence = "Without a booking link it has nowhere to send anyone who asks to book.";
-  const tree = draw(W.RecordRow, { id: "booking_link", label: "Booking link", value: null, empty: "Not set", wrong: sentence, act: { label: "Add one", onClick: () => {} } });
+  const tree = draw(W.RecordRow, {
+    id: "booking_link",
+    label: "Booking link",
+    value: null,
+    empty: "Not set",
+    wrong: sentence,
+    act: { label: "Add one", onClick: () => {} },
+  });
   const row = rowOf(tree);
   assert.equal(row.props["data-state"], "warn", "a fact that is missing and needed is drawn the same way");
   assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-wrong"))), sentence, "in the page's own words");
   const act = find(tree, (n) => classes(n).includes("rec-row-act"));
-  assert.equal(textOf(byId(tree, act.props["aria-describedby"])), sentence, "and the act that fixes it is described by it");
+  assert.equal(
+    textOf(byId(tree, act.props["aria-describedby"])),
+    sentence,
+    "and the act that fixes it is described by it",
+  );
 });
 
 test("a minor disagreement keeps its pill and its line, and leaves the row as it is", () => {
-  const minor = { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", severity: "minor", onUse: () => {} };
-  const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Avenue", source: "typed", disputed: minor, act: { label: "Change", onClick: () => {} } });
+  const minor = {
+    value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA",
+    source: "verified",
+    severity: "minor",
+    onUse: () => {},
+  };
+  const tree = draw(W.RecordRow, {
+    label: "Address",
+    value: "2581 Pitkin Avenue",
+    source: "typed",
+    disputed: minor,
+    act: { label: "Change", onClick: () => {} },
+  });
   const row = find(tree, (n) => classes(n).includes("rec-row"));
-  assert.ok(find(row, (n) => classes(n).includes("pill-warn")), "the warn pill, at full strength");
-  assert.match(textOf(find(row, (n) => classes(n).includes("rec-row-dispute"))), /2581 Pitkin Ave, Brooklyn, NY 11208, USA/, "and the line with the other answer");
+  assert.ok(
+    find(row, (n) => classes(n).includes("pill-warn")),
+    "the warn pill, at full strength",
+  );
+  assert.match(
+    textOf(find(row, (n) => classes(n).includes("rec-row-dispute"))),
+    /2581 Pitkin Ave, Brooklyn, NY 11208, USA/,
+    "and the line with the other answer",
+  );
   // What draws an act at rest in record.css is the row's warn state or its being empty; this row has neither, so its
   // act waits to be approached like any other.
   assert.equal(row.props["data-state"], undefined, "no warn wash on the row");
@@ -135,16 +234,40 @@ test("a minor disagreement keeps its pill and its line, and leaves the row as it
 test("a disagreement with nothing to take it is a line to read, and offers no press", () => {
   // A role that may not settle it, or an answer that is information rather than a fill (the workspace's own name):
   // the page passes no onUse, and the kit draws no button that could only refuse.
-  const sentence = "Your receptionist introduces the business as Melany's Beauty Salon; this workspace is named Billing probe.";
+  const sentence =
+    "Your receptionist introduces the business as Melany's Beauty Salon; this workspace is named Billing probe.";
   const read = { value: "Billing probe", source: "workspace", severity: "minor", sentence };
-  const tree = draw(W.RecordRow, { id: "name", label: "Name", value: "Melany's Beauty Salon", source: "typed", disputed: read });
+  const tree = draw(W.RecordRow, {
+    id: "name",
+    label: "Name",
+    value: "Melany's Beauty Salon",
+    source: "typed",
+    disputed: read,
+  });
   const line = find(tree, (n) => classes(n).includes("rec-row-dispute"));
   assert.equal(textOf(line), sentence, "the disagreement is on the row, whole");
-  assert.ok(find(tree, (n) => classes(n).includes("pill-warn")), "and wears its warn pill");
-  assert.equal(find(line, (n) => n.type === "button"), null, "with no press at all");
-  assert.equal(find(line, (n) => classes(n).includes("rec-row-dispute-acts")), null, "nor an empty place for one");
+  assert.ok(
+    find(tree, (n) => classes(n).includes("pill-warn")),
+    "and wears its warn pill",
+  );
+  assert.equal(
+    find(line, (n) => n.type === "button"),
+    null,
+    "with no press at all",
+  );
+  assert.equal(
+    find(line, (n) => classes(n).includes("rec-row-dispute-acts")),
+    null,
+    "nor an empty place for one",
+  );
   // Given only a way to keep it, that is the one press.
-  const kept = draw(W.RecordRow, { id: "name", label: "Name", value: "Melany's Beauty Salon", source: "typed", disputed: { ...read, onKeep: () => {} } });
+  const kept = draw(W.RecordRow, {
+    id: "name",
+    label: "Name",
+    value: "Melany's Beauty Salon",
+    source: "typed",
+    disputed: { ...read, onKeep: () => {} },
+  });
   assert.deepEqual(all(kept, (n) => n.type === "button" && classes(n).includes("btn")).map(textOf), ["Keep mine"]);
 });
 
@@ -152,20 +275,40 @@ test("an act says which row it acts on, and a gate's refusal replaces its press"
   const pressed = [];
   const refused = [];
   const gate = { "aria-disabled": true, "data-tip": "Only an owner can change this.", onClick: () => refused.push(1) };
-  const tree = draw(W.RecordRow, { id: "website", label: "Website", value: "melanys.com", act: { label: "Change", onClick: () => pressed.push(1), gate } });
-  assert.ok(find(tree, (n) => n.props?.["data-testid"] === "rec-row-website"), "the row carries its id");
+  const tree = draw(W.RecordRow, {
+    id: "website",
+    label: "Website",
+    value: "melanys.com",
+    act: { label: "Change", onClick: () => pressed.push(1), gate },
+  });
+  assert.ok(
+    find(tree, (n) => n.props?.["data-testid"] === "rec-row-website"),
+    "the row carries its id",
+  );
   const act = find(tree, (n) => n.props?.["data-testid"] === "rec-row-act-website");
-  const name = act.props["aria-labelledby"].split(" ").map((id) => textOf(byId(tree, id))).join(" ");
+  const name = act.props["aria-labelledby"]
+    .split(" ")
+    .map((id) => textOf(byId(tree, id)))
+    .join(" ");
   assert.equal(name, "Change Website", "a screen reader hears which Change this is");
   assert.equal(act.props["aria-disabled"], true, "a refused act stays on the page and in the tab order");
   press(act);
-  assert.deepEqual([pressed.length, refused.length], [0, 1], "the gate is spread after the handler, so its refusal wins");
+  assert.deepEqual(
+    [pressed.length, refused.length],
+    [0, 1],
+    "the gate is spread after the handler, so its refusal wins",
+  );
 });
 
 test("an act the page names itself is called that, and its words and the row's label no longer make its name", () => {
-  const tree = draw(W.RecordRow, { id: "handoff_number", label: "Transfers a caller to", value: "+1 (786) 555-0182", act: { label: "Change", onClick: () => {}, name: "Change the transfer number" } });
+  const tree = draw(W.RecordRow, {
+    id: "handoff_number",
+    label: "Transfers a caller to",
+    value: "+1 (786) 555-0182",
+    act: { label: "Change", onClick: () => {}, name: "Change the transfer number" },
+  });
   const act = find(tree, (n) => n.props?.["data-testid"] === "rec-row-act-handoff_number");
-  assert.equal(act.props["aria-label"], "Change the transfer number", "not \"Change Transfers a caller to\"");
+  assert.equal(act.props["aria-label"], "Change the transfer number", 'not "Change Transfers a caller to"');
   assert.equal(act.props["aria-labelledby"], undefined, "one name, not two");
   assert.equal(act.props["data-rec-act"], "handoff_number", "and focus still comes back to it as a fold closes");
 });
@@ -173,88 +316,224 @@ test("an act the page names itself is called that, and its words and the row's l
 /* ------------------------------------ the fields ------------------------------------ */
 
 test("a field carries its label, its unit and its refusal, wired for a screen reader", () => {
-  const tree = draw(W.RecordField, { label: "Least notice", unit: "hours", value: "2", onChange: () => {}, hint: "Empty means no rule.", id: "lead" });
+  const tree = draw(W.RecordField, {
+    label: "Least notice",
+    unit: "hours",
+    value: "2",
+    onChange: () => {},
+    hint: "Empty means no rule.",
+    id: "lead",
+  });
   assert.match(textOf(tree), /Least notice/);
   assert.match(textOf(tree), /hours/);
   assert.match(textOf(tree), /Empty means no rule\./);
 
   const typed = [];
-  const bad = draw(W.RecordField, { label: "Booking link", value: "booksy", onChange: (v) => typed.push(v), problem: "Needs a full web address, starting with https://", hint: "Sent instead of confirming.", id: "link" });
+  const bad = draw(W.RecordField, {
+    label: "Booking link",
+    value: "booksy",
+    onChange: (v) => typed.push(v),
+    problem: "Needs a full web address, starting with https://",
+    hint: "Sent instead of confirming.",
+    id: "link",
+  });
   const input = find(bad, (n) => classes(n).includes("rec-input"));
   assert.equal(input.props["aria-invalid"], true);
   assert.equal(input.props["aria-describedby"], "rec-link-problem");
-  assert.match(textOf(byId(bad, "rec-link-problem")), /starting with https/, "the sentence the box names is the one drawn");
+  assert.match(
+    textOf(byId(bad, "rec-link-problem")),
+    /starting with https/,
+    "the sentence the box names is the one drawn",
+  );
   assert.doesNotMatch(textOf(bad), /Sent instead/, "a hint gives way to what is wrong");
-  assert.ok(find(find(bad, (n) => n.type === "label"), (n) => n === input), "the label holds its box, so the box is named by it");
+  assert.ok(
+    find(
+      find(bad, (n) => n.type === "label"),
+      (n) => n === input,
+    ),
+    "the label holds its box, so the box is named by it",
+  );
   input.props.onChange({ target: { value: "https://booksy.com" } });
   assert.deepEqual(typed, ["https://booksy.com"], "a keystroke hands the page the words, not the event");
 });
 
 test("fields given no id still name their own sentences, and a combobox its own list", () => {
   // Two of each on one page, none given an id: React.useId names each, where "rec-undefined-problem" named them all.
-  const Page = () => W.React.createElement("div", null,
-    W.React.createElement(W.RecordField, { label: "Opens", value: "9", onChange: () => {}, problem: "Needs a time." }),
-    W.React.createElement(W.RecordField, { label: "Closes", value: "5", onChange: () => {}, problem: "Needs a time too." }),
-    W.React.createElement(W.RecordCombobox, { label: "Timezone", value: null, options: [], onChange: () => {} }),
-    W.React.createElement(W.RecordCombobox, { label: "Also a timezone", value: null, options: [], onChange: () => {} }));
+  const Page = () =>
+    W.React.createElement(
+      "div",
+      null,
+      W.React.createElement(W.RecordField, {
+        label: "Opens",
+        value: "9",
+        onChange: () => {},
+        problem: "Needs a time.",
+      }),
+      W.React.createElement(W.RecordField, {
+        label: "Closes",
+        value: "5",
+        onChange: () => {},
+        problem: "Needs a time too.",
+      }),
+      W.React.createElement(W.RecordCombobox, { label: "Timezone", value: null, options: [], onChange: () => {} }),
+      W.React.createElement(W.RecordCombobox, {
+        label: "Also a timezone",
+        value: null,
+        options: [],
+        onChange: () => {},
+      }),
+    );
   const tree = draw(Page);
   const boxes = all(tree, (n) => classes(n).includes("rec-input"));
   const described = boxes.map((b) => b.props["aria-describedby"]);
   assert.notEqual(described[0], described[1], "each box names its own sentence");
-  assert.deepEqual(described.map((id) => textOf(byId(tree, id))).map((t) => t.trim()), ["Needs a time.", "Needs a time too."]);
+  assert.deepEqual(
+    described.map((id) => textOf(byId(tree, id))).map((t) => t.trim()),
+    ["Needs a time.", "Needs a time too."],
+  );
   assert.ok(described.every((id) => !id.includes("undefined")));
   const lists = all(tree, (n) => n.props?.role === "combobox").map((c) => c.props["aria-controls"]);
   assert.notEqual(lists[0], lists[1], "each combobox names its own list");
-  assert.deepEqual(lists.map((id) => byId(tree, id)?.props.role), ["listbox", "listbox"]);
+  assert.deepEqual(
+    lists.map((id) => byId(tree, id)?.props.role),
+    ["listbox", "listbox"],
+  );
 });
 
 test("a field keeps the page's own class and description beside its own", () => {
-  const tree = draw(W.RecordField, { id: "lead", label: "Least notice", value: "2", onChange: () => {}, hint: "Empty means no rule.", className: "tabular", "aria-describedby": "lead-consequence" });
+  const tree = draw(W.RecordField, {
+    id: "lead",
+    label: "Least notice",
+    value: "2",
+    onChange: () => {},
+    hint: "Empty means no rule.",
+    className: "tabular",
+    "aria-describedby": "lead-consequence",
+  });
   const box = find(tree, (n) => n.type === "input");
   assert.deepEqual(classes(box), ["rec-input", "tabular"]);
-  assert.equal(box.props["aria-describedby"], "rec-lead-hint lead-consequence", "the hint, and the page's consequence line");
+  assert.equal(
+    box.props["aria-describedby"],
+    "rec-lead-hint lead-consequence",
+    "the hint, and the page's consequence line",
+  );
 });
 
 test("a box in a row of a list carries its own name and its sentence, needs no hook, and refuses to be nameless", () => {
   // The week's time boxes and the closed days' rows were raw inputs wired by hand, three times over, and the list's
   // header (From · Until · Why) is not read out: a box in a row is named for its row ("Closed from, row 2").
   const typed = [];
-  let tree = draw(W.RecordBox, { id: "closure-1-date", label: "Closed from, row 2", type: "date", value: "2099-12-24", onChange: (v) => typed.push(v), problem: "That date is not on the calendar." });
+  let tree = draw(W.RecordBox, {
+    id: "closure-1-date",
+    label: "Closed from, row 2",
+    type: "date",
+    value: "2099-12-24",
+    onChange: (v) => typed.push(v),
+    problem: "That date is not on the calendar.",
+  });
   const input = find(tree, (n) => n.type === "input");
-  assert.deepEqual([input.props.id, input.props.type, input.props["aria-label"], input.props.value, classes(input)], ["closure-1-date", "date", "Closed from, row 2", "2099-12-24", ["rec-input"]]);
+  assert.deepEqual(
+    [input.props.id, input.props.type, input.props["aria-label"], input.props.value, classes(input)],
+    ["closure-1-date", "date", "Closed from, row 2", "2099-12-24", ["rec-input"]],
+  );
   input.props.onChange({ target: { value: "2099-12-26" } });
   assert.deepEqual(typed, ["2099-12-26"], "onChange hands the page the words, as RecordField's does");
   // The sentence is under the box, and the box is wrong by it.
   const said = byId(tree, "rec-closure-1-date-problem");
   assert.equal(textOf(said), "That date is not on the calendar.");
-  assert.deepEqual([input.props["aria-invalid"], input.props["aria-describedby"]], [true, "rec-closure-1-date-problem"]);
+  assert.deepEqual(
+    [input.props["aria-invalid"], input.props["aria-describedby"]],
+    [true, "rec-closure-1-date-problem"],
+  );
   // No hook: the stub keeps one order of cells, and none is taken.
-  assert.equal(all(tree, (n) => typeof n.type === "function").length, 2, "the box and its FieldError, nothing that asks React for a name");
+  assert.equal(
+    all(tree, (n) => typeof n.type === "function").length,
+    2,
+    "the box and its FieldError, nothing that asks React for a name",
+  );
 
   // A box wrong by a sentence drawn ELSEWHERE (a day's two boxes share one): marked, described, nothing drawn.
-  tree = draw(W.RecordBox, { id: "hours-mon-1-open", label: "Monday opens, second shift", type: "time", size: "sm", value: "14:00", onChange: () => {}, invalid: "bt-hours-mon-problem", className: "bt-time", readOnly: true });
+  tree = draw(W.RecordBox, {
+    id: "hours-mon-1-open",
+    label: "Monday opens, second shift",
+    type: "time",
+    size: "sm",
+    value: "14:00",
+    onChange: () => {},
+    invalid: "bt-hours-mon-problem",
+    className: "bt-time",
+    readOnly: true,
+  });
   const box = find(tree, (n) => n.type === "input");
-  assert.deepEqual([box.props["aria-invalid"], box.props["aria-describedby"], box.props.readOnly, box.props.type, classes(box)], [true, "bt-hours-mon-problem", true, "time", ["rec-input", "bt-time"]]);
-  assert.equal(find(tree, (n) => n.type === W.FieldError), null);
-  assert.equal(find(tree, (n) => classes(n).includes("rec-box")).props["data-size"], "sm", "the small variant, at the width of a time");
+  assert.deepEqual(
+    [box.props["aria-invalid"], box.props["aria-describedby"], box.props.readOnly, box.props.type, classes(box)],
+    [true, "bt-hours-mon-problem", true, "time", ["rec-input", "bt-time"]],
+  );
+  assert.equal(
+    find(tree, (n) => n.type === W.FieldError),
+    null,
+  );
+  assert.equal(
+    find(tree, (n) => classes(n).includes("rec-box")).props["data-size"],
+    "sm",
+    "the small variant, at the width of a time",
+  );
 
   // Nothing wrong, nothing said; a unit, as RecordField draws one; the page's own description joins the box's.
-  tree = draw(W.RecordBox, { id: "service-0-minutes", label: "Balayage, minutes", unit: "min", value: "180", onChange: () => {}, "aria-describedby": "svc-note" });
-  assert.deepEqual([find(tree, (n) => n.type === "input").props["aria-invalid"], find(tree, (n) => n.type === "input").props["aria-describedby"]], [undefined, "svc-note"]);
+  tree = draw(W.RecordBox, {
+    id: "service-0-minutes",
+    label: "Balayage, minutes",
+    unit: "min",
+    value: "180",
+    onChange: () => {},
+    "aria-describedby": "svc-note",
+  });
+  assert.deepEqual(
+    [
+      find(tree, (n) => n.type === "input").props["aria-invalid"],
+      find(tree, (n) => n.type === "input").props["aria-describedby"],
+    ],
+    [undefined, "svc-note"],
+  );
   assert.equal(textOf(find(tree, (n) => classes(n).includes("rec-input-unit"))), "min");
-  assert.throws(() => draw(W.RecordBox, { label: "nameless", value: "", onChange: () => {} }), (e) => e instanceof TypeError && /needs an id/.test(e.message));
+  assert.throws(
+    () => draw(W.RecordBox, { label: "nameless", value: "", onChange: () => {} }),
+    (e) => e instanceof TypeError && /needs an id/.test(e.message),
+  );
 });
 
 test("a box in a row of a list is a textarea when its words run to sentences, named and wired as the input is, and hookless", () => {
   // A note's text and a message sent in the business's name are rows of a list that come and go, so they are boxes
   // with no hook; their words run to lines, so the box is a textarea.
   const typed = [];
-  const tree = draw(W.RecordBox, { id: "note-1-text", label: "Note 2, what it says", rows: 3, value: "Behind the building.", onChange: (v) => typed.push(v), problem: "Each note needs both a title and the text to say.", readOnly: true, placeholder: "What it says" });
+  const tree = draw(W.RecordBox, {
+    id: "note-1-text",
+    label: "Note 2, what it says",
+    rows: 3,
+    value: "Behind the building.",
+    onChange: (v) => typed.push(v),
+    problem: "Each note needs both a title and the text to say.",
+    readOnly: true,
+    placeholder: "What it says",
+  });
   const box = find(tree, (n) => n.type === "textarea");
   assert.ok(box, "a textarea");
-  assert.equal(find(tree, (n) => n.type === "input"), null, "and no input beside it");
+  assert.equal(
+    find(tree, (n) => n.type === "input"),
+    null,
+    "and no input beside it",
+  );
   assert.deepEqual(
-    [box.props.id, box.props.rows, box.props["aria-label"], box.props.value, box.props.readOnly, box.props.placeholder, classes(box), box.props.type],
+    [
+      box.props.id,
+      box.props.rows,
+      box.props["aria-label"],
+      box.props.value,
+      box.props.readOnly,
+      box.props.placeholder,
+      classes(box),
+      box.props.type,
+    ],
     ["note-1-text", 3, "Note 2, what it says", "Behind the building.", true, "What it says", ["rec-input"], undefined],
   );
   assert.deepEqual([box.props["aria-invalid"], box.props["aria-describedby"]], [true, "rec-note-1-text-problem"]);
@@ -263,7 +542,13 @@ test("a box in a row of a list is a textarea when its words run to sentences, na
   assert.deepEqual(typed, ["Behind the building, on the left."]);
   assert.equal(all(tree, (n) => typeof n.type === "function").length, 2, "the box and its FieldError: no hook");
   // Without rows it is the input it always was.
-  assert.equal(find(draw(W.RecordBox, { id: "note-1-title", label: "Note 2 title", value: "", onChange: () => {} }), (n) => n.type === "textarea"), null);
+  assert.equal(
+    find(
+      draw(W.RecordBox, { id: "note-1-title", label: "Note 2 title", value: "", onChange: () => {} }),
+      (n) => n.type === "textarea",
+    ),
+    null,
+  );
 });
 
 test("a switch is a switch, and says which state it is in", () => {
@@ -278,7 +563,14 @@ test("a switch is a switch, and says which state it is in", () => {
   assert.deepEqual(flips, [false], "a press asks for the other state");
 });
 
-const numbers = { label: "The number to publish", value: "line", options: [{ value: "line", label: "Your line" }, { value: "other", label: "A different number" }] };
+const numbers = {
+  label: "The number to publish",
+  value: "line",
+  options: [
+    { value: "line", label: "Your line" },
+    { value: "other", label: "A different number" },
+  ],
+};
 
 test("a toggle group is a radiogroup, not a row of buttons", () => {
   const picked = [];
@@ -295,7 +587,11 @@ test("a toggle group is a radiogroup, not a row of buttons", () => {
 test("a toggle group is one tab stop, and the arrows walk it", () => {
   const picked = [];
   const tree = draw(W.RecordToggleGroup, { ...numbers, onChange: (v) => picked.push(v) });
-  assert.deepEqual(all(tree, (n) => n.props?.role === "radio").map((o) => o.props.tabIndex), [0, -1], "Tab lands on the chosen one only");
+  assert.deepEqual(
+    all(tree, (n) => n.props?.role === "radio").map((o) => o.props.tabIndex),
+    [0, -1],
+    "Tab lands on the chosen one only",
+  );
   const focused = [];
   const radios = [{ focus: () => focused.push(0) }, { focus: () => focused.push(1) }];
   const key = (k) => ({ key: k, preventDefault() {}, currentTarget: { querySelectorAll: () => radios } });
@@ -329,9 +625,21 @@ test("a combobox narrows as you type, and the arrows, Enter and Escape drive it"
   box(tree).props.onChange({ target: { value: "new" } });
   tree = redraw(W.RecordCombobox, props);
   assert.equal(box(tree).props["aria-expanded"], true);
-  assert.deepEqual(opts(tree).map((o) => textOf(o)), ["America/New York7:23 PM", "America/North Dakota/New Salem6:23 PM"], "only what matches, each with its meta");
-  assert.equal(box(tree).props["aria-controls"], find(tree, (n) => n.props?.role === "listbox").props.id, "the box names its list");
-  assert.equal(box(tree).props["aria-activedescendant"], opts(tree)[0].props.id, "the first match is the one Enter would take");
+  assert.deepEqual(
+    opts(tree).map((o) => textOf(o)),
+    ["America/New York7:23 PM", "America/North Dakota/New Salem6:23 PM"],
+    "only what matches, each with its meta",
+  );
+  assert.equal(
+    box(tree).props["aria-controls"],
+    find(tree, (n) => n.props?.role === "listbox").props.id,
+    "the box names its list",
+  );
+  assert.equal(
+    box(tree).props["aria-activedescendant"],
+    opts(tree)[0].props.id,
+    "the first match is the one Enter would take",
+  );
 
   box(tree).props.onKeyDown({ key: "ArrowDown", preventDefault() {} });
   tree = redraw(W.RecordCombobox, props);
@@ -345,7 +653,13 @@ test("a combobox narrows as you type, and the arrows, Enter and Escape drive it"
 
   box(tree).props.onChange({ target: { value: "lon" } });
   tree = redraw(W.RecordCombobox, props);
-  const esc = { key: "Escape", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  const esc = {
+    key: "Escape",
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+  };
   box(tree).props.onKeyDown(esc);
   tree = redraw(W.RecordCombobox, props);
   assert.equal(box(tree).props["aria-expanded"], false, "Escape closes it");
@@ -355,7 +669,11 @@ test("a combobox narrows as you type, and the arrows, Enter and Escape drive it"
   box(tree).props.onChange({ target: { value: "lon" } });
   tree = redraw(W.RecordCombobox, props);
   let held = false;
-  find(tree, (n) => n.props?.role === "listbox").props.onMouseDown({ preventDefault() { held = true; } });
+  find(tree, (n) => n.props?.role === "listbox").props.onMouseDown({
+    preventDefault() {
+      held = true;
+    },
+  });
   press(opts(tree)[0]);
   assert.equal(held, true, "a pointer on the list, an option or its scroll, keeps focus in the box");
   assert.deepEqual(picked, ["America/North_Dakota/New_Salem", "Europe/London"], "and a press takes it");
@@ -366,7 +684,11 @@ test("a combobox searches what is typed onto its chosen label, and its list is n
     id: "tz2",
     label: "Timezone",
     value: "America/Chicago",
-    options: [{ value: "America/Chicago", label: "America/Chicago" }, { value: "Europe/London", label: "Europe/London" }, { value: "Europe/Lisbon", label: "Europe/Lisbon" }],
+    options: [
+      { value: "America/Chicago", label: "America/Chicago" },
+      { value: "Europe/London", label: "Europe/London" },
+      { value: "Europe/Lisbon", label: "Europe/Lisbon" },
+    ],
     onChange: () => {},
   };
   const box = (tree) => find(tree, (n) => n.props?.role === "combobox");
@@ -383,7 +705,11 @@ test("a combobox searches what is typed onto its chosen label, and its list is n
   try {
     doc.activeElement = null;
     box(tree).props.onMouseDown({ currentTarget: input });
-    box(tree).props.onMouseUp({ preventDefault() { held = true; } });
+    box(tree).props.onMouseUp({
+      preventDefault() {
+        held = true;
+      },
+    });
   } finally {
     doc.activeElement = was;
   }
@@ -393,11 +719,18 @@ test("a combobox searches what is typed onto its chosen label, and its list is n
   tree = redraw(W.RecordCombobox, props);
   assert.equal(box(tree).props.value, "Lon", "what was typed is the search, not the label with it appended");
   assert.equal(box(tree).props["aria-expanded"], true);
-  assert.deepEqual(all(tree, (n) => n.props?.role === "option").map((o) => textOf(o)), ["Europe/London"]);
+  assert.deepEqual(
+    all(tree, (n) => n.props?.role === "option").map((o) => textOf(o)),
+    ["Europe/London"],
+  );
   // A list that scrolls is a tab stop in Chrome unless it says otherwise, and Tab would leave the box for it.
   const list = find(tree, (n) => n.props?.role === "listbox");
   assert.equal(list.props.tabIndex, -1);
-  assert.equal(all(tree, (n) => n.props?.role === "option" && typeof n.props.onMouseDown === "function").length, 0, "the list holds the pointer, not each option");
+  assert.equal(
+    all(tree, (n) => n.props?.role === "option" && typeof n.props.onMouseDown === "function").length,
+    0,
+    "the list holds the pointer, not each option",
+  );
 });
 
 test("a combobox that adds can offer what is typed after the matches, and the page's keys come first", () => {
@@ -408,11 +741,20 @@ test("a combobox that adds can offer what is typed after the matches, and the pa
     id: "langs",
     label: "Add a language",
     value: null,
-    options: [{ value: "Spanish", label: "Spanish" }, { value: "Portuguese", label: "Portuguese" }],
+    options: [
+      { value: "Spanish", label: "Spanish" },
+      { value: "Portuguese", label: "Portuguese" },
+    ],
     onChange: (v) => picked.push(v),
     // The page's rule for what may be taken as typed: not a name already chosen or already offered.
-    typed: (words) => (chosen.concat(["Spanish", "Portuguese"]).some((l) => l.toLowerCase() === words.toLowerCase()) ? null : { value: words, label: `Add “${words}”` }),
-    onKeyDown: (e) => { keys.push(e.key); if (e.key === "Backspace" && e.target.value === "") e.preventDefault(); },
+    typed: (words) =>
+      chosen.concat(["Spanish", "Portuguese"]).some((l) => l.toLowerCase() === words.toLowerCase())
+        ? null
+        : { value: words, label: `Add “${words}”` },
+    onKeyDown: (e) => {
+      keys.push(e.key);
+      if (e.key === "Backspace" && e.target.value === "") e.preventDefault();
+    },
   };
   const box = (tree) => find(tree, (n) => n.props?.role === "combobox");
   const opts = (tree) => all(tree, (n) => n.props?.role === "option").map((o) => textOf(o));
@@ -421,7 +763,14 @@ test("a combobox that adds can offer what is typed after the matches, and the pa
   tree = redraw(W.RecordCombobox, props);
   assert.deepEqual(opts(tree), ["Add “Xhosa”"], "nothing matches, so what is typed is the one option");
   assert.equal(box(tree).props["aria-expanded"], true);
-  box(tree).props.onKeyDown({ key: "Enter", target: { value: "Xhosa" }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } });
+  box(tree).props.onKeyDown({
+    key: "Enter",
+    target: { value: "Xhosa" },
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+  });
   assert.deepEqual(picked, ["Xhosa"], "Enter takes it, as it takes any option");
   tree = redraw(W.RecordCombobox, props);
   box(tree).props.onChange({ target: { value: "Po" } });
@@ -431,10 +780,24 @@ test("a combobox that adds can offer what is typed after the matches, and the pa
   tree = redraw(W.RecordCombobox, props);
   assert.deepEqual(opts(tree), ["Spanish"], "a name the page says it holds is not offered twice");
   // The page's keys first: a key it takes goes no further, and one it leaves is the box's.
-  const back = { key: "Backspace", target: { value: "" }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  const back = {
+    key: "Backspace",
+    target: { value: "" },
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+  };
   box(tree).props.onKeyDown(back);
   assert.equal(back.defaultPrevented, true);
-  const esc = { key: "Escape", target: { value: "spanish" }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  const esc = {
+    key: "Escape",
+    target: { value: "spanish" },
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+  };
   box(tree).props.onKeyDown(esc);
   tree = redraw(W.RecordCombobox, props);
   assert.equal(box(tree).props["aria-expanded"], false, "Escape, which the page left, still closes the list");
@@ -456,7 +819,14 @@ test("a combobox left with words in it hands them to the page, and one given no 
   // them, and the fold saved without the language that was typed.
   const left = [];
   const picked = [];
-  const props = { id: "langs-leave", label: "Add a language", value: null, options: [{ value: "Spanish", label: "Spanish" }], onChange: (v) => picked.push(v), onLeave: (words) => left.push(words) };
+  const props = {
+    id: "langs-leave",
+    label: "Add a language",
+    value: null,
+    options: [{ value: "Spanish", label: "Spanish" }],
+    onChange: (v) => picked.push(v),
+    onLeave: (words) => left.push(words),
+  };
   const box = (tree) => find(tree, (n) => n.props?.role === "combobox");
   let tree = draw(W.RecordCombobox, props);
   box(tree).props.onBlur();
@@ -466,11 +836,22 @@ test("a combobox left with words in it hands them to the page, and one given no 
   box(tree).props.onBlur();
   tree = redraw(W.RecordCombobox, props);
   assert.deepEqual(left, ["Xhosa"], "the words, trimmed");
-  assert.deepEqual([box(tree).props["aria-expanded"], box(tree).props.value], [false, ""], "and the box closes and clears, as it did");
+  assert.deepEqual(
+    [box(tree).props["aria-expanded"], box(tree).props.value],
+    [false, ""],
+    "and the box closes and clears, as it did",
+  );
   // An option taken is not handed over again as it goes: Enter took it, and the box is empty when focus leaves.
   box(tree).props.onChange({ target: { value: "Spa" } });
   tree = redraw(W.RecordCombobox, props);
-  box(tree).props.onKeyDown({ key: "Enter", target: { value: "Spa" }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } });
+  box(tree).props.onKeyDown({
+    key: "Enter",
+    target: { value: "Spa" },
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+  });
   tree = redraw(W.RecordCombobox, props);
   box(tree).props.onBlur();
   assert.deepEqual([picked, left], [["Spanish"], ["Xhosa"]]);
@@ -495,7 +876,11 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
   const btn = find(chip, (n) => n.props?.["data-tip"]);
   assert.equal(btn.type, "button");
   assert.equal(btn.props["aria-label"], "What the file holds");
-  assert.equal(btn.props["aria-description"], "Call audio is not included.", "a screen reader hears what the tip says, too");
+  assert.equal(
+    btn.props["aria-description"],
+    "Call audio is not included.",
+    "a screen reader hears what the tip says, too",
+  );
   assert.ok(!find(chip, (n) => classes(n).includes("rec-card-tip")), "a chip is not a card");
   const shown = [];
   const tip = W.__tip;
@@ -506,8 +891,15 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
   assert.deepEqual(shown, [el], "a press shows it at the mark, which is how a finger reads it");
 
   const used = [];
-  const card = draw(W.RecordTipCard, { title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
-  assert.ok(find(card, (n) => classes(n).includes("rec-card-tip")), "a card is the white card");
+  const card = draw(W.RecordTipCard, {
+    title: "Google's address",
+    body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA",
+    act: { label: "Use it", onClick: () => used.push(1) },
+  });
+  assert.ok(
+    find(card, (n) => classes(n).includes("rec-card-tip")),
+    "a card is the white card",
+  );
   press(find(card, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Use it"));
   assert.equal(used.length, 1);
 });
@@ -535,43 +927,73 @@ test("a fold opens, says what the receptionist will be told, and saves only itse
   assert.equal(fold.props["data-testid"], "rec-fold-booking_rules");
   const says = find(tree, (n) => n.props?.["data-testid"] === "rec-fold-says-booking_rules");
   assert.match(textOf(says), /At least 2 hours/);
-  assert.match(textOf(says), /Your receptionist will be told/, "the eyebrow is the page's words; the kit has none of its own");
+  assert.match(
+    textOf(says),
+    /Your receptionist will be told/,
+    "the eyebrow is the page's words; the kit has none of its own",
+  );
   const save = find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Save");
   press(save);
   assert.equal(saved.length, 1);
   press(find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Cancel"));
   press(find(tree, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Close"));
   assert.equal(cancelled.length, 2, "Cancel and Close both hand the page the fold's cancel");
-  assert.equal(find(draw(W.RecordFold, bookingRules({ says: "" })), (n) => classes(n).includes("rec-says")), null, "a fold that writes nothing draws no block");
+  assert.equal(
+    find(draw(W.RecordFold, bookingRules({ says: "" })), (n) => classes(n).includes("rec-says")),
+    null,
+    "a fold that writes nothing draws no block",
+  );
 });
 
 test("a fold says what saving it writes as an inline editor does: what goes beside what comes, and the page's sentence first", () => {
   // Hours, services, the voice, languages, notes and the hand-off reasons all count for whether the prompt is composed
   // at all, so a fold needs the same three parts a row has, through the same RecordSays.
-  const tree = draw(W.RecordFold, bookingRules({
-    gone: "- These need a consultation before they can be booked: Extensions.", goneLabel: "It will no longer be told",
-    note: "Saved like this, the receptionist stops being given the details on this page.",
-  }));
+  const tree = draw(
+    W.RecordFold,
+    bookingRules({
+      gone: "- These need a consultation before they can be booked: Extensions.",
+      goneLabel: "It will no longer be told",
+      note: "Saved like this, the receptionist stops being given the details on this page.",
+    }),
+  );
   const says = find(tree, (n) => n.props?.["data-testid"] === "rec-fold-says-booking_rules");
   assert.equal(says.props.id, "rec-fold-booking_rules-says", "and a field of the page's can be described by it");
   assert.equal(says.props["data-inline"], undefined, "a fold stacks each eyebrow over its lines");
-  const parts = all(says, (n) => classes(n).includes("rec-says-part")).map((p) => [p.props["data-part"], textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow"))), textOf(find(p, (n) => n.type === "pre"))]);
+  const parts = all(says, (n) => classes(n).includes("rec-says-part")).map((p) => [
+    p.props["data-part"],
+    textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow"))),
+    textOf(find(p, (n) => n.type === "pre")),
+  ]);
   assert.deepEqual(parts, [
     ["says", "Your receptionist will be told", "Booking rules:\n- At least 2 hours' notice for any appointment."],
     ["gone", "It will no longer be told", "- These need a consultation before they can be booked: Extensions."],
   ]);
-  assert.match(textOf(find(says, (n) => n.props?.["data-testid"] === "rec-fold-says-booking_rules-note")), /stops being given/);
-  assert.equal(find(tree, (n) => classes(n).includes("rec-foot-note")), null, "the sentence is what saving writes, never the foot's line");
+  assert.match(
+    textOf(find(says, (n) => n.props?.["data-testid"] === "rec-fold-says-booking_rules-note")),
+    /stops being given/,
+  );
+  assert.equal(
+    find(tree, (n) => classes(n).includes("rec-foot-note")),
+    null,
+    "the sentence is what saving writes, never the foot's line",
+  );
 
   // Only a sentence, or only what goes, is still something to say; nothing at all draws no block.
-  const only = (props) => find(draw(W.RecordFold, bookingRules({ says: null, ...props })), (n) => classes(n).includes("rec-says"));
+  const only = (props) =>
+    find(draw(W.RecordFold, bookingRules({ says: null, ...props })), (n) => classes(n).includes("rec-says"));
   assert.ok(only({ note: "Saved like this, the receptionist stops being given the details on this page." }));
   assert.ok(only({ gone: "- Sunday: closed", goneLabel: "It will no longer be told" }));
   assert.equal(only({}), null);
 
   // The foot's own line has a name of its own, so `note` means one thing in the kit.
-  const foot = find(draw(W.RecordFold, bookingRules({ footNote: "Saves these five rules and nothing else on the page." })), (n) => classes(n).includes("rec-foot"));
-  assert.equal(textOf(find(foot, (n) => classes(n).includes("rec-foot-note"))), "Saves these five rules and nothing else on the page.");
+  const foot = find(
+    draw(W.RecordFold, bookingRules({ footNote: "Saves these five rules and nothing else on the page." })),
+    (n) => classes(n).includes("rec-foot"),
+  );
+  assert.equal(
+    textOf(find(foot, (n) => classes(n).includes("rec-foot-note"))),
+    "Saves these five rules and nothing else on the page.",
+  );
 });
 
 test("a fold kept while closed is hidden whole, its head and its Close with it", () => {
@@ -586,7 +1008,11 @@ test("a fold kept while closed is hidden whole, its head and its Close with it",
 
 test("a fold whose own grid carries a label column says so, and no other fold does", () => {
   const foldOf = (tree) => find(tree, (n) => classes(n).includes("rec-fold"));
-  assert.equal(foldOf(draw(W.RecordFold, bookingRules())).props["data-wide"], undefined, "a fold's fields start under the value");
+  assert.equal(
+    foldOf(draw(W.RecordFold, bookingRules())).props["data-wide"],
+    undefined,
+    "a fold's fields start under the value",
+  );
   // record.css takes the indent off a wide fold's fields, and keeps it on what saving writes and on the foot.
   assert.equal(foldOf(draw(W.RecordFold, bookingRules({ id: "hours", wide: true }))).props["data-wide"], "true");
 });
@@ -594,14 +1020,23 @@ test("a fold whose own grid carries a label column says so, and no other fold do
 test("a fold's Save is gated, says when it is saving, and the keys cancel and save it", () => {
   const saved = [];
   const refused = [];
-  const gated = draw(W.RecordFold, bookingRules({ onSave: () => saved.push(1), gate: { "aria-disabled": true, onClick: () => refused.push(1) } }));
+  const gated = draw(
+    W.RecordFold,
+    bookingRules({ onSave: () => saved.push(1), gate: { "aria-disabled": true, onClick: () => refused.push(1) } }),
+  );
   press(find(gated, (n) => n.props?.["data-testid"] === "rec-fold-save-booking_rules"));
   assert.deepEqual([saved.length, refused.length], [0, 1], "the gate is spread after the handler");
 
   const whileSaving = [];
-  const busy = find(draw(W.RecordFold, bookingRules({ saving: true, savingLabel: "Saving…", onSave: () => whileSaving.push(1) })), (n) => n.props?.["data-testid"] === "rec-fold-save-booking_rules");
+  const busy = find(
+    draw(W.RecordFold, bookingRules({ saving: true, savingLabel: "Saving…", onSave: () => whileSaving.push(1) })),
+    (n) => n.props?.["data-testid"] === "rec-fold-save-booking_rules",
+  );
   // Not `disabled`: a disabled button lets go of focus, to the page, and a save that failed left it there.
-  assert.deepEqual([busy.props.disabled, busy.props["aria-disabled"], busy.props["aria-busy"], textOf(busy)], [undefined, true, true, "Saving…"]);
+  assert.deepEqual(
+    [busy.props.disabled, busy.props["aria-disabled"], busy.props["aria-busy"], textOf(busy)],
+    [undefined, true, true, "Saving…"],
+  );
   press(busy);
   assert.equal(whileSaving.length, 0, "a press while it saves does nothing, and focus stays on Save");
   // Neither does the head's Close, which is Cancel: it cancelled while the foot's Cancel and Escape did not.
@@ -610,7 +1045,11 @@ test("a fold's Save is gated, says when it is saving, and the keys cancel and sa
   const close = find(saving, (n) => n.props?.["data-testid"] === "rec-fold-close-booking_rules");
   press(close);
   press(find(saving, (n) => n.props?.["data-testid"] === "rec-fold-cancel-booking_rules"));
-  assert.deepEqual([closed.length, close.props["aria-disabled"], close.props.disabled], [0, true, undefined], "the save is on its way, and nothing says it was thrown away");
+  assert.deepEqual(
+    [closed.length, close.props["aria-disabled"], close.props.disabled],
+    [0, true, undefined],
+    "the save is on its way, and nothing says it was thrown away",
+  );
 
   const cancelled = [];
   const tree = draw(W.RecordFold, bookingRules({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));
@@ -618,41 +1057,84 @@ test("a fold's Save is gated, says when it is saving, and the keys cancel and sa
   // A key pressed inside the fold's own DOM; a portal's (a sheet drawn from inside the fold) bubbles through React
   // to the fold all the same, from outside it.
   const inside = { currentTarget: { contains: () => true }, target: { tag: "a field" } };
-  const key = (k, over = {}) => ({ key: k, defaultPrevented: false, metaKey: false, ctrlKey: false, ...inside, preventDefault() { this.defaultPrevented = true; }, ...over });
+  const key = (k, over = {}) => ({
+    key: k,
+    defaultPrevented: false,
+    metaKey: false,
+    ctrlKey: false,
+    ...inside,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    ...over,
+  });
   fold.props.onKeyDown(key("Escape"));
   fold.props.onKeyDown(key("Escape", { defaultPrevented: true }));
   fold.props.onKeyDown(key("Enter", { ctrlKey: true }));
   fold.props.onKeyDown(key("Enter"));
-  assert.deepEqual([cancelled.length, saved.length], [1, 1], "Escape cancels unless a field inside took it; Ctrl or Cmd with Enter saves; Enter alone does not");
+  assert.deepEqual(
+    [cancelled.length, saved.length],
+    [1, 1],
+    "Escape cancels unless a field inside took it; Ctrl or Cmd with Enter saves; Enter alone does not",
+  );
   const fromPortal = { currentTarget: { contains: () => false } };
   fold.props.onKeyDown(key("Enter", { ctrlKey: true, ...fromPortal }));
   fold.props.onKeyDown(key("Escape", fromPortal));
-  assert.deepEqual([cancelled.length, saved.length], [1, 1], "a key from a sheet drawn inside the fold is the sheet's, not the fold's");
+  assert.deepEqual(
+    [cancelled.length, saved.length],
+    [1, 1],
+    "a key from a sheet drawn inside the fold is the sheet's, not the fold's",
+  );
 });
 
 test("a fold takes focus as it opens, and gives it back to its row as it closes", () => {
   const focused = [];
   // What the fold's fields hold, in order: the mark that explains a label comes before its box, and Save after it.
-  const stop = (name, cls, inFoot = false) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: (c) => c === cls }, closest: (sel) => (inFoot && sel === ".rec-foot" ? {} : null), focus: () => focused.push(name) });
-  const inner = { querySelectorAll: () => [stop("tip", "rec-tip"), stop("field", "rec-input"), stop("save", "btn", true)] };
+  const stop = (name, cls, inFoot = false) => ({
+    name,
+    tabIndex: 0,
+    disabled: false,
+    getClientRects: () => [{}],
+    classList: { contains: (c) => c === cls },
+    closest: (sel) => (inFoot && sel === ".rec-foot" ? {} : null),
+    focus: () => focused.push(name),
+  });
+  const inner = {
+    querySelectorAll: () => [stop("tip", "rec-tip"), stop("field", "rec-input"), stop("save", "btn", true)],
+  };
   const act = { focus: () => focused.push("act") };
   let tree = draw(W.RecordFold, bookingRules({ open: false }));
   // The stub attaches no ref, so the test stands in for the element React would have put there.
-  find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = { querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null), contains: () => false };
+  find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = {
+    querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null),
+    contains: () => false,
+  };
   tree = redraw(W.RecordFold, bookingRules({ open: true }));
   assert.deepEqual(focused, ["field"], "the first thing to type into: not the tip before it, not the page behind");
 
   const doc = globalThis.document;
   const was = { activeElement: doc.activeElement, querySelector: doc.querySelector };
-  Object.assign(doc, { activeElement: null, querySelector: (sel) => (sel === '[data-rec-act="booking_rules"]' ? act : null) });
+  Object.assign(doc, {
+    activeElement: null,
+    querySelector: (sel) => (sel === '[data-rec-act="booking_rules"]' ? act : null),
+  });
   try {
     redraw(W.RecordFold, bookingRules({ open: false }));
   } finally {
     Object.assign(doc, was);
   }
   assert.deepEqual(focused, ["field", "act"], "focus that went with the fold comes back to the row's act");
-  const row = draw(W.RecordRow, { id: "booking_rules", label: "Booking rules", value: "2 hours' notice", act: { label: "Change", onClick: () => {} } });
-  assert.equal(find(row, (n) => classes(n).includes("rec-row-act")).props["data-rec-act"], "booking_rules", "which is where the row's act says it is");
+  const row = draw(W.RecordRow, {
+    id: "booking_rules",
+    label: "Booking rules",
+    value: "2 hours' notice",
+    act: { label: "Change", onClick: () => {} },
+  });
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-row-act")).props["data-rec-act"],
+    "booking_rules",
+    "which is where the row's act says it is",
+  );
 });
 
 test("focus that went with something comes back to the field the person was in; focus a person moved is left where they put it", () => {
@@ -661,17 +1143,34 @@ test("focus that went with something comes back to the field the person was in; 
   // Then it knew only about asks: the last shift's remove, an Add that turned into the sentence for a full list and a
   // menu's item each took focus to the top of the document as they left the page.
   const focused = [];
-  const field = (name) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: () => false }, closest: (sel) => (sel === ".rec-fold-inner" ? {} : null), focus: () => focused.push(name) });
+  const field = (name) => ({
+    name,
+    tabIndex: 0,
+    disabled: false,
+    getClientRects: () => [{}],
+    classList: { contains: () => false },
+    closest: (sel) => (sel === ".rec-fold-inner" ? {} : null),
+    focus: () => focused.push(name),
+  });
   const first = field("least notice");
   const second = field("slot length");
-  const inFoot = { ...field("cancel"), closest: (sel) => (sel === ".rec-fold-inner" || sel === ".rec-foot" ? {} : null) };
-  const inAsk = { ...field("yes, discard"), closest: (sel) => (sel === ".rec-fold-inner" || sel === ".confirm" ? {} : null) };
+  const inFoot = {
+    ...field("cancel"),
+    closest: (sel) => (sel === ".rec-fold-inner" || sel === ".rec-foot" ? {} : null),
+  };
+  const inAsk = {
+    ...field("yes, discard"),
+    closest: (sel) => (sel === ".rec-fold-inner" || sel === ".confirm" ? {} : null),
+  };
   const remove = { ...field("remove the second shift"), matches: (sel) => sel === "button:not([role])" };
   const inner = { querySelectorAll: () => [first, second] };
   const ask = W.React.createElement("span", { className: "confirm" }, "Discard your changes?");
   let tree = draw(W.RecordFold, bookingRules({ open: false }));
   const fold = () => find(tree, (n) => classes(n).includes("rec-fold"));
-  fold().props.ref.current = { querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null), contains: () => true };
+  fold().props.ref.current = {
+    querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null),
+    contains: () => true,
+  };
   tree = redraw(W.RecordFold, bookingRules({ open: true }));
   assert.deepEqual(focused, ["least notice"], "opened: the first field");
 
@@ -688,7 +1187,11 @@ test("focus that went with something comes back to the field the person was in; 
     left.add(inAsk);
     doc.activeElement = null;
     tree = redraw(W.RecordFold, bookingRules({ open: true }));
-    assert.deepEqual(focused, ["least notice", "slot length"], "back to where they were: not the first field, not Cancel, not the ask");
+    assert.deepEqual(
+      focused,
+      ["least notice", "slot length"],
+      "back to where they were: not the first field, not Cancel, not the ask",
+    );
     tree = redraw(W.RecordFold, bookingRules({ open: true }));
     assert.deepEqual(focused, ["least notice", "slot length"], "once: a draw later, nothing more");
 
@@ -744,11 +1247,22 @@ test("a row a list has just been given takes focus in its first box", () => {
   // After an Add, focus stayed on Add. The page names the row (data-rec-row) and hands the fold `focusOn`.
   const focused = [];
   const asked = [];
-  const stop = (name) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: () => false }, closest: () => null, focus: () => focused.push(name) });
+  const stop = (name) => ({
+    name,
+    tabIndex: 0,
+    disabled: false,
+    getClientRects: () => [{}],
+    classList: { contains: () => false },
+    closest: () => null,
+    focus: () => focused.push(name),
+  });
   const row = { querySelectorAll: () => [stop("opens"), stop("closes"), stop("remove")] };
   let tree = draw(W.RecordFold, bookingRules({ open: true }));
   find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = {
-    querySelector: (sel) => { asked.push(sel); return sel === '[data-rec-row="hours-mon-1"]' ? row : null; },
+    querySelector: (sel) => {
+      asked.push(sel);
+      return sel === '[data-rec-row="hours-mon-1"]' ? row : null;
+    },
     contains: () => true,
   };
   tree = redraw(W.RecordFold, bookingRules({ open: true, focusOn: { row: "hours-mon-1" } }));
@@ -773,9 +1287,19 @@ test("a fold draws the page's ask above its foot, where the changes it asks abou
 
 /* ------------------------------------ the inline editor ------------------------------------ */
 
-const website = (over = {}) => ({ id: "website", label: "Website", open: true, onSave: () => {}, onCancel: () => {}, ...over });
+const website = (over = {}) => ({
+  id: "website",
+  label: "Website",
+  open: true,
+  onSave: () => {},
+  onCancel: () => {},
+  ...over,
+});
 /** An inline editor over its field, as a page draws one: the field is its child. */
-const drawInline = (props, field = W.React.createElement("input", { className: "rec-input", "aria-labelledby": "rec-inline-website-key" })) => {
+const drawInline = (
+  props,
+  field = W.React.createElement("input", { className: "rec-input", "aria-labelledby": "rec-inline-website-key" }),
+) => {
   unmount();
   return W.React.createElement(W.RecordInline, props, field);
 };
@@ -783,16 +1307,38 @@ const drawInline = (props, field = W.React.createElement("input", { className: "
 test("an inline editor is the row's label and its field, what saving writes, and Save and Cancel", () => {
   const saved = [];
   const cancelled = [];
-  const tree = drawInline(website({ says: "Website: https://melanys.example", saysLabel: "It will say", onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));
+  const tree = drawInline(
+    website({
+      says: "Website: https://melanys.example",
+      saysLabel: "It will say",
+      onSave: () => saved.push(1),
+      onCancel: () => cancelled.push(1),
+    }),
+  );
   const editor = find(tree, (n) => classes(n).includes("rec-inline"));
   assert.equal(editor.props["data-testid"], "rec-inline-website");
   assert.equal(editor.props.role, "group");
-  assert.equal(textOf(byId(tree, editor.props["aria-labelledby"])), "Website", "named by the row's own label, which stays where it was");
-  assert.equal(find(tree, (n) => classes(n).includes("rec-input")).props["aria-labelledby"], "rec-inline-website-key", "and the page's field can be named by it too");
+  assert.equal(
+    textOf(byId(tree, editor.props["aria-labelledby"])),
+    "Website",
+    "named by the row's own label, which stays where it was",
+  );
+  assert.equal(
+    find(tree, (n) => classes(n).includes("rec-input")).props["aria-labelledby"],
+    "rec-inline-website-key",
+    "and the page's field can be named by it too",
+  );
   const says = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-says-website");
-  assert.equal(says.props.id, "rec-inline-website-says", "what saving writes has the id the page's field is described by");
+  assert.equal(
+    says.props.id,
+    "rec-inline-website-says",
+    "what saving writes has the id the page's field is described by",
+  );
   assert.equal(says.props["data-inline"], "true");
-  assert.deepEqual([textOf(find(says, (n) => classes(n).includes("rec-says-eyebrow"))), textOf(find(says, (n) => n.type === "pre"))], ["It will say", "Website: https://melanys.example"]);
+  assert.deepEqual(
+    [textOf(find(says, (n) => classes(n).includes("rec-says-eyebrow"))), textOf(find(says, (n) => n.type === "pre"))],
+    ["It will say", "Website: https://melanys.example"],
+  );
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website"));
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website"));
   assert.deepEqual([saved.length, cancelled.length], [1, 1]);
@@ -802,47 +1348,90 @@ test("an inline editor is the row's label and its field, what saving writes, and
 });
 
 test("what saving writes can say what goes as well as what comes, and a sentence of the page's before them", () => {
-  const tree = drawInline(website({
-    says: "Website: https://melanys.example", saysLabel: "It will say",
-    gone: "Website: https://melanysbeautysalon.com", goneLabel: "It will no longer say",
-    note: "Saved like this, the receptionist starts being given the details on this page.",
-  }));
+  const tree = drawInline(
+    website({
+      says: "Website: https://melanys.example",
+      saysLabel: "It will say",
+      gone: "Website: https://melanysbeautysalon.com",
+      goneLabel: "It will no longer say",
+      note: "Saved like this, the receptionist starts being given the details on this page.",
+    }),
+  );
   const says = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-says-website");
-  const parts = all(says, (n) => classes(n).includes("rec-says-part")).map((p) => [p.props["data-part"], textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow"))), textOf(find(p, (n) => n.type === "pre"))]);
+  const parts = all(says, (n) => classes(n).includes("rec-says-part")).map((p) => [
+    p.props["data-part"],
+    textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow"))),
+    textOf(find(p, (n) => n.type === "pre")),
+  ]);
   assert.deepEqual(parts, [
     ["says", "It will say", "Website: https://melanys.example"],
     ["gone", "It will no longer say", "Website: https://melanysbeautysalon.com"],
   ]);
-  assert.match(textOf(find(says, (n) => n.props?.["data-testid"] === "rec-inline-says-website-note")), /starts being given/);
+  assert.match(
+    textOf(find(says, (n) => n.props?.["data-testid"] === "rec-inline-says-website-note")),
+    /starts being given/,
+  );
   // Nothing to say draws nothing: never an empty block.
-  assert.equal(find(drawInline(website({ says: " ", gone: "" })), (n) => classes(n).includes("rec-says")), null);
+  assert.equal(
+    find(drawInline(website({ says: " ", gone: "" })), (n) => classes(n).includes("rec-says")),
+    null,
+  );
 });
 
 test("an inline editor's keys: Escape cancels, Ctrl or Cmd with Enter saves, and neither while it saves", () => {
   const saved = [];
   const cancelled = [];
-  const key = (k, over = {}) => ({ key: k, defaultPrevented: false, metaKey: false, ctrlKey: false, currentTarget: { contains: () => true }, target: {}, preventDefault() { this.defaultPrevented = true; }, ...over });
-  let editor = find(drawInline(website({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) })), (n) => classes(n).includes("rec-inline"));
+  const key = (k, over = {}) => ({
+    key: k,
+    defaultPrevented: false,
+    metaKey: false,
+    ctrlKey: false,
+    currentTarget: { contains: () => true },
+    target: {},
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    ...over,
+  });
+  let editor = find(drawInline(website({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) })), (n) =>
+    classes(n).includes("rec-inline"),
+  );
   editor.props.onKeyDown(key("Escape"));
   editor.props.onKeyDown(key("Escape", { defaultPrevented: true }));
   editor.props.onKeyDown(key("Enter", { metaKey: true }));
   editor.props.onKeyDown(key("Enter"));
-  assert.deepEqual([cancelled.length, saved.length], [1, 1], "Escape unless a field inside took it; Cmd or Ctrl with Enter; Enter alone does nothing");
+  assert.deepEqual(
+    [cancelled.length, saved.length],
+    [1, 1],
+    "Escape unless a field inside took it; Cmd or Ctrl with Enter; Enter alone does nothing",
+  );
   editor.props.onKeyDown(key("Enter", { ctrlKey: true, currentTarget: { contains: () => false } }));
   assert.equal(saved.length, 1, "a key from a sheet drawn inside it is the sheet's");
-  editor = find(drawInline(website({ saving: true, onSave: () => saved.push(1), onCancel: () => cancelled.push(1) })), (n) => classes(n).includes("rec-inline"));
+  editor = find(
+    drawInline(website({ saving: true, onSave: () => saved.push(1), onCancel: () => cancelled.push(1) })),
+    (n) => classes(n).includes("rec-inline"),
+  );
   editor.props.onKeyDown(key("Escape"));
   editor.props.onKeyDown(key("Enter", { ctrlKey: true }));
-  assert.deepEqual([cancelled.length, saved.length], [1, 1], "while it saves, the save is on its way: nothing cancels it and nothing sends it twice");
+  assert.deepEqual(
+    [cancelled.length, saved.length],
+    [1, 1],
+    "while it saves, the save is on its way: nothing cancels it and nothing sends it twice",
+  );
 });
 
 test("an inline editor's Save stays a button focus rests on while it saves, and neither press acts meanwhile", () => {
   const pressed = [];
-  const tree = drawInline(website({ saving: true, onSave: () => pressed.push("save"), onCancel: () => pressed.push("cancel") }));
+  const tree = drawInline(
+    website({ saving: true, onSave: () => pressed.push("save"), onCancel: () => pressed.push("cancel") }),
+  );
   const save = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website");
   const cancel = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website");
   // Not `disabled`: a disabled button lets go of focus, to the page, and a save that failed left it there.
-  assert.deepEqual([save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], textOf(save)], [undefined, true, true, "Saving…"]);
+  assert.deepEqual(
+    [save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], textOf(save)],
+    [undefined, true, true, "Saving…"],
+  );
   assert.equal(cancel.props["aria-disabled"], true);
   press(save);
   press(cancel);
@@ -851,11 +1440,23 @@ test("an inline editor's Save stays a button focus rests on while it saves, and 
 
 test("an inline editor takes focus as it opens, gives it back as it closes, and takes it back when an ask inside it goes", () => {
   const focused = [];
-  const box = { tabIndex: 0, disabled: false, value: "https://melanys.example", getClientRects: () => [{}], classList: { contains: () => false }, closest: () => null, focus: () => focused.push("box"), setSelectionRange: (a, b) => focused.push(`caret ${a}-${b}`) };
+  const box = {
+    tabIndex: 0,
+    disabled: false,
+    value: "https://melanys.example",
+    getClientRects: () => [{}],
+    classList: { contains: () => false },
+    closest: () => null,
+    focus: () => focused.push("box"),
+    setSelectionRange: (a, b) => focused.push(`caret ${a}-${b}`),
+  };
   const body = { querySelectorAll: () => [box] };
   const element = { querySelector: (sel) => (sel === ".rec-inline-body" ? body : null), contains: () => true };
   const ask = W.React.createElement("span", { className: "confirm" }, "Discard your changes?");
-  const redrawInline = (props) => again(() => W.React.createElement(W.RecordInline, props, W.React.createElement("input", { className: "rec-input" })));
+  const redrawInline = (props) =>
+    again(() =>
+      W.React.createElement(W.RecordInline, props, W.React.createElement("input", { className: "rec-input" })),
+    );
   let tree = drawInline(website({ open: false }));
   // The stub attaches no ref, so the test stands in for the element React would have put there.
   find(tree, (n) => classes(n).includes("rec-inline")).props.ref.current = element;
@@ -866,13 +1467,21 @@ test("an inline editor takes focus as it opens, gives it back as it closes, and 
   // The ask's "Yes" takes focus as it is drawn, and leaves the page when it is answered "Keep editing".
   const yes = { closest: (sel) => (sel === ".confirm" || sel === ".rec-inline-body" ? {} : null) };
   let gone = false;
-  Object.assign(doc, { activeElement: null, contains: (el) => !(gone && el === yes), querySelector: (sel) => (sel === '[data-rec-act="website"]' ? { focus: () => focused.push("act") } : null) });
+  Object.assign(doc, {
+    activeElement: null,
+    contains: (el) => !(gone && el === yes),
+    querySelector: (sel) => (sel === '[data-rec-act="website"]' ? { focus: () => focused.push("act") } : null),
+  });
   try {
     tree = redrawInline(website({ open: true, confirm: ask }));
     find(tree, (n) => classes(n).includes("rec-inline")).props.onFocus({ target: yes });
     gone = true;
     redrawInline(website({ open: true }));
-    assert.deepEqual(focused, ["box", "caret 23-23", "box", "caret 23-23"], "an ask answered with Keep editing gives focus back to the box");
+    assert.deepEqual(
+      focused,
+      ["box", "caret 23-23", "box", "caret 23-23"],
+      "an ask answered with Keep editing gives focus back to the box",
+    );
     redrawInline(website({ open: false }));
   } finally {
     Object.assign(doc, was);
@@ -882,13 +1491,26 @@ test("an inline editor takes focus as it opens, gives it back as it closes, and 
 });
 
 test("a row being edited keeps its disagreement on screen, to read, and its press stays with the row", () => {
-  const disputed = { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", sentence: "Your receptionist gives 2581 Pitkin Avenue; Google has you at 2581 Pitkin Ave, Brooklyn, NY 11208, USA.", onUse: () => {} };
+  const disputed = {
+    value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA",
+    source: "verified",
+    sentence: "Your receptionist gives 2581 Pitkin Avenue; Google has you at 2581 Pitkin Ave, Brooklyn, NY 11208, USA.",
+    onUse: () => {},
+  };
   const tree = drawInline(website({ id: "address", label: "Address", disputed }));
   const line = find(tree, (n) => classes(n).includes("rec-row-dispute"));
   assert.match(textOf(line), /Google has you at/);
-  assert.equal(find(line, (n) => n.type === "button"), null, "nothing to press while the value is being typed");
+  assert.equal(
+    find(line, (n) => n.type === "button"),
+    null,
+    "nothing to press while the value is being typed",
+  );
   // The editor is on the page, hidden, while the row is at rest, so its line must not carry the row's line's id.
-  assert.deepEqual(all(tree, (n) => n.props?.id === "rec-row-address-other"), [], "the id is the row's own line's, once in the document");
+  assert.deepEqual(
+    all(tree, (n) => n.props?.id === "rec-row-address-other"),
+    [],
+    "the id is the row's own line's, once in the document",
+  );
   const row = draw(W.RecordRow, { id: "address", label: "Address", value: "2581 Pitkin Avenue", disputed });
   assert.equal(all(row, (n) => n.props?.id === "rec-row-address-other").length, 1);
 });
@@ -950,7 +1572,14 @@ test("a fold whose page goes away lets go; one that comes straight back, or come
   assert.deepEqual(folds.asking(), { holding: "booking_rules", wants: "notes" });
   const drawFold = () => W.React.createElement(W.RecordFold, bookingRules());
   const unloadAsks = () => {
-    const ev = { type: "beforeunload", returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+    const ev = {
+      type: "beforeunload",
+      returnValue: undefined,
+      prevented: false,
+      preventDefault() {
+        this.prevented = true;
+      },
+    };
     W.dispatchEvent(ev);
     return ev.prevented;
   };
@@ -1004,19 +1633,31 @@ test("a page holds its fold through useRecordFold: open, close and the ask come 
   };
   const redrawPage = () => again(() => W.React.createElement(Page));
   draw(Page);
-  assert.deepEqual([hours.open, notes.open, hours.asking], [false, false, null], "nothing is open until it is asked for");
+  assert.deepEqual(
+    [hours.open, notes.open, hours.asking],
+    [false, false, null],
+    "nothing is open until it is asked for",
+  );
 
   hours.request();
   assert.equal(folds.open(), "hours");
   // The hook holds what the registry told it: without its subscription, this draw would still say closed.
   redrawPage();
-  assert.deepEqual([hours.open, notes.open], [true, false], "the registry's change redraws the page with its fold open");
+  assert.deepEqual(
+    [hours.open, notes.open],
+    [true, false],
+    "the registry's change redraws the page with its fold open",
+  );
 
   edited = true;
   assert.equal(W.__settingsUnsaved(), true, "the rail's guard is the hook's own dirty test, read when asked");
   notes.request();
   redrawPage();
-  assert.deepEqual(hours.asking, { holding: "hours", wants: "notes" }, "a dirty fold is asked about before it gives way");
+  assert.deepEqual(
+    hours.asking,
+    { holding: "hours", wants: "notes" },
+    "a dirty fold is asked about before it gives way",
+  );
   hours.stay();
   redrawPage();
   assert.deepEqual([hours.open, hours.asking], [true, null], "keep editing");
@@ -1049,10 +1690,24 @@ test("a fold whose save is out never gives way at once: what is asked of it wait
   hours.request();
   out = true;
   assert.deepEqual([folds.dirty(), folds.saving()], [false, true]);
-  assert.deepEqual([W.__settingsUnsaved(), W.__settingsSaving()], [true, true], "the rail is told, and told why, so it asks in words that are true of a save");
-  const unload = { type: "beforeunload", prevented: false, preventDefault() { this.prevented = true; } };
+  assert.deepEqual(
+    [W.__settingsUnsaved(), W.__settingsSaving()],
+    [true, true],
+    "the rail is told, and told why, so it asks in words that are true of a save",
+  );
+  const unload = {
+    type: "beforeunload",
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
   W.dispatchEvent(unload);
-  assert.equal(unload.prevented, true, "and the browser is asked to ask: a tab closed over a save may take the request with it");
+  assert.equal(
+    unload.prevented,
+    true,
+    "and the browser is asked to ask: a tab closed over a save may take the request with it",
+  );
 
   assert.equal(notes.request(), false, "the one asked for waits");
   redrawPage();
@@ -1071,7 +1726,15 @@ test("a fold whose save is out never gives way at once: what is asked of it wait
   assert.equal(notes.request(), true);
   folds.reset();
   unmount();
-  const Thrower = () => { hours = W.useRecordFold("hours", { dirty: false, saving: () => { throw new Error("no saver"); } }); return null; };
+  const Thrower = () => {
+    hours = W.useRecordFold("hours", {
+      dirty: false,
+      saving: () => {
+        throw new Error("no saver");
+      },
+    });
+    return null;
+  };
   draw(Thrower);
   hours.request();
   assert.equal(folds.saving(), false);
@@ -1089,36 +1752,83 @@ test("while it saves a gesture says it is busy and draws no ask, and each contro
   assert.equal(foldOf(tree).props["aria-busy"], true);
   assert.equal(byTestId(tree, "ask"), null, "nothing asks whether to discard a change that is on its way");
   tree = draw(W.RecordFold, bookingRules({ confirm: ask }));
-  assert.deepEqual([foldOf(tree).props["aria-busy"], !!byTestId(tree, "ask")], [undefined, true], "once the save is answered, the ask is drawn");
+  assert.deepEqual(
+    [foldOf(tree).props["aria-busy"], !!byTestId(tree, "ask")],
+    [undefined, true],
+    "once the save is answered, the ask is drawn",
+  );
   tree = drawInline(website({ confirm: ask, saving: true }));
   assert.equal(find(tree, (n) => classes(n).includes("rec-inline")).props["aria-busy"], true);
   assert.equal(byTestId(tree, "ask"), null);
 
   // A box keeps its words and its focus and takes no typing: read-only, never disabled, which lets go of focus.
-  const box = find(draw(W.RecordField, { id: "tone", label: "Its voice", value: "Warm.", onChange: () => {}, readOnly: true }), (n) => n.type === "input");
+  const box = find(
+    draw(W.RecordField, { id: "tone", label: "Its voice", value: "Warm.", onChange: () => {}, readOnly: true }),
+    (n) => n.type === "input",
+  );
   assert.deepEqual([box.props.readOnly, box.props.disabled], [true, undefined]);
   // A switch and a choice say they are not to be pressed, and a press does nothing.
   const flipped = [];
-  const sw = find(draw(W.RecordSwitch, { on: true, label: "Monday", onChange: (v) => flipped.push(v), readOnly: true }), (n) => n.props?.role === "switch");
+  const sw = find(
+    draw(W.RecordSwitch, { on: true, label: "Monday", onChange: (v) => flipped.push(v), readOnly: true }),
+    (n) => n.props?.role === "switch",
+  );
   press(sw);
   assert.deepEqual([sw.props["aria-disabled"], sw.props.disabled, flipped.length], [true, undefined, 0]);
-  press(find(draw(W.RecordSwitch, { on: true, label: "Monday", onChange: (v) => flipped.push(v) }), (n) => n.props?.role === "switch"));
+  press(
+    find(
+      draw(W.RecordSwitch, { on: true, label: "Monday", onChange: (v) => flipped.push(v) }),
+      (n) => n.props?.role === "switch",
+    ),
+  );
   assert.deepEqual(flipped, [false], "held only while it is told to be");
   const picked = [];
   const group = draw(W.RecordToggleGroup, { ...numbers, onChange: (v) => picked.push(v), readOnly: true });
   const radios = all(group, (n) => n.props?.role === "radio");
   press(radios[1]);
-  find(group, (n) => n.props?.role === "radiogroup").props.onKeyDown({ key: "ArrowRight", preventDefault() {}, currentTarget: { querySelectorAll: () => [] } });
-  assert.deepEqual([radios.map((r) => r.props["aria-disabled"]), picked], [[true, true], []], "neither a press nor an arrow chooses");
+  find(group, (n) => n.props?.role === "radiogroup").props.onKeyDown({
+    key: "ArrowRight",
+    preventDefault() {},
+    currentTarget: { querySelectorAll: () => [] },
+  });
+  assert.deepEqual(
+    [radios.map((r) => r.props["aria-disabled"]), picked],
+    [[true, true], []],
+    "neither a press nor an arrow chooses",
+  );
   // A combobox opens no list.
-  const combo = draw(W.RecordCombobox, { id: "tz", label: "Timezone", value: "America/New_York", options: [{ value: "America/New_York", label: "America/New York" }, { value: "America/Chicago", label: "America/Chicago" }], onChange: () => {}, readOnly: true });
+  const combo = draw(W.RecordCombobox, {
+    id: "tz",
+    label: "Timezone",
+    value: "America/New_York",
+    options: [
+      { value: "America/New_York", label: "America/New York" },
+      { value: "America/Chicago", label: "America/Chicago" },
+    ],
+    onChange: () => {},
+    readOnly: true,
+  });
   const input = find(combo, (n) => n.props?.role === "combobox");
   assert.equal(input.props.readOnly, true);
   input.props.onKeyDown({ key: "ArrowDown", preventDefault() {} });
-  const after = redraw(W.RecordCombobox, { id: "tz", label: "Timezone", value: "America/New_York", options: [{ value: "America/New_York", label: "America/New York" }, { value: "America/Chicago", label: "America/Chicago" }], onChange: () => {}, readOnly: true });
+  const after = redraw(W.RecordCombobox, {
+    id: "tz",
+    label: "Timezone",
+    value: "America/New_York",
+    options: [
+      { value: "America/New_York", label: "America/New York" },
+      { value: "America/Chicago", label: "America/Chicago" },
+    ],
+    onChange: () => {},
+    readOnly: true,
+  });
   assert.equal(find(after, (n) => n.props?.role === "combobox").props["aria-expanded"], false);
   // And it did not open underneath: the box still shows the chosen zone, not an empty search.
-  assert.equal(find(after, (n) => n.props?.role === "combobox").props.value, "America/New York", "REGRESSION: the arrow opened it, and the box went blank");
+  assert.equal(
+    find(after, (n) => n.props?.role === "combobox").props.value,
+    "America/New York",
+    "REGRESSION: the arrow opened it, and the box went blank",
+  );
 });
 
 test("a fold's ask is its own: only the section holding the changes is asked, beside them", () => {
@@ -1127,8 +1837,14 @@ test("a fold's ask is its own: only the section holding the changes is asked, be
   let hours;
   let notes;
   // Two sections, as the hook's own example draws them: each renders `{x.asking ? <Confirm/> : null}`.
-  const Hours = () => { hours = W.useRecordFold("hours", { dirty: true }); return null; };
-  const Notes = () => { notes = W.useRecordFold("notes", { dirty: false }); return null; };
+  const Hours = () => {
+    hours = W.useRecordFold("hours", { dirty: true });
+    return null;
+  };
+  const Notes = () => {
+    notes = W.useRecordFold("notes", { dirty: false });
+    return null;
+  };
   const Page = () => W.React.createElement("div", null, W.React.createElement(Hours), W.React.createElement(Notes));
   const redrawPage = () => again(() => W.React.createElement(Page));
   draw(Page);
@@ -1136,19 +1852,31 @@ test("a fold's ask is its own: only the section holding the changes is asked, be
   hours.request();
   notes.request();
   redrawPage();
-  assert.deepEqual(hours.asking, { holding: "hours", wants: "notes" }, "the section holding the changes is asked, and told which fold waits");
+  assert.deepEqual(
+    hours.asking,
+    { holding: "hours", wants: "notes" },
+    "the section holding the changes is asked, and told which fold waits",
+  );
   assert.equal(notes.asking, null, "the section asked for draws no prompt: it was never open");
 
   hours.discard();
   redrawPage();
-  assert.deepEqual([hours.open, notes.open, hours.asking, notes.asking], [false, true, null, null], "discard: the one asked for opens, and nobody is asked");
+  assert.deepEqual(
+    [hours.open, notes.open, hours.asking, notes.asking],
+    [false, true, null, null],
+    "discard: the one asked for opens, and nobody is asked",
+  );
 
   folds.reset();
   hours.request();
   notes.request();
   hours.stay();
   redrawPage();
-  assert.deepEqual([hours.open, notes.open, hours.asking, notes.asking], [true, false, null, null], "keep editing: it stays open, and nobody is asked");
+  assert.deepEqual(
+    [hours.open, notes.open, hours.asking, notes.asking],
+    [true, false, null, null],
+    "keep editing: it stays open, and nobody is asked",
+  );
   folds.reset();
 });
 
@@ -1158,7 +1886,11 @@ test("a page that remounts while its fold is open hands the registry its own dir
   let changed = true;
   let hours;
   // Each drawing of the page answers for itself: its own `dirty`, as a remounted page's own state would.
-  const Page = () => { const mine = changed; hours = W.useRecordFold("hours", { dirty: () => mine }); return null; };
+  const Page = () => {
+    const mine = changed;
+    hours = W.useRecordFold("hours", { dirty: () => mine });
+    return null;
+  };
   draw(Page);
   hours.request();
   folds.request("notes", { dirty: () => false });
@@ -1182,7 +1914,10 @@ test("a fold opened by its id alone is guarded by the dirty test its hook bound 
   let edited = false;
   // A page whose fold is drawn with its hook; something else on the page knows only the fold's id (the Business tab's
   // standing line opens the row it names).
-  const Page = () => { W.useRecordFold("tone", { dirty: () => edited }); return null; };
+  const Page = () => {
+    W.useRecordFold("tone", { dirty: () => edited });
+    return null;
+  };
   draw(Page);
   folds.request("tone");
   assert.equal(folds.open(), "tone");
@@ -1190,7 +1925,14 @@ test("a fold opened by its id alone is guarded by the dirty test its hook bound 
   edited = true;
   assert.equal(folds.dirty(), true, "the registry asks the fold's own test, which no one handed the request");
   assert.equal(W.__settingsUnsaved(), true, "so the Settings rail asks before the pane goes");
-  const unload = { type: "beforeunload", returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+  const unload = {
+    type: "beforeunload",
+    returnValue: undefined,
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
   W.dispatchEvent(unload);
   assert.equal(unload.prevented, true, "and the browser before the tab closes");
   assert.equal(folds.request("notes", { dirty: () => false }), false, "and another fold asked for waits on the answer");
@@ -1218,7 +1960,10 @@ test("a hook binds one dirty test for its life, so a request made after a redraw
   let edited = false;
   let tone;
   // The hook alone, with no fold drawn: nothing counts this page's fold (drawn()), so the test is all that answers for it.
-  const Page = () => { tone = W.useRecordFold("tone", { dirty: () => edited }); return null; };
+  const Page = () => {
+    tone = W.useRecordFold("tone", { dirty: () => edited });
+    return null;
+  };
   draw(Page);
   // Every keystroke draws the page again before the row's own act asks for its fold.
   redraw(Page);
@@ -1236,7 +1981,10 @@ test("an ask for a fold that leaves the page goes with it, and the fold holding 
   const folds = W.__recordFolds;
   folds.reset();
   // The fold asked for is on the page through its hook; the fold holding changes is open by its id.
-  const Wanted = () => { W.useRecordFold("notes", { dirty: () => false }); return null; };
+  const Wanted = () => {
+    W.useRecordFold("notes", { dirty: () => false });
+    return null;
+  };
   draw(Wanted);
   folds.request("hours", { dirty: () => true });
   folds.request("notes");
@@ -1250,7 +1998,9 @@ test("an ask for a fold that leaves the page goes with it, and the fold holding 
 
   // Gone for good. Answered "discard", the ask would have thrown the changes away to open a fold nothing draws.
   let heard = 0;
-  const unhear = folds.subscribe(() => { heard += 1; });
+  const unhear = folds.subscribe(() => {
+    heard += 1;
+  });
   unmount();
   await settle();
   unhear();
@@ -1273,7 +2023,9 @@ test("a fold whose id is falsy is still a fold, and one listener that throws doe
   const reported = [];
   const was = console.error;
   console.error = (err) => reported.push(err && err.message);
-  const stopA = folds.subscribe(() => { throw new Error("a page's listener broke"); });
+  const stopA = folds.subscribe(() => {
+    throw new Error("a page's listener broke");
+  });
   const stopB = folds.subscribe(() => heard.push(folds.open()));
   try {
     folds.request("hours", { dirty: () => false });
@@ -1298,7 +2050,14 @@ test("the page knows when a fold holds unsaved changes", () => {
 
 test("closing the browser tab over a dirty fold asks the browser to ask; over a clean one or none, it does not", () => {
   const unload = () => {
-    const ev = { type: "beforeunload", returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+    const ev = {
+      type: "beforeunload",
+      returnValue: undefined,
+      prevented: false,
+      preventDefault() {
+        this.prevented = true;
+      },
+    };
     W.dispatchEvent(ev);
     return ev;
   };
@@ -1352,14 +2111,37 @@ test("a sheet is a dialog with a name, a close and a foot that holds still", () 
   const saveAll = W.React.createElement("button", { type: "button", onClick: () => {} }, "Save 33 services");
   unmount();
   // Children as React hands them, after the props: the stub's createElement sets `children` from these.
-  const full = W.React.createElement(W.RecordSheet, offer({ id: "services", foot: saveAll, tools: "search" }), "row one", "row two");
+  const full = W.React.createElement(
+    W.RecordSheet,
+    offer({ id: "services", foot: saveAll, tools: "search" }),
+    "row one",
+    "row two",
+  );
   const named = find(full, (n) => classes(n).includes("rec-sheet"));
   assert.equal(named.props["data-testid"], "rec-sheet-services");
-  assert.equal(textOf(byId(full, named.props["aria-labelledby"])), "What you offer", "with an id, the sheet is named by its heading");
-  assert.match(textOf(byId(full, named.props["aria-describedby"])), /rough timings/, "and described by the line under it");
+  assert.equal(
+    textOf(byId(full, named.props["aria-labelledby"])),
+    "What you offer",
+    "with an id, the sheet is named by its heading",
+  );
+  assert.match(
+    textOf(byId(full, named.props["aria-describedby"])),
+    /rough timings/,
+    "and described by the line under it",
+  );
   const foot = find(full, (n) => classes(n).includes("rec-sheet-foot"));
-  assert.ok(find(foot, (n) => n === saveAll), "the foot holds the page's act");
-  assert.equal(find(find(full, (n) => classes(n).includes("rec-sheet-body")), (n) => n === saveAll), null, "outside the part that scrolls");
+  assert.ok(
+    find(foot, (n) => n === saveAll),
+    "the foot holds the page's act",
+  );
+  assert.equal(
+    find(
+      find(full, (n) => classes(n).includes("rec-sheet-body")),
+      (n) => n === saveAll,
+    ),
+    null,
+    "outside the part that scrolls",
+  );
   assert.equal(textOf(find(full, (n) => classes(n).includes("rec-sheet-body"))), "row onerow two");
   assert.equal(textOf(find(full, (n) => classes(n).includes("rec-sheet-tools"))), "search");
 });
@@ -1367,10 +2149,22 @@ test("a sheet is a dialog with a name, a close and a foot that holds still", () 
 test("Escape closes a sheet, once, unless something in it took the key", () => {
   const closed = [];
   const tree = draw(W.RecordSheet, offer({ onClose: () => closed.push(1) }));
-  const esc = (over = {}) => ({ type: "keydown", key: "Escape", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...over });
+  const esc = (over = {}) => ({
+    type: "keydown",
+    key: "Escape",
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    ...over,
+  });
   const inside = esc();
   find(tree, (n) => classes(n).includes("rec-sheet")).props.onKeyDown(inside);
-  assert.deepEqual([closed.length, inside.defaultPrevented], [1, true], "from inside the sheet, and taken, so a fold around it does not cancel too");
+  assert.deepEqual(
+    [closed.length, inside.defaultPrevented],
+    [1, true],
+    "from inside the sheet, and taken, so a fold around it does not cancel too",
+  );
   W.dispatchEvent(inside);
   assert.equal(closed.length, 1, "the same key reaching the window does not close it twice");
   W.dispatchEvent(esc());
@@ -1382,7 +2176,11 @@ test("Escape closes a sheet, once, unless something in it took the key", () => {
 test("a press on the wash behind a sheet keeps focus where it was", () => {
   const wash = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet-backdrop"));
   let prevented = false;
-  wash.props.onMouseDown({ preventDefault() { prevented = true; } });
+  wash.props.onMouseDown({
+    preventDefault() {
+      prevented = true;
+    },
+  });
   // A mousedown's default moves focus to what was pressed, here the page's body, and Shift+Tab would then walk the
   // page behind the modal.
   assert.equal(prevented, true);
@@ -1391,7 +2189,14 @@ test("a press on the wash behind a sheet keeps focus where it was", () => {
 test("Tab stays inside a sheet, and wraps round both ways", () => {
   const sheet = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet"));
   const focused = [];
-  const control = (name, over = {}) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], focus: () => focused.push(name), ...over });
+  const control = (name, over = {}) => ({
+    name,
+    tabIndex: 0,
+    disabled: false,
+    getClientRects: () => [{}],
+    focus: () => focused.push(name),
+    ...over,
+  });
   const [first, middle, last] = ["first", "middle", "last"].map((name) => control(name));
   // Last in the sheet, and never a tab stop: a radiogroup's unchosen option (tabindex -1), and a closed fold's button,
   // which has no box on screen. A trap that counted them took them for its last stop, and Tab walked out of the sheet.
@@ -1402,7 +2207,15 @@ test("Tab stays inside a sheet, and wraps round both ways", () => {
   const was = doc.activeElement;
   const tabFrom = (at, shiftKey) => {
     doc.activeElement = at;
-    const e = { key: "Tab", shiftKey, currentTarget: box, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+    const e = {
+      key: "Tab",
+      shiftKey,
+      currentTarget: box,
+      defaultPrevented: false,
+      preventDefault() {
+        this.defaultPrevented = true;
+      },
+    };
     sheet.props.onKeyDown(e);
     return e.defaultPrevented;
   };
@@ -1424,9 +2237,16 @@ test("a sheet takes focus as it opens, gives it back to what opened it, and open
   const appRoot = { app: "root" };
   const portals = [];
   const doc = globalThis.document;
-  const was = { activeElement: doc.activeElement, querySelector: doc.querySelector, createPortal: W.ReactDOM.createPortal };
+  const was = {
+    activeElement: doc.activeElement,
+    querySelector: doc.querySelector,
+    createPortal: W.ReactDOM.createPortal,
+  };
   Object.assign(doc, { activeElement: opener, querySelector: (sel) => (sel === ".app-root" ? appRoot : null) });
-  W.ReactDOM.createPortal = (node, into) => { portals.push(into); return node; };
+  W.ReactDOM.createPortal = (node, into) => {
+    portals.push(into);
+    return node;
+  };
   try {
     const tree = draw(W.RecordSheet, offer());
     const sheet = find(tree, (n) => classes(n).includes("rec-sheet"));
@@ -1439,7 +2259,11 @@ test("a sheet takes focus as it opens, gives it back to what opened it, and open
     W.ReactDOM.createPortal = was.createPortal;
   }
   assert.deepEqual(focused, ["sheet", "opener"]);
-  assert.deepEqual(portals, [appRoot], "drawn in the app's root, where People's overlay check (PL_OVERLAY) finds a dialog, over the pane's own layout");
+  assert.deepEqual(
+    portals,
+    [appRoot],
+    "drawn in the app's root, where People's overlay check (PL_OVERLAY) finds a dialog, over the pane's own layout",
+  );
 });
 
 test("a sheet gives focus back as a fold does: to the field the person was in when what held it goes, and to a row the page names", () => {
@@ -1449,22 +2273,41 @@ test("a sheet gives focus back as a fold does: to the field the person was in wh
   const focused = [];
   // A stand-in for a box: which part of the sheet it is in answers closest(), as the element would.
   const field = (name, part = ".rec-sheet-body", more = {}) => ({
-    name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: () => false },
-    closest: (sel) => (sel.split(",").map((x) => x.trim()).includes(part) || (more.within || []).includes(sel) ? {} : null),
+    name,
+    tabIndex: 0,
+    disabled: false,
+    getClientRects: () => [{}],
+    classList: { contains: () => false },
+    closest: (sel) =>
+      sel
+        .split(",")
+        .map((x) => x.trim())
+        .includes(part) || (more.within || []).includes(sel)
+        ? {}
+        : null,
     focus: () => focused.push(name),
     ...more,
   });
   const search = field("search", ".rec-sheet-tools");
   const nameBox = field("Service 3 name");
-  const inPlace = field("Undo in the row's place", ".rec-sheet-body", { matches: (sel) => sel === "button:not([role])" });
+  const inPlace = field("Undo in the row's place", ".rec-sheet-body", {
+    matches: (sel) => sel === "button:not([role])",
+  });
   const keep = field("Keep editing", ".rec-sheet-body", { within: [".confirm"] });
   const tools = { querySelectorAll: () => [search] };
-  const stop = (name) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], focus: () => focused.push(name) });
+  const stop = (name) => ({
+    name,
+    tabIndex: 0,
+    disabled: false,
+    getClientRects: () => [{}],
+    focus: () => focused.push(name),
+  });
   const row = { querySelectorAll: () => [stop("name"), stop("minutes"), stop("remove")] };
   const panel = {
     focus: () => focused.push("sheet"),
     contains: () => true,
-    querySelector: (sel) => (sel === ".rec-sheet-tools, .rec-sheet-body" ? tools : sel === '[data-rec-row="service-3"]' ? row : null),
+    querySelector: (sel) =>
+      sel === ".rec-sheet-tools, .rec-sheet-body" ? tools : sel === '[data-rec-row="service-3"]' ? row : null,
   };
   const doc = globalThis.document;
   const was = { activeElement: doc.activeElement, contains: doc.contains };
@@ -1526,18 +2369,40 @@ test("a sheet given a Save draws the fold's own foot: the ask above it, and noth
   const saves = [];
   const cancels = [];
   const ask = W.React.createElement("span", { className: "confirm", "data-testid": "ask" }, "Discard your changes?");
-  const props = (over = {}) => offer({ id: "services", onClose: () => cancels.push(1), onSave: () => saves.push(1), saveLabel: "Save 33 services", footNote: "Removing one offers an undo.", confirm: ask, ...over });
+  const props = (over = {}) =>
+    offer({
+      id: "services",
+      onClose: () => cancels.push(1),
+      onSave: () => saves.push(1),
+      saveLabel: "Save 33 services",
+      footNote: "Removing one offers an undo.",
+      confirm: ask,
+      ...over,
+    });
   let tree = draw(W.RecordSheet, props());
   const foot = () => find(tree, (n) => classes(n).includes("rec-sheet-foot"));
   assert.equal(textOf(byTestId(foot(), "rec-sheet-save-services")), "Save 33 services");
   assert.match(textOf(foot()), /Removing one offers an undo\./);
   const kids = all(foot(), (n) => n.props?.["data-testid"] === "ask" || n.type === W.RecordFoot);
-  assert.deepEqual(kids.map((n) => (n.type === W.RecordFoot ? "foot" : "ask")), ["ask", "foot"], "the ask above Save, where the changes it asks about are");
+  assert.deepEqual(
+    kids.map((n) => (n.type === W.RecordFoot ? "foot" : "ask")),
+    ["ask", "foot"],
+    "the ask above Save, where the changes it asks about are",
+  );
   press(byTestId(foot(), "rec-sheet-save-services"));
   press(byTestId(foot(), "rec-sheet-cancel-services"));
   assert.deepEqual([saves.length, cancels.length], [1, 1], "Save saves, and Cancel is the sheet's close, with its ask");
   const sheet = () => find(tree, (n) => classes(n).includes("rec-sheet"));
-  const key = (over) => ({ key: "Enter", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, currentTarget: { contains: () => true }, target: {}, ...over });
+  const key = (over) => ({
+    key: "Enter",
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    currentTarget: { contains: () => true },
+    target: {},
+    ...over,
+  });
   sheet().props.onKeyDown(key({ ctrlKey: true }));
   sheet().props.onKeyDown(key({ metaKey: true }));
   sheet().props.onKeyDown(key({}));
@@ -1547,31 +2412,64 @@ test("a sheet given a Save draws the fold's own foot: the ask above it, and noth
   tree = draw(W.RecordSheet, props({ saving: true }));
   assert.equal(sheet().props["aria-busy"], true, "record.css draws its boxes read-only by it, as a fold's");
   const save = byTestId(foot(), "rec-sheet-save-services");
-  assert.deepEqual([save.type, save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], textOf(save)], ["button", undefined, true, true, "Saving…"]);
+  assert.deepEqual(
+    [save.type, save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], textOf(save)],
+    ["button", undefined, true, true, "Saving…"],
+  );
   assert.equal(byTestId(foot(), "ask"), null, "nothing asks whether to discard what is on its way");
   press(save);
   press(byTestId(foot(), "rec-sheet-cancel-services"));
   press(find(tree, (n) => n.props?.["aria-label"] === "Close"));
-  const esc = { key: "Escape", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  const esc = {
+    key: "Escape",
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+  };
   sheet().props.onKeyDown(esc);
   sheet().props.onKeyDown(key({ ctrlKey: true }));
-  assert.deepEqual([saves.length, cancels.length], [3, 1], "Save, Cancel, Close, Escape and Ctrl+Enter do nothing while it saves");
+  assert.deepEqual(
+    [saves.length, cancels.length],
+    [3, 1],
+    "Save, Cancel, Close, Escape and Ctrl+Enter do nothing while it saves",
+  );
 
   // With no Save given, the page's own foot, as the playbook composer draws it: no kit foot, and aria-busy absent.
   tree = draw(W.RecordSheet, offer({ foot: W.React.createElement("button", { type: "button" }, "Start it") }));
-  assert.equal(find(tree, (n) => n.type === W.RecordFoot), null);
+  assert.equal(
+    find(tree, (n) => n.type === W.RecordFoot),
+    null,
+  );
   assert.equal(sheet().props["aria-busy"], undefined);
 });
 
 test("a row of chips names each thing its value counts, with its measure beside it, and how many more", () => {
   unmount();
   // Children as React hands them, after the props: the stub's createElement sets `children` from these.
-  const chipRow = W.React.createElement(W.RecordChips, { chips: [{ label: "Balayage", meta: "180 min" }, { label: "Haircut", meta: null }], more: "+31 more" });
-  const tree = W.React.createElement(W.RecordRow, { id: "services", label: "Services", value: "33 on record" }, chipRow);
+  const chipRow = W.React.createElement(W.RecordChips, {
+    chips: [
+      { label: "Balayage", meta: "180 min" },
+      { label: "Haircut", meta: null },
+    ],
+    more: "+31 more",
+  });
+  const tree = W.React.createElement(
+    W.RecordRow,
+    { id: "services", label: "Services", value: "33 on record" },
+    chipRow,
+  );
   const chips = all(tree, (n) => classes(n).includes("rec-chip"));
   assert.deepEqual(chips.map(textOf), ["Balayage180 min", "Haircut", "+31 more"]);
-  assert.deepEqual(chips.map((c) => c.props["data-more"]), [undefined, undefined, "true"]);
+  assert.deepEqual(
+    chips.map((c) => c.props["data-more"]),
+    [undefined, undefined, "true"],
+  );
   assert.equal(textOf(find(chips[0], (n) => classes(n).includes("rec-chip-meta"))), "180 min");
-  assert.equal(find(tree, (n) => classes(n).includes("rec-row")).props.className, "rec-row rec-row-top", "a row with chips under its value is a tall row");
+  assert.equal(
+    find(tree, (n) => classes(n).includes("rec-row")).props.className,
+    "rec-row rec-row-top",
+    "a row with chips under its value is a tall row",
+  );
   assert.equal(all(draw(W.RecordChips, { chips: [] }), (n) => classes(n).includes("rec-chip")).length, 0);
 });

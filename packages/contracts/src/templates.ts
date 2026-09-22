@@ -97,36 +97,78 @@ export type TemplateDraftCheck = { ok: true; value: TemplateDraft; warnings: str
 export function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck {
   const name = slugTemplateName(d.name);
   if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
-  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language)) return { ok: false, error: "Pick a language from the list." };
-  if (!(TEMPLATE_CATEGORIES as readonly string[]).includes(d.category)) return { ok: false, error: "A template is marketing or utility." };
-  const body = String(d.body ?? "").replace(/\r\n/g, "\n").trim();
+  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language))
+    return { ok: false, error: "Pick a language from the list." };
+  if (!(TEMPLATE_CATEGORIES as readonly string[]).includes(d.category))
+    return { ok: false, error: "A template is marketing or utility." };
+  const body = String(d.body ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
   if (!body) return { ok: false, error: "Write the message." };
-  if (body.length > TEMPLATE_BODY_MAX) return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
+  if (body.length > TEMPLATE_BODY_MAX)
+    return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
   const slots = placeholdersOf(body);
-  if (!placeholdersSequential(slots)) return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
+  if (!placeholdersSequential(slots))
+    return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
   const examples = (d.examples ?? []).map((e) => String(e ?? "").trim());
-  if (examples.length !== slots.length) return { ok: false, error: slots.length === 0 ? "This message takes no values, so it needs no examples." : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} — WhatsApp's reviewers read them.` };
-  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX)) return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
+  if (examples.length !== slots.length)
+    return {
+      ok: false,
+      error:
+        slots.length === 0
+          ? "This message takes no values, so it needs no examples."
+          : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} — WhatsApp's reviewers read them.`,
+    };
+  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX))
+    return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
   const footer = d.footer ? String(d.footer).trim() : "";
-  if (footer.length > TEMPLATE_FOOTER_MAX) return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
+  if (footer.length > TEMPLATE_FOOTER_MAX)
+    return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
   if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
   let button: TemplateDraft["button"] = null;
   if (d.button) {
-    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
+    const text = String(d.button.text ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
     const url = String(d.button.url ?? "").trim();
     if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
-    if (text.length > TEMPLATE_BUTTON_TEXT_MAX) return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
-    if (/\{\{/.test(text) || /\{\{/.test(url)) return { ok: false, error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send." };
+    if (text.length > TEMPLATE_BUTTON_TEXT_MAX)
+      return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
+    if (/\{\{/.test(text) || /\{\{/.test(url))
+      return {
+        ok: false,
+        error:
+          "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send.",
+      };
     let parsed: URL | null = null;
-    try { parsed = new URL(url); } catch { parsed = null; }
-    if (!parsed || !/^https?:$/.test(parsed.protocol)) return { ok: false, error: "The button needs a web address to open, starting with https://." };
+    try {
+      parsed = new URL(url);
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || !/^https?:$/.test(parsed.protocol))
+      return { ok: false, error: "The button needs a web address to open, starting with https://." };
     button = { text, url };
   }
   const warnings: string[] = [];
-  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body)) warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
-  if (d.category === "marketing" && !/stop/i.test(body + " " + footer)) warnings.push("A marketing message should say how to opt out, such as “Reply STOP to opt out”.");
+  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body))
+    warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
+  if (d.category === "marketing" && !/stop/i.test(body + " " + footer))
+    warnings.push("A marketing message should say how to opt out, such as “Reply STOP to opt out”.");
   if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
-  return { ok: true, value: { name, language: d.language, category: d.category as TemplateCategoryChoice, body, footer: footer || null, examples, button }, warnings };
+  return {
+    ok: true,
+    value: {
+      name,
+      language: d.language,
+      category: d.category as TemplateCategoryChoice,
+      body,
+      footer: footer || null,
+      examples,
+      button,
+    },
+    warnings,
+  };
 }
 
 /** The components Meta's create call takes, from a checked draft. */
@@ -144,7 +186,14 @@ export function templateComponents(v: TemplateDraft): Array<Record<string, unkno
 
 /* ---- What fills a slot ---- */
 
-export const PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"] as const;
+export const PARAM_SOURCES = [
+  "text",
+  "first_name",
+  "business_name",
+  "booking_link",
+  "visit_when",
+  "visit_service",
+] as const;
 export type ParamSourceKind = (typeof PARAM_SOURCES)[number];
 
 export type ParamSpec =
@@ -192,7 +241,14 @@ export function parseParamSpec(raw: unknown): ParamSpec | null {
   if (raw && typeof raw === "object") {
     const o = raw as { kind?: unknown; value?: unknown };
     if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
+    if (
+      o.kind === "first_name" ||
+      o.kind === "business_name" ||
+      o.kind === "booking_link" ||
+      o.kind === "visit_when" ||
+      o.kind === "visit_service"
+    )
+      return { kind: o.kind };
   }
   return null;
 }
@@ -203,7 +259,9 @@ export function parseParamSpec(raw: unknown): ParamSpec | null {
  * renders. The one reader for the four places that used to spell this out.
  */
 export function parseParamSpecs(raw: unknown): ParamSpec[] {
-  return Array.isArray(raw) ? (raw as unknown[]).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) }) : [];
+  return Array.isArray(raw)
+    ? (raw as unknown[]).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) })
+    : [];
 }
 
 export function paramLabel(spec: ParamSpec): string {
@@ -216,7 +274,8 @@ export function paramLabel(spec: ParamSpec): string {
  */
 export function playbooksStillSending(names: readonly string[]): string {
   const quoted = names.map((n) => `“${n}”`);
-  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+  if (quoted.length <= 1)
+    return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
   return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
 }
 
@@ -230,7 +289,10 @@ export interface ParamFacts {
 }
 
 /** The first name a message may use, or null when all that is on file is a number. */
-export function firstNameOf(displayName: string | null | undefined, waProfileName: string | null | undefined): string | null {
+export function firstNameOf(
+  displayName: string | null | undefined,
+  waProfileName: string | null | undefined,
+): string | null {
   const raw = (displayName || waProfileName || "").trim();
   if (!raw || /^[+\d(]/.test(raw)) return null;
   const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
@@ -245,19 +307,31 @@ export function firstNameOf(displayName: string | null | undefined, waProfileNam
 export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): string[] {
   return specs.map((s) => {
     switch (s.kind) {
-      case "text": return s.value;
-      case "first_name": return f.firstName || "there";
-      case "business_name": return f.businessName;
-      case "booking_link": return f.bookingLink ?? "";
-      case "visit_when": return f.visitWhen ?? "";
-      case "visit_service": return f.visitService ?? "";
+      case "text":
+        return s.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
     }
   });
 }
 
 /** Example words for a preview: what a real person would see. */
 export function exampleParams(specs: readonly ParamSpec[], businessName: string): string[] {
-  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
+  return resolveParams(specs, {
+    firstName: "Dani",
+    businessName,
+    bookingLink: "your booking link",
+    visitWhen: "tomorrow at 2:00 PM",
+    visitService: "a consultation",
+  });
 }
 
 /* ------------------------------ what sends it ----------------------------- */
@@ -294,12 +368,24 @@ const NOTHING: TemplateUse = { playbooks: [], broadcasts: 0, recent: [], booking
 
 export interface TemplateUseSource {
   /** `runs` is the playbook's clock in words (playbooks.ts `runsWords`), worded by the caller. */
-  playbooks: readonly { id: string; name: string; template_name: string; state?: string | null; runs?: string | null }[];
+  playbooks: readonly {
+    id: string;
+    name: string;
+    template_name: string;
+    state?: string | null;
+    runs?: string | null;
+  }[];
   /**
    * Every broadcast. A playbook's runs carry its id: they are not counted as broadcasts, but a
    * run `pending_approval` is how a playbook comes to be waiting on the owner.
    */
-  broadcasts: readonly { template_name: string; playbook_id?: string | null; name?: string | null; state?: string | null; created_at?: string | null }[];
+  broadcasts: readonly {
+    template_name: string;
+    playbook_id?: string | null;
+    name?: string | null;
+    state?: string | null;
+    created_at?: string | null;
+  }[];
   /** The name the Inbox books with, from `bookingTemplate`; null when the workspace has none. */
   bookingName: string | null;
 }
@@ -307,14 +393,26 @@ export interface TemplateUseSource {
 /** One entry per template name that anything sends. A name absent from the map is sent by nothing. */
 export function templateUsage(src: TemplateUseSource): Record<string, TemplateUse> {
   const out: Record<string, TemplateUse> = {};
-  const at = (name: string): TemplateUse => (out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false });
-  const asking = new Set(src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id));
+  const at = (name: string): TemplateUse =>
+    (out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false });
+  const asking = new Set(
+    src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id),
+  );
   for (const p of src.playbooks) {
     if (!p.template_name) continue;
-    at(p.template_name).playbooks.push({ id: p.id, name: p.name, paused: p.state === "paused", waiting: asking.has(p.id), runs: p.runs ?? null });
+    at(p.template_name).playbooks.push({
+      id: p.id,
+      name: p.name,
+      paused: p.state === "paused",
+      waiting: asking.has(p.id),
+      runs: p.runs ?? null,
+    });
   }
   // Newest first, so the two it names are the two a person remembers sending.
-  const byHand = src.broadcasts.filter((b) => b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  const byHand = src.broadcasts
+    .filter((b) => b.template_name && !b.playbook_id)
+    .slice()
+    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
   for (const b of byHand) {
     const u = at(b.template_name);
     u.broadcasts += 1;
@@ -324,7 +422,8 @@ export function templateUsage(src: TemplateUseSource): Record<string, TemplateUs
   return out;
 }
 
-const sayList = (parts: string[]): string => (parts.length < 2 ? parts[0] ?? "" : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`);
+const sayList = (parts: string[]): string =>
+  parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 const capital = (s: string): string => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
 /**
@@ -356,7 +455,10 @@ export function templateUseNote(use: TemplateUse | null | undefined): string | n
   if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
   if (u.playbooks.length === 1) return u.playbooks[0]!.paused ? "paused — nothing goes out" : u.playbooks[0]!.runs;
   if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused — nothing goes out" : null;
-  if (u.recent.length > 0) return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
+  if (u.recent.length > 0)
+    return u.broadcasts > u.recent.length
+      ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more`
+      : u.recent.join(", ");
   if (u.booking) return "what the receptionist sends to book";
   return null;
 }

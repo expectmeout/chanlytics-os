@@ -16,7 +16,9 @@ test.describe("Saved lists on People", () => {
     await signIn(page);
   });
 
-  test("the rail reads the workspace's lists and a new name becomes a workspace-scoped POST — intercepted", async ({ page }) => {
+  test("the rail reads the workspace's lists and a new name becomes a workspace-scoped POST — intercepted", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const saved = page.getByTestId("saved-lists");
@@ -51,7 +53,9 @@ test.describe("Saved lists on People", () => {
     expect(seen[0].body).toEqual({ name: "Regulars" });
   });
 
-  test("Lists is a view of People: a list's old route lands on People with the list picked, and a smart list shows its step there", async ({ page }) => {
+  test("Lists is a view of People: a list's old route lands on People with the list picked, and a smart list shows its step there", async ({
+    page,
+  }) => {
     await page.goto("/#/segments");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("people-standing")).toBeVisible();

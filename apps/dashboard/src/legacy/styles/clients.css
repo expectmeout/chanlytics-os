@@ -1984,7 +1984,8 @@
 .pl-standing-needs:hover { background: var(--bg-hover); }
 .pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
 .pl-standing-reached { font-variant-numeric: tabular-nums; }
-@media (max-width: 900px) { .pl-standing { padding: 12px 16px 0; } }
+/* Under the phone's bar (PeoplePhoneBar): the bar keeps its own space above, the line its own below. */
+@media (max-width: 900px) { .pl-standing { padding: 4px 16px 10px; } }
 /* And one under it while more people follow, "N of M loaded" and Show more: in the table's gutter, as the line above. */
 .pl-more { padding: 8px 28px 16px; }
 @media (max-width: 900px) { .pl-more { padding: 8px 16px 16px; } }
@@ -2095,5 +2096,159 @@
 .cl-list-renaming { flex-wrap: wrap; }
 .cl-list-renaming input { font-size: 14px; font-weight: 500; }
 .cl-row-act-drop:hover { color: var(--danger); }
-/* The phone's way to the lists, on the standing line; a desktop has the rail beside it. */
-.pl-standing-lists { display: none; }
+
+/* ==== People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md) ============================
+   The page draws these only at 900px and under (PL_PHONE_QUERY), the band the rows, the bar and the Lists sheet share. */
+
+/* The one bar, for both scopes (PeoplePhoneBar): the switch, the list, search behind a button, the scope's own last
+   control. Searching, the bar is the field, at 16px: a phone zooms into anything smaller. */
+.pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
+.pp-bar .pt-scope { margin: 0; }
+.pp-bar .pt-scope button { height: 38px; min-width: 50px; padding: 0 6px; }
+/* The switch stands as tall as the list button beside it (44px with its frame); its halves are 38px, not the touch
+   floor's 44 each, which drew the switch 50px tall beside a 44px button. */
+html.legacy-on .pp-bar .pt-scope button { min-height: 0; }
+/* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
+.pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }
+.pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
+.pp-bar-pick .icon { flex: none; color: var(--ink-dim); }
+/* The words give way, not the chevron: an ellipsis on the button itself does nothing, it is a flex box. */
+.pp-bar-pick-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Leads' count, apart from the name: the name gives way, the count never does. */
+.pp-bar-pick-count { flex: none; margin-left: 2px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* Search and the scope's last control stand at the bar's right edge. A spacer did this, and cost the list button a
+   gap's 6px when there was no room to spare. */
+.pp-bar-push { margin-left: auto; }
+.pp-bar-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
+.pp-bar-icon:hover { background: var(--bg-hover); color: var(--ink); }
+.pp-bar .more-wrap { flex: none; }
+.pp-bar-field { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-dim); }
+.pp-bar-field:focus-within { border-color: var(--ink-faint); }
+.pp-bar-field .icon { flex: none; }
+.pp-bar-field input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 16px; outline: none; }
+.pp-bar-field input::placeholder { color: var(--ink-faint); }
+.pp-bar-field input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.pp-bar-clear { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-dim); cursor: pointer; }
+html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0; }
+.pp-bar-cancel { flex: none; height: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
+
+@media (max-width: 900px) {
+  /* A list's own step, alone in its section on a phone: one card, on the gutter. */
+  .clients:not(.leads-scope) .cl-section { padding: 0 16px 10px; }
+  .clients:not(.leads-scope) .cl-list-action { margin: 0; }
+}
+/* The line's one tap keeps a thumb's 44px without making the line 44px tall. */
+@media (max-width: 900px) and (pointer: coarse) {
+  html.legacy-on .pl-standing-needs { margin-top: -10px; margin-bottom: -10px; }
+}
+
+/* People's own sheets on a phone (PhoneSheet): Add a person, and the open list's rename, delete and "Save these". From
+   the bottom, edge to edge, a handle, a title and one way out; fields at 16px, one wide button. .sb-sheet.pp-sheet so
+   mobile.css's .pl-sheet padding, which loads after this file, gives way. */
+.sb-sheet.pp-sheet { padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+.pp-sheet-handle { width: 36px; height: 4px; margin: 8px auto 4px; border-radius: var(--radius-full); background: var(--line-strong); }
+.pp-sheet-head { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px 4px 16px; }
+.pp-sheet-title { flex: 1; min-width: 0; margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-snug); color: var(--ink); }
+.pp-sheet-close { flex: none; height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
+.pp-sheet-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 16px 8px; }
+.pp-field { display: flex; flex-direction: column; gap: 6px; }
+.pp-field-label { font-size: var(--text-sm); color: var(--ink-muted); }
+.pp-field-opt { color: var(--ink-dim); }
+.pp-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+.pp-input:focus { outline: none; border-color: var(--ink-muted); box-shadow: 0 0 0 3px var(--bg-active); }
+.pp-input[aria-invalid="true"] { border-color: var(--danger); }
+.pp-sheet-hint { margin: -6px 0 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.pp-sheet-go { width: 100%; height: 48px; justify-content: center; font-size: var(--text-md); }
+.pp-sheet .confirm-block { max-width: none; margin: 0; padding: 14px; background: var(--bg); }
+.pp-sheet .confirm-block .confirm-q { font-size: var(--text-md); color: var(--ink); }
+.pp-sheet .confirm-block .confirm-acts { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.pp-sheet .confirm-block .confirm-acts .btn { height: 48px; justify-content: center; font-size: var(--text-md); }
+/* A step's way back, before its title: the chevron, turned. */
+.pp-sheet-back { flex: none; width: 36px; height: 44px; margin-left: -10px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
+.pp-sheet-back .icon { transform: scaleX(-1); }
+/* A sheet's list (PhoneSheetRow): 48px rows within the sheet's gutter, the glyph in the muted ink, a chevron on a row
+   that opens a step, and a small heading over a group. */
+.pp-sheet-rows { display: flex; flex-direction: column; margin: 0 -8px; }
+.pp-sheet-rows-h { padding: 12px 8px 4px; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.pp-sheet-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 8px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); text-align: left; text-decoration: none; cursor: pointer; }
+.pp-sheet-row:hover, .pp-sheet-row:active { background: var(--bg-hover); }
+.pp-sheet-row:disabled { opacity: 0.5; cursor: default; }
+.pp-sheet-row .icon { flex: none; color: var(--ink-muted); }
+.pp-sheet-row.danger, .pp-sheet-row.danger .icon { color: var(--danger); }
+.pp-sheet-row-words { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-sheet-row-meta { flex: none; font-size: var(--text-sm); color: var(--ink-dim); }
+.pp-sheet-row .pp-sheet-row-next { color: var(--ink-faint); }
+/* 48px, over the touch floor's 44px for every button (html.legacy-on button outranks a class alone). */
+.pp-sheet-rows > .pp-sheet-row { min-height: 48px; }
+/* A sentence under a sheet's list: why a member's role leaves rows out. */
+.pp-sheet-rows-note { margin: 8px 8px 4px; }
+
+/* A selection on a phone (PeopleBulkBar and LeadsBulkBar with `phone`): one row docked along the foot of the pane, edge
+   to edge -- ✕, the count, one act and ⋯, whose sheet holds the rest. It stood at left: 50% with the width the browser
+   left it, 188px on a 375px phone, and its seven controls stacked into a 312px pill over the rows. Its hairline sets it
+   apart, no shadow. The home bar's inset is for 721 to 900px, where no tab bar stands under it (the 720px block). */
+.cl-bulk.pp-bulk { left: 0; right: 0; bottom: 0; transform: none; flex-wrap: nowrap; gap: 4px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)) 4px; border-width: 1px 0 0; border-radius: 0; box-shadow: none; animation: none; }
+.cl-bulk.pp-bulk .cl-bulk-count { flex: 1 1 auto; min-width: 0; margin: 0 0 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-md); }
+.cl-bulk.pp-bulk > .btn, .cl-bulk.pp-bulk > .more-wrap, .cl-bulk.pp-bulk > .pp-bar-icon { flex: none; }
+.cl-bulk.pp-bulk .btn { padding: 0 14px; font-size: var(--text-md); }
+
+@media (max-width: 900px) {
+  /* People's rows: one card cell each (plCardCell), edge to edge, a hairline between -- the Inbox's list. The wrap's
+     box and its 16px margin are a desktop's. */
+  .clients:not(.leads-scope) .pl-table-wrap { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+  .clients:not(.leads-scope) .cl-table-foot { padding: 12px 16px; border-top: 0; background: transparent; }
+  .pl-table tbody tr.pl-card-row { display: block; position: relative; padding: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  /* A tap is not a keyboard's cursor: the accent edge and the hover ground belong to the desktop's J and K. */
+  .pl-table tbody tr.pl-card-row.focused { background: transparent; box-shadow: none; }
+  .pl-table tbody tr.pl-card-row.selected { background: var(--pl-selected); }
+  .pl-table tbody tr.pl-card-row > td.pl-card-cell { display: block; min-width: 0; padding: 0; border: 0; }
+  .pl-card { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; align-items: center; padding: 12px 16px; }
+  .pl-card-face { grid-column: 1; grid-row: 1 / span 3; align-self: start; flex: none; width: 32px; height: 32px; }
+  .pl-card:not(:has(> .pl-card-lead)) .pl-card-face { grid-row: 1 / span 2; }
+  .pl-card-tick { display: none; }
+  .pl-card-name { grid-column: 2; grid-row: 1; min-width: 0; font-size: var(--text-base); font-weight: var(--weight-medium); line-height: 20px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-card > .pill { grid-column: 3; grid-row: 1; justify-self: end; }
+  /* A pill is words, not a control: the touch floor (legacy.css) made it 36px tall. */
+  html.legacy-on .pl-card > .pill { min-height: 0; padding-top: 0; padding-bottom: 0; }
+  .pl-card-lead { grid-column: 2 / 4; min-width: 0; font-size: var(--text-sm); line-height: 18px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-card-lead::first-letter { text-transform: uppercase; }
+  .pl-card-facts { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; gap: 12px; font-size: 11.5px; line-height: 17px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+  .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ok-ink); font-weight: var(--weight-medium); }
+  .pl-card-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* A table with nobody in it is one row of one cell across the card's whole width. It was placed in the grid's first
+     track -- the checkbox's, 28px -- and its sentence stood in a column a word wide. */
+  .cl-table tbody tr:not([id]):has(> td[colspan]) { display: block; padding: 0; }
+  .cl-table tbody tr:not([id]) > td[colspan] { display: block; padding: 20px 16px; }
+}
+
+@media (max-width: 900px) {
+  /* The face is the checkbox (tap a face to select): the row's own box lies over the face, a thumb wide and unseen, so a
+     tap there selects and a tap on the rest opens the person. While anyone is selected every face is a ring and a
+     picked one the ink with its tick, and a tap anywhere on a row selects it (clients-a.jsx, the table's onOpen). */
+  .pl-table tbody tr.pl-card-row > td.cl-sel { position: absolute; left: 10px; top: 6px; z-index: 1; display: block; width: 44px; height: 44px; padding: 0; border: 0; }
+  .pl-table tbody tr.pl-card-row > td.cl-sel .cl-check { display: block; width: 44px; height: 44px; margin: 0; opacity: 0; cursor: pointer; }
+  .pl-table tbody tr.pl-card-row:has(.cl-check:focus-visible) .pl-card-face { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pl-table-wrap.selecting tr.pl-card-row .pl-card-face { background: transparent; border: 1.5px solid var(--line-strong); }
+  .pl-table-wrap.selecting tr.pl-card-row .pl-card-initials, .pl-table-wrap.selecting tr.pl-card-row .pl-card-glyph { visibility: hidden; }
+  .pl-table tbody tr.pl-card-row.selected .pl-card-face { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .pl-table tbody tr.pl-card-row.selected .pl-card-tick { display: block; }
+  .pl-table tbody tr.pl-card-row.selected .pl-card-initials, .pl-table tbody tr.pl-card-row.selected .pl-card-glyph { display: none; }
+  /* The list keeps room under its last row for the selection's docked row (.pp-bulk), both scopes. */
+  .pl-table-wrap.selecting { margin-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  /* A toast rises over the docked row rather than covering it: its Undo and the row's ✕ are both a thumb's. From 721
+     to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). */
+  body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (max-width: 720px) {
+  /* At 720px and under the row stands on the tab bar (.phone-tabs, 64px), which clears the home bar for it, and
+     toasts sat 76px up (mobile.css): ON the row. Measured on production, 22 Sep: the row 687-748, the tabs 754-812. */
+  .cl-bulk.pp-bulk { padding-bottom: 6px; }
+  body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (max-width: 900px) {
+  /* A row of the phone's Lists sheet is the sheet's width, so what is picked and what is pressed is the whole row: a
+     row was as wide as its words, and Everyone's picked ground a box around two words. */
+  .pl-sheet .cl-rail-row { width: 100%; text-align: left; }
+}

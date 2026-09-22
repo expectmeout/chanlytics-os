@@ -2,10 +2,12 @@ import { z } from "zod";
 import { write, workspace } from "@/server/route";
 import { createMailbox } from "@/server/email";
 
-const Body = z.object({
-  local_part: z.string().max(64),
-  from_name: z.string().max(200),
-}).strict();
+const Body = z
+  .object({
+    local_part: z.string().max(64),
+    from_name: z.string().max(200),
+  })
+  .strict();
 
 /**
  * POST /api/v1/mailboxes — { local_part, from_name }

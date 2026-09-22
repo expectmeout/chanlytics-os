@@ -26,7 +26,13 @@ export async function expectDeskSign(page: Page): Promise<void> {
   await expect(sheet.getByTestId("desk-sign-qr").locator("svg")).toBeVisible();
   // What a call to action owes, on the sheet a customer reads before scanning -- not on a page they never see.
   const terms = sheet.getByTestId("desk-sign-terms");
-  for (const words of ["Message and data rates may apply", "Reply HELP", "Reply STOP", "No mobile information is shared with third parties", "not a condition of any purchase"]) {
+  for (const words of [
+    "Message and data rates may apply",
+    "Reply HELP",
+    "Reply STOP",
+    "No mobile information is shared with third parties",
+    "not a condition of any purchase",
+  ]) {
     await expect(terms).toContainText(words);
   }
   await expect(sheet).toContainText("YES OFFERS");

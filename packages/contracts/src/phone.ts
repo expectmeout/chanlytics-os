@@ -55,7 +55,6 @@ export function whyNotAPhone(raw: string | null | undefined): string | null {
   return "That is not a phone number anyone can be reached on.";
 }
 
-
 /**
  * The transfer number, checked the way a dialler would need it.
  *

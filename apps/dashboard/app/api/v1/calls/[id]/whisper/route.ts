@@ -7,7 +7,11 @@ import { whisperLiveCall } from "@/server/service";
 const MAX_CHARS = 500;
 
 const Body = z.object({
-  text: z.string().trim().min(1, "Say something for the receptionist to use.").max(MAX_CHARS, `Keep a whisper under ${MAX_CHARS} characters — it is worked into one answer.`),
+  text: z
+    .string()
+    .trim()
+    .min(1, "Say something for the receptionist to use.")
+    .max(MAX_CHARS, `Keep a whisper under ${MAX_CHARS} characters — it is worked into one answer.`),
   trigger: z.boolean().optional(),
 });
 

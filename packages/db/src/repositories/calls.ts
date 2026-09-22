@@ -86,8 +86,8 @@ export async function ingestCall(
     p_public_log_url: n.publicLogUrl,
     p_cost: (n.cost ?? null) as Json,
     p_latency: (n.latency ?? null) as Json,
-    p_raw: ((raw ?? {}) as Json),
-    p_analysis: ((n.analysis ?? null) as Json),
+    p_raw: (raw ?? {}) as Json,
+    p_analysis: (n.analysis ?? null) as Json,
   } as never);
   if (error) throw new Error(`ingest_call: ${error.message}`);
   return data as unknown as IngestCallResult;
@@ -101,12 +101,7 @@ export async function ingestCall(
  * nothing, so "the write failed" and "the write did not happen" have to be
  * told apart by counting rows rather than by trusting the absence of an error.
  */
-export async function linkCallMessage(
-  db: Db,
-  tenantId: string,
-  callId: string,
-  messageId: string,
-): Promise<void> {
+export async function linkCallMessage(db: Db, tenantId: string, callId: string, messageId: string): Promise<void> {
   const { data, error } = await db
     .from("calls")
     .update({ message_id: messageId })
@@ -114,7 +109,8 @@ export async function linkCallMessage(
     .eq("tenant_id", tenantId)
     .select("id");
   if (error) console.error("link_call_message_failed", error.message);
-  else if (!data || data.length === 0) console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+  else if (!data || data.length === 0)
+    console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
 
 /**
@@ -140,7 +136,8 @@ export async function setCallRecording(
     .eq("tenant_id", tenantId)
     .select("id");
   if (error) console.error("set_call_recording_failed", error.message);
-  else if (!data || data.length === 0) console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+  else if (!data || data.length === 0)
+    console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
 
 /** The customer's thread gets the call as a message, so history stays in one place. */

@@ -61,7 +61,13 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
         {vm.identity.map((f) => (
           <li key={f.label}>
             <b>{f.label}</b>:{" "}
-            {f.href ? <a href={f.href} {...(f.href.startsWith("http") ? { rel: "noreferrer" } : {})}>{f.value}</a> : f.value}
+            {f.href ? (
+              <a href={f.href} {...(f.href.startsWith("http") ? { rel: "noreferrer" } : {})}>
+                {f.value}
+              </a>
+            ) : (
+              f.value
+            )}
           </li>
         ))}
       </ul>
@@ -71,7 +77,10 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
           <h2>What we do</h2>
           <ul data-testid="bp-services">
             {vm.services.map((s) => (
-              <li key={s.name}>{s.name}{s.detail ? <span className="legal-meta"> — {s.detail}</span> : null}</li>
+              <li key={s.name}>
+                {s.name}
+                {s.detail ? <span className="legal-meta"> — {s.detail}</span> : null}
+              </li>
             ))}
           </ul>
         </>
@@ -85,12 +94,17 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
       <h2>Text messages</h2>
       <p data-testid="bp-sms-lead">{vm.smsLead}</p>
       <ul data-testid="bp-sms-clauses">
-        {vm.smsClauses.map((c) => <li key={c}>{c}</li>)}
+        {vm.smsClauses.map((c) => (
+          <li key={c}>{c}</li>
+        ))}
       </ul>
       <p>
         To say yes, or to see exactly what you would be agreeing to, open{" "}
-        <a href={vm.optInUrl} data-testid="bp-opt-in">the sign-up page</a>. Offers and news never come by text: they go by
-        WhatsApp, and only to customers who separately asked for them there.
+        <a href={vm.optInUrl} data-testid="bp-opt-in">
+          the sign-up page
+        </a>
+        . Offers and news never come by text: they go by WhatsApp, and only to customers who separately asked for them
+        there.
       </p>
 
       {/*
@@ -100,15 +114,19 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
       */}
       <h2>Your data</h2>
       {vm.yourData.map((s) => (
-        <p key={s} data-testid="bp-your-data">{s}</p>
+        <p key={s} data-testid="bp-your-data">
+          {s}
+        </p>
       ))}
       <p>
         The full terms of {vm.title}&rsquo;s text messages are at{" "}
-        <a href={vm.termsUrl} data-testid="bp-terms">{vm.termsUrl}</a>. Messages to {vm.title} are answered by a receptionist
-        operated by Chanlytics (RJ Capital LLC, 193 Jamaica Ave, Brooklyn, NY 11207, <a href="tel:+19175746416">+1 (917) 574-6416</a>) on
-        their behalf; what Chanlytics holds as their processor, and how to have it removed, is in the{" "}
-        <a href="/privacy">Chanlytics privacy policy</a>. Questions about {vm.title}&rsquo;s own handling of your data go to them at
-        the address above.
+        <a href={vm.termsUrl} data-testid="bp-terms">
+          {vm.termsUrl}
+        </a>
+        . Messages to {vm.title} are answered by a receptionist operated by Chanlytics (RJ Capital LLC, 193 Jamaica Ave,
+        Brooklyn, NY 11207, <a href="tel:+19175746416">+1 (917) 574-6416</a>) on their behalf; what Chanlytics holds as
+        their processor, and how to have it removed, is in the <a href="/privacy">Chanlytics privacy policy</a>.
+        Questions about {vm.title}&rsquo;s own handling of your data go to them at the address above.
       </p>
     </main>
   );

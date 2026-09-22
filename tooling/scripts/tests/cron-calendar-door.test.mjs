@@ -63,9 +63,11 @@ function ics(events) {
 /** Feed address → its text. An address not here is a calendar that is gone. */
 const feeds = new Map();
 const reply = (u) =>
-  u.includes("api.resend.com") ? new Response("{}", { status: 200 })
-  : feeds.has(u) ? new Response(feeds.get(u), { status: 200, headers: { "content-type": "text/calendar" } })
-  : new Response("no such calendar", { status: 404 });
+  u.includes("api.resend.com")
+    ? new Response("{}", { status: 200 })
+    : feeds.has(u)
+      ? new Response(feeds.get(u), { status: 200, headers: { "content-type": "text/calendar" } })
+      : new Response("no such calendar", { status: 404 });
 const read = (line) => line.calls.filter((c) => c.url.includes("cal.example")).map((c) => c.url);
 
 /* -------------------------------------------------------------- the world */
@@ -78,7 +80,10 @@ function world({ ticks = 1, faults = {} } = {}) {
   const backlog = [];
   const db = fakeDb(tables, faults, {
     ...vault,
-    note_sweep_backlog: (a) => { backlog.push(a); return ticks; },
+    note_sweep_backlog: (a) => {
+      backlog.push(a);
+      return ticks;
+    },
   });
   setPg(db);
   return { db, tables, backlog, tick: () => knock(POST, "calendar") };
@@ -93,20 +98,31 @@ function world({ ticks = 1, faults = {} } = {}) {
 function connected(tables, id, checkedAt, events = [], services = []) {
   const url = `https://cal.example/${id}.ics`;
   const profile = services.length
-    ? { brain: {
-        business_name: `Workspace ${id}`, booking_link: `https://book.example/${id}`,
-        system_prompt: "Answer as the front desk: brief, warm, and never a price or a booking over text.",
-        fallbacks: { greeting: "g", error: "e", non_text: "n" },
-        profile: { services: services.map((name) => ({ name })) },
-      } }
+    ? {
+        brain: {
+          business_name: `Workspace ${id}`,
+          booking_link: `https://book.example/${id}`,
+          system_prompt: "Answer as the front desk: brief, warm, and never a price or a booking over text.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile: { services: services.map((name) => ({ name })) },
+        },
+      }
     : {};
   tables.tenants.push({ id, name: `Workspace ${id}`, timezone: "America/New_York", status: "active" });
-  tables.tenant_config.push({ tenant_id: id, config: { calendar: { ical_url: url }, ...profile }, calendar_checked_at: checkedAt });
+  tables.tenant_config.push({
+    tenant_id: id,
+    config: { calendar: { ical_url: url }, ...profile },
+    calendar_checked_at: checkedAt,
+  });
   feeds.set(url, ics(events));
   return url;
 }
 const checkedAt = (w, id) => w.tables.tenant_config.find((r) => r.tenant_id === id).calendar_checked_at;
-const people = (w, id) => w.tables.contacts.filter((c) => c.tenant_id === id).map((c) => [c.phone_e164, c.display_name]).sort();
+const people = (w, id) =>
+  w.tables.contacts
+    .filter((c) => c.tenant_id === id)
+    .map((c) => [c.phone_e164, c.display_name])
+    .sort();
 const bell = (w, id) => w.tables.notifications.filter((n) => n.tenant_id === id).map((n) => [n.kind, n.route, n.title]);
 
 /* -------------------------------------------------------------- the door */
@@ -119,38 +135,68 @@ test("the door: the wrong key is a 401, a key Vault cannot produce is a 503, no 
 
 test("the rotation, and what a read leaves behind: the never-read workspace first, then the oldest, the one read ten minutes ago left alone; the feed's people go into People with an event each, a known number gains its name, a listed service is nobody's name; the owner hears it as a row on the bell, not a mail; each read is stamped", async () => {
   const w = world();
-  const N = "never-read", O = "read-two-hours-ago", F = "read-ten-minutes-ago", X = "no-calendar";
+  const N = "never-read",
+    O = "read-two-hours-ago",
+    F = "read-ten-minutes-ago",
+    X = "no-calendar";
   const urlN = connected(w.tables, N, null, [
     { uid: "n1", title: "Maria Lopez - Balayage", phone: "+1 305 555 0142" },
     { uid: "n2", title: "Haircut with Dana Whitfield", phone: "(305) 555-0177", inDays: 5 },
   ]);
   // O lists a service of two capitalised words -- exactly what a name looks like. The sweep must hand the
   // workspace's services to the guesser, or "Keratin Treatment" becomes a person and Priya is never named.
-  const urlO = connected(w.tables, O, ago(2 * H), [
-    { uid: "o1", title: "Keratin Treatment", phone: "+1 646 555 0123" },
-    { uid: "o2", title: "Keratin Treatment - Priya Natarajan", phone: "+1 646 555 0188", inDays: 4 },
-  ], ["Keratin Treatment"]);
+  const urlO = connected(
+    w.tables,
+    O,
+    ago(2 * H),
+    [
+      { uid: "o1", title: "Keratin Treatment", phone: "+1 646 555 0123" },
+      { uid: "o2", title: "Keratin Treatment - Priya Natarajan", phone: "+1 646 555 0188", inDays: 4 },
+    ],
+    ["Keratin Treatment"],
+  );
   const tenMinutesAgo = ago(10 * 60_000);
   connected(w.tables, F, tenMinutesAgo, [{ uid: "f1", title: "Must not be read", phone: "+1 917 555 0199" }]);
   // Every workspace has a config row; most never connect a calendar. Those rows are not the queue.
   w.tables.tenants.push({ id: X, name: "No calendar", timezone: "America/New_York", status: "active" });
   w.tables.tenant_config.push({ tenant_id: X, config: {}, calendar_checked_at: null });
   // Maria is already in People, by number, without a name.
-  w.tables.contacts.push({ id: "c-maria", tenant_id: N, phone_e164: "+13055550142", display_name: null, erased_at: null, merged_into_contact_id: null });
+  w.tables.contacts.push({
+    id: "c-maria",
+    tenant_id: N,
+    phone_e164: "+13055550142",
+    display_name: null,
+    erased_at: null,
+    merged_into_contact_id: null,
+  });
 
   const line = wire(reply);
   try {
     const [status, body] = await answer(await w.tick());
     assert.equal(status, 200);
     assert.deepEqual(body, { ok: true, tenants: 2, seen: 4, added: 3, named: 1, failed: 0, remaining: 0 });
-    assert.deepEqual(read(line), [urlN, urlO], "never-read first, then the oldest; the fresh one is not fetched, and a workspace without a calendar is not in the queue");
+    assert.deepEqual(
+      read(line),
+      [urlN, urlO],
+      "never-read first, then the oldest; the fresh one is not fetched, and a workspace without a calendar is not in the queue",
+    );
 
     // People
-    assert.deepEqual(people(w, N), [["+13055550142", "Maria Lopez"], ["+13055550177", "Dana Whitfield"]], "the known number gained its name; the new one is a person now");
+    assert.deepEqual(
+      people(w, N),
+      [
+        ["+13055550142", "Maria Lopez"],
+        ["+13055550177", "Dana Whitfield"],
+      ],
+      "the known number gained its name; the new one is a person now",
+    );
     assert.equal(w.tables.contacts.find((c) => c.phone_e164 === "+13055550142").id, "c-maria", "named, not duplicated");
     assert.deepEqual(
       people(w, O),
-      [["+16465550123", null], ["+16465550188", "Priya Natarajan"]],
+      [
+        ["+16465550123", null],
+        ["+16465550188", "Priya Natarajan"],
+      ],
       "the workspace's own service is nobody's name, even at two capitalised words; the client is whoever follows it",
     );
     assert.deepEqual(people(w, F), []);
@@ -158,7 +204,9 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
     const keratin = w.tables.contacts.find((c) => c.phone_e164 === "+16465550123");
     const priya = w.tables.contacts.find((c) => c.phone_e164 === "+16465550188");
     assert.deepEqual(
-      w.tables.events.map((e) => [e.tenant_id, e.kind, e.category, e.subject_type, e.subject_id, e.data.source, e.data.uid]).sort(),
+      w.tables.events
+        .map((e) => [e.tenant_id, e.kind, e.category, e.subject_type, e.subject_id, e.data.source, e.data.uid])
+        .sort(),
       [
         [N, "contact.added", "contact", "contact", dana.id, "calendar", "n2"],
         [O, "contact.added", "contact", "contact", keratin.id, "calendar", "o1"],
@@ -166,27 +214,37 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
       ].sort(),
       "each person created says where they came from; the one merely named gets none",
     );
-    assert.ok(w.tables.contacts.every((c) => c.consent === undefined), "consent untouched: a booking is not a yes");
+    assert.ok(
+      w.tables.contacts.every((c) => c.consent === undefined),
+      "consent untouched: a booking is not a yes",
+    );
 
     // The bell, not the mailbox
     assert.deepEqual(bell(w, N), [["calendar_people", "clients", "1 person added from your calendar"]]);
     assert.deepEqual(bell(w, O), [["calendar_people", "clients", "2 people added from your calendar"]]);
     assert.deepEqual(bell(w, F), []);
-    assert.deepEqual(line.mail(), [], "good news is a row, not an email -- with a mailer and a mailbox both configured");
+    assert.deepEqual(
+      line.mail(),
+      [],
+      "good news is a row, not an email -- with a mailer and a mailbox both configured",
+    );
 
     // The stamps
     assert.ok(fresh(checkedAt(w, N)) && fresh(checkedAt(w, O)), "both reads stamped");
     assert.equal(checkedAt(w, F), tenMinutesAgo, "the fresh one untouched");
     assert.equal(checkedAt(w, X), null);
     assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 0 }], "the queue drained");
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 /* --------------------------------------------------------------- failure */
 
 test("a feed that cannot be read fails that workspace only and leaves it due: no stamp, no row, the rest of the page served", async () => {
   const w = world();
-  const G = "feed-gone", K = "feed-fine";
+  const G = "feed-gone",
+    K = "feed-fine";
   const urlG = connected(w.tables, G, null);
   feeds.delete(urlG);
   const urlK = connected(w.tables, K, ago(3 * H), [{ uid: "k1", title: "Trim", phone: "+1 212 555 0100" }]);
@@ -204,7 +262,9 @@ test("a feed that cannot be read fails that workspace only and leaves it due: no
     assert.deepEqual(bell(w, G), []);
     assert.deepEqual(bell(w, K), [["calendar_people", "clients", "1 person added from your calendar"]]);
     assert.deepEqual(line.mail(), []);
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 /* ------------------------------------------------------------ the backlog */
@@ -230,15 +290,33 @@ test("more due than a tick takes: forty are read, the two read most recently wai
   try {
     const [status, body] = await answer(await w.tick());
     assert.equal(status, 200);
-    assert.deepEqual(body, { ok: true, tenants: CALENDAR_PER_TICK, seen: 0, added: 0, named: 0, failed: 0, remaining: 2 });
-    assert.deepEqual(read(line), ids.slice(0, CALENDAR_PER_TICK).map((id) => `https://cal.example/${id}.ics`), "the forty read longest ago, oldest first");
+    assert.deepEqual(body, {
+      ok: true,
+      tenants: CALENDAR_PER_TICK,
+      seen: 0,
+      added: 0,
+      named: 0,
+      failed: 0,
+      remaining: 2,
+    });
+    assert.deepEqual(
+      read(line),
+      ids.slice(0, CALENDAR_PER_TICK).map((id) => `https://cal.example/${id}.ics`),
+      "the forty read longest ago, oldest first",
+    );
     const stamped = ids.filter((id) => fresh(checkedAt(w, id)));
     const waited = ids.filter((id) => checkedAt(w, id) === before[id]);
     assert.deepEqual(stamped, ids.slice(0, CALENDAR_PER_TICK));
-    assert.deepEqual(waited, ids.slice(CALENDAR_PER_TICK), "the two read most recently wait for the next tick, their stamps untouched");
+    assert.deepEqual(
+      waited,
+      ids.slice(CALENDAR_PER_TICK),
+      "the two read most recently wait for the next tick, their stamps untouched",
+    );
     assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 2 }]);
     assert.deepEqual(w.tables.notifications, [], "empty calendars: nobody added, nobody told");
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 test("three ticks in a row with work left behind: the sweep says so with a 503, having still done the tick's work", async () => {
@@ -248,10 +326,22 @@ test("three ticks in a row with work left behind: the sweep says so with a 503, 
   try {
     const [status, body] = await answer(await w.tick());
     assert.equal(status, 503, "sweep_health turns this red and mails the platform");
-    assert.deepEqual(body, { ok: false, error: "calendar_backlog", backlog_ticks: 3, tenants: CALENDAR_PER_TICK, seen: 0, added: 0, named: 0, failed: 0, remaining: 1 });
+    assert.deepEqual(body, {
+      ok: false,
+      error: "calendar_backlog",
+      backlog_ticks: 3,
+      tenants: CALENDAR_PER_TICK,
+      seen: 0,
+      added: 0,
+      named: 0,
+      failed: 0,
+      remaining: 1,
+    });
     assert.equal(read(line).length, CALENDAR_PER_TICK, "the page was still served");
     assert.equal(ids.filter((id) => fresh(checkedAt(w, id))).length, CALENDAR_PER_TICK);
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 /* ------------------------------------------------------- cannot be read */
@@ -264,5 +354,7 @@ test("a queue that cannot be read is a 500, and no feed is fetched", async () =>
     assert.deepEqual(await answer(await w.tick()), [500, { ok: false }]);
     assert.deepEqual(read(line), []);
     assert.deepEqual(w.backlog, []);
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });

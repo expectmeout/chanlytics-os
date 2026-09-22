@@ -55,10 +55,17 @@ test("the cookies and the headers that keep them out of a cache both reach the r
 
   assert.deepEqual(
     r.wrote.map((c) => [c.name, c.value]),
-    [["sb-access-token", "a.b.c"], ["sb-refresh-token", "r1"]],
+    [
+      ["sb-access-token", "a.b.c"],
+      ["sb-refresh-token", "r1"],
+    ],
     "both tokens are written",
   );
-  assert.deepEqual(r.wrote[0].options, { httpOnly: true, sameSite: "lax", path: "/" }, "with the options the library chose, untouched");
+  assert.deepEqual(
+    r.wrote[0].options,
+    { httpOnly: true, sameSite: "lax", path: "/" },
+    "with the options the library chose, untouched",
+  );
 
   // The whole point: without these, a shared cache may keep the Set-Cookie.
   assert.equal(r.header("cache-control"), "private, no-cache, no-store, must-revalidate, max-age=0");

@@ -30,7 +30,10 @@ const row = (over) => ({
 
 test("a sweep failing for the first time is alerted immediately", () => {
   const p = chooseSweepAlerts([row({ alerted_at: null })], Date.now());
-  assert.deepEqual(p.alert.map((r) => r.sweep), ["deadman"]);
+  assert.deepEqual(
+    p.alert.map((r) => r.sweep),
+    ["deadman"],
+  );
   assert.deepEqual(p.broken, ["deadman"]);
   assert.deepEqual(p.healthy, []);
   assert.deepEqual(p.recovered, []);
@@ -43,11 +46,13 @@ test("a delivered alert buys exactly six hours of quiet, then speaks again", () 
   // sweep stays broken.
   const now = Date.now();
   assert.equal(
-    chooseSweepAlerts([row({ alerted_at: new Date(now - (ALERT_SUPPRESSION_MS - 60_000)).toISOString() })], now).alert.length,
+    chooseSweepAlerts([row({ alerted_at: new Date(now - (ALERT_SUPPRESSION_MS - 60_000)).toISOString() })], now).alert
+      .length,
     0,
   );
   assert.equal(
-    chooseSweepAlerts([row({ alerted_at: new Date(now - (ALERT_SUPPRESSION_MS + 60_000)).toISOString() })], now).alert.length,
+    chooseSweepAlerts([row({ alerted_at: new Date(now - (ALERT_SUPPRESSION_MS + 60_000)).toISOString() })], now).alert
+      .length,
     1,
   );
   assert.equal(ALERT_SUPPRESSION_MS, 6 * 60 * 60 * 1000);
@@ -62,7 +67,10 @@ test("suppression is per sweep, so a second failure is not hidden behind the fir
     ],
     now,
   );
-  assert.deepEqual(p.alert.map((r) => r.sweep), ["calls"]);
+  assert.deepEqual(
+    p.alert.map((r) => r.sweep),
+    ["calls"],
+  );
   // The log and the response body stay truthful while the mail is narrowed.
   assert.deepEqual(p.broken, ["deadman", "calls"]);
 });
@@ -111,7 +119,12 @@ test("a calls alert says what else waits while that sweep is failing, the ninety
   // Since 00149 the calls sweep's answers are judged, and a purge that fails
   // is a 500, so this mail is where a broken retention promise is first read.
   const body = describeSweepTrouble([
-    row({ sweep: "calls", status_code: 500, detail: 'the edge answered 500: {"ok":false,"error":"purge_failed","purge":{"candidates":3,"purged":0,"error":"the storage service is unavailable"}}' }),
+    row({
+      sweep: "calls",
+      status_code: 500,
+      detail:
+        'the edge answered 500: {"ok":false,"error":"purge_failed","purge":{"candidates":3,"purged":0,"error":"the storage service is unavailable"}}',
+    }),
   ]);
   assert.match(body, /purge_failed/);
   assert.match(body, /stays 'ongoing' forever/);

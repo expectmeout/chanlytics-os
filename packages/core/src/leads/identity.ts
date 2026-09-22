@@ -18,7 +18,11 @@ export function isFreeMail(email: string): boolean {
   return (LEAD_FREE_MAIL as readonly string[]).includes(host);
 }
 
-const norm = (s: string | null): string => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const norm = (s: string | null): string =>
+  (s ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 /** Same name, same street and same phone: one place listed twice. The later listing folds into the first. */
 export function foldDuplicates(places: CleanPlace[]): { kept: CleanPlace[]; folded: Map<string, string> } {
@@ -61,26 +65,37 @@ export function sharesWithin(places: CleanPlace[]): Map<string, LeadShare[]> {
   const out = new Map<string, LeadShare[]>();
   for (const p of places) {
     const keys = shareKeysOf(p);
-    for (const [kind, values] of [["phone", keys.phones], ["email", keys.emails], ["host", keys.hosts]] as const) {
+    for (const [kind, values] of [
+      ["phone", keys.phones],
+      ["email", keys.emails],
+      ["host", keys.hosts],
+    ] as const) {
       for (const v of values) {
         const key = `${kind}:${v}`;
         const first = firstBy.get(key);
         if (!first) firstBy.set(key, p.raw.placeId);
-        else if (first !== p.raw.placeId) out.set(p.raw.placeId, [...(out.get(p.raw.placeId) ?? []), { kind, place_id: first }]);
+        else if (first !== p.raw.placeId)
+          out.set(p.raw.placeId, [...(out.get(p.raw.placeId) ?? []), { kind, place_id: first }]);
       }
     }
   }
   return out;
 }
 
-export type Identity = { kind: "already_yours"; leadId: string } | { kind: "hidden" } | { kind: "new"; shares: LeadShare[] };
+export type Identity =
+  { kind: "already_yours"; leadId: string } | { kind: "hidden" } | { kind: "new"; shares: LeadShare[] };
 
 /**
  * What the workspace already knows of this place. Held by its place id: already
  * yours, skipped. Suppressed by its place id: hidden. Otherwise new, with the
  * shared details marked from what was looked up.
  */
-export function identityOf(p: CleanPlace, held: Map<string, string>, suppressedPlaceIds: Set<string>, shares: { key: string; share: LeadShare }[]): Identity {
+export function identityOf(
+  p: CleanPlace,
+  held: Map<string, string>,
+  suppressedPlaceIds: Set<string>,
+  shares: { key: string; share: LeadShare }[],
+): Identity {
   const leadId = held.get(p.raw.placeId);
   if (leadId) return { kind: "already_yours", leadId };
   if (suppressedPlaceIds.has(p.raw.placeId)) return { kind: "hidden" };

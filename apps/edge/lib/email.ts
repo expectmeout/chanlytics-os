@@ -20,12 +20,14 @@ import type { JobContext } from "./packages/jobs.js";
 import { erasedBeforeEmail } from "./erased.js";
 import { notify, type NotifyMessage } from "./notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
+import { logger, errField } from "./log.js";
+import { env } from "./env.js";
 
 type Db = SupabaseClient<Database>;
 
 /** The deployment's mail domain, lower-cased; null when email is off here. */
 export function emailDomain(): string | null {
-  const d = (process.env.EMAIL_DOMAIN || "").trim().toLowerCase();
+  const d = (env.EMAIL_DOMAIN || "").trim().toLowerCase();
   return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : null;
 }
 
@@ -40,7 +42,7 @@ export function emailDomain(): string | null {
 export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | null | undefined> {
   const domain = emailDomain();
   if (!domain) return undefined;
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = env.RESEND_API_KEY;
   if (!apiKey) return null;
   const mailbox = await mailboxOfTenant(db, tenantId);
   return emailSender({ apiKey }, mailbox ? sendsAs(mailbox, domain) : null);
@@ -74,7 +76,7 @@ export function emailWaitingMessage(n: EmailWaiting): NotifyMessage {
 /** Email's intake as the job runner is handed it; undefined when email is off here or there is no provider key to fetch with. */
 export function emailIntake(db: Db): JobContext["email"] | undefined {
   const domain = emailDomain();
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = env.RESEND_API_KEY;
   if (!domain || !apiKey) return undefined;
   return {
     domain,
@@ -88,7 +90,7 @@ export function emailIntake(db: Db): JobContext["email"] | undefined {
         const addressing = await loadTenantNotifications(db, tenantId);
         await notify({ tenantId, ...addressing }, emailWaitingMessage(note));
       } catch (e) {
-        console.error("email_tell_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+        logger({ tenant: tenantId }).error("email_tell_failed", { error: errField(e) });
       }
     },
   };

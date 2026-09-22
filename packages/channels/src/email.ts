@@ -72,12 +72,23 @@ export function replyRouteAddress(replyToken: string, domain: string): string {
 }
 
 /** A workspace's hosted identity, from its mailbox row and the deployment's mail domain. */
-export function hostedIdentity(mailbox: { local_part: string; reply_token: string; from_name: string }, domain: string): EmailIdentity {
-  return { fromName: mailbox.from_name, fromAddress: hostedAddress(mailbox.local_part, domain), replyTo: replyRouteAddress(mailbox.reply_token, domain) };
+export function hostedIdentity(
+  mailbox: { local_part: string; reply_token: string; from_name: string },
+  domain: string,
+): EmailIdentity {
+  return {
+    fromName: mailbox.from_name,
+    fromAddress: hostedAddress(mailbox.local_part, domain),
+    replyTo: replyRouteAddress(mailbox.reply_token, domain),
+  };
 }
 
 /** A header value is one line: a newline in one is how a second header is smuggled in. */
-const oneLine = (s: string): string => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
+const oneLine = (s: string): string =>
+  s
+    .replace(/\p{Cc}+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** `"Name" <address>`, the name quoted so a comma or a bracket in it cannot end it early. */
 export function mailboxHeader(name: string, address: string): string {
@@ -160,7 +171,10 @@ export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
     text,
     html: emailHtml(text),
     headers,
-    tags: [{ name: "cl_message", value: i.messageId }, { name: "cl_tenant", value: i.tenantId }],
+    tags: [
+      { name: "cl_message", value: i.messageId },
+      { name: "cl_tenant", value: i.tenantId },
+    ],
     idempotency_key: i.messageId,
   };
 }
@@ -169,11 +183,21 @@ export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
 export function isEmailRequest(v: unknown): v is EmailRequest {
   if (!v || typeof v !== "object") return false;
   const r = v as Record<string, unknown>;
-  const strings = (x: unknown): x is string[] => Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
-  return typeof r.from === "string" && strings(r.to) && strings(r.reply_to)
-    && typeof r.subject === "string" && typeof r.text === "string" && typeof r.html === "string"
-    && !!r.headers && typeof r.headers === "object" && Array.isArray(r.tags)
-    && typeof r.idempotency_key === "string" && r.idempotency_key.length > 0;
+  const strings = (x: unknown): x is string[] =>
+    Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
+  return (
+    typeof r.from === "string" &&
+    strings(r.to) &&
+    strings(r.reply_to) &&
+    typeof r.subject === "string" &&
+    typeof r.text === "string" &&
+    typeof r.html === "string" &&
+    !!r.headers &&
+    typeof r.headers === "object" &&
+    Array.isArray(r.tags) &&
+    typeof r.idempotency_key === "string" &&
+    r.idempotency_key.length > 0
+  );
 }
 
 /* ------------------------------------------------------------------ intake
@@ -202,17 +226,34 @@ function sameBytes(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export interface SvixHeaders { id: string | null; timestamp: string | null; signature: string | null }
+export interface SvixHeaders {
+  id: string | null;
+  timestamp: string | null;
+  signature: string | null;
+}
 
 /** How far a webhook's clock may be from ours: a captured delivery is not replayable for longer. */
 export const WEBHOOK_TOLERANCE_S = 300;
 
 /** The signature Svix computes for one delivery, base64; null when the secret is not one. Exported because a test signs with it, as twilioSignature is. */
-export async function resendWebhookSignature(secret: string, id: string, timestamp: string, rawBody: string): Promise<string | null> {
+export async function resendWebhookSignature(
+  secret: string,
+  id: string,
+  timestamp: string,
+  rawBody: string,
+): Promise<string | null> {
   let keyBytes: ArrayBuffer;
-  try { keyBytes = bytesOfBase64(secret.startsWith("whsec_") ? secret.slice(6) : secret); } catch { return null; }
-  const key = await globalThis.crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return base64OfBytes(await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${id}.${timestamp}.${rawBody}`)));
+  try {
+    keyBytes = bytesOfBase64(secret.startsWith("whsec_") ? secret.slice(6) : secret);
+  } catch {
+    return null;
+  }
+  const key = await globalThis.crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
+  return base64OfBytes(
+    await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${id}.${timestamp}.${rawBody}`)),
+  );
 }
 
 /**
@@ -226,7 +267,12 @@ export async function resendWebhookSignature(secret: string, id: string, timesta
  * It proves who sent the EVENT. It says nothing about who sent the email the
  * event is about.
  */
-export async function verifyResendWebhook(secret: string | undefined, h: SvixHeaders, rawBody: string, nowMs: number): Promise<boolean> {
+export async function verifyResendWebhook(
+  secret: string | undefined,
+  h: SvixHeaders,
+  rawBody: string,
+  nowMs: number,
+): Promise<boolean> {
   if (!secret || !h.id || !h.timestamp || !h.signature) return false;
   const ts = Number(h.timestamp);
   if (!Number.isFinite(ts) || Math.abs(nowMs / 1000 - ts) > WEBHOOK_TOLERANCE_S) return false;
@@ -254,7 +300,9 @@ export function platformRecipient(address: string, domain: string): PlatformReci
   const local = a.slice(0, at);
   const reply = /^r\+([a-z2-7]{24})$/.exec(local);
   if (reply) return { kind: "reply", token: reply[1] };
-  return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r" ? { kind: "mailbox", localPart: local } : null;
+  return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r"
+    ? { kind: "mailbox", localPart: local }
+    : null;
 }
 
 /** `Ana Reyes <ana@x.com>` or `ana@x.com`: the address and the phrase, apart. The phrase is the sender's own and proves nothing. */
@@ -264,7 +312,12 @@ export function addressOf(header: string | null | undefined): { address: string;
   const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
   const address = (angle ? angle[2] : s).trim().toLowerCase();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
-  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+  const name = angle
+    ? angle[1]
+        .trim()
+        .replace(/^"(.*)"$/, "$1")
+        .trim()
+    : "";
   return { address, name: name || null };
 }
 
@@ -284,9 +337,14 @@ export interface EmailReceivedEvent {
 }
 
 const stringsOf = (v: unknown): string[] =>
-  (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter((x): x is string => typeof x === "string" && x.length > 0);
+  (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter(
+    (x): x is string => typeof x === "string" && x.length > 0,
+  );
 
-const addressesOf = (v: unknown): string[] => stringsOf(v).map((r) => addressOf(r)?.address).filter((a): a is string => !!a);
+const addressesOf = (v: unknown): string[] =>
+  stringsOf(v)
+    .map((r) => addressOf(r)?.address)
+    .filter((a): a is string => !!a);
 
 /** The received event, or null for any other event or shape. Lenient about a list that arrives as one string. */
 export function emailReceivedEventFrom(payload: unknown): EmailReceivedEvent | null {
@@ -295,7 +353,9 @@ export function emailReceivedEventFrom(payload: unknown): EmailReceivedEvent | n
   const id = p.data.email_id ?? p.data.id;
   if (typeof id !== "string" || !id) return null;
   const envelope = addressesOf(p.data.received_for);
-  const recipients = envelope.length ? envelope : [...addressesOf(p.data.to), ...addressesOf(p.data.cc), ...addressesOf(p.data.bcc)];
+  const recipients = envelope.length
+    ? envelope
+    : [...addressesOf(p.data.to), ...addressesOf(p.data.cc), ...addressesOf(p.data.bcc)];
   return { type: "email.received", receivedId: id, recipients: [...new Set(recipients)] };
 }
 
@@ -317,9 +377,12 @@ export interface ReceivedEmail {
 
 function headersOf(v: unknown): Record<string, string> {
   const out: Record<string, string> = {};
-  const put = (k: unknown, val: unknown) => { if (typeof k === "string" && typeof val === "string" && !(k.toLowerCase() in out)) out[k.toLowerCase()] = val; };
+  const put = (k: unknown, val: unknown) => {
+    if (typeof k === "string" && typeof val === "string" && !(k.toLowerCase() in out)) out[k.toLowerCase()] = val;
+  };
   if (Array.isArray(v)) for (const h of v) put((h as { name?: unknown })?.name, (h as { value?: unknown })?.value);
-  else if (v && typeof v === "object") for (const [k, val] of Object.entries(v)) put(k, Array.isArray(val) ? val[0] : val);
+  else if (v && typeof v === "object")
+    for (const [k, val] of Object.entries(v)) put(k, Array.isArray(val) ? val[0] : val);
   return out;
 }
 
@@ -342,14 +405,21 @@ export function receivedEmailFrom(body: unknown): ReceivedEmail | null {
     createdAt: str(b.created_at),
     attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
       const x = (a ?? {}) as Record<string, unknown>;
-      return { filename: str(x.filename), contentType: str(x.content_type), size: typeof x.size === "number" ? x.size : null };
+      return {
+        filename: str(x.filename),
+        contentType: str(x.content_type),
+        size: typeof x.size === "number" ? x.size : null,
+      };
     }),
   };
 }
 
 /** The ids a header lists, as headers carry them. */
 export function messageIdsIn(header: string | null | undefined): string[] {
-  return (header ?? "").split(/\s+/).map(messageIdHeader).filter((x): x is string => x !== null);
+  return (header ?? "")
+    .split(/\s+/)
+    .map(messageIdHeader)
+    .filter((x): x is string => x !== null);
 }
 
 /**
@@ -375,8 +445,20 @@ export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from">): Em
   const local = e.from?.address.split("@")[0] ?? "";
   if (/multipart\/report/i.test(h["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/.test(local)) return "report";
   const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
-  if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim())) return "auto_reply";
-  if ((auto && auto !== "no") || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h) return "automated";
+  if (
+    auto.startsWith("auto-replied") ||
+    "x-autoreply" in h ||
+    "x-autorespond" in h ||
+    /^auto[_-]?reply$/i.test((h.precedence ?? "").trim())
+  )
+    return "auto_reply";
+  if (
+    (auto && auto !== "no") ||
+    /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) ||
+    "list-id" in h ||
+    "list-unsubscribe" in h
+  )
+    return "automated";
   return "person";
 }
 
@@ -388,8 +470,17 @@ export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from">): Em
  * order, without a lookup by provider id (buildEmailRequest).
  */
 
-export type EmailReceiptType = "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";
-const RECEIPT_TYPES: ReadonlySet<string> = new Set<EmailReceiptType>(["sent", "delivered", "delivery_delayed", "bounced", "complained", "failed", "suppressed"]);
+export type EmailReceiptType =
+  "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";
+const RECEIPT_TYPES: ReadonlySet<string> = new Set<EmailReceiptType>([
+  "sent",
+  "delivered",
+  "delivery_delayed",
+  "bounced",
+  "complained",
+  "failed",
+  "suppressed",
+]);
 
 export interface EmailReceipt {
   type: EmailReceiptType;
@@ -412,14 +503,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function tagOf(tags: unknown, name: string): string | null {
   const v = Array.isArray(tags)
     ? (tags.find((t) => (t as { name?: unknown } | null)?.name === name) as { value?: unknown } | undefined)?.value
-    : tags && typeof tags === "object" ? (tags as Record<string, unknown>)[name] : undefined;
+    : tags && typeof tags === "object"
+      ? (tags as Record<string, unknown>)[name]
+      : undefined;
   return typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null;
 }
 
 /** A receipt, or null for any other event or shape. */
 export function emailReceiptFrom(payload: unknown): EmailReceipt | null {
   const p = payload as { type?: unknown; data?: Record<string, unknown> } | null;
-  if (!p || typeof p.type !== "string" || !p.type.startsWith("email.") || !p.data || typeof p.data !== "object") return null;
+  if (!p || typeof p.type !== "string" || !p.type.startsWith("email.") || !p.data || typeof p.data !== "object")
+    return null;
   const type = p.type.slice("email.".length);
   if (!RECEIPT_TYPES.has(type)) return null;
   const d = p.data;
@@ -463,12 +557,18 @@ export interface EmailReceiptEffect {
 export function emailReceiptEffect(r: EmailReceipt): EmailReceiptEffect {
   const error = { provider: r.type, kind: r.detail.kind, sub_kind: r.detail.subKind, message: r.detail.message };
   switch (r.type) {
-    case "delivered": return { status: "delivered", error: null, suppress: null };
-    case "bounced": return { status: "failed", error, suppress: /^permanent$/i.test(r.detail.kind ?? "") ? "hard_bounce" : null };
-    case "failed": return { status: "failed", error, suppress: null };
-    case "suppressed": return { status: "failed", error, suppress: "provider" };
-    case "complained": return { status: null, error: null, suppress: "complaint" };
-    default: return { status: null, error: null, suppress: null };
+    case "delivered":
+      return { status: "delivered", error: null, suppress: null };
+    case "bounced":
+      return { status: "failed", error, suppress: /^permanent$/i.test(r.detail.kind ?? "") ? "hard_bounce" : null };
+    case "failed":
+      return { status: "failed", error, suppress: null };
+    case "suppressed":
+      return { status: "failed", error, suppress: "provider" };
+    case "complained":
+      return { status: null, error: null, suppress: "complaint" };
+    default:
+      return { status: null, error: null, suppress: null };
   }
 }
 
@@ -481,10 +581,15 @@ export interface EmailSendsAs {
 }
 
 /** What a mailbox row sends as, on the deployment's mail domain. */
-export function sendsAs(mailbox: { local_part: string; reply_token: string; reply_token_prev: string | null }, domain: string): EmailSendsAs {
+export function sendsAs(
+  mailbox: { local_part: string; reply_token: string; reply_token_prev: string | null },
+  domain: string,
+): EmailSendsAs {
   return {
     address: hostedAddress(mailbox.local_part, domain),
-    replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t): t is string => !!t).map((t) => replyRouteAddress(t, domain)),
+    replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev]
+      .filter((t): t is string => !!t)
+      .map((t) => replyRouteAddress(t, domain)),
   };
 }
 
@@ -496,9 +601,11 @@ export function sendsAs(mailbox: { local_part: string; reply_token: string; repl
  * tenant and never from the environment.
  */
 export function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolean {
-  return addressOf(request.from)?.address === as.address
-    && request.reply_to.length === 1
-    && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
+  return (
+    addressOf(request.from)?.address === as.address &&
+    request.reply_to.length === 1 &&
+    as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase())
+  );
 }
 
 /* ----------------------------------------------------------- the mail domain

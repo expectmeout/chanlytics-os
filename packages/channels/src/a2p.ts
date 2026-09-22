@@ -133,7 +133,11 @@ export function encodeForm(form: Record<string, string | string[]>): string {
 const attrs = (o: Record<string, unknown>) => JSON.stringify(o);
 
 /** The customer's own bundle, under our primary profile. */
-export function customerProfileRequest(o: { friendlyName: string; email: string; statusCallback?: string }): A2PRequest {
+export function customerProfileRequest(o: {
+  friendlyName: string;
+  email: string;
+  statusCallback?: string;
+}): A2PRequest {
   return {
     url: `${TRUSTHUB}/CustomerProfiles`,
     method: "POST",
@@ -193,7 +197,11 @@ export function starterEndUserRequest(r: BusinessRecord): A2PRequest {
 }
 
 /** The messaging profile bundle a sole proprietor's brand is registered from. */
-export function soleProprietorProfileRequest(o: { friendlyName: string; email: string; statusCallback?: string }): A2PRequest {
+export function soleProprietorProfileRequest(o: {
+  friendlyName: string;
+  email: string;
+  statusCallback?: string;
+}): A2PRequest {
   return {
     url: `${TRUSTHUB}/TrustProducts`,
     method: "POST",
@@ -316,7 +324,8 @@ export function updateEndUserRequest(sid: string, attributes: Record<string, unk
 }
 
 /** The attributes each end user carries, so the create and the update cannot drift. */
-const parsed = (req: A2PRequest): Record<string, unknown> => JSON.parse(String(req.form?.Attributes ?? "{}")) as Record<string, unknown>;
+const parsed = (req: A2PRequest): Record<string, unknown> =>
+  JSON.parse(String(req.form?.Attributes ?? "{}")) as Record<string, unknown>;
 export function businessAttributes(r: BusinessRecord): Record<string, unknown> {
   return parsed(businessEndUserRequest(r));
 }
@@ -330,16 +339,31 @@ export function representativeAttributes(r: BusinessRecord): Record<string, unkn
 
 /** Everything a bundle carries is attached the same way. */
 export function assignRequest(bundleSid: string, objectSid: string): A2PRequest {
-  return { url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}/EntityAssignments`, method: "POST", form: { ObjectSid: objectSid } };
+  return {
+    url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}/EntityAssignments`,
+    method: "POST",
+    form: { ObjectSid: objectSid },
+  };
 }
 
 export function trustProductAssignRequest(bundleSid: string, objectSid: string): A2PRequest {
-  return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}/EntityAssignments`, method: "POST", form: { ObjectSid: objectSid } };
+  return {
+    url: `${TRUSTHUB}/TrustProducts/${bundleSid}/EntityAssignments`,
+    method: "POST",
+    form: { ObjectSid: objectSid },
+  };
 }
 
 /** Ask Twilio whether the bundle is complete before submitting it. */
-export function evaluateRequest(bundleSid: string, policySid: string = A2P_POLICIES.secondaryCustomerProfile): A2PRequest {
-  return { url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}/Evaluations`, method: "POST", form: { PolicySid: policySid } };
+export function evaluateRequest(
+  bundleSid: string,
+  policySid: string = A2P_POLICIES.secondaryCustomerProfile,
+): A2PRequest {
+  return {
+    url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}/Evaluations`,
+    method: "POST",
+    form: { PolicySid: policySid },
+  };
 }
 
 export function submitProfileRequest(bundleSid: string): A2PRequest {
@@ -374,7 +398,11 @@ export function a2pProfileEndUserRequest(o: { friendlyName: string; companyType:
 }
 
 export function evaluateTrustProductRequest(bundleSid: string): A2PRequest {
-  return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}/Evaluations`, method: "POST", form: { PolicySid: A2P_POLICIES.a2pMessaging } };
+  return {
+    url: `${TRUSTHUB}/TrustProducts/${bundleSid}/Evaluations`,
+    method: "POST",
+    form: { PolicySid: A2P_POLICIES.a2pMessaging },
+  };
 }
 
 export function submitTrustProductRequest(bundleSid: string): A2PRequest {
@@ -404,7 +432,13 @@ export function submitTrustProductRequest(bundleSid: string): A2PRequest {
  * the throughput. Paying up front for every salon, in case one of them turns
  * into a sender, is the wrong way round.
  */
-export function brandRequest(o: { customerProfileBundleSid: string; a2pProfileBundleSid: string; brandType: BrandType; mock: boolean; skipVetting: boolean }): A2PRequest {
+export function brandRequest(o: {
+  customerProfileBundleSid: string;
+  a2pProfileBundleSid: string;
+  brandType: BrandType;
+  mock: boolean;
+  skipVetting: boolean;
+}): A2PRequest {
   return {
     url: `${MESSAGING}/a2p/BrandRegistrations`,
     method: "POST",
@@ -567,7 +601,18 @@ export function deleteCampaignRequest(messagingServiceSid: string, campaignSid: 
 
 export type A2PStep = SchemaSet<"lines.reg_step">;
 /** In the order the saga walks them; schema-agreement.ts holds them to the column. */
-export const A2P_STEPS = ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"] as const;
+export const A2P_STEPS = [
+  "profile",
+  "business",
+  "representative",
+  "address",
+  "document",
+  "primary",
+  "submit",
+  "a2p_profile",
+  "brand",
+  "campaign",
+] as const;
 
 /** What the registration has made so far. Every field is a receipt for one step. */
 export interface A2PState {
@@ -584,8 +629,16 @@ export interface A2PState {
 }
 
 export const EMPTY_A2P_STATE: A2PState = {
-  profileSid: null, businessSid: null, representativeSid: null, addressSid: null, documentSid: null,
-  primaryAssigned: false, profileSubmitted: false, a2pProfileSid: null, brandSid: null, campaignSid: null,
+  profileSid: null,
+  businessSid: null,
+  representativeSid: null,
+  addressSid: null,
+  documentSid: null,
+  primaryAssigned: false,
+  profileSubmitted: false,
+  a2pProfileSid: null,
+  brandSid: null,
+  campaignSid: null,
 };
 
 /**
@@ -696,7 +749,11 @@ export function refusalWords(o: {
 /** Twilio's brand and campaign statuses, in the words `lines.sms_state` uses. */
 export type SmsRegistrationState = "registering" | "approved" | "active" | "rejected" | "failed";
 
-export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: string | null; mock?: boolean }): SmsRegistrationState {
+export function smsStateFor(o: {
+  brandStatus?: string | null;
+  campaignStatus?: string | null;
+  mock?: boolean;
+}): SmsRegistrationState {
   const brand = (o.brandStatus ?? "").toUpperCase();
   const campaign = (o.campaignStatus ?? "").toUpperCase();
   if (brand === "FAILED" || campaign === "FAILED") return "rejected";
@@ -731,7 +788,13 @@ export function registrationVerdict(
   before: string,
   after: SmsRegistrationState,
   o: { number: string | null; reason?: string | null; mock?: boolean },
-): { kind: "number" | "alert"; title: string; body: string; route: string; event: "line.texting_on" | "line.texting_rejected" | "line.texting_approved" } | null {
+): {
+  kind: "number" | "alert";
+  title: string;
+  body: string;
+  route: string;
+  event: "line.texting_on" | "line.texting_rejected" | "line.texting_approved";
+} | null {
   if (before === after) return null;
   const num = o.number ?? "your line";
   const rehearsal = o.mock ? " (this was a test filing, so nothing routes)" : "";

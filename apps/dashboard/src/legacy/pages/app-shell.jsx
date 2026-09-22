@@ -16,8 +16,10 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 // for flipped surfaces; unflipped ones are seeded and always ready.
 const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGate(page, param);
 
-/** Surfaces whose own route param is a prop they follow, not a new identity. */
-const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts"]);
+/** Surfaces whose own route param is a prop they follow, not a new identity. Live writes the call it opens to the
+ *  address (replaced), so each call being its own mount would tear the page down on every click; Conversations writes
+ *  the row on its tab (`<tab>:<id>`) the same way. */
+const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts", "live", "conversations"]);
 // What a route is MOUNTED under (the long note where it is used says why that is not the route). Leads follows its
 // address as a prop -- the page reads `leadsRoute` on every draw and its one read is keyed by it -- so every view of
 // Leads, and a lead opened over one, is the page already there. People's own views and a profile keep their whole
@@ -301,14 +303,28 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
 
   // A navigation is a new entry. `{ replace: true }` is a page saying the same place more exactly -- the lead a peek
   // walked on to -- so it makes none; replaceState fires no hashchange, so the route is read here, at once.
+  // The last entry this shell pushed and the address it was pushed from, so a page's own Back can return where the
+  // member was rather than push a place of its own. Kept here, never in history.state: Next's router reloads the
+  // whole app on a Back to an entry whose state it did not write (app-router.js onPopState), and a state-only
+  // replaceState is one it never re-marks.
+  const lastPush = React.useRef(null);
   const navigate = useShellCallback((to, opts) => {
     if (opts && opts.replace && window.history && window.history.replaceState) {
       window.history.replaceState(null, "", "#/" + to);
       setRoute(parseHash());
       return;
     }
+    lastPush.current = { to: "#/" + to, from: window.location.hash };
     window.location.hash = "/" + to;
   }, []);
+  // A person's Back: the People view (a list, a segment, Leads) this profile was opened from, by the browser's own
+  // Back, so its place comes with it. It pushed plain People, and the list the member was working through was gone.
+  // Reached any other way -- a link, a reload, another page's door, Back from somewhere else -- it is People itself.
+  const backToPeople = useShellCallback(() => {
+    const p = lastPush.current;
+    if (p && p.to === window.location.hash && /^#\/clients(?:$|[/:])/.test(p.from) && window.history && window.history.back) window.history.back();
+    else navigate("clients");
+  }, [navigate]);
   const openAsk = useShellCallback(() => setAskOpen(true), []);
 
   // Expose for deep components (fleet cards, command rows) without prop-drilling
@@ -452,7 +468,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     crumbs = [{ label: "People", to: "clients" }, client ? client.name : "Profile"];
     pane = true;
     content = client || people
-      ? <ClientProfile id={param} onBack={() => navigate("clients")} />
+      ? <ClientProfile id={param} onBack={backToPeople} />
       : <ClientNotFound onNavigate={navigate} />;
   } else if (page === "clients") {
     activeNav = "clients";
@@ -557,7 +573,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     const cv = window.CV_ROUTE(param);
     const cvTab = cv.channel !== "all" && (cvData.CV_CHANNELS || []).find((t) => t.id === cv.channel);
     const cvWho = cv.id && ((cvData.CONVERSATIONS || []).find(c => c.id === cv.id) || {}).who;
-    activeNav = { phone: "calls", chats: "chats", mail: "email" }[param] || "conversations";
+    activeNav = { phone: "calls", chats: "chats", mail: "email" }[cv.channel] || "conversations";
     crumbs = cvWho
       ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, cvWho]
       : cvTab

@@ -15,6 +15,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ThreadTurn } from "./thread.js";
 import { BRAIN_OUTPUT_JSON_SCHEMA, parseBrainOutput, brainMetaOf, type BrainMeta } from "./packages/contracts.js";
+import { logger } from "./log.js";
 
 export const BRAIN_MODEL = "claude-opus-5";
 
@@ -44,7 +45,10 @@ export interface BrainReply {
   meta?: BrainMeta;
 }
 
-interface TextBlock { type: string; text?: string }
+interface TextBlock {
+  type: string;
+  text?: string;
+}
 interface RawResponse {
   stop_reason: string;
   content: TextBlock[];
@@ -77,7 +81,14 @@ function legacyReply(raw: string, fallbackText: string, stopReason: string, usag
     escalate,
     reason: escalate ? "human_token" : undefined,
     usage,
-    meta: { intent: "other", confidence: 0, reason: "read without its record: the schema was refused and the plain retry answered", facts_used: [], language: "other", model: BRAIN_MODEL },
+    meta: {
+      intent: "other",
+      confidence: 0,
+      reason: "read without its record: the schema was refused and the plain retry answered",
+      facts_used: [],
+      language: "other",
+      model: BRAIN_MODEL,
+    },
   };
 }
 
@@ -117,6 +128,7 @@ export async function generateReply(
    */
   steer?: string,
 ): Promise<BrainReply> {
+  const L = logger();
   const userContent = image
     ? [
         { type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } },
@@ -127,7 +139,8 @@ export async function generateReply(
   // its last turn is usually that same message; appending it again showed
   // the model every message twice. The copy is skipped, the memory kept.
   const last = history[history.length - 1];
-  const prior = last && last.role === "user" && last.content.trim() === userText.trim() ? history.slice(0, -1) : history;
+  const prior =
+    last && last.role === "user" && last.content.trim() === userText.trim() ? history.slice(0, -1) : history;
   const messages = [...prior, { role: "user" as const, content: userContent }];
   const base = {
     model: BRAIN_MODEL,
@@ -154,7 +167,7 @@ export async function generateReply(
     });
   } catch (e) {
     if (!formatRejected(e)) throw e;
-    console.error("brain_format_rejected", JSON.stringify({ error: String((e as Error).message ?? e).slice(0, 200) }));
+    L.error("brain_format_rejected", { error: String((e as Error).message ?? e).slice(0, 200) });
     structured = false;
     response = await create({ ...base, output_config: { effort: "low" } });
   }
@@ -177,12 +190,12 @@ export async function generateReply(
   // be whole, so the holding reply goes out and a person is told, as a capped
   // reply always meant.
   if (response.stop_reason === "max_tokens") {
-    console.error("brain_capped", JSON.stringify({ chars: raw.length }));
+    L.error("brain_capped", { chars: raw.length });
     return { text: fallbackText, escalate: true, reason: "human_token", usage };
   }
   const parsed = parseBrainOutput(raw);
   if (!parsed.ok) {
-    console.error("brain_parse_failed", JSON.stringify({ error: parsed.error, chars: raw.length }));
+    L.error("brain_parse_failed", { error: parsed.error, chars: raw.length });
     return { text: fallbackText, escalate: true, reason: "brain_error", usage };
   }
 
@@ -194,5 +207,11 @@ export async function generateReply(
     text = fallbackText;
     escalate = true;
   }
-  return { text, escalate, reason: escalate ? "human_token" : undefined, usage, meta: brainMetaOf(parsed.value, BRAIN_MODEL) };
+  return {
+    text,
+    escalate,
+    reason: escalate ? "human_token" : undefined,
+    usage,
+    meta: brainMetaOf(parsed.value, BRAIN_MODEL),
+  };
 }

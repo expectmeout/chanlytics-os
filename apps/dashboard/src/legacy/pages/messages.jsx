@@ -383,7 +383,9 @@ const MessagesReal = () => {
   const [doing, setDoing] = React.useState(null);
   const doingRef = React.useRef(null);
   const busy = doing !== null;
-  const [composing, setComposing] = React.useState(false);
+  // A message half-written when the page was left opens again as the page does: the tab kept its words (the
+  // composer's own useUnsavedWork, under "new").
+  const [composing, setComposing] = React.useState(() => !!(window.tabDraft && window.tabDraft("template", "new")));
   const [showHidden, setShowHidden] = React.useState(false);
   // Which message is open, by its key. One at a time: the words of two
   // messages side by side is the wall this page stopped being.

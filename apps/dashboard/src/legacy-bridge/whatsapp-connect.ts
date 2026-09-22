@@ -29,7 +29,10 @@ export type ConnectResult =
 
 interface FB {
   init(opts: { appId: string; version: string; xfbml?: boolean; cookie?: boolean }): void;
-  login(cb: (r: { authResponse?: { code?: string } | null; status?: string }) => void, opts: Record<string, unknown>): void;
+  login(
+    cb: (r: { authResponse?: { code?: string } | null; status?: string }) => void,
+    opts: Record<string, unknown>,
+  ): void;
 }
 
 const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
@@ -61,17 +64,29 @@ export function loadSdk(win: Window, appId: string, version: string): Promise<FB
 }
 
 /** The ids Meta posts back when the sign-up window finishes. */
-export function parseSignupMessage(origin: string, data: unknown): { phone_number_id: string; waba_id: string } | { cancelled: true } | null {
+export function parseSignupMessage(
+  origin: string,
+  data: unknown,
+): { phone_number_id: string; waba_id: string } | { cancelled: true } | null {
   if (!META_ORIGINS.has(origin)) return null;
   let obj: unknown = data;
   if (typeof data === "string") {
-    try { obj = JSON.parse(data); } catch { return null; }
+    try {
+      obj = JSON.parse(data);
+    } catch {
+      return null;
+    }
   }
-  const m = obj as { type?: string; event?: string; data?: { phone_number_id?: string; waba_id?: string; current_step?: string } } | null;
+  const m = obj as {
+    type?: string;
+    event?: string;
+    data?: { phone_number_id?: string; waba_id?: string; current_step?: string };
+  } | null;
   if (!m || m.type !== "WA_EMBEDDED_SIGNUP") return null;
   if (m.event === "FINISH" || m.event === "FINISH_ONLY_WABA") {
     const d = m.data ?? {};
-    if (d.phone_number_id && d.waba_id) return { phone_number_id: String(d.phone_number_id), waba_id: String(d.waba_id) };
+    if (d.phone_number_id && d.waba_id)
+      return { phone_number_id: String(d.phone_number_id), waba_id: String(d.waba_id) };
     return null;
   }
   if (m.event === "CANCEL") return { cancelled: true };
@@ -83,12 +98,17 @@ export function installWhatsAppConnect(win: Window = window): void {
 
   const start = async (): Promise<ConnectResult> => {
     const cfg = await config().catch(() => null);
-    if (!cfg || !cfg.ready || !cfg.app_id || !cfg.config_id) return { ok: false, reason: "not_ready", message: "Chanlytics is not set up to connect numbers yet." };
+    if (!cfg || !cfg.ready || !cfg.app_id || !cfg.config_id)
+      return { ok: false, reason: "not_ready", message: "Chanlytics is not set up to connect numbers yet." };
     let FBsdk: FB;
     try {
       FBsdk = await loadSdk(win, cfg.app_id, cfg.graph_version);
     } catch {
-      return { ok: false, reason: "sdk", message: "Meta's sign-up window could not be loaded. Check that the browser allows facebook.com." };
+      return {
+        ok: false,
+        reason: "sdk",
+        message: "Meta's sign-up window could not be loaded. Check that the browser allows facebook.com.",
+      };
     }
     // The ids arrive by message while the window is open; the code arrives
     // when it closes. Both are needed, in whichever order they come.
@@ -102,19 +122,38 @@ export function installWhatsAppConnect(win: Window = window): void {
     };
     win.addEventListener("message", onMessage);
     const code = await new Promise<string | null>((resolve) => {
-      FBsdk.login(
-        (r) => resolve(r.authResponse?.code ?? null),
-        { config_id: cfg.config_id, response_type: "code", override_default_response_type: true, extras: { setup: {}, featureType: "", sessionInfoVersion: "3" } },
-      );
+      FBsdk.login((r) => resolve(r.authResponse?.code ?? null), {
+        config_id: cfg.config_id,
+        response_type: "code",
+        override_default_response_type: true,
+        extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+      });
     });
     // A late message can follow the callback by a tick.
     await new Promise((r) => win.setTimeout(r, 300));
     win.removeEventListener("message", onMessage);
-    if (!code || cancelled) return { ok: false, reason: "cancelled", message: "The sign-up was closed before it finished. Nothing was connected." };
-    if (!ids) return { ok: false, reason: "no_ids", message: "The sign-up finished without a number. Start it again and pick the number to connect." };
-    const r = await api()("POST channels/whatsapp/connect", { body: { code, ...(ids as { phone_number_id: string; waba_id: string }) } });
+    if (!code || cancelled)
+      return {
+        ok: false,
+        reason: "cancelled",
+        message: "The sign-up was closed before it finished. Nothing was connected.",
+      };
+    if (!ids)
+      return {
+        ok: false,
+        reason: "no_ids",
+        message: "The sign-up finished without a number. Start it again and pick the number to connect.",
+      };
+    const r = await api()("POST channels/whatsapp/connect", {
+      body: { code, ...(ids as { phone_number_id: string; waba_id: string }) },
+    });
     if (!r.ok) return { ok: false, reason: "failed", message: r.message };
-    return { ok: true, number: r.data.number_e164 ?? null, verifiedName: r.data.verified_name ?? null, qualityRating: r.data.quality_rating ?? null };
+    return {
+      ok: true,
+      number: r.data.number_e164 ?? null,
+      verifiedName: r.data.verified_name ?? null,
+      qualityRating: r.data.quality_rating ?? null,
+    };
   };
 
   (win as unknown as { __waConnect?: { config: typeof config; start: typeof start } }).__waConnect = { config, start };

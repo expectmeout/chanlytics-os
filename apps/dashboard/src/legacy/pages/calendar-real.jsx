@@ -540,7 +540,9 @@ const CalendarReal = ({ initialDay = null }) => {
   keys.current = { open: !!openBlock, move, today: () => setAnchorKey(null), close: () => setOpenId(null) };
 
   return (
-    <div className="calendar" data-testid="calendar-real">
+    // Days on their way dim by the one rule every page uses (components.css [data-loading] [data-dims]): after a beat,
+    // so a window the tab holds, painted at once, never flickers.
+    <div className="calendar" data-testid="calendar-real" data-loading={pending ? "" : undefined}>
       {/* The calendar first: one bar of controls and one line of counts over the board, and the hours, the booking rules,
           the calendar's source and Refresh one tap away under it. A title the top bar already says, a paragraph, three
           stat cards and five rows of controls came first, and on a phone the first day sat below the fold. */}
@@ -625,7 +627,7 @@ const CalendarReal = ({ initialDay = null }) => {
         <div className="cal-reading" role="status" data-testid="cal-reading">Reading those days…</div>
       )}
 
-      <div key={view} className={`cal-body ${pending ? "is-loading" : ""}`} aria-busy={pending ? "true" : "false"} data-testid="cal-body">
+      <div key={view} className="cal-body" data-dims aria-busy={pending ? "true" : "false"} data-testid="cal-body">
         {view === "month" && <CrMonth frames={frames} monthKey={monthKey} feedOk={feedOk} fit={fit} onDay={openDay} />}
         {view === "agenda" && <CrAgenda frames={frames} feedOk={feedOk} fit={fit} service={service} offer={vm.offer} onOpen={(b) => setOpenId(b.id)} />}
         {(view === "week" || view === "day") && <CrBoard frames={shown} hours={vm.hours} now={vm.now} wide={view === "day"} fit={fit} onDay={openDay} onOpen={(b) => setOpenId(b.id)} />}

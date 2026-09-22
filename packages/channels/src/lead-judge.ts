@@ -14,7 +14,15 @@
  * jobs ledger's waits retry the job.
  */
 import { createHash } from "node:crypto";
-import { JUDGE_OUTPUT_SCHEMA, judgeSystemPrompt, judgeUserContent, parseJudgeAnswer, type JudgePlaceAnswer, type LeadSearchPlan, type PlaceFacts } from "@chanlytics/contracts";
+import {
+  JUDGE_OUTPUT_SCHEMA,
+  judgeSystemPrompt,
+  judgeUserContent,
+  parseJudgeAnswer,
+  type JudgePlaceAnswer,
+  type LeadSearchPlan,
+  type PlaceFacts,
+} from "@chanlytics/contracts";
 
 /** Twenty-five places at low effort fit in about 3,000 tokens; the rest is room. A cap reached is a refusal, never a split. */
 export const LEAD_JUDGE_MAX_TOKENS = 6_000;
@@ -62,7 +70,9 @@ export function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boo
       };
       let res: RawResponse;
       try {
-        res = (await client.beta.messages.create(fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base)) as RawResponse;
+        res = (await client.beta.messages.create(
+          fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base,
+        )) as RawResponse;
       } catch (e) {
         if (!(fallbacks && betaRejected(e))) throw e;
         res = (await client.beta.messages.create(base)) as RawResponse;
@@ -70,7 +80,10 @@ export function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boo
       const tokens = (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0);
       if (res.stop_reason === "refusal") return { refused: true, why: "the judge refused" };
       if (res.stop_reason === "max_tokens") return { refused: true, why: "max_tokens" };
-      const text = (res.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+      const text = (res.content ?? [])
+        .filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("");
       let raw: unknown;
       try {
         raw = JSON.parse(text);

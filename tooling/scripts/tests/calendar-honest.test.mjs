@@ -38,14 +38,50 @@ function dto(over = {}) {
   const from = "2026-09-07";
   const days = [];
   for (let i = 0; i < 7; i++) days.push({ key: shiftKey(from, i), items: [], windows: [] });
-  days[1].items.push({ id: "e1", start: "2026-09-08T18:00:00.000Z", end: "2026-09-08T19:30:00.000Z", title: "Ana Ruiz · Color", all_day: false, person: { id: "p1", name: "Ana Ruiz" } });
-  days[3].items.push({ id: "e2", start: "2026-09-10T04:00:00.000Z", end: "2026-09-11T04:00:00.000Z", title: "Team training", all_day: true, person: null });
+  days[1].items.push({
+    id: "e1",
+    start: "2026-09-08T18:00:00.000Z",
+    end: "2026-09-08T19:30:00.000Z",
+    title: "Ana Ruiz · Color",
+    all_day: false,
+    person: { id: "p1", name: "Ana Ruiz" },
+  });
+  days[3].items.push({
+    id: "e2",
+    start: "2026-09-10T04:00:00.000Z",
+    end: "2026-09-11T04:00:00.000Z",
+    title: "Team training",
+    all_day: true,
+    person: null,
+  });
   days[1].windows.push({ start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" });
   days[4].windows.push({ start: "2026-09-11T14:00:00.000Z", end: "2026-09-11T16:00:00.000Z" });
   return {
-    timezone: TZ, from, to: "2026-09-13",
-    feed: { present: true, state: "ok", read_at: "2026-09-08T15:58:00.000Z", events: 4, recurring_expanded: 1, skipped_recurring: 0 },
-    hours: { mon: { open: "09:00", close: "18:00" }, tue: { open: "09:00", close: "18:00" }, wed: { intervals: [{ open: "09:00", close: "13:00" }, { open: "15:00", close: "19:00" }] }, thu: { open: "09:00", close: "18:00" }, fri: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" }, sun: {} },
+    timezone: TZ,
+    from,
+    to: "2026-09-13",
+    feed: {
+      present: true,
+      state: "ok",
+      read_at: "2026-09-08T15:58:00.000Z",
+      events: 4,
+      recurring_expanded: 1,
+      skipped_recurring: 0,
+    },
+    hours: {
+      mon: { open: "09:00", close: "18:00" },
+      tue: { open: "09:00", close: "18:00" },
+      wed: {
+        intervals: [
+          { open: "09:00", close: "13:00" },
+          { open: "15:00", close: "19:00" },
+        ],
+      },
+      thu: { open: "09:00", close: "18:00" },
+      fri: { open: "09:00", close: "18:00" },
+      sat: { open: "10:00", close: "16:00" },
+      sun: {},
+    },
     closures: [{ date: "2026-09-12", note: "Wedding" }],
     rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 14 },
     booking_link: "https://booksy.com/melanys",
@@ -75,39 +111,81 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
   useMemo: (fn) => fn(),
   // Once per effect; with honourDeps, an effect whose dependencies changed runs again, its last cleanup first.
   useEffect: (fn, deps) => {
     const k = seq++;
     const prev = cells[k];
-    const moved = honourDeps && !!prev && Array.isArray(deps) && Array.isArray(prev.deps) && deps.some((d, i) => !Object.is(d, prev.deps[i]));
+    const moved =
+      honourDeps &&
+      !!prev &&
+      Array.isArray(deps) &&
+      Array.isArray(prev.deps) &&
+      deps.some((d, i) => !Object.is(d, prev.deps[i]));
     if (k in cells && !moved) return;
     if (moved && typeof prev.cleanup === "function") prev.cleanup();
     const cell = { deps };
     cells[k] = cell;
     const done = fn();
-    if (typeof done === "function") { cell.cleanup = done; cleanups.push(done); }
+    if (typeof done === "function") {
+      cell.cleanup = done;
+      cleanups.push(done);
+    }
   },
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.document = { body: {}, activeElement: null, visibilityState: "visible", addEventListener() {}, removeEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.document = {
+  body: {},
+  activeElement: null,
+  visibilityState: "visible",
+  addEventListener() {},
+  removeEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+};
 globalThis.window = {
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}`, thread: (id) => `inbox/${id}` } },
   appNavigate: (to) => went.push(to),
   __surfaceState: () => "live",
   __DEMO_MODE: false,
-  addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= []).push(fn);
+  },
   removeEventListener() {},
-  dispatchEvent() { return true; },
+  dispatchEvent() {
+    return true;
+  },
   setTimeout: () => 1,
   clearTimeout() {},
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"]) globalThis[k] = globalThis.window[k];
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
+  globalThis[k] = globalThis.window[k];
 globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
 // A pill's tone and words are contracts', as the shell's chrome bridge publishes them.
 globalThis.window.__chrome = { state: stateOf };
@@ -117,13 +195,32 @@ await import("../../../apps/dashboard/src/legacy/pages/calendar-real.jsx");
 // Today's day, which names the next open time the way the Calendar does.
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
 
-const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
-const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
+const walk = (n, fn) => {
+  if (n == null || typeof n !== "object") return;
+  fn(n);
+  for (const k of n.props?.children ?? []) walk(k, fn);
+  if (n.rendered) walk(n.rendered, fn);
+};
+const all = (tree, pred) => {
+  const out = [];
+  walk(tree, (n) => {
+    if (pred(n)) out.push(n);
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-const textOf = (n) => { const out = []; walk(n, (x) => { for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k)); }); return out.join(""); };
+const textOf = (n) => {
+  const out = [];
+  walk(n, (x) => {
+    for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k));
+  });
+  return out.join("");
+};
 const tick = () => new Promise((r) => setTimeout(r, 0));
-const settle = async (n = 6) => { for (let i = 0; i < n; i += 1) await tick(); };
+const settle = async (n = 6) => {
+  for (let i = 0; i < n; i += 1) await tick();
+};
 
 let reads = [];
 let homes = 0;
@@ -138,25 +235,48 @@ const fresh = (week = dto(), answers = []) => {
   globalThis.window.__CALENDAR = { vm: toCalendarVM(week, NOW) };
   globalThis.window.__calendar = {
     ...calendar,
-    ensure: (view, anchor) => { reads.push([view, anchor]); return Promise.resolve(answers.length ? answers.shift() : true); },
+    ensure: (view, anchor) => {
+      reads.push([view, anchor]);
+      return Promise.resolve(answers.length ? answers.shift() : true);
+    },
     refresh: async () => {},
-    home: async () => { homes += 1; return true; },
+    home: async () => {
+      homes += 1;
+      return true;
+    },
   };
 };
 /** The page goes away: what its effects handed back runs, last first. */
-const leave = () => { for (const done of cleanups.splice(0).reverse()) done(); };
+const leave = () => {
+  for (const done of cleanups.splice(0).reverse()) done();
+};
 /** Draw the page again over the same cells; the board's five-minute timer is not started for real. */
 const page = (props = {}) => {
   seq = 0;
   const [si, ci] = [globalThis.setInterval, globalThis.clearInterval];
   globalThis.setInterval = () => 0;
   globalThis.clearInterval = () => {};
-  try { return globalThis.window.CalendarPage(props); } finally { globalThis.setInterval = si; globalThis.clearInterval = ci; }
+  try {
+    return globalThis.window.CalendarPage(props);
+  } finally {
+    globalThis.setInterval = si;
+    globalThis.clearInterval = ci;
+  }
 };
 /** A key pressed on the page, as the window hears it; whether the page took it. */
 const press = (key) => {
   let taken = false;
-  for (const fn of listeners.keydown ?? []) fn({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, preventDefault() { taken = true; } });
+  for (const fn of listeners.keydown ?? [])
+    fn({
+      key,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+      preventDefault() {
+        taken = true;
+      },
+    });
   return taken;
 };
 /** The three counts over the board, in their order: what is on the calendar, the open times, the next open time. */
@@ -199,13 +319,32 @@ test("Tab and Shift+Tab walk the dialog's own controls and wrap, so focus never 
   const trap = globalThis.window.crTrapTab;
   assert.equal(typeof trap, "function", "the trap is one rule that can be run");
   const focused = [];
-  const el = (name) => ({ name, focus() { focused.push(name); } });
+  const el = (name) => ({
+    name,
+    focus() {
+      focused.push(name);
+    },
+  });
   const [first, middle, last] = [el("Open in People"), el("Copy the booking link"), el("Close")];
-  const box = { querySelectorAll: () => [first, middle, last], focus() { focused.push("dialog"); } };
+  const box = {
+    querySelectorAll: () => [first, middle, last],
+    focus() {
+      focused.push("dialog");
+    },
+  };
   const tab = (at, shiftKey = false) => {
     let prevented = false;
     globalThis.document.activeElement = at;
-    trap({ key: "Tab", shiftKey, preventDefault() { prevented = true; } }, box);
+    trap(
+      {
+        key: "Tab",
+        shiftKey,
+        preventDefault() {
+          prevented = true;
+        },
+      },
+      box,
+    );
     return prevented;
   };
   try {
@@ -236,7 +375,10 @@ test("REGRESSION (B11): days that could not be read say so with a Retry, and are
   assert.match(textOf(failed), /Couldn't read those days/);
   const cols = all(tree, (n) => n.props?.["data-testid"] === "cal-col");
   assert.equal(cols.length, 7);
-  assert.ok(cols.every((c) => !/\bloading\b/.test(c.props.className)), `REGRESSION: unread days stayed dimmed as loading: ${cols.map((c) => c.props.className).join(" | ")}`);
+  assert.ok(
+    cols.every((c) => !/\bloading\b/.test(c.props.className)),
+    `REGRESSION: unread days stayed dimmed as loading: ${cols.map((c) => c.props.className).join(" | ")}`,
+  );
   assert.equal(stats(tree)[0].props.value, "—", "a count over days that could not be read is not a count");
 
   byTestId(tree, "cal-failed-retry").props.onClick();
@@ -256,7 +398,10 @@ test("REGRESSION (B12): the strip names the days on screen -- it said 'This week
   fresh();
   let tree = page();
   const label = () => stats(tree)[0].props.label;
-  const go = (id) => { byTestId(tree, id).props.onClick(); tree = page(); };
+  const go = (id) => {
+    byTestId(tree, id).props.onClick();
+    tree = page();
+  };
   assert.equal(label(), "This week");
   go("cal-next");
   assert.equal(label(), "Week of Sep 14");
@@ -281,25 +426,68 @@ test("REGRESSION (B12): the strip names the days on screen -- it said 'This week
 test("the booking rules come as parts, and a read's unfollowable repeats and undrawn events are explained, with their numbers (B24, B25)", () => {
   const counted = (skipped, dropped) => dto({ feed: { ...dto().feed, skipped_recurring: skipped, dropped } });
   const vm = toCalendarVM(counted(2, 3), NOW);
-  assert.deepEqual(vm.ruleParts, ["at least 2h notice", "15 min between appointments", "up to 14 days ahead", "30-min slots"]);
-  assert.equal(vm.rules, "Offers times with at least 2h notice · 15 min between appointments · up to 14 days ahead · 30-min slots", "the sentence stays for whoever reads it whole");
+  assert.deepEqual(vm.ruleParts, [
+    "at least 2h notice",
+    "15 min between appointments",
+    "up to 14 days ahead",
+    "30-min slots",
+  ]);
+  assert.equal(
+    vm.rules,
+    "Offers times with at least 2h notice · 15 min between appointments · up to 14 days ahead · 30-min slots",
+    "the sentence stays for whoever reads it whole",
+  );
   assert.deepEqual([vm.feed.skippedRecurring, vm.feed.dropped], [2, 3]);
-  assert.deepEqual(vm.feed.notes.map((n) => [n.id, n.title]), [["repeats", "2 repeating events count only once."], ["undrawn", "3 more events aren't drawn."]]);
+  assert.deepEqual(
+    vm.feed.notes.map((n) => [n.id, n.title]),
+    [
+      ["repeats", "2 repeating events count only once."],
+      ["undrawn", "3 more events aren't drawn."],
+    ],
+  );
   assert.match(vm.feed.notes[0].body, /only the first date is treated as taken/);
   assert.match(vm.feed.notes[1].body, /still treats their times as taken/);
-  assert.deepEqual(toCalendarVM(counted(1, 1), NOW).feed.notes.map((n) => n.title), ["1 repeating event counts only once.", "1 more event isn't drawn."]);
+  assert.deepEqual(
+    toCalendarVM(counted(1, 1), NOW).feed.notes.map((n) => n.title),
+    ["1 repeating event counts only once.", "1 more event isn't drawn."],
+  );
   const clean = toCalendarVM(dto(), NOW);
-  assert.deepEqual([clean.feed.skippedRecurring, clean.feed.dropped, clean.feed.notes], [0, 0, []], "a read that left nothing out says nothing");
-  const unread = toCalendarVM(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 4, dropped: 2 } }), NOW);
+  assert.deepEqual(
+    [clean.feed.skippedRecurring, clean.feed.dropped, clean.feed.notes],
+    [0, 0, []],
+    "a read that left nothing out says nothing",
+  );
+  const unread = toCalendarVM(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 4,
+        dropped: 2,
+      },
+    }),
+    NOW,
+  );
   assert.deepEqual(unread.feed.notes, [], "nothing to explain about a read that did not happen");
 
   fresh(counted(2, 3));
   const tree = page();
-  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "cal-rule").map(textOf), vm.ruleParts, "each rule its own part, so a narrow screen wraps between rules, never inside one");
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "cal-rule").map(textOf),
+    vm.ruleParts,
+    "each rule its own part, so a narrow screen wraps between rules, never inside one",
+  );
   assert.ok(byTestId(tree, "cal-feed-note-repeats"), "the repeats explained on the page");
   assert.ok(byTestId(tree, "cal-feed-note-undrawn"), "the undrawn events explained on the page");
   const next = stats(tree).find((c) => c.props.label === "Next open time");
-  assert.equal(next.props.meta, "at least 2h notice", "the rule that decides how soon, not the whole sentence under a number");
+  assert.equal(
+    next.props.meta,
+    "at least 2h notice",
+    "the rule that decides how soon, not the whole sentence under a number",
+  );
 });
 
 test("REGRESSION (B28): a phone opens on the agenda -- it opened on a week grid four times the screen's width", () => {
@@ -331,10 +519,25 @@ test("a link can name a day: the page opens it in Day view, on a phone too", () 
 
 test("REGRESSION (B19): a sentence that sends the owner to the calendar's address names the tab it is on -- Settings › Business, not Settings › Workspace", () => {
   assert.equal(toBookingReportVM(null).sub, "Connect your calendar under Settings › Business to see who booked.");
-  fresh(dto({ feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  fresh(
+    dto({
+      feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
+    }),
+  );
   const none = textOf(byTestId(page(), "cal-feed-card"));
   assert.ok(none.includes("Settings › Business") && !none.includes("Settings › Workspace"), none);
-  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  fresh(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+      },
+    }),
+  );
   const unread = textOf(byTestId(page(), "cal-feed-card"));
   assert.ok(unread.includes("Settings › Business") && !unread.includes("Settings › Workspace"), unread);
 });
@@ -358,51 +561,124 @@ test("REGRESSION (C1): Next opening is the receptionist's first open time from n
   assert.equal(next("2026-09-09T14:00:00.000Z"), "tomorrow 10 AM");
   assert.equal(next("2026-09-11T14:00:00.000Z"), "Fri 10 AM", "this week, the weekday is enough");
   assert.equal(next("2026-09-14T14:00:00.000Z"), "Mon 10 AM");
-  assert.equal(next("2026-09-17T14:00:00.000Z"), "Sep 17, 10 AM", "REGRESSION: past this week a weekday alone named a day a week too soon");
+  assert.equal(
+    next("2026-09-17T14:00:00.000Z"),
+    "Sep 17, 10 AM",
+    "REGRESSION: past this week a weekday alone named a day a week too soon",
+  );
   assert.equal(next(null), "—", "nothing it would offer is a dash, whatever the loaded days hold");
-  assert.equal(next("2026-09-09T14:00:00.000Z", { feed: { ...dto().feed, state: "unavailable" } }), "—", "a calendar that can't be read offers nothing");
+  assert.equal(
+    next("2026-09-09T14:00:00.000Z", { feed: { ...dto().feed, state: "unavailable" } }),
+    "—",
+    "a calendar that can't be read offers nothing",
+  );
   const december = span("2026-11-23", 63, opening("2026-09-09T14:00:00.000Z"));
-  assert.equal(toCalendarVM(december, NOW).stats.next, "tomorrow 10 AM", "REGRESSION: a board looking at December worked the next opening out from December");
+  assert.equal(
+    toCalendarVM(december, NOW).stats.next,
+    "tomorrow 10 AM",
+    "REGRESSION: a board looking at December worked the next opening out from December",
+  );
 });
 
 test("(C1) the last day the receptionist offers is named, and every day past it knows it is", () => {
   const vm = toCalendarVM(span("2026-09-07", 28), NOW);
   assert.deepEqual(vm.offer, { days: 14, until: "2026-09-21", label: "Sep 21" }, "up to 14 days out, from today");
   const beyond = (key) => vm.days.find((d) => d.key === key).beyondOffer;
-  assert.deepEqual(["2026-09-07", "2026-09-08", "2026-09-21", "2026-09-22", "2026-10-04"].map(beyond), [false, false, false, true, true]);
-  assert.deepEqual(toCalendarVM(span("2026-09-07", 7, { rules: null }), NOW).offer, { days: 14, until: "2026-09-21", label: "Sep 21" }, "no rules on file: the default");
+  assert.deepEqual(["2026-09-07", "2026-09-08", "2026-09-21", "2026-09-22", "2026-10-04"].map(beyond), [
+    false,
+    false,
+    false,
+    true,
+    true,
+  ]);
+  assert.deepEqual(
+    toCalendarVM(span("2026-09-07", 7, { rules: null }), NOW).offer,
+    { days: 14, until: "2026-09-21", label: "Sep 21" },
+    "no rules on file: the default",
+  );
   assert.equal(toCalendarVM(span("2026-09-07", 7, { rules: { max_days_ahead: 3 } }), NOW).offer.until, "2026-09-10");
 });
 
 test("REGRESSION (C1): the booking rules the receptionist follows are all on the page -- the party size and the services that need a consultation first were never said, and closures past the sixth vanished", () => {
-  const rules = { lead_hours: 2, buffer_min: 15, max_days_ahead: 14, party_max: 6, consult_first: ["Balayage", "Color correction"] };
-  const closures = Array.from({ length: 8 }, (_, i) => ({ date: shiftKey("2026-09-19", i * 7), note: i === 0 ? "Wedding" : null }));
+  const rules = {
+    lead_hours: 2,
+    buffer_min: 15,
+    max_days_ahead: 14,
+    party_max: 6,
+    consult_first: ["Balayage", "Color correction"],
+  };
+  const closures = Array.from({ length: 8 }, (_, i) => ({
+    date: shiftKey("2026-09-19", i * 7),
+    note: i === 0 ? "Wedding" : null,
+  }));
   const vm = toCalendarVM(dto({ rules, closures }), NOW);
-  assert.deepEqual(vm.ruleParts, ["at least 2h notice", "15 min between appointments", "up to 14 days ahead", "30-min slots", "up to 6 people per booking"]);
+  assert.deepEqual(vm.ruleParts, [
+    "at least 2h notice",
+    "15 min between appointments",
+    "up to 14 days ahead",
+    "30-min slots",
+    "up to 6 people per booking",
+  ]);
   assert.deepEqual(vm.consultFirst, ["Balayage", "Color correction"]);
   assert.deepEqual(toCalendarVM(dto(), NOW).consultFirst, [], "none on file, none said");
   assert.deepEqual([vm.closuresAhead.length, vm.closuresMore], [6, 2]);
   assert.equal(toCalendarVM(dto(), NOW).closuresMore, 0);
   fresh(dto({ rules, closures }));
   const tree = page();
-  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "cal-rule").map(textOf), vm.ruleParts, "REGRESSION: the party size was never said");
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "cal-rule").map(textOf),
+    vm.ruleParts,
+    "REGRESSION: the party size was never said",
+  );
   const consult = textOf(byTestId(tree, "cal-rules-consult"));
-  assert.ok(consult.includes("Consultation first") && consult.includes("Balayage · Color correction"), `REGRESSION: which services need a consultation was said only inside the service picker: ${consult}`);
-  assert.match(textOf(byTestId(tree, "cal-rules")), /\+2 more/, "REGRESSION: the closures past the sixth vanished without a word");
+  assert.ok(
+    consult.includes("Consultation first") && consult.includes("Balayage · Color correction"),
+    `REGRESSION: which services need a consultation was said only inside the service picker: ${consult}`,
+  );
+  assert.match(
+    textOf(byTestId(tree, "cal-rules")),
+    /\+2 more/,
+    "REGRESSION: the closures past the sixth vanished without a word",
+  );
 });
 
 test("REGRESSION (C1): the feed line says what was read and leaves what was left out to the notes -- it also said '2 repeating rules read once · 3 more not shown', unexplained, beside the notes that explain them", () => {
   const vm = toCalendarVM(dto({ feed: { ...dto().feed, skipped_recurring: 2, dropped: 3 } }), NOW);
   assert.equal(vm.feed.line, "From your calendar · read 2m ago · 4 events");
-  assert.deepEqual(vm.feed.notes.map((n) => n.id), ["repeats", "undrawn"], "said once, in words the owner can act on");
+  assert.deepEqual(
+    vm.feed.notes.map((n) => n.id),
+    ["repeats", "undrawn"],
+    "said once, in words the owner can act on",
+  );
 });
 
 test("REGRESSION (C1): the strip counts only what it read -- an unreadable calendar showed '0 · on your calendar', and days still on their way counted as empty", () => {
   const empty = dto().days.map((d) => ({ ...d, items: [], windows: [] }));
-  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 }, days: empty }));
+  fresh(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+      },
+      days: empty,
+    }),
+  );
   let strip = stats(page());
-  assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "could not be read"], "REGRESSION: '0 · on your calendar' beside 'Your calendar could not be read'");
-  fresh(dto({ feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 }, days: empty }));
+  assert.deepEqual(
+    [strip[0].props.value, strip[0].props.meta],
+    ["—", "could not be read"],
+    "REGRESSION: '0 · on your calendar' beside 'Your calendar could not be read'",
+  );
+  fresh(
+    dto({
+      feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
+      days: empty,
+    }),
+  );
   strip = stats(page());
   assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "no calendar connected"]);
   fresh();
@@ -410,7 +686,11 @@ test("REGRESSION (C1): the strip counts only what it read -- an unreadable calen
   byTestId(tree, "cal-next").props.onClick();
   tree = page();
   strip = stats(tree);
-  assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "reading those days"], "REGRESSION: next week, still on its way, said nothing was on the calendar");
+  assert.deepEqual(
+    [strip[0].props.value, strip[0].props.meta],
+    ["—", "reading those days"],
+    "REGRESSION: next week, still on its way, said nothing was on the calendar",
+  );
   assert.deepEqual([strip[1].props.value, strip[1].props.meta], ["—", "reading those days"]);
 });
 
@@ -419,15 +699,28 @@ test("REGRESSION (C1): a day past what the receptionist offers says so, and the 
   let tree = page();
   byTestId(tree, "cal-view-agenda").props.onClick();
   tree = page();
-  const day = (key) => textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
-  assert.match(day("2026-09-15"), /not offered yet — it offers times up to 7 days ahead/, "REGRESSION: a day past the offer read as a day with nothing to offer");
+  const day = (key) =>
+    textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
+  assert.match(
+    day("2026-09-15"),
+    /not offered yet — it offers times up to 7 days ahead/,
+    "REGRESSION: a day past the offer read as a day with nothing to offer",
+  );
   assert.ok(!day("2026-09-15").includes("nothing the receptionist would offer"));
-  assert.match(day("2026-09-10"), /nothing the receptionist would offer/, "a day inside the offer with no times still says that");
+  assert.match(
+    day("2026-09-10"),
+    /nothing the receptionist would offer/,
+    "a day inside the offer with no times still says that",
+  );
   assert.match(textOf(byTestId(tree, "cal-legend")), /through Sep 14/, "the legend names the last day it offers");
   byTestId(tree, "cal-next").props.onClick();
   tree = page();
   const ahead = stats(tree)[1];
-  assert.deepEqual([ahead.props.value, ahead.props.meta], ["—", "it offers times up to 7 days ahead"], "REGRESSION: '0 · it would offer these' for two weeks it offers nothing in");
+  assert.deepEqual(
+    [ahead.props.value, ahead.props.meta],
+    ["—", "it offers times up to 7 days ahead"],
+    "REGRESSION: '0 · it would offer these' for two weeks it offers nothing in",
+  );
   byTestId(tree, "cal-view-day").props.onClick();
   tree = page();
   byTestId(tree, "cal-today").props.onClick();
@@ -445,7 +738,8 @@ test("REGRESSION (C1): leaving the Calendar takes the loaded weeks back to today
   leave();
   assert.equal(homes, 1, "REGRESSION: the page left the window wherever it had moved it");
   // The bridge's half: a moved window goes home; one already home is not read again.
-  const { getCalendarSpan, setCalendarSpan } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { getCalendarSpan, setCalendarSpan } =
+    await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
   globalThis.window.__CALENDAR = { vm: toCalendarVM(span("2026-08-31", 63), NOW) };
   setCalendarSpan("2026-11-23", 63);
   assert.equal(await calendar.home(), true, "a window moved to November goes home");
@@ -457,20 +751,55 @@ test("REGRESSION (C1): leaving the Calendar takes the loaded weeks back to today
 
 test("(C2) the feed line says when the calendar was last tried where that is the news: a read that failed, and a refresh that couldn't reach it", () => {
   const tried = "2026-09-08T15:57:00.000Z"; // three minutes before NOW
-  const down = toCalendarVM(dto({ feed: { present: true, state: "unavailable", read_at: "2026-09-08T12:00:00.000Z", checked_at: tried, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }), NOW);
+  const down = toCalendarVM(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: "2026-09-08T12:00:00.000Z",
+        checked_at: tried,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+      },
+    }),
+    NOW,
+  );
   assert.equal(down.feed.line, "Your calendar could not be read · tried 3m ago · last read 4h ago");
-  const never = toCalendarVM(dto({ feed: { present: true, state: "unavailable", read_at: null, checked_at: tried, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }), NOW);
+  const never = toCalendarVM(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        checked_at: tried,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+      },
+    }),
+    NOW,
+  );
   assert.equal(never.feed.line, "Your calendar could not be read · tried 3m ago", "never read: only when it was tried");
   const stale = toCalendarVM(dto({ feed: { ...dto().feed, stale: true, reason: "http", checked_at: tried } }), NOW);
   assert.ok(stale.feed.line.includes("· could not be refreshed 3m ago ·"), stale.feed.line);
-  assert.equal(toCalendarVM(dto({ feed: { ...dto().feed, checked_at: tried } }), NOW).feed.line, "From your calendar · read 2m ago · 4 events", "a good read says when it read, nothing more");
+  assert.equal(
+    toCalendarVM(dto({ feed: { ...dto().feed, checked_at: tried } }), NOW).feed.line,
+    "From your calendar · read 2m ago · 4 events",
+    "a good read says when it read, nothing more",
+  );
 });
 
 test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afresh and says what came of it -- the board read itself every five minutes and offered no way to ask sooner", async () => {
   fresh();
   const asked = [];
   let release = null;
-  globalThis.window.__calendar.refresh = (opts) => { asked.push(opts); return new Promise((r) => { release = r; }); };
+  globalThis.window.__calendar.refresh = (opts) => {
+    asked.push(opts);
+    return new Promise((r) => {
+      release = r;
+    });
+  };
   let tree = page();
   const button = () => byTestId(tree, "cal-refresh");
   assert.ok(button(), "REGRESSION: no way to read the calendar again");
@@ -487,7 +816,15 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   assert.equal(textOf(button()), "Refresh");
   assert.match(textOf(toasts.at(-1).msg), /Read your calendar just now/);
   // It landed, and the calendar still couldn't be reached: the last good read stays, and the toast says so.
-  globalThis.window.__calendar.refresh = async () => { globalThis.window.__CALENDAR = { vm: toCalendarVM(dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }), NOW) }; return true; };
+  globalThis.window.__calendar.refresh = async () => {
+    globalThis.window.__CALENDAR = {
+      vm: toCalendarVM(
+        dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }),
+        NOW,
+      ),
+    };
+    return true;
+  };
   await byTestId(page(), "cal-refresh").props.onClick();
   assert.equal(toasts.at(-1).tone, "warn");
   assert.match(textOf(toasts.at(-1).msg), /Couldn't refresh your calendar — showing the last good read/);
@@ -500,9 +837,24 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
 });
 
 test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, offers Retry beside the address -- its only way back was Settings", async () => {
-  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0, problem: "The calendar answered 404." } }));
+  fresh(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+        problem: "The calendar answered 404.",
+      },
+    }),
+  );
   const asked = [];
-  globalThis.window.__calendar.refresh = async (opts) => { asked.push(opts); return true; };
+  globalThis.window.__calendar.refresh = async (opts) => {
+    asked.push(opts);
+    return true;
+  };
   const retry = byTestId(page(), "cal-feed-retry");
   assert.ok(retry, "REGRESSION: the card's only way back was Settings");
   await retry.props.onClick();
@@ -510,7 +862,10 @@ test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, 
   assert.equal(toasts.at(-1).tone, "warn");
   assert.match(textOf(toasts.at(-1).msg), /Still couldn't read your calendar/);
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http" } }));
-  globalThis.window.__calendar.refresh = async (opts) => { asked.push(opts); return true; };
+  globalThis.window.__calendar.refresh = async (opts) => {
+    asked.push(opts);
+    return true;
+  };
   await byTestId(page(), "cal-feed-stale-retry").props.onClick();
   assert.deepEqual(asked, [{ fresh: true }, { fresh: true }], "and the card over the last good read");
 });
@@ -526,6 +881,11 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
   assert.ok(reading, "REGRESSION: nothing said the board was reading");
   assert.equal(reading.props.role, "status");
   assert.match(textOf(reading), /Reading those days/);
+  // The one rule every page dims by (components.css [data-loading] [data-dims]): it dimmed its own way, at once.
+  assert.equal(byTestId(tree, "calendar-real").props["data-loading"], "", "the page says its days are on their way");
+  assert.equal(byTestId(tree, "cal-body").props["data-dims"], true, "the board is what dims");
+  assert.equal(byTestId(tree, "cal-body").props["aria-busy"], "true");
+  assert.ok(!String(byTestId(tree, "cal-body").props.className).includes("is-loading"), "not by a page's own class");
   byTestId(tree, "cal-view-agenda").props.onClick();
   tree = page();
   assert.match(textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day")[0]), /Reading this day/);
@@ -535,14 +895,26 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
 });
 
 test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads as before", async () => {
-  const { calendarOverride, setCalendarFresh } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { calendarOverride, setCalendarFresh } =
+    await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
   const seen = [];
-  const was = { location: globalThis.window.location, fetch: globalThis.window.fetch, ws: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE };
+  const was = {
+    location: globalThis.window.location,
+    fetch: globalThis.window.fetch,
+    ws: globalThis.window.__WORKSPACES,
+    active: globalThis.window.__ACTIVE_WORKSPACE,
+  };
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com" },
     __WORKSPACES: [{ id: "t1", timezone: TZ }],
     __ACTIVE_WORKSPACE: "t1",
-    fetch: async (url) => { seen.push(String(url)); return new Response(JSON.stringify({ ok: true, data: { calendar: dto() } }), { status: 200, headers: { "content-type": "application/json" } }); },
+    fetch: async (url) => {
+      seen.push(String(url));
+      return new Response(JSON.stringify({ ok: true, data: { calendar: dto() } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
   });
   try {
     setCalendarFresh(true);
@@ -552,7 +924,12 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
     assert.match(seen[0], /[?&]fresh=1(&|$)/, "the first read asks for a fresh one");
     assert.ok(!/fresh=/.test(seen[1]), "and only that one");
   } finally {
-    Object.assign(globalThis.window, { location: was.location, fetch: was.fetch, __WORKSPACES: was.ws, __ACTIVE_WORKSPACE: was.active });
+    Object.assign(globalThis.window, {
+      location: was.location,
+      fetch: was.fetch,
+      __WORKSPACES: was.ws,
+      __ACTIVE_WORKSPACE: was.active,
+    });
   }
 });
 
@@ -560,12 +937,24 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
   const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
   const { calendarOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
   const seen = [];
-  const was = { location: globalThis.window.location, fetch: globalThis.window.fetch, ws: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE, cal: globalThis.window.__CALENDAR };
+  const was = {
+    location: globalThis.window.location,
+    fetch: globalThis.window.fetch,
+    ws: globalThis.window.__WORKSPACES,
+    active: globalThis.window.__ACTIVE_WORKSPACE,
+    cal: globalThis.window.__CALENDAR,
+  };
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
     __WORKSPACES: [{ id: "t1", timezone: TZ }],
     __ACTIVE_WORKSPACE: "t1",
-    fetch: async (url) => { seen.push(String(url)); return new Response(JSON.stringify({ ok: true, data: { calendar: dto() } }), { status: 200, headers: { "content-type": "application/json" } }); },
+    fetch: async (url) => {
+      seen.push(String(url));
+      return new Response(JSON.stringify({ ok: true, data: { calendar: dto() } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
   });
   const pause = () => new Promise((r) => setTimeout(r, 5));
   const stop = startSurfaces([calendarOverride]);
@@ -584,25 +973,121 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
   }
   try {
     seen.length = 0;
-    assert.equal(await calendar.refresh({ fresh: true }), false, "with no runner nothing lands, and the board is told so");
+    assert.equal(
+      await calendar.refresh({ fresh: true }),
+      false,
+      "with no runner nothing lands, and the board is told so",
+    );
     await calendarOverride.apply();
     assert.ok(!/fresh=/.test(seen[0]), "and the next read does not ask for a fresh one it was never given");
   } finally {
-    Object.assign(globalThis.window, { location: was.location, fetch: was.fetch, __WORKSPACES: was.ws, __ACTIVE_WORKSPACE: was.active, __CALENDAR: was.cal });
+    Object.assign(globalThis.window, {
+      location: was.location,
+      fetch: was.fetch,
+      __WORKSPACES: was.ws,
+      __ACTIVE_WORKSPACE: was.active,
+      __CALENDAR: was.cal,
+    });
+  }
+});
+
+test("a window the board has read paints at once on the way back, and is read again behind -- each way was a read of its own", async () => {
+  // Measured on the salon's workspace, 22 Sep: the board held one window, so back to this week, and back to December,
+  // were 390-500ms of "Reading those days…" each, and leaving for Reports read today's weeks again besides.
+  const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { calendarOverride, getCalendarSpan } =
+    await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
+  const seen = [];
+  const parked = [];
+  const was = {
+    location: globalThis.window.location,
+    fetch: globalThis.window.fetch,
+    ws: globalThis.window.__WORKSPACES,
+    active: globalThis.window.__ACTIVE_WORKSPACE,
+    cal: globalThis.window.__CALENDAR,
+  };
+  Object.assign(globalThis.window, {
+    location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
+    __WORKSPACES: [{ id: "t1", timezone: TZ }],
+    __ACTIVE_WORKSPACE: "t1",
+    fetch: async (url) => {
+      const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
+      seen.push(q.from);
+      await new Promise((r) => parked.push(r));
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  const pause = () => new Promise((r) => setTimeout(r, 5));
+  const release = async () => {
+    for (let i = 0; i < 40; i += 1) {
+      while (parked.length) parked.shift()();
+      await pause();
+    }
+  };
+  const home = windowFor(zoneDayKey(Date.now(), TZ)).from;
+  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  const stop = startSurfaces([calendarOverride]);
+  try {
+    await release();
+    assert.equal(shown(), home, "the weeks around today, read at boot");
+    const toNov = calendar.goTo("2026-11-23", 63);
+    await release();
+    assert.equal(await toNov, true);
+    assert.equal(shown(), "2026-11-23");
+    // Back home: held, so painted before any read lands, and read again behind.
+    seen.length = 0;
+    let back = false;
+    calendar.goTo(null).then(() => {
+      back = true;
+    });
+    await pause();
+    assert.equal(shown(), home, "REGRESSION: the weeks around today waited on a read of their own");
+    assert.equal(back, true, "and the move answered at once");
+    assert.deepEqual(seen, [home], "read again behind all the same");
+    await release();
+    assert.equal(getCalendarSpan().from, null);
+    // And back to November: held too.
+    calendar.goTo("2026-11-23", 63);
+    await pause();
+    assert.equal(shown(), "2026-11-23", "the way back is at once");
+    await release();
+  } finally {
+    stop();
+    await release();
+    Object.assign(globalThis.window, {
+      location: was.location,
+      fetch: was.fetch,
+      __WORKSPACES: was.ws,
+      __ACTIVE_WORKSPACE: was.active,
+      __CALENDAR: was.cal,
+    });
   }
 });
 
 /* ------------------------------- C3: one word per thing ------------------------------- */
 
 // The week with the receptionist's next open time as the route sends it: today at 3:30 PM.
-const withNext = (over = {}) => dto({ next_opening: { start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" }, ...over });
+const withNext = (over = {}) =>
+  dto({ next_opening: { start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" }, ...over });
 
 test("REGRESSION (C3): the times the receptionist would offer are open times wherever they are named -- the strip said 'Open windows' and 'Next opening', the service picker 'Windows', and Today 'next opening', while Business and Ask say open times", () => {
   fresh(withNext({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
   const tree = page();
-  assert.deepEqual(stats(tree).map((c) => c.props.label), ["This week", "Open times", "Next open time"], "REGRESSION: 'Open windows' and 'Next opening'");
+  assert.deepEqual(
+    stats(tree).map((c) => c.props.label),
+    ["This week", "Open times", "Next open time"],
+    "REGRESSION: 'Open windows' and 'Next opening'",
+  );
   assert.equal(stats(tree)[2].props.value, "today 3:30 PM");
-  assert.equal(byTestId(tree, "cal-service").props["aria-label"], "Open times that fit a service", "REGRESSION: 'Windows that fit a service'");
+  assert.equal(
+    byTestId(tree, "cal-service").props["aria-label"],
+    "Open times that fit a service",
+    "REGRESSION: 'Windows that fit a service'",
+  );
   const vm = toCalendarVM(withNext(), NOW);
   assert.equal(todayDay(vm, null).nextOpening, "today 3:30 PM", "REGRESSION: Today's day said 'next opening'");
   const was = { cal: globalThis.window.__CALENDAR, today: globalThis.window.__today };
@@ -611,7 +1096,11 @@ test("REGRESSION (C3): the times the receptionist would offer are open times whe
     cells = [];
     seq = 0;
     const day = globalThis.window.TodayDay({});
-    assert.equal(textOf(find(day, (n) => n.props?.className === "td-day-sub")), "next open time today 3:30 PM", "REGRESSION: Today's day said 'next opening'");
+    assert.equal(
+      textOf(find(day, (n) => n.props?.className === "td-day-sub")),
+      "next open time today 3:30 PM",
+      "REGRESSION: Today's day said 'next opening'",
+    );
   } finally {
     Object.assign(globalThis.window, { __CALENDAR: was.cal, __today: was.today });
   }
@@ -626,10 +1115,22 @@ test("REGRESSION (C3): what could not be read is said one way -- a month's days 
     page();
     await settle();
     tree = page();
-    const unread = all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell" && String(n.props.className).includes("unread"));
+    const unread = all(
+      tree,
+      (n) => n.props?.["data-testid"] === "cal-month-cell" && String(n.props.className).includes("unread"),
+    );
     assert.ok(unread.length > 0, "the month's days outside the loaded week could not be read");
-    assert.ok(unread.every((n) => textOf(n).includes("couldn't read")), `REGRESSION: 'not read': ${textOf(unread[0])}`);
-    assert.deepEqual(stats(tree).slice(0, 2).map((c) => c.props.meta), ["couldn't read those days", "couldn't read those days"], "REGRESSION: 'couldn't be read', the words of a calendar that can't be read");
+    assert.ok(
+      unread.every((n) => textOf(n).includes("couldn't read")),
+      `REGRESSION: 'not read': ${textOf(unread[0])}`,
+    );
+    assert.deepEqual(
+      stats(tree)
+        .slice(0, 2)
+        .map((c) => c.props.meta),
+      ["couldn't read those days", "couldn't read those days"],
+      "REGRESSION: 'couldn't be read', the words of a calendar that can't be read",
+    );
     assert.ok(byTestId(tree, "cal-failed"), "beside the Retry line, which says it the same way");
   } finally {
     honourDeps = false;
@@ -639,40 +1140,76 @@ test("REGRESSION (C3): what could not be read is said one way -- a month's days 
 test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rules' for the booking rules, 'Edit in Settings' for a tab named Business, and a closure run into its note", () => {
   fresh();
   const bar = byTestId(page(), "cal-rules");
-  assert.deepEqual(all(bar, (n) => n.props?.className === "cal-rules-label").map(textOf), ["Hours", "Closed", "Booking", "Calendar"], "REGRESSION: 'Rules'");
+  assert.deepEqual(
+    all(bar, (n) => n.props?.className === "cal-rules-label").map(textOf),
+    ["Hours", "Closed", "Booking", "Calendar"],
+    "REGRESSION: 'Rules'",
+  );
   assert.ok(textOf(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textOf(bar)}`);
   const edit = find(bar, (n) => n.type === "button" && textOf(n).startsWith("Edit in"));
-  assert.equal(textOf(edit).trim(), "Edit in Settings › Business", "REGRESSION: 'Edit in Settings', for a tab named Business");
+  assert.equal(
+    textOf(edit).trim(),
+    "Edit in Settings › Business",
+    "REGRESSION: 'Edit in Settings', for a tab named Business",
+  );
 });
 
 test("REGRESSION (C3): hours are said in the board's clock -- the bar said 'Mon–Tue 09:00–18:00' over a board drawn in 9 AM, a morning-to-midnight day could read '10 – 12 AM', and a day with half its hours said the prompt's 'ask them to call' to the owner", () => {
   fresh();
   const bar = textOf(byTestId(page(), "cal-rules"));
-  assert.ok(bar.includes("Mon–Tue 9 AM – 6 PM · Wed 9 AM – 1 PM and 3 – 7 PM · Thu–Fri 9 AM – 6 PM · Sat 10 AM – 4 PM · Sun closed"), `REGRESSION: 09:00–18:00: ${bar}`);
+  assert.ok(
+    bar.includes(
+      "Mon–Tue 9 AM – 6 PM · Wed 9 AM – 1 PM and 3 – 7 PM · Thu–Fri 9 AM – 6 PM · Sat 10 AM – 4 PM · Sun closed",
+    ),
+    `REGRESSION: 09:00–18:00: ${bar}`,
+  );
   assert.deepEqual(
-    hoursLines({ mon: { open: "10:00", close: "24:00" }, tue: { open: "09:00" }, fri: { open: "20:00", close: "24:00" } }),
+    hoursLines({
+      mon: { open: "10:00", close: "24:00" },
+      tue: { open: "09:00" },
+      fri: { open: "20:00", close: "24:00" },
+    }),
     ["Mon 10 AM – 12 AM", "Tue hours incomplete", "Wed–Thu closed", "Fri 8 PM – 12 AM", "Sat–Sun closed"],
     "a span to midnight ends in the next day's AM, whichever half it starts in",
   );
 });
 
 test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, in their words, with only the details beside it -- it was a coloured dot here and 'Readable' there", () => {
-  assert.deepEqual(["ok", "stale", "unavailable", "none"].map((s) => stateOf("calendar", s)), [
-    { tone: "ok", label: "Readable" },
-    { tone: "warn", label: "Last good read" },
-    { tone: "warn", label: "Could not be read" },
-    { tone: "plain", label: "Not connected" },
-  ]);
+  assert.deepEqual(
+    ["ok", "stale", "unavailable", "none"].map((s) => stateOf("calendar", s)),
+    [
+      { tone: "ok", label: "Readable" },
+      { tone: "warn", label: "Last good read" },
+      { tone: "warn", label: "Could not be read" },
+      { tone: "plain", label: "Not connected" },
+    ],
+  );
   const tried = "2026-09-08T15:57:00.000Z"; // three minutes before NOW
   const feed = (over) => toCalendarVM(dto({ feed: { ...dto().feed, ...over } }), NOW).feed;
   assert.deepEqual([feed({}).health, feed({}).detail], ["ok", "From your calendar · read 2m ago · 4 events"]);
   assert.equal(feed({ stale: true, reason: "http", checked_at: tried }).health, "stale");
   const down = feed({ state: "unavailable", read_at: "2026-09-08T12:00:00.000Z", checked_at: tried, events: 0 });
   assert.deepEqual([down.health, down.detail], ["unavailable", "tried 3m ago · last read 4h ago"]);
-  assert.equal(down.line, "Your calendar could not be read · tried 3m ago · last read 4h ago", "the whole sentence stays, for Ask");
+  assert.equal(
+    down.line,
+    "Your calendar could not be read · tried 3m ago · last read 4h ago",
+    "the whole sentence stays, for Ask",
+  );
   const none = feed({ present: false, state: "none", read_at: null, events: 0 });
   assert.deepEqual([none.health, none.detail], ["none", ""]);
-  fresh(dto({ feed: { present: true, state: "unavailable", read_at: "2026-09-08T12:00:00.000Z", checked_at: tried, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  fresh(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: "2026-09-08T12:00:00.000Z",
+        checked_at: tried,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+      },
+    }),
+  );
   const chip = byTestId(page(), "cal-feed");
   const pill = find(chip, (n) => n.type === globalThis.StatePill);
   assert.ok(pill, "REGRESSION: a coloured dot, in no word Connections uses");
@@ -683,7 +1220,18 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
 });
 
 test("REGRESSION (C3): the page's other words match the product's -- Try again beside FailedRead's Retry, Connect where Setup says paste the address, America/New_York for a zone Settings calls New York, and 'your link' for the booking link", () => {
-  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  fresh(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+      },
+    }),
+  );
   globalThis.window.__calendar.refresh = () => new Promise(() => {});
   let tree = page();
   assert.equal(textOf(byTestId(tree, "cal-feed-retry")), "Retry", "REGRESSION: 'Try again', beside FailedRead's Retry");
@@ -691,27 +1239,54 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
   assert.equal(textOf(byTestId(page(), "cal-feed-retry")), "Retrying…");
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http" } }));
   assert.equal(textOf(byTestId(page(), "cal-feed-stale-retry")), "Retry");
-  fresh(dto({ feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  fresh(
+    dto({
+      feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
+    }),
+  );
   const card = byTestId(page(), "cal-feed-card");
-  assert.ok(all(card, (n) => n.type === "button").map(textOf).includes("Paste the address"), "REGRESSION: 'Connect', where Setup and Connections say paste the address");
+  assert.ok(
+    all(card, (n) => n.type === "button")
+      .map(textOf)
+      .includes("Paste the address"),
+    "REGRESSION: 'Connect', where Setup and Connections say paste the address",
+  );
   fresh();
   tree = page();
   assert.equal(toCalendarVM(dto(), NOW).zoneCity, "New York");
-  assert.match(textOf(byTestId(tree, "cal-legend")), /times are New York time/, "REGRESSION: 'times in America/New_York'");
-  assert.match(textOf(find(tree, (n) => n.props?.className === "cal-about-note")), /through your booking link/, "REGRESSION: 'your link'");
+  assert.match(
+    textOf(byTestId(tree, "cal-legend")),
+    /times are New York time/,
+    "REGRESSION: 'times in America/New_York'",
+  );
+  assert.match(
+    textOf(find(tree, (n) => n.props?.className === "cal-about-note")),
+    /through your booking link/,
+    "REGRESSION: 'your link'",
+  );
 });
 
 test("REGRESSION (C3): a service that needs a consultation is spoken of as the receptionist handles it -- the agenda said the receptionist 'books a consultation', and it never books; the picker said 'consult first'", () => {
   const services = [{ name: "Color correction", duration_min: 180, consult_first: true }];
-  assert.equal(toCalendarVM(dto({ services }), NOW).services[0].label, "Color correction · 180 min · consultation first", "REGRESSION: 'consult first'");
+  assert.equal(
+    toCalendarVM(dto({ services }), NOW).services[0].label,
+    "Color correction · 180 min · consultation first",
+    "REGRESSION: 'consult first'",
+  );
   fresh(dto({ services }));
   let tree = page();
   byTestId(tree, "cal-service").props.onChange({ target: { value: "Color correction" } });
   tree = page();
   byTestId(tree, "cal-view-agenda").props.onClick();
   tree = page();
-  const day = textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === "2026-09-09"));
-  assert.match(day, /the receptionist offers a consultation for this, not the service/, "REGRESSION: 'books a consultation' -- it never books");
+  const day = textOf(
+    all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === "2026-09-09"),
+  );
+  assert.match(
+    day,
+    /the receptionist offers a consultation for this, not the service/,
+    "REGRESSION: 'books a consultation' -- it never books",
+  );
   assert.ok(!day.includes("books"), day);
 });
 
@@ -724,7 +1299,11 @@ test("(C3) the bridge publishes the hours in the Calendar's words, for the Busin
     installBusinessTab();
     // What it says, not which copy of contracts it is: the runner loads the bridge's contracts apart from the test's.
     const week = { mon: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" } };
-    assert.equal(typeof W.__hoursLines, "function", "REGRESSION: the card summarised the prompt's runs in the prompt's clock");
+    assert.equal(
+      typeof W.__hoursLines,
+      "function",
+      "REGRESSION: the card summarised the prompt's runs in the prompt's clock",
+    );
     assert.deepEqual(W.__hoursLines(week), ["Mon 9 AM – 6 PM", "Tue–Fri closed", "Sat 10 AM – 4 PM", "Sun closed"]);
     assert.equal(W.__hoursRuns, undefined, "and there is no second way to say them");
   } finally {
@@ -761,7 +1340,8 @@ test("REGRESSION (C4): a month day names its date and what it holds -- a screen 
     page();
     await settle();
     tree = page();
-    const cell = (key) => all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell").find((n) => n.props.key === key);
+    const cell = (key) =>
+      all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell").find((n) => n.props.key === key);
     assert.equal(cell("2026-09-08").props["aria-label"], "Tuesday, September 8: 1 taken, 1 open");
     assert.equal(cell("2026-09-08").props["aria-current"], "date");
     assert.equal(cell("2026-09-09").props["aria-current"], undefined);
@@ -778,13 +1358,20 @@ test("REGRESSION (C4): an appointment and an all-day event name their time and d
   fresh();
   const tree = page();
   assert.equal(byTestId(tree, "cal-block").props["aria-label"], "Ana Ruiz · Color, 2 – 3:30 PM, Tuesday, September 8");
-  assert.equal(find(tree, (n) => n.props?.className === "cal-allday").props["aria-label"], "Team training, all day, Thursday, September 10");
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cal-allday").props["aria-label"],
+    "Team training, all day, Thursday, September 10",
+  );
 });
 
 test("REGRESSION (C4): a move of the board is announced, and the key hints are their own part of the legend -- the range changed in silence, and a phone was told to press arrow keys", () => {
   fresh();
   const tree = page();
-  assert.equal(byTestId(tree, "cal-range").props["aria-live"], "polite", "REGRESSION: the new range was never announced");
+  assert.equal(
+    byTestId(tree, "cal-range").props["aria-live"],
+    "polite",
+    "REGRESSION: the new range was never announced",
+  );
   const keys = find(byTestId(tree, "cal-legend"), (n) => n.props?.className === "cal-keys");
   assert.ok(keys && textOf(keys).includes("← → move · T today"), "the keys, apart, where a touch screen can drop them");
   assert.ok(!textOf(keys).includes("New York"), "and the zone outside them");
@@ -793,11 +1380,31 @@ test("REGRESSION (C4): a move of the board is announced, and the key hints are t
 test("REGRESSION: the Calendar shows the calendar first -- a title the top bar already says, a paragraph, three stat cards and five rows of controls came before the first day, and on a phone the first day sat below the fold", () => {
   fresh(dto({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
   let tree = page();
-  assert.equal(find(tree, (n) => /\bcl-(head|page-title|page-sub|controls)\b/.test(String(n.props?.className ?? ""))), null, "REGRESSION: the page's own head, title and paragraph");
-  assert.equal(find(tree, (n) => n.type === globalThis.StatStrip || n.type === globalThis.StatCell), null, "REGRESSION: the counts as three cards");
+  assert.equal(
+    find(tree, (n) => /\bcl-(head|page-title|page-sub|controls)\b/.test(String(n.props?.className ?? ""))),
+    null,
+    "REGRESSION: the page's own head, title and paragraph",
+  );
+  assert.equal(
+    find(tree, (n) => n.type === globalThis.StatStrip || n.type === globalThis.StatCell),
+    null,
+    "REGRESSION: the counts as three cards",
+  );
   // Every control in one bar, and the date field inside the range, which opens it.
   const bar = byTestId(tree, "cal-bar");
-  for (const id of ["cal-prev", "cal-today", "cal-next", "cal-range", "cal-jump", "cal-service", "cal-view-week", "cal-view-day", "cal-view-month", "cal-view-agenda"]) assert.ok(byTestId(bar, id), `${id} is in the one bar`);
+  for (const id of [
+    "cal-prev",
+    "cal-today",
+    "cal-next",
+    "cal-range",
+    "cal-jump",
+    "cal-service",
+    "cal-view-week",
+    "cal-view-day",
+    "cal-view-month",
+    "cal-view-agenda",
+  ])
+    assert.ok(byTestId(bar, id), `${id} is in the one bar`);
   const title = find(bar, (n) => n.type === "label" && !!byTestId(n, "cal-jump"));
   assert.ok(title && byTestId(title, "cal-range"), "the range and the date field are one control");
   // The counts as one line of text, each saying what it counts, its number, and what the number means.
@@ -806,7 +1413,8 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
   assert.ok(stats(line).every(Boolean), "the three counts are in it");
   for (const c of stats(line)) {
     const said = textOf(c);
-    for (const part of [c.props.label, c.props.value, c.props.meta].filter((p) => p != null)) assert.ok(said.includes(String(part)), `"${said}" says ${part}`);
+    for (const part of [c.props.label, c.props.value, c.props.meta].filter((p) => p != null))
+      assert.ok(said.includes(String(part)), `"${said}" says ${part}`);
   }
   // The hours, the rules, the calendar's source, Refresh and the booking link wait under the board, one tap away.
   const about = () => byTestId(tree, "cal-about");
@@ -826,30 +1434,66 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
   tree = page();
   assert.equal(about().props.hidden, true, "and another puts them away");
   // A calendar that can't be read still says so over the board, with its Retry, not behind the toggle.
-  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  fresh(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+      },
+    }),
+  );
   tree = page();
   assert.ok(byTestId(tree, "cal-feed-card") && byTestId(tree, "cal-feed-retry"), "the card and its Retry");
   assert.equal(byTestId(about(), "cal-feed-card"), null, "over the board, not behind the toggle");
-  assert.deepEqual(stats(tree).map((c) => (c ? [c.props.label, c.props.value, c.props.meta] : null)), [["This week", "—", "could not be read"], null, null], "one count and why: two more dashes said 'needs the calendar' under the card that says so");
+  assert.deepEqual(
+    stats(tree).map((c) => (c ? [c.props.label, c.props.value, c.props.meta] : null)),
+    [["This week", "—", "could not be read"], null, null],
+    "one count and why: two more dashes said 'needs the calendar' under the card that says so",
+  );
 });
 
 /* ---------------- C5b: a service that needs a consultation first ---------------- */
 
 test("REGRESSION (C5b): the board sizes a consultation-first service's open times as a consultation, the rule the phone and the assistant follow -- it filtered them by the service's own three hours", () => {
-  const services = [{ name: "Color correction", duration_min: 180, consult_first: true }, { name: "Consultation", duration_min: 30, consult_first: false }];
+  const services = [
+    { name: "Color correction", duration_min: 180, consult_first: true },
+    { name: "Consultation", duration_min: 30, consult_first: false },
+  ];
   const week = dto({ services, rules: { ...dto().rules, consult_first: ["Color correction"] } });
-  assert.deepEqual(toCalendarVM(week, NOW).services.map((s) => [s.name, s.offerMinutes]), [["Color correction", 30], ["Consultation", 30]]);
+  assert.deepEqual(
+    toCalendarVM(week, NOW).services.map((s) => [s.name, s.offerMinutes]),
+    [
+      ["Color correction", 30],
+      ["Consultation", 30],
+    ],
+  );
   fresh(week);
   let tree = page();
   byTestId(tree, "cal-service").props.onChange({ target: { value: "Color correction" } });
   tree = page();
-  assert.deepEqual([stats(tree)[1].props.value, stats(tree)[1].props.meta], [2, "for a consultation"], "REGRESSION: '0 · that fit Color correction'");
+  assert.deepEqual(
+    [stats(tree)[1].props.value, stats(tree)[1].props.meta],
+    [2, "for a consultation"],
+    "REGRESSION: '0 · that fit Color correction'",
+  );
   assert.match(textOf(byTestId(tree, "cal-legend")), /would offer it for a consultation, through Sep 21/);
-  assert.match(textOf(byTestId(tree, "cal-consult-note")), /The open times here are for a consultation, about 30 minutes\./);
+  assert.match(
+    textOf(byTestId(tree, "cal-consult-note")),
+    /The open times here are for a consultation, about 30 minutes\./,
+  );
   byTestId(tree, "cal-view-agenda").props.onClick();
   tree = page();
-  const day = (key) => textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
-  assert.match(day("2026-09-08"), /Open for a consultation:3:30 – 6 PM/, "REGRESSION: the three-hour filter hid a two-and-a-half-hour open time");
+  const day = (key) =>
+    textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
+  assert.match(
+    day("2026-09-08"),
+    /Open for a consultation:3:30 – 6 PM/,
+    "REGRESSION: the three-hour filter hid a two-and-a-half-hour open time",
+  );
   // A service booked as itself is still sized by its own length.
   fresh(dto({ services: [{ name: "Balayage", duration_min: 140, consult_first: false }] }));
   tree = page();
@@ -865,9 +1509,27 @@ test("the page publishes how long it keeps a read and its words for a read that 
   assert.equal(keeps.refreshMs, 5 * 60 * 1000, "the five minutes after which the board reads itself again");
   assert.deepEqual(Object.keys(keeps.words).sort(), ["stale", "unavailable"]);
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "unreachable", problem: null } }));
-  assert.ok(textOf(byTestId(page(), "cal-feed-stale")).includes(keeps.words.stale), "the card over a last good read says them");
-  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0, problem: null } }));
-  assert.ok(textOf(byTestId(page(), "cal-feed-card")).includes(keeps.words.unavailable), "and the card over a calendar that could not be read");
+  assert.ok(
+    textOf(byTestId(page(), "cal-feed-stale")).includes(keeps.words.stale),
+    "the card over a last good read says them",
+  );
+  fresh(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+        problem: null,
+      },
+    }),
+  );
+  assert.ok(
+    textOf(byTestId(page(), "cal-feed-card")).includes(keeps.words.unavailable),
+    "and the card over a calendar that could not be read",
+  );
   // A reason of the read's own wins over both.
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }));
   const said = textOf(byTestId(page(), "cal-feed-stale"));

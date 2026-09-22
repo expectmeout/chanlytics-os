@@ -38,20 +38,56 @@ const empty = (over = {}) => ({
   later: [],
   ...over,
 });
-const facts = { name: "Northside Movers", hours: true, services: 4, bookingLink: true, address: true, handoff: "+13055550100", broken: false };
-const live = (over = {}) => empty({
-  business: facts,
-  channels: {
-    whatsapp: { present: true, active: true, number: "+13055550123", quality: "GREEN", lastInboundAt: "2026-09-07T14:30:00Z" },
-    voice: { present: true, active: true, number: "+13055550124", lastInboundAt: "2026-09-06T14:30:00Z" },
-  },
-  templates: { approved: 6, pending: 0, startersApproved: 5 },
-  calendar: { state: "ok" },
-  team: { members: 2, invitesOpen: 0, alertEmails: 1 },
+const facts = {
+  name: "Northside Movers",
+  hours: true,
+  services: 4,
+  bookingLink: true,
+  address: true,
+  handoff: "+13055550100",
+  broken: false,
+};
+const live = (over = {}) =>
+  empty({
+    business: facts,
+    channels: {
+      whatsapp: {
+        present: true,
+        active: true,
+        number: "+13055550123",
+        quality: "GREEN",
+        lastInboundAt: "2026-09-07T14:30:00Z",
+      },
+      voice: { present: true, active: true, number: "+13055550124", lastInboundAt: "2026-09-06T14:30:00Z" },
+    },
+    templates: { approved: 6, pending: 0, startersApproved: 5 },
+    calendar: { state: "ok" },
+    team: { members: 2, invitesOpen: 0, alertEmails: 1 },
+    ...over,
+  });
+const lineRow = (over = {}) => ({
+  id: "0f3c2a1e-1111-4222-8333-444455556666",
+  e164: "+13055550124",
+  kind: "chanlytics",
+  provider: "twilio",
+  area_code: 305,
+  voice_state: "provisioning",
+  sms_state: "none",
+  whatsapp_state: "none",
+  port_state: "none",
+  forwarding_state: "none",
+  step: "trunk",
+  last_error: null,
+  state_since: "2026-09-07T14:58:00Z",
+  created_at: "2026-09-07T14:57:00Z",
   ...over,
 });
-const lineRow = (over = {}) => ({ id: "0f3c2a1e-1111-4222-8333-444455556666", e164: "+13055550124", kind: "chanlytics", provider: "twilio", area_code: 305, voice_state: "provisioning", sms_state: "none", whatsapp_state: "none", port_state: "none", forwarding_state: "none", step: "trunk", last_error: null, state_since: "2026-09-07T14:58:00Z", created_at: "2026-09-07T14:57:00Z", ...over });
-const withLines = (rows, ready = true) => ({ rows, ready, provider: ready ? "twilio" : null, costs: { local_number_month_usd: 1.15 } });
+const withLines = (rows, ready = true) => ({
+  rows,
+  ready,
+  provider: ready ? "twilio" : null,
+  costs: { local_number_month_usd: 1.15 },
+});
 const row = (vm, id) => vm.rows.find((r) => r.id === id);
 
 /* ------------------------------ the words ------------------------------ */
@@ -61,15 +97,25 @@ test("REGRESSION (S7): a line that answers calls with nothing filed says texting
   const vm = setupSteps(live({ lines: withLines([line]) }), NOW);
   const setupLine = row(vm, "line");
   const connections = smsStateRow(line, NOW);
-  assert.equal(typeof contracts.TEXTING_NEEDS_RECORD_SENTENCE, "string", "REGRESSION: the two pages had no sentence in common");
+  assert.equal(
+    typeof contracts.TEXTING_NEEDS_RECORD_SENTENCE,
+    "string",
+    "REGRESSION: the two pages had no sentence in common",
+  );
   assert.equal(connections.sentence, contracts.TEXTING_NEEDS_RECORD_SENTENCE, "Connections says the shared sentence");
   const opening = "Texting needs your business on record for the carriers";
   assert.ok(connections.sentence.startsWith(opening));
   assert.ok(setupLine.sentence.includes(opening), `REGRESSION: ${setupLine.sentence}`);
   assert.ok(vm.readiness.sentence.includes(opening), `and Setup's top line: ${vm.readiness.sentence}`);
   const said = JSON.stringify(setupLine);
-  assert.ok(!said.includes("Texting is not available yet"), "REGRESSION: 'not available' about something waiting on the owner");
-  assert.ok(!said.includes("this page will say when"), "REGRESSION: a promise to wait for something that waits on the owner");
+  assert.ok(
+    !said.includes("Texting is not available yet"),
+    "REGRESSION: 'not available' about something waiting on the owner",
+  );
+  assert.ok(
+    !said.includes("this page will say when"),
+    "REGRESSION: a promise to wait for something that waits on the owner",
+  );
   assert.match(setupLine.sentence, /Connections/, "and it says where the form is");
   // A line with no voice yet has nothing to fill in for: its words are its own.
   assert.equal(contracts.textingWords(null).sentence, "Texting is not available yet.");
@@ -77,14 +123,24 @@ test("REGRESSION (S7): a line that answers calls with nothing filed says texting
 
 test("REGRESSION (S8): a broken configuration is said once, the same on Setup and on Business -- Setup said 'Open Workspace to repair them', Business that Chanlytics repairs it", () => {
   const W = contracts.BROKEN_CONFIG_WORDS;
-  assert.ok(W && typeof W.clause === "string" && typeof W.title === "string" && typeof W.body === "string", "REGRESSION: each page wrote its own");
+  assert.ok(
+    W && typeof W.clause === "string" && typeof W.title === "string" && typeof W.body === "string",
+    "REGRESSION: each page wrote its own",
+  );
   const vm = setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW);
   const f = row(vm, "facts");
   assert.equal(f.sentence, W.clause);
   assert.match(f.sentence, /could not be read/);
   assert.match(f.sentence, /Chanlytics/, "who repairs it");
-  assert.ok(!/repair them before anything else|Open Workspace/.test(JSON.stringify(f)), "REGRESSION: the owner was sent to repair what only Chanlytics can");
-  assert.deepEqual(f.verb, { label: W.ask, to: "verb:request-repair" }, "the owner's one move is the ask for a repair (S8); once asked, the row opens the page that lists what is wrong");
+  assert.ok(
+    !/repair them before anything else|Open Workspace/.test(JSON.stringify(f)),
+    "REGRESSION: the owner was sent to repair what only Chanlytics can",
+  );
+  assert.deepEqual(
+    f.verb,
+    { label: W.ask, to: "verb:request-repair" },
+    "the owner's one move is the ask for a repair (S8); once asked, the row opens the page that lists what is wrong",
+  );
   assert.match(W.body, /Chanlytics has to repair it/);
 });
 
@@ -96,9 +152,22 @@ test("REGRESSION (S19): nothing names the Business tab 'Workspace' -- Setup's ro
     setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW),
     setupSteps(empty({ calendar: { state: "unavailable", problem: "The calendar answered 404." } }), NOW),
   ];
-  const conn = connectionRows({ channels: [], whatsapp: null, lines: { rows: [], ready: false }, lineRequestedAt: null, google: null, calendar: { state: "unavailable" } }, NOW);
+  const conn = connectionRows(
+    {
+      channels: [],
+      whatsapp: null,
+      lines: { rows: [], ready: false },
+      lineRequestedAt: null,
+      google: null,
+      calendar: { state: "unavailable" },
+    },
+    NOW,
+  );
   const said = JSON.stringify([vms, conn]);
-  assert.ok(!/\b(in|Open) Workspace\b/.test(said), `REGRESSION: ${said.match(/[^"]*\b(in|Open) Workspace\b[^"]*/)?.[0]}`);
+  assert.ok(
+    !/\b(in|Open) Workspace\b/.test(said),
+    `REGRESSION: ${said.match(/[^"]*\b(in|Open) Workspace\b[^"]*/)?.[0]}`,
+  );
   assert.equal(row(vms[0], "facts").verb.label, "Start in Business");
   assert.equal(row(vms[1], "facts").verb.label, "Finish in Business");
   assert.equal(row(vms[2], "facts").verb.label, "Edit in Business");
@@ -110,7 +179,11 @@ test("REGRESSION (S6): the hard limits say which two never change and which two 
   assert.equal(contracts.REPLY_CAP_DEFAULT, 20, "REGRESSION: the defaults lived in the page and the runtime, apart");
   assert.equal(contracts.PAUSE_HOURS_DEFAULT, 24);
   const steps = await import("../../../apps/edge/lib/whatsapp/steps.ts");
-  assert.equal(steps.MAX_REPLIES_PER_DAY, contracts.REPLY_CAP_DEFAULT, "the receptionist stops at the number the page says");
+  assert.equal(
+    steps.MAX_REPLIES_PER_DAY,
+    contracts.REPLY_CAP_DEFAULT,
+    "the receptionist stops at the number the page says",
+  );
   assert.equal(steps.PAUSE_MS, contracts.PAUSE_HOURS_DEFAULT * 3600 * 1000, "and pauses for the hours it says");
   const H = contracts.hardLimitsWords;
   assert.equal(typeof H, "function");
@@ -128,21 +201,46 @@ test("REGRESSION (S6): the hard limits say which two never change and which two 
 /* ------------------------------ the page, on a stub React ------------------------------ */
 
 const listeners = {};
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+  body: { appendChild() {} },
+  activeElement: null,
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  location: { pathname: "/w/studio", hash: "#/admin/workspace", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/studio",
+    hash: "#/admin/workspace",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   history: { replaceState() {} },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
@@ -154,7 +252,10 @@ await import("../../../apps/dashboard/src/legacy-bridge/seed-globals.ts");
 let cells = new Map();
 let frames = [];
 let lastTree = null;
-const slot = () => { const f = frames[frames.length - 1]; return `${f.key}#${f.hook++}`; };
+const slot = () => {
+  const f = frames[frames.length - 1];
+  return `${f.key}#${f.hook++}`;
+};
 const saved = [];
 globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
@@ -170,24 +271,59 @@ globalThis.React = {
       const name = type.name || "anon";
       parent.kids[name] = (parent.kids[name] || 0) + 1;
       frames.push({ key: `${parent.key}/${name}:${parent.kids[name]}`, hook: 0, kids: {} });
-      try { node.rendered = type(props); } finally { frames.pop(); }
+      try {
+        node.rendered = type(props);
+      } finally {
+        frames.pop();
+      }
     }
     return node;
   },
   useState: (init) => {
     const k = slot();
     if (!cells.has(k)) cells.set(k, typeof init === "function" ? init() : init);
-    return [cells.get(k), (v) => { cells.set(k, typeof v === "function" ? v(cells.get(k)) : v); }];
+    return [
+      cells.get(k),
+      (v) => {
+        cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
+      },
+    ];
   },
-  useReducer: (red, init) => { const k = slot(); if (!cells.has(k)) cells.set(k, init); return [cells.get(k), (a) => { cells.set(k, red(cells.get(k), a)); }]; },
-  useRef: (init) => { const k = slot(); if (!cells.has(k)) cells.set(k, { current: init }); return cells.get(k); },
-  useMemo: (fn) => { slot(); return fn(); },
-  useCallback: (fn) => { slot(); return fn; },
+  useReducer: (red, init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, init);
+    return [
+      cells.get(k),
+      (a) => {
+        cells.set(k, red(cells.get(k), a));
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, { current: init });
+    return cells.get(k);
+  },
+  useMemo: (fn) => {
+    slot();
+    return fn();
+  },
+  useCallback: (fn) => {
+    slot();
+    return fn;
+  },
   useId: () => `id-${slot()}`,
   useEffect: (fn, deps) => {
     const k = slot();
     const prev = cells.get(k);
-    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (
+      prev &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     const cell = { deps, cleanup: undefined };
     cells.set(k, cell);
@@ -209,12 +345,22 @@ Object.assign(globalThis.window, {
   canDo: () => true,
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) => String(name || email).slice(0, 2).toUpperCase(),
+    initials: (name, email) =>
+      String(name || email)
+        .slice(0, 2)
+        .toUpperCase(),
     words: (me) => ({ name: me.display_name || me.email, email: me.email }),
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
-  __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
-  __receptionistDefaults: () => ({ system_prompt: "You answer for Northside Studio.", fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" } }),
+  __saveSettings: (config, version, accepted) => {
+    saved.push({ config, version });
+    accepted();
+    return Promise.resolve({ ok: true });
+  },
+  __receptionistDefaults: () => ({
+    system_prompt: "You answer for Northside Studio.",
+    fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" },
+  }),
   __instructionsDraft: contracts.instructionsDraft,
   __instructionsMax: contracts.INSTRUCTIONS_MAX,
   __fallbackMessages: contracts.fallbackMessages,
@@ -230,12 +376,25 @@ await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const all = (tree, pred) => { const out = []; const seen = new Set(); walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } }); return out; };
+const all = (tree, pred) => {
+  const out = [];
+  const seen = new Set();
+  walk(tree, (n) => {
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
@@ -245,20 +404,44 @@ const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return textOf(n.props?.children);
 };
-const classed = (tree, cls) => find(tree, (n) => String(n.props?.className || "").split(" ").includes(cls));
+const classed = (tree, cls) =>
+  find(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes(cls),
+  );
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
-const fresh = () => { cells = new Map(); saved.length = 0; for (const k of Object.keys(listeners)) delete listeners[k]; };
-const draw = (tab) => { frames = [{ key: "root", hook: 0, kids: {} }]; lastTree = globalThis.window.SettingsPage({ tab, onTab() {} }); return lastTree; };
-const settings = (tab) => { fresh(); return draw(tab); };
+const fresh = () => {
+  cells = new Map();
+  saved.length = 0;
+  for (const k of Object.keys(listeners)) delete listeners[k];
+};
+const draw = (tab) => {
+  frames = [{ key: "root", hook: 0, kids: {} }];
+  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  return lastTree;
+};
+const settings = (tab) => {
+  fresh();
+  return draw(tab);
+};
 
 /** A workspace on the settings surface, in its real shape; `rules` are its stored booking rules. */
 const workspace = (over = {}, rules = {}) => {
   Object.assign(globalThis.window, {
     __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
     __SETTINGS: {
-      role: "owner", version: 4,
-      config: { brain: { business_name: "Northside Studio", booking_link: "https://book.example/northside", system_prompt: "You answer for Northside Studio.", profile: { booking_rules: rules } } },
+      role: "owner",
+      version: 4,
+      config: {
+        brain: {
+          business_name: "Northside Studio",
+          booking_link: "https://book.example/northside",
+          system_prompt: "You answer for Northside Studio.",
+          profile: { booking_rules: rules },
+        },
+      },
     },
     __FACTS: {
       facts: {
@@ -270,7 +453,8 @@ const workspace = (over = {}, rules = {}) => {
       },
       conflicts: [],
     },
-    __TEAM: [], __TEAM_INVITES: [],
+    __TEAM: [],
+    __TEAM_INVITES: [],
     ...over,
   });
 };
@@ -282,8 +466,14 @@ test("REGRESSION (S8): the Business pane's broken card says the words Setup's ro
   const { requested, ...words } = W;
   const { requested: ownRequested, ...ownWords } = contracts.BROKEN_CONFIG_WORDS;
   assert.deepEqual(words, ownWords, "contracts' own");
-  assert.equal(requested("2026-09-07T13:00:00Z", NOW), ownRequested("2026-09-07T13:00:00Z", NOW), "and the same sentence once a repair is asked for");
-  workspace({ __SETTINGS: { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } } });
+  assert.equal(
+    requested("2026-09-07T13:00:00Z", NOW),
+    ownRequested("2026-09-07T13:00:00Z", NOW),
+    "and the same sentence once a repair is asked for",
+  );
+  workspace({
+    __SETTINGS: { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } },
+  });
   const card = byTestId(settings("workspace"), "settings-broken");
   assert.ok(card, "the broken card is drawn");
   assert.equal(textOf(classed(card, "empty-title")), W.title);
@@ -294,7 +484,17 @@ test("REGRESSION (S8): the broken card asks for the repair from the card, then s
   const W = globalThis.window.__brokenConfigWords;
   const asks = [];
   const broken = { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } };
-  workspace({ __SETTINGS: broken, __SETUP: { dto: { requests: { line: null } } }, __setup: { request: async (what) => { asks.push(what); return { ok: true, already: false, message: "" }; }, refresh: async () => {} } });
+  workspace({
+    __SETTINGS: broken,
+    __SETUP: { dto: { requests: { line: null } } },
+    __setup: {
+      request: async (what) => {
+        asks.push(what);
+        return { ok: true, already: false, message: "" };
+      },
+      refresh: async () => {},
+    },
+  });
   let tree = settings("workspace");
   const ask = byTestId(tree, "settings-broken-ask");
   assert.ok(ask, "REGRESSION: no way to ask");
@@ -317,12 +517,35 @@ test("REGRESSION (S19): the AI memory pane points at Business by name -- it said
 
 test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits card, in the bridge's words -- the card listed values nothing on the page could change", () => {
   workspace();
-  assert.equal(typeof globalThis.window.__hardLimits, "function", "REGRESSION: the page kept its own words and its own defaults");
+  assert.equal(
+    typeof globalThis.window.__hardLimits,
+    "function",
+    "REGRESSION: the page kept its own words and its own defaults",
+  );
   const calls = [];
   Object.assign(globalThis.window, {
     __POLICIES: [],
-    __setPolicy: async (...args) => { calls.push(args); return { ok: true }; },
-    POLICY: { ...globalThis.window.POLICY, MODES: ["Auto", "Veto", "Ask", "Never"], ROWS: [{ id: "reply", cls: "reply", label: "Replies to customers", note: "", locked: false, modes: ["Auto", "Veto", "Ask"], mode: "Auto", hints: {}, limits: { reply_delay_ms: 30000, pause_hours: 48 } }] },
+    __setPolicy: async (...args) => {
+      calls.push(args);
+      return { ok: true };
+    },
+    POLICY: {
+      ...globalThis.window.POLICY,
+      MODES: ["Auto", "Veto", "Ask", "Never"],
+      ROWS: [
+        {
+          id: "reply",
+          cls: "reply",
+          label: "Replies to customers",
+          note: "",
+          locked: false,
+          modes: ["Auto", "Veto", "Ask"],
+          mode: "Auto",
+          hints: {},
+          limits: { reply_delay_ms: 30000, pause_hours: 48 },
+        },
+      ],
+    },
   });
   const tree = settings("autonomy");
   const text = textOf(tree);
@@ -332,7 +555,10 @@ test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits 
   const cap = byTestId(tree, "aut-reply-cap");
   const pause = byTestId(tree, "aut-pause");
   assert.ok(cap && pause, "REGRESSION: no dial for either limit");
-  const active = (group) => all(group, (n) => n.type === "button" && String(n.props.className).split(" ").includes("active")).map((n) => textOf(n));
+  const active = (group) =>
+    all(group, (n) => n.type === "button" && String(n.props.className).split(" ").includes("active")).map((n) =>
+      textOf(n),
+    );
   assert.deepEqual(active(cap), ["20"], "an unset cap shows the default");
   assert.deepEqual(active(pause), ["48h"], "a stored pause shows as stored, even off the usual steps");
   press(find(cap, (n) => n.type === "button" && textOf(n) === "40"));

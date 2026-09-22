@@ -6,7 +6,23 @@
  * sidebar's menus, the shortcuts sheet, the line under the top bar and the
  * tab's name.
  */
-import { THEME_OPTIONS, SHORTCUTS, pageTitle, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, stateOf, nextThemePref, themeButtonWords, liveBar, liveStillUp, fmtClock, type ShellStatus } from "@chanlytics/contracts";
+import {
+  THEME_OPTIONS,
+  SHORTCUTS,
+  pageTitle,
+  shortcutGroups,
+  shellStatusLine,
+  isTypingTarget,
+  workspaceHotkey,
+  toastShape,
+  stateOf,
+  nextThemePref,
+  themeButtonWords,
+  liveBar,
+  liveStillUp,
+  fmtClock,
+  type ShellStatus,
+} from "@chanlytics/contracts";
 import { clearSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
 import { refreshAllSurfaces } from "./surface-runner";

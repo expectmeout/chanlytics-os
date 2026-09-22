@@ -20,7 +20,11 @@ export function feedUrlOk(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const url = raw.trim().replace(/^webcal:\/\//i, "https://");
   let u: URL;
-  try { u = new URL(url); } catch { return null; }
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   if (PRIVATE_HOST.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
   return u.toString();
@@ -42,13 +46,20 @@ export type FeedFailure = "address" | "unreachable" | "http" | "too_large" | "no
 /** One sentence per way a feed fails, naming what to do; null when nothing failed. */
 export function feedProblemWords(reason: FeedFailure | null | undefined, status?: number | null): string | null {
   switch (reason) {
-    case "address": return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable": return "The calendar could not be reached. Check the address and try again.";
-    case "http": return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large": return "That feed is too large to read (over 2 MB).";
-    case "not_ical": return "That address is not an iCal feed. In Google Calendar it is Settings › your calendar › Secret address in iCal format.";
-    case "settings": return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default: return null;
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings › your calendar › Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
   }
 }
 

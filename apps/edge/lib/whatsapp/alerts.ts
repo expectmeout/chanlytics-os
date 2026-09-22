@@ -99,7 +99,13 @@ export async function alertStaff(
  * rather than read back off this file. Everything that reaches a mailbox is
  * `notify`'s; everything that decides a sentence is here.
  */
-export function handoffMessage({ threadId, userText, botText, reason, ...ctx }: {
+export function handoffMessage({
+  threadId,
+  userText,
+  botText,
+  reason,
+  ...ctx
+}: {
   threadId: string;
   userText: string;
   botText: string;
@@ -208,4 +214,3 @@ export async function alertUnroutable(
   // dropped. Only a delivered notice earns the quiet.
   if (!delivered) unroutableAlerted.delete(k);
 }
-

@@ -6,7 +6,9 @@ import { leadSearchScope, removeSearch, renameSearch, searchRow } from "@/server
 /** GET /api/v1/lead-searches/:id: one search with its latest round, as lead_searches_view says it. */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => ({ search: await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search")) }),
+  handle: async ({ ctx, member }) => ({
+    search: await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search")),
+  }),
 });
 
 /** PATCH /api/v1/lead-searches/:id — rename. An operator's: a name changes nothing that is spent. */

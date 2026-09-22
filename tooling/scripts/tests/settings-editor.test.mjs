@@ -19,7 +19,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay } from "@chanlytics/contracts";
+import {
+  stateOf,
+  whyNotAHandoff,
+  whyNotAPhone,
+  samePhone,
+  handoffE164,
+  formatPhoneDisplay,
+} from "@chanlytics/contracts";
 import * as C from "@chanlytics/contracts";
 
 const TID = "t-studio";
@@ -27,21 +34,46 @@ const TID = "t-studio";
 /* ---------------------------------- the window ---------------------------------- */
 
 const listeners = {};
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+  body: { appendChild() {} },
+  activeElement: null,
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  location: { pathname: "/w/studio", hash: "#/admin/workspace", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/studio",
+    hash: "#/admin/workspace",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   history: { replaceState() {} },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
@@ -53,7 +85,10 @@ globalThis.window = {
 // Hooks are kept per component, by the component's place in the tree and its type (see settings-honest.test.mjs).
 let cells = new Map();
 let frames = [];
-const slot = () => { const f = frames[frames.length - 1]; return `${f.key}#${f.hook++}`; };
+const slot = () => {
+  const f = frames[frames.length - 1];
+  return `${f.key}#${f.hook++}`;
+};
 const toasts = [];
 const saved = [];
 globalThis.Icon = "Icon";
@@ -70,24 +105,59 @@ globalThis.React = {
       const name = type.name || "anon";
       parent.kids[name] = (parent.kids[name] || 0) + 1;
       frames.push({ key: `${parent.key}/${name}:${parent.kids[name]}`, hook: 0, kids: {} });
-      try { node.rendered = type(props); } finally { frames.pop(); }
+      try {
+        node.rendered = type(props);
+      } finally {
+        frames.pop();
+      }
     }
     return node;
   },
   useState: (init) => {
     const k = slot();
     if (!cells.has(k)) cells.set(k, typeof init === "function" ? init() : init);
-    return [cells.get(k), (v) => { cells.set(k, typeof v === "function" ? v(cells.get(k)) : v); }];
+    return [
+      cells.get(k),
+      (v) => {
+        cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
+      },
+    ];
   },
-  useReducer: (red, init) => { const k = slot(); if (!cells.has(k)) cells.set(k, init); return [cells.get(k), (a) => { cells.set(k, red(cells.get(k), a)); }]; },
-  useRef: (init) => { const k = slot(); if (!cells.has(k)) cells.set(k, { current: init }); return cells.get(k); },
-  useMemo: (fn) => { slot(); return fn(); },
-  useCallback: (fn) => { slot(); return fn; },
+  useReducer: (red, init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, init);
+    return [
+      cells.get(k),
+      (a) => {
+        cells.set(k, red(cells.get(k), a));
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, { current: init });
+    return cells.get(k);
+  },
+  useMemo: (fn) => {
+    slot();
+    return fn();
+  },
+  useCallback: (fn) => {
+    slot();
+    return fn;
+  },
   useId: () => `id-${slot()}`,
   useEffect: (fn, deps) => {
     const k = slot();
     const prev = cells.get(k);
-    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (
+      prev &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     const cell = { deps, cleanup: undefined };
     cells.set(k, cell);
@@ -117,12 +187,22 @@ Object.assign(globalThis.window, {
   __phoneDisplay: formatPhoneDisplay,
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) => String(name || email).slice(0, 2).toUpperCase(),
+    initials: (name, email) =>
+      String(name || email)
+        .slice(0, 2)
+        .toUpperCase(),
     words: (me) => ({ name: me.display_name || me.email, email: me.email }),
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
-  __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
-  __receptionistDefaults: () => ({ system_prompt: "You answer for Northside Studio.", fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" } }),
+  __saveSettings: (config, version, accepted) => {
+    saved.push({ config, version });
+    accepted();
+    return Promise.resolve({ ok: true });
+  },
+  __receptionistDefaults: () => ({
+    system_prompt: "You answer for Northside Studio.",
+    fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" },
+  }),
   __instructionsDraft: C.instructionsDraft,
   __instructionsMax: C.INSTRUCTIONS_MAX,
   __fallbackMessages: C.fallbackMessages,
@@ -130,11 +210,18 @@ Object.assign(globalThis.window, {
   __unknownDetails: C.unknownDetails,
   __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
   __SETTINGS: {
-    role: "owner", version: 5,
+    role: "owner",
+    version: 5,
     config: {
       brain: {
-        business_name: "Northside Studio", booking_link: "https://book.example/northside", system_prompt: "You answer for Northside Studio.",
-        profile: { website: "https://northside.example", notes: [{ title: "Parking", text: "Behind the building." }], booking_rules: { lead_hours: 2 } },
+        business_name: "Northside Studio",
+        booking_link: "https://book.example/northside",
+        system_prompt: "You answer for Northside Studio.",
+        profile: {
+          website: "https://northside.example",
+          notes: [{ title: "Parking", text: "Behind the building." }],
+          booking_rules: { lead_hours: 2 },
+        },
       },
     },
   },
@@ -148,7 +235,8 @@ Object.assign(globalThis.window, {
     },
     conflicts: [],
   },
-  __TEAM: [], __TEAM_INVITES: [],
+  __TEAM: [],
+  __TEAM_INVITES: [],
 });
 await import("../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
 // How it answers owns the languages the old form offers and its three messages' labels, which settings.jsx reads as
@@ -158,12 +246,25 @@ await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const all = (tree, pred) => { const out = []; const seen = new Set(); walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } }); return out; };
+const all = (tree, pred) => {
+  const out = [];
+  const seen = new Set();
+  walk(tree, (n) => {
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
@@ -176,16 +277,25 @@ const textOf = (n) => {
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 const fresh = () => {
-  cells = new Map(); toasts.length = 0; saved.length = 0;
+  cells = new Map();
+  toasts.length = 0;
+  saved.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   // A pane the stub never unmounts leaves its answer chained onto the rail's question; React's cleanup would put back
   // what it found there, which is the record kit's. And no fold is open.
   globalThis.window.__settingsUnsaved = kitUnsaved;
   globalThis.window.__recordFolds.reset();
 };
-const draw = (tab, went = []) => { frames = [{ key: "root", hook: 0, kids: {} }]; return globalThis.window.SettingsPage({ tab, onTab: (id) => went.push(id) }); };
+const draw = (tab, went = []) => {
+  frames = [{ key: "root", hook: 0, kids: {} }];
+  return globalThis.window.SettingsPage({ tab, onTab: (id) => went.push(id) });
+};
 const again = draw;
-const railRow = (tree, label) => find(tree, (n) => n.type === "button" && String(n.props.className || "").includes("set-nav-row") && textOf(n).trim() === label);
+const railRow = (tree, label) =>
+  find(
+    tree,
+    (n) => n.type === "button" && String(n.props.className || "").includes("set-nav-row") && textOf(n).trim() === label,
+  );
 
 /* ------------------------------ which card the pane draws ------------------------------ */
 
@@ -211,7 +321,11 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
     tree = draw("workspace");
     assert.ok(byTestId(tree, "the-create-card"));
     assert.equal(byTestId(tree, "the-business-page"), null, "a page with nothing to draw is not drawn");
-    assert.equal(textOf(tree).includes("Serenity Spa"), false, "REGRESSION: an empty workspace was shown an invented business");
+    assert.equal(
+      textOf(tree).includes("Serenity Spa"),
+      false,
+      "REGRESSION: an empty workspace was shown an invented business",
+    );
 
     // A config the parser refused is a third thing: it says so, and asks for the repair.
     fresh();
@@ -225,7 +339,11 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
     tree = draw("workspace");
     assert.ok(byTestId(tree, "settings-broken"));
     assert.equal(byTestId(tree, "the-business-page"), null);
-    assert.equal(byTestId(tree, "the-create-card"), null, "and no form whose save would replace the broken row with its few fields");
+    assert.equal(
+      byTestId(tree, "the-create-card"),
+      null,
+      "and no form whose save would replace the broken row with its few fields",
+    );
   } finally {
     globalThis.window.__SETTINGS = was;
   }
@@ -236,7 +354,10 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
 test("REGRESSION (S22): another Settings tab with unsaved changes asks first -- the pane was replaced, and the changes with it", () => {
   const folds = globalThis.window.__recordFolds;
   // Press Team on the rail of a tree drawn with `went`; say whether the rail asked first, and where it went.
-  const pressTeam = (tree, went) => { press(railRow(tree, "Team")); return { asked: !!byTestId(again("workspace", went), "set-leave-confirm"), went: [...went] }; };
+  const pressTeam = (tree, went) => {
+    press(railRow(tree, "Team"));
+    return { asked: !!byTestId(again("workspace", went), "set-leave-confirm"), went: [...went] };
+  };
 
   fresh();
   let went = [];
@@ -263,7 +384,11 @@ test("REGRESSION (S22): another Settings tab with unsaved changes asks first -- 
   fresh();
   went = [];
   // A fold binds its dirty test and its "my save is out" test for as long as its hook is on the page (bind).
-  folds.bind("hours", () => false, () => true);
+  folds.bind(
+    "hours",
+    () => false,
+    () => true,
+  );
   folds.request("hours");
   tree = draw("workspace", went);
   press(railRow(tree, "Team"));
@@ -278,7 +403,13 @@ test("REGRESSION (S22): leaving the page with unsaved changes asks the browser t
   assert.equal(listeners.beforeunload?.size ?? 0, 0, "nothing open: nothing to hold on to");
   globalThis.window.__recordFolds.request("hours", { dirty: () => true });
   assert.equal(listeners.beforeunload?.size ?? 0, 1, "REGRESSION: a reload dropped the edit without a word");
-  const ev = { returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+  const ev = {
+    returnValue: undefined,
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
   for (const fn of listeners.beforeunload) fn(ev);
   assert.ok(ev.prevented, "the browser is asked to confirm");
   assert.equal(ev.returnValue, "");

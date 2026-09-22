@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { PASSWORD_WORDS, SIGNUP_WORDS, deviceTimezone, passwordProblem, requestCodeWords, verifyCodeWords } from "@chanlytics/contracts";
+import {
+  PASSWORD_WORDS,
+  SIGNUP_WORDS,
+  deviceTimezone,
+  passwordProblem,
+  requestCodeWords,
+  verifyCodeWords,
+} from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
@@ -52,7 +59,8 @@ export default function SignupPage() {
       .then((j: { data?: { posture?: "open" | "waitlist" | "invite"; code_required?: boolean } }) =>
         // `posture` is what this page reads now; the boolean is the fallback for
         // an API deployed before it, since the two ship separately.
-        setPosture(j?.data?.posture ?? (j?.data?.code_required ? "invite" : "open")))
+        setPosture(j?.data?.posture ?? (j?.data?.code_required ? "invite" : "open")),
+      )
       .catch(() => setPosture("open"));
   }, []);
 
@@ -83,7 +91,11 @@ export default function SignupPage() {
           ...(posture === "invite" ? { code: code.trim() } : {}),
         }),
       });
-      const j = (await res.json().catch(() => null)) as { ok?: boolean; data?: { next?: string | null; waitlisted?: boolean; sent?: boolean; message?: string }; error?: { message?: string } } | null;
+      const j = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        data?: { next?: string | null; waitlisted?: boolean; sent?: boolean; message?: string };
+        error?: { message?: string };
+      } | null;
       if (!res.ok || !j?.ok) {
         setError(j?.error?.message ?? "Something went wrong. Try again.");
         return;
@@ -91,10 +103,16 @@ export default function SignupPage() {
       // A waitlist submission has nowhere to go: no code is coming and there is
       // no screen to enter one on. Say so here rather than navigating somewhere
       // that would ask for one.
-      if (j.data?.waitlisted) { setJoined(true); return; }
+      if (j.data?.waitlisted) {
+        setJoined(true);
+        return;
+      }
       // THE CODE DID NOT GO OUT. Showing the confirm step would put a person in
       // front of a box asking for six digits that are not coming.
-      if (j.data?.sent === false) { setUnsent(j.data.message ?? SIGNUP_WORDS.notSent); return; }
+      if (j.data?.sent === false) {
+        setUnsent(j.data.message ?? SIGNUP_WORDS.notSent);
+        return;
+      }
       setStage("confirm");
     } catch {
       setError(SIGNUP_WORDS.unreachable);
@@ -162,13 +180,18 @@ export default function SignupPage() {
               const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
               return error ? requestCodeWords(error) : null;
             }}
-            onBack={() => { setStage("form"); setError(null); }}
+            onBack={() => {
+              setStage("form");
+              setError(null);
+            }}
           />
           {/* The cost of answering a known address exactly as a new one: somebody
               who already had an account is standing at a code screen waiting for
               a code nobody sent. This is the way out, and it gives nothing away —
               it is shown to everyone who reaches this step. */}
-          <div className="hint">{SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a></div>
+          <div className="hint">
+            {SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a>
+          </div>
         </div>
       </AuthShell>
     );
@@ -185,25 +208,68 @@ export default function SignupPage() {
         {posture !== null && !waiting && <GoogleSignIn next="/" hint={SIGNUP_WORDS.googleNext} />}
         <form onSubmit={submit}>
           <label htmlFor="name">Business name</label>
-          <input id="name" type="text" autoComplete="organization" required minLength={2} maxLength={120} ref={fieldRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Luna Studio" />
+          <input
+            id="name"
+            type="text"
+            autoComplete="organization"
+            required
+            minLength={2}
+            maxLength={120}
+            ref={fieldRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Luna Studio"
+          />
           <label htmlFor="email">Work email</label>
-          <input id="email" name="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="username"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@business.com"
+          />
           {/* Not on the waitlist, which makes no account to hold one. */}
           {!waiting && (
             <>
               <label htmlFor="password">{PASSWORD_WORDS.chooseLabel}</label>
-              <input id="password" name="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••" />
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+              />
               <div className="auth-field-hint">{PASSWORD_WORDS.hint}</div>
             </>
           )}
           {posture === "invite" && (
             <>
               <label htmlFor="code">Invite code</label>
-              <input id="code" type="text" autoComplete="off" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="From your Chanlytics contact" />
+              <input
+                id="code"
+                type="text"
+                autoComplete="off"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="From your Chanlytics contact"
+              />
             </>
           )}
           <button disabled={busy || posture === null}>
-            {busy ? (waiting ? "Adding you…" : "Creating your workspace…") : waiting ? SIGNUP_WORDS.waitlistCta : "Create workspace"}
+            {busy
+              ? waiting
+                ? "Adding you…"
+                : "Creating your workspace…"
+              : waiting
+                ? SIGNUP_WORDS.waitlistCta
+                : "Create workspace"}
           </button>
         </form>
         {/* The device clock is read to set the workspace's timezone. On the

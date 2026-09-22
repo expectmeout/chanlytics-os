@@ -78,12 +78,18 @@ test("its act opens the three things a receptionist cannot answer anyone without
   tree = redrawCreate();
   assert.equal(foldOpen(tree), true);
   // Named by what is on screen beside them (WCAG 2.5.3), in the old create form's order.
-  const labels = all(byTestId(tree, "rec-fold-receptionist"), (n) => classes(n).includes("rec-field-label")).map(textOf).filter(Boolean);
+  const labels = all(byTestId(tree, "rec-fold-receptionist"), (n) => classes(n).includes("rec-field-label"))
+    .map(textOf)
+    .filter(Boolean);
   assert.deepEqual(labels, ["Business name", "Tell customers to call", "Booking link"]);
   // The number's box is named by that same visible label, which is a heading over a choice and a box, not a <label>.
   assert.equal(boxIn(tree, "rec-create-number").props["aria-labelledby"], "bt-create-number-label");
   assert.equal(textOf(find(tree, (n) => n.props?.id === "bt-create-number-label")), "Tell customers to call");
-  assert.equal(boxIn(tree, "rec-create-name").props.value, "", "and nothing is filled in for a workspace that has nothing");
+  assert.equal(
+    boxIn(tree, "rec-create-name").props.value,
+    "",
+    "and nothing is filled in for a workspace that has nothing",
+  );
   assert.equal(boxIn(tree, "rec-create-link").props.value, "");
 });
 
@@ -95,7 +101,11 @@ test("no other business is anyone's example: the boxes are empty and the placeho
   setUp(tree);
   tree = redrawCreate();
   const boxes = all(byTestId(tree, "rec-fold-receptionist"), (n) => n.type === "input");
-  assert.deepEqual(boxes.map((b) => b.props.value), ["", "", ""], "nothing is filled in");
+  assert.deepEqual(
+    boxes.map((b) => b.props.value),
+    ["", "", ""],
+    "nothing is filled in",
+  );
   const said = JSON.stringify(boxes.map((b) => [b.props.placeholder, b.props.title]));
   for (const leak of ["Melany", "932 5775", "932-5775", "booksy", "1817434"]) {
     assert.ok(!said.includes(leak), `a real business's ${leak} must not be a placeholder`);
@@ -119,7 +129,11 @@ test("with nothing read to save onto, the act is not offered at all", () => {
   // A dead button spends a press to reach nothing: the fold cannot work out a draft without a config behind it
   // (btOpening), so it would never open. The row's act asks the same question before it offers one.
   const tree = drawCreate({ read: false });
-  assert.match(textOf(find(tree, (n) => classes(n).includes("empty"))), /This workspace has no receptionist yet/, "the state is still said");
+  assert.match(
+    textOf(find(tree, (n) => classes(n).includes("empty"))),
+    /This workspace has no receptionist yet/,
+    "the state is still said",
+  );
   assert.equal(byTestId(tree, "rec-create-open"), null, "and nothing is offered that would do nothing");
 });
 
@@ -136,7 +150,10 @@ test("every empty field says so under itself, nothing is sent, and the fold stay
   tree = redrawCreate(flash);
   assert.equal(sent.length, 0, "nothing goes to the server while a field is empty");
   assert.equal(wrongIn(tree, "rec-create-name"), "The receptionist needs a business name before it can answer anyone.");
-  assert.equal(wrongIn(tree, "rec-create-number"), "There is no line yet, so the receptionist needs a number to give out.");
+  assert.equal(
+    wrongIn(tree, "rec-create-number"),
+    "There is no line yet, so the receptionist needs a number to give out.",
+  );
   assert.equal(wrongIn(tree, "rec-create-link"), "The receptionist needs a booking link before it can answer anyone.");
   assert.equal(foldOpen(tree), true, "and it stays open over what was typed");
 });
@@ -151,7 +168,12 @@ test("with a line to answer on, the number is not asked for — and a number tha
   assert.equal(wrongIn(tree, "rec-create-number"), null, "the line it answers on is a number to give out");
   assert.equal(wrongIn(tree, "rec-create-name"), "The receptionist needs a business name before it can answer anyone.");
   // Chosen "A different number" and typed something that is not one: the row's own check, said under the box.
-  press(find(byTestId(tree, "rec-create-number-choice"), (n) => n.props?.role === "radio" && textOf(n) === "A different number"));
+  press(
+    find(
+      byTestId(tree, "rec-create-number-choice"),
+      (n) => n.props?.role === "radio" && textOf(n) === "A different number",
+    ),
+  );
   tree = redrawCreate();
   typeIn(tree, "rec-create-number", "555");
   tree = redrawCreate();
@@ -172,7 +194,10 @@ test("a booking link that is not a full web address is refused under its own box
   tree = redrawCreate();
   save(tree);
   tree = redrawCreate();
-  assert.equal(wrongIn(tree, "rec-create-link"), "That booking link needs to be a full web address, starting with https://");
+  assert.equal(
+    wrongIn(tree, "rec-create-link"),
+    "That booking link needs to be a full web address, starting with https://",
+  );
   assert.equal(wrongIn(tree, "rec-create-name"), null, "and the field that is right says nothing");
   assert.equal(sent.length, 0);
 });
@@ -206,7 +231,11 @@ test("one request carries the three facts and the product's own prompt and messa
       ...newReceptionistDefaults("Bella Nails"),
     },
   });
-  assert.deepEqual(sent[0].config.brain.fallbacks, FALLBACK_DEFAULTS, "the product's wording, which names the details rather than copying them in");
+  assert.deepEqual(
+    sent[0].config.brain.fallbacks,
+    FALLBACK_DEFAULTS,
+    "the product's wording, which names the details rather than copying them in",
+  );
   assert.equal(textOf(flashes.at(-1).msg), "Saved — the receptionist picks these up within a minute");
   assert.equal(foldOpen(redrawCreate(flash)), false, "accepted, the fold closes");
 });
@@ -222,8 +251,17 @@ test("the line it answers on is stored as no number at all, which is what makes 
   tree = redrawCreate();
   save(tree);
   assert.equal(sent.length, 1);
-  assert.deepEqual(Object.keys(sent[0].config.brain).sort(), ["booking_link", "business_name", "fallbacks", "system_prompt"]);
-  assert.equal("phone_display" in sent[0].config.brain, false, "absent is the schema's way of saying: the line it answers");
+  assert.deepEqual(Object.keys(sent[0].config.brain).sort(), [
+    "booking_link",
+    "business_name",
+    "fallbacks",
+    "system_prompt",
+  ]);
+  assert.equal(
+    "phone_display" in sent[0].config.brain,
+    false,
+    "absent is the schema's way of saying: the line it answers",
+  );
 });
 
 test("a number typed and then put back to the line is stored as no number, not as the line", () => {
@@ -245,7 +283,11 @@ test("a number typed and then put back to the line is stored as no number, not a
     tree = redrawCreate();
   };
   choose("A different number");
-  assert.equal(boxIn(tree, "rec-create-number").props.value, "+1 (308) 336-8109", "the box fills with the line it answers on");
+  assert.equal(
+    boxIn(tree, "rec-create-number").props.value,
+    "+1 (308) 336-8109",
+    "the box fills with the line it answers on",
+  );
   choose("Your line");
   const box = () => find(byTestId(tree, "rec-create-number"), (n) => classes(n).includes("bt-inline-box"));
   assert.equal(box().props.hidden, true, "and choosing the line puts the box away, with what was in it");
@@ -253,7 +295,11 @@ test("a number typed and then put back to the line is stored as no number, not a
 
   save(tree);
   assert.equal(sent.length, 1);
-  assert.equal("phone_display" in sent[0].config.brain, false, "nothing is stored, so what it gives out follows the line");
+  assert.equal(
+    "phone_display" in sent[0].config.brain,
+    false,
+    "nothing is stored, so what it gives out follows the line",
+  );
 });
 
 /* ------------------------------------ who may do it ------------------------------------ */

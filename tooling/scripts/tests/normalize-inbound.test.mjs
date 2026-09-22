@@ -6,8 +6,12 @@ import assert from "node:assert/strict";
 import { normalizeInbound } from "@chanlytics/channels";
 
 const msg = (over = {}) => ({
-  from: "15550001111", id: "wamid.t", type: "text",
-  timestamp: "1700000000", text: { body: "hola" }, ...over,
+  from: "15550001111",
+  id: "wamid.t",
+  type: "text",
+  timestamp: "1700000000",
+  text: { body: "hola" },
+  ...over,
 });
 
 test("matching wa_id attaches identity + profile name", () => {
@@ -80,7 +84,7 @@ test("a template quick-reply is text, not an unreadable message", () => {
   const n = normalizeInbound(tapped({ button: { payload: "Book now", text: "Book now" } }), {});
   assert.equal(n.type, "text");
   assert.equal(n.body, "Book now");
-  assert.equal(n.rawType, "button");   // the distinction is kept, not erased
+  assert.equal(n.rawType, "button"); // the distinction is kept, not erased
   assert.equal(n.media, null);
   assert.equal(n.optOut, false);
 });
@@ -94,7 +98,11 @@ test("pressing an opt-out button opts the customer out", () => {
 
 test("interactive button_reply and list_reply both carry consent", () => {
   const btn = normalizeInbound(
-    msg({ type: "interactive", text: undefined, interactive: { type: "button_reply", button_reply: { id: "b1", title: "STOP" } } }),
+    msg({
+      type: "interactive",
+      text: undefined,
+      interactive: { type: "button_reply", button_reply: { id: "b1", title: "STOP" } },
+    }),
     {},
   );
   assert.equal(btn.type, "text");
@@ -102,7 +110,11 @@ test("interactive button_reply and list_reply both carry consent", () => {
   assert.equal(btn.optOut, true);
 
   const list = normalizeInbound(
-    msg({ type: "interactive", text: undefined, interactive: { type: "list_reply", list_reply: { id: "l1", title: "Priority Mail", description: "2 days" } } }),
+    msg({
+      type: "interactive",
+      text: undefined,
+      interactive: { type: "list_reply", list_reply: { id: "l1", title: "Priority Mail", description: "2 days" } },
+    }),
     {},
   );
   assert.equal(list.type, "text");
@@ -114,7 +126,11 @@ test("a localised label still opts out when the tenant sets the id", () => {
   // The label is what the customer reads; the id is what the tenant controls.
   // Without this, a Spanish "Detener" button could never opt anyone out.
   const n = normalizeInbound(
-    msg({ type: "interactive", text: undefined, interactive: { button_reply: { id: "stop", title: "Detener mensajes" } } }),
+    msg({
+      type: "interactive",
+      text: undefined,
+      interactive: { button_reply: { id: "stop", title: "Detener mensajes" } },
+    }),
     {},
   );
   assert.equal(n.optOut, true);
@@ -160,7 +176,8 @@ test("an emoji reaction is a reaction, and carries the emoji", () => {
 test("a shared location reads as a sentence a person can act on", () => {
   const n = normalizeInbound(
     msg({
-      type: "location", text: undefined,
+      type: "location",
+      text: undefined,
       location: { latitude: 41.88, longitude: -87.62, name: "Salon", address: "12 Oak St" },
     }),
     { contacts: [{ wa_id: "15550001111" }] },
@@ -173,10 +190,9 @@ test("a shared location reads as a sentence a person can act on", () => {
 });
 
 test("a location with only coordinates still describes itself", () => {
-  const n = normalizeInbound(
-    msg({ type: "location", text: undefined, location: { latitude: 1.5, longitude: 2.5 } }),
-    { contacts: [{ wa_id: "15550001111" }] },
-  );
+  const n = normalizeInbound(msg({ type: "location", text: undefined, location: { latitude: 1.5, longitude: 2.5 } }), {
+    contacts: [{ wa_id: "15550001111" }],
+  });
   assert.equal(n.kind, "location");
   assert.match(n.body, /1\.5, 2\.5/);
 });
@@ -199,10 +215,9 @@ test("a system notice is not a customer asking for anything", () => {
 });
 
 test("a genuine attachment is still media, and an unknown type is still unsupported", () => {
-  const img = normalizeInbound(
-    msg({ type: "image", text: undefined, image: { id: "m1", mime_type: "image/jpeg" } }),
-    { contacts: [{ wa_id: "15550001111" }] },
-  );
+  const img = normalizeInbound(msg({ type: "image", text: undefined, image: { id: "m1", mime_type: "image/jpeg" } }), {
+    contacts: [{ wa_id: "15550001111" }],
+  });
   assert.equal(img.kind, "media");
   assert.equal(img.type, "media");
 
@@ -224,9 +239,8 @@ test("typed text and tapped buttons are still text", () => {
 });
 
 test("a STOP tapped as a button still opts out, whatever its kind", () => {
-  const n = normalizeInbound(
-    msg({ type: "button", text: undefined, button: { text: "Detener", payload: "stop" } }),
-    { contacts: [] },
-  );
+  const n = normalizeInbound(msg({ type: "button", text: undefined, button: { text: "Detener", payload: "stop" } }), {
+    contacts: [],
+  });
   assert.equal(n.optOut, true);
 });

@@ -100,11 +100,16 @@ function plainObject(v: unknown): Record<string, unknown> | null {
 
 function toStatus(s: string | undefined): NormalizedCall["status"] {
   switch (s) {
-    case "registered": return "registered";
-    case "ongoing": return "ongoing";
-    case "error": return "error";
-    case "not_connected": return "not_connected";
-    default: return "ended";
+    case "registered":
+      return "registered";
+    case "ongoing":
+      return "ongoing";
+    case "error":
+      return "error";
+    case "not_connected":
+      return "not_connected";
+    default:
+      return "ended";
   }
 }
 
@@ -151,8 +156,7 @@ export function normalizeCall(c: RetellCall): NormalizedCall {
   const analysis = c.call_analysis ?? {};
   const from = c.from_number ?? null;
   const computedDuration =
-    c.duration_ms ??
-    (c.start_timestamp && c.end_timestamp ? c.end_timestamp - c.start_timestamp : null);
+    c.duration_ms ?? (c.start_timestamp && c.end_timestamp ? c.end_timestamp - c.start_timestamp : null);
   return {
     retellCallId: c.call_id,
     agentId: c.agent_id ?? null,
@@ -339,7 +343,12 @@ export interface RetellWrite {
   body: Record<string, unknown> | null;
 }
 
-async function writeRetell(cfg: RetellConfig, method: "POST" | "PATCH", path: string, payload: unknown): Promise<RetellWrite> {
+async function writeRetell(
+  cfg: RetellConfig,
+  method: "POST" | "PATCH",
+  path: string,
+  payload: unknown,
+): Promise<RetellWrite> {
   const r = await fetch(`${API}${path}`, {
     method,
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
@@ -348,7 +357,12 @@ async function writeRetell(cfg: RetellConfig, method: "POST" | "PATCH", path: st
   });
   const text = await r.text();
   let body: Record<string, unknown> | null = null;
-  try { const parsed = JSON.parse(text) as unknown; body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null; } catch { body = text ? { text: text.slice(0, 300) } : null; }
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    body = text ? { text: text.slice(0, 300) } : null;
+  }
   return { ok: r.ok, status: r.status, body };
 }
 
@@ -363,7 +377,12 @@ export function updateAgent(cfg: RetellConfig, agentId: string, patch: Record<st
 }
 
 /** POST /publish-agent-version — a number pinned to latest_published follows it. */
-export function publishAgentVersion(cfg: RetellConfig, agentId: string, version: number, title: string): Promise<RetellWrite> {
+export function publishAgentVersion(
+  cfg: RetellConfig,
+  agentId: string,
+  version: number,
+  title: string,
+): Promise<RetellWrite> {
   return writeRetell(cfg, "POST", `/publish-agent-version/${agentId}`, { version, version_title: title });
 }
 
@@ -390,7 +409,11 @@ export function importPhoneNumber(cfg: RetellConfig, body: Record<string, unknow
 }
 
 /** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
-export function updatePhoneNumber(cfg: RetellConfig, number: string, patch: Record<string, unknown>): Promise<RetellWrite> {
+export function updatePhoneNumber(
+  cfg: RetellConfig,
+  number: string,
+  patch: Record<string, unknown>,
+): Promise<RetellWrite> {
   return writeRetell(cfg, "PATCH", `/update-phone-number/${encodeURIComponent(number)}`, patch);
 }
 
@@ -513,14 +536,9 @@ export function needsHydration(c: RetellCall): boolean {
  * (verified: HEAD 200 with no auth) — so we copy customer audio into private
  * storage rather than leaving it one guessed link away.
  */
-export type RecordingFetch =
-  | { ok: true; bytes: ArrayBuffer; mime: string | null }
-  | { ok: false; status: number };
+export type RecordingFetch = { ok: true; bytes: ArrayBuffer; mime: string | null } | { ok: false; status: number };
 
-export async function fetchRecording(
-  url: string,
-  opts: { timeoutMs?: number } = {},
-): Promise<RecordingFetch> {
+export async function fetchRecording(url: string, opts: { timeoutMs?: number } = {}): Promise<RecordingFetch> {
   // A bounded wait: the webhook that calls this has the agent's delivery
   // timeout over its head, and an unbounded fetch inside it earns a retry of
   // the whole event. A timeout REJECTS; a non-2xx returns its status, so the
@@ -545,7 +563,10 @@ export function verifyRetellSignature(
   if (!m) return false;
   const [, ts, digest] = m;
   if (Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1000) return false;
-  const expected = crypto.createHmac("sha256", apiKey).update(rawBody + ts).digest("hex");
+  const expected = crypto
+    .createHmac("sha256", apiKey)
+    .update(rawBody + ts)
+    .digest("hex");
   const a = Buffer.from(digest.toLowerCase());
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);

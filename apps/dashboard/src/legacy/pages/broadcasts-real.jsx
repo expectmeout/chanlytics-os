@@ -202,7 +202,10 @@ const BroadcastDetail = ({ id, onClose, acts = null, again = null, sheet = null 
   const [filter, setFilter] = React.useState("all");
   // Whether a waiting run's sheet shows who gets it.
   const [seeAll, setSeeAll] = React.useState(false);
-  const mine = answer && answer.id === id ? answer : null;
+  // A run this tab has opened paints at once from the courier's read cache (the loading standard's C), and is read
+  // again behind: every open was ~250ms of "Reading who got it…" first, the second open too.
+  const held = !answer || answer.id !== id ? (window.__broadcasts && window.__broadcasts.peekDetail ? window.__broadcasts.peekDetail(id) : null) : null;
+  const mine = answer && answer.id === id ? answer : held && held.ok ? { id, ok: true, data: held.data, gone: false } : null;
   const d = mine && mine.ok ? mine.data : null;
   // While it can still change it is read again whenever the surface is -- which re-reads on every message, so
   // the people fill in as a send goes out -- and not once it has finished.
@@ -760,13 +763,17 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // playbook's: offered here, its time and service were typed once for everyone.
   const link = !!data.bookingLink;
   const templates = React.useMemo(() => offered.sendable.filter((t) => bcSlots(t, link) !== null), [offered, link]);
+  // A send half-written when the page was left: the tab kept it (useUnsavedWork), and the screen opens again on it,
+  // with its list, its message and its words -- unless a link names a list, which wins the list.
+  const [kept] = React.useState(() => (window.tabDraft ? window.tabDraft("broadcast") : null));
   const [aud, setAud] = React.useState(() => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
+    if (!initialSegment && kept && audiences.some((a) => bcKey(a) === kept.aud)) return kept.aud;
     return first ? bcKey(first) : "everyone:";
   });
   // The composer is its own screen, opened by New broadcast -- and by a link that
   // names a list ("Broadcast to this list" on People), which is asking to write one.
-  const [writing, setWriting] = React.useState(!!initialSegment);
+  const [writing, setWriting] = React.useState(!!initialSegment || !!kept);
   // The shell keeps this page mounted across its own links, so it follows them: a later link to a list picks that
   // list, and a link to a run, which names no list, leaves the audience where it was. Only a new link moves it: the
   // surface re-reading its audiences does not undo a choice made on the page.
@@ -778,13 +785,23 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (next) setAud(bcKey(next));
     if (initialSegment) setWriting(true);
   }, [initialSegment, audiences]);
-  const [tplId, setTplId] = React.useState(() => { const d = bcDefault(templates); return d ? d.id : ""; });
-  const [params, setParams] = React.useState({});
-  const [sources, setSources] = React.useState({});
-  const [composing, setComposing] = React.useState(false);
-  const [name, setName] = React.useState("");
-  const [whenAt, setWhenAt] = React.useState(null);
+  const [tplId, setTplId] = React.useState(() => { if (kept && kept.tplId && templates.some((t) => t.id === kept.tplId)) return kept.tplId; const d = bcDefault(templates); return d ? d.id : ""; });
+  const [params, setParams] = React.useState((kept && kept.params) || {});
+  const [sources, setSources] = React.useState((kept && kept.sources) || {});
+  // A template half-written inside the send is kept under its own kind, and opens again with the send.
+  const [composing, setComposing] = React.useState(() => !!(kept && window.tabDraft && window.tabDraft("template", "new")));
+  const [name, setName] = React.useState((kept && kept.name) || "");
+  const [whenAt, setWhenAt] = React.useState(kept && kept.whenAt != null ? kept.whenAt : null);
   const [busy, setBusy] = React.useState(false);
+  // The words of the send -- a name, a value typed into a slot, a time picked -- are what is kept and what Cancel asks
+  // about; the list and the message are choices, and a choice alone keeps nothing. Sent, or thrown away, they clear.
+  const wrote = !!name.trim() || whenAt !== null || Object.values(params).some((w) => (w || []).some((v) => String(v || "").trim()));
+  const clearWords = () => { setName(""); setWhenAt(null); setParams({}); setSources({}); };
+  const work = window.useUnsavedWork("broadcast", null, {
+    value: { aud, tplId, params, sources, name, whenAt },
+    dirty: wrote,
+    onLeave: () => { clearWords(); setWriting(false); setArmed(false); },
+  });
   // Which of the audience's people the preview is showing.
   const [who, setWho] = React.useState(0);
   // Which half of the history is in view: a playbook's runs, the ones sent by
@@ -946,8 +963,8 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     setBusy(false);
     setArmed(false);
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
-    setName("");
-    setWhenAt(null);
+    work.done();
+    clearWords();
     // Sent, the screen closes onto the ledger, where the run now is -- and "See who" opens it.
     setWriting(false);
     const n = r.data.recipient_count;
@@ -975,10 +992,20 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const cancel = async (row) => {
     if (!window.__broadcasts || stopping || !canSend) return false;
     setStopping(row.id);
-    const r = await window.__broadcasts.cancel(row.id);
-    setStopping(null);
-    setArmId(null);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
+    // Said the moment the server takes it, from what it answered; the ledger repaints from the re-read behind it.
+    let said = false;
+    const say = (data) => {
+      said = true;
+      setStopping(null);
+      setArmId(null);
+      flash({ tone: "ok", msg: <><b>{row.name}</b> {data.was === "sending" ? "stops after this batch" : data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> });
+    };
+    const r = await window.__broadcasts.cancel(row.id, { onAccepted: say });
+    if (!r.ok) {
+      setStopping(null);
+      setArmId(null);
+      flash({ tone: "danger", msg: <>{r.message}</> });
+    } else if (!said) say(r.data);
     return r.ok;
   };
   // One approve at a time: a second press while the first is out would be refused by the server, so the button says
@@ -989,10 +1016,20 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (!window.__broadcasts || !canSend || approvingRef.current) return false;
     approvingRef.current = row.id;
     setApproving(row.id);
-    const r = await window.__broadcasts.approve(row.id);
-    approvingRef.current = null;
-    setApproving(null);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(r.data)}</> : <>{r.message}</> });
+    // Said the moment the server takes it, from what it answered: how many, and when it really goes.
+    let said = false;
+    const say = (data) => {
+      said = true;
+      approvingRef.current = null;
+      setApproving(null);
+      flash({ tone: "ok", msg: <><b>{row.name}</b> approved — {data.recipient_count} {data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(data)}</> });
+    };
+    const r = await window.__broadcasts.approve(row.id, { onAccepted: say });
+    if (!r.ok) {
+      approvingRef.current = null;
+      setApproving(null);
+      flash({ tone: "danger", msg: <>{r.message}</> });
+    } else if (!said) say(r.data);
     return r.ok;
   };
 
@@ -1115,7 +1152,9 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
         <window.CmHead
           title="New broadcast"
           sub="Who, what and when on one screen — and the people it reaches, by name. Replies land in the Inbox, where the receptionist answers them."
-          right={<button className="btn btn-ghost" onClick={() => { setWriting(false); setArmed(false); }} data-testid="bc-compose-close">Cancel</button>}
+          right={work.asking
+            ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />
+            : <button className="btn btn-ghost" onClick={work.leave} data-testid="bc-compose-close">Cancel</button>}
         />
         {composing && window.TemplateComposer && (
           <window.TemplateComposer

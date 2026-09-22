@@ -18,9 +18,7 @@ test.describe("Settings → AI memory on a real workspace", () => {
     await signIn(page);
   });
 
-  for (const [pane, says] of [
-    ["memory", "does not learn rules on its own yet"],
-  ] as const) {
+  for (const [pane, says] of [["memory", "does not learn rules on its own yet"]] as const) {
     test(`${pane} keeps the nav and says it is not built`, async ({ page }) => {
       await page.goto(`/#/admin/${pane}`);
       await page.waitForLoadState("networkidle");

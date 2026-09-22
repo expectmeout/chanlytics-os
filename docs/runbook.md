@@ -7,11 +7,11 @@ is right.
 
 ## The three things that run
 
-| Part | Runs on | Locally |
-|---|---|---|
-| `apps/dashboard` | Vercel project `chanlytics-os`, root directory `apps/dashboard`, Next.js | `corepack pnpm --filter @chanlytics/dashboard dev` |
-| `apps/edge` | Vercel project `chanlytics-messaging`, root directory `apps/edge`, Node functions | No dev script; see below |
-| The database | Supabase project (`supabase/config.toml` names it) | `supabase start` (needs Docker) |
+| Part             | Runs on                                                                           | Locally                                            |
+| ---------------- | --------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `apps/dashboard` | Vercel project `chanlytics-os`, root directory `apps/dashboard`, Next.js          | `corepack pnpm --filter @chanlytics/dashboard dev` |
+| `apps/edge`      | Vercel project `chanlytics-messaging`, root directory `apps/edge`, Node functions | No dev script; see below                           |
+| The database     | Supabase project (`supabase/config.toml` names it)                                | `supabase start` (needs Docker)                    |
 
 Both Vercel projects deploy production from `main` on every merge and a
 preview for every pull request, independently of each other. Vercel builds
@@ -55,14 +55,56 @@ supabase stop --no-backup
 Point anything at it with `SUPABASE_URL=http://127.0.0.1:54321` and the keys
 `supabase status` prints. They are the published local-stack keys, not secrets.
 
+## Format it
+
+Prettier owns formatting (`.prettierrc.json`); `.prettierignore` names what it
+leaves alone and why. `corepack pnpm install` installs a pre-commit hook
+(`.husky/pre-commit`, through `tooling/scripts/prepare-hooks.mjs`, which skips
+on CI and on Vercel) that formats whatever is staged, so a commit made with the
+hook on is always formatted. CI runs `pnpm format:check` and fails a commit
+made without it.
+
+```bash
+corepack pnpm format          # the whole tree
+corepack pnpm format:check    # what CI runs
+git commit --no-verify        # skips the hook; CI will still check
+```
+
+**Bringing a branch across the formatting commit.** A branch older than the
+commit that formatted the tree conflicts on every file it touched. Do not
+resolve by hand: take the branch's side, format, continue. Which side is
+"the branch's" depends on the operation, because git names them from the
+point of view of what is being applied:
+
+```bash
+# Rebasing: the branch's commits are replayed onto main, so the branch is "theirs".
+git rebase origin/main
+git checkout --theirs -- <file>
+corepack pnpm exec prettier --write <file>
+git add <file>
+git rebase --continue
+
+# Merging main into the branch: the branch is the checkout, so it is "ours".
+git merge origin/main
+git checkout --ours -- <file>
+corepack pnpm exec prettier --write <file>
+git add <file>
+git commit
+```
+
+Before opening the pull request, `corepack pnpm exec prettier --write` every
+non-ignored file the branch touched, so `format:check` is green on the first
+run. The ported shell and the committed dists are outside the check
+(`.prettierignore`) and need nothing.
+
 ## Test it
 
-| Suite | Command | Needs |
-|---|---|---|
-| The node suite: routes, doors, verbs, view models over fakes | `corepack pnpm test` | Nothing. Database and integration suites skip, with the reason printed |
-| The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db` | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's |
-| The browser suite | `corepack pnpm e2e` | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
-| The edge's frozen HTTP contract | `node tooling/scripts/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets |
+| Suite                                                        | Command                                | Needs                                                                                              |
+| ------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| The node suite: routes, doors, verbs, view models over fakes | `corepack pnpm test`                   | Nothing. Database and integration suites skip, with the reason printed                             |
+| The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db`                | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's                          |
+| The browser suite                                            | `corepack pnpm e2e`                    | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
+| The edge's frozen HTTP contract                              | `node tooling/scripts/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets                                                        |
 
 A skip is not a pass. A run that is meant to hold credentials says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and the coverage guard then fails instead of
@@ -70,12 +112,12 @@ skipping. The nightly sets it; the pull-request jobs do not.
 
 ## What CI proves
 
-| Workflow | On | Proves |
-|---|---|---|
-| `ci.yml`, Secret scan | every pull request and push to main | No secret in what the pull request adds |
-| `ci.yml`, Typecheck | same | `dist` matches the sources; typecheck; lint; the node suite; the dashboard builds the way Vercel builds it |
-| `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack |
-| `nightly-e2e.yml` | 09:00 UTC | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace |
+| Workflow                          | On                                                    | Proves                                                                                                                                                                                                 |
+| --------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ci.yml`, Secret scan             | every pull request and push to main                   | No secret in what the pull request adds                                                                                                                                                                |
+| `ci.yml`, Typecheck               | same                                                  | `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; the formatting check; the node suite; the dashboard builds the way Vercel builds it |
+| `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack                                    |
+| `nightly-e2e.yml`                 | 09:00 UTC                                             | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace                                                                                    |
 
 Branch protection requires Typecheck by name. Requiring the migrations replay
 too is a repository setting worth flipping: the product's safety model lives

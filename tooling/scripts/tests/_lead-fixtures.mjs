@@ -67,7 +67,10 @@ export function mapsItem(n, over = {}) {
     description: "Independent strength studio in South Austin.",
     // What the listing shows about the business (D2): kept for the owner's peek, never handed to the judge.
     ownerDescription: "Family-run since 2009.",
-    openingHours: [{ day: "Monday", hours: "9 AM to 6 PM" }, { day: "Sunday", hours: "Closed" }],
+    openingHours: [
+      { day: "Monday", hours: "9 AM to 6 PM" },
+      { day: "Sunday", hours: "Closed" },
+    ],
     imageUrl: `https://lh3.example/place${four(n)}.jpg`,
     reviewsDistribution: { oneStar: 1, twoStar: 1, threeStar: 3, fourStar: 10, fiveStar: 25 },
     price: "$$",
@@ -96,7 +99,8 @@ function label(item, kind) {
 export function probeItems() {
   const out = [];
   for (let n = 1; n <= 12; n++) out.push(label(mapsItem(n), "fit"));
-  for (let n = 13; n <= 21; n++) out.push(label(mapsItem(n, { title: `PowerGym Austin #${n}`, categoryName: "Gym" }), "chain"));
+  for (let n = 13; n <= 21; n++)
+    out.push(label(mapsItem(n, { title: `PowerGym Austin #${n}`, categoryName: "Gym" }), "chain"));
   out.push(label(mapsItem(22, { title: "Good Dog Training Co", categoryName: "Dog trainer" }), "other"));
   out.push(label(mapsItem(23, { title: "Tumble Town Gymnastics", categoryName: "Gymnastics center" }), "other"));
   out.push(label(mapsItem(24, { title: "Barton Physical Therapy", categoryName: "Physical therapist" }), "other"));
@@ -115,7 +119,8 @@ export function probeItems() {
 export function mainItems() {
   const out = [];
   for (let n = 101; n <= 130; n++) out.push(label(mapsItem(n), "fit"));
-  for (let n = 131; n <= 138; n++) out.push(label(mapsItem(n, { title: `PowerGym Austin #${n}`, categoryName: "Gym" }), "chain"));
+  for (let n = 131; n <= 138; n++)
+    out.push(label(mapsItem(n, { title: `PowerGym Austin #${n}`, categoryName: "Gym" }), "chain"));
   out.push(label(mapsItem(139, { title: "Lakeline Pilates", categoryName: "Pilates studio" }), "other"));
   out.push(label(mapsItem(140, { title: "Hill Country Chiropractic", categoryName: "Chiropractor" }), "other"));
   out[0].location = { lat: 32.7767, lng: -96.797 };
@@ -125,14 +130,32 @@ export function mainItems() {
 
 /** A checker item in the calibration's shape. */
 export function checkerItem(email, status, is_catch_all = false) {
-  return { email, status, score: status === "valid" ? 95 : 40, smtp_valid: status === "valid", is_catch_all, is_role_based: false, is_disposable: false, risk_type: is_catch_all ? "catch_all" : "none", reason: "", mx_records: ["mx.example"], verified_at: "2026-09-19T12:00:00.000Z" };
+  return {
+    email,
+    status,
+    score: status === "valid" ? 95 : 40,
+    smtp_valid: status === "valid",
+    is_catch_all,
+    is_role_based: false,
+    is_disposable: false,
+    risk_type: is_catch_all ? "catch_all" : "none",
+    reason: "",
+    mx_records: ["mx.example"],
+    verified_at: "2026-09-19T12:00:00.000Z",
+  };
 }
 
 /** A run object as the provider answers it. */
 export function actorRun(over = {}) {
   return {
-    id: "RunFixture0001", actId: "nwua9Gu5YrADL7ZDj", status: "RUNNING", startedAt: "2026-09-19T12:00:00.000Z", finishedAt: null,
-    defaultDatasetId: "DsFixture0001", defaultKeyValueStoreId: "KvFixture0001", usageTotalUsd: 0.0413,
+    id: "RunFixture0001",
+    actId: "nwua9Gu5YrADL7ZDj",
+    status: "RUNNING",
+    startedAt: "2026-09-19T12:00:00.000Z",
+    finishedAt: null,
+    defaultDatasetId: "DsFixture0001",
+    defaultKeyValueStoreId: "KvFixture0001",
+    usageTotalUsd: 0.0413,
     chargedEventCounts: { "place-scraped": 25, "contact-details-scraped": 20, "apify-actor-start": 1 },
     ...over,
   };
@@ -140,7 +163,11 @@ export function actorRun(over = {}) {
 
 /** The default ad-hoc webhook body. */
 export function webhookBody(runId = "RunFixture0001", eventType = "ACTOR.RUN.SUCCEEDED") {
-  return { eventType, eventData: { actorId: "nwua9Gu5YrADL7ZDj", actorRunId: runId }, resource: actorRun({ id: runId, status: eventType.replace("ACTOR.RUN.", "").replace("_", "-") }) };
+  return {
+    eventType,
+    eventData: { actorId: "nwua9Gu5YrADL7ZDj", actorRunId: runId },
+    resource: actorRun({ id: runId, status: eventType.replace("ACTOR.RUN.", "").replace("_", "-") }),
+  };
 }
 
 /**
@@ -163,10 +190,31 @@ export function fakeJudge(model = "claude-opus-5-fixture") {
         const rubric = ["kind", ...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
         const criteria = rubric.map((key) => ({
           key,
-          answer: kind === "unknown" ? "unknown" : kind === "fit" ? "pass" : kind === "chain" && (key === "independent" || key === "chains") ? "fail" : kind === "other" && (key === "kind" || key === "right_kind") ? "fail" : "pass",
+          answer:
+            kind === "unknown"
+              ? "unknown"
+              : kind === "fit"
+                ? "pass"
+                : kind === "chain" && (key === "independent" || key === "chains")
+                  ? "fail"
+                  : kind === "other" && (key === "kind" || key === "right_kind")
+                    ? "fail"
+                    : "pass",
           facts,
         }));
-        return { ref: p.ref, criteria, email_index: p.emails.length ? 0 : null, reason: kind === "fit" ? "Independent studio with its own site" : kind === "chain" ? "Part of a gym chain" : kind === "other" ? "Another kind of business" : "The facts do not say" };
+        return {
+          ref: p.ref,
+          criteria,
+          email_index: p.emails.length ? 0 : null,
+          reason:
+            kind === "fit"
+              ? "Independent studio with its own site"
+              : kind === "chain"
+                ? "Part of a gym chain"
+                : kind === "other"
+                  ? "Another kind of business"
+                  : "The facts do not say",
+        };
       });
       return { answers, model, tokens: 40 * places.length, raw: { places: answers }, requestHash: "f".repeat(64) };
     },
@@ -207,12 +255,22 @@ export function fakeApify({ datasets = {}, runs = {} } = {}) {
       calls.push({ op: "getRun", id });
       fail("getRun");
       const r = state.runs[id];
-      if (!r) throw Object.assign(new Error("the provider refused: record-not-found"), { name: "ApifyRefused", status: 404 });
-      return { id: r.id, status: r.status, datasetId: r.defaultDatasetId, usageTotalUsd: r.usageTotalUsd, startedAt: r.startedAt, finishedAt: r.finishedAt };
+      if (!r)
+        throw Object.assign(new Error("the provider refused: record-not-found"), { name: "ApifyRefused", status: 404 });
+      return {
+        id: r.id,
+        status: r.status,
+        datasetId: r.defaultDatasetId,
+        usageTotalUsd: r.usageTotalUsd,
+        startedAt: r.startedAt,
+        finishedAt: r.finishedAt,
+      };
     },
     async listActorRuns(actor, sinceIso) {
       calls.push({ op: "listActorRuns", actor, sinceIso });
-      return Object.values(state.runs).filter((r) => r.startedAt >= sinceIso).map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, datasetId: r.defaultDatasetId }));
+      return Object.values(state.runs)
+        .filter((r) => r.startedAt >= sinceIso)
+        .map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, datasetId: r.defaultDatasetId }));
     },
     async runInput(id) {
       calls.push({ op: "runInput", id });

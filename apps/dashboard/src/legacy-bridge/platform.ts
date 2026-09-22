@@ -12,11 +12,26 @@
  * learns nothing.
  */
 import {
-  platformRows, platformSummary, platformNumber, setupSteps,
-  platformLineActions, platformActionWarning,
-  PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, platformHealthWords, activityWords,
-  platformQueue, clockTime, clockDateYear, clockDayLabel, zoneDayKey,
-  type PlatformTenantDto, type SetupDto, type PlatformLineAction, type PlatformHealth, type PlatformQueue,
+  platformRows,
+  platformSummary,
+  platformNumber,
+  setupSteps,
+  platformLineActions,
+  platformActionWarning,
+  PLATFORM_VERDICTS,
+  PLATFORM_QUIET_DAYS,
+  platformHealthWords,
+  activityWords,
+  platformQueue,
+  clockTime,
+  clockDateYear,
+  clockDayLabel,
+  zoneDayKey,
+  type PlatformTenantDto,
+  type SetupDto,
+  type PlatformLineAction,
+  type PlatformHealth,
+  type PlatformQueue,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { readCache } from "./read-cache";
@@ -38,7 +53,13 @@ export interface PlatformTenantDetail {
   events: PlatformEventVM[];
 }
 
-type OverviewAnswer = { ok: boolean; tenants: PlatformTenantDto[]; health: PlatformHealth | null; queue: PlatformQueue | null; message: string };
+type OverviewAnswer = {
+  ok: boolean;
+  tenants: PlatformTenantDto[];
+  health: PlatformHealth | null;
+  queue: PlatformQueue | null;
+  message: string;
+};
 type DetailAnswer = { ok: boolean; detail: PlatformTenantDetail | null; message: string };
 /** Both reads, kept for the tab: the list is re-read on every visit, and a workspace on every Open. */
 const overviews = readCache<OverviewAnswer>("platform-overview", (r) => r.ok);
@@ -109,19 +130,27 @@ declare global {
 
 export function installPlatform(win: Window = window): void {
   win.__platform = {
-    list: () => overviews.through("all", async () => {
-      const r = await api()("GET platform/overview");
-      if (!r.ok) return { ok: false, tenants: [], health: null, queue: null, message: r.message };
-      // `health` rides on this read rather than a route of its own: the same
-      // question, the same door, and the page that lists the workspaces is the
-      // one that should say whether the machinery under them is running.
-      return { ok: true, tenants: r.data.tenants, health: r.data.health ?? null, queue: r.data.queue ?? null, message: "" };
-    }),
-    one: (tenantId) => details.through(tenantId, async () => {
-      const r = await api()("GET platform/tenants/[id]", { params: { id: tenantId } });
-      if (!r.ok) return { ok: false, detail: null, message: r.message };
-      return { ok: true, detail: r.data, message: "" };
-    }),
+    list: () =>
+      overviews.through("all", async () => {
+        const r = await api()("GET platform/overview");
+        if (!r.ok) return { ok: false, tenants: [], health: null, queue: null, message: r.message };
+        // `health` rides on this read rather than a route of its own: the same
+        // question, the same door, and the page that lists the workspaces is the
+        // one that should say whether the machinery under them is running.
+        return {
+          ok: true,
+          tenants: r.data.tenants,
+          health: r.data.health ?? null,
+          queue: r.data.queue ?? null,
+          message: "",
+        };
+      }),
+    one: (tenantId) =>
+      details.through(tenantId, async () => {
+        const r = await api()("GET platform/tenants/[id]", { params: { id: tenantId } });
+        if (!r.ok) return { ok: false, detail: null, message: r.message };
+        return { ok: true, detail: r.data, message: "" };
+      }),
     peekList: () => overviews.peek("all"),
     peekOne: (tenantId) => details.peek(tenantId),
     warmList: () => overviews.warm("all", () => win.__platform!.list()),

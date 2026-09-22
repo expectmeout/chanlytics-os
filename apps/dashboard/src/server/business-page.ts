@@ -80,7 +80,11 @@ export const businessPageFor = cache(async function businessPageFor(slug: string
     contactEmail: r.contact_email,
     publicPhoneE164: numberOf("voice") ?? numberOf("whatsapp"),
     websiteUrl: r.website_url || null,
-    services: (profile?.services ?? []).map((s) => ({ name: s.name, durationMin: s.duration_min ?? null, priceNote: s.price_note ?? null })),
+    services: (profile?.services ?? []).map((s) => ({
+      name: s.name,
+      durationMin: s.duration_min ?? null,
+      priceNote: s.price_note ?? null,
+    })),
     // Relative: the opt-in page is on this same site, and a hardcoded origin
     // is how a page ends up linking to the wrong deployment. The ABSOLUTE
     // form the carriers are given is built by the edge from dashboardOrigin().

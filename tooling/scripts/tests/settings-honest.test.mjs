@@ -15,29 +15,66 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay, instructionsDraft, INSTRUCTIONS_MAX, fallbackMessages, FALLBACK_DEFAULTS, unknownDetails } from "@chanlytics/contracts";
+import {
+  stateOf,
+  whyNotAHandoff,
+  whyNotAPhone,
+  samePhone,
+  handoffE164,
+  formatPhoneDisplay,
+  instructionsDraft,
+  INSTRUCTIONS_MAX,
+  fallbackMessages,
+  FALLBACK_DEFAULTS,
+  unknownDetails,
+} from "@chanlytics/contracts";
 
 const TID = "t-studio";
 
 /* ---------------------------------- the window ---------------------------------- */
 
 const listeners = {};
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+  body: { appendChild() {} },
+  activeElement: null,
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  location: { pathname: "/w/studio", hash: "#/admin/workspace", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/studio",
+    hash: "#/admin/workspace",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   history: { replaceState() {} },
   innerHeight: 800,
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
@@ -53,7 +90,10 @@ let cells = new Map();
 let frames = [];
 let dirty = false;
 let lastTree = null;
-const slot = () => { const f = frames[frames.length - 1]; return `${f.key}#${f.hook++}`; };
+const slot = () => {
+  const f = frames[frames.length - 1];
+  return `${f.key}#${f.hook++}`;
+};
 const went = [];
 const toasts = [];
 const saved = [];
@@ -71,19 +111,49 @@ globalThis.React = {
       const name = type.name || "anon";
       parent.kids[name] = (parent.kids[name] || 0) + 1;
       frames.push({ key: `${parent.key}/${name}:${parent.kids[name]}`, hook: 0, kids: {} });
-      try { node.rendered = type(props); } finally { frames.pop(); }
+      try {
+        node.rendered = type(props);
+      } finally {
+        frames.pop();
+      }
     }
     return node;
   },
   useState: (init) => {
     const k = slot();
     if (!cells.has(k)) cells.set(k, typeof init === "function" ? init() : init);
-    return [cells.get(k), (v) => { cells.set(k, typeof v === "function" ? v(cells.get(k)) : v); dirty = true; }];
+    return [
+      cells.get(k),
+      (v) => {
+        cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
+        dirty = true;
+      },
+    ];
   },
-  useReducer: (red, init) => { const k = slot(); if (!cells.has(k)) cells.set(k, init); return [cells.get(k), (a) => { cells.set(k, red(cells.get(k), a)); dirty = true; }]; },
-  useRef: (init) => { const k = slot(); if (!cells.has(k)) cells.set(k, { current: init }); return cells.get(k); },
-  useMemo: (fn) => { slot(); return fn(); },
-  useCallback: (fn) => { slot(); return fn; },
+  useReducer: (red, init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, init);
+    return [
+      cells.get(k),
+      (a) => {
+        cells.set(k, red(cells.get(k), a));
+        dirty = true;
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, { current: init });
+    return cells.get(k);
+  },
+  useMemo: (fn) => {
+    slot();
+    return fn();
+  },
+  useCallback: (fn) => {
+    slot();
+    return fn;
+  },
   useId: () => `id-${slot()}`,
   // SetRow names its control from the row: the three calls it makes, over this stub's nodes.
   Children: { map: (kids, fn) => (kids == null ? kids : [].concat(kids).flat(Infinity).map(fn)) },
@@ -93,7 +163,14 @@ globalThis.React = {
   useEffect: (fn, deps) => {
     const k = slot();
     const prev = cells.get(k);
-    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (
+      prev &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     const cell = { deps, cleanup: undefined };
     cells.set(k, cell);
@@ -118,12 +195,19 @@ Object.assign(globalThis.window, {
   __phoneDisplay: formatPhoneDisplay,
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) => String(name || email).slice(0, 2).toUpperCase(),
+    initials: (name, email) =>
+      String(name || email)
+        .slice(0, 2)
+        .toUpperCase(),
     words: (me) => ({ name: me.display_name || me.email, email: me.email }),
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
   // The bridge's versioned save (inbox-verbs.ts). Without it every save returns before its checks run.
-  __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
+  __saveSettings: (config, version, accepted) => {
+    saved.push({ config, version });
+    accepted();
+    return Promise.resolve({ ok: true });
+  },
   // What the instructions box opens with and the most it holds, as the bridge publishes them (S4).
   __instructionsDraft: instructionsDraft,
   __instructionsMax: INSTRUCTIONS_MAX,
@@ -140,13 +224,26 @@ await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
 // A drawn component is walked twice, as the children it was given and as what it rendered: each node counts once.
-const all = (tree, pred) => { const out = []; const seen = new Set(); walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } }); return out; };
+const all = (tree, pred) => {
+  const out = [];
+  const seen = new Set();
+  walk(tree, (n) => {
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
@@ -159,9 +256,23 @@ const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && t
 const labelled = (tree, tag, label) => find(tree, (n) => n.type === tag && n.props["aria-label"] === label);
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 const type = (node, value) => node.props.onChange({ target: { value } });
-const fresh = () => { cells = new Map(); went.length = 0; toasts.length = 0; saved.length = 0; for (const k of Object.keys(listeners)) delete listeners[k]; };
-const draw = (tab) => { frames = [{ key: "root", hook: 0, kids: {} }]; dirty = false; lastTree = globalThis.window.SettingsPage({ tab, onTab() {} }); return lastTree; };
-const settings = (tab) => { fresh(); return draw(tab); };
+const fresh = () => {
+  cells = new Map();
+  went.length = 0;
+  toasts.length = 0;
+  saved.length = 0;
+  for (const k of Object.keys(listeners)) delete listeners[k];
+};
+const draw = (tab) => {
+  frames = [{ key: "root", hook: 0, kids: {} }];
+  dirty = false;
+  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  return lastTree;
+};
+const settings = (tab) => {
+  fresh();
+  return draw(tab);
+};
 const again = draw;
 const settle = (tab) => (dirty ? draw(tab) : lastTree);
 
@@ -174,11 +285,17 @@ const workspace = (over = {}) => {
   Object.assign(globalThis.window, {
     __ME: { email: "owner@northside.example", role: "owner", display_name: "Dana" },
     __SETTINGS: {
-      role: "owner", version: 3,
+      role: "owner",
+      version: 3,
       config: {
         brain: {
-          business_name: "Northside Studio", booking_link: "https://book.example/northside",
-          profile: { handoff_number: "+17865550182", services: [{ name: "Cut", duration_min: 45 }, { name: "Color" }], notes: [{ title: "Parking", text: "Behind the building." }] },
+          business_name: "Northside Studio",
+          booking_link: "https://book.example/northside",
+          profile: {
+            handoff_number: "+17865550182",
+            services: [{ name: "Cut", duration_min: 45 }, { name: "Color" }],
+            notes: [{ title: "Parking", text: "Behind the building." }],
+          },
         },
         notifications: { escalation_emails: ["owner@northside.example"] },
       },
@@ -211,7 +328,9 @@ const workspace = (over = {}) => {
 test("REGRESSION (D7, S11): the Team card draws again when the settings surface is re-read -- an invitation just sent was not on it", () => {
   workspace();
   settings("team");
-  globalThis.window.__TEAM_INVITES = [{ id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: "2026-09-22T12:00:00Z" }];
+  globalThis.window.__TEAM_INVITES = [
+    { id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: "2026-09-22T12:00:00Z" },
+  ];
   globalThis.window.dispatchEvent({ type: "surface:settings" });
   const tree = settle("team");
   assert.ok(textOf(tree).includes("sam@northside.example"), "REGRESSION: the roster on screen did not change");
@@ -258,7 +377,10 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   tree = settings("team");
   press(buttonSaying(tree, "Invite"));
   tree = again("team");
-  type(find(tree, (n) => n.type === "input" && n.props.type === "email"), "nobody");
+  type(
+    find(tree, (n) => n.type === "input" && n.props.type === "email"),
+    "nobody",
+  );
   tree = again("team");
   press(buttonSaying(tree, "Send invite"));
   assert.match(textOf(toasts.at(-1)?.msg), /email/);
@@ -283,7 +405,12 @@ test("REGRESSION (S20): Profile's sign-out is not titled for one device, and Ale
 
 test("a real roster is counted in people, never in seats of a plan it does not have, and Invite stays offered", () => {
   workspace({
-    __TEAM: ["ana", "bo", "cy", "di", "ed", "flo"].map((n, i) => ({ membershipId: `m-${n}`, email: `${n}@northside.example`, displayName: "", role: i ? "viewer" : "owner" })),
+    __TEAM: ["ana", "bo", "cy", "di", "ed", "flo"].map((n, i) => ({
+      membershipId: `m-${n}`,
+      email: `${n}@northside.example`,
+      displayName: "",
+      role: i ? "viewer" : "owner",
+    })),
     __ME: { email: "ana@northside.example", role: "owner", display_name: "" },
   });
   const tree = settings("team");
@@ -297,9 +424,17 @@ test("the bridge publishes a number's written form from contracts, beside the ph
   delete globalThis.window.__phoneDisplay;
   try {
     await import("../../../apps/dashboard/src/legacy-bridge/seed-globals.ts");
-    assert.equal(typeof globalThis.window.__phoneDisplay, "function", "REGRESSION: the page had no way to write a stored number for people");
+    assert.equal(
+      typeof globalThis.window.__phoneDisplay,
+      "function",
+      "REGRESSION: the page had no way to write a stored number for people",
+    );
     assert.equal(globalThis.window.__phoneDisplay("+13055550100"), "+1 (305) 555-0100");
-    assert.equal(globalThis.window.__phoneDisplay("+442071838750"), formatPhoneDisplay("+442071838750"), "contracts' own rule, not a copy");
+    assert.equal(
+      globalThis.window.__phoneDisplay("+442071838750"),
+      formatPhoneDisplay("+442071838750"),
+      "contracts' own rule, not a copy",
+    );
   } finally {
     globalThis.window.__phoneDisplay = stub;
   }

@@ -13,16 +13,45 @@
  * found, where they append after what is already read.
  */
 import {
-  leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, stageArgs, toLeadPeekVM, toLeadRowVM,
-  type LeadChips, type LeadClass, type LeadCounts, type LeadMonthDto, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
+  LEAD_SORTS,
+  leadRail,
+  leadSearchWords,
+  leadsRoute,
+  leadsStanding,
+  parseLeadsRoute,
+  stageArgs,
+  toLeadPeekVM,
+  toLeadRowVM,
+  type LeadChips,
+  type LeadClass,
+  type LeadCounts,
+  type LeadMonthDto,
+  type LeadList,
+  type LeadPeekVM,
+  type LeadRowDto,
+  type LeadRowVM,
+  type LeadSearchDto,
+  type LeadSearchPlan,
+  type LeadSort,
+  type LeadStageInput,
+  type LeadSuggestionsDto,
+  type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { workspaceZone } from "./zone";
 import { getActiveWorkspace } from "./workspace";
+import { heldViews } from "./held-views";
 import { type SurfaceOverride } from "./surface-data";
 import { unwrap, type ApiResult, type RouteKey } from "../client/api";
 
-export interface LeadsView { searchId: string | null; list: LeadList; cls: LeadClass | null; chips: Partial<LeadChips>; sort: LeadSort; dir: "asc" | "desc" }
+export interface LeadsView {
+  searchId: string | null;
+  list: LeadList;
+  cls: LeadClass | null;
+  chips: Partial<LeadChips>;
+  sort: LeadSort;
+  dir: "asc" | "desc";
+}
 export interface LeadsSurface {
   searches: LeadSearchDto[];
   counts: LeadCounts;
@@ -42,12 +71,21 @@ export interface LeadsSurface {
 }
 
 /** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
-interface LeadSearchesAnswer { searches: LeadSearchDto[]; counts?: LeadCounts }
-interface LeadsPageAnswer { rows: LeadRowDto[]; next: { key: string; id: string } | null; counts?: LeadCounts; month?: LeadMonthDto }
+interface LeadSearchesAnswer {
+  searches: LeadSearchDto[];
+  counts?: LeadCounts;
+}
+interface LeadsPageAnswer {
+  rows: LeadRowDto[];
+  next: { key: string; id: string } | null;
+  counts?: LeadCounts;
+  month?: LeadMonthDto;
+}
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
 const PAGE = 500;
+const SNAPSHOT_ROWS = 100;
 
 /* ------------------------------------------------------ how a call is sent */
 
@@ -104,21 +142,15 @@ let view: LeadsView = DEFAULT_VIEW;
  * be a round trip each way, with the old view's rows under the new title until it landed. A view held here paints
  * at once, its Show more pages with it, and is read again behind, patched. Not the read cache (read-cache.ts): that
  * is emptied by every write, and a held view is safe across one, because it is read again the moment it is shown.
- * In memory only: signing out and a workspace change are both a new document.
+ * In memory only: signing out and a workspace change are both a new document. The standard's one helper
+ * (held-views.ts), which also says whether a read that lands is still the newest asked.
  */
-const held = new Map<string, LeadsLoaded>();
-const HELD_MAX = 8;
-function hold(l: LeadsLoaded): void {
-  held.delete(l.key);
-  held.set(l.key, l);
-  while (held.size > HELD_MAX) held.delete(held.keys().next().value as string);
-}
-/** The views this tab holds go: what the runner asks on a workspace change, and a test on a new wire. */
+const held = heldViews<LeadsLoaded>(8);
+const hold = (l: LeadsLoaded): void => held.hold(l.key, l);
+/** The views this tab holds go: a test on a new wire (a workspace change is a new document). */
 export function forgetLeadsViews(): void {
-  held.clear();
+  held.forget();
 }
-/** Bumped by every read that replaces the rows; a read that finishes under a newer number is dropped. */
-let reads = 0;
 
 /** The key a read is made under: the workspace and every part of the view. */
 function viewKey(v: LeadsView): string {
@@ -129,23 +161,33 @@ function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Reco
   const q: Record<string, string> = { list: v.list, sort: v.sort, dir: v.dir, limit: String(PAGE) };
   if (v.searchId) q.search = v.searchId;
   if (v.cls) q.class = v.cls;
-  for (const [k, val] of Object.entries(v.chips)) if (val !== undefined && val !== null && val !== "") q[k] = String(val);
-  if (after) { q.after_key = after.key; q.after_id = after.id; }
+  for (const [k, val] of Object.entries(v.chips))
+    if (val !== undefined && val !== null && val !== "") q[k] = String(val);
+  if (after) {
+    q.after_key = after.key;
+    q.after_id = after.id;
+  }
   return q;
 }
 
 function publishLeads(failed = false): void {
   const now = new Date();
   const L = leadsLoaded;
+  // The view these rows are of -- the one read, never one asked for since, which is still on its way. A refresh of
+  // the old view that landed first published the old rows under the new view's route: the page took the new view for
+  // landed, its rows stopped dimming, and the last view's rows stood under the new title until the read came back.
+  const shown = L?.view ?? view;
   (window as unknown as { __LEADS?: LeadsSurface }).__LEADS = {
     searches: L?.searches ?? [],
     counts: L?.counts ?? NO_COUNTS,
     // Each row is handed its own search (D5): a review row names what it waits on in the queue's words.
-    rows: (L?.rows ?? []).map((r) => toLeadRowVM(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null)),
+    rows: (L?.rows ?? []).map((r) =>
+      toLeadRowVM(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null),
+    ),
     next: L?.next ?? null,
     offered: L?.offered.length ?? 0,
-    view,
-    route: leadsRoute(view),
+    view: shown,
+    route: leadsRoute(shown),
     suggestions: L?.suggestions ?? null,
     month: L?.month ?? null,
     tz: L?.tz ?? "UTC",
@@ -163,8 +205,22 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     workspaceZone(),
   ]);
   // The first day's suggestions, and only then: a workspace with a search has work to read instead.
-  const suggestions = searches.searches.length === 0 ? await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null) : leadsLoaded?.suggestions ?? null;
-  return { tz, view: v, key, searches: searches.searches, counts: page.counts ?? searches.counts ?? NO_COUNTS, month: page.month ?? null, rows: page.rows, next: page.next, offered: [], suggestions };
+  const suggestions =
+    searches.searches.length === 0
+      ? await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null)
+      : (leadsLoaded?.suggestions ?? null);
+  return {
+    tz,
+    view: v,
+    key,
+    searches: searches.searches,
+    counts: page.counts ?? searches.counts ?? NO_COUNTS,
+    month: page.month ?? null,
+    rows: page.rows,
+    next: page.next,
+    offered: [],
+    suggestions,
+  };
 }
 
 /**
@@ -172,7 +228,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
  * one it does not is page one under its key, and the old rows go with the old key.
  */
 async function readView(v: LeadsView): Promise<void> {
-  const mine = ++reads;
+  const ask = held.ask();
   const have = held.get(viewKey(v));
   if (have) {
     leadsLoaded = have;
@@ -183,7 +239,7 @@ async function readView(v: LeadsView): Promise<void> {
   }
   const loaded = await readPageOne(v);
   hold(loaded);
-  if (mine !== reads) return; // superseded: a newer view asked after this one
+  if (!ask.still()) return; // superseded: a newer view asked after this one
   leadsLoaded = loaded;
   publishLeads();
 }
@@ -192,7 +248,15 @@ async function readView(v: LeadsView): Promise<void> {
 export async function warmLeadsView(to: string): Promise<void> {
   const parsed = parseLeadsRoute(to);
   if (!parsed) return;
-  const v: LeadsView = { ...DEFAULT_VIEW, searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips as Partial<LeadChips>, sort: view.sort, dir: view.dir };
+  const v: LeadsView = {
+    ...DEFAULT_VIEW,
+    searchId: parsed.searchId,
+    list: parsed.list,
+    cls: parsed.cls,
+    chips: parsed.chips as Partial<LeadChips>,
+    sort: view.sort,
+    dir: view.dir,
+  };
   // A warm that fails costs nothing; the pick reads for itself. Two warms in flight, or a warm and the pick that
   // follows it, are one request: the client shares an identical read for two seconds.
   if (held.has(viewKey(v))) return;
@@ -201,6 +265,30 @@ export async function warmLeadsView(to: string): Promise<void> {
   } catch {
     /* the pick reads for itself */
   }
+}
+
+/**
+ * The view a cold boot reads: the one the address names (all leads, off the page), in the order this tab last read,
+ * which the surface cache put back before anything mounted -- the view the page asks for as it mounts, so the two
+ * are one read. The bridge started from its own default instead, so a refresh on a search's Needs review read all
+ * 500 leads first and drew them over the restored rows of the view on screen. An order the server does not know is
+ * never sent; the lead open over a view is no part of it.
+ */
+export function leadsBootView(hash: string, restored: unknown): LeadsView {
+  const parsed = parseLeadsRoute((hash || "").replace(/^#\/?/, ""));
+  const was = (restored as { view?: { sort?: unknown; dir?: unknown } } | null | undefined)?.view;
+  const known =
+    !!was &&
+    typeof was === "object" &&
+    (LEAD_SORTS as readonly unknown[]).includes(was.sort) &&
+    (was.dir === "asc" || was.dir === "desc");
+  return {
+    ...DEFAULT_VIEW,
+    ...(parsed
+      ? { searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips as Partial<LeadChips> }
+      : {}),
+    ...(known ? { sort: was.sort as LeadSort, dir: was.dir as "asc" | "desc" } : {}),
+  };
 }
 
 /** The same view again, after a write or a Realtime change: patch, keep the pages, offer the rest. */
@@ -217,8 +305,9 @@ async function refreshView(): Promise<void> {
   const loaded = new Set(L.rows.map((r) => r.id));
   const rows = L.rows.map((r) => fresh.get(r.id) ?? r);
   const arrived = page.rows.filter((r) => !loaded.has(r.id) && !L.offered.some((o) => o.id === r.id));
-  if (L.view.sort === "found") rows.push(...arrived);            // the order found: after what is already read
-  else L.offered.push(...arrived);                                // any other order: offered, never sorted in
+  if (L.view.sort === "found")
+    rows.push(...arrived); // the order found: after what is already read
+  else L.offered.push(...arrived); // any other order: offered, never sorted in
   L.searches = searches.searches;
   L.counts = page.counts ?? searches.counts ?? L.counts;
   // The month moves with a refresh (D5): a Keep just spent one, so the workbench's "5 of your 238 left" follows.
@@ -230,12 +319,21 @@ async function refreshView(): Promise<void> {
 export const leadsOverride: SurfaceOverride = {
   key: "leads",
   globals: ["__LEADS"],
+  // The tab's cache holds the first hundred rows of the view: all an instant paint needs, and a fifth of what a
+  // full page costs to keep and to parse on every boot. The read behind the paint says the rest, so the snapshot
+  // offers nothing and has no page after it.
+  trimSnapshot: (snap) => {
+    const L = snap.__LEADS as LeadsSurface | undefined;
+    return L ? { ...snap, __LEADS: { ...L, rows: L.rows.slice(0, SNAPSHOT_ROWS), next: null, offered: 0 } } : snap;
+  },
   events: ["surface:leads"],
   // A run commits a page every few seconds and a check lands per batch: the strip and the rows follow the database.
   refreshOnTables: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
   debounceMs: 800,
   apply: async () => {
     try {
+      if (!leadsLoaded)
+        view = leadsBootView(window.location.hash, (window as unknown as { __LEADS?: unknown }).__LEADS);
       await (leadsLoaded ? refreshView() : readView(view));
     } catch (e) {
       publishLeads(true);
@@ -248,7 +346,15 @@ export const leadsOverride: SurfaceOverride = {
 export async function leadsView(to: string | Partial<LeadsView>): Promise<void> {
   const parsed = typeof to === "string" ? parseLeadsRoute(to) : null;
   view = parsed
-    ? { ...DEFAULT_VIEW, searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips as Partial<LeadChips>, sort: view.sort, dir: view.dir }
+    ? {
+        ...DEFAULT_VIEW,
+        searchId: parsed.searchId,
+        list: parsed.list,
+        cls: parsed.cls,
+        chips: parsed.chips as Partial<LeadChips>,
+        sort: view.sort,
+        dir: view.dir,
+      }
     : { ...view, ...(to as Partial<LeadsView>) };
   await readView(view);
   window.dispatchEvent(new CustomEvent("surface:leads"));
@@ -275,7 +381,14 @@ export async function leadsTakeOffered(): Promise<void> {
   const key = L.key;
   const fresh = await readPageOne(L.view);
   if (!leadsLoaded || leadsLoaded.key !== key) return;
-  Object.assign(L, { searches: fresh.searches, counts: fresh.counts, month: fresh.month, rows: fresh.rows, next: fresh.next, offered: [] });
+  Object.assign(L, {
+    searches: fresh.searches,
+    counts: fresh.counts,
+    month: fresh.month,
+    rows: fresh.rows,
+    next: fresh.next,
+    offered: [],
+  });
   publishLeads();
   window.dispatchEvent(new CustomEvent("surface:leads"));
 }
@@ -293,12 +406,19 @@ type LeadMember = LeadRowDto["member"];
  * re-read's to say, a moment later. A re-read that no longer holds the row (Needs review, once kept) leaves this one
  * as it is, so the lead stays kept where the owner left it rather than standing there still offering Keep.
  */
-async function actAtOnce<R extends { ok: boolean }>(ids: string[], change: (row: LeadRowDto) => LeadRowDto, send: () => Promise<R>): Promise<R> {
+async function actAtOnce<R extends { ok: boolean }>(
+  ids: string[],
+  change: (row: LeadRowDto) => LeadRowDto,
+  send: () => Promise<R>,
+): Promise<R> {
   const L = leadsLoaded;
   const wanted = new Set(ids);
   const was = L ? L.rows.filter((r) => wanted.has(r.id)) : [];
   if (!L || !was.length) return send();
-  const tell = () => { publishLeads(); window.dispatchEvent(new CustomEvent("surface:leads")); };
+  const tell = () => {
+    publishLeads();
+    window.dispatchEvent(new CustomEvent("surface:leads"));
+  };
   const changed = new Map(was.map((r) => [r, change(r)]));
   L.rows = L.rows.map((r) => changed.get(r) ?? r);
   tell();
@@ -315,56 +435,112 @@ async function actAtOnce<R extends { ok: boolean }>(ids: string[], change: (row:
 }
 const member = (m: LeadMember, patch: Partial<LeadMember>): LeadMember => ({ ...m, ...patch });
 const kept = (r: LeadRowDto): LeadRowDto => ({ ...r, member: member(r.member, { class: "qualified", counted: true }) });
-const leftOut = (r: LeadRowDto): LeadRowDto => ({ ...r, member: member(r.member, { class: "excluded", counted: false }) });
+const leftOut = (r: LeadRowDto): LeadRowDto => ({
+  ...r,
+  member: member(r.member, { class: "excluded", counted: false }),
+});
 /** The stage a press asks for, as the door will spell it: only that. A person, a count, the month are the door's. */
-const staged = (input: LeadStageInput) => (r: LeadRowDto): LeadRowDto => {
-  const a = stageArgs(input);
-  return a.p_stage ? { ...r, stage: a.p_stage as LeadRowDto["stage"], closed_reason: a.p_reason } : r;
-};
-const bulked = (action: "contacted" | "not_a_fit" | "keep" | "exclude") => (r: LeadRowDto): LeadRowDto => {
-  switch (action) {
-    case "contacted": return staged({ kind: "stage", stage: "nurture" })(r);
-    case "not_a_fit": return { ...r, stage: "archived", closed_reason: "not_a_fit" };
-    case "keep": return kept(r);
-    case "exclude": return leftOut(r);
-  }
-};
+const staged =
+  (input: LeadStageInput) =>
+  (r: LeadRowDto): LeadRowDto => {
+    const a = stageArgs(input);
+    return a.p_stage ? { ...r, stage: a.p_stage as LeadRowDto["stage"], closed_reason: a.p_reason } : r;
+  };
+const bulked =
+  (action: "contacted" | "not_a_fit" | "keep" | "exclude") =>
+  (r: LeadRowDto): LeadRowDto => {
+    switch (action) {
+      case "contacted":
+        return staged({ kind: "stage", stage: "nurture" })(r);
+      case "not_a_fit":
+        return { ...r, stage: "archived", closed_reason: "not_a_fit" };
+      case "keep":
+        return kept(r);
+      case "exclude":
+        return leftOut(r);
+    }
+  };
 
 export async function setLeadStage(id: string, input: LeadStageInput) {
   // An Interested call makes a person, so People is stale too: `refresh-map.ts`
   // names both surfaces for this one route.
-  return actAtOnce([id], staged(input), () => call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>("POST leads/[id]/stage", { params: { id }, body: input, refresh: "behind" }));
+  return actAtOnce([id], staged(input), () =>
+    call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>(
+      "POST leads/[id]/stage",
+      { params: { id }, body: input, refresh: "behind" },
+    ),
+  );
 }
 export async function keepLead(searchId: string, id: string) {
-  return actAtOnce([id], kept, () => api()("POST leads/[id]/keep", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+  return actAtOnce([id], kept, () =>
+    api()("POST leads/[id]/keep", { params: { id }, body: { search_id: searchId }, refresh: "behind" }),
+  );
 }
 export async function excludeLead(searchId: string, id: string) {
-  return actAtOnce([id], leftOut, () => api()("POST leads/[id]/exclude", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+  return actAtOnce([id], leftOut, () =>
+    api()("POST leads/[id]/exclude", { params: { id }, body: { search_id: searchId }, refresh: "behind" }),
+  );
 }
 export async function putBackLead(searchId: string, id: string) {
-  return actAtOnce([id], kept, () => api()("POST leads/[id]/put-back", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+  return actAtOnce([id], kept, () =>
+    api()("POST leads/[id]/put-back", { params: { id }, body: { search_id: searchId }, refresh: "behind" }),
+  );
 }
 /** Undo names the operation and the version the page saw (E9): the server refuses when anyone changed it since. */
-export async function undoLeadOperation(opId: string, version: number) { return api()("POST lead-operations/[id]/undo", { params: { id: opId }, body: { version } }); }
-export async function draftForLead(id: string, input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } }) {
-  return call<{ to: string; subject: string; body: string; mailto: string }>("POST leads/[id]/draft", { params: { id }, body: input, refresh: false });
+export async function undoLeadOperation(opId: string, version: number) {
+  return api()("POST lead-operations/[id]/undo", { params: { id: opId }, body: { version } });
 }
-export async function eraseLead(id: string) { return call<{ erased: true }>("DELETE leads/[id]", { params: { id } }); }
+export async function draftForLead(
+  id: string,
+  input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } },
+) {
+  return call<{ to: string; subject: string; body: string; mailto: string }>("POST leads/[id]/draft", {
+    params: { id },
+    body: input,
+    refresh: false,
+  });
+}
+export async function eraseLead(id: string) {
+  return call<{ erased: true }>("DELETE leads/[id]", { params: { id } });
+}
 /** The selected ids, or the view for "Select all N that match" (S13). By ids, every row shows it at once; by view nobody knows which rows it reaches, so they wait for the re-read. */
 export async function bulkLeads(body: LeadsBulkInput) {
-  return actAtOnce(body.by === "ids" ? body.ids : [], bulked(body.action), () => call<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", { body, refresh: "behind" }));
+  return actAtOnce(body.by === "ids" ? body.ids : [], bulked(body.action), () =>
+    call<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", {
+      body,
+      refresh: "behind",
+    }),
+  );
 }
 /** Check again (D3): the mailbox check once more for the addresses whose last check did not answer. */
-export async function checkLeadsAgain(ids: string[]) { return call<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } }); }
+export async function checkLeadsAgain(ids: string[]) {
+  return call<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } });
+}
 /** Include amends the plan, so it carries the version the owner approved; Keep and Stop carry none (§7.2). */
-export async function answerSearch(id: string, answer: "keep" | "include" | "stop", plan?: LeadSearchPlan) { return api()("POST lead-searches/[id]/answer", { params: { id }, body: { answer, ...(plan ? { plan } : {}) } }); }
-export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) { return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan } }); }
-export async function stopSearch(id: string) { return api()("POST lead-searches/[id]/stop", { params: { id } }); }
+export async function answerSearch(id: string, answer: "keep" | "include" | "stop", plan?: LeadSearchPlan) {
+  return api()("POST lead-searches/[id]/answer", { params: { id }, body: { answer, ...(plan ? { plan } : {}) } });
+}
+export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) {
+  return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan } });
+}
+export async function stopSearch(id: string) {
+  return api()("POST lead-searches/[id]/stop", { params: { id } });
+}
 /** The Done strip's Undo (§8.6, Task 4.2's `lead_search_undo`): the untouched leads of the ended round leave and the month is credited. */
-export async function removeRoundLeads(id: string) { return call<{ removed: number; credited: number; op_id: string; version: number }>("POST lead-searches/[id]/undo", { params: { id } }); }
-export async function renameSearch(id: string, name: string) { return call<{ name: string }>("PATCH lead-searches/[id]", { params: { id }, body: { name } }); }
-export async function removeSearch(id: string) { return call<{ archived: number; kept: number }>("DELETE lead-searches/[id]", { params: { id } }); }
-export async function setBusinessLine(business_line: string) { return call<{ business_line: string }>("PUT lead-suggestions", { body: { business_line } }); }
+export async function removeRoundLeads(id: string) {
+  return call<{ removed: number; credited: number; op_id: string; version: number }>("POST lead-searches/[id]/undo", {
+    params: { id },
+  });
+}
+export async function renameSearch(id: string, name: string) {
+  return call<{ name: string }>("PATCH lead-searches/[id]", { params: { id }, body: { name } });
+}
+export async function removeSearch(id: string) {
+  return call<{ archived: number; kept: number }>("DELETE lead-searches/[id]", { params: { id } });
+}
+export async function setBusinessLine(business_line: string) {
+  return call<{ business_line: string }>("PUT lead-suggestions", { body: { business_line } });
+}
 
 /** The peek's view model for one loaded lead: the DTO, its search, the workspace's zone (§9.2). */
 export function peekVMFor(leadId: string): LeadPeekVM | null {

@@ -12,7 +12,7 @@ import { POLICY_CLASS_WORDS } from "./config";
  */
 import { audienceMembers } from "./broadcasts";
 import { purposeOfPlaybook } from "./consent";
-import { GET_YES_ROUTE, whyNotReceive, type PersonRowVM } from "./people";
+import { GET_YES_ROUTE, saidYesTo, saidYesWords, whyNotReceive, type PersonRowVM } from "./people";
 import { PARAM_SOURCE_LABELS, type ParamSpec } from "./templates";
 import type { BroadcastDto, BroadcastRecipientDto } from "./broadcasts";
 import { visitStartTime, type VisitDto } from "./calendar-people";
@@ -29,11 +29,46 @@ const DAY_MS = 86_400_000;
  */
 export const PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
-  { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
-  { id: "phoned_only", label: "Save our number", list: "phoned_only", cls: "reengage", kind: "list", hint: "Only ever phoned, never texted" },
-  { id: "everyone_monthly", label: "The month's offer", list: null, cls: "campaign", kind: "cadence", hint: "Everyone who said yes, on a cadence" },
-  { id: "visit_tomorrow", label: "Visit reminder", list: null, cls: "booking", kind: "visit", hint: "The day before an appointment on the calendar" },
-  { id: "visited", label: "After the visit", list: null, cls: "reengage", kind: "visit", hint: "The day after a visit, when nothing is booked next" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days",
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted",
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence",
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar",
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next",
+  },
 ] as const;
 export type PlaybookTrigger = (typeof PLAYBOOK_TRIGGERS)[number]["id"];
 export type PlaybookTriggerKind = (typeof PLAYBOOK_TRIGGERS)[number]["kind"];
@@ -144,26 +179,50 @@ export interface RunReach {
   overLimit: number;
 }
 
+/**
+ * The run as drawn: who it reaches, its reach, and `saidYes` -- how many the
+ * moment names who said the yes its messages need, a number to send to or not.
+ * `reach.noNumber` cannot say that, because no number is the first rule and it
+ * counts everyone without one, yes or no. A moment whose yes has no number
+ * reaches nobody while somebody on it said yes (#663's rule).
+ */
 export function playbookRunReach(
   rows: PersonRowVM[],
   p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
   touches: Touches,
   nowMs: number,
-): { eligible: PersonRowVM[]; reach: RunReach } {
-  const reach: RunReach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
+): { eligible: PersonRowVM[]; reach: RunReach; saidYes: number } {
+  const reach: RunReach = {
+    pool: 0,
+    will: 0,
+    noNumber: 0,
+    stopped: 0,
+    noYes: 0,
+    heardThis: 0,
+    heardAny: 0,
+    overCap: 0,
+    overLimit: 0,
+  };
   const t = triggerOf(p.trigger);
-  if (!t) return { eligible: [], reach };
+  if (!t) return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
   // Who the moment names, before anyone is left out.
-  const named = t.kind === "visit"
-    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
-    ? rows.filter((r) => {
-      if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) && !r.booked;
-    })
-    : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  const named =
+    t.kind === "visit"
+      ? // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+        rows.filter((r) => {
+          if (!r.calendarTz) return false;
+          if (p.trigger === "visit_tomorrow")
+            return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS));
+          return (
+            r.lastVisitDate !== null &&
+            r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) &&
+            !r.booked
+          );
+        })
+      : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
+  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed: PersonRowVM[] = [];
   for (const r of named) {
     const why = whyNotReceive(r, purpose);
@@ -177,47 +236,66 @@ export function playbookRunReach(
     // visit is on one day, so the gap and the week's breath do not apply —
     // a reminder must go whatever else the person heard this week, and the
     // thank-you two days after it must go too.
-    allowed.sort((a, b) => (p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)));
+    allowed.sort((a, b) =>
+      p.trigger === "visit_tomorrow"
+        ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0)
+        : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0),
+    );
     // The cap is a fatigue limit for offers; a reminder is owed to everyone
     // with a visit. Capped, the twenty-sixth appointment of a busy day got no
     // reminder at all -- not deferred, dropped, since the run is once a day.
     // The number's own daily limit still applies, in run-playbook, and says so.
     reach.will = allowed.length;
-    return { eligible: allowed, reach };
+    return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
   const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
-    if (mine !== undefined && nowMs - mine < gapMs) { reach.heardThis += 1; return false; }
+    if (mine !== undefined && nowMs - mine < gapMs) {
+      reach.heardThis += 1;
+      return false;
+    }
     const any = touches.byAny.get(r.id);
-    if (any !== undefined && nowMs - any < PLAYBOOK_BREATH_MS) { reach.heardAny += 1; return false; }
+    if (any !== undefined && nowMs - any < PLAYBOOK_BREATH_MS) {
+      reach.heardAny += 1;
+      return false;
+    }
     return true;
   });
   picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
   const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
   reach.overCap = picked.length - eligible.length;
   reach.will = eligible.length;
-  return { eligible, reach };
+  return { eligible, reach, saidYes };
 }
 
 export type RunPlan =
-  | { kind: "send"; state: "scheduled"; at: Date }
-  | { kind: "hold"; state: "pending_approval" }
-  | { kind: "off" };
+  { kind: "send"; state: "scheduled"; at: Date } | { kind: "hold"; state: "pending_approval" } | { kind: "off" };
 
 /** What a run does under the class's mode: sends now, sends after a stop window, waits for a person, or nothing. */
 export function planRun(mode: string | null | undefined, now: Date): RunPlan {
   switch (mode) {
-    case "auto": return { kind: "send", state: "scheduled", at: now };
-    case "veto": return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
-    case "ask": return { kind: "hold", state: "pending_approval" };
-    default: return { kind: "off" };
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
   }
 }
 
 function parts(tz: string, now: Date): { date: string; hour: number } {
   try {
-    const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false });
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false,
+    });
     const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
     const hour = Number(p.hour) % 24;
     return { date: `${p.year}-${p.month}-${p.day}`, hour };
@@ -271,9 +349,12 @@ export function runDueNow(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_
 const two = (n: number) => String(n).padStart(2, "0");
 
 /** "Daily 10:00 · up to 25 · once per person, again after 90 days". */
-export function scheduleLine(p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">): string {
+export function scheduleLine(
+  p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">,
+): string {
   const at = `${two(p.run_hour)}:00`;
-  if (triggerOf(p.trigger)?.kind === "visit") return `Daily ${at} · ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} · up to ${p.cap_per_run}`;
+  if (triggerOf(p.trigger)?.kind === "visit")
+    return `Daily ${at} · ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} · up to ${p.cap_per_run}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at} · up to ${p.cap_per_run} a day`;
   return `Daily ${at} · up to ${p.cap_per_run} · once per person, again after ${p.gap_days} days`;
 }
@@ -290,7 +371,11 @@ export function runsWords(p: { trigger: string; run_hour: number; cadence_days: 
 }
 
 /** "today 10:00", "today, within the hour" or "tomorrow 10:00", by the business's clock; "paused" when it is. */
-export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">, tz: string, now: Date): string {
+export function nextRunLabel(
+  p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">,
+  tz: string,
+  now: Date,
+): string {
   if (p.state !== "running") return "paused";
   const { date, hour } = parts(tz, now);
   const at = `${two(p.run_hour)}:00`;
@@ -314,24 +399,63 @@ export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_r
  * An empty pool has two different causes and they are not the same news:
  * nobody on the list has said yes to offers (a thing to go and fix), or
  * everybody has and they all heard from you this week (a thing to wait out).
+ * "nobody" also holds a list whose yes has no number to send to, and an empty
+ * list: nobody to send to is true of both, and only a missing yes is fixed by
+ * getting one (playbookReachDoor).
  */
-export type PlaybookReach = "waiting" | "paused" | "sends" | "nobody" | "all-heard";
+export type PlaybookReach = "waiting" | "paused" | "sends" | "nobody" | "all-heard" | "uncounted";
 
-export function playbookReach(p: { state: string; candidates: number; held: number; waiting?: unknown }): PlaybookReach {
+/**
+ * `candidates` and `held` are null when the moment could not be counted (the
+ * server's read failed): "uncounted", which claims no reach at all. It read
+ * "nobody", said "nobody to send to" and offered the QR over a failed read.
+ */
+export function playbookReach(p: {
+  state: string;
+  candidates: number | null;
+  held: number | null;
+  waiting?: unknown;
+}): PlaybookReach {
   if (p.waiting) return "waiting";
   if (p.state !== "running") return "paused";
+  if (p.candidates === null || p.held === null) return "uncounted";
   if (p.candidates > 0) return "sends";
   return p.held > 0 ? "all-heard" : "nobody";
 }
 
 /**
- * Where a reach that can be fixed is fixed. "nobody": nobody on the list has
- * said yes to offers, so getting that yes is the move. "all-heard" is waited
- * out, not fixed, and gets no door.
+ * Where a reach that can be fixed is fixed, or null. "nobody" is fixed by a yes
+ * only when the moment names somebody and not one of them said the yes the
+ * playbook needs (`named.saidYes`, playbookRunReach's): then getting it is the
+ * move. Not when the ones who said it have no number to send to -- the QR would
+ * ask them for an answer they gave (#663's rule) -- nor when the moment names
+ * nobody, nor when who it names could not be read. "all-heard" is waited out,
+ * not fixed, and gets no door.
  */
-export const PLAYBOOK_REACH_DOOR: Partial<Record<PlaybookReach, { label: string; to: string }>> = {
-  nobody: { label: "Get their yes", to: GET_YES_ROUTE },
-};
+export function playbookReachDoor(
+  reach: PlaybookReach,
+  named: { pool: number; saidYes: number } | null,
+): { label: string; to: string } | null {
+  return reach === "nobody" && named !== null && named.pool > 0 && named.saidYes === 0
+    ? { label: "Get their yes", to: GET_YES_ROUTE }
+    : null;
+}
+
+/**
+ * How many on a playbook's list said yes, as its card says it when nobody can be
+ * sent a run and somebody said the yes it needs: how many did, and what they are
+ * missing, in the send screen's words (saidYesWords). Null otherwise, and the
+ * card's own count stands -- who a run reaches now, the shorthand People uses.
+ * It read "0 people on the list said yes" about a list whose yes had no number.
+ */
+export function playbookNoNumberWords(
+  p: Pick<PlaybookDto, "policy_class"> & { candidates: number | null; held: number | null },
+  named: { saidYes: number } | null,
+): string | null {
+  if (!named || named.saidYes === 0 || p.candidates === null || p.held === null || p.candidates + p.held > 0)
+    return null;
+  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
+}
 
 /** The few words beside the state, when the schedule is not the whole truth; null when it is. */
 export const PLAYBOOK_REACH_WORDS: Record<PlaybookReach, string | null> = {
@@ -340,6 +464,8 @@ export const PLAYBOOK_REACH_WORDS: Record<PlaybookReach, string | null> = {
   sends: null,
   nobody: "nobody to send to",
   "all-heard": "waiting out the week's gap",
+  // The page says once, over the cards, that who each moment reaches could not be read.
+  uncounted: null,
 };
 
 export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = {
@@ -363,7 +489,10 @@ export function visitFactsFor(
   const t = triggerOf(trigger);
   if (!t || t.kind !== "visit" || !visit) return null;
   return {
-    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
+    visit_when:
+      trigger === "visit_tomorrow"
+        ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}`
+        : visitDayWord(visit, tz, sendAt, "yesterday"),
     visit_service: visit.title.trim() || "your appointment",
   };
 }
@@ -374,7 +503,12 @@ export function visitFactsFor(
  * night goes at nine the next morning, and "tomorrow at 2:00 PM" said then is
  * the wrong day; the send's moment is what the words must be relative to.
  */
-export function visitDayWord(visit: Pick<VisitDto, "start">, tz: string, sendAt: Date | undefined, assumed: string): string {
+export function visitDayWord(
+  visit: Pick<VisitDto, "start">,
+  tz: string,
+  sendAt: Date | undefined,
+  assumed: string,
+): string {
   if (!sendAt) return assumed;
   const visitDay = localDate(tz, new Date(visit.start));
   const sendDay = localDate(tz, sendAt);
@@ -408,7 +542,11 @@ export interface ApprovalVM {
    * past the cap. Each reason is a line, the most first, and the one an owner
    * can act on carries its door. Null for a run that kept no count.
    */
-  of: { pool: number; held: number; lines: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] } | null;
+  of: {
+    pool: number;
+    held: number;
+    lines: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[];
+  } | null;
   /** One value per slot, as `reader` gets them. */
   values: string[];
   /** Whose message the words are: the first person on it with a name. Null for a run with nobody on it. */
@@ -453,13 +591,42 @@ export function reachLines(
   const gap = p ? (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) : null;
   const one = (n: number, singular: string, plural: string) => (n === 1 ? singular : plural);
   const reasons: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] = [
-    { n: reach.noYes, words: `never said yes to ${offers ? "offers" : "hearing from you"}`, tone: "plain", door: { words: "Get their yes", to: GET_YES_ROUTE } },
+    {
+      n: reach.noYes,
+      words: `never said yes to ${offers ? "offers" : "hearing from you"}`,
+      tone: "plain",
+      door: { words: "Get their yes", to: GET_YES_ROUTE },
+    },
     { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
-    { n: reach.heardThis, words: gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately", tone: "warn", door: null },
+    {
+      n: reach.heardThis,
+      words: gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately",
+      tone: "warn",
+      door: null,
+    },
     { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
-    { n: reach.noNumber, words: one(reach.noNumber, "has no number on file", "have no number on file"), tone: "plain", door: null },
-    { n: reach.overCap, words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` — ${p.cap_per_run} a run, the longest unheard first` : ""}`, tone: "plain", door: null },
-    { n: reach.overLimit, words: one(reach.overLimit, "is past what the number may start today", "are past what the number may start today"), tone: "warn", door: null },
+    {
+      n: reach.noNumber,
+      words: one(reach.noNumber, "has no number on file", "have no number on file"),
+      tone: "plain",
+      door: null,
+    },
+    {
+      n: reach.overCap,
+      words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` — ${p.cap_per_run} a run, the longest unheard first` : ""}`,
+      tone: "plain",
+      door: null,
+    },
+    {
+      n: reach.overLimit,
+      words: one(
+        reach.overLimit,
+        "is past what the number may start today",
+        "are past what the number may start today",
+      ),
+      tone: "warn",
+      door: null,
+    },
   ];
   const lines = reasons
     .map((r, rank) => ({ ...r, rank }))
@@ -477,7 +644,9 @@ export function reachLines(
  */
 export function toApprovalVM(
   d: {
-    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params"> & { audience?: { reach?: RunReach } | null };
+    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params"> & {
+      audience?: { reach?: RunReach } | null;
+    };
     recipients: readonly Pick<BroadcastRecipientDto, "name" | "first_name">[];
   },
   opts: {
@@ -496,13 +665,20 @@ export function toApprovalVM(
   const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
   const rules: string[] = [];
   if (t && opts.playbook) {
-    rules.push(purposeOfPlaybook(t.cls) === "marketing" ? "each said yes to offers" : "each said yes to hearing from you");
+    rules.push(
+      purposeOfPlaybook(t.cls) === "marketing" ? "each said yes to offers" : "each said yes to hearing from you",
+    );
     if (t.kind === "visit") {
-      rules.push(opts.playbook.trigger === "visit_tomorrow" ? "each has a visit tomorrow on the calendar" : "each visited yesterday and has nothing booked next");
+      rules.push(
+        opts.playbook.trigger === "visit_tomorrow"
+          ? "each has a visit tomorrow on the calendar"
+          : "each visited yesterday and has nothing booked next",
+      );
     } else {
       const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
       rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");
-      if (will >= opts.playbook.cap_per_run) rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
+      if (will >= opts.playbook.cap_per_run)
+        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     }
   }
   const named = d.recipients.find((r) => r.first_name);
@@ -510,11 +686,16 @@ export function toApprovalVM(
   const params: readonly ParamSpec[] = Array.isArray(b.params) ? b.params : [];
   const values = params.map((p) => {
     switch (p.kind) {
-      case "text": return p.value;
-      case "first_name": return reader?.first_name || "there";
-      case "business_name": return opts.businessName;
-      case "booking_link": return "your booking link";
-      default: return `[${PARAM_SOURCE_LABELS[p.kind].toLowerCase()}]`;
+      case "text":
+        return p.value;
+      case "first_name":
+        return reader?.first_name || "there";
+      case "business_name":
+        return opts.businessName;
+      case "booking_link":
+        return "your booking link";
+      default:
+        return `[${PARAM_SOURCE_LABELS[p.kind].toLowerCase()}]`;
     }
   });
   const greets = params.some((p) => p.kind === "first_name");
@@ -527,8 +708,14 @@ export function toApprovalVM(
     reader: reader ? reader.name : null,
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
     approve: late ? null : `Approve — ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
-    expired: late ? `Made for ${opts.day(b.run_for!)}, and that day has passed — its people and its words were that day's. Skip it; the next run starts over.` : null,
-    goes: late ? `made for ${opts.day(b.run_for!)}` : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
+    expired: late
+      ? `Made for ${opts.day(b.run_for!)}, and that day has passed — its people and its words were that day's. Skip it; the next run starts over.`
+      : null,
+    goes: late
+      ? `made for ${opts.day(b.run_for!)}`
+      : opts.open.moved
+        ? `goes at ${opts.open.time} once you approve it`
+        : "goes the moment you approve it",
     skip: "Skipping loses this run only — the playbook keeps running.",
   };
 }

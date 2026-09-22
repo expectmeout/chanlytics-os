@@ -16,18 +16,13 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { chooseAddressing } = await import(
-  pathToFileURL(path.join(here, "../../../apps/edge/lib/notify.ts")).href
-);
+const { chooseAddressing } = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/notify.ts")).href);
 
 const PLATFORM = { to: ["platform@example.com", "second@example.com"], from: "Platform <noreply@example.com>" };
 const TENANT_MAILBOX = { escalation_emails: ["owner@salon.example"], from: "Salon <hi@salon.example>" };
 
 test("a tenant with its own recipients gets the full detail, at its own address", () => {
-  const a = chooseAddressing(
-    { tenantId: "t1", notifications: TENANT_MAILBOX, isEnvDefault: false },
-    PLATFORM,
-  );
+  const a = chooseAddressing({ tenantId: "t1", notifications: TENANT_MAILBOX, isEnvDefault: false }, PLATFORM);
   assert.equal(a.kind, "tenant");
   assert.deepEqual(a.to, ["owner@salon.example"]);
   assert.equal(a.from, "Salon <hi@salon.example>");
@@ -62,10 +57,8 @@ test("no platform pair configured means nowhere to send, not a guess", () => {
   // ...but a tenant's OWN address still works without a platform pair, as long
   // as it supplied a from.
   assert.equal(
-    chooseAddressing(
-      { tenantId: "t1", notifications: TENANT_MAILBOX, isEnvDefault: false },
-      { to: [], from: null },
-    ).kind,
+    chooseAddressing({ tenantId: "t1", notifications: TENANT_MAILBOX, isEnvDefault: false }, { to: [], from: null })
+      .kind,
     "tenant",
   );
 });

@@ -25,9 +25,24 @@ import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/packages/db.js";
 import { PLACE_ID, cleanReply } from "../../lib/packages/channels.js";
 import {
-  bindLocation, checkListing, connectProfile, connectionForClient, disconnectProfile, draftFor, findPlaces, googleReadiness, listingForClient,
-  locationsFor, placesKey, profilePublic, readPlace, replyOnProfile, reviewReplyMode, syncProfile,
+  bindLocation,
+  checkListing,
+  connectProfile,
+  connectionForClient,
+  disconnectProfile,
+  draftFor,
+  findPlaces,
+  googleReadiness,
+  listingForClient,
+  locationsFor,
+  placesKey,
+  profilePublic,
+  readPlace,
+  replyOnProfile,
+  reviewReplyMode,
+  syncProfile,
 } from "../../lib/google.js";
+import { logger } from "../../lib/log.js";
 
 interface Body {
   op?: string;
@@ -50,7 +65,11 @@ export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/google");
   if (!auth.ok) return auth.response;
   let body: Body = {};
-  try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* validated below */
+  }
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -60,9 +79,15 @@ export async function POST(request: Request): Promise<Response> {
 
   if (op === "search") {
     const key = placesKey();
-    if (!key) return json(503, { ok: false, error: "no_places_key", hint: "GOOGLE_PLACES_API_KEY on the edge, a key with Places API (New) enabled" });
+    if (!key)
+      return json(503, {
+        ok: false,
+        error: "no_places_key",
+        hint: "GOOGLE_PLACES_API_KEY on the edge, a key with Places API (New) enabled",
+      });
     const query = typeof body.query === "string" ? body.query.replace(/\s+/g, " ").trim().slice(0, 200) : "";
-    if (query.length < 3) return json(400, { ok: false, error: "query must be a few words: the business name and where it is" });
+    if (query.length < 3)
+      return json(400, { ok: false, error: "query must be a few words: the business name and where it is" });
     try {
       const candidates = await findPlaces(key, query);
       return json(200, { ok: true, query, candidates });
@@ -80,7 +105,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
   const tz = tenant.data.timezone || "America/New_York";
   const userId = typeof body.user_id === "string" && UUID.test(body.user_id) ? body.user_id : null;
-  const log = (event: string, extra: Record<string, unknown> = {}) => console.log(event, JSON.stringify({ tenant: tenantId, ...extra }));
+  const L = logger({ tenant: tenantId });
   const listingNow = async () => {
     const r = await db.from("google_listings").select("*").eq("tenant_id", tenantId).maybeSingle();
     return r.data ? listingForClient(r.data) : null;
@@ -105,7 +130,20 @@ export async function POST(request: Request): Promise<Response> {
     const saved = await db
       .from("google_listings")
       .upsert(
-        { tenant_id: tenantId, place_id: details.place_id, name: details.name, address: details.address, maps_uri: details.maps_uri, business_status: details.business_status, linked_by: userId, linked_at: new Date().toISOString(), rating: null, review_count: null, checked_at: null, check_error: null },
+        {
+          tenant_id: tenantId,
+          place_id: details.place_id,
+          name: details.name,
+          address: details.address,
+          maps_uri: details.maps_uri,
+          business_status: details.business_status,
+          linked_by: userId,
+          linked_at: new Date().toISOString(),
+          rating: null,
+          review_count: null,
+          checked_at: null,
+          check_error: null,
+        },
         { onConflict: "tenant_id" },
       )
       .select("*")
@@ -115,8 +153,13 @@ export async function POST(request: Request): Promise<Response> {
     await db.from("google_reviews").delete().eq("tenant_id", tenantId);
     await db.from("google_listing_days").delete().eq("tenant_id", tenantId);
     const read = await checkListing(db, saved.data, tz);
-    await emitEvent(db, tenantId, "google.linked", "google", "listing", null, { place_id: details.place_id, name: details.name, by: userId, read: read.ok }).catch(() => {});
-    log("google_linked", { place_id: details.place_id, read: read.ok });
+    await emitEvent(db, tenantId, "google.linked", "google", "listing", null, {
+      place_id: details.place_id,
+      name: details.name,
+      by: userId,
+      read: read.ok,
+    }).catch(() => {});
+    L.info("google_linked", { place_id: details.place_id, read: read.ok });
     return json(200, { ok: true, listing: (await listingNow()) ?? listingForClient(saved.data), read });
   }
 
@@ -125,11 +168,16 @@ export async function POST(request: Request): Promise<Response> {
     if (!code || code.length > 2000) return json(400, { ok: false, error: "code is required" });
     const r = await connectProfile(db, tenantId, userId, code, tz);
     if (!r.ok) {
-      log("google_connect_failed", { error: r.error, detail: r.detail?.slice(0, 200) });
+      L.info("google_connect_failed", { error: r.error, detail: r.detail?.slice(0, 200) });
       return json(r.error === "no_oauth_client" ? 503 : 502, { ok: false, error: r.error, detail: r.detail });
     }
-    log("google_connected", { pending: r.pending, email: r.connection.google_email });
-    return json(200, { ok: true, pending: r.pending, connection: connectionForClient(r.connection), ...(r.pending ? { locations: r.locations } : { read: r.read, listing: await listingNow() }) });
+    L.info("google_connected", { pending: r.pending, email: r.connection.google_email });
+    return json(200, {
+      ok: true,
+      pending: r.pending,
+      connection: connectionForClient(r.connection),
+      ...(r.pending ? { locations: r.locations } : { read: r.read, listing: await listingNow() }),
+    });
   }
 
   if (op === "draft") {
@@ -140,10 +188,10 @@ export async function POST(request: Request): Promise<Response> {
     if (mode === "never") return json(409, { ok: false, error: "policy_never", mode });
     const r = await draftFor(db, tenantId, id);
     if (!r.ok) {
-      log("google_review_draft_failed", { id, error: r.error });
+      L.info("google_review_draft_failed", { id, error: r.error });
       return json(r.error === "no_review" ? 404 : r.error === "no_model_key" ? 503 : 502, r);
     }
-    log("google_review_drafted", { id, chars: r.text.length });
+    L.info("google_review_drafted", { id, chars: r.text.length });
     return json(200, { ok: true, text: r.text, mode });
   }
 
@@ -160,7 +208,8 @@ export async function POST(request: Request): Promise<Response> {
     if (!conn.data) return json(404, { ok: false, error: "not_connected" });
     const accountName = typeof body.account_name === "string" ? body.account_name.trim() : "";
     const locationName = typeof body.location_name === "string" ? body.location_name.trim() : "";
-    if (!/^accounts\/[\w-]{1,64}$/.test(accountName) || !/^locations\/[\w-]{1,64}$/.test(locationName)) return json(400, { ok: false, error: "account_name and location_name are required" });
+    if (!/^accounts\/[\w-]{1,64}$/.test(accountName) || !/^locations\/[\w-]{1,64}$/.test(locationName))
+      return json(400, { ok: false, error: "account_name and location_name are required" });
     // The choice is proven against what the account may manage, never taken on the client's word.
     const r = await locationsFor(db, tenantId);
     if (!r.ok) return json(502, { ok: false, error: r.error });
@@ -168,13 +217,18 @@ export async function POST(request: Request): Promise<Response> {
     if (!loc) return json(404, { ok: false, error: "no_such_location" });
     const bound = await bindLocation(db, conn.data, loc, userId, tz);
     if (!bound.ok) return json(502, { ok: false, error: bound.error, detail: bound.detail });
-    log("google_location_chosen", { location: loc.name, read: bound.read.ok });
-    return json(200, { ok: true, connection: connectionForClient(bound.connection), listing: await listingNow(), read: bound.read });
+    L.info("google_location_chosen", { location: loc.name, read: bound.read.ok });
+    return json(200, {
+      ok: true,
+      connection: connectionForClient(bound.connection),
+      listing: await listingNow(),
+      read: bound.read,
+    });
   }
 
   if (op === "disconnect") {
     const r = await disconnectProfile(db, tenantId);
-    log("google_disconnected", { removed: r.removed, revoked: r.revoked });
+    L.info("google_disconnected", { removed: r.removed, revoked: r.revoked });
     return json(200, r);
   }
 
@@ -184,8 +238,12 @@ export async function POST(request: Request): Promise<Response> {
     if (!UUID.test(id)) return json(400, { ok: false, error: "id (the review's row) is required" });
     if (!comment) return json(400, { ok: false, error: "comment is required" });
     const r = await replyOnProfile(db, tenantId, id, comment);
-    if (!r.ok) return json(r.error === "not_connected" || r.error === "not_from_profile" ? 409 : r.error === "no_review" ? 404 : 502, r);
-    log("google_replied", { id });
+    if (!r.ok)
+      return json(
+        r.error === "not_connected" || r.error === "not_from_profile" ? 409 : r.error === "no_review" ? 404 : 502,
+        r,
+      );
+    L.info("google_replied", { id });
     return json(200, r);
   }
 
@@ -197,15 +255,24 @@ export async function POST(request: Request): Promise<Response> {
     if (!row.data) return json(200, { ok: true, removed: false });
     const del = await db.from("google_listings").delete().eq("tenant_id", tenantId);
     if (del.error) return json(500, { ok: false, error: del.error.message });
-    await emitEvent(db, tenantId, "google.unlinked", "google", "listing", null, { place_id: row.data.place_id, name: row.data.name, had_profile: !!conn.data }).catch(() => {});
-    log("google_unlinked", { place_id: row.data.place_id });
+    await emitEvent(db, tenantId, "google.unlinked", "google", "listing", null, {
+      place_id: row.data.place_id,
+      name: row.data.name,
+      had_profile: !!conn.data,
+    }).catch(() => {});
+    L.info("google_unlinked", { place_id: row.data.place_id });
     return json(200, { ok: true, removed: true });
   }
 
   if (op === "refresh") {
     if (conn.data && conn.data.location_name) {
       const read = await syncProfile(db, conn.data, tz);
-      return json(read.ok ? 200 : 502, { ok: read.ok, read, listing: await listingNow(), connection: await connectionNow() });
+      return json(read.ok ? 200 : 502, {
+        ok: read.ok,
+        read,
+        listing: await listingNow(),
+        connection: await connectionNow(),
+      });
     }
     if (!row.data) return json(404, { ok: false, error: "no_listing" });
     if (!placesKey()) return json(503, { ok: false, error: "no_places_key" });
@@ -213,5 +280,8 @@ export async function POST(request: Request): Promise<Response> {
     return json(read.ok ? 200 : 502, { ok: read.ok, read, listing: await listingNow(), connection: null });
   }
 
-  return json(400, { ok: false, error: "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft" });
+  return json(400, {
+    ok: false,
+    error: "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft",
+  });
 }

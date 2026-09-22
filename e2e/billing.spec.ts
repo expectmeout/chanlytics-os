@@ -15,7 +15,9 @@ test.describe("Billing on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the route says whether this deployment can charge, the row's mode and status, and no id Stripe could act on", async ({ page }) => {
+  test("the route says whether this deployment can charge, the row's mode and status, and no id Stripe could act on", async ({
+    page,
+  }) => {
     const res = await apiGet(page, "/api/v1/billing");
     expect(res.status()).toBe(200);
     const { data } = await res.json();
@@ -36,7 +38,8 @@ test.describe("Billing on a real workspace", () => {
     await expect(page.getByTestId("soon-billing")).toHaveCount(0);
     const text = await pane.innerText();
     expect(text).not.toContain("Not built yet");
-    for (const s of ["Professional", "Buy credits", "Credits left", "Used this cycle"]) expect(text, `invented: "${s}"`).not.toContain(s);
+    for (const s of ["Professional", "Buy credits", "Credits left", "Used this cycle"])
+      expect(text, `invented: "${s}"`).not.toContain(s);
     if (data.billing.account.mode === "direct") {
       await expect(page.getByTestId("billing-headline")).toContainText("Direct arrangement");
       await expect(page.getByTestId("billing-checkout")).toHaveCount(0);
@@ -51,11 +54,17 @@ test.describe("Billing on a real workspace", () => {
 
   test("Checkout is refused for a direct arrangement, and says so", async ({ page, baseURL }) => {
     const { data } = await (await apiGet(page, "/api/v1/billing")).json();
-    test.skip(data.billing.account.mode !== "direct", "the live workspace pays by card; the refusal is for direct arrangements");
+    test.skip(
+      data.billing.account.mode !== "direct",
+      "the live workspace pays by card; the refusal is for direct arrangements",
+    );
     // Named, as the client names it. Unscoped, this POST was refused with a
     // 400 by the ambiguity guard and the spec read it as a billing failure.
     const ws = await activeWorkspace(page);
-    const res = await page.request.post(scoped("/api/v1/billing/checkout", ws), { headers: { origin: baseURL!, "content-type": "application/json" }, data: {} });
+    const res = await page.request.post(scoped("/api/v1/billing/checkout", ws), {
+      headers: { origin: baseURL!, "content-type": "application/json" },
+      data: {},
+    });
     const body = await res.json();
     // 409, exactly. STATUS_OF.direct = 409 on the edge (api/admin/billing.ts:30)
     // and the route maps a 409 through unchanged, so this is deterministic —

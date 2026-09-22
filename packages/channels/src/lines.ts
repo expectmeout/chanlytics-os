@@ -53,19 +53,32 @@ export interface LineProvider {
    */
   ownedNumber(acct: ProviderAccount, e164: string): Promise<{ sid: string; e164: string } | null>;
   releaseNumber(acct: ProviderAccount, numberSid: string): Promise<void>;
-  createTrunk(acct: ProviderAccount, o: { friendlyName: string; domainName: string }): Promise<{ sid: string; domainName: string }>;
+  createTrunk(
+    acct: ProviderAccount,
+    o: { friendlyName: string; domainName: string },
+  ): Promise<{ sid: string; domainName: string }>;
   deleteTrunk(acct: ProviderAccount, trunkSid: string): Promise<void>;
   createCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{ sid: string }>;
   addCredential(acct: ProviderAccount, listSid: string, username: string, password: string): Promise<{ sid: string }>;
   attachCredentialList(acct: ProviderAccount, trunkSid: string, listSid: string): Promise<void>;
-  addOrigination(acct: ProviderAccount, trunkSid: string, o: { sipUrl: string; friendlyName: string }): Promise<{ sid: string }>;
+  addOrigination(
+    acct: ProviderAccount,
+    trunkSid: string,
+    o: { sipUrl: string; friendlyName: string },
+  ): Promise<{ sid: string }>;
   attachNumber(acct: ProviderAccount, trunkSid: string, numberSid: string): Promise<void>;
   /** The Messaging Service a line texts through: inbound to our webhook, the number in its sender pool. */
-  createMessagingService(acct: ProviderAccount, o: { friendlyName: string; inboundUrl: string }): Promise<{ sid: string }>;
+  createMessagingService(
+    acct: ProviderAccount,
+    o: { friendlyName: string; inboundUrl: string },
+  ): Promise<{ sid: string }>;
   addNumberToService(acct: ProviderAccount, serviceSid: string, numberSid: string): Promise<{ sid: string }>;
   /** One text out through the service. Never throws: a refusal is an answer with the provider's code. */
   /** `statusCallback`: where the carrier's word on this text is posted (sms-status); without it a text is "sent" forever. */
-  sendSms(acct: ProviderAccount, o: { serviceSid: string; to: string; body: string; statusCallback?: string }): Promise<SmsSendResult>;
+  sendSms(
+    acct: ProviderAccount,
+    o: { serviceSid: string; to: string; body: string; statusCallback?: string },
+  ): Promise<SmsSendResult>;
 }
 
 export interface SmsSendResult {
@@ -105,12 +118,18 @@ export function chooseLineProvider(env: {
 
 /** The trunk's SIP domain: unique per line, letters, digits and dashes, on Twilio's suffix. */
 export function trunkDomain(lineId: string): string {
-  return `chanlytics-${lineId.replace(/[^a-z0-9]/gi, "").slice(0, 12).toLowerCase()}.pstn.twilio.com`;
+  return `chanlytics-${lineId
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 12)
+    .toLowerCase()}.pstn.twilio.com`;
 }
 
 /** The SIP username Retell presents on the trunk (≤ 32 characters at Twilio). */
 export function sipUsername(lineId: string): string {
-  return `line-${lineId.replace(/[^a-z0-9]/gi, "").slice(0, 12).toLowerCase()}`;
+  return `line-${lineId
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 12)
+    .toLowerCase()}`;
 }
 
 const LOWER = "abcdefghijkmnpqrstuvwxyz";
@@ -142,4 +161,5 @@ export function isValidSipPassword(p: string): boolean {
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 export const isE164 = (s: unknown): s is string => typeof s === "string" && E164.test(s);
-export const isAreaCode = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
+export const isAreaCode = (n: unknown): n is number =>
+  typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;

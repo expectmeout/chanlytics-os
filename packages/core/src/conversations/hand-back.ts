@@ -4,7 +4,10 @@ import type { Thread, ThreadPorts } from "./ports";
 export type HandBackPorts = Pick<ThreadPorts, "release" | "letControlGo" | "record" | "resolveEscalation">;
 
 /** Hand back: the receptionist resumes; the open escalation resolves (§4). */
-export async function handBack(ports: HandBackPorts, cmd: { conv: Pick<Thread, "id" | "tenant_id" | "phone_e164" | "paused_until">; userId: string }): Promise<{ state: "open"; decision_id: string }> {
+export async function handBack(
+  ports: HandBackPorts,
+  cmd: { conv: Pick<Thread, "id" | "tenant_id" | "phone_e164" | "paused_until">; userId: string },
+): Promise<{ state: "open"; decision_id: string }> {
   const { conv } = cmd;
   // One fact in one place: the row's own pause, cleared by the release. The
   // second store this used to release first -- and put back when the release

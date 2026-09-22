@@ -51,7 +51,10 @@ export function cleanTimezone(raw: unknown): { ok: true; tz: string } | { ok: fa
  * What to show beside the zone so an owner can tell at a glance whether it is
  * theirs: the local time in it, right now.
  */
-export function timezoneWords(tz: string | null | undefined, nowMs: number = Date.now()): {
+export function timezoneWords(
+  tz: string | null | undefined,
+  nowMs: number = Date.now(),
+): {
   city: string;
   zone: string;
   /** Local time in that zone, or null when the zone cannot be resolved. */
@@ -64,7 +67,9 @@ export function timezoneWords(tz: string | null | undefined, nowMs: number = Dat
   let timeThere: string | null = null;
   try {
     timeThere = new Intl.DateTimeFormat("en-US", {
-      timeZone: zone, hour: "numeric", minute: "2-digit",
+      timeZone: zone,
+      hour: "numeric",
+      minute: "2-digit",
     }).format(new Date(nowMs));
   } catch {
     timeThere = null;

@@ -77,10 +77,16 @@ test("the fallbacks name the owner's details, and a customer reads the owner's o
   // Copied in, they went stale: a workspace set up before its line existed told
   // customers "call us at .", and a new booking link never reached them.
   const f = newReceptionistDefaults(NAME).fallbacks;
-  assert.ok(f.greeting.includes("{business}") && f.greeting.includes("{booking link}"), "named, so they follow the details");
+  assert.ok(
+    f.greeting.includes("{business}") && f.greeting.includes("{booking link}"),
+    "named, so they follow the details",
+  );
   assert.ok(f.non_text.includes("{phone}"));
   const read = fallbackMessages(freshConfig().brain, null);
-  assert.ok(read.greeting.includes(NAME) && read.greeting.includes(LINK), "and filled with the business's own as each goes out");
+  assert.ok(
+    read.greeting.includes(NAME) && read.greeting.includes(LINK),
+    "and filled with the business's own as each goes out",
+  );
   assert.ok(read.non_text.includes(PHONE), "the urgent path is the number they gave");
   for (const v of [...Object.values(f), ...Object.values(read)]) {
     assert.ok(!/Melany|Booksy demo|example\.com/i.test(v), "no other business may appear");
@@ -90,7 +96,11 @@ test("the fallbacks name the owner's details, and a customer reads the owner's o
 test("a fresh workspace answers from its fields as soon as it has any", () => {
   const cfg = freshConfig();
   assert.equal(hasProfile(cfg.brain.profile), false, "a new receptionist has no profile to answer from yet");
-  assert.equal(hasProfile({ guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true } }), false, "guardrails alone are not a profile");
+  assert.equal(
+    hasProfile({ guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true } }),
+    false,
+    "guardrails alone are not a profile",
+  );
   const withHours = {
     ...cfg.brain,
     profile: { hours: { mon: { open: "10:00", close: "19:00" } } },

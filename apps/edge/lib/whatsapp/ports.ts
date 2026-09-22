@@ -22,6 +22,7 @@ import { pgThread, pgIngest, pgSink, queueReply } from "./persist.js";
 import { alertStaff } from "./alerts.js";
 import { pageOperator } from "../page-operator.js";
 import { whatsappSender } from "../packages/core.js";
+import { env } from "../env.js";
 
 export interface InboundPorts {
   /** The database, or null when this deployment persists nothing. */
@@ -80,8 +81,8 @@ export function realPorts(): InboundPorts {
     sender: whatsappSender,
     brain: () => import("../brain.js"),
     env: {
-      allowlist: process.env.WHATSAPP_TEST_ALLOWLIST || "",
-      modelKey: process.env.ANTHROPIC_API_KEY,
+      allowlist: env.WHATSAPP_TEST_ALLOWLIST || "",
+      modelKey: env.ANTHROPIC_API_KEY,
     },
   };
 }

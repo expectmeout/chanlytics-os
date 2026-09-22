@@ -11,6 +11,7 @@
 import { createServiceClient } from "./packages/db.js";
 import type { Database } from "./packages/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { env } from "./env.js";
 
 let client: SupabaseClient<Database> | null = null;
 let injected: SupabaseClient<Database> | null = null;
@@ -21,15 +22,15 @@ export function setPg(c: SupabaseClient<Database> | null): void {
 }
 
 export function pgEnabled(): boolean {
-  return !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return !!env.SUPABASE_URL && !!env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
 export function pg(): SupabaseClient<Database> | null {
   if (injected) return injected;
   if (!pgEnabled()) return null;
   client ??= createServiceClient({
-    url: process.env.SUPABASE_URL!,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    url: env.SUPABASE_URL!,
+    serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY!,
   });
   return client;
 }

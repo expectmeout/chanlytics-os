@@ -16,11 +16,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const skip = !URL_ || !KEY
-  ? "no database in env"
-  : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
-    ? "refusing a database that is not on this machine: this suite writes tenants"
-    : false;
+const skip =
+  !URL_ || !KEY
+    ? "no database in env"
+    : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+      ? "refusing a database that is not on this machine: this suite writes tenants"
+      : false;
 
 let db;
 const made = [];
@@ -39,14 +40,22 @@ after(async () => {
 });
 
 async function eventsFor(tenantId) {
-  const { data, error } = await db.from("events").select("kind, category, subject_type, subject_id, data").eq("tenant_id", tenantId).eq("kind", "workspace.created");
+  const { data, error } = await db
+    .from("events")
+    .select("kind, category, subject_type, subject_id, data")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "workspace.created");
   assert.equal(error, null, error?.message);
   return data;
 }
 
 test("a tenants row written directly is recorded, with no session to name", { skip }, async () => {
   const slug = `recorded-${Date.now()}`;
-  const { data, error } = await db.from("tenants").insert({ slug, name: "Recorded", timezone: "America/Chicago" }).select("id").single();
+  const { data, error } = await db
+    .from("tenants")
+    .insert({ slug, name: "Recorded", timezone: "America/Chicago" })
+    .select("id")
+    .single();
   assert.equal(error, null, error?.message);
   made.push(data.id);
   const events = await eventsFor(data.id);
@@ -54,7 +63,11 @@ test("a tenants row written directly is recorded, with no session to name", { sk
   assert.equal(events[0].category, "workspace");
   assert.equal(events[0].subject_type, "tenant");
   assert.equal(events[0].subject_id, data.id);
-  assert.deepEqual(events[0].data, { by: null, slug, timezone: "America/Chicago" }, "the service role is nobody; a console is nobody");
+  assert.deepEqual(
+    events[0].data,
+    { by: null, slug, timezone: "America/Chicago" },
+    "the service role is nobody; a console is nobody",
+  );
 });
 
 test("the door every workspace uses is recorded the same way, and provisioning still ran", { skip }, async () => {
@@ -65,7 +78,13 @@ test("the door every workspace uses is recorded the same way, and provisioning s
   const user = await db.auth.admin.createUser({ email, email_confirm: true });
   assert.equal(user.error, null, user.error?.message);
   try {
-    const { data, error } = await db.rpc("create_workspace_for", { p_user: user.data.user.id, p_name: `Recorded door ${Date.now()}`, p_timezone: "Europe/Madrid" }).single();
+    const { data, error } = await db
+      .rpc("create_workspace_for", {
+        p_user: user.data.user.id,
+        p_name: `Recorded door ${Date.now()}`,
+        p_timezone: "Europe/Madrid",
+      })
+      .single();
     assert.equal(error, null, error?.message);
     made.push(data.id);
     const events = await eventsFor(data.id);

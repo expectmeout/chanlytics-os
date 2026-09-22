@@ -51,11 +51,15 @@ export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
   // WITH an escalation open is the receptionist waiting for that someone.
   const mine = !!i.assignee_user_id || (paused && !i.open_escalation);
   const standing: Standing =
-    i.state === "snoozed" ? "snoozed"
-    : !flagged ? "quiet"
-    : claimedByTeammate ? "theirs"
-    : mine ? "yours"
-    : "needs_you";
+    i.state === "snoozed"
+      ? "snoozed"
+      : !flagged
+        ? "quiet"
+        : claimedByTeammate
+          ? "theirs"
+          : mine
+            ? "yours"
+            : "needs_you";
   // A teammate has it while it is flagged, as "yours" is: a name left on a quiet thread is not a claim, and the
   // Inbox said "X is answering this" over a receptionist that was answering (I1).
   return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };

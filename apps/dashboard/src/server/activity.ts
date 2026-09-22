@@ -1,5 +1,14 @@
 import "server-only";
-import { ACTIVITY_KINDS, ACTIVITY_NOISE_PREFIXES, activityWords, isActivityNoise, shiftKey, zoneMidnight, type ActivityPageDto, type ActivityRowDto } from "@chanlytics/contracts";
+import {
+  ACTIVITY_KINDS,
+  ACTIVITY_NOISE_PREFIXES,
+  activityWords,
+  isActivityNoise,
+  shiftKey,
+  zoneMidnight,
+  type ActivityPageDto,
+  type ActivityRowDto,
+} from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
 import { teamRoster } from "@/server/service";
@@ -61,7 +70,10 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
   const range = f.day
     ? await (async () => {
         const { timezone } = await tenantFacts(sb, tenantId);
-        return { from: new Date(zoneMidnight(timezone, f.day!)).toISOString(), to: new Date(zoneMidnight(timezone, shiftKey(f.day!, 1))).toISOString() };
+        return {
+          from: new Date(zoneMidnight(timezone, f.day!)).toISOString(),
+          to: new Date(zoneMidnight(timezone, shiftKey(f.day!, 1))).toISOString(),
+        };
       })()
     : null;
 
@@ -78,13 +90,15 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
 
   // One page from each ledger, plus the room a tie at the edge needs.
   const reach = limit + 1 + TIE_SLACK;
-  let dq = sb.from("decisions")
+  let dq = sb
+    .from("decisions")
     .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, payload, created_at")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(reach);
-  let eq = sb.from("events")
+  let eq = sb
+    .from("events")
     .select("id, kind, subject_type, subject_id, data, created_at")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
@@ -124,16 +138,28 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
 
   const merged: ActivityRowDto[] = [
     ...(decisions.data ?? []).map((d) => ({
-      id: `d-${d.id}`, at: d.created_at, source: "decision" as const, kind: d.verb,
-      subject_type: d.subject_type, subject_id: d.subject_id, actor_user_id: d.actor_user_id, actor_type: d.actor_type,
+      id: `d-${d.id}`,
+      at: d.created_at,
+      source: "decision" as const,
+      kind: d.verb,
+      subject_type: d.subject_type,
+      subject_id: d.subject_id,
+      actor_user_id: d.actor_user_id,
+      actor_type: d.actor_type,
       text: activityWords(d.verb, d.payload),
     })),
     ...(events.data ?? [])
       // Belt and braces for a database that answers the like() differently: the rule, in code too.
       .filter((e) => f.kind || !isActivityNoise(e.kind))
       .map((e) => ({
-        id: `e-${e.id}`, at: e.created_at, source: "event" as const, kind: e.kind,
-        subject_type: e.subject_type, subject_id: e.subject_id, actor_user_id: null, actor_type: null,
+        id: `e-${e.id}`,
+        at: e.created_at,
+        source: "event" as const,
+        kind: e.kind,
+        subject_type: e.subject_type,
+        subject_id: e.subject_id,
+        actor_user_id: null,
+        actor_type: null,
         text: activityWords(e.kind, e.data),
       })),
   ].sort(newestFirst);

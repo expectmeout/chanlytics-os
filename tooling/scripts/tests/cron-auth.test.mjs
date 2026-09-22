@@ -8,10 +8,11 @@ import assert from "node:assert/strict";
 import { fakeDb, fakeLog } from "./_fake-db.mjs";
 import { authorizeCron } from "../../../apps/edge/lib/cron-auth.ts";
 
-const req = (key) => new Request("https://edge.test/api/cron/any", {
-  method: "POST",
-  headers: key == null ? {} : { "x-cron-key": key },
-});
+const req = (key) =>
+  new Request("https://edge.test/api/cron/any", {
+    method: "POST",
+    headers: key == null ? {} : { "x-cron-key": key },
+  });
 const vault = (key) => fakeDb({}, {}, { get_cron_sweep_key: () => key });
 
 test("the key Vault holds comes in", async () => {
@@ -30,7 +31,15 @@ test("a missing, wrong, short, long or differently cased key does not", async ()
 
 test("a key that cannot be read is a 503 and a log line, never a way in", async () => {
   for (const db of [
-    fakeDb({}, {}, { get_cron_sweep_key: () => { throw new Error("permission denied for function get_cron_sweep_key"); } }),
+    fakeDb(
+      {},
+      {},
+      {
+        get_cron_sweep_key: () => {
+          throw new Error("permission denied for function get_cron_sweep_key");
+        },
+      },
+    ),
     vault(null),
   ]) {
     const L = fakeLog();

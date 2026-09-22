@@ -1321,7 +1321,17 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false, thread 
 };
 
 const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {} }) => {
-  const [text, setText] = React.useState(reply);
+  // What the member wrote to this thread and has not sent, kept for the thread in this tab (tab-memory.ts): the pane is
+  // keyed by thread, so opening another one, or a refresh, dropped a half-written reply for good. The receptionist's
+  // draft (`reply`) is its own and never kept as theirs; a reply the server took, or a box emptied, lets it go.
+  const draftOf = thread && thread.real && window.__tabMemory ? thread.id : null;
+  const keepWords = (v) => {
+    if (!draftOf) return;
+    if (v && v.trim() && v !== reply) window.__tabMemory.keepDraft("reply", v, draftOf);
+    else window.__tabMemory.dropDraft("reply", draftOf);
+  };
+  const [text, setText] = React.useState(() => (draftOf && window.__tabMemory.draft("reply", draftOf)) || reply);
+  const write = (v) => { setText(v); keepWords(v); };
   const [alt, setAlt] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const taRef = React.useRef(null);
@@ -1367,9 +1377,9 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     // accepts them (a closed 24h window rejects, and retyping is unacceptable).
     if (r && typeof r.then === "function") {
       setSending(true);
-      r.then((ok) => { if (ok !== false) setText(""); }).finally(() => setSending(false));
+      r.then((ok) => { if (ok !== false) write(""); }).finally(() => setSending(false));
     } else {
-      setText("");
+      write("");
     }
   };
 
@@ -1387,7 +1397,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     };
     // A reply that waited on a yes (an email going to a different address than it came from) is sent from the
     // toast, after this box was told to keep its words: it lets go of them when that send is accepted.
-    const onSent = (e) => { if (e && e.detail && e.detail.threadId === thread.id) setText(""); };
+    const onSent = (e) => { if (e && e.detail && e.detail.threadId === thread.id) write(""); };
     window.addEventListener("keydown", onKey);
     window.addEventListener("inbox:focus-composer", onFocus);
     window.addEventListener("inbox:reply-sent", onSent);
@@ -1464,7 +1474,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
           ref={taRef}
           className="ix-composer-text"
           value={text}
-          onChange={(e) => { setText(e.target.value); if (onType) onType(); }}
+          onChange={(e) => { write(e.target.value); if (onType) onType(); }}
           placeholder={`${thread.replyVia || "WhatsApp"} to ${thread.who}…`}
           aria-label={`Reply to ${thread.who}`}
           rows={1}
@@ -1496,7 +1506,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
         ref={taRef}
         className="ix-composer-text"
         value={text}
-        onChange={(e) => { setText(e.target.value); if (onType) onType(); }}
+        onChange={(e) => { write(e.target.value); if (onType) onType(); }}
         placeholder={thread.real ? `Reply to ${thread.who}…` : `Reply via ${thread.primaryChannel?.toUpperCase() || "SMS"}…`}
         rows={3}
       />

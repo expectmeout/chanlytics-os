@@ -1,4 +1,22 @@
-import { AppError, AUDIENCE_KINDS, nextOpenMoment, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, PEOPLE_LISTS, audienceMembers, broadcastName, eligibleFor, emptyAudienceRefusal, overLimitRefusal, paramLabel, purposeOfTemplate, type Audience, type AudienceKind } from "@chanlytics/contracts";
+import {
+  AppError,
+  AUDIENCE_KINDS,
+  nextOpenMoment,
+  BROADCAST_MAX_RECIPIENTS,
+  BROADCAST_NAME_MAX,
+  BROADCAST_SCHEDULE_MAX_DAYS,
+  EVERYONE_LABEL,
+  PEOPLE_LISTS,
+  audienceMembers,
+  broadcastName,
+  eligibleFor,
+  emptyAudienceRefusal,
+  overLimitRefusal,
+  paramLabel,
+  purposeOfTemplate,
+  type Audience,
+  type AudienceKind,
+} from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import { templateValues } from "./template-values";
 import type { CreateBroadcastCommand, CreateBroadcastPorts } from "./ports";
@@ -31,10 +49,17 @@ export interface BroadcastReceipt {
  * sentences for the person composing: the values are judged against the
  * template Meta holds, which no schema knows.
  */
-export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBroadcastCommand): Promise<BroadcastReceipt> {
+export async function createBroadcast(
+  ports: CreateBroadcastPorts,
+  cmd: CreateBroadcastCommand,
+): Promise<BroadcastReceipt> {
   const { now } = cmd;
   const body = cmd.body as {
-    template_id?: unknown; params?: unknown; audience?: { kind?: unknown; id?: unknown } | null; scheduled_for?: unknown; name?: unknown;
+    template_id?: unknown;
+    params?: unknown;
+    audience?: { kind?: unknown; id?: unknown } | null;
+    scheduled_for?: unknown;
+    name?: unknown;
   } | null;
 
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
@@ -45,7 +70,8 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   }
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
   if (kind === "saved" && (!audienceId || !UUID.test(audienceId))) throw new AppError("validation", "Pick a list.");
-  if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId))) throw new AppError("validation", "Pick a list.");
+  if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId)))
+    throw new AppError("validation", "Pick a list.");
 
   // 1–2. The template, as Meta holds it; the values, as Meta will accept them.
   const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: false });
@@ -58,7 +84,8 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
     const t = new Date(body.scheduled_for);
     if (Number.isNaN(t.getTime())) throw new AppError("validation", "That is not a time.");
-    if (!OFFSET.test(body.scheduled_for)) throw new AppError("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
+    if (!OFFSET.test(body.scheduled_for))
+      throw new AppError("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
     when = t.getTime() > now.getTime() ? t : now;
   }
 
@@ -89,8 +116,14 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose);
   // Nobody to send to says which of its two causes it is: nobody on it said this yes, or the ones who did have no
   // number. So the refusal is handed everyone on the audience, before anyone is left out.
-  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind as AudienceKind, audienceId, savedIds)), 409);
-  if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+  if (eligible.length === 0)
+    throw new AppError(
+      "conflict",
+      emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind as AudienceKind, audienceId, savedIds)),
+      409,
+    );
+  if (eligible.length > BROADCAST_MAX_RECIPIENTS)
+    throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   // An audience past the day's limit is split, not silently cut.
   const over = overLimitRefusal(health, eligible.length);
   if (over) throw new AppError("validation", over);
@@ -103,30 +136,68 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   const open = nextOpenMoment(tz, when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
-  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 86_400_000) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
+  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 86_400_000)
+    throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   // Named for the business's day, not the server's (UTC on Vercel).
-  const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, tz, now, tpl.title);
+  const name =
+    typeof body?.name === "string" && body.name.trim()
+      ? body.name.trim().slice(0, BROADCAST_NAME_MAX)
+      : broadcastName(tpl.name, tz, now, tpl.title);
   const audience: Audience = { kind: kind as AudienceKind, id: audienceId, label };
 
   // 5. The rows, then the job, then the ledger.
   const made = await assembleRun(ports, {
     broadcast: {
-      name, template_id: tpl.id, template_name: tpl.name, template_language: tpl.language, params: specs, audience,
-      state: "scheduled", scheduled_for: when.toISOString(), recipient_count: eligible.length, created_by: cmd.userId,
+      name,
+      template_id: tpl.id,
+      template_name: tpl.name,
+      template_language: tpl.language,
+      params: specs,
+      audience,
+      state: "scheduled",
+      scheduled_for: when.toISOString(),
+      recipient_count: eligible.length,
+      created_by: cmd.userId,
     },
     recipients: eligible.map((p) => ({ contact_id: p.id, facts: null })),
     sendAt: when,
   });
   if (!made.ok) {
-    if (made.failure === "schedule_failed") throw new AppError("upstream_meta", "The send could not be scheduled. Nothing was sent; try again.", 502, made.error);
+    if (made.failure === "schedule_failed")
+      throw new AppError(
+        "upstream_meta",
+        "The send could not be scheduled. Nothing was sent; try again.",
+        502,
+        made.error,
+      );
     // A sentence for the person either way: the row says failed, and a bare
     // error reached them as "Something went wrong" with no reason on the row.
-    throw new AppError("internal", made.failure === "run_not_created" ? "The broadcast could not be created. Nothing was sent; try again." : "The people could not be enrolled. Nothing was sent; try again.", 500, made.error);
+    throw new AppError(
+      "internal",
+      made.failure === "run_not_created"
+        ? "The broadcast could not be created. Nothing was sent; try again."
+        : "The people could not be enrolled. Nothing was sent; try again.",
+      500,
+      made.error,
+    );
   }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
-    name, template: `${tpl.name}/${tpl.language}`, category: tpl.category, audience: { kind: audience.kind, id: audience.id, label: audience.label },
-    values: specs.map(paramLabel), recipients: eligible.length, scheduled_for: when.toISOString(),
+    name,
+    template: `${tpl.name}/${tpl.language}`,
+    category: tpl.category,
+    audience: { kind: audience.kind, id: audience.id, label: audience.label },
+    values: specs.map(paramLabel),
+    recipients: eligible.length,
+    scheduled_for: when.toISOString(),
     ...(movedFrom ? { moved_from: movedFrom } : {}),
   });
-  return { id: made.id, name, state: "scheduled", recipient_count: eligible.length, scheduled_for: when.toISOString(), moved_from: movedFrom, decision_id };
+  return {
+    id: made.id,
+    name,
+    state: "scheduled",
+    recipient_count: eligible.length,
+    scheduled_for: when.toISOString(),
+    moved_from: movedFrom,
+    decision_id,
+  };
 }

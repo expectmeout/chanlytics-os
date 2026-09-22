@@ -92,21 +92,31 @@ const runRows = (nav, flash, verbKind, room) => {
   const { waiting, soon } = runsPending();
   const words = (r) => window.__today.runs(r);
   const can = window.canDo && window.canDo("approve");
+  // Each is said the moment the server takes it, from what it answered, not once the runs are read again behind it.
   const stop = async (r) => {
     if (!can || !api) return;
-    const res = await api.cancel(r.id);
+    let said = false;
+    const say = () => { said = true; flash({ msg: <><b>{r.audience.label}</b> stopped: nothing sends</> }); };
+    const res = await api.cancel(r.id, { onAccepted: say });
     if (res.ok) refreshed();
-    flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped: nothing sends</> } : window.refusalToast(res, "Not stopped"));
+    if (!res.ok) flash(window.refusalToast(res, "Not stopped"));
+    else if (!said) say();
   };
   const approve = async (r) => {
     if (!can || !api) return;
-    const res = await api.approve(r.id);
+    let said = false;
+    const say = (data) => {
+      said = true;
+      const n = data.recipient_count || r.recipient_count;
+      // When it really goes (broadcasts-real.jsx bcWhenWords): the server moves a send outside 9:00-20:59 to nine.
+      const when = window.bcWhenWords ? window.bcWhenWords(data) : "sending now";
+      const t = window.__today.runApproved(r.audience.label, n, when);
+      flash({ msg: <><b>{t.lead}</b> {t.rest}</> });
+    };
+    const res = await api.approve(r.id, { onAccepted: say });
     if (res.ok) refreshed();
-    const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
-    // When it really goes (broadcasts-real.jsx bcWhenWords): the server moves a send outside 9:00-20:59 to nine.
-    const when = res.ok && window.bcWhenWords ? window.bcWhenWords(res.data) : "sending now";
-    const t = window.__today.runApproved(r.audience.label, n, when);
-    flash(res.ok ? { msg: <><b>{t.lead}</b> {t.rest}</> } : window.refusalToast(res, "Not approved"));
+    if (!res.ok) flash(window.refusalToast(res, "Not approved"));
+    else if (!said) say(res.data);
   };
   // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far.
   const count = waiting.length + soon.length;
@@ -154,13 +164,19 @@ const TodayQueue = ({ vm }) => {
   const verb = async (r, which) => {
     const inboxVerb = tqSurface("__inboxVerb");
     if (!(window.canDo && window.canDo("approve")) || !inboxVerb) return;
+    // Said the moment the server takes it, not after the Inbox, the threads and Today are read again behind it
+    // (the row itself leaves with that re-read: the server owns the thread).
+    let said = false;
+    const done = () => {
+      said = true;
+      ppFlash({ msg: which === "snooze" ? <><b>{r.who}</b> snoozed: hidden until they wake or reply</> : <><b>{r.who}</b>: done, the receptionist has the thread back</> });
+    };
     const res = await inboxVerb(
       { conversationId: r.also.conversationId, escalationId: r.also.escalationId, who: r.who },
-      which, {},
+      which, {}, { onAccepted: done },
     );
-    ppFlash(res.ok
-      ? { msg: which === "snooze" ? <><b>{r.who}</b> snoozed: hidden until they wake or reply</> : <><b>{r.who}</b>: done, the receptionist has the thread back</> }
-      : window.refusalToast(res, which === "snooze" ? "Not snoozed" : "Not resolved"));
+    if (!res.ok) ppFlash(window.refusalToast(res, which === "snooze" ? "Not snoozed" : "Not resolved"));
+    else if (!said) done();
   };
   const rows = vm.queue.rows;
   // One primary verb on the page: the first row's. Every other verb is drawn, quietly.

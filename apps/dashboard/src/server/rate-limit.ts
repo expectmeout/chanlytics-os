@@ -223,12 +223,16 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
     async take(bucket, actor, rule, now, strict = false) {
       try {
         const { data, error } = await db.rpc("take_rate", {
-          p_bucket: bucket, p_actor: actor, p_limit: rule.limit, p_window_ms: rule.windowMs,
+          p_bucket: bucket,
+          p_actor: actor,
+          p_limit: rule.limit,
+          p_window_ms: rule.windowMs,
         });
         if (error) throw new Error(error.message);
         const v = (data ?? {}) as { allowed?: boolean; retry_after_s?: number };
         if (v.allowed === true) return { allowed: true };
-        if (v.allowed === false) return { allowed: false, retryAfterS: Math.max(1, Math.ceil(Number(v.retry_after_s ?? 1))) };
+        if (v.allowed === false)
+          return { allowed: false, retryAfterS: Math.max(1, Math.ceil(Number(v.retry_after_s ?? 1))) };
         throw new Error("take_rate answered without a verdict");
       } catch (e) {
         const why = e instanceof Error ? e.message : String(e);
@@ -254,13 +258,25 @@ let store: RateStore | null = null;
  * strict take refuses: a deployment that cannot count across instances does
  * not spend on a ceiling it cannot hold.
  */
-export function memoryByConfiguration(fallback: RateStore, production = process.env.VERCEL_ENV === "production"): RateStore {
+export function memoryByConfiguration(
+  fallback: RateStore,
+  production = process.env.VERCEL_ENV === "production",
+): RateStore {
   let said = false;
   return {
     async take(bucket, actor, rule, now, strict = false) {
       if (!said) {
         said = true;
-        console.error("rate_store_memory_by_configuration", JSON.stringify({ production, bucket, note: production ? "NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing: every ceiling is per instance" : "no database keys: ceilings are per instance, which is the whole limiter on a laptop" }));
+        console.error(
+          "rate_store_memory_by_configuration",
+          JSON.stringify({
+            production,
+            bucket,
+            note: production
+              ? "NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing: every ceiling is per instance"
+              : "no database keys: ceilings are per instance, which is the whole limiter on a laptop",
+          }),
+        );
       }
       if (strict) throw uncountable("this deployment has no shared store");
       return fallback.take(bucket, actor, rule, now);
@@ -273,7 +289,10 @@ function activeStore(): RateStore {
   if (store) return store;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  store = url && serviceRoleKey ? postgresStore(createServiceClient({ url, serviceRoleKey }), memory) : memoryByConfiguration(memory);
+  store =
+    url && serviceRoleKey
+      ? postgresStore(createServiceClient({ url, serviceRoleKey }), memory)
+      : memoryByConfiguration(memory);
   return store;
 }
 
@@ -291,7 +310,12 @@ function human(seconds: number): string {
  * is for a route that spends: the shared count or a refusal, never this
  * instance's own.
  */
-export async function takeRate(actor: string, bucket: RateBucket, now: number = Date.now(), strict = false): Promise<void> {
+export async function takeRate(
+  actor: string,
+  bucket: RateBucket,
+  now: number = Date.now(),
+  strict = false,
+): Promise<void> {
   const rule: RateRule = RATE[bucket];
   const verdict = await activeStore().take(bucket, actor, rule, now, strict);
   if (!verdict.allowed) {

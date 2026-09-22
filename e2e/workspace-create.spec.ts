@@ -20,13 +20,24 @@ test.describe("creating another workspace", () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const rest = (path: string, init: RequestInit = {}) =>
-      fetch(`${url}/rest/v1/${path}`, { ...init, headers: { apikey: key, Authorization: `Bearer ${key}`, "content-type": "application/json", Prefer: "return=representation", ...(init.headers ?? {}) } });
+      fetch(`${url}/rest/v1/${path}`, {
+        ...init,
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "content-type": "application/json",
+          Prefer: "return=representation",
+          ...(init.headers ?? {}),
+        },
+      });
 
     await signIn(page);
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("today-standing")).toBeVisible();
-    const homeId = await page.evaluate(() => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null);
+    const homeId = await page.evaluate(
+      () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,
+    );
     expect(homeId).not.toBeNull();
     const name = `E2E probe ${Date.now()}`;
     let createdId: string | null = null;
@@ -48,7 +59,9 @@ test.describe("creating another workspace", () => {
       // A new workspace answers nowhere yet, so its owner lands on Setup, not Today.
       await expect(page.getByTestId("setup-readiness")).toBeVisible({ timeout: 20000 });
       await expect(page.getByTestId("sb-workspace")).toContainText(name);
-      createdId = await page.evaluate(() => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null);
+      createdId = await page.evaluate(
+        () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,
+      );
       expect(createdId).not.toBeNull();
       expect(createdId).not.toBe(homeId);
       await page.getByTestId("sb-workspace").click();
@@ -61,12 +74,16 @@ test.describe("creating another workspace", () => {
       await expect(page.getByTestId("sb-workspace")).not.toContainText(name, { timeout: 20000 });
     } finally {
       // The probe goes whether or not the page got as far as naming its id.
-      const found = (await (await rest(`tenants?select=id&name=eq.${encodeURIComponent(name)}`)).json()) as Array<{ id: string }>;
+      const found = (await (await rest(`tenants?select=id&name=eq.${encodeURIComponent(name)}`)).json()) as Array<{
+        id: string;
+      }>;
       for (const id of new Set([createdId, ...found.map((t) => t.id)].filter((x): x is string => !!x))) {
         await rest(`events?tenant_id=eq.${id}`, { method: "DELETE" });
         await rest(`tenants?id=eq.${id}`, { method: "DELETE" });
       }
-      await page.evaluate((id) => { if (id) localStorage.setItem("chanlytics.workspace", id); }, homeId);
+      await page.evaluate((id) => {
+        if (id) localStorage.setItem("chanlytics.workspace", id);
+      }, homeId);
     }
   });
 });

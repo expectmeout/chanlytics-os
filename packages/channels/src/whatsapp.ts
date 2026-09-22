@@ -62,8 +62,8 @@ export interface WaMediaRef {
 
 /** Canonical view of one inbound customer message. */
 export interface NormalizedInbound {
-  waId: string;               // sender id verbatim (identity external_id)
-  phoneDigits: string;        // dialable digits (m.from)
+  waId: string; // sender id verbatim (identity external_id)
+  phoneDigits: string; // dialable digits (m.from)
   profileName: string | null;
   messageId: string;
   type: "text" | "media";
@@ -158,14 +158,11 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
 
   const describeLocation = (): string => {
     const where = [loc?.name, loc?.address].filter(Boolean).join(", ");
-    const coords =
-      loc?.latitude != null && loc?.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
+    const coords = loc?.latitude != null && loc?.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
     return `Shared a location${where ? `: ${where}` : ""}${coords ? ` (${coords})` : ""}`;
   };
   const describeCards = (): string => {
-    const names = (cards ?? [])
-      .map((c) => c.name?.formatted_name || c.phones?.[0]?.phone)
-      .filter(Boolean);
+    const names = (cards ?? []).map((c) => c.name?.formatted_name || c.phones?.[0]?.phone).filter(Boolean);
     return `Shared a contact card${names.length ? `: ${names.join(", ")}` : ""}`;
   };
 
@@ -174,13 +171,13 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     : chosen
       ? chosen.label || chosen.id
       : kind === "reaction"
-        ? m.reaction?.emoji ?? null
+        ? (m.reaction?.emoji ?? null)
         : kind === "location"
           ? describeLocation()
           : kind === "contacts"
             ? describeCards()
             : kind === "system"
-              ? m.system?.body ?? null
+              ? (m.system?.body ?? null)
               : null;
 
   // Consent is tested against the label AND the developer-set id, so a tenant

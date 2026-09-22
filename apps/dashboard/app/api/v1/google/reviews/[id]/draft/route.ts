@@ -15,7 +15,8 @@ import { edgeGoogle } from "@/server/google";
  * that is not on record.
  */
 const SAID: Record<string, string> = {
-  policy_never: "Review replies are set to Never on Autonomy. Set them to Ask for a draft, or Auto to have new reviews answered.",
+  policy_never:
+    "Review replies are set to Never on Autonomy. Set them to Ask for a draft, or Auto to have new reviews answered.",
   no_review: "That review is not on record.",
   no_model_key: "Drafting is not available here yet.",
   model_failed: "The receptionist could not write a draft just now. Write the reply yourself, or try again.",
@@ -33,7 +34,11 @@ export const POST = write({
     if (a.status !== 200 || b.ok !== true || typeof b.text !== "string") {
       const reason = typeof b.error === "string" ? b.error : "failed";
       const said = SAID[reason] ?? `No draft this time (${reason}).`;
-      throw new AppError(a.status === 404 ? "not_found" : a.status === 409 ? "conflict" : "internal", said, a.status === 404 ? 404 : a.status === 409 ? 409 : 502);
+      throw new AppError(
+        a.status === 404 ? "not_found" : a.status === 409 ? "conflict" : "internal",
+        said,
+        a.status === 404 ? 404 : a.status === 409 ? 409 : 502,
+      );
     }
     return { text: b.text, mode: typeof b.mode === "string" ? b.mode : "ask" };
   },

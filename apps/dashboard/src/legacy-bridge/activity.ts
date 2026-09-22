@@ -29,13 +29,21 @@ export const activity = {
   // The rows say their times by the business's clock (window.__clock), so its zone is known before they
   // land: a link straight to this page can bring the log before the workspace read. A zone that cannot be
   // read leaves the log readable.
-  list: (f: ActivityFilters = {}): Promise<ApiResult<ActivityPageDto>> => pages.through(keyOf(f), async () => {
-    const [r] = await Promise.all([
-      api()("GET activity", { query: { ...(f.person ? { person: f.person } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(f.day ? { day: f.day } : {}), ...(f.cursor ? { cursor: f.cursor } : {}) } }),
-      workspaceZone().catch(() => null),
-    ]);
-    return r;
-  }),
+  list: (f: ActivityFilters = {}): Promise<ApiResult<ActivityPageDto>> =>
+    pages.through(keyOf(f), async () => {
+      const [r] = await Promise.all([
+        api()("GET activity", {
+          query: {
+            ...(f.person ? { person: f.person } : {}),
+            ...(f.kind ? { kind: f.kind } : {}),
+            ...(f.day ? { day: f.day } : {}),
+            ...(f.cursor ? { cursor: f.cursor } : {}),
+          },
+        }),
+        workspaceZone().catch(() => null),
+      ]);
+      return r;
+    }),
   /** The last answer for these filters, if this tab has one. Synchronous: the first paint. */
   peek: (f: ActivityFilters = {}): ApiResult<ActivityPageDto> | null => pages.peek(keyOf(f)),
   /**
@@ -52,7 +60,9 @@ export const activity = {
   people: async (q: string): Promise<{ id: string; name: string; phone: string | null }[]> => {
     const r = await api()("GET contacts", { query: { q } });
     if (!r.ok) return [];
-    return (r.data.people as PersonRowDto[]).slice(0, 10).map((p) => ({ id: p.id, name: personName(p), phone: p.phone_e164 }));
+    return (r.data.people as PersonRowDto[])
+      .slice(0, 10)
+      .map((p) => ({ id: p.id, name: personName(p), phone: p.phone_e164 }));
   },
 };
 

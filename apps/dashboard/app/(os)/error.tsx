@@ -26,9 +26,15 @@ export default function OsError({ error, reset }: { error: Error; reset: () => v
           window.location.reload();
           return;
         }
-      } catch { /* storage blocked — fall through to the card */ }
+      } catch {
+        /* storage blocked — fall through to the card */
+      }
     }
-    try { sessionStorage.removeItem("chunk-reloaded"); } catch { /* ignore */ }
+    try {
+      sessionStorage.removeItem("chunk-reloaded");
+    } catch {
+      /* ignore */
+    }
   }, [error]);
 
   return (
@@ -37,7 +43,21 @@ export default function OsError({ error, reset }: { error: Error; reset: () => v
       <p>The rest of Chanlytics OS is fine. Reloading usually fixes it.</p>
       <button onClick={() => window.location.reload()}>Reload</button>
       <div className="hint">
-        Still stuck? Try again in a minute. <button onClick={reset} style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit" }}>Retry without reloading</button>
+        Still stuck? Try again in a minute.{" "}
+        <button
+          onClick={reset}
+          style={{
+            background: "none",
+            border: "none",
+            color: "inherit",
+            textDecoration: "underline",
+            cursor: "pointer",
+            padding: 0,
+            font: "inherit",
+          }}
+        >
+          Retry without reloading
+        </button>
       </div>
     </main>
   );

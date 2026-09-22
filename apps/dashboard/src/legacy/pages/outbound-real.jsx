@@ -36,7 +36,10 @@ const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
 // playbook whose list is empty is not "running" in any sense the owner means.
 const pbReach = (p) => (window.__playbookReach ? window.__playbookReach(p) : "sends");
 const pbReachWords = (r) => (window.__playbookReachWords ? window.__playbookReachWords[r] : null);
-const pbReachDoor = (r) => (window.__playbookReachDoor ? window.__playbookReachDoor[r] || null : null);
+// The door only where a yes fixes it: somebody named and not one of them said it (contracts playbookReachDoor).
+const pbReachDoor = (r, named) => (window.__playbookReachDoor ? window.__playbookReachDoor(r, named) : null);
+// A list whose yes has no number to send to, in the send screen's words; null keeps the card's own count.
+const pbNoNumberWords = (p, named) => (window.__playbookNoNumberWords ? window.__playbookNoNumberWords(p, named) : null);
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
@@ -148,14 +151,17 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   // counted only who said yes, so the people who never did were in no number
   // on the page, and they are the one part an owner can change.
   const named = p.named || (trig && trig.named) || null;
+  // Who its moment reaches could not be counted (the server's read failed): the
+  // page says so once, over the cards, and the tile draws no count. It drew
+  // "0 of 0 who said yes", a zero nobody counted.
+  const counted = named !== null && p.candidates !== null && p.held !== null;
   // Past the cap the rest go next time; a reminder is owed to every visit, uncapped (eligibleForPlaybook).
   const capped = !paused && !waiting && !(trig && trig.kind === "visit") ? Math.max(0, p.candidates - p.cap_per_run) : 0;
-  const will = paused ? 0 : waiting ? (waiting.recipient_count ?? p.candidates) : named ? p.candidates - capped : p.candidates;
-  // Out of everyone on the moment's list who said yes, when the server did not
-  // say who it names. A paused playbook counts nobody of its own, so its
-  // moment's count says how many it is not reaching.
+  const will = paused ? 0 : waiting ? (waiting.recipient_count ?? p.candidates) : p.candidates - capped;
+  // A paused playbook counts nobody of its own, so its moment's count says how
+  // many it is not reaching.
   const reachable = Math.max(p.candidates + p.held, trig ? (trig.candidates || 0) + (trig.held || 0) : 0);
-  const pool = Math.max(will, named ? named.pool : reachable);
+  const pool = Math.max(will, counted ? named.pool : 0);
   // Paused, everyone it could reach waits on the pause: the amber is all of them.
   const held = paused ? reachable : p.held;
   // The language its runs go out in: ONE, whatever others the message has -- a
@@ -175,7 +181,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
       !paused && p.held > 0 && { t: `${p.held} heard from a playbook this week`, tone: "warn" },
       !paused && !waiting && p.candidates > p.cap_per_run && { t: `up to ${p.cap_per_run} a run — the rest go next time`, tone: "plain" },
     ]).filter(Boolean).slice(0, 3);
-  const of = named && window.__poolWords ? window.__poolWords(p.trigger) : "who said yes";
+  const of = window.__poolWords ? window.__poolWords(p.trigger) : null;
   const hour = `${String(p.run_hour).padStart(2, "0")}:00`;
   const spark = (p.totals.history || PB_NONE).slice(0, 6).reverse().map((h) => h.sent || 0);
   return (
@@ -201,7 +207,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
               <span>{pbShort(sends.id)}</span>
             </span>
           </div>
-          <window.CmReach will={will} pool={pool} of={of} held={held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
+          {counted && <window.CmReach will={will} pool={pool} of={of} held={held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />}
           <div className="pb-tile-foot">
             {/* A run waiting on the owner: the line says what the press does, and
                 the press opens the card where Approve and Skip are. */}
@@ -244,7 +250,8 @@ const PlaybookSlot = ({ t, onStart }) => (
     <div className="pb-tile-empty">
       <p className="pb-tile-blurb" data-testid="pb-slot-who">
         {PB_BLURBS[t.id] || t.hint}
-        {t.candidates > 0 ? ` ${pbPeople(t.candidates)} today.` : " Nobody today."}
+        {/* A moment the server could not count says no number at all (the page says why, once). */}
+        {t.candidates === null ? null : t.candidates > 0 ? ` ${pbPeople(t.candidates)} today.` : " Nobody today."}
       </p>
       <button
         className="btn pb-tile-setup"
@@ -323,23 +330,41 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     ? window.__starters.sendable((data.templates || PB_NONE).slice().sort(pbOrder))
     : { sendable: (data.templates || PB_NONE).slice().sort(pbOrder), blocked: PB_NONE, why: null }), [data.templates]);
   const triggers = data.triggers || PB_NONE;
-  const [trigger, setTrigger] = React.useState(() => (editing ? editing.trigger : initialTrigger || pbFirstFree(triggers, data.rows)));
+  // What it opens as: the playbook being changed, or a new one on the moment pressed. Words typed here before and
+  // not saved come back over that (the tab's draft, useUnsavedWork), except the moment a slot was pressed for.
+  const opened = React.useMemo(() => ({
+    trigger: editing ? editing.trigger : initialTrigger || pbFirstFree(triggers, data.rows),
+    tplId: editing ? editing.template_id : "",
+    picked: !!editing,
+    name: editing ? editing.name : null,
+    hour: editing ? editing.run_hour : 10,
+    cap: editing ? editing.cap_per_run : 25,
+    gap: editing ? editing.gap_days : 90,
+    cadence: editing ? editing.cadence_days : 30,
+    fills: editing && Array.isArray(editing.params) ? { [editing.template_id]: editing.params.map((p) => (p && p.kind ? p.kind : "text")) } : {},
+    typed: editing && Array.isArray(editing.params) ? { [editing.template_id]: editing.params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {},
+  }), [editing, initialTrigger]); // eslint-disable-line react-hooks/exhaustive-deps -- what it opened as, read once
+  const draftKey = editing ? editing.id : "new";
+  const [kept] = React.useState(() => (window.tabDraft ? window.tabDraft("playbook", draftKey) : null));
+  const start = kept ? { ...kept, trigger: initialTrigger || kept.trigger } : opened;
+  const [trigger, setTrigger] = React.useState(start.trigger);
   // The message the owner chose. Until they choose one it is the moment's own,
   // and it follows the moment -- nothing is picked for them that the moment
   // was not written for: it opened on whichever template sorted first.
-  const [tplId, setTplId] = React.useState(editing ? editing.template_id : "");
-  const [picked, setPicked] = React.useState(!!editing);
+  const [tplId, setTplId] = React.useState(start.tplId);
+  const [picked, setPicked] = React.useState(start.picked);
   // Null follows the name the route gives a playbook given none; words are the owner's.
-  const [name, setName] = React.useState(editing ? editing.name : null);
-  const [hour, setHour] = React.useState(editing ? editing.run_hour : 10);
-  const [cap, setCap] = React.useState(editing ? editing.cap_per_run : 25);
-  const [gap, setGap] = React.useState(editing ? editing.gap_days : 90);
-  const [cadence, setCadence] = React.useState(editing ? editing.cadence_days : 30);
+  const [name, setName] = React.useState(start.name);
+  const [hour, setHour] = React.useState(start.hour);
+  const [cap, setCap] = React.useState(start.cap);
+  const [gap, setGap] = React.useState(start.gap);
+  const [cadence, setCadence] = React.useState(start.cadence);
   // Per message: what fills each slot, and the words typed into it.
-  const [fills, setFills] = React.useState(() => (editing && Array.isArray(editing.params)
-    ? { [editing.template_id]: editing.params.map((p) => (p && p.kind ? p.kind : "text")) } : {}));
-  const [typed, setTyped] = React.useState(() => (editing && Array.isArray(editing.params)
-    ? { [editing.template_id]: editing.params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {}));
+  const [fills, setFills] = React.useState(start.fills);
+  const [typed, setTyped] = React.useState(start.typed);
+  // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
+  const held = { trigger, tplId, picked, name, hour, cap, gap, cadence, fills, typed };
+  const work = window.useUnsavedWork("playbook", draftKey, { value: held, dirty: JSON.stringify(held) !== JSON.stringify(opened), onLeave: onCancel });
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [adding, setAdding] = React.useState(false);
@@ -402,6 +427,8 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const monthly = trigger === "everyone_monthly";
   const base = editing && editing.trigger === trigger ? { candidates: editing.candidates || 0, held: editing.held || 0 } : { candidates: trig ? trig.candidates || 0 : 0, held: trig ? trig.held || 0 : 0 };
   const named = (editing && editing.trigger === trigger && editing.named) || (trig && trig.named) || null;
+  // Who the moment reaches could not be counted (the server's read failed): no count is drawn, as on the cards.
+  const counted = named !== null && (editing && editing.trigger === trigger ? editing.candidates !== null : !!trig && trig.candidates !== null);
   const capN = Math.max(1, Number(cap) || 1);
   const overCap = visits ? 0 : Math.max(0, base.candidates - capN);
   const will = base.candidates - overCap;
@@ -409,7 +436,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const reasons = named && window.__reachLines
     ? window.__reachLines({ pool: named.pool, will, noNumber: named.noNumber, stopped: named.stopped, noYes: named.noYes, heardThis: 0, heardAny: base.held, overCap, overLimit: 0 }, { trigger, cap_per_run: capN, gap_days: Number(gap), cadence_days: Number(cadence) }).lines.slice(0, 3).map((l) => ({ t: l.words, tone: l.tone, door: l.door }))
     : [base.held > 0 && { t: `${base.held} heard from a playbook this week`, tone: "warn" }, overCap > 0 && { t: `${overCap} wait for the next run — ${capN} a run`, tone: "plain" }].filter(Boolean);
-  const of = window.__poolWords ? window.__poolWords(trigger) : "who said yes";
+  const of = window.__poolWords ? window.__poolWords(trigger) : null;
 
   // A moment moved to keeps the message the owner chose when it can send it; one it cannot gives way to that moment's own.
   const chooseMoment = (id) => {
@@ -439,10 +466,11 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     const r = editing ? await window.__playbooks.update(editing.id, body) : await window.__playbooks.create(body);
     setBusy(false);
     if (!r.ok) { setError(r.message || "It could not be saved."); return; }
+    work.done();
     onDone(r.data, !!editing);
   };
 
-  const momentChoices = triggers.map((t) => ({ id: t.id, label: t.label, sub: t.hint, icon: pbIcon(t.id), hint: t.candidates > 0 ? `${t.candidates} today` : "nobody today" }));
+  const momentChoices = triggers.map((t) => ({ id: t.id, label: t.label, sub: t.hint, icon: pbIcon(t.id), hint: t.candidates === null ? null : t.candidates > 0 ? `${t.candidates} today` : "nobody today" }));
   const messageChoices = groups.slice().sort((a, b) => (starter ? (b.name === starter.name) - (a.name === starter.name) : 0)).map((g) => {
     const r = rowIn(g, tpl ? tpl.language : null);
     return {
@@ -477,13 +505,18 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
         </span>
       )}
       sub={editing ? "A change counts from its next run." : "One approved message, to the people a moment names who said yes — each on its own clock. Replies land in the Inbox."}
-      onClose={onCancel}
+      onClose={work.leave}
       closeLabel="Cancel"
       foot={(
         <div className="pb-foot">
-          <span className="pb-foot-say" data-tone={say ? say.tone : undefined} role={error ? "alert" : undefined} data-testid={error ? "pb-error" : "pb-foot-say"}>{say ? say.t : null}</span>
-          <button type="button" className="btn" onClick={onCancel} data-testid="pb-cancel">Cancel</button>
-          <button type="button" className="btn btn-primary" disabled={!ready} onClick={save} data-testid="pb-save">{busy ? "Saving…" : editing ? "Save changes" : "Start it"}</button>
+          {/* Cancel, and Escape, with something changed: the one question first (UnsavedAsk), where the buttons were. */}
+          {work.asking ? <window.UnsavedAsk onYes={work.discard} onNo={work.stay} what="saved" testid="pb-leave" /> : (
+            <>
+              <span className="pb-foot-say" data-tone={say ? say.tone : undefined} role={error ? "alert" : undefined} data-testid={error ? "pb-error" : "pb-foot-say"}>{say ? say.t : null}</span>
+              <button type="button" className="btn" onClick={work.leave} data-testid="pb-cancel">Cancel</button>
+              <button type="button" className="btn btn-primary" disabled={!ready} onClick={save} data-testid="pb-save">{busy ? "Saving…" : editing ? "Save changes" : "Start it"}</button>
+            </>
+          )}
         </div>
       )}
     >
@@ -506,7 +539,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
             ) : <span className="pb-pick-text"><span className="pb-pick-title is-empty">Pick a moment</span></span>}
             testid="pb-moment"
           />
-          {trig && <window.CmReach will={will} pool={pool} of={of} held={base.held} reasons={reasons} size="sm" testid="pb-reach" />}
+          {trig && counted && <window.CmReach will={will} pool={pool} of={of} held={base.held} reasons={reasons} size="sm" testid="pb-reach" />}
           {visits && data.calendar !== "ok" && <p className="pb-warn" data-testid="pb-calendar">A visit moment reads the calendar: connect it in Settings › Business before a run can send.</p>}
         </section>
 
@@ -652,33 +685,45 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
   const wrongSlot = message ? pbWrongSlot(p, message.template) : null;
   const reach = pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting });
   const reachWords = pbReachWords(reach);
-  const reachDoor = pbReachDoor(reach);
+  // Everyone its moment names, as the tile reads it: whether anybody on it said the yes decides the door and the count.
+  const named = p.named || (trig && trig.named) || null;
+  const reachDoor = pbReachDoor(reach, named);
+  const noNumber = pbNoNumberWords(p, named);
+  // Not counted (the server's read failed): the sentence keeps what is known -- the moment, the clock, the next
+  // run -- and no count; the page says once, over the cards, that the counts could not be read.
+  const counted = named !== null && p.candidates !== null && p.held !== null;
+  // Said the moment the server takes it, from what it answered (`onAccepted`), not once the playbooks and the
+  // broadcasts are read again behind it; the card repaints from that re-read, and its buttons wait for it -- a Run
+  // now pressed twice before the first run's rows had landed would be two runs.
   const act = async (fn, said) => {
     if (!V || busy) return;
     setBusy(true);
-    const r = await fn();
+    let done = false;
+    const say = (d) => { done = true; flash({ tone: "ok", msg: said(d) }); };
+    const r = await fn({ onAccepted: say });
     setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? said(r.data) : <>{r.message}</> });
+    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
+    else if (!done) say(r.data);
   };
   const toggle = () => act(
-    () => (p.state === "paused" ? V.resume(p.id) : V.pause(p.id)),
+    (o) => (p.state === "paused" ? V.resume(p.id, o) : V.pause(p.id, o)),
     () => (p.state === "paused" ? <><b>{p.name}</b> resumed — next run {p.next === "paused" ? "at its hour" : p.next}</> : <><b>{p.name}</b> paused — nothing runs until you resume it</>),
   );
   const runNow = () => act(
-    () => V.runNow(p.id),
+    (o) => V.runNow(p.id, o),
     (d) => (d.outcome === "sent" ? <><b>{p.name}</b> — {pbPeople(d.eligible)}, {pbSentWhen(d)}</>
       : d.outcome === "held" ? <><b>{p.name}</b> — {pbPeople(d.eligible)} waiting for your approval</>
       : <><b>{p.name}</b> — nobody new to send to right now</>),
   );
   // The server may move the run to nine o'clock: the receipt says when it really goes (broadcasts-real.jsx bcWhenWords).
-  const approve = () => act(() => V.approveRun(waiting.id), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, {window.bcWhenWords ? window.bcWhenWords(d) : "sending now"}</>);
+  const approve = () => act((o) => V.approveRun(waiting.id, o), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, {window.bcWhenWords ? window.bcWhenWords(d) : "sending now"}</>);
   const skip = () => {
     setSkipSure(false);
-    return act(() => V.skipRun(waiting.id), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
+    return act((o) => V.skipRun(waiting.id, o), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
   };
   const remove = () => {
     setSure(false);
-    act(() => V.remove(p.id), () => <><b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers</>);
+    act((o) => V.remove(p.id, o), () => <><b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers</>);
   };
 
   // Inside a tile (PlaybookTile), the tile draws the name and the state; the
@@ -710,13 +755,18 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
                 in 30 days", "Only ever phoned, never texted" -- so "Goes to" in
                 front of it was broken English on five of the six triggers. It
                 leads, and the count follows it. */}
-            {p.triggerHint} &mdash;{" "}
-            <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
-              {pbPeople(p.candidates)} on the list said yes
-            </button>
-            {/* Why a list with people on it can still offer nobody: one message per
-                person per week, across playbooks. A bare "0 people" read as broken. */}
-            {p.held > 0 ? <>, and {pbPeople(p.held)} more heard from you this week and wait</> : null}. {p.schedule}.{" "}
+            {p.triggerHint}
+            {counted && (
+              <>
+                {" "}&mdash;{" "}
+                <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
+                  {noNumber || `${pbPeople(p.candidates)} on the list said yes`}
+                </button>
+                {/* Why a list with people on it can still offer nobody: one message per
+                    person per week, across playbooks. A bare "0 people" read as broken. */}
+                {p.held > 0 ? <>, and {pbPeople(p.held)} more heard from you this week and wait</> : null}
+              </>
+            )}. {p.schedule}.{" "}
             {/* "Next run paused" was the words when it is. */}
             {p.state === "paused"
               ? <>Paused &mdash; nothing runs until you resume it.</>
@@ -836,8 +886,11 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
   const [toastNode, flash] = window.usePPToast();
   // Who may start, change or run a playbook: the role store's answer, View-as included.
   const canAct = !!(window.canDo && window.canDo("approve"));
-  const [composing, setComposing] = React.useState(false);
-  const [editing, setEditing] = React.useState(null);
+  // A playbook half-written when the page was left opens again as the page does: the tab kept its words
+  // (useUnsavedWork), a new one under "new" and a change under the playbook's id.
+  const draftOf = (key) => !!(window.tabDraft && window.tabDraft("playbook", key));
+  const [composing, setComposing] = React.useState(() => draftOf("new"));
+  const [editing, setEditing] = React.useState(() => (data.rows || PB_NONE).find((p) => draftOf(p.id)) || null);
   // The moment an empty slot was pressed for, so the composer opens on it rather
   // than on whichever trigger happens to be first.
   const [slot, setSlot] = React.useState(null);
@@ -932,6 +985,11 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
         {rows.length > 0 && data.templates === null && (
           <FailedRead kind="line" what="your templates" body="The cards show what they send once they read. Everything else here is current." surface="playbooks" testid="pb-cards-templates-failed" />
         )}
+        {/* The server could not count who a moment reaches: said once, here, and no card draws a zero it never
+            counted -- it drew "0 of 0", "nobody to send to" and the QR over a People read that failed. */}
+        {tiles.length > 0 && data.countsRead === false && (
+          <FailedRead kind="line" what="who each moment reaches" body="The cards show who they reach once it reads. Everything else here is current." surface="playbooks" testid="pb-counts-failed" />
+        )}
         {tiles.length > 0 && (
           <div className="pb-grid">
             {tiles.map((x) => (x.p
@@ -994,6 +1052,7 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
 };
 
 window.PlaybookCard = PlaybookCard; // drawn on its own by confirm.test.mjs (the delete that was two clicks on one button)
+window.PlaybookComposer = PlaybookComposer; // and by campaigns-drafts.test.mjs (a slot pressed over a draft: the stub cannot remount on a key)
 window.OutboundPage = (props) => {
   const Seed = window.OutboundSeed;
   if (window.__PLAYBOOKS) return <PlaybooksReal {...props} />;

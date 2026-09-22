@@ -34,8 +34,8 @@ An email arrives at `apps/edge/api/resend-webhook.ts`, is judged by
 `email_ingest` job, and is taken in by `ingestEmail`
 (`packages/core/src/messages/email-ingest.ts:93`) through the handler at
 `packages/jobs/src/handlers.ts:333`. The verb's own header says why it stops
-there: *"It never answers: until the receptionist drafts email replies, every
-email from a person is a person's to answer"* (`email-ingest.ts:8-10`). It
+there: _"It never answers: until the receptionist drafts email replies, every
+email from a person is a person's to answer"_ (`email-ingest.ts:8-10`). It
 flags the thread `email_review` and tells the workspace (`:126-143`).
 
 That verb is the house pattern at its best: named ports (`:48`), named
@@ -44,17 +44,17 @@ the tables. It is the shape the inbound pipeline should grow into.
 
 ### The unions, measured — four, not three
 
-| Where | Union |
-|---|---|
-| `apps/edge/lib/whatsapp/inbound.ts:66` | `"whatsapp" \| "sms"` |
-| `apps/edge/lib/whatsapp/persist.ts:86`, `:118`, `:173` | `"whatsapp" \| "sms"` |
-| `apps/edge/lib/draft-queue.ts:34` | `"whatsapp" \| "sms"` |
-| `apps/edge/lib/unfinished.ts:58` | `INLINE_INTAKE = ["whatsapp", "sms"]` |
+| Where                                                  | Union                                 |
+| ------------------------------------------------------ | ------------------------------------- |
+| `apps/edge/lib/whatsapp/inbound.ts:66`                 | `"whatsapp" \| "sms"`                 |
+| `apps/edge/lib/whatsapp/persist.ts:86`, `:118`, `:173` | `"whatsapp" \| "sms"`                 |
+| `apps/edge/lib/draft-queue.ts:34`                      | `"whatsapp" \| "sms"`                 |
+| `apps/edge/lib/unfinished.ts:58`                       | `INLINE_INTAKE = ["whatsapp", "sms"]` |
 
 The fourth is the deadman sweep's, and its comment states the rule this design
-must obey: *"A new channel is excluded by construction, which is the safe
+must obey: _"A new channel is excluded by construction, which is the safe
 direction: a channel is added here only once somebody decides this sweep owns
-it"* (`unfinished.ts:55-57`). Against them, `packages/core/src/deliver.ts` is
+it"_ (`unfinished.ts:55-57`). Against them, `packages/core/src/deliver.ts` is
 already channel-neutral: `Channel` (`:36`) is `"whatsapp" | "sms" | "email"`,
 `Sender` (`:71`) owns its own address format, and `Wire` (`:79`) is
 three-valued — absent, null, or a function. The way **out** is solved; the way
@@ -63,8 +63,8 @@ three-valued — absent, null, or a function. The way **out** is solved; the way
 ### The thread's reply window is a WhatsApp column
 
 `conversations.last_wa_inbound_at` is declared at
-`supabase/migrations/00002_conversations.sql:74`, commented *"THE 24h
-template-window source (WhatsApp customer-inbound only)"*. It is written in
+`supabase/migrations/00002_conversations.sql:74`, commented _"THE 24h
+template-window source (WhatsApp customer-inbound only)"_. It is written in
 exactly one place, and only for one channel: the current `ingest_inbound`
 (`supabase/migrations/00110_a_texted_answer_keeps_its_evidence.sql:237-245`)
 guards the update with `if p_channel = 'whatsapp' then`.
@@ -79,14 +79,14 @@ and 4 tooling scripts.
 `packages/contracts/src/policy.ts:153-160` already takes the reply channel and
 answers `{ open: true, closesAtIso: null }` for `"sms"` and `"email"`, falling
 through to `waWindow` over `last_wa_inbound_at` otherwise. WhatsApp-only are
-the *window* and the *column it reads*. The function is the right seam and
+the _window_ and the _column it reads_. The function is the right seam and
 needs no new caller — it needs a different fact underneath it.
 
 ### The doors, the frozen contract and the rest of the seams
 
 `apps/edge/api/whatsapp.ts` declares its contract in its header:
-*"process-then-200 in-invocation under maxDuration 60; Meta retries + dedupe
-make replays safe"* (`:15-17`). The observable rule is two lines: `if
+_"process-then-200 in-invocation under maxDuration 60; Meta retries + dedupe
+make replays safe"_ (`:15-17`). The observable rule is two lines: `if
 (unrecorded > 0) return json(503, ...)` (`:240`) else `json(200, { ok: true })`
 (`:241`). `tooling/scripts/golden-edge.mjs:62-103` pins the handshake, the two
 401s, a signed status payload, a dropped non-allowlisted text and raw-byte HMAC
@@ -127,7 +127,7 @@ whose sender verification we do not control, which is what
 `email-ingest.ts:10-11` reserves.
 
 The reply window stops being a column and becomes a per-channel policy. The
-fact the policy needs is "when did this person last write on *this* wire",
+fact the policy needs is "when did this person last write on _this_ wire",
 which `messages` already holds. The column stays, written as it is, until every
 reader is off it.
 
@@ -238,23 +238,23 @@ must be correct whichever goes first.
 into `packages/core/src/inbound/answer.ts` behind the existing `InboundPorts`,
 leaving `apps/edge/lib/whatsapp/inbound.ts` a shim with the same export and
 signature. No line of `apps/edge/api/whatsapp.ts` changes, so
-`golden-edge.mjs:62-103` sees the same surface. *Both orders:* the dashboard
+`golden-edge.mjs:62-103` sees the same surface. _Both orders:_ the dashboard
 does not import this path, and the edge carries its own committed `dist`.
 
 **2 · `InboundMessage` beside `WaRawMessage`.** Add the type and
 `inboundFromWhatsapp` / `inboundFromSms`; the pipeline accepts either shape for
-one release, converting at the boundary. Delete nothing. *Both orders:* a new
+one release, converting at the boundary. Delete nothing. _Both orders:_ a new
 exported type changes no wire and no row.
 
 **3 · The doors become adapters.** `apps/edge/api/inbound-sms.ts` calls
 `inboundFromSms` and stops passing `{}` as a Meta envelope;
 `apps/edge/api/whatsapp.ts` calls `inboundFromWhatsapp` inside its existing
 per-message `try`, keeping the `IngestFailed` count and the 503 (`:217`).
-*Both orders:* the dashboard is not involved.
+_Both orders:_ the dashboard is not involved.
 
 **4 · The per-channel row.** Ship the migration and have `ingest_inbound` write
 `conversation_channel_state` **in addition to** `last_wa_inbound_at`. Nothing
-reads it yet. *Both orders:* both apps ignore a table they have never heard of,
+reads it yet. _Both orders:_ both apps ignore a table they have never heard of,
 and the column they do read keeps its old value and its old writer. This is the
 step that makes the column change safe in either direction, and the reason the
 column is not dropped here.
@@ -263,7 +263,7 @@ column is not dropped here.
 `packages/contracts/src/viewmodels.ts:695`, `packages/contracts/src/people.ts`
 (`:815`, `:1479`) and `apps/dashboard/src/server/ask/proposals.ts:200` read the
 new fact through one accessor; `replyWindow`'s signature does not change.
-*Both orders:* an older edge still writes both facts, an older dashboard still
+_Both orders:_ an older edge still writes both facts, an older dashboard still
 reads the column, and the column is still written.
 
 **6 · Email joins the pipeline in draft mode.** `ingestEmail` keeps its replay
@@ -303,6 +303,7 @@ so after step 1 they run the **core** verb with the same fakes: the import
 moves, the assertions do not.
 
 **New.**
+
 - `inbound-shape.test.mjs`: `inboundFromWhatsapp` and `inboundFromSms` produce
   the same `InboundMessage` for the same words, and an SMS carries no `waId`.
 - `reply-window.test.mjs` gains a case per channel against the new table, its
@@ -317,7 +318,7 @@ moves, the assertions do not.
 - **The live line.** Step 1 is a pure move and the only step that touches the
   hot path; it ships alone, with `inbound-executed`'s 26 cases green.
 - **The frozen contract.** Meta App Review pinned `process-then-200`. A step
-  that changes *when* the door answers, not only what it answers, is out of
+  that changes _when_ the door answers, not only what it answers, is out of
   scope here.
 - **A missed auto-reply beats a double text** (`inbound.ts:231`). Email's
   intake resumes; WhatsApp's skips. Step 6 puts them in one pipeline, and the
@@ -335,8 +336,8 @@ moves, the assertions do not.
    at first — `mayAutoSend: false`. `mailboxes.reply_mode` already permits
    `'veto'` and `'auto'`. Should a business be able to turn it up, and what
    proves the sender is who they say they are before we do?
-2. **What does the deadman sweep say about an email?** Its words today — *"The
-   receptionist never answered this"* (`unfinished.ts:143`) — are wrong for a
+2. **What does the deadman sweep say about an email?** Its words today — _"The
+   receptionist never answered this"_ (`unfinished.ts:143`) — are wrong for a
    channel not meant to answer. Should the sweep own email at all, or is the
    mailbox's own health the only watch?
 3. **Is a DM the same person as a phone number?** `conversations` is

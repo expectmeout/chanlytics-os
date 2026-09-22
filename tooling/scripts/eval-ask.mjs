@@ -25,11 +25,17 @@ const file = process.argv[2] || "tooling/evals/ask-cases.json";
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 
 if (!URL_ || !KEY || !ANON || !EMAIL) {
-  console.error("NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY and E2E_USER_EMAIL are required");
+  console.error(
+    "NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY and E2E_USER_EMAIL are required",
+  );
   process.exit(2);
 }
 
-const WRITE_CLAIMS = [/\bI (have )?(sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted)\b/i, /\bhe (enviado|cambiado|actualizado|cerrado)\b/i, /\bdone[,.!]/i];
+const WRITE_CLAIMS = [
+  /\bI (have )?(sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted)\b/i,
+  /\bhe (enviado|cambiado|actualizado|cerrado)\b/i,
+  /\bdone[,.!]/i,
+];
 
 /* ---- a session, the way the e2e suite mints one ---- */
 async function mint() {
@@ -55,7 +61,13 @@ async function mint() {
 function cookieHeader(session) {
   const ref = new URL(URL_).hostname.split(".")[0];
   const key = `sb-${ref}-auth-token`;
-  const value = "base64-" + Buffer.from(JSON.stringify(session), "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const value =
+    "base64-" +
+    Buffer.from(JSON.stringify(session), "utf8")
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
   const MAX = 3180;
   if (value.length <= MAX) return `${key}=${value}`;
   const parts = [];
@@ -90,7 +102,13 @@ async function ask(cookie, text) {
   if (carry.trim()) events.push(JSON.parse(carry));
   const final = events.find((e) => e.t === "final");
   const thread = events.find((e) => e.t === "thread");
-  return { events, final: final?.message ?? null, threadId: thread?.id ?? null, ms: Date.now() - t0, deltas: events.filter((e) => e.t === "delta").length };
+  return {
+    events,
+    final: final?.message ?? null,
+    threadId: thread?.id ?? null,
+    ms: Date.now() - t0,
+    deltas: events.filter((e) => e.t === "delta").length,
+  };
 }
 
 /* ---- the judge ---- */
@@ -105,21 +123,41 @@ export function judge(c, r) {
   // every turn as the snapshot, so a case that named them is satisfied by an
   // answer that needed no read at all.
   const OVERVIEW = ["get_today", "list_threads", "list_calls"];
-  const fromSnapshot = e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t)) && !m.tools.some((t) => OVERVIEW.includes(t));
-  if (e.tools_any && !fromSnapshot && !e.tools_any.some((t) => m.tools.includes(t))) fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
-  if (m.failed && /daily budget|presupuesto diario/.test(text)) fails.push("BUDGET: the workspace's Ask cap is spent; this result says nothing about the model");
-  if (e.tools_also_any && !e.tools_also_any.some((t) => m.tools.includes(t))) fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_also_any.join("/")}`);
+  const fromSnapshot =
+    e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t)) && !m.tools.some((t) => OVERVIEW.includes(t));
+  if (e.tools_any && !fromSnapshot && !e.tools_any.some((t) => m.tools.includes(t)))
+    fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
+  if (m.failed && /daily budget|presupuesto diario/.test(text))
+    fails.push("BUDGET: the workspace's Ask cap is spent; this result says nothing about the model");
+  if (e.tools_also_any && !e.tools_also_any.some((t) => m.tools.includes(t)))
+    fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_also_any.join("/")}`);
   if (e.language && m.language !== e.language) fails.push(`language ${m.language} ≠ ${e.language}`);
-  if (e.no_write && WRITE_CLAIMS.some((re) => re.test(text))) fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
-  if (e.includes_any && !e.includes_any.some((s) => text.toLowerCase().includes(s.toLowerCase()))) fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
-  for (const s of e.excludes ?? []) if (text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer contains “${s}”`);
-  if (e.no_invented_citations && m.citations.some((x) => x.kind !== "page" && !/^[0-9a-f-]{36}$/.test(x.id))) fails.push("a citation with an id no tool could have returned");
+  if (e.no_write && WRITE_CLAIMS.some((re) => re.test(text)))
+    fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
+  if (e.includes_any && !e.includes_any.some((s) => text.toLowerCase().includes(s.toLowerCase())))
+    fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
+  for (const s of e.excludes ?? [])
+    if (text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer contains “${s}”`);
+  if (e.no_invented_citations && m.citations.some((x) => x.kind !== "page" && !/^[0-9a-f-]{36}$/.test(x.id)))
+    fails.push("a citation with an id no tool could have returned");
   const kinds = (m.proposals ?? []).map((p) => p.kind);
-  if (e.proposals_any && !e.proposals_any.some((k) => kinds.includes(k))) fails.push(`proposals ${JSON.stringify(kinds)} include none of ${e.proposals_any.join("/")}`);
-  if (e.proposals_any_or_says && !e.proposals_any_or_says.some((k) => kinds.includes(k)) && !/card|propos|approve|Inbox|thread/i.test(text)) fails.push("neither a card nor a pointer to where to do it");
+  if (e.proposals_any && !e.proposals_any.some((k) => kinds.includes(k)))
+    fails.push(`proposals ${JSON.stringify(kinds)} include none of ${e.proposals_any.join("/")}`);
+  if (
+    e.proposals_any_or_says &&
+    !e.proposals_any_or_says.some((k) => kinds.includes(k)) &&
+    !/card|propos|approve|Inbox|thread/i.test(text)
+  )
+    fails.push("neither a card nor a pointer to where to do it");
   if (e.proposals_none && kinds.length) fails.push(`no card expected, got ${JSON.stringify(kinds)}`);
-  if (e.navigate_now && !(m.navigate && m.navigate.now && m.navigate.to)) fails.push(`expected the app to go there; navigate=${JSON.stringify(m.navigate)}`);
-  if (e.cites_or_says_nothing && m.citations.length === 0 && !/nobody|no one|nothing|none|nadie|nada|ning[uú]n/i.test(text)) fails.push("no citation and no statement that there was nothing");
+  if (e.navigate_now && !(m.navigate && m.navigate.now && m.navigate.to))
+    fails.push(`expected the app to go there; navigate=${JSON.stringify(m.navigate)}`);
+  if (
+    e.cites_or_says_nothing &&
+    m.citations.length === 0 &&
+    !/nobody|no one|nothing|none|nadie|nada|ning[uú]n/i.test(text)
+  )
+    fails.push("no citation and no statement that there was nothing");
   if (m.ungrounded) fails.push("the answer was marked ungrounded (a figure with no read behind it)");
   return { pass: fails.length === 0, fails };
 }
@@ -136,15 +174,36 @@ for (const c of cases) {
     r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, deltas: 0 };
   }
   const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"] };
-  results.push({ id: c.id, text: c.text, answer: r.final?.text ?? null, rounds: r.final?.rounds ?? null, tools: r.final?.tools ?? [], proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })), citations: r.final?.citations ?? [], language: r.final?.language ?? null, latency_ms: r.final?.latencyMs ?? r.ms, deltas: r.deltas, threadId: r.threadId ?? null, ...j });
-  process.stderr.write(`${j.pass ? "PASS" : "FAIL"} ${c.id} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`);
+  results.push({
+    id: c.id,
+    text: c.text,
+    answer: r.final?.text ?? null,
+    rounds: r.final?.rounds ?? null,
+    tools: r.final?.tools ?? [],
+    proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })),
+    citations: r.final?.citations ?? [],
+    language: r.final?.language ?? null,
+    latency_ms: r.final?.latencyMs ?? r.ms,
+    deltas: r.deltas,
+    threadId: r.threadId ?? null,
+    ...j,
+  });
+  process.stderr.write(
+    `${j.pass ? "PASS" : "FAIL"} ${c.id} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`,
+  );
 }
 const passed = results.filter((r) => r.pass).length;
-const lat = results.map((r) => r.latency_ms).filter((n) => typeof n === "number" && n > 0).sort((a, b) => a - b);
+const lat = results
+  .map((r) => r.latency_ms)
+  .filter((n) => typeof n === "number" && n > 0)
+  .sort((a, b) => a - b);
 const median = lat.length ? lat[Math.floor(lat.length / 2)] : 0;
 const oneRound = results.filter((r) => r.rounds === 1).length;
-console.log(`\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}`);
-for (const r of results) console.log(`- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}`);
+console.log(
+  `\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}`,
+);
+for (const r of results)
+  console.log(`- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}`);
 mkdirSync("tooling/backups", { recursive: true });
 const out = `tooling/backups/eval-ask-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
 writeFileSync(out, JSON.stringify({ base: BASE, file, at: new Date().toISOString(), results }, null, 2));

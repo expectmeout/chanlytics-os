@@ -33,10 +33,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  mayMessageFor, purposeOfTemplate, purposeOfPlaybook, isOptedOutContact,
-  optInPurposeOf, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OPT_IN_PATTERN,
-  PURPOSE_REFUSALS, HELD_REASONS, consentPageVM, CONSENT_PHRASE, CONVERSATION_PHRASE,
-  PEOPLE_LISTS, peopleListAction,
+  mayMessageFor,
+  purposeOfTemplate,
+  purposeOfPlaybook,
+  isOptedOutContact,
+  optInPurposeOf,
+  MARKETING_OPT_IN_PATTERN,
+  CONVERSATION_OPT_IN_PATTERN,
+  OPT_IN_PATTERN,
+  PURPOSE_REFUSALS,
+  HELD_REASONS,
+  consentPageVM,
+  CONSENT_PHRASE,
+  CONVERSATION_PHRASE,
+  PEOPLE_LISTS,
+  peopleListAction,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
@@ -136,8 +147,15 @@ test("what a message IS comes from what was already recorded, and NULL means mar
 });
 
 test("the page asks twice, and neither ask claims the other's messages", () => {
-  const vm = consentPageVM({ businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: "+13055550100" });
-  assert.deepEqual(vm.asks.map((a) => a.purpose), ["conversational", "marketing"]);
+  const vm = consentPageVM({
+    businessName: "Melany's Beauty Salon",
+    whatsappE164: "+19177724072",
+    smsE164: "+13055550100",
+  });
+  assert.deepEqual(
+    vm.asks.map((a) => a.purpose),
+    ["conversational", "marketing"],
+  );
   const [visit, offers] = vm.asks;
   assert.equal(visit.ways[0].phrase, CONVERSATION_PHRASE);
   assert.equal(offers.ways[0].phrase, CONSENT_PHRASE);
@@ -153,17 +171,30 @@ test("the database records the two answers apart, and neither writer reaches acr
   // `dnc` is the all-traffic stop and this door must never set it: saying no to
   // offers is not a request to stop hearing about your own appointment.
   const fn = m.slice(m.indexOf("create or replace function public.set_marketing_consent"));
-  assert.ok(!/set\s+dnc|dnc\s*=/.test(fn.slice(0, fn.indexOf("$$;"))), "REGRESSION: the offers door touching the all-traffic stop");
+  assert.ok(
+    !/set\s+dnc|dnc\s*=/.test(fn.slice(0, fn.indexOf("$$;"))),
+    "REGRESSION: the offers door touching the all-traffic stop",
+  );
   assert.match(fn, /'purpose', 'marketing'/, "the ledger says which question was answered");
-  assert.match(m, /revoke execute on function public\.set_marketing_consent\(uuid, uuid, text, text, text\) from public, anon;/);
+  assert.match(
+    m,
+    /revoke execute on function public\.set_marketing_consent\(uuid, uuid, text, text, text\) from public, anon;/,
+  );
 
   // The hot path is NOT recreated to add a column. ingest_inbound handles every
   // inbound message in the product; the marketing answer is a second call.
   assert.ok(!/create or replace function public\.ingest_inbound/.test(m), "REGRESSION: surgery on the hot path");
   const repo = readCode("packages/db/src/repositories/ingest.ts");
   assert.match(repo, /rpc\("set_marketing_consent"/);
-  assert.ok(repo.indexOf('rpc("ingest_inbound"') < repo.indexOf('rpc("set_marketing_consent"'), "after the ingest, using the contact it returned");
-  assert.match(repo, /marketing_consent_write_failed/, "and a failure is loud rather than fatal: the customer has already been answered");
+  assert.ok(
+    repo.indexOf('rpc("ingest_inbound"') < repo.indexOf('rpc("set_marketing_consent"'),
+    "after the ingest, using the contact it returned",
+  );
+  assert.match(
+    repo,
+    /marketing_consent_write_failed/,
+    "and a failure is loud rather than fatal: the customer has already been answered",
+  );
 
   // people_list carries both, or no page can compute an audience.
   const pl = readRaw("supabase/migrations/00096_people_carry_both_answers.sql");
@@ -205,26 +236,60 @@ test("the message flow filed with the carriers describes one program, every way 
   // and what action confirms it. Three ways in, one program, and all of them here.
   assert.match(flow, /for one program/);
   assert.match(flow, /No promotional messages are sent under this campaign/);
-  assert.ok(flow.includes(`(1) KEYWORD START on the sign-up page (${FILED.optInUrl})`), "the page, at the URL a reviewer opens");
-  assert.ok(flow.includes(`(2) PAPER FORM (${FILED.optInUrl}/form)`), "and the paper form, at one too: a reviewer can only accept a form they can see");
+  assert.ok(
+    flow.includes(`(1) KEYWORD START on the sign-up page (${FILED.optInUrl})`),
+    "the page, at the URL a reviewer opens",
+  );
+  assert.ok(
+    flow.includes(`(2) PAPER FORM (${FILED.optInUrl}/form)`),
+    "and the paper form, at one too: a reviewer can only accept a form they can see",
+  );
   assert.match(flow, /\(3\) IN PERSON OR ON THE PHONE: staff ask "/, "the spoken way, named as a method");
   // A keyword method quotes its auto-reply (30917: "auto-reply confirmation
   // message including brand name and opt-out instructions") -- the same words
   // the campaign files as its opt-in message and the receptionist sends.
-  assert.ok(flow.includes(`receives the auto-reply "${optInMessage}"`), "the auto-reply, verbatim, from the filed opt-in message");
+  assert.ok(
+    flow.includes(`receives the auto-reply "${optInMessage}"`),
+    "the auto-reply, verbatim, from the filed opt-in message",
+  );
   assert.equal(optInMessage, optInConfirmation(FILED.businessName, "conversational"));
   // A spoken yes is described by its exact script (30896), the one the desk is
   // shown; and it is never a yes to offers.
-  assert.ok(flow.includes(`staff ask "${verbalOptInScript(FILED.businessName)}"`), "the script, verbatim, from contracts");
-  assert.match(flow, /record a yes on the profile as "In person" or "On the phone" with the date and who heard it; a spoken yes is never used for promotions/);
+  assert.ok(
+    flow.includes(`staff ask "${verbalOptInScript(FILED.businessName)}"`),
+    "the script, verbatim, from contracts",
+  );
+  assert.match(
+    flow,
+    /record a yes on the profile as "In person" or "On the phone" with the date and who heard it; a spoken yes is never used for promotions/,
+  );
   // The first-message case is said for what the product does: a reply in that
   // conversation, never enrolment (mayMessageFor: a proactive send needs a yes).
-  assert.match(flow, /A first text from a customer is answered in that conversation only and is not an opt-in; appointment messages go only to customers opted in by \(1\), \(2\) or \(3\)/);
-  assert.doesNotMatch(flow, /Every yes is confirmed|is consent to be answered|which staff record with the date/, "REGRESSION: claims the product does not keep -- only START is confirmed by a text, and a first message is answered, not enrolled");
+  assert.match(
+    flow,
+    /A first text from a customer is answered in that conversation only and is not an opt-in; appointment messages go only to customers opted in by \(1\), \(2\) or \(3\)/,
+  );
+  assert.doesNotMatch(
+    flow,
+    /Every yes is confirmed|is consent to be answered|which staff record with the date/,
+    "REGRESSION: claims the product does not keep -- only START is confirmed by a text, and a first message is answered, not enrolled",
+  );
   assert.ok(flow.includes("START"), "the keyword the product honours");
-  assert.doesNotMatch(flow, /YES OFFERS|offers and news|promotional offers/, "REGRESSION: a marketing consent described in an informational campaign's flow");
-  assert.match(flow, /It shows the number; the customer opts in by texting START to it from their own phone/, "a keyword opt-in needs where the number is seen and what the customer does (the reviewers' guide)");
-  assert.match(flow, /privacy policy and terms are linked on the page/, "30549, 30550: the links beside the call to action");
+  assert.doesNotMatch(
+    flow,
+    /YES OFFERS|offers and news|promotional offers/,
+    "REGRESSION: a marketing consent described in an informational campaign's flow",
+  );
+  assert.match(
+    flow,
+    /It shows the number; the customer opts in by texting START to it from their own phone/,
+    "a keyword opt-in needs where the number is seen and what the customer does (the reviewers' guide)",
+  );
+  assert.match(
+    flow,
+    /privacy policy and terms are linked on the page/,
+    "30549, 30550: the links beside the call to action",
+  );
   // Linked in the flow itself: 30909 wants the privacy policy and the terms in
   // the message flow, and 30908 says the policy must be "directly referenced" there.
   assert.ok(flow.includes(`Privacy policy: ${FILED.hostedUrl}.`), "the business's own privacy page");
@@ -232,7 +297,7 @@ test("the message flow filed with the carriers describes one program, every way 
   // The disclosures the carriers require, verbatim, at each call to action: the
   // page's statement and the spoken script (the auto-reply says "Msg & data").
   assert.equal((flow.match(/message and data rates may apply/gi) ?? []).length, 2);
-  assert.ok(!/standard rates/i.test(flow), "\"standard\" implies premium-rate messaging and is refused");
+  assert.ok(!/standard rates/i.test(flow), '"standard" implies premium-rate messaging and is refused');
   assert.match(flow, /reply HELP for help and STOP to stop/);
   // Twilio takes 40 to 2048 characters, and a long name on the longest slug a
   // workspace can mint has to fit, or the filing is refused before anyone reads it.
@@ -247,29 +312,64 @@ test("the message flow filed with the carriers describes one program, every way 
     hostedUrl: `https://app.chanlytics.com/b/${"a".repeat(63)}`,
   });
   assert.ok(long.messageFlow.length <= 2048, `${long.messageFlow.length} characters`);
-  assert.ok(long.messageFlow.includes("receives the filed opt-in message as the auto-reply"), "referred to, not quoted, when quoting would not fit");
+  assert.ok(
+    long.messageFlow.includes("receives the filed opt-in message as the auto-reply"),
+    "referred to, not quoted, when quoting would not fit",
+  );
   assert.ok(!long.messageFlow.includes(`auto-reply "`), "and not quoted as well");
-  assert.ok(long.messageFlow.includes(`staff ask "${verbalOptInScript(longName)}"`), "the script is quoted whatever the length: nothing else in the filing carries it");
-  for (const must of ["(1) KEYWORD START on the sign-up page (", "(2) PAPER FORM (", "(3) IN PERSON OR ON THE PHONE", "Privacy policy: https://", "Terms: https://"]) {
+  assert.ok(
+    long.messageFlow.includes(`staff ask "${verbalOptInScript(longName)}"`),
+    "the script is quoted whatever the length: nothing else in the filing carries it",
+  );
+  for (const must of [
+    "(1) KEYWORD START on the sign-up page (",
+    "(2) PAPER FORM (",
+    "(3) IN PERSON OR ON THE PHONE",
+    "Privacy policy: https://",
+    "Terms: https://",
+  ]) {
     assert.ok(long.messageFlow.includes(must), `every method and both links survive the short form: ${must}`);
   }
   assert.ok(flow.length >= 40);
 
   // The description: who sends, to whom and why -- what 30886 said was unclear,
   // and what was accepted on the fourth review.
-  assert.match(desc, /^Messages are sent by Melany's Beauty Salon \(Melany Beauty LLC\) to its own customers/, "the registered name beside the trade name, as the brand was vetted, in the reviewers' own register");
+  assert.match(
+    desc,
+    /^Messages are sent by Melany's Beauty Salon \(Melany Beauty LLC\) to its own customers/,
+    "the registered name beside the trade name, as the brand was vetted, in the reviewers' own register",
+  );
   assert.match(desc, /on Melany's Beauty Salon's own behalf/, "the business, not the software it sends with");
   assert.match(desc, /sent through the Chanlytics OS application/, "and the application layer named, as 30912 asks");
-  assert.match(desc, /wrote to Melany's Beauty Salon first, or who said yes on its sign-up page \(https:\/\/app\.chanlytics\.com\/yes\/melanys\) or its signed sign-up form/, "who the recipients are, and how they came");
+  assert.match(
+    desc,
+    /wrote to Melany's Beauty Salon first, or who said yes on its sign-up page \(https:\/\/app\.chanlytics\.com\/yes\/melanys\) or its signed sign-up form/,
+    "who the recipients are, and how they came",
+  );
   assert.match(desc, /No marketing or promotional content is sent from this number/);
-  assert.doesNotMatch(desc, /offers and news|separate written opt-in/, "REGRESSION: promotional content described in an informational campaign");
+  assert.doesNotMatch(
+    desc,
+    /offers and news|separate written opt-in/,
+    "REGRESSION: promotional content described in an informational campaign",
+  );
   // One business said twice is not two names.
   assert.doesNotMatch(campaignFactsFor({ ...FILED, legalName: "melany's beauty salon" }).description, /\(melany/i);
-  assert.match(campaignFactsFor({ ...FILED, legalName: null }).description, /^Messages are sent by Melany's Beauty Salon to its own customers/);
+  assert.match(
+    campaignFactsFor({ ...FILED, legalName: null }).description,
+    /^Messages are sent by Melany's Beauty Salon to its own customers/,
+  );
   // The two keywords still answer different questions on the wire, and only
   // the appointment one is the texting line's.
-  assert.equal(CONVERSATION_OPT_IN_PATTERN.test("YES OFFERS"), false, "the offers keyword opens nothing but offers -- which is what the wire reads now");
-  assert.equal(MARKETING_OPT_IN_PATTERN.test("START"), false, "but conversation never opens offers -- which is the direction 30913 is about");
+  assert.equal(
+    CONVERSATION_OPT_IN_PATTERN.test("YES OFFERS"),
+    false,
+    "the offers keyword opens nothing but offers -- which is what the wire reads now",
+  );
+  assert.equal(
+    MARKETING_OPT_IN_PATTERN.test("START"),
+    false,
+    "but conversation never opens offers -- which is the direction 30913 is about",
+  );
 });
 
 test("the confirmation filed for START confirms appointment texts, and only those", () => {
@@ -283,10 +383,18 @@ test("the confirmation filed for START confirms appointment texts, and only thos
   assert.deepEqual(optInKeywords, ["START", "UNSTOP", "RESUME"], "the keywords it confirms");
   assert.match(optInMessage, /^Melany's Beauty Salon: /, "whose texts, by the name the customer knows");
   assert.match(optInMessage, /appointments/);
-  assert.doesNotMatch(optInMessage, /offer|news|promot/i, "REGRESSION: the appointment keyword confirming a promotional subscription");
+  assert.doesNotMatch(
+    optInMessage,
+    /offer|news|promot/i,
+    "REGRESSION: the appointment keyword confirming a promotional subscription",
+  );
   assert.match(optInMessage, /Msg & data rates may apply/);
   assert.match(optInMessage, /Reply HELP for help, STOP to cancel/);
-  assert.equal(optInMessage, optInConfirmation("Melany's Beauty Salon", "conversational"), "the words the wire sends when START arrives");
+  assert.equal(
+    optInMessage,
+    optInConfirmation("Melany's Beauty Salon", "conversational"),
+    "the words the wire sends when START arrives",
+  );
 });
 
 test("the samples match what the filing declares about them, and none is a promotion", () => {
@@ -299,10 +407,16 @@ test("the samples match what the filing declares about them, and none is a promo
   assert.ok(samples.length >= 2 && samples.length <= 5, "Twilio takes two to five");
   assert.equal(samples.length, 4);
   assert.ok(all.includes(FILED.hostedUrl), "a link, because the filing declares links -- the business's own page");
-  assert.ok(all.includes(FILED.lineNumber), "a phone number, because the filing declares one -- and the WORKSPACE'S own");
+  assert.ok(
+    all.includes(FILED.lineNumber),
+    "a phone number, because the filing declares one -- and the WORKSPACE'S own",
+  );
   assert.doesNotMatch(all, /offer|promot|news/i, "REGRESSION: a promotional sample in an informational campaign");
   assert.match(all, /\[date\] at \[time\]/, "brackets mark what varies, as the guide asks");
-  assert.ok(samples.every((x) => x.includes("Melany's Beauty Salon")), "every sample names the brand");
+  assert.ok(
+    samples.every((x) => x.includes("Melany's Beauty Salon")),
+    "every sample names the brand",
+  );
   assert.ok(samples.filter((x) => /Reply STOP/.test(x)).length >= 1, "opt-out language in at least one");
   // And it invents nothing: not a discount, not the platform's own number.
   assert.ok(!/\d+% off/.test(all), "REGRESSION: a made-up discount in a sample sent to a regulator");
@@ -324,7 +438,10 @@ test("the resubmit sends everything Twilio will accept, and says what it will no
   for (const field of ["Description", "MessageFlow", "MessageSamples", "PrivacyPolicyUrl", "TermsAndConditionsUrl"]) {
     assert.ok(upd.includes(field), field);
   }
-  assert.ok(!/OptInMessage|OptInKeywords|UsAppToPersonUsecase|BrandRegistrationSid/.test(body), "sending a field Twilio refuses is a failed resubmit");
+  assert.ok(
+    !/OptInMessage|OptInKeywords|UsAppToPersonUsecase|BrandRegistrationSid/.test(body),
+    "sending a field Twilio refuses is a failed resubmit",
+  );
   // And the caller no longer computes four fields for them to be dropped
   // silently by a narrower parameter type.
   const edge = readCode("apps/edge/lib/a2p.ts");
@@ -383,29 +500,47 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   // The bulk sibling, because a signed-form yes usually arrives for a class at once.
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
   assert.match(bridge, /export async function setPersonMarketingConsentMany/);
-  assert.match(bridge, /const take = \[\.\.\.new Set\(ids\)\]\.slice\(0, 50\);/, "fifty at most, one refresh at the end");
+  assert.match(
+    bridge,
+    /const take = \[\.\.\.new Set\(ids\)\]\.slice\(0, 50\);/,
+    "fifty at most, one refresh at the end",
+  );
 });
 
-test("every read of \"said yes to offers\" points at the offers column", () => {
+test('every read of "said yes to offers" points at the offers column', () => {
   // Six of these were still on the old column after the split, and each one lied
   // in the same direction: it counted people who had said yes to SOMETHING and
   // called them a promotional audience.
   // Run, not read. Both lists answer with the broadcast's OWN rule, `mayReceive`:
   // the yes to offers AND a number. They spelled it by hand without the number, so
   // a list could promise people the route then left out.
-  const reachable = { id: "a", phone: "+13055550100", consent: { state: "opted_in", dnc: false, marketing: "opted_in" } };
+  const reachable = {
+    id: "a",
+    phone: "+13055550100",
+    consent: { state: "opted_in", dnc: false, marketing: "opted_in" },
+  };
   const noNumber = { id: "b", phone: null, consent: { state: "opted_in", dnc: false, marketing: "opted_in" } };
   const talkOnly = { id: "c", phone: "+13055550101", consent: { state: "opted_in", dnc: false, marketing: "unknown" } };
   const offersList = PEOPLE_LISTS.find((l) => l.id === "offers_ok");
-  assert.deepEqual([reachable, noNumber, talkOnly].filter(offersList.test).map((p) => p.id), ["a"]);
-  assert.match(peopleListAction("lapsed", [reachable, noNumber, talkOnly]).text, /^1 of 3 on this list said yes to offers/,
-    "the count under a list is the audience the route will enrol");
+  assert.deepEqual(
+    [reachable, noNumber, talkOnly].filter(offersList.test).map((p) => p.id),
+    ["a"],
+  );
+  assert.match(
+    peopleListAction("lapsed", [reachable, noNumber, talkOnly]).text,
+    /^1 of 3 on this list said yes to offers/,
+    "the count under a list is the audience the route will enrol",
+  );
   assert.equal(peopleListAction("lapsed", [noNumber, talkOnly]).enabled, false, "and nobody reachable means no button");
 
   const setup = readCode("packages/contracts/src/setup.ts");
   assert.match(setup, /const offers = i\.consent\.offers;/, "the Setup row reads the offers count");
   const server = readCode("apps/dashboard/src/server/setup.ts");
-  assert.match(server, /\.eq\("marketing_consent", "opted_in"\)\.eq\("dnc", false\)/, "and it is counted the way the reachable view counts it");
+  assert.match(
+    server,
+    /\.eq\("marketing_consent", "opted_in"\)\s*\.eq\("dnc", false\)/,
+    "and it is counted the way the reachable view counts it",
+  );
 
   const clients = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   assert.match(clients, /PL_OFFERS\[p\.consent\.marketing\]/, "the column titled Offers");

@@ -57,7 +57,10 @@ import { desiredVoiceShell, planVoiceConvergence, planAgentSettings, DEFAULT_FN_
 
 const KEY = process.env.RETELL_API_KEY;
 const AGENT_ID = process.env.VOICE_AGENT_ID;
-if (!KEY || !AGENT_ID) { console.error("RETELL_API_KEY and VOICE_AGENT_ID required"); process.exit(2); }
+if (!KEY || !AGENT_ID) {
+  console.error("RETELL_API_KEY and VOICE_AGENT_ID required");
+  process.exit(2);
+}
 const apply = process.argv.includes("--apply");
 const pin = process.argv.includes("--pin");
 const publish = process.argv.includes("--publish");
@@ -72,7 +75,10 @@ async function call(method, path, payload) {
     body: payload === undefined ? undefined : JSON.stringify(payload),
   });
   const text = await r.text();
-  if (!r.ok) { console.error(`${method} ${path} -> HTTP ${r.status}: ${text.slice(0, 400)}`); process.exit(1); }
+  if (!r.ok) {
+    console.error(`${method} ${path} -> HTTP ${r.status}: ${text.slice(0, 400)}`);
+    process.exit(1);
+  }
   return text ? JSON.parse(text) : null;
 }
 
@@ -81,7 +87,9 @@ async function call(method, path, payload) {
 const agent = await call("GET", `/get-agent/${AGENT_ID}`);
 const engine = agent.response_engine ?? {};
 if (engine.type !== "retell-llm" || !engine.llm_id) {
-  console.error(`agent ${AGENT_ID} is not on a Retell LLM (response_engine: ${JSON.stringify(engine)}); nothing to converge`);
+  console.error(
+    `agent ${AGENT_ID} is not on a Retell LLM (response_engine: ${JSON.stringify(engine)}); nothing to converge`,
+  );
   process.exit(1);
 }
 const llmPath = `/get-retell-llm/${engine.llm_id}${engine.version !== undefined && engine.version !== null ? `?version=${engine.version}` : ""}`;
@@ -109,37 +117,50 @@ console.log(`llm ${llm.llm_id} version ${llm.version} (${(llm.general_prompt ?? 
 // 3. The plan. The live booking tool's headers are carried over; a tool with
 //    none gets the env secret if given, and is otherwise reported.
 const liveBooking = (llm.general_tools ?? []).find((t) => t.name === "send_booking_link");
-const headers = liveBooking?.headers
-  ?? (process.env.RETELL_FN_SECRET ? { "x-fn-secret": process.env.RETELL_FN_SECRET } : null);
+const headers =
+  liveBooking?.headers ?? (process.env.RETELL_FN_SECRET ? { "x-fn-secret": process.env.RETELL_FN_SECRET } : null);
 const desired = desiredVoiceShell(process.env.VOICE_FN_URL || liveBooking?.url || DEFAULT_FN_URL, headers);
 const plan = planVoiceConvergence(llm, desired);
 
 console.log("\nplan:");
 if (!plan.drift.length) console.log("  converged — nothing to change");
 for (const line of plan.drift) console.log(`  - ${line}`);
-if (!headers) console.log("  ! send_booking_link will have NO x-fn-secret header — set RETELL_FN_SECRET or add it in Retell, or the edge refuses the tool");
-if (plan.llmPatch) console.log(`  PATCH /update-retell-llm/${llm.llm_id} with: ${Object.keys(plan.llmPatch).join(", ")}`);
+if (!headers)
+  console.log(
+    "  ! send_booking_link will have NO x-fn-secret header — set RETELL_FN_SECRET or add it in Retell, or the edge refuses the tool",
+  );
+if (plan.llmPatch)
+  console.log(`  PATCH /update-retell-llm/${llm.llm_id} with: ${Object.keys(plan.llmPatch).join(", ")}`);
 
 // The agent's own settings: the events, the webhook budget, signed links.
 const agentPlan = planAgentSettings(agent, retentionDays !== undefined ? { retentionDays } : {});
 console.log("\nagent settings:");
 if (!agentPlan.drift.length) console.log("  converged — nothing to change");
 for (const line of agentPlan.drift) console.log(`  - ${line}`);
-if (agentPlan.agentPatch) console.log(`  PATCH /update-agent/${agent.agent_id} with: ${Object.keys(agentPlan.agentPatch).join(", ")}`);
+if (agentPlan.agentPatch)
+  console.log(`  PATCH /update-agent/${agent.agent_id} with: ${Object.keys(agentPlan.agentPatch).join(", ")}`);
 if ((plan.llmPatch || agentPlan.agentPatch) && agent.is_published) {
-  console.log(`  v${agent.version} is published: the changes go on a NEW DRAFT first${publish ? ", then it is published" : " — add --publish to make them live on a pinned number"}`);
+  console.log(
+    `  v${agent.version} is published: the changes go on a NEW DRAFT first${publish ? ", then it is published" : " — add --publish to make them live on a pinned number"}`,
+  );
 }
 
 // The pin is a separate decision with its own guard.
 let numberPatch = null;
 if (pin) {
   if (!number) console.log("  ! --pin needs VOICE_NUMBER");
-  else if (!agent.is_published) console.log(`  ! refusing --pin: version ${agent.version} is not published — the line would switch back to the stale published version. Publish first (POST /publish-agent-version/${agent.agent_id}).`);
+  else if (!agent.is_published)
+    console.log(
+      `  ! refusing --pin: version ${agent.version} is not published — the line would switch back to the stale published version. Publish first (POST /publish-agent-version/${agent.agent_id}).`,
+    );
   else {
     const bound = (number.inbound_agents ?? []).find((a) => a.agent_id === agent.agent_id);
     if (bound?.agent_version === "latest_published") console.log("  number already pinned to latest_published");
     else numberPatch = { inbound_agents: [{ agent_id: agent.agent_id, agent_version: "latest_published", weight: 1 }] };
-    if (numberPatch) console.log(`  PATCH /update-phone-number/${number.phone_number} inbound_agents -> ${agent.agent_id} @ latest_published`);
+    if (numberPatch)
+      console.log(
+        `  PATCH /update-phone-number/${number.phone_number} inbound_agents -> ${agent.agent_id} @ latest_published`,
+      );
   }
 }
 
@@ -160,10 +181,16 @@ if (plan.llmPatch) {
   const after = await call("PATCH", `/update-retell-llm/${llm.llm_id}`, plan.llmPatch);
   console.log(`\nllm updated: version ${llm.version} -> ${after.version}`);
   if (after.version !== llm.version) {
-    console.log(`  ! Retell created a new LLM version. The agent's response_engine points at version ${engine.version ?? "latest"}; check /api/diag voiceAgents[].shell before trusting the line.`);
+    console.log(
+      `  ! Retell created a new LLM version. The agent's response_engine points at version ${engine.version ?? "latest"}; check /api/diag voiceAgents[].shell before trusting the line.`,
+    );
   }
   const again = planVoiceConvergence(after, desired);
-  console.log(again.drift.length ? `  ! still drifting: ${again.drift.join("; ")}` : "  converged (re-planned against the response)");
+  console.log(
+    again.drift.length
+      ? `  ! still drifting: ${again.drift.join("; ")}`
+      : "  converged (re-planned against the response)",
+  );
 } else {
   console.log("\nllm: nothing to apply");
 }
@@ -175,10 +202,15 @@ if (agentPlan.agentPatch) {
 }
 if (working.version !== agent.version) {
   if (publish) {
-    await call("POST", `/publish-agent-version/${agent.agent_id}`, { version: working.version, version_title: "converged by voice-converge" });
+    await call("POST", `/publish-agent-version/${agent.agent_id}`, {
+      version: working.version,
+      version_title: "converged by voice-converge",
+    });
     console.log(`published v${working.version}; a number pinned to latest_published follows it`);
   } else {
-    console.log(`\n! v${working.version} is a DRAFT: a pinned line stays on v${agent.version} until it is published (re-run with --publish).`);
+    console.log(
+      `\n! v${working.version} is a DRAFT: a pinned line stays on v${agent.version} until it is published (re-run with --publish).`,
+    );
   }
 }
 if (numberPatch) {

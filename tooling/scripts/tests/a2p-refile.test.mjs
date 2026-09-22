@@ -21,7 +21,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
 import { readCode, readRaw } from "./_source.mjs";
-import { unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign, filingProblems } from "../../../apps/edge/lib/a2p.ts";
+import {
+  unfileMockRegistration,
+  resubmitRejectedCampaign,
+  replaceRejectedCampaign,
+  filingProblems,
+} from "../../../apps/edge/lib/a2p.ts";
 import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
@@ -62,9 +67,15 @@ const RECORD = {
   legal_name: "Harbor Moving LLC",
   trade_name: "Harbor Moving",
   ein: "12-3456789",
-  street: "193 Jamaica Ave", city: "Brooklyn", region: "NY", postal_code: "11207", country: "US",
-  contact_first_name: "Ada", contact_last_name: "Lovelace",
-  contact_email: "ada@example.com", contact_phone: "+19175550123",
+  street: "193 Jamaica Ave",
+  city: "Brooklyn",
+  region: "NY",
+  postal_code: "11207",
+  country: "US",
+  contact_first_name: "Ada",
+  contact_last_name: "Lovelace",
+  contact_email: "ada@example.com",
+  contact_phone: "+19175550123",
 };
 const READY = { record: RECORD, workspaceName: "Harbor Moving" };
 /** The live campaign's own fault: the workspace and the record name two different businesses. */
@@ -91,13 +102,19 @@ test("a mock brand cannot be deleted, so the messaging profile is what changes",
   assert.ok(lines[0].profile_sid, "the customer profile is untouched -- it is the expensive half");
   const lib = readCode("apps/edge/lib/a2p.ts");
   assert.ok(lib.includes("a2p_profile_sid: null,"));
-  assert.ok(readRaw("apps/edge/lib/a2p.ts").includes("Duplicate Brand can not be saved"), "and says why, where the next person will look");
+  assert.ok(
+    readRaw("apps/edge/lib/a2p.ts").includes("Duplicate Brand can not be saved"),
+    "and says why, where the next person will look",
+  );
   // The campaign delete is the INSTANCE url. The collection answers 405, which
   // the first version swallowed as best-effort -- so the mock campaign stayed
   // on the service and the refile was refused a step later, about the brand.
   const chan = readCode("packages/channels/src/a2p.ts");
-  assert.ok(chan.includes("Compliance/Usa2p/${campaignSid}`, method: \"DELETE\""));
-  assert.ok(lib.includes("if (!gone) return { ok: false, error:"), "a campaign that will not come off stops the refile");
+  assert.ok(chan.includes('Compliance/Usa2p/${campaignSid}`, method: "DELETE"'));
+  assert.ok(
+    lib.includes("if (!gone) return { ok: false, error:"),
+    "a campaign that will not come off stops the refile",
+  );
 });
 
 test("the rehearsal comes off the row and the expensive receipts stay on it", async () => {
@@ -117,7 +134,13 @@ test("the rehearsal comes off the row and the expensive receipts stay on it", as
   // The whole reason this is a targeted clear rather than a reset: every one of
   // these was filed for real, costs a person's time to redo, and the saga skips
   // its step while the receipt is there.
-  for (const keep of ["profile_sid", "a2p_business_sid", "a2p_representative_sid", "a2p_address_sid", "a2p_document_sid"]) {
+  for (const keep of [
+    "profile_sid",
+    "a2p_business_sid",
+    "a2p_representative_sid",
+    "a2p_address_sid",
+    "a2p_document_sid",
+  ]) {
     assert.ok(row[keep], `${keep} survives a refile`);
   }
   assert.equal(row.a2p_primary_assigned, true);
@@ -195,7 +218,12 @@ test("a question we could not ask is never reported as an answer", () => {
   assert.ok(lib.includes("return { status: r.status, body:"), "the read carries the status");
   assert.ok(lib.includes("x.status === 401 || x.status === 403"), "and a refusal is recognised as one");
   assert.ok(lib.includes('error: "provider_unauthorized"'), "and reported as a refusal, not as a state");
-  assert.ok(!/const brandStatus = typeof brand\?\.status === "string" \? brand\.status : null;[\s\S]{0,40}const campaignStatus[\s\S]{0,80}campaign\?\.campaign_status/.test(lib), "REGRESSION: statuses read straight off a possibly-refused body");
+  assert.ok(
+    !/const brandStatus = typeof brand\?\.status === "string" \? brand\.status : null;[\s\S]{0,40}const campaignStatus[\s\S]{0,80}campaign\?\.campaign_status/.test(
+      lib,
+    ),
+    "REGRESSION: statuses read straight off a possibly-refused body",
+  );
 
   // The platform heals itself rather than waiting for somebody to paste a
   // secret: the parent account can read its own subaccounts' tokens, which is
@@ -205,15 +233,19 @@ test("a question we could not ask is never reported as an answer", () => {
   assert.ok(sms.includes("Accounts/${line.subaccount_sid}.json"), "read as the parent");
   assert.ok(sms.includes('db.rpc("put_line_credentials"'), "and written back through the one write path");
   assert.ok(lib.includes("const fresh = await refreshLineToken(db, line);"));
-  assert.ok(readRaw("apps/edge/lib/sms.ts").includes("the platform's own Twilio credentials were refused"),
-    "a master-credential fault is named as itself, so nobody is sent looking at the subaccount");
+  assert.ok(
+    readRaw("apps/edge/lib/sms.ts").includes("the platform's own Twilio credentials were refused"),
+    "a master-credential fault is named as itself, so nobody is sent looking at the subaccount",
+  );
 
   // And the sweep says so out loud. Every line unreadable is OUR fault, not a
   // quiet week, so it fails the request (503 no_registration_readable) and
   // sweep_health turns it red; some readable is still a 200, those rows carrying
   // their own reason. Run in cron-doors-b.test.mjs, heal included.
-  assert.ok(readRaw("supabase/migrations/00086_watch_every_sweep.sql").includes("('registration',  'registration-sweep'"),
-    "and something is watching this sweep to receive that 503");
+  assert.ok(
+    readRaw("supabase/migrations/00086_watch_every_sweep.sql").includes("('registration',  'registration-sweep'"),
+    "and something is watching this sweep to receive that 503",
+  );
 });
 
 test("a rejection is answered by CORRECTING the campaign, not paying for a new one", async () => {
@@ -229,10 +261,21 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   // for every workspace, on corrections that are usually one line of copy.
   const chan = readCode("packages/channels/src/a2p.ts");
   assert.ok(chan.includes("export function updateCampaignRequest("));
-  assert.ok(chan.includes("Compliance/Usa2p/${campaignSid}`, method: \"POST\""), "the INSTANCE url with POST is the edit");
+  assert.ok(
+    chan.includes('Compliance/Usa2p/${campaignSid}`, method: "POST"'),
+    "the INSTANCE url with POST is the edit",
+  );
   // All seven are required on every update, and the four booleans may not
   // change on a campaign TCR has approved, so they go back as they were sent.
-  for (const f of ["Description:", "MessageFlow:", "MessageSamples", "HasEmbeddedLinks:", "HasEmbeddedPhone:", "AgeGated:", "DirectLending:"]) {
+  for (const f of [
+    "Description:",
+    "MessageFlow:",
+    "MessageSamples",
+    "HasEmbeddedLinks:",
+    "HasEmbeddedPhone:",
+    "AgeGated:",
+    "DirectLending:",
+  ]) {
     assert.ok(chan.slice(chan.indexOf("export function updateCampaignRequest(")).includes(f), `the update sends ${f}`);
   }
   const lib = readCode("apps/edge/lib/a2p.ts");
@@ -242,10 +285,11 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   // The door's side is run in lines-door.test.mjs: `refile` on a rejected line
   // POSTs the INSTANCE url once, as the subaccount, with the workspace's
   // CURRENT name in the description, and asks the spend rule of nobody.
-  assert.ok(readRaw("apps/edge/lib/a2p.ts").includes("vetting fee is assessed only once per Campaign"),
-    "and the reason is quoted where the next person will change it back");
+  assert.ok(
+    readRaw("apps/edge/lib/a2p.ts").includes("vetting fee is assessed only once per Campaign"),
+    "and the reason is quoted where the next person will change it back",
+  );
 });
-
 
 test("EVERY door that talks to the carriers asks first, and a refusal reaches neither the vault nor the wire", async () => {
   // THE DEFECT, twice. Gate 8's pre-flight lived inside `registerLine`; the refile
@@ -264,19 +308,42 @@ test("EVERY door that talks to the carriers asks first, and a refusal reaches ne
   // nothing".)
   const reached = [];
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => { reached.push(`wire: ${url}`); throw new Error("a refused filing must not reach the provider"); };
-  const vault = { get_line_credentials: () => { reached.push("vault"); return { auth_token: "t" }; } };
+  globalThis.fetch = async (url) => {
+    reached.push(`wire: ${url}`);
+    throw new Error("a refused filing must not reach the provider");
+  };
+  const vault = {
+    get_line_credentials: () => {
+      reached.push("vault");
+      return { auth_token: "t" };
+    },
+  };
   try {
     // The refile door, on a campaign the carriers sent back.
     const reason = "30913: the message flow does not say how a customer agrees to offers";
-    const sentBack = mockFiled({ reg_mock: false, sms_state: "rejected", subaccount_sid: "ACsub", messaging_service_sid: "MG1", last_error: reason });
+    const sentBack = mockFiled({
+      reg_mock: false,
+      sms_state: "rejected",
+      subaccount_sid: "ACsub",
+      messaging_service_sid: "MG1",
+      last_error: reason,
+    });
     const rows = [{ ...sentBack }];
     const db = fakeDb({ lines: rows }, {}, vault);
-    const facts = { description: "d", messageFlow: "f", samples: ["a", "b"], privacyPolicyUrl: "https://x/privacy", termsUrl: "https://x/terms" };
+    const facts = {
+      description: "d",
+      messageFlow: "f",
+      samples: ["a", "b"],
+      privacyPolicyUrl: "https://x/privacy",
+      termsUrl: "https://x/terms",
+    };
     const again = await resubmitRejectedCampaign(db, sentBack, facts, MISNAMED);
     assert.equal(again.ok, false);
     assert.equal(again.error, "record_incomplete");
-    assert.ok(again.problems.some((p) => /Billing probe/.test(p)), "with the owner's sentence about what is wrong");
+    assert.ok(
+      again.problems.some((p) => /Billing probe/.test(p)),
+      "with the owner's sentence about what is wrong",
+    );
     // That row carries the CARRIERS' verdict and their words, and our own pre-check
     // must not overwrite the only record of what they said.
     assert.equal(rows[0].sms_state, "rejected");
@@ -312,11 +379,18 @@ test("the decider only reads: what a refusal means for the row is each door's to
   const db = fakeDb({ lines: rows });
   const problems = await filingProblems(db, rows[0], MISNAMED);
   assert.ok(problems.some((p) => /Billing probe/.test(p)));
-  assert.deepEqual(db.seen.map((q) => `${q.table}.${q.op}`), ["lines.select"], "one read, of the numbers that are ours");
+  assert.deepEqual(
+    db.seen.map((q) => `${q.table}.${q.op}`),
+    ["lines.select"],
+    "one read, of the numbers that are ours",
+  );
   assert.equal(rows[0].sms_state, "rejected");
   assert.equal(rows[0].last_error, "their words");
-  assert.deepEqual(await filingProblems(fakeDb({ lines: [mockFiled()] }), mockFiled(), READY), [],
-    "and a filing that would pass has nothing to say");
+  assert.deepEqual(
+    await filingProblems(fakeDb({ lines: [mockFiled()] }), mockFiled(), READY),
+    [],
+    "and a filing that would pass has nothing to say",
+  );
 });
 
 test("a rejection reaches every person who can act on it, in words about what happened", () => {
@@ -348,8 +422,11 @@ test("a rejection reaches every person who can act on it, in words about what ha
   assert.match(bridge, /Array\.isArray\(res\?\.problems\)/);
   assert.match(bridge, /if \(problems\.length\) return \{ ok: false, message: problems\.join\(" "\) \};/);
   const act = readCode("packages/contracts/src/platform.ts");
-  assert.match(act, /It refuses, with the reason, if the record or the workspace's name still would not pass review\./,
-    "the button says it refuses rather than that it sends whatever is there");
+  assert.match(
+    act,
+    /It refuses, with the reason, if the record or the workspace's name still would not pass review\./,
+    "the button says it refuses rather than that it sends whatever is there",
+  );
 });
 
 // A refile refused by the pre-flight is a 409 about this workspace, not a 502
@@ -357,7 +434,6 @@ test("a rejection reaches every person who can act on it, in words about what ha
 // help a name mismatch -- and "can anybody say yes" is read once, above the
 // branch, for both ways out. Run in lines-door.test.mjs on every door to the
 // carriers: resubmit, replace, rehearsal made real, and the first filing.
-
 
 /* -------------------------------------------------------------------------- *
  * The replacement: a new campaign for a refusal an edit cannot reach.
@@ -371,19 +447,40 @@ test("a refused campaign is replaced by name: deleted at the carrier, its receip
   // name and run here.
   const calls = [];
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => { calls.push({ url: String(url), method: init?.method }); return new Response(null, { status: 204 }); };
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method });
+    return new Response(null, { status: 204 });
+  };
   const vault = { get_line_credentials: () => ({ auth_token: "t" }) };
   try {
-    const refused = mockFiled({ reg_mock: false, sms_state: "rejected", subaccount_sid: "ACsub", messaging_service_sid: "MG1", last_error: "their words", reg_step: null });
+    const refused = mockFiled({
+      reg_mock: false,
+      sms_state: "rejected",
+      subaccount_sid: "ACsub",
+      messaging_service_sid: "MG1",
+      last_error: "their words",
+      reg_step: null,
+    });
     const rows = [{ ...refused }];
     const db = fakeDb({ lines: rows }, {}, vault);
     const r = await replaceRejectedCampaign(db, refused, READY);
     assert.equal(r.ok, true, r.error);
-    assert.deepEqual(calls.map((c) => c.method), ["DELETE"], "one call: the campaign comes off");
-    assert.ok(calls[0].url.endsWith(`/Services/MG1/Compliance/Usa2p/${refused.campaign_sid}`), "the INSTANCE url, which answers 204");
+    assert.deepEqual(
+      calls.map((c) => c.method),
+      ["DELETE"],
+      "one call: the campaign comes off",
+    );
+    assert.ok(
+      calls[0].url.endsWith(`/Services/MG1/Compliance/Usa2p/${refused.campaign_sid}`),
+      "the INSTANCE url, which answers 204",
+    );
     const row = rows[0];
     assert.equal(row.campaign_sid, null, "the campaign's receipt is gone, so the saga files a new one");
-    assert.equal(row.brand_sid, refused.brand_sid, "the brand stays: approved on its own, and it cannot be deleted anyway");
+    assert.equal(
+      row.brand_sid,
+      refused.brand_sid,
+      "the brand stays: approved on its own, and it cannot be deleted anyway",
+    );
     assert.equal(row.profile_sid, refused.profile_sid, "and so does the expensive half");
     assert.equal(row.sms_state, "registering");
     assert.equal(row.last_error, null, "the refusal answered is not the next filing's");
@@ -397,12 +494,25 @@ test("a refused campaign is replaced by name: deleted at the carrier, its receip
 test("only a REFUSED campaign is replaceable, only after the pre-flight, and a refusal reaches neither the vault nor the wire", async () => {
   const reached = [];
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => { reached.push(`wire: ${url}`); throw new Error("a refused replacement must not reach the provider"); };
-  const vault = { get_line_credentials: () => { reached.push("vault"); return { auth_token: "t" }; } };
+  globalThis.fetch = async (url) => {
+    reached.push(`wire: ${url}`);
+    throw new Error("a refused replacement must not reach the provider");
+  };
+  const vault = {
+    get_line_credentials: () => {
+      reached.push("vault");
+      return { auth_token: "t" };
+    },
+  };
   try {
     // A campaign that STANDS was paid for and vetted; the route refuses before
     // here, and so does this, in case a caller does not.
-    const standing = mockFiled({ reg_mock: false, sms_state: "active", subaccount_sid: "ACsub", messaging_service_sid: "MG1" });
+    const standing = mockFiled({
+      reg_mock: false,
+      sms_state: "active",
+      subaccount_sid: "ACsub",
+      messaging_service_sid: "MG1",
+    });
     const rows = [{ ...standing }];
     const r = await replaceRejectedCampaign(fakeDb({ lines: rows }, {}, vault), standing, READY);
     assert.equal(r.ok, false);
@@ -410,14 +520,27 @@ test("only a REFUSED campaign is replaceable, only after the pre-flight, and a r
     assert.equal(rows[0].campaign_sid, standing.campaign_sid, "untouched");
 
     // The same check every door makes, before anything at the carrier is touched.
-    const refused = mockFiled({ reg_mock: false, sms_state: "rejected", subaccount_sid: "ACsub", messaging_service_sid: "MG1", last_error: "their words" });
+    const refused = mockFiled({
+      reg_mock: false,
+      sms_state: "rejected",
+      subaccount_sid: "ACsub",
+      messaging_service_sid: "MG1",
+      last_error: "their words",
+    });
     const kept = [{ ...refused }];
     const db = fakeDb({ lines: kept }, {}, vault);
     const no = await replaceRejectedCampaign(db, refused, MISNAMED);
     assert.equal(no.ok, false);
     assert.equal(no.error, "record_incomplete");
-    assert.ok(no.problems.some((p) => /Billing probe/.test(p)), "with the owner's sentence about what is wrong");
-    assert.equal(kept[0].campaign_sid, refused.campaign_sid, "the refused campaign is still filed: a line keeps what it has until the replacement would pass");
+    assert.ok(
+      no.problems.some((p) => /Billing probe/.test(p)),
+      "with the owner's sentence about what is wrong",
+    );
+    assert.equal(
+      kept[0].campaign_sid,
+      refused.campaign_sid,
+      "the refused campaign is still filed: a line keeps what it has until the replacement would pass",
+    );
     assert.equal(kept[0].last_error, "their words", "and the carriers' words survive");
     assert.ok(!db.seen.some((q) => q.op === "update"));
     assert.deepEqual(reached, [], "neither refusal reached for a credential or the network");

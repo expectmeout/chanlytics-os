@@ -15,7 +15,9 @@ test.describe("Receptionist mode for one person", () => {
     await signIn(page);
   });
 
-  test("shows which mode is in force and issues a workspace-scoped PUT with the chosen mode — intercepted", async ({ page }) => {
+  test("shows which mode is in force and issues a workspace-scoped PUT with the chosen mode — intercepted", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");

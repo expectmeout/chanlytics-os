@@ -123,11 +123,22 @@ export function askPorts(): AskPorts {
 
 function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   switch (r.kind) {
-    case "preview": return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
-    case "budget": return es ? "Ask usó su presupuesto diario. Vuelve mañana; las páginas siguen funcionando." : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
-    case "no_key": return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
-    case "unreachable": return es ? "No pude llegar al modelo. Inténtalo de nuevo en un momento." : "I could not reach the model. Try again in a moment.";
-    default: return es ? "El modelo rechazó la pregunta. Inténtalo de otra forma." : "The model refused the question. Try it another way.";
+    case "preview":
+      return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
+    case "budget":
+      return es
+        ? "Ask usó su presupuesto diario. Vuelve mañana; las páginas siguen funcionando."
+        : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
+    case "no_key":
+      return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
+    case "unreachable":
+      return es
+        ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."
+        : "I could not reach the model. Try again in a moment.";
+    default:
+      return es
+        ? "El modelo rechazó la pregunta. Inténtalo de otra forma."
+        : "The model refused the question. Try it another way.";
   }
 }
 
@@ -140,8 +151,12 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
 export function proposalsAnswer(ps: ReadonlyArray<Pick<AskProposal, "title" | "summary">>, es: boolean): string {
   const lines = ps.map((p) => (p.summary && p.summary !== p.title ? `${p.title}: ${p.summary}` : p.title).trim());
   const tail = es
-    ? (ps.length === 1 ? "Es una tarjeta: apruébala, cámbiala o descártala." : "Son tarjetas: aprueba, cambia o descarta cada una.")
-    : (ps.length === 1 ? "It's a card: approve it, change it or dismiss it." : "They're cards: approve, change or dismiss each.");
+    ? ps.length === 1
+      ? "Es una tarjeta: apruébala, cámbiala o descártala."
+      : "Son tarjetas: aprueba, cambia o descarta cada una."
+    : ps.length === 1
+      ? "It's a card: approve it, change it or dismiss it."
+      : "They're cards: approve, change or dismiss each.";
   return [...lines, tail].join("\n");
 }
 
@@ -178,17 +193,29 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const plan = prefetchPlan(input.text);
   const [snapshot, preOuts] = await Promise.all([
     ports.snapshot(tc, input.timezone, input.scope).catch((e) => {
-      console.error("ask_snapshot_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
+      console.error(
+        "ask_snapshot_failed",
+        JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }),
+      );
       return "";
     }),
-    Promise.all(plan.map(async (run) => {
-      try {
-        return { run, out: await ports.tool(tc, run) };
-      } catch (e) {
-        console.error("ask_prefetch_failed", JSON.stringify({ tool: run.name, error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
-        return { run, out: { result: "", isError: true } };
-      }
-    })),
+    Promise.all(
+      plan.map(async (run) => {
+        try {
+          return { run, out: await ports.tool(tc, run) };
+        } catch (e) {
+          console.error(
+            "ask_prefetch_failed",
+            JSON.stringify({
+              tool: run.name,
+              error: e instanceof Error ? e.message : String(e),
+              tenant: input.tenantId,
+            }),
+          );
+          return { run, out: { result: "", isError: true } };
+        }
+      }),
+    ),
   ]);
   if (snapshot) reads++;
   const prefetched = preOuts.filter((p) => !p.out.isError);
@@ -209,7 +236,21 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
     ...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),
     ...(prefetch ? [{ type: "text", text: prefetch }] : []),
-    { type: "text", text: turnSystem({ role: input.role, personLabel: input.personLabel, scope: input.scope, surface: input.surface, language: input.language, timezone: input.timezone, closures: input.facts.closures, now, snapshot: !!snapshot, prefetched: !!prefetch }) },
+    {
+      type: "text",
+      text: turnSystem({
+        role: input.role,
+        personLabel: input.personLabel,
+        scope: input.scope,
+        surface: input.surface,
+        language: input.language,
+        timezone: input.timezone,
+        closures: input.facts.closures,
+        now,
+        snapshot: !!snapshot,
+        prefetched: !!prefetch,
+      }),
+    },
   ];
   const messages = foldHistory(input.history, input.text);
   const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];
@@ -217,10 +258,34 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
 
-  const done = (partial: Partial<TurnResult> & { answer: string; failed: boolean; failure: string | null; rounds: number }): TurnResult => {
+  const done = (
+    partial: Partial<TurnResult> & { answer: string; failed: boolean; failure: string | null; rounds: number },
+  ): TurnResult => {
     clearTimeout(timer);
-    console.log(JSON.stringify({ level: "info", event: "ask_turn_shape", tenant: input.tenantId, snapshot_ms: snapshotMs, snapshot: !!snapshot, prefetched: plan.map((r) => r.name), rounds: partial.rounds, tools: toolsUsed }));
-    return { finish: null, citations: [], navigate: null, followups: [], language: input.language, ungrounded: false, tools: toolsUsed, proposals, latencyMs: Date.now() - t0, ...partial };
+    console.log(
+      JSON.stringify({
+        level: "info",
+        event: "ask_turn_shape",
+        tenant: input.tenantId,
+        snapshot_ms: snapshotMs,
+        snapshot: !!snapshot,
+        prefetched: plan.map((r) => r.name),
+        rounds: partial.rounds,
+        tools: toolsUsed,
+      }),
+    );
+    return {
+      finish: null,
+      citations: [],
+      navigate: null,
+      followups: [],
+      language: input.language,
+      ungrounded: false,
+      tools: toolsUsed,
+      proposals,
+      latencyMs: Date.now() - t0,
+      ...partial,
+    };
   };
 
   /**
@@ -236,11 +301,24 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
    */
   const argsOf = (b: RoundBlock): Record<string, unknown> | null => {
     if (!b.json) return {};
-    try { return JSON.parse(b.json) as Record<string, unknown>; } catch { return null; }
+    try {
+      return JSON.parse(b.json) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   };
   const cutOff = (b: RoundBlock) => {
-    console.error("ask_tool_input_cut_off", JSON.stringify({ tool: b.name, bytes: b.json.length, tenant: input.tenantId }));
-    return { result: JSON.stringify({ error: "your call was cut off before its arguments were complete, so nothing was read; call it again with shorter values" }), isError: true };
+    console.error(
+      "ask_tool_input_cut_off",
+      JSON.stringify({ tool: b.name, bytes: b.json.length, tenant: input.tenantId }),
+    );
+    return {
+      result: JSON.stringify({
+        error:
+          "your call was cut off before its arguments were complete, so nothing was read; call it again with shorter values",
+      }),
+      isError: true,
+    };
   };
 
   const propose = async (b: RoundBlock) => {
@@ -265,8 +343,21 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   try {
     for (let round = 1; round <= ASK_MAX_ROUNDS; round++) {
       const last = round === ASK_MAX_ROUNDS;
-      const tools = baseTools.map((d) => ({ name: d.name, description: d.description, input_schema: d.input_schema, ...(d.strict && strict ? { strict: true } : {}) }));
-      const request = { model: ASK_MODEL, max_tokens: MAX_TOKENS, system, messages, tools, tool_choice: last ? { type: "tool", name: "finish" } : { type: "any" }, output_config: { effort: EFFORT } };
+      const tools = baseTools.map((d) => ({
+        name: d.name,
+        description: d.description,
+        input_schema: d.input_schema,
+        ...(d.strict && strict ? { strict: true } : {}),
+      }));
+      const request = {
+        model: ASK_MODEL,
+        max_tokens: MAX_TOKENS,
+        system,
+        messages,
+        tools,
+        tool_choice: last ? { type: "tool", name: "finish" } : { type: "any" },
+        output_config: { effort: EFFORT },
+      };
 
       let blocks: RoundBlock[];
       let stopReason: string | null;
@@ -284,17 +375,38 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             round--;
             continue;
           }
-          console.error("ask_gateway_refused", JSON.stringify({ kind: e.refusal.kind, tenant: input.tenantId, message: "message" in e.refusal ? String(e.refusal.message).slice(0, 300) : undefined }));
+          console.error(
+            "ask_gateway_refused",
+            JSON.stringify({
+              kind: e.refusal.kind,
+              tenant: input.tenantId,
+              message: "message" in e.refusal ? String(e.refusal.message).slice(0, 300) : undefined,
+            }),
+          );
           return done({ answer: refusalText(e.refusal, es), failed: true, failure: e.refusal.kind, rounds: round });
         }
         if (controller.signal.aborted) {
-          return done({ answer: es ? "Tardé demasiado en leer. Pregunta algo más concreto." : "That took too long to read. Ask something more specific.", failed: true, failure: "timeout", rounds: round });
+          return done({
+            answer: es
+              ? "Tardé demasiado en leer. Pregunta algo más concreto."
+              : "That took too long to read. Ask something more specific.",
+            failed: true,
+            failure: "timeout",
+            rounds: round,
+          });
         }
         throw e;
       }
 
       if (streamError && !blocks.length) {
-        return done({ answer: es ? "Se cortó la conexión con el modelo. Inténtalo de nuevo." : "The connection to the model dropped. Try again.", failed: true, failure: streamError, rounds: round });
+        return done({
+          answer: es
+            ? "Se cortó la conexión con el modelo. Inténtalo de nuevo."
+            : "The connection to the model dropped. Try again.",
+          failed: true,
+          failure: streamError,
+          rounds: round,
+        });
       }
       // The cap was reached. Whatever this round produced may be half-written,
       // and a tool call that is half-written does not parse at all; it is caught
@@ -302,15 +414,31 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // keeps hitting the cap is a budget that is too small and not a model
       // that keeps changing its mind.
       if (stopReason === "max_tokens") {
-        console.error("ask_round_hit_cap", JSON.stringify({ round, tools: blocks.filter((b) => b.type === "tool_use").map((b) => b.name), tenant: input.tenantId }));
+        console.error(
+          "ask_round_hit_cap",
+          JSON.stringify({
+            round,
+            tools: blocks.filter((b) => b.type === "tool_use").map((b) => b.name),
+            tenant: input.tenantId,
+          }),
+        );
       }
       if (stopReason === "refusal") {
-        return done({ answer: es ? "No puedo responder a eso aquí." : "I can't answer that here.", failed: true, failure: "refusal", rounds: round });
+        return done({
+          answer: es ? "No puedo responder a eso aquí." : "I can't answer that here.",
+          failed: true,
+          failure: "refusal",
+          rounds: round,
+        });
       }
 
       let finish = blocks.find((b) => b.type === "tool_use" && b.name === "finish");
       const calls = blocks.filter((b) => b.type === "tool_use" && b.name !== "finish");
-      const prose = blocks.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
+      const prose = blocks
+        .filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join(" ")
+        .trim();
 
       // A proposal and the answer in one round: the act tools run first (they
       // only check and propose), then the finish call stands. A read beside a
@@ -320,7 +448,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         for (const b of calls) await propose(b);
         calls.length = 0;
       } else if (finish && calls.length) {
-        console.warn("ask_finish_beside_read", JSON.stringify({ tools: calls.map((b) => b.name), tenant: input.tenantId }));
+        console.warn(
+          "ask_finish_beside_read",
+          JSON.stringify({ tools: calls.map((b) => b.name), tenant: input.tenantId }),
+        );
         finish = undefined;
       }
 
@@ -328,13 +459,26 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         const parsed = parseAskFinish(finish.json || "{}");
         if (!parsed.ok) {
           console.error("ask_finish_unparsed", JSON.stringify({ error: parsed.error, tenant: input.tenantId }));
-          return done({ answer: prose || (es ? "No pude dar forma a la respuesta. Pregunta de nuevo." : "I could not shape the answer. Ask again."), failed: !prose, failure: `finish: ${parsed.error}`, rounds: round });
+          return done({
+            answer:
+              prose ||
+              (es
+                ? "No pude dar forma a la respuesta. Pregunta de nuevo."
+                : "I could not shape the answer. Ask again."),
+            failed: !prose,
+            failure: `finish: ${parsed.error}`,
+            rounds: round,
+          });
         }
         const f = parsed.value;
         const { kept, dropped } = groundCitations(f.citations, tc.read);
         if (dropped) console.warn("ask_citations_dropped", JSON.stringify({ dropped, tenant: input.tenantId }));
         const navTo = f.navigate ? normalizeNavigate(f.navigate.to, tc.read) : null;
-        if (f.navigate && !navTo) console.warn("ask_navigate_dropped", JSON.stringify({ to: f.navigate.to.slice(0, 120), tenant: input.tenantId }));
+        if (f.navigate && !navTo)
+          console.warn(
+            "ask_navigate_dropped",
+            JSON.stringify({ to: f.navigate.to.slice(0, 120), tenant: input.tenantId }),
+          );
         return done({
           finish: f,
           answer: f.answer,
@@ -352,32 +496,90 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       if (!calls.length) {
         // Prose instead of a tool call (tool_choice any should prevent it):
         // taken as the answer, unverified.
-        return done({ answer: prose || (es ? "No encontré nada que leer para esa pregunta." : "I found nothing to read for that question."), ungrounded: isUngrounded(prose, reads + proposals.length), failed: !prose, failure: prose ? null : "no_tool_no_text", rounds: round });
+        return done({
+          answer:
+            prose ||
+            (es ? "No encontré nada que leer para esa pregunta." : "I found nothing to read for that question."),
+          ungrounded: isUngrounded(prose, reads + proposals.length),
+          failed: !prose,
+          failure: prose ? null : "no_tool_no_text",
+          rounds: round,
+        });
       }
 
       // Reads and proposals, in parallel; every result goes back at once.
-      for (const b of calls) input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
+      for (const b of calls)
+        input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
       const before = proposals.length;
-      const outcomes = await Promise.all(calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })));
+      const outcomes = await Promise.all(
+        calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
+      );
       // Proposals alone, every one of them made: the cards are the answer.
       // A refused or failed proposal keeps the round — the model must say why
       // and what the person can do instead.
-      if (calls.every((b) => ACT_TOOL_NAMES.has(b.name)) && outcomes.every(({ out }) => !out.isError) && proposals.length > before) {
+      if (
+        calls.every((b) => ACT_TOOL_NAMES.has(b.name)) &&
+        outcomes.every(({ out }) => !out.isError) &&
+        proposals.length > before
+      ) {
         const answer = prose || proposalsAnswer(proposals.slice(before), es);
         input.emit({ t: "delta", text: answer });
-        return done({ answer, citations: [], navigate: null, followups: [], ungrounded: false, failed: false, failure: null, rounds: round });
+        return done({
+          answer,
+          citations: [],
+          navigate: null,
+          followups: [],
+          ungrounded: false,
+          failed: false,
+          failure: null,
+          rounds: round,
+        });
       }
-      messages.push({ role: "assistant", content: blocks.map((b) => (b.type === "text" ? { type: "text", text: b.text || " " } : { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) })) });
-      messages.push({ role: "user", content: outcomes.map(({ block, out }) => ({ type: "tool_result", tool_use_id: block.id, content: out.result, is_error: out.isError })) });
+      messages.push({
+        role: "assistant",
+        content: blocks.map((b) =>
+          b.type === "text"
+            ? { type: "text", text: b.text || " " }
+            : { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) },
+        ),
+      });
+      messages.push({
+        role: "user",
+        content: outcomes.map(({ block, out }) => ({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: out.result,
+          is_error: out.isError,
+        })),
+      });
       if (Date.now() - t0 > ASK_TURN_BUDGET_MS - 8_000 && !last) {
         // Not enough time for another read: answer with what there is.
-        messages[messages.length - 1] = { role: "user", content: [...(messages[messages.length - 1].content as unknown[]), { type: "text", text: "Time is up for reads. Call finish now with what you have." }] };
+        messages[messages.length - 1] = {
+          role: "user",
+          content: [
+            ...(messages[messages.length - 1].content as unknown[]),
+            { type: "text", text: "Time is up for reads. Call finish now with what you have." },
+          ],
+        };
         round = ASK_MAX_ROUNDS - 1;
       }
     }
-    return done({ answer: es ? "No llegué a una respuesta. Inténtalo de nuevo." : "I did not reach an answer. Try again.", failed: true, failure: "rounds_exhausted", rounds: ASK_MAX_ROUNDS });
+    return done({
+      answer: es ? "No llegué a una respuesta. Inténtalo de nuevo." : "I did not reach an answer. Try again.",
+      failed: true,
+      failure: "rounds_exhausted",
+      rounds: ASK_MAX_ROUNDS,
+    });
   } catch (e) {
-    console.error("ask_turn_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
-    return done({ answer: es ? "Algo falló al responder. Inténtalo de nuevo." : "Something went wrong while answering. Try again.", failed: true, failure: e instanceof Error ? e.message : String(e), rounds: 0 });
+    console.error(
+      "ask_turn_failed",
+      JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }),
+    );
+    return done({
+      answer: es ? "Algo falló al responder. Inténtalo de nuevo." : "Something went wrong while answering. Try again.",
+      failed: true,
+      failure: e instanceof Error ? e.message : String(e),
+      rounds: 0,
+    });
   }
 }

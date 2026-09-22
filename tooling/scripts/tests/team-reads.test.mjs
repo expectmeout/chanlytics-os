@@ -31,7 +31,10 @@ const teamRoute = readCode("apps/dashboard/app/api/v1/team/route.ts");
 test("the roster refuses a caller who is not in the workspace", () => {
   // A definer function that reads auth.users without checking who is asking is
   // an email-enumeration endpoint for every workspace at once.
-  assert.match(sql, /from public\.memberships m\s*\n\s*where m\.tenant_id = p_tenant_id and m\.user_id = auth\.uid\(\)/);
+  assert.match(
+    sql,
+    /from public\.memberships m\s*\n\s*where m\.tenant_id = p_tenant_id and m\.user_id = auth\.uid\(\)/,
+  );
   assert.match(sql, /raise exception 'Not a member of this workspace\.' using errcode = '42501'/);
 });
 
@@ -76,7 +79,7 @@ test("the roster no longer loops the admin API, or uses the service role", () =>
 
 test("the roster runs on the CALLER's client", () => {
   // The point is not speed — it is one fewer path holding the service role.
-  assert.ok(service.includes("export async function teamRoster(\n  db: SupabaseClient<Database>,"));
+  assert.match(service, /export async function teamRoster\(\s*db: SupabaseClient<Database>,/);
   assert.ok(teamRoute.includes("teamRoster(ctx.supabase,"));
 });
 

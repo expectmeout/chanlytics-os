@@ -6,7 +6,14 @@
  */
 
 /** How a call ended for the caller. The agent's analysis picks one; the CHECK on calls.outcome admits the same six. */
-export const CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"] as const;
+export const CALL_OUTCOMES = [
+  "answered",
+  "booking_link_sent",
+  "callback_needed",
+  "voicemail",
+  "no_request",
+  "other",
+] as const;
 export type CallOutcome = (typeof CALL_OUTCOMES)[number];
 
 /** What a surface says for each outcome. */

@@ -6,13 +6,50 @@
  */
 import {
   AppError,
-  LEAD_ASSUMED_YIELD, LEAD_CHECK_KEYS, LEAD_DRAFT_JSON_SCHEMA, LEAD_EMAIL_WORDS, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NO_ADDRESS, LEAD_PROBE_PLACES,
-  LEAD_STAGE_WORDS, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_JSON_SCHEMA, LEAD_SUGGEST_UNAVAILABLE,
-  LeadDraftAnswerSchema, LeadSuggestAnswerSchema,
-  clockDate, estimateRoundUsd, leadDraftFooter, leadMonth, leadReachLine, parseTenantConfig, placesToAsk, siteHost, stageArgs, wallClockAt,
-  type LeadArea, type LeadCheck, type LeadCheckKey, type LeadClass, type LeadCounts, type LeadEmailState, type LeadNichePrior, type LeadPlanFacts,
-  type LeadRoundEnding, type LeadRoundPurpose, type LeadRowDto, type LeadSearchDto, type LeadSearchPlan, type LeadStage, type LeadStageInput,
-  type LeadMonthDto, type LeadSuggestionsDto, type LeadsBulkInput, type LeadsCheckAgainInput, type LeadsQuery,
+  LEAD_ASSUMED_YIELD,
+  LEAD_CHECK_KEYS,
+  LEAD_DRAFT_JSON_SCHEMA,
+  LEAD_EMAIL_WORDS,
+  LEAD_MONTHLY_ALLOWANCE,
+  LEAD_MONTHLY_BUDGET_USD,
+  LEAD_NO_ADDRESS,
+  LEAD_PROBE_PLACES,
+  LEAD_STAGE_WORDS,
+  LEAD_SUGGEST_DAYS,
+  LEAD_SUGGEST_JSON_SCHEMA,
+  LEAD_SUGGEST_UNAVAILABLE,
+  LeadDraftAnswerSchema,
+  LeadSuggestAnswerSchema,
+  clockDate,
+  estimateRoundUsd,
+  leadDraftFooter,
+  leadMonth,
+  leadReachLine,
+  parseTenantConfig,
+  placesToAsk,
+  siteHost,
+  stageArgs,
+  wallClockAt,
+  type LeadArea,
+  type LeadCheck,
+  type LeadCheckKey,
+  type LeadClass,
+  type LeadCounts,
+  type LeadEmailState,
+  type LeadNichePrior,
+  type LeadPlanFacts,
+  type LeadRoundEnding,
+  type LeadRoundPurpose,
+  type LeadRowDto,
+  type LeadSearchDto,
+  type LeadSearchPlan,
+  type LeadStage,
+  type LeadStageInput,
+  type LeadMonthDto,
+  type LeadSuggestionsDto,
+  type LeadsBulkInput,
+  type LeadsCheckAgainInput,
+  type LeadsQuery,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
@@ -81,7 +118,11 @@ export function answerOf(data: unknown): DoorAnswer {
 }
 
 /** What a member's class is called on the screen, for the sentence a member door's `state` refusal says. */
-const MEMBER_NOW: Record<string, string> = { qualified: "already counted", review: "in Needs review", excluded: "left out" };
+const MEMBER_NOW: Record<string, string> = {
+  qualified: "already counted",
+  review: "in Needs review",
+  excluded: "left out",
+};
 
 /** A door's refusal, in a sentence the owner can act on; null when the door did not refuse. */
 export function refusalOf(a: DoorAnswer): AppError | null {
@@ -101,9 +142,19 @@ export function refusalOf(a: DoorAnswer): AppError | null {
     case "paused":
       return new AppError("conflict", "Searching is paused for now. Nothing was started.", 409);
     case "month_leads_used":
-      return new AppError("conflict", a.left && a.left > 0 ? `This month covers ${a.left} more leads. Ask for ${a.left} or fewer, or wait for next month.` : "This month's leads are used up. Nothing more counts until next month.", 409);
+      return new AppError(
+        "conflict",
+        a.left && a.left > 0
+          ? `This month covers ${a.left} more leads. Ask for ${a.left} or fewer, or wait for next month.`
+          : "This month's leads are used up. Nothing more counts until next month.",
+        409,
+      );
     case "budget_used":
-      return new AppError("conflict", "This month's searching budget is used. A smaller search, or a phone standard, may still fit.", 409);
+      return new AppError(
+        "conflict",
+        "This month's searching budget is used. A smaller search, or a phone standard, may still fit.",
+        409,
+      );
     case "day_cap":
       return new AppError("conflict", "Today's searching is at its cap. Try again tomorrow.", 409);
     case "hidden":
@@ -125,7 +176,13 @@ export function refusalOf(a: DoorAnswer): AppError | null {
     case "too_late":
       return new AppError("conflict", "That was more than a day ago, so these leads stay yours and stay counted.", 409);
     case "nothing_to_add":
-      return new AppError("conflict", a.counted ? `This search already found the ${a.counted} you asked for. Ask for more than that to add any.` : "This search already found what you asked for.", 409);
+      return new AppError(
+        "conflict",
+        a.counted
+          ? `This search already found the ${a.counted} you asked for. Ask for more than that to add any.`
+          : "This search already found what you asked for.",
+        409,
+      );
     case "undone":
       return new AppError("conflict", "That change was already undone.", 409);
     case "kind":
@@ -135,7 +192,11 @@ export function refusalOf(a: DoorAnswer): AppError | null {
       // one plain sentence rather than a de-underscored word out of the
       // database; the code goes to the log, where it can be looked up.
       console.warn("lead_door_refusal_unknown", JSON.stringify({ error: String(a.error).slice(0, 80) }));
-      return new AppError("conflict", "Something about this search stopped that from going through. Reload and try again.", 409);
+      return new AppError(
+        "conflict",
+        "Something about this search stopped that from going through. Reload and try again.",
+        409,
+      );
   }
 }
 
@@ -196,7 +257,9 @@ export interface SearchViewRow {
   /** 00145: where to look next when the round ran dry, as LeadArea rows; [] otherwise. */
   nearby: unknown;
   /** 00146: the qualified members by fit band, for the band bar. */
-  strong: number | null; look: number | null; long: number | null;
+  strong: number | null;
+  look: number | null;
+  long: number | null;
 }
 
 /** The round's nearby areas as the view returns them: only rows shaped as an area are handed on. */
@@ -204,22 +267,44 @@ function nearbyOf(v: unknown): LeadArea[] {
   if (!Array.isArray(v)) return [];
   return v.filter((a): a is LeadArea => {
     const x = a as Partial<LeadArea> | null;
-    return !!x && typeof x === "object" && typeof x.label === "string" && typeof x.radius_m === "number" && typeof x.query === "string"
-      && (x.kind === "zip" || x.kind === "city" || x.kind === "radius") && typeof x.state === "string"
-      && (x.center === null || (!!x.center && typeof x.center.lat === "number" && typeof x.center.lng === "number"));
+    return (
+      !!x &&
+      typeof x === "object" &&
+      typeof x.label === "string" &&
+      typeof x.radius_m === "number" &&
+      typeof x.query === "string" &&
+      (x.kind === "zip" || x.kind === "city" || x.kind === "radius") &&
+      typeof x.state === "string" &&
+      (x.center === null || (!!x.center && typeof x.center.lat === "number" && typeof x.center.lng === "number"))
+    );
   });
 }
 
 /** One search with its latest round, or a 404 in the product's words. */
-export async function searchRow(ctx: Pick<RouteContext, "supabase">, tenantId: string, id: string): Promise<SearchViewRow> {
-  const { data, error } = await ctx.supabase.from("lead_searches_view").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+export async function searchRow(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  id: string,
+): Promise<SearchViewRow> {
+  const { data, error } = await ctx.supabase
+    .from("lead_searches_view")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "This search is not in your workspace.", 404);
   return data as unknown as SearchViewRow;
 }
 
 export async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SearchViewRow[]> {
-  const { data, error } = await ctx.supabase.from("lead_searches_view").select("*").eq("tenant_id", tenantId).is("removed_at", null).order("created_at", { ascending: false }).limit(200);
+  const { data, error } = await ctx.supabase
+    .from("lead_searches_view")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .order("created_at", { ascending: false })
+    .limit(200);
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as SearchViewRow[];
 }
@@ -244,7 +329,8 @@ export interface LeadRow {
   erased_at: string | null;
   blanked_at: string | null;
 }
-const LEAD_SCOPE_COLUMNS = "id, tenant_id, business_name, email, email_state, stage, closed_reason, contact_id, place_id, erased_at, blanked_at";
+const LEAD_SCOPE_COLUMNS =
+  "id, tenant_id, business_name, email, email_state, stage, closed_reason, contact_id, place_id, erased_at, blanked_at";
 
 export async function loadLead(ctx: Pick<RouteContext, "supabase">, id: string): Promise<LeadRow> {
   const leadId = requireUuid(id, "lead");
@@ -265,7 +351,11 @@ export interface LeadSearchScopeRow {
 }
 export async function loadLeadSearch(ctx: Pick<RouteContext, "supabase">, id: string): Promise<LeadSearchScopeRow> {
   const searchId = requireUuid(id, "search");
-  const { data, error } = await ctx.supabase.from("lead_searches").select("id, tenant_id, name, plan, removed_at").eq("id", searchId).maybeSingle();
+  const { data, error } = await ctx.supabase
+    .from("lead_searches")
+    .select("id, tenant_id, name, plan, removed_at")
+    .eq("id", searchId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "This search is not in your workspace.", 404);
   return data as unknown as LeadSearchScopeRow;
@@ -280,13 +370,32 @@ export async function listCounts(ctx: Pick<RouteContext, "supabase">, tenantId: 
   if (error) throw new Error(`lead_list_counts: ${error.message}`);
   const c = (data ?? {}) as Partial<LeadCounts>;
   const n = (v: unknown) => (typeof v === "number" ? v : 0);
-  return { all: n(c.all), ready: n(c.ready), nurture: n(c.nurture), converted: n(c.converted), said_no: n(c.said_no), not_a_fit: n(c.not_a_fit) };
+  return {
+    all: n(c.all),
+    ready: n(c.ready),
+    nurture: n(c.nurture),
+    converted: n(c.converted),
+    said_no: n(c.said_no),
+    not_a_fit: n(c.not_a_fit),
+  };
 }
 
 /** `asked_on` is the view's own created_at: the day the owner asked, said once. */
 function toSearchDto(r: SearchViewRow): LeadSearchDto {
-  const q = r.question && typeof r.question === "object" ? (r.question as { sentence?: unknown; criterion_key?: unknown }) : null;
-  if (!r.round_id) return { id: r.id, name: r.name, asked: r.asked, asked_on: r.created_at, plan: r.plan as LeadSearchPlan, plan_version: r.plan_version ?? 1, round: null };
+  const q =
+    r.question && typeof r.question === "object"
+      ? (r.question as { sentence?: unknown; criterion_key?: unknown })
+      : null;
+  if (!r.round_id)
+    return {
+      id: r.id,
+      name: r.name,
+      asked: r.asked,
+      asked_on: r.created_at,
+      plan: r.plan as LeadSearchPlan,
+      plan_version: r.plan_version ?? 1,
+      round: null,
+    };
   return {
     id: r.id,
     name: r.name,
@@ -300,7 +409,10 @@ function toSearchDto(r: SearchViewRow): LeadSearchDto {
       purpose: r.purpose ?? "probe",
       state: r.state ?? "ended",
       ending: (r.ending ?? null) as LeadRoundEnding | null,
-      question: q && typeof q.sentence === "string" ? { sentence: q.sentence, criterion_key: typeof q.criterion_key === "string" ? q.criterion_key : "" } : null,
+      question:
+        q && typeof q.sentence === "string"
+          ? { sentence: q.sentence, criterion_key: typeof q.criterion_key === "string" ? q.criterion_key : "" }
+          : null,
       target: r.target ?? 0,
       counted: r.counted,
       qualified: r.qualified,
@@ -324,7 +436,10 @@ function toSearchDto(r: SearchViewRow): LeadSearchDto {
 }
 
 /** Every kept search with its latest round, and the rail's counts: one read of each. */
-export async function searchesOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<{ searches: LeadSearchDto[]; counts: LeadCounts }> {
+export async function searchesOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+): Promise<{ searches: LeadSearchDto[]; counts: LeadCounts }> {
   const [rows, counts] = await Promise.all([listSearches(ctx, tenantId), listCounts(ctx, tenantId)]);
   return { searches: rows.map(toSearchDto), counts };
 }
@@ -333,20 +448,63 @@ export async function searchesOf(ctx: Pick<RouteContext, "supabase">, tenantId: 
 
 /** One row as `leads_page` answers it: the member and its lead, flat. */
 interface LeadPageRow {
-  member_id: string; lead_id: string; place_id: string; search_id: string; class: string; excluded_by: string | null;
-  fit: string | null; reason: string | null; distance_m: number | null; counted: boolean; judgment: unknown;
-  business_name: string; category: string | null; street: string | null; city: string | null; region: string | null; postal_code: string | null;
+  member_id: string;
+  lead_id: string;
+  place_id: string;
+  search_id: string;
+  class: string;
+  excluded_by: string | null;
+  fit: string | null;
+  reason: string | null;
+  distance_m: number | null;
+  counted: boolean;
+  judgment: unknown;
+  business_name: string;
+  category: string | null;
+  street: string | null;
+  city: string | null;
+  region: string | null;
+  postal_code: string | null;
   /** D5 (00146): the neighbourhood the listing names, and the coordinates the door has always returned. */
-  neighborhood: string | null; lat: number | null; lng: number | null;
+  neighborhood: string | null;
+  lat: number | null;
+  lng: number | null;
   /** D6 (00147): the business's own mark. */
   logo_url: string | null;
-  website_host: string | null; instagram_url: string | null; phone_e164: string | null; phone_sources: number | null; phone_wrong: boolean;
-  email: string | null; email_alternates: unknown; email_state: string; email_checked_at: string | null;
-  rating: number | null; reviews: number | null; stage: string; closed_reason: string | null; last_outcome: string | null; last_note: string | null;
-  about: string | null; hours: unknown; image_url: string | null; price: string | null; reviews_dist: unknown;
-  facebook_url: string | null; linkedin_url: string | null; tiktok_url: string | null; claimed: boolean | null; maps_url: string | null; rank: number | null;
-  contact_id: string | null; contacted_at: string | null; converted_at: string | null; exported_at: string | null; found_at: string;
-  places: number; version: number; page_key: string;
+  website_host: string | null;
+  instagram_url: string | null;
+  phone_e164: string | null;
+  phone_sources: number | null;
+  phone_wrong: boolean;
+  email: string | null;
+  email_alternates: unknown;
+  email_state: string;
+  email_checked_at: string | null;
+  rating: number | null;
+  reviews: number | null;
+  stage: string;
+  closed_reason: string | null;
+  last_outcome: string | null;
+  last_note: string | null;
+  about: string | null;
+  hours: unknown;
+  image_url: string | null;
+  price: string | null;
+  reviews_dist: unknown;
+  facebook_url: string | null;
+  linkedin_url: string | null;
+  tiktok_url: string | null;
+  claimed: boolean | null;
+  maps_url: string | null;
+  rank: number | null;
+  contact_id: string | null;
+  contacted_at: string | null;
+  converted_at: string | null;
+  exported_at: string | null;
+  found_at: string;
+  places: number;
+  version: number;
+  page_key: string;
 }
 
 /** What the judge answered for each criterion of this place, by the plan's own key. */
@@ -363,7 +521,10 @@ function reasonsOf(judgment: unknown, emailState: string): string[] {
 }
 function judgedBy(judgment: unknown): Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }> {
   const out = new Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }>();
-  const j = judgment && typeof judgment === "object" ? (judgment as { answer?: { criteria?: unknown; reason?: unknown } | null }) : null;
+  const j =
+    judgment && typeof judgment === "object"
+      ? (judgment as { answer?: { criteria?: unknown; reason?: unknown } | null })
+      : null;
   const answer = j?.answer && typeof j.answer === "object" ? j.answer : null;
   const criteria = Array.isArray(answer?.criteria) ? (answer.criteria as { key?: unknown; answer?: unknown }[]) : [];
   const reason = typeof answer?.reason === "string" ? answer.reason : null;
@@ -388,11 +549,30 @@ function checksOf(r: LeadPageRow): LeadCheck[] {
   const out: LeadCheck[] = [];
   const where = [r.city, r.region].filter(Boolean).join(", ");
   out.push({ key: "on_maps", how: "seen", answer: "yes", source: "Google Maps", reason: null });
-  out.push({ key: "in_area", how: "seen", answer: r.distance_m === null ? "unknown" : "yes", source: "Google Maps · the plan", reason: where || null });
-  if (r.phone_e164) out.push({ key: "phone_two_sources", how: "seen", answer: (r.phone_sources ?? 1) >= 2 ? "yes" : "unknown", source: "Maps · website", reason: null });
+  out.push({
+    key: "in_area",
+    how: "seen",
+    answer: r.distance_m === null ? "unknown" : "yes",
+    source: "Google Maps · the plan",
+    reason: where || null,
+  });
+  if (r.phone_e164)
+    out.push({
+      key: "phone_two_sources",
+      how: "seen",
+      answer: (r.phone_sources ?? 1) >= 2 ? "yes" : "unknown",
+      source: "Maps · website",
+      reason: null,
+    });
   const state = r.email_state as LeadEmailState;
   if (state !== "none" || r.email) {
-    out.push({ key: "mailbox", how: "seen", answer: state === "ok" ? "yes" : state === "invalid" ? "no" : "unknown", source: "Mailbox check", reason: null });
+    out.push({
+      key: "mailbox",
+      how: "seen",
+      answer: state === "ok" ? "yes" : state === "invalid" ? "no" : "unknown",
+      source: "Mailbox check",
+      reason: null,
+    });
   }
   const judged = judgedBy(r.judgment);
   for (const key of LEAD_CHECK_KEYS) {
@@ -436,7 +616,8 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
     hours: Array.isArray(r.hours) ? (r.hours as { day: string; hours: string }[]) : [],
     image_url: r.image_url ?? null,
     price: r.price ?? null,
-    reviews_dist: r.reviews_dist && typeof r.reviews_dist === "object" ? (r.reviews_dist as LeadRowDto["reviews_dist"]) : null,
+    reviews_dist:
+      r.reviews_dist && typeof r.reviews_dist === "object" ? (r.reviews_dist as LeadRowDto["reviews_dist"]) : null,
     facebook_url: r.facebook_url ?? null,
     linkedin_url: r.linkedin_url ?? null,
     tiktok_url: r.tiktok_url ?? null,
@@ -465,14 +646,20 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
       // The class rule's own reason tokens (email:unknown, unknown:<key>, inferred:<key>, out_of_area ...): what the
       // Needs review queue groups by (D3, contracts leadReviewGroups). Never words; the page spells them.
       reasons: reasonsOf(r.judgment, r.email_state),
-      other_emails: others.filter((e) => typeof e.email === "string").map((e) => ({ email: String(e.email), why: typeof e.why === "string" ? e.why : "another address" })),
+      other_emails: others
+        .filter((e) => typeof e.email === "string")
+        .map((e) => ({ email: String(e.email), why: typeof e.why === "string" ? e.why : "another address" })),
     },
   };
 }
 
 /** The searches' names, for the row that says which search found it: one read, whatever the page holds. */
 async function searchNamesOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<Map<string, string>> {
-  const { data, error } = await ctx.supabase.from("lead_searches").select("id, name").eq("tenant_id", tenantId).limit(200);
+  const { data, error } = await ctx.supabase
+    .from("lead_searches")
+    .select("id, name")
+    .eq("tenant_id", tenantId)
+    .limit(200);
   if (error) throw new Error(error.message);
   return new Map(((data ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
 }
@@ -507,7 +694,11 @@ export async function monthStanding(
  * class, the sort and the direction are all SQL, so the next page carries on
  * from the key the database answered rather than from a count of rows read.
  */
-export async function leadsPage(ctx: Pick<RouteContext, "supabase">, tenantId: string, q: LeadsQuery): Promise<LeadsPageAnswer> {
+export async function leadsPage(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  q: LeadsQuery,
+): Promise<LeadsPageAnswer> {
   const first = !q.after_key && !q.after_id;
   const [answer, names, counts, month] = await Promise.all([
     ctx.supabase.rpc("leads_page", {
@@ -559,23 +750,35 @@ function renewsOnOf(tz: string, now: Date): string {
  *
  * `numeric` arrives from PostgREST as a string, so the budget is coerced.
  */
-async function monthUsed(ctx: Pick<RouteContext, "supabase">, tenantId: string, period: string): Promise<{ allowance: number; budget: number }> {
+async function monthUsed(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  period: string,
+): Promise<{ allowance: number; budget: number }> {
   const { data, error } = await ctx.supabase.rpc("lead_month_used", { p_tenant_id: tenantId, p_period: period });
   if (error) throw new Error(`lead_month_used: ${error.message}`);
   const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
   const taken = (kind: "allowance" | "budget") => {
-    const c = data && typeof data === "object" ? (data as Record<string, { used?: unknown; reserved?: unknown } | undefined>)[kind] : null;
+    const c =
+      data && typeof data === "object"
+        ? (data as Record<string, { used?: unknown; reserved?: unknown } | undefined>)[kind]
+        : null;
     return n(c?.used) + n(c?.reserved);
   };
   return { allowance: taken("allowance"), budget: taken("budget") };
 }
 
 /** The platform-wide prior for a kind of business, or null when nobody has searched for one. */
-export async function nichePrior(ctx: Pick<RouteContext, "supabase">, categoryKey: string): Promise<LeadNichePrior | null> {
+export async function nichePrior(
+  ctx: Pick<RouteContext, "supabase">,
+  categoryKey: string,
+): Promise<LeadNichePrior | null> {
   const { data, error } = await ctx.supabase.rpc("lead_niche_prior", { p_category_key: categoryKey });
   if (error) throw new Error(`lead_niche_prior: ${error.message}`);
   const p = data && typeof data === "object" ? (data as Partial<LeadNichePrior>) : null;
-  return p && typeof p.places === "number" ? { places: p.places, matched: p.matched ?? 0, with_email: p.with_email ?? 0 } : null;
+  return p && typeof p.places === "number"
+    ? { places: p.places, matched: p.matched ?? 0, with_email: p.with_email ?? 0 }
+    : null;
 }
 
 /**
@@ -613,7 +816,11 @@ export async function planFacts(
   // day), so the card, the door and the ledger all call the month's leads the
   // same thing.
   const bound: LeadPlanFacts["bound"] =
-    usedLeads === 0 && usedUsd === 0 ? null : leadsLeft / LEAD_MONTHLY_ALLOWANCE <= budgetLeftUsd / LEAD_MONTHLY_BUDGET_USD ? "allowance" : "budget";
+    usedLeads === 0 && usedUsd === 0
+      ? null
+      : leadsLeft / LEAD_MONTHLY_ALLOWANCE <= budgetLeftUsd / LEAD_MONTHLY_BUDGET_USD
+        ? "allowance"
+        : "budget";
   return {
     // Every lead this workspace already owns is one a new search skips: the
     // place is already theirs, so it is never counted or charged twice.
@@ -621,7 +828,7 @@ export async function planFacts(
     leadsLeft,
     bound,
     prior,
-    priorOf: prior ? opts.categoryKey ?? null : null,
+    priorOf: prior ? (opts.categoryKey ?? null) : null,
     cannotSee: opts.cannotSee ?? null,
     renewsOn: renewsOnOf(timezone, now),
     nearby: opts.nearby ?? [],
@@ -630,7 +837,11 @@ export async function planFacts(
 
 /* --------------------------------------------------------- a search, kept */
 
-export async function renameSearch(ctx: Pick<RouteContext, "supabase">, s: LeadSearchScopeRow, name: string): Promise<{ name: string }> {
+export async function renameSearch(
+  ctx: Pick<RouteContext, "supabase">,
+  s: LeadSearchScopeRow,
+  name: string,
+): Promise<{ name: string }> {
   const { data, error } = await ctx.supabase.rpc("lead_search_rename", { p_search_id: s.id, p_name: name });
   if (error) throw new Error(`lead_search_rename: ${error.message}`);
   const a = answerOf(data);
@@ -644,16 +855,27 @@ export async function renameSearch(ctx: Pick<RouteContext, "supabase">, s: LeadS
  * unblanked afterwards IS what was kept, so the toast's number is the
  * database's and never the page's guess.
  */
-export async function removeSearch(ctx: Pick<RouteContext, "supabase">, s: LeadSearchScopeRow): Promise<{ archived: number; kept: number; toast: string }> {
+export async function removeSearch(
+  ctx: Pick<RouteContext, "supabase">,
+  s: LeadSearchScopeRow,
+): Promise<{ archived: number; kept: number; toast: string }> {
   const { data, error } = await ctx.supabase.rpc("lead_search_remove", { p_search_id: s.id });
   if (error) throw new Error(`lead_search_remove: ${error.message}`);
   const a = answerOf(data);
   const refused = refusalOf(a);
   if (refused) throw refused;
-  const { count, error: kept } = await ctx.supabase.from("lead_search_members").select("lead_id", { count: "exact", head: true }).eq("search_id", s.id).is("blanked_at", null);
+  const { count, error: kept } = await ctx.supabase
+    .from("lead_search_members")
+    .select("lead_id", { count: "exact", head: true })
+    .eq("search_id", s.id)
+    .is("blanked_at", null);
   if (kept) throw new Error(kept.message);
   const keptN = count ?? 0;
-  return { archived: a.blanked ?? 0, kept: keptN, toast: `Removed. The ${keptN} you contacted or are talking to are kept.` };
+  return {
+    archived: a.blanked ?? 0,
+    kept: keptN,
+    toast: `Removed. The ${keptN} you contacted or are talking to are kept.`,
+  };
 }
 
 /**
@@ -692,7 +914,11 @@ function stageToast(input: LeadStageInput, a: DoorAnswer, name: string): string 
   if (a.converted) return `${name} is in People now, with this call on their page.`;
   switch (input.kind) {
     case "outcome":
-      return input.outcome === "wrong_number" ? "That number is marked wrong." : input.outcome === "not_interested" ? "Marked as said no." : "Marked contacted.";
+      return input.outcome === "wrong_number"
+        ? "That number is marked wrong."
+        : input.outcome === "not_interested"
+          ? "Marked as said no."
+          : "Marked contacted.";
     case "stage":
       // A click to Talking marks Talking and nothing else: they join People on
       // a real conversation, never on a click (§9.6).
@@ -724,8 +950,15 @@ export interface StageAnswer {
 }
 
 /** The one door for a stage, a call's outcome, "Did you send it?" and Not a fit. */
-export async function setStage(ctx: Pick<RouteContext, "supabase">, lead: LeadRow, input: LeadStageInput): Promise<StageAnswer> {
-  const { data, error } = await ctx.supabase.rpc("lead_set_stage", { p_lead_id: lead.id, ...stageArgs(input) } as DoorArgs<"lead_set_stage">);
+export async function setStage(
+  ctx: Pick<RouteContext, "supabase">,
+  lead: LeadRow,
+  input: LeadStageInput,
+): Promise<StageAnswer> {
+  const { data, error } = await ctx.supabase.rpc("lead_set_stage", {
+    p_lead_id: lead.id,
+    ...stageArgs(input),
+  } as DoorArgs<"lead_set_stage">);
   if (error) throw new Error(`lead_set_stage: ${error.message}`);
   const a = answerOf(data);
   const refused = refusalOf(a);
@@ -753,26 +986,41 @@ export async function bulkStage(
   const { data, error } = await ctx.supabase.rpc("lead_bulk", {
     p_tenant_id: tenantId,
     p_action: input.action,
-    ...(input.by === "ids" ? { p_ids: input.ids, ...(input.search_id ? { p_search_id: input.search_id } : {}) } : { p_ids: null, p_view: input.view as unknown as Json }),
+    ...(input.by === "ids"
+      ? { p_ids: input.ids, ...(input.search_id ? { p_search_id: input.search_id } : {}) }
+      : { p_ids: null, p_view: input.view as unknown as Json }),
   } as DoorArgs<"lead_bulk">);
   if (error) throw new Error(`lead_bulk: ${error.message}`);
   const a = answerOf(data);
   // Keep over a selection stops when the month's leads run out: what was kept before that stays kept, and the
   // sentence rides the toast instead of refusing an act that half happened. With nothing done it is a refusal.
-  const ranOut = a.error === "month_leads_used" && (a.done ?? 0) > 0 ? a.sentence ?? null : null;
+  const ranOut = a.error === "month_leads_used" && (a.done ?? 0) > 0 ? (a.sentence ?? null) : null;
   const refused = ranOut ? null : refusalOf(a);
   if (refused) throw refused;
-  return { done: a.done ?? 0, op_id: a.op_id ?? null, version: a.version ?? 1, toast: bulkToast(input.action, a.done ?? 0, a.skipped ?? 0, ranOut) };
+  return {
+    done: a.done ?? 0,
+    op_id: a.op_id ?? null,
+    version: a.version ?? 1,
+    toast: bulkToast(input.action, a.done ?? 0, a.skipped ?? 0, ranOut),
+  };
 }
 
 /** What a bulk act says when it is done: the count for the acts that take one, and what stopped or skipped part of it. */
 function bulkToast(action: LeadsBulkInput["action"], done: number, skipped: number, ranOut: string | null): string {
-  const tail = ranOut ? ` ${ranOut}` : skipped > 0 ? ` ${skipped} ${skipped === 1 ? "was" : "were"} not in Needs review.` : "";
+  const tail = ranOut
+    ? ` ${ranOut}`
+    : skipped > 0
+      ? ` ${skipped} ${skipped === 1 ? "was" : "were"} not in Needs review.`
+      : "";
   switch (action) {
-    case "contacted": return "Marked contacted.";
-    case "not_a_fit": return "Not a fit.";
-    case "keep": return `Kept ${done}. ${done === 1 ? "It counts as a lead" : "They count as leads"} this month.${tail}`;
-    case "exclude": return `Excluded ${done}. Nothing counted.${tail}`;
+    case "contacted":
+      return "Marked contacted.";
+    case "not_a_fit":
+      return "Not a fit.";
+    case "keep":
+      return `Kept ${done}. ${done === 1 ? "It counts as a lead" : "They count as leads"} this month.${tail}`;
+    case "exclude":
+      return `Excluded ${done}. Nothing counted.${tail}`;
   }
 }
 
@@ -786,20 +1034,38 @@ export async function checkAgain(
   tenantId: string,
   input: LeadsCheckAgainInput,
 ): Promise<{ scheduled: number; skipped: number; toast: string }> {
-  const { data, error } = await ctx.supabase.rpc("lead_check_again", { p_tenant_id: tenantId, p_lead_ids: input.ids } as DoorArgs<"lead_check_again">);
+  const { data, error } = await ctx.supabase.rpc("lead_check_again", {
+    p_tenant_id: tenantId,
+    p_lead_ids: input.ids,
+  } as DoorArgs<"lead_check_again">);
   if (error) throw new Error(`lead_check_again: ${error.message}`);
   const a = answerOf(data);
   const refused = refusalOf(a);
   if (refused) throw refused;
   const scheduled = a.scheduled ?? 0;
   const skipped = a.skipped ?? 0;
-  if (scheduled === 0) throw new AppError("conflict", "None of these can be checked again. An address is asked again only after its last check did not answer, once its search has finished.", 409);
-  const tail = skipped > 0 ? ` ${skipped} ${skipped === 1 ? "was" : "were"} left as ${skipped === 1 ? "it is" : "they are"}: an address is asked again only after its last check did not answer.` : "";
-  return { scheduled, skipped, toast: `Checking ${scheduled} again. ${scheduled === 1 ? "Its" : "Their"} answer lands here in a few minutes.${tail}` };
+  if (scheduled === 0)
+    throw new AppError(
+      "conflict",
+      "None of these can be checked again. An address is asked again only after its last check did not answer, once its search has finished.",
+      409,
+    );
+  const tail =
+    skipped > 0
+      ? ` ${skipped} ${skipped === 1 ? "was" : "were"} left as ${skipped === 1 ? "it is" : "they are"}: an address is asked again only after its last check did not answer.`
+      : "";
+  return {
+    scheduled,
+    skipped,
+    toast: `Checking ${scheduled} again. ${scheduled === 1 ? "Its" : "Their"} answer lands here in a few minutes.${tail}`,
+  };
 }
 
 /** Erase one lead, for good (§0.4): the door writes the tombstones and blanks it; the ledger row survives what it destroyed. */
-export async function eraseLead(ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">, lead: LeadRow): Promise<{ erased: true; already: boolean }> {
+export async function eraseLead(
+  ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">,
+  lead: LeadRow,
+): Promise<{ erased: true; already: boolean }> {
   const { data, error } = await ctx.supabase.rpc("lead_erase", { p_lead_id: lead.id });
   if (error) throw new Error(`lead_erase: ${error.message}`);
   const a = answerOf(data);
@@ -848,21 +1114,40 @@ export function leadMailto(to: string, subject: string, body: string): string {
 }
 
 /** The workspace's own facts a draft may quote: its name, the address the law asks for at the foot, and what it offers. */
-async function workspaceOffer(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<{ name: string; address: string; services: string[] }> {
+async function workspaceOffer(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+): Promise<{ name: string; address: string; services: string[] }> {
   const [facts, cfg] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
     ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (cfg.error) throw new Error(cfg.error.message);
   const profile = parseTenantConfig(cfg.data?.config ?? null)?.brain?.profile ?? null;
-  return { name: facts.name, address: (profile?.address ?? "").trim(), services: (profile?.services ?? []).slice(0, 5).map((s) => s.name) };
+  return {
+    name: facts.name,
+    address: (profile?.address ?? "").trim(),
+    services: (profile?.services ?? []).slice(0, 5).map((s) => s.name),
+  };
 }
 
 /** What this lead is, in the words the card saw: never a guess, and never the name of whoever fetched it. */
 async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): Promise<string[]> {
-  const { data, error } = await ctx.supabase.from("leads").select("business_name, category, city, region, website_host, rating, reviews").eq("id", lead.id).maybeSingle();
+  const { data, error } = await ctx.supabase
+    .from("leads")
+    .select("business_name, category, city, region, website_host, rating, reviews")
+    .eq("id", lead.id)
+    .maybeSingle();
   if (error) throw new Error(error.message);
-  const r = (data ?? null) as { business_name?: string; category?: string | null; city?: string | null; region?: string | null; website_host?: string | null; rating?: number | null; reviews?: number | null } | null;
+  const r = (data ?? null) as {
+    business_name?: string;
+    category?: string | null;
+    city?: string | null;
+    region?: string | null;
+    website_host?: string | null;
+    rating?: number | null;
+    reviews?: number | null;
+  } | null;
   const out = [r?.business_name ?? lead.business_name];
   if (r?.category) out.push(r.category);
   const where = [r?.city, r?.region].filter(Boolean).join(", ");
@@ -873,7 +1158,12 @@ async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): P
   return out;
 }
 
-export interface DraftAnswer { to: string; subject: string; body: string; mailto: string }
+export interface DraftAnswer {
+  to: string;
+  subject: string;
+  body: string;
+  mailto: string;
+}
 
 /**
  * One draft for one lead (§9.3). Refused before any model call when the
@@ -893,7 +1183,11 @@ export async function draftFor(
   }
   const facts = await draftFacts(ctx, lead);
   const said =
-    input.tone === "shorter" ? "Make it shorter. The same ask, fewer words." : input.tone === "warmer" ? "Make it warmer. The same length, the same ask." : "Write the first one.";
+    input.tone === "shorter"
+      ? "Make it shorter. The same ask, fewer words."
+      : input.tone === "warmer"
+        ? "Make it warmer. The same length, the same ask."
+        : "Write the first one.";
   const answer = await askForJson(
     {
       tenantId: lead.tenant_id,
@@ -909,7 +1203,9 @@ export async function draftFor(
             content: [
               `Who is writing: ${offer.name}${offer.services.length ? `, which offers ${offer.services.join(", ")}` : ""}.`,
               `Who it goes to: ${facts.join("; ")}.`,
-              ...(input.previous ? [`The last draft was:\nSubject: ${input.previous.subject}\n${input.previous.body}`] : []),
+              ...(input.previous
+                ? [`The last draft was:\nSubject: ${input.previous.subject}\n${input.previous.body}`]
+                : []),
               said,
             ].join("\n\n"),
           },
@@ -925,7 +1221,13 @@ export async function draftFor(
 
 /* --------------------------------------------------- the first day's asks */
 
-interface SuggestionRow { tenant_id: string; business_line: string; by_owner: boolean; items: unknown; made_at: string }
+interface SuggestionRow {
+  tenant_id: string;
+  business_line: string;
+  by_owner: boolean;
+  items: unknown;
+  made_at: string;
+}
 type SuggestItem = { words: string; who_for: string; category_key: string };
 
 /**
@@ -942,15 +1244,27 @@ export function setSuggestionsWriter(w: typeof saveLeadSuggestions | null): void
 
 /** The kept row, when there is one. */
 async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SuggestionRow | null> {
-  const { data, error } = await ctx.supabase.from("lead_suggestions").select("tenant_id, business_line, by_owner, items, made_at").eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await ctx.supabase
+    .from("lead_suggestions")
+    .select("tenant_id, business_line, by_owner, items, made_at")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return (data ?? null) as unknown as SuggestionRow | null;
 }
 
 /** Each suggestion gains how reachable that kind of business is, from what past searches measured. */
-async function withReach(ctx: Pick<RouteContext, "supabase">, items: SuggestItem[]): Promise<LeadSuggestionsDto["items"]> {
+async function withReach(
+  ctx: Pick<RouteContext, "supabase">,
+  items: SuggestItem[],
+): Promise<LeadSuggestionsDto["items"]> {
   const priors = await Promise.all(items.map((i) => nichePrior(ctx, i.category_key)));
-  return items.map((i, n) => ({ words: i.words, who_for: i.who_for, category_key: i.category_key, reach: leadReachLine(priors[n]) }));
+  return items.map((i, n) => ({
+    words: i.words,
+    who_for: i.who_for,
+    category_key: i.category_key,
+    reach: leadReachLine(priors[n]),
+  }));
 }
 
 /**
@@ -959,17 +1273,28 @@ async function withReach(ctx: Pick<RouteContext, "supabase">, items: SuggestItem
  * workspace, unless the owner changes the line. A gateway that will not answer
  * is a note on the page, never a page that fails.
  */
-export async function suggestionsFor(ctx: Pick<RouteContext, "supabase" | "userId">, tenantId: string): Promise<LeadSuggestionsDto> {
+export async function suggestionsFor(
+  ctx: Pick<RouteContext, "supabase" | "userId">,
+  tenantId: string,
+): Promise<LeadSuggestionsDto> {
   const kept = await keptSuggestions(ctx, tenantId);
   const keptItems = Array.isArray(kept?.items) ? (kept.items as SuggestItem[]) : [];
   const byOwner = kept?.by_owner === true;
   if (kept && keptItems.length > 0 && Date.now() - Date.parse(kept.made_at) < LEAD_SUGGEST_DAYS * 86_400_000) {
-    return { business_line: kept.business_line, by_owner: byOwner, made_at: kept.made_at, items: await withReach(ctx, keptItems) };
+    return {
+      business_line: kept.business_line,
+      by_owner: byOwner,
+      made_at: kept.made_at,
+      items: await withReach(ctx, keptItems),
+    };
   }
   const offer = await workspaceOffer(ctx, tenantId);
   // The owner's own words when they wrote them; otherwise what the workspace
   // says it is and what it offers.
-  const line = byOwner && kept ? kept.business_line : `${offer.name}${offer.services.length ? `: ${offer.services.join(", ")}` : ""}`;
+  const line =
+    byOwner && kept
+      ? kept.business_line
+      : `${offer.name}${offer.services.length ? `: ${offer.services.join(", ")}` : ""}`;
   const madeAt = new Date().toISOString();
   try {
     const answer = await askForJson(
@@ -989,18 +1314,34 @@ export async function suggestionsFor(ctx: Pick<RouteContext, "supabase" | "userI
     );
     const businessLine = byOwner && kept ? kept.business_line : answer.line;
     await keep(tenantId, { business_line: businessLine, by_owner: byOwner, items: answer.items as unknown as Json });
-    return { business_line: businessLine, by_owner: byOwner, made_at: madeAt, items: await withReach(ctx, answer.items) };
+    return {
+      business_line: businessLine,
+      by_owner: byOwner,
+      made_at: madeAt,
+      items: await withReach(ctx, answer.items),
+    };
   } catch (e) {
     // The first day's page is not worth failing over a model that would not
     // answer: the owner still gets the composer and the three ways people
     // arrive, and the note says why this part is empty.
-    if (e instanceof AppError) return { business_line: line, by_owner: byOwner, made_at: kept?.made_at ?? madeAt, items: [], note: LEAD_SUGGEST_UNAVAILABLE };
+    if (e instanceof AppError)
+      return {
+        business_line: line,
+        by_owner: byOwner,
+        made_at: kept?.made_at ?? madeAt,
+        items: [],
+        note: LEAD_SUGGEST_UNAVAILABLE,
+      };
     throw e;
   }
 }
 
 /** The owner's own words for what they do: saved, and the next read asks Claude again. */
-export async function setBusinessLine(_ctx: Pick<RouteContext, "supabase">, tenantId: string, line: string): Promise<{ business_line: string }> {
+export async function setBusinessLine(
+  _ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  line: string,
+): Promise<{ business_line: string }> {
   await keep(tenantId, { business_line: line, by_owner: true, items: [] as unknown as Json });
   return { business_line: line };
 }
@@ -1062,10 +1403,22 @@ export async function exportLeads(
     if (!answer.next) break;
     after = answer.next;
   }
-  const { data, error } = await ctx.supabase.rpc("lead_export_mark", { p_tenant_id: tenantId, p_ids: rows.map((r) => r.id) });
+  const { data, error } = await ctx.supabase.rpc("lead_export_mark", {
+    p_tenant_id: tenantId,
+    p_ids: rows.map((r) => r.id),
+  });
   if (error) throw new Error(`lead_export_mark: ${error.message}`);
   const { name, timezone } = await tenantFacts(ctx.supabase, tenantId);
-  console.log(JSON.stringify({ level: "info", event: "export.leads", user: ctx.userId, tenant: tenantId, rows: rows.length, marked: typeof data === "number" ? data : 0 }));
+  console.log(
+    JSON.stringify({
+      level: "info",
+      event: "export.leads",
+      user: ctx.userId,
+      tenant: tenantId,
+      rows: rows.length,
+      marked: typeof data === "number" ? data : 0,
+    }),
+  );
   // On the ledger, as the people export is: who took a copy, and when.
   await recordDecision(ctx, tenantId, "workspace", tenantId, "export", { what: "leads", rows: rows.length });
   return attachment(`leads-${safeName(name)}-${dateTag(new Date(), timezone)}.csv`, leadsCsv(rows), "text/csv");

@@ -51,7 +51,10 @@ const STANDING = "3 leads · 2 ready · 1 search";
 /** contracts LEAD_NOT_A_FIT_WORDS.chain: the why the peek offers first (§9.5). */
 const WHY_CHAIN = "A chain or franchise";
 
-interface Sent { url: string; body: unknown }
+interface Sent {
+  url: string;
+  body: unknown;
+}
 
 /** Every write the page makes while a test runs, in order, as the page made it. */
 async function watch(page: Parameters<typeof signIn>[0], pattern: string): Promise<Sent[]> {
@@ -81,7 +84,9 @@ test.describe("Leads on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the Leads scope shows the seeded search and its leads, strongest fit first, and the strip says how it ended", async ({ page }) => {
+  test("the Leads scope shows the seeded search and its leads, strongest fit first, and the strip says how it ended", async ({
+    page,
+  }) => {
     // The seed owns these six; this spec restates their names. If the two ever
     // disagree, every other assertion below is measuring the wrong workspace.
     // `leads_page` answers ONE class a call and defaults to the counted
@@ -118,7 +123,9 @@ test.describe("Leads on a real workspace", () => {
     await expect(left).toContainText("Not checked");
   });
 
-  test("no page of Leads says a dollar amount, and nothing on it names where the places came from", async ({ page }) => {
+  test("no page of Leads says a dollar amount, and nothing on it names where the places came from", async ({
+    page,
+  }) => {
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
     const text = await page.locator(".app-root").innerText();
@@ -126,7 +133,9 @@ test.describe("Leads on a real workspace", () => {
     expect(text, "a screen named the vendor").not.toMatch(/apify|compass|bounce ?verify/i);
   });
 
-  test("the peek names every check's source in two groups, and a catch-all address reads Unconfirmed", async ({ page }) => {
+  test("the peek names every check's source in two groups, and a catch-all address reads Unconfirmed", async ({
+    page,
+  }) => {
     await openSeededSearch(page);
     await page.getByTestId("lead-class-review").click();
     await page.locator(".cl-table tbody tr", { hasText: MUELLER }).getByTestId("lead-name").click();
@@ -196,11 +205,15 @@ test.describe("Leads on a real workspace", () => {
 
   test("an old #/leads bookmark lands on the Leads scope", async ({ page }) => {
     await page.goto("/#/leads");
-    await expect.poll(() => new URL(page.url()).hash, { message: "leads is a scope of People now" }).toBe("#/clients/leads");
+    await expect
+      .poll(() => new URL(page.url()).hash, { message: "leads is a scope of People now" })
+      .toBe("#/clients/leads");
     await expect(page.getByTestId("leads-standing")).toBeVisible();
   });
 
-  test("the keyboard walks the leads: J focuses, Enter peeks, C dials, F opens the finder, Esc backs out in order", async ({ page }) => {
+  test("the keyboard walks the leads: J focuses, Enter peeks, C dials, F opens the finder, Esc backs out in order", async ({
+    page,
+  }) => {
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
     await page.keyboard.press("j");
@@ -224,17 +237,19 @@ test.describe("Leads on a real workspace", () => {
     await expect(page.getByTestId("lead-finder")).toHaveCount(0);
   });
 
-  test("at a phone's width the switch, search and Find are one bar and the first lead is on the first screen", async ({ page }) => {
+  test("at a phone's width the switch, the list, search and Find are one bar and the first lead is on the first screen", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("leads-phone-bar");
     await expect(bar).toBeVisible();
-    await expect(bar.getByTestId("leads-phone-search")).toBeVisible();
+    await expect(bar.getByTestId("leads-phone-search-open")).toBeVisible();
     await expect(bar.getByTestId("leads-phone-find")).toBeVisible();
     // Whole, not only there: the bar once drew 18px tall with all four clipped inside it (the rated card's star
     // track shared its class), and a clipped control still has a box, so it still passed as visible.
-    await expect(bar.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
+    await expect(bar.getByTestId("leads-phone-search-open")).toBeInViewport({ ratio: 1 });
     await expect(bar.getByTestId("leads-phone-find")).toBeInViewport({ ratio: 1 });
     // Nothing above the rows but the bar and the strip: no stat cards, no
     // controls row, no rail (feedback_mobile_work_first).
@@ -242,20 +257,38 @@ test.describe("Leads on a real workspace", () => {
     await expect(page.locator(".cl-controls")).toHaveCount(0);
     await expect(page.locator(".cl-table tbody tr").first()).toBeInViewport({ ratio: 1 });
     // A card, not a row of columns, with a 44px Call.
-    const call = page.locator(".cl-table tbody tr").first().getByRole("button", { name: /^Call / });
+    const call = page
+      .locator(".cl-table tbody tr")
+      .first()
+      .getByRole("button", { name: /^Call / });
     expect((await call.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
     // Every cell the card draws sits on one of the card's own areas, and Call ends where the card ends. A phone draws
     // every column, and a cell naming an area the template lacks is laid out on tracks of its own past the grid:
     // Fit and Stage did, and Call sat mid-card.
-    const card = await page.locator(".cl-table tbody tr").first().evaluate((tr) => {
-      const areas = new Set(getComputedStyle(tr).gridTemplateAreas.replace(/"/g, " ").split(/\s+/).filter(Boolean));
-      const strays = [...tr.children].filter((td) => getComputedStyle(td).display !== "none" && !areas.has(getComputedStyle(td).gridRowStart)).map((td) => td.className);
-      const callEl = tr.querySelector(".ld-call");
-      return { strays, callGap: tr.getBoundingClientRect().right - (callEl ? callEl.getBoundingClientRect().right : 0) };
-    });
+    const card = await page
+      .locator(".cl-table tbody tr")
+      .first()
+      .evaluate((tr) => {
+        const areas = new Set(getComputedStyle(tr).gridTemplateAreas.replace(/"/g, " ").split(/\s+/).filter(Boolean));
+        const strays = [...tr.children]
+          .filter((td) => getComputedStyle(td).display !== "none" && !areas.has(getComputedStyle(td).gridRowStart))
+          .map((td) => td.className);
+        const callEl = tr.querySelector(".ld-call");
+        return {
+          strays,
+          callGap: tr.getBoundingClientRect().right - (callEl ? callEl.getBoundingClientRect().right : 0),
+        };
+      });
     expect(card.strays, "a cell the card draws has no area in its template").toEqual([]);
     expect(Math.abs(card.callGap), "Call ends at the card's right edge").toBeLessThanOrEqual(1);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(
+      0,
+    );
+    // Search is the bar's button; pressed, the bar is one full-width field (it was a 64px box that said "Sear").
+    await bar.getByTestId("leads-phone-search-open").click();
+    await expect(page.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("leads-phone-search-cancel").click();
+    await expect(bar.getByTestId("leads-phone-lists")).toBeVisible();
   });
 
   test("Find leads turns words into a plan card, and nothing is started when it is closed", async ({ page }) => {
@@ -273,7 +306,9 @@ test.describe("Leads on a real workspace", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("lead-finder")).toHaveCount(0);
     const after = await (await apiGet(page, "/api/v1/lead-searches")).json();
-    expect((after.data.searches as unknown[]).length, "a plan the owner closed started nothing").toBe((before.data.searches as unknown[]).length);
+    expect((after.data.searches as unknown[]).length, "a plan the owner closed started nothing").toBe(
+      (before.data.searches as unknown[]).length,
+    );
   });
 
   test("a small search runs end to end on the listed workspace, and is removed after", async ({ page }) => {
@@ -292,7 +327,9 @@ test.describe("Leads on a real workspace", () => {
     // What it spent is read from the ledger, never from a screen.
     const searches = await (await apiGet(page, "/api/v1/lead-searches")).json();
     // What a round spent is the ROUND's (LeadSearchRoundDto), never the search's.
-    const mine = (searches.data.searches as Array<{ id: string; name: string; round: { cost_usd: number } | null }>).find((s) => /bike shops/i.test(s.name));
+    const mine = (
+      searches.data.searches as Array<{ id: string; name: string; round: { cost_usd: number } | null }>
+    ).find((s) => /bike shops/i.test(s.name));
     expect(mine, "the search the page started is in the ledger").toBeTruthy();
     expect(Number(mine!.round?.cost_usd ?? 0)).toBeLessThan(0.5);
     // And the workspace goes back to its six: the seed's verify() refuses a drifted one.

@@ -13,7 +13,20 @@
  * wrote it, is `prompt-blocks.ts`.
  */
 
-import { BookingRulesSchema, BrainConfigSchema, BusinessProfileSchema, ClosureSchema, DAYS, FALLBACK_DEFAULTS, GuardrailsSchema, INSTRUCTIONS_MAX, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, type Closure, type Hours } from "./config";
+import {
+  BookingRulesSchema,
+  BrainConfigSchema,
+  BusinessProfileSchema,
+  ClosureSchema,
+  DAYS,
+  FALLBACK_DEFAULTS,
+  GuardrailsSchema,
+  INSTRUCTIONS_MAX,
+  MAX_CLOSURES,
+  MAX_INTERVALS_PER_DAY,
+  type Closure,
+  type Hours,
+} from "./config";
 import { hardLimitsWords, violatesNoPrices } from "./policy";
 import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
 import { closureDatesLabel, closuresFrom } from "./calendar";
@@ -76,7 +89,11 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
       "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
     checkedOn: [
       { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
-      { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." },
+      {
+        channel: "voice",
+        words:
+          "It has already been heard. A correction goes into the live call, and you are told while it is still up.",
+      },
     ],
   },
   disclose_ai: {
@@ -130,7 +147,11 @@ export interface StandingVM {
 const CANNOT_SAY_SERVICES = "cannot say what you offer";
 
 const has = (v: unknown): boolean =>
-  typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v as object).length > 0;
+  typeof v === "string"
+    ? v.trim().length > 0
+    : Array.isArray(v)
+      ? v.length > 0
+      : !!v && Object.keys(v as object).length > 0;
 
 /**
  * Three clauses, worst last.
@@ -148,7 +169,11 @@ export function standingLine(i: StandingInputs): StandingVM {
   if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
   if (!has(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
   if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
-  if (!has(p.tone)) gaps.push({ sentence: "It has no voice of its own yet — it answers in nobody in particular's words.", row: "tone" });
+  if (!has(p.tone))
+    gaps.push({
+      sentence: "It has no voice of its own yet — it answers in nobody in particular's words.",
+      row: "tone",
+    });
 
   const answers: string[] = [];
   if (has(p.address)) answers.push("where you are");
@@ -200,7 +225,11 @@ export interface ClosuresAheadVM {
  * no date is a row somebody started and never finished, which no save writes. A zone the clock cannot use is read as
  * UTC, the clock's own rule (clock.ts), so the row is never lost to one.
  */
-export function closuresAheadWords(closures: readonly Closure[] | null | undefined, tz: string, now: Date): ClosuresAheadVM {
+export function closuresAheadWords(
+  closures: readonly Closure[] | null | undefined,
+  tz: string,
+  now: Date,
+): ClosuresAheadVM {
   const dated = (closures ?? []).filter((c) => !!c?.date);
   const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
   const next = ahead[0];
@@ -238,7 +267,8 @@ const SERVICE_CHIPS = 4;
 // A note that sends the price to a consultation: "quoted at consult", "by consultation".
 const CONSULT = /\bconsult/i;
 // A note is written by the owner and read in a sentence: its first letter goes lower unless it opens an acronym.
-const inSentence = (note: string): string => (/^[A-Z][a-z]/.test(note) ? `${note[0]!.toLowerCase()}${note.slice(1)}` : note);
+const inSentence = (note: string): string =>
+  /^[A-Z][a-z]/.test(note) ? `${note[0]!.toLowerCase()}${note.slice(1)}` : note;
 
 /**
  * The services row at rest: how many are on record, the first few by name with how long each takes, and ONE sentence
@@ -253,7 +283,9 @@ const inSentence = (note: string): string => (/^[A-Z][a-z]/.test(note) ? `${note
  */
 export function servicesWords(services: readonly ServiceWordsInput[] | null | undefined): ServicesWordsVM {
   // A stored list that is not one (a hand-edited record) is no services, never a throw: the page draws this as it draws.
-  const list = (Array.isArray(services) ? services : []).filter((s): s is ServiceWordsInput & { name: string } => !!s && typeof s.name === "string" && s.name.trim() !== "");
+  const list = (Array.isArray(services) ? services : []).filter(
+    (s): s is ServiceWordsInput & { name: string } => !!s && typeof s.name === "string" && s.name.trim() !== "",
+  );
   const n = list.length;
   if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
   const notes = list.map((s) => (typeof s.price_note === "string" ? s.price_note.trim() : ""));
@@ -271,7 +303,13 @@ export function servicesWords(services: readonly ServiceWordsInput[] | null | un
     name: s.name.trim(),
     takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null,
   }));
-  return { count: n, line: `${count(n)} on record`, priced, chips, more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null };
+  return {
+    count: n,
+    line: `${count(n)} on record`,
+    priced,
+    chips,
+    more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null,
+  };
 }
 
 /**
@@ -285,8 +323,17 @@ export function servicesWords(services: readonly ServiceWordsInput[] | null | un
  */
 export function blockShareWords(chars: number, total: number): string | null {
   const SHARES: ReadonlyArray<readonly [number, string]> = [
-    [1 / 10, "a tenth"], [1 / 5, "a fifth"], [1 / 4, "a quarter"], [1 / 3, "a third"], [2 / 5, "two fifths"], [1 / 2, "half"],
-    [3 / 5, "three fifths"], [2 / 3, "two thirds"], [3 / 4, "three quarters"], [4 / 5, "four fifths"], [9 / 10, "nine tenths"],
+    [1 / 10, "a tenth"],
+    [1 / 5, "a fifth"],
+    [1 / 4, "a quarter"],
+    [1 / 3, "a third"],
+    [2 / 5, "two fifths"],
+    [1 / 2, "half"],
+    [3 / 5, "three fifths"],
+    [2 / 3, "two thirds"],
+    [3 / 4, "three quarters"],
+    [4 / 5, "four fifths"],
+    [9 / 10, "nine tenths"],
   ];
   if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
   const f = Math.min(1, chars / total);
@@ -367,17 +414,29 @@ const plural = (n: number, one: string, many: string): string => `${count(n)} ${
 export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefined): BookingRulesWordsVM {
   const r = rules ?? {};
   const parts: string[] = [];
-  if (isNumber(r.lead_hours)) parts.push(r.lead_hours === 0 ? "same-day bookings" : `at least ${r.lead_hours === 1 ? "1 hour's" : `${count(r.lead_hours)} hours'`} notice`);
+  if (isNumber(r.lead_hours))
+    parts.push(
+      r.lead_hours === 0
+        ? "same-day bookings"
+        : `at least ${r.lead_hours === 1 ? "1 hour's" : `${count(r.lead_hours)} hours'`} notice`,
+    );
   if (isNumber(r.slot_min)) parts.push(`${count(r.slot_min)}-minute slots`);
-  if (isNumber(r.buffer_min)) parts.push(r.buffer_min === 0 ? "no gap between appointments" : `${plural(r.buffer_min, "minute", "minutes")} between appointments`);
+  if (isNumber(r.buffer_min))
+    parts.push(
+      r.buffer_min === 0
+        ? "no gap between appointments"
+        : `${plural(r.buffer_min, "minute", "minutes")} between appointments`,
+    );
   if (isNumber(r.max_days_ahead)) parts.push(`up to ${plural(r.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r.party_max)) parts.push(`up to ${plural(r.party_max, "person", "people")}`);
   const joined = parts.join(" · ");
   // A stored list that is not one (a hand-edited record) is none, never a throw: the row is drawn from what is stored.
-  const notes = (Array.isArray(r.notes) ? r.notes : []).filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => {
-    const t = x.trim();
-    return /[.!?…]$/.test(t) ? t : `${t}.`;
-  });
+  const notes = (Array.isArray(r.notes) ? r.notes : [])
+    .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    .map((x) => {
+      const t = x.trim();
+      return /[.!?…]$/.test(t) ? t : `${t}.`;
+    });
   const d = BOOKING_DEFAULTS;
   return {
     line: joined ? `${joined[0]!.toUpperCase()}${joined.slice(1)}` : null,
@@ -399,18 +458,27 @@ export type BookingRuleKey = "lead_hours" | "slot_min" | "buffer_min" | "max_day
  * five is a TypeError, since the page is untyped.
  */
 export function bookingRuleRefusal(key: BookingRuleKey): string {
-  const shape = BookingRulesSchema.shape as unknown as Record<string, { unwrap?: () => { minValue: number | null; maxValue: number | null } } | undefined>;
+  const shape = BookingRulesSchema.shape as unknown as Record<
+    string,
+    { unwrap?: () => { minValue: number | null; maxValue: number | null } } | undefined
+  >;
   const words: Record<BookingRuleKey, (lo: number, hi: number) => string> = {
-    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
-    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar’s ${plural(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
-    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
-    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    lead_hours: (lo, hi) =>
+      `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi) =>
+      `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar’s ${plural(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi) =>
+      `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi) =>
+      `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`,
   };
   const say = Object.prototype.hasOwnProperty.call(words, key) ? words[key] : null;
   const bound = say ? shape[key]?.unwrap?.() : null;
   if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
-    throw new TypeError(`bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words).join(", ")}), not ${JSON.stringify(key)}.`);
+    throw new TypeError(
+      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words).join(", ")}), not ${JSON.stringify(key)}.`,
+    );
   }
   return say(bound.minValue, bound.maxValue);
 }
@@ -424,7 +492,9 @@ export function bookingRuleRefusal(key: BookingRuleKey): string {
  * Built inside a call marked pure, as GUARDRAIL_KEYS is: a top-level call is a side effect to the bundler, which would
  * keep this in the four dists that bundle contracts and never use it.
  */
-export const BOOKING_RULE_HINTS: Readonly<Record<"lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max", string | null>> = /* @__PURE__ */ (() => ({
+export const BOOKING_RULE_HINTS: Readonly<
+  Record<"lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max", string | null>
+> = /* @__PURE__ */ (() => ({
   lead_hours: `Empty uses ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
   slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
   buffer_min: null,
@@ -444,8 +514,10 @@ export const BOOKING_RULE_HINTS: Readonly<Record<"lead_hours" | "slot_min" | "bu
  * profile and the next one's; these are the words.
  */
 export const PROFILE_CROSSING_WORDS = {
-  stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
-  starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them.",
+  stops:
+    "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
+  starts:
+    "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them.",
 } as const;
 
 export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
@@ -458,9 +530,18 @@ export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
  * trade, and well inside the 200 characters the profile keeps (BusinessProfileSchema.tone; a vm test holds them to it).
  */
 export const TONE_PRESETS: readonly { label: string; tone: string }[] = [
-  { label: "Warm and brief", tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked." },
-  { label: "Professional, no small talk", tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks." },
-  { label: "Chatty, first names", tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk." },
+  {
+    label: "Warm and brief",
+    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked.",
+  },
+  {
+    label: "Professional, no small talk",
+    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks.",
+  },
+  {
+    label: "Chatty, first names",
+    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk.",
+  },
 ];
 
 /**
@@ -496,7 +577,9 @@ const cutAtWord = (text: string, max: number): string => {
  * that row's stored pause_hours as it is stored, read the way the Autonomy pane reads it (hardLimitsWords).
  */
 export function handoffChatWords(i: { hasEscalateWhen: boolean; pauseHours: unknown }): string {
-  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
+  const when = i.hasEscalateWhen
+    ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it`
+    : `When ${HANDED_OVER_ANYWAY}, it`;
   const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
   return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
 }
@@ -538,12 +621,19 @@ const HANDOFF_REASONS_SHOWN = 64;
  * for people); the row only states it, and the Who you are row is where it is changed. A stored list that is not one
  * (a hand-edited record) is no reasons, never a throw: the page draws this as it draws.
  */
-export function handoffWords(reasons: readonly string[] | null | undefined, transfer: string | null | undefined): HandoffWordsVM {
-  const list = (Array.isArray(reasons) ? reasons : []).filter((r): r is string => typeof r === "string" && r.trim() !== "").map((r) => r.trim());
+export function handoffWords(
+  reasons: readonly string[] | null | undefined,
+  transfer: string | null | undefined,
+): HandoffWordsVM {
+  const list = (Array.isArray(reasons) ? reasons : [])
+    .filter((r): r is string => typeof r === "string" && r.trim() !== "")
+    .map((r) => r.trim());
   const n = list.length;
   const number = typeof transfer === "string" ? transfer.trim() : "";
   return {
-    chat: n ? `on ${plural(n, "reason", "reasons")} — ${cutAtWord(list.join(" · "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
+    chat: n
+      ? `on ${plural(n, "reason", "reasons")} — ${cutAtWord(list.join(" · "), HANDOFF_REASONS_SHOWN)}`
+      : `when ${HANDED_OVER_ANYWAY}`,
     phone: number ? `transfers to ${number}` : "takes a message",
   };
 }
@@ -564,10 +654,18 @@ const NOTE_CHIPS = 4;
  * note with no title is a row nobody finished (the schema needs one), and is not counted; a stored list that is not one
  * is none.
  */
-export function notesWords(notes: readonly ({ title?: string | null } | null | undefined)[] | null | undefined): NotesWordsVM {
-  const titles = (Array.isArray(notes) ? notes : []).map((n) => (n && typeof n.title === "string" ? n.title.trim() : "")).filter((t) => t !== "");
+export function notesWords(
+  notes: readonly ({ title?: string | null } | null | undefined)[] | null | undefined,
+): NotesWordsVM {
+  const titles = (Array.isArray(notes) ? notes : [])
+    .map((n) => (n && typeof n.title === "string" ? n.title.trim() : ""))
+    .filter((t) => t !== "");
   const n = titles.length;
-  return { count: n, chips: titles.slice(0, NOTE_CHIPS), more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null };
+  return {
+    count: n,
+    chips: titles.slice(0, NOTE_CHIPS),
+    more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null,
+  };
 }
 
 /** The owner's own words, at rest and in their box. */
@@ -614,7 +712,9 @@ export interface FallbacksWordsVM {
  * are not the default and were not written by the owner either. A message stored empty is sent in the default wording
  * (fallbackMessages), so it counts as the default; so does a workspace that stores none.
  */
-export function fallbacksWords(fallbacks: Partial<Record<keyof typeof FALLBACK_DEFAULTS, string | null>> | null | undefined): FallbacksWordsVM {
+export function fallbacksWords(
+  fallbacks: Partial<Record<keyof typeof FALLBACK_DEFAULTS, string | null>> | null | undefined,
+): FallbacksWordsVM {
   const keys = Object.keys(FALLBACK_DEFAULTS) as (keyof typeof FALLBACK_DEFAULTS)[];
   const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
   const differ = keys.filter((k) => {
@@ -623,7 +723,9 @@ export function fallbacksWords(fallbacks: Partial<Record<keyof typeof FALLBACK_D
   }).length;
   return {
     line: `${count(keys.length)} messages sent in your name`,
-    own: differ ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording` : "all in the default wording",
+    own: differ
+      ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording`
+      : "all in the default wording",
   };
 }
 
@@ -685,7 +787,10 @@ export interface AbilityInputs {
 }
 
 /** The inputs that must be true or false. Typed off AbilityInputs, so a new boolean cannot be left off. */
-const BOOLEAN_INPUTS: Record<{ [K in keyof AbilityInputs]-?: AbilityInputs[K] extends boolean ? K : never }[keyof AbilityInputs], true> = {
+const BOOLEAN_INPUTS: Record<
+  { [K in keyof AbilityInputs]-?: AbilityInputs[K] extends boolean ? K : never }[keyof AbilityInputs],
+  true
+> = {
   voiceLive: true,
   whatsappLive: true,
   hasCalendarFeed: true,
@@ -717,10 +822,17 @@ function heldFor(pauseHours: number): string {
 }
 
 export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
-  if (!i || typeof i !== "object") throw new TypeError("abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.");
-  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof (i as unknown as Record<string, unknown>)[k] !== "boolean");
+  if (!i || typeof i !== "object")
+    throw new TypeError(
+      "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.",
+    );
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter(
+    (k) => typeof (i as unknown as Record<string, unknown>)[k] !== "boolean",
+  );
   if (notBoolean.length) {
-    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`);
+    throw new TypeError(
+      `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`,
+    );
   }
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   // Nothing is ready on a channel that is not answering. An input filled against a
@@ -761,7 +873,8 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       id: "answer",
       title: "Answer from your facts",
       // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
-      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
+      detail:
+        "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
       ready: answering,
@@ -900,13 +1013,18 @@ export function cannotRows(i: { smsLive: boolean }): CannotRowVM[] {
 export const PROFILE_LIMITS: Readonly<Record<ProfileLimitKey, number>> = /* @__PURE__ */ (() => {
   // A cap, however the schema states it: a string's own `maxLength`, or an array's `max_length` check.
   const cap = (schema: unknown): number => {
-    const s = schema as { maxLength?: number | null; def?: { checks?: { _zod?: { def?: { check?: string; maximum?: number } } }[] } };
+    const s = schema as {
+      maxLength?: number | null;
+      def?: { checks?: { _zod?: { def?: { check?: string; maximum?: number } } }[] };
+    };
     if (typeof s.maxLength === "number") return s.maxLength;
     for (const c of s.def?.checks ?? []) {
       const d = c?._zod?.def;
       if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
     }
-    throw new TypeError("PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses.");
+    throw new TypeError(
+      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses.",
+    );
   };
   const floor = (schema: unknown): number => {
     const s = schema as { minLength?: number | null };
@@ -948,18 +1066,52 @@ export const PROFILE_LIMITS: Readonly<Record<ProfileLimitKey, number>> = /* @__P
 
 /** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` says what each one refuses in. */
 export type ProfileLimitKey =
-  | "tone" | "services" | "serviceName" | "serviceMinutes" | "servicePrice"
-  | "languages" | "languageMin" | "languageMax"
-  | "reasons" | "reason" | "consultFirst" | "consultFirstLine"
-  | "ruleNotes" | "ruleNote" | "notes" | "noteTitle" | "noteText"
-  | "closures" | "closureNote" | "shifts" | "instructions" | "message";
+  | "tone"
+  | "services"
+  | "serviceName"
+  | "serviceMinutes"
+  | "servicePrice"
+  | "languages"
+  | "languageMin"
+  | "languageMax"
+  | "reasons"
+  | "reason"
+  | "consultFirst"
+  | "consultFirstLine"
+  | "ruleNotes"
+  | "ruleNote"
+  | "notes"
+  | "noteTitle"
+  | "noteText"
+  | "closures"
+  | "closureNote"
+  | "shifts"
+  | "instructions"
+  | "message";
 
 /** What `profileRefusal` will say a sentence for: the caps a fold refuses AT, and the one range a language sits in. */
 export type ProfileRefusalKey =
-  | "tone" | "services" | "serviceName" | "serviceMinutes" | "servicePrice"
-  | "languages" | "language" | "reasons" | "reason" | "consultFirst" | "consultFirstLine"
-  | "ruleNotes" | "ruleNote" | "notes" | "noteTitle" | "noteText"
-  | "closures" | "closureNote" | "shifts" | "instructions" | "message";
+  | "tone"
+  | "services"
+  | "serviceName"
+  | "serviceMinutes"
+  | "servicePrice"
+  | "languages"
+  | "language"
+  | "reasons"
+  | "reason"
+  | "consultFirst"
+  | "consultFirstLine"
+  | "ruleNotes"
+  | "ruleNote"
+  | "notes"
+  | "noteTitle"
+  | "noteText"
+  | "closures"
+  | "closureNote"
+  | "shifts"
+  | "instructions"
+  | "message";
 
 /**
  * What a fold says under the box when what is typed is more than the save would take.
@@ -972,7 +1124,8 @@ export type ProfileRefusalKey =
  */
 export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: string): string {
   const L = PROFILE_LIMITS;
-  const chars = (max: number): string => `At most ${count(max)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
+  const chars = (max: number): string =>
+    `At most ${count(max)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
   const lines = (max: number, one: string, many: string): string =>
     `At most ${plural(max, one, many)}, one to a line${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
   const words: Record<ProfileRefusalKey, () => string> = {
@@ -990,17 +1143,22 @@ export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: strin
     ruleNotes: () => lines(L.ruleNotes, "note", "notes"),
     ruleNote: () => `Each note is at most ${count(L.ruleNote)} characters.`,
     notes: () => `At most ${plural(L.notes, "note", "notes")}.`,
-    noteTitle: () => `A note's title is at most ${count(L.noteTitle)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
-    noteText: () => `A note's text is at most ${count(L.noteText)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
+    noteTitle: () =>
+      `A note's title is at most ${count(L.noteTitle)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
+    noteText: () =>
+      `A note's text is at most ${count(L.noteText)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
     closures: () => `At most ${plural(L.closures, "closed day", "closed days")}. Dates that have passed can go.`,
     closureNote: () => chars(L.closureNote),
-    shifts: () => `At most ${plural(L.shifts, "shift", "shifts")} in a day — ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+    shifts: () =>
+      `At most ${plural(L.shifts, "shift", "shifts")} in a day — ${of ?? "that day"} has ${count(seen ?? 0)}.`,
     instructions: () => chars(L.instructions),
     message: () => chars(L.message),
   };
   const say = Object.prototype.hasOwnProperty.call(words, key) ? words[key] : null;
   if (!say) {
-    throw new TypeError(`profileRefusal knows the tab's own caps (${Object.keys(words).join(", ")}), not ${JSON.stringify(key)}.`);
+    throw new TypeError(
+      `profileRefusal knows the tab's own caps (${Object.keys(words).join(", ")}), not ${JSON.stringify(key)}.`,
+    );
   }
   return say();
 }
@@ -1017,7 +1175,10 @@ export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: strin
  * one the page can name exactly.
  */
 const WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
-export function writtenOutDetail(text: string | null | undefined, bookingLink: string | null | undefined): "link" | "number" | null {
+export function writtenOutDetail(
+  text: string | null | undefined,
+  bookingLink: string | null | undefined,
+): "link" | "number" | null {
   const said = typeof text === "string" ? text : "";
   const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
   if (link && said.includes(link)) return "link";
