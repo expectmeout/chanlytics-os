@@ -14,6 +14,7 @@ import {
   closuresAheadWords,
   toCalendarVM,
   zoneDayKey,
+  hoursZoneWords,
   CALENDAR_FEED_WORDS,
   timezoneWords,
   knownTimezones,
@@ -193,10 +194,10 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   assert.equal(byTestId(tree, "rec-row-hours"), null, "in the row's place");
   const fold = foldOf(tree, "hours");
   assert.equal(fold.props["data-wide"], "true", "its own grid names each day");
-  assert.equal(
-    textOf(find(fold, (n) => classes(n).includes("rec-fold-hint"))),
-    "All times America/New_York, as the receptionist states them.",
-  );
+  // The zone by the name the card above it already uses (openWeekWords: "in New York time"), never the IANA id: an
+  // owner setting their opening hours has no use for "America/New_York", and it is the machine's name for the place.
+  assert.equal(textOf(find(fold, (n) => classes(n).includes("rec-fold-hint"))), hoursZoneWords("America/New_York"));
+  assert.equal(hoursZoneWords("America/New_York"), "All times in New York time, as the receptionist states them.");
   assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Save the week");
   assert.deepEqual(
     all(fold, (n) => n.props?.role === "switch").map((s) => [s.props["aria-label"], s.props["aria-checked"]]),
@@ -229,8 +230,9 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   tree = drawTab({ zone: "America/Chicago" });
   assert.equal(
     textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-fold-hint"))),
-    "All times America/Chicago, as the receptionist states them.",
+    hoursZoneWords("America/Chicago"),
   );
+  assert.equal(hoursZoneWords("America/Chicago"), "All times in Chicago time, as the receptionist states them.");
 });
 
 test("an hours save sends the stored config with the week changed, and everything else as it was", () => {

@@ -212,6 +212,18 @@ export function openWeekWords(hours: Partial<Record<string, Hours>> | null | und
   return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
 }
 
+/**
+ * The line over the week while it is being edited: whose clock these times are on, by the name the card above already
+ * uses for it (openWeekWords, "in New York time"), and what they are.
+ *
+ * Never the IANA id. "All times America/New_York" is the machine's name for the place, on the one fold where somebody
+ * is typing the hours their front door opens -- and a zone with an underscore in it reads as a setting rather than a
+ * sentence. The zone row itself says the whole of it, where changing it is the point.
+ */
+export function hoursZoneWords(tz: string): string {
+  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
+}
+
 export interface ClosuresAheadVM {
   /** How many closures are still to come, by the business's own day. */
   count: number;

@@ -13603,6 +13603,9 @@ function openWeekWords(hours, tz) {
   if (!open) return `Times are ${zone}`;
   return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
 }
+function hoursZoneWords(tz) {
+  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
+}
 function closuresAheadWords(closures, tz, now) {
   const dated = (closures ?? []).filter((c) => !!c?.date);
   const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
@@ -17074,6 +17077,7 @@ export {
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
   hoursRuns,
+  hoursZoneWords,
   identityWords,
   inboxSlots,
   inboxTemplates,

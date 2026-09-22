@@ -22,6 +22,7 @@ import {
   PROFILE_CROSSING_WORDS,
   TenantConfigWriteSchema,
   openWeekWords,
+  hoursZoneWords,
   closuresAheadWords,
   servicesWords,
   servicesToldWords,
@@ -248,7 +249,8 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
   }));
 }
 
-// openWeekWords and closuresAheadWords are the When you're open card's two sentences with a number in them; the
+// openWeekWords and closuresAheadWords are the When you're open card's two sentences with a number in them, and
+// hoursZoneWords is the line over the week while it is edited, which names the zone the way that card names it; the
 // services row's and sheet's (servicesWords, servicesToldWords, servicesSaveWords, blockShareWords) and the booking
 // rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's. needsConsultation and foldName are the rules the
 // services sheet marks a consult-first service by and searches by: the Calendar's and the phone tool's own, not copies.
@@ -275,6 +277,7 @@ export const BUSINESS_TAB = {
   profileCrossing,
   saveIssues,
   openWeekWords,
+  hoursZoneWords,
   closuresAheadWords,
   servicesWords,
   servicesToldWords,

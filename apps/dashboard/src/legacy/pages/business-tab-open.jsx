@@ -659,7 +659,7 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
         {...shared}
         id="hours"
         label="Hours"
-        hint={`All times ${toldIn}, as the receptionist states them.`}
+        hint={tab.hoursZoneWords ? tab.hoursZoneWords(toldIn) : null}
         wide
         saveLabel="Save the week"
         gate={gate("your hours")}
