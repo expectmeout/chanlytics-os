@@ -26,8 +26,14 @@ const twSurface = (key) => (window.todaySurface ? window.todaySurface(key) : win
 // for its tone (never colour alone), names who is waiting where the page holds them, and offers Ask its own facts:
 // "Ask why" asks the row's sentence, so Ask grounds the answer in what it can read. It is gone entirely on a
 // workspace with nothing wrong: there is no congratulation state. A third problem is a line, never silence.
+//
+// On a phone the arithmetic is a receipt, not a decision, so it waits behind the sentence: the sentence is a button
+// that shows it, the way the day's figures show theirs, and "Ask why" carries it anyway. The words stay in the DOM
+// (hidden), so Ask, the tests and a phone run read the same line. Width is read as the Calendar reads it (crPhone).
+const twPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
 const TodayLeaks = () => {
   useTwTick("surface:reports,surface:clients,surface:today");
+  const [open, setOpen] = React.useState(null);
   const R = twSurface("__REPORTS");
   const P = twSurface("__PEOPLE");
   const T = window.TODAY_DATA;
@@ -44,11 +50,11 @@ const TodayLeaks = () => {
   if (!R || !P) return null;
   const { rows, moreLine } = window.__today.leaks(R, P, T ? T.noReply : []);
   if (!rows.length) return null;
+  const phone = twPhone();
   return (
     <section className="tsec tl" data-testid="today-leaks">
       <div className="tsec-head">
         <span className="tsec-title">Worth a look</span>
-        <span className="tsec-sub">from Reports and People, read together</span>
       </div>
       <div className="tl-list">
         {rows.map((l) => (
@@ -56,8 +62,12 @@ const TodayLeaks = () => {
             <span className={`tl-glyph tl-${l.tone}`} aria-hidden="true"><Icon name={l.icon} size={13} /></span>
             <span className="tl-body">
               <span className="tl-tag">{l.tag}</span>
-              <span className="tl-text">{l.text}</span>
-              <span className="tl-math tabular">{l.math}</span>
+              {phone ? (
+                <button type="button" className="tl-text tl-text-door" aria-expanded={open === l.id} aria-controls={`today-leak-math-${l.id}`} onClick={() => setOpen(open === l.id ? null : l.id)} data-testid={`today-leak-text-${l.id}`}>{l.text}</button>
+              ) : (
+                <span className="tl-text">{l.text}</span>
+              )}
+              <span className="tl-math tabular" id={`today-leak-math-${l.id}`} hidden={phone && open !== l.id}>{l.math}</span>
               {/* Who is waiting right now, from the threads Today holds: not the count's own subjects (the count is Reports' over
                   its period), so the lead says so and the names are never drawn as the people the sentence counts. */}
               {l.people.length > 0 && (

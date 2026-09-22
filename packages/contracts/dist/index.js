@@ -6164,11 +6164,10 @@ function todayPeriodLine(r) {
   if (!a) return null;
   const messages = v.tiles.find((t) => t.id === "messages");
   const parts2 = [
-    `${a.totals.in} customer message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`
+    `${a.totals.in} message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`
   ];
   if (a.share !== void 0 && a.share !== null)
     parts2.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
-  if (v.replyTime && v.replyTime.count > 0) parts2.push(`median reply ${v.replyTime.medianLabel}`);
   const callCount = v.calls ? v.calls.total : 0;
   if (callCount) parts2.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
   return { text: `${lead}: ${parts2.join(", ")}.`, to: "reports" };

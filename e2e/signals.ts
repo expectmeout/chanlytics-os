@@ -55,7 +55,8 @@ export async function readLeaks(page: Page): Promise<LeakRow[]> {
     out.push({
       id: ((await row.getAttribute("data-testid")) ?? "").replace(/^today-leak-/, ""),
       text: (await row.locator(".tl-text").innerText()).trim(),
-      math: (await row.locator(".tl-math").innerText()).trim(),
+      // textContent, not innerText: on a phone the arithmetic waits hidden behind the sentence.
+      math: ((await row.locator(".tl-math").textContent()) ?? "").trim(),
       doors: (await row.locator(".tl-acts button").allInnerTexts()).map((d) => d.trim()),
     });
   }

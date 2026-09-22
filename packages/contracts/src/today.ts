@@ -1653,9 +1653,10 @@ export interface ReportsLike {
  * The last seven (or thirty, or ninety) days in one sentence at the foot of the day's card, with a door to Reports,
  * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, read from the
  * view model Reports itself draws and never derived a second time here: its period words (`period.now`), the messages
- * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `replyTime.medianLabel`, its
- * `calls.total`. It never reads `campaigns`: that read fails on its own (#686), and a period line that dereferenced it
- * took the whole page down.
+ * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `calls.total`. Not its median
+ * reply: that is Reports' own figure, and with it the foot ran three lines on a phone (22 Sep). "Messages", not
+ * "customer messages": the card's figure above already says whose. It never reads `campaigns`: that read fails on its
+ * own (#686), and a period line that dereferenced it took the whole page down.
  */
 export function todayPeriodLine(r: ReportsLike | null): { text: string; to: "reports" } | null {
   if (!r || !r.vm) return null;
@@ -1666,11 +1667,10 @@ export function todayPeriodLine(r: ReportsLike | null): { text: string; to: "rep
   if (!a) return null;
   const messages = v.tiles.find((t) => t.id === "messages");
   const parts = [
-    `${a.totals.in} customer message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`,
+    `${a.totals.in} message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`,
   ];
   if (a.share !== undefined && a.share !== null)
     parts.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
-  if (v.replyTime && v.replyTime.count > 0) parts.push(`median reply ${v.replyTime.medianLabel}`);
   const callCount = v.calls ? v.calls.total : 0;
   if (callCount) parts.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
   return { text: `${lead}: ${parts.join(", ")}.`, to: "reports" };
