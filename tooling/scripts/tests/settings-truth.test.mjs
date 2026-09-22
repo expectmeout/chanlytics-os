@@ -91,9 +91,12 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   assert.equal(ROLE_PERMS.operator.settings, false, "PUT /settings is owner-only; an operator's form opened on the autonomy gate and was refused at Save");
   assert.equal(ROLE_PERMS.viewer.settings, false);
   // Every act of the Business page is a PUT an operator is refused, so every card gates on "settings" and names what
-  // it acts on, and none opens on a gate the door refuses. Drawn, not read: business-tab-open.test.mjs reads the
-  // sentence on every act of a card, and business-tab-page.test.mjs draws the whole page for a viewer and finds no
-  // act at all on it.
+  // it acts on, and none opens on a gate this door refuses. Drawn, not read: business-tab-page.test.mjs, "every act
+  // of the record is a PUT the settings door refuses, and none asks a different door", draws the whole page and the
+  // card a workspace with no receptionist sees for an operator who may do autonomy and not settings, and then for one
+  // who may do settings and nothing else -- so a card asking the WRONG door shows up either as a live button this
+  // role cannot save with, or as a refused one where every act should be offered. (Refusing every permission at once,
+  // as the viewer test below does, cannot tell those apart.) business-tab-open.test.mjs reads the sentence on each act.
   assert.ok(pane.includes('gate("autonomy")'), "the autonomy matrix keeps its own gate — PUT /policies is operator-or-owner");
   // Delay edits.
   assert.ok(pane.includes("if (d && reply) put(reply, undefined, { replyDelayMs: d[1] });"));

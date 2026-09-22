@@ -10,6 +10,20 @@ import { stateOf, standingLine, roleGate, newReceptionistDefaults, PROFILE_CROSS
 import { again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import { KNOWN, W, boxOf, cancelFoldOf, cancelRow, composePromptPreview, composed, dayOf, drawTab, escape, foldOf, inline, labelled, melany, openFold, openFolds, openRows, ownWords, partsOf, redrawTab, saveFoldOf, saveRow, saving, settings, typeAt, typeInto, went, without } from "./_business-tab-harness.mjs";
 
+/**
+ * The card PaneWorkspace draws INSTEAD of the page for a workspace whose config holds no brain
+ * (pages/business-tab-create.jsx). Its own tests are business-tab-create.test.mjs; it is here because who may press
+ * its one act is the same question as who may press the page's, and the answer has to be one answer.
+ */
+const drawCreateCard = () => {
+  W.__SETTINGS = { version: 1, config: {}, prompt: null };
+  W.__FACTS = { facts: { voice_line: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } }, conflicts: [] };
+  unmount();
+  W.__recordFolds.reset();
+  W.__businessTabSave.saver.reset();
+  return W.React.createElement(W.BtCreateCard, { flash: () => {} });
+};
+
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
 
@@ -1192,6 +1206,40 @@ test("the transfer number starts from the number as it is shown, is checked unde
 });
 
 /* ------------------------------------ who may change it ------------------------------------ */
+
+test("every act of the record is a PUT the settings door refuses, and none asks a different door", () => {
+  // PUT /settings is owner-only. A card that gated on some OTHER permission would be offered to a role that cannot
+  // save, and refused at the round trip -- which is what the form did before it was made owner-only, opening on the
+  // autonomy gate. The viewer test below cannot see that: it refuses every permission at once, so a card asking the
+  // wrong one is refused too, by luck. These two roles tell them apart.
+  const was = W.ST_STORE;
+  try {
+    // An operator, who may change the autonomy matrix (PUT /policies) and NOT the business.
+    W.ST_STORE = { can: (perm) => perm === "autonomy", myRole: () => "operator" };
+    let tree = drawTab();
+    assert.deepEqual(all(tree, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || "")), [], "no row offers a change");
+    assert.equal(byTestId(tree, "rec-standing-door"), null, "and the standing line opens nothing");
+    const why = roleGate("operator", "settings", "change the business").reason;
+    assert.match(textOf(byTestId(tree, "bt-viewer")), new RegExp(escape(why)), "the page says why once, in the settings door's words");
+    // The card a workspace with no receptionist sees keeps its primary act, shown and refused -- so it is the one
+    // place a wrong permission would show as a live button. It must be refused, and in the SAME words.
+    const empty = drawCreateCard();
+    const act = byTestId(empty, "rec-create-open");
+    assert.equal(act.props["aria-disabled"], true, "REGRESSION: the act asked a door this role may open");
+    assert.equal(act.props["aria-description"], roleGate("operator", "settings", "set up the receptionist").reason);
+
+    // And an operator who may change the business and nothing else is offered all of it, refused nowhere: every act
+    // asks "settings", so widening that one permission widens exactly these controls.
+    W.ST_STORE = { can: (perm) => perm === "settings", myRole: () => "operator" };
+    tree = drawTab();
+    const acts = all(tree, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || ""));
+    assert.ok(acts.length > 6, "the rows offer their changes");
+    assert.deepEqual(acts.filter((a) => a.props["aria-disabled"]).map((a) => a.props["data-testid"]), [], "and none of them is refused");
+    assert.equal(byTestId(drawCreateCard(), "rec-create-open").props["aria-disabled"], undefined);
+  } finally {
+    if (was) W.ST_STORE = was; else delete W.ST_STORE;
+  }
+});
 
 test("a viewer reads everything, is offered no act, and is told why once", () => {
   // data-bits' real gate, over contracts' role table (roleGate): the role is the store's.
