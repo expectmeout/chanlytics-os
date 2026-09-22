@@ -148,6 +148,18 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
   whichever deploys first.
 - **Production scripts** are dry-run by default, write a JSONL backup first, and
   take `--apply` to mean it.
+- **Formatting is Prettier's.** `.prettierrc.json` is the whole style; the
+  pre-commit hook formats what is staged and CI checks the tree. The ported
+  shell and generated files are outside it (`.prettierignore` says why).
+- **The layers hold apart.** Browser code never imports the server or the
+  packages that hold rules; server code never imports the shell or the bridge;
+  the edge never imports the dashboard. `eslint.config.mjs` enforces the three
+  boundaries; a type-only import crosses freely.
+- **The edge reads its environment once**, through `apps/edge/lib/env.ts`,
+  trimmed, blank as unset. It logs once, through `apps/edge/lib/log.ts`: one
+  JSON object per line with a level, an event and the bound context. A
+  `process.env` read or a `console` call anywhere else on the edge is a lint
+  error.
 
 ## Testing
 

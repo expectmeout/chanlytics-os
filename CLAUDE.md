@@ -35,6 +35,7 @@ corepack pnpm install
 corepack pnpm --filter "./packages/*" build   # apps typecheck against built dist; dist is committed
 corepack pnpm -r typecheck
 corepack pnpm lint
+corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite; database suites skip without credentials
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 corepack pnpm e2e                             # Playwright, against production by default
@@ -72,6 +73,15 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **Tests execute the code they prove.** A source-text assertion is the last resort, and
   `source-scan-baseline.json` may only fall.
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
+- **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`) never imports
+  `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge
+  or the client; the edge never imports the dashboard, `next` or `react`. Types cross freely.
+  `eslint.config.mjs` enforces it.
+- **The edge reads the environment through `lib/env.ts` and logs through `lib/log.ts`.** A
+  `process.env` read or a `console` call anywhere else on the edge is a lint error. Event names
+  never change; they are what alerting greps for.
+- **Prettier owns formatting.** The hook formats what you stage; CI runs `format:check`. Never
+  argue with it in a review.
 
 ## The canonical example of each thing
 
@@ -89,6 +99,8 @@ Copy the shape of these; do not invent a second one.
 | A migration | `supabase/migrations/00125_a_person_may_have_an_email.sql` | Header of a few lines, re-runnable statements, RLS and grants like the other tenant tables |
 | A view model | `packages/contracts/src/calendar.ts` | Pure; every sentence the page says comes from here |
 | A real surface | `apps/dashboard/src/legacy/pages/calendar-real.jsx` with `legacy-bridge/calendar.ts` | Classify it in `surface-registry.ts`; feed it through the surface seam; never a raw fetch in a page |
+| An environment variable on the edge | A getter in `apps/edge/lib/env.ts` and a line in `apps/edge/.env.example` | `env-manifest.test.mjs` holds the two to the same list; blank is unset |
+| A log line on the edge | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts` | One JSON object per line; the event name is the contract |
 | A test of a door | `tooling/scripts/tests/sms-door.test.mjs` | A world over `_fake-db.mjs`; the real handler runs |
 | A test of a verb | `tooling/scripts/tests/core-thread-verbs.test.mjs` | Fakes for the ports |
 | A database test | `tooling/scripts/tests/*.db.test.mjs` | Runs against the replayed stack in CI when database paths change; skips without credentials |

@@ -1,0 +1,39 @@
+# What Prettier leaves alone. Everything else in the tree is formatted, and CI
+# checks it (`pnpm format:check`); the pre-commit hook formats what is staged.
+
+# Built, installed, cached
+node_modules/
+dist/
+.next/
+.turbo/
+.vercel/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+pnpm-lock.yaml
+
+# Written by a script; regenerating is the only correct edit
+packages/db/src/database.types.ts
+*.generated.ts
+tooling/scripts/tests/route-policy.json
+tooling/scripts/tests/source-scan-baseline.json
+
+# The ported shell keeps its own conventions (apps/dashboard/src/legacy/CLAUDE.md):
+# script-mode files with /* global */ headers, edited by several people at once.
+# It joins the formatter surface by surface as each one moves to a real route.
+apps/dashboard/src/legacy/
+
+# Served as they are: the public pages Meta reviewed, the service worker, the icons
+apps/edge/public/
+apps/dashboard/public/
+
+# Not JavaScript's to format
+supabase/
+.claude/
+docs/images/
+docs/mockup/
+
+# History, frozen as written
+docs/plans/
+docs/superpowers/

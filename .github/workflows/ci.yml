@@ -53,6 +53,9 @@ jobs:
       # dashboard until apps/edge — the 1,600 lines a real customer message
       # travels through — turned out to be the one unlinted thing in the repo.
       - run: pnpm lint
+      # Formatting is checked, never fixed, here: the pre-commit hook formats
+      # what is staged, and this step catches a commit made with the hook off.
+      - run: pnpm format:check
       # `pnpm test`, not a second copy of the command: the suite needs Node's
       # type-stripping flags to import the dashboard's .ts modules, and a
       # duplicated invocation here silently ran without them — passing only

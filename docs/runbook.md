@@ -55,6 +55,34 @@ supabase stop --no-backup
 Point anything at it with `SUPABASE_URL=http://127.0.0.1:54321` and the keys
 `supabase status` prints. They are the published local-stack keys, not secrets.
 
+## Format it
+
+Prettier owns formatting (`.prettierrc.json`); `.prettierignore` names what it
+leaves alone and why. `corepack pnpm install` installs a pre-commit hook
+(`.husky/pre-commit`, through `tooling/scripts/prepare-hooks.mjs`, which skips
+on CI and on Vercel) that formats whatever is staged, so a commit made with the
+hook on is always formatted. CI runs `pnpm format:check` and fails a commit
+made without it.
+
+```bash
+corepack pnpm format          # the whole tree
+corepack pnpm format:check    # what CI runs
+git commit --no-verify        # skips the hook; CI will still check
+```
+
+**Rebasing a branch across the formatting commit.** A branch older than the
+commit that formatted the tree conflicts on every file it touched. Do not
+resolve by hand: take the branch's side, format, continue.
+
+```bash
+git rebase origin/main
+# on each conflicting file:
+git checkout --theirs -- <file>   # during a rebase, "theirs" is the branch being replayed
+corepack pnpm exec prettier --write <file>
+git add <file>
+git rebase --continue
+```
+
 ## Test it
 
 | Suite | Command | Needs |
@@ -73,7 +101,7 @@ skipping. The nightly sets it; the pull-request jobs do not.
 | Workflow | On | Proves |
 |---|---|---|
 | `ci.yml`, Secret scan | every pull request and push to main | No secret in what the pull request adds |
-| `ci.yml`, Typecheck | same | `dist` matches the sources; typecheck; lint; the node suite; the dashboard builds the way Vercel builds it |
+| `ci.yml`, Typecheck | same | `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; the formatting check; the node suite; the dashboard builds the way Vercel builds it |
 | `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack |
 | `nightly-e2e.yml` | 09:00 UTC | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace |
 
