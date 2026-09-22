@@ -694,9 +694,17 @@ test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the 
     const phone = pageAt("#/conversations/phone").props;
     assert.deepEqual([phone.channel, phone.initialId], ["phone", null], "a channel is a filter, not an id");
     const on = pageAt("#/conversations/phone:cv-4");
-    assert.deepEqual([on.props.channel, on.props.initialId], ["phone", "cv-4"], "a row on its tab, as the page writes it when a row opens");
+    assert.deepEqual(
+      [on.props.channel, on.props.initialId],
+      ["phone", "cv-4"],
+      "a row on its tab, as the page writes it when a row opens",
+    );
     assert.equal(on.title, "Emily Chen · Conversations · Inbox · Chanlytics", "named in the trail");
-    assert.equal(find(mount("#/conversations/phone:cv-4").tree, (n) => n.type === "Sidebar").props.active, "calls", "and the nav lights the tab, not the raw word");
+    assert.equal(
+      find(mount("#/conversations/phone:cv-4").tree, (n) => n.type === "Sidebar").props.active,
+      "calls",
+      "and the nav lights the tab, not the raw word",
+    );
   } finally {
     delete win.CONVERSATIONS_DATA;
     delete globalThis.ConversationsPage;
