@@ -6,7 +6,8 @@
  * cannot disagree the way two hand-built copies would.
  *
  *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/e2e-workspace.mjs rather than
- *              copied: the config that converge writes, the line it provisions and the clock it sets. When the seed
+ *              copied: the WHOLE config that converge writes (its notifications included, so what the read hands
+ *              over is what the nightly's row holds), the line it provisions and the clock it sets. When the seed
  *              changes, this changes with it, which is the whole reason it imports rather than restates. No profile
  *              at all, which is what makes it the record the committed spec must pass on -- every list is empty and
  *              every fold opens on nothing.
@@ -14,7 +15,7 @@
  *              cap, services, and one language short of the cap so a single Add fills it. A FICTIONAL business: this
  *              file is committed, and no real business's name, address, number or link belongs in the tree.
  *
- * Both caps come from contracts (`PROFILE_LIMITS`, `MAX_CLOSURES`), so a cap that moves moves the record with it.
+ * Every cap comes from contracts (`PROFILE_LIMITS`, `MAX_CLOSURES`), so a cap that moves moves the record with it.
  */
 import { MAX_CLOSURES, PROFILE_LIMITS, newReceptionistDefaults } from "@chanlytics/contracts";
 import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../e2e-workspace.mjs";
@@ -40,12 +41,11 @@ const closureAt = (nowMs, days, note) => ({
 const VERSION = 1;
 
 function nightly(name) {
-  const seeded = workspaceConfig();
   return {
     name,
     zone: TIMEZONE,
-    brain: seeded.brain,
-    calendar: seeded.calendar ?? null,
+    // The whole config, not a brain taken out of it: the settings read hands over the row as it stands.
+    config: workspaceConfig(),
     known: {
       workspace: { name: NAME, timezone: TIMEZONE },
       channels: [asKnownChannel(workspaceChannel())],
@@ -56,65 +56,70 @@ function nightly(name) {
   };
 }
 
+/**
+ * Languages to one short of the cap, whatever the cap is: the fold must offer a box to add one, and ONE add must
+ * fill the list. Named ones while there are names to give, then numbered, so a cap that grows keeps both properties.
+ */
+const LANGUAGE_POOL = ["English", "Spanish", "Portuguese", "French", "Italian", "German", "Polish", "Dutch"];
+const languagesToOneShortOfTheCap = () =>
+  Array.from({ length: PROFILE_LIMITS.languages - 1 }, (_, i) => LANGUAGE_POOL[i] ?? `Language ${i + 1}`);
+
 function salon(name, nowMs) {
   const BUSINESS = "Northside Studio";
   const day = { open: "09:30", close: "18:00" };
-  // One short of the cap, so ONE add fills the list and the box becomes the sentence that says why.
-  const languages = ["English", "Spanish", "Portuguese", "French", "Italian", "German", "Polish"].slice(
-    0,
-    PROFILE_LIMITS.languages - 1,
-  );
   return {
     name,
     zone: TIMEZONE,
-    brain: {
-      business_name: BUSINESS,
-      booking_link: "https://example.com/book/northside",
-      ...newReceptionistDefaults(BUSINESS),
-      profile: {
-        address: "1200 Example Avenue, Brooklyn, NY 11208",
-        website: "https://example.com/northside",
-        tone: "Warm and unhurried.",
-        languages,
-        hours: {
-          mon: day,
-          tue: day,
-          wed: day,
-          thu: day,
-          fri: { open: "09:30", close: "19:00" },
-          sat: { open: "10:00", close: "17:00" },
-          sun: {},
+    config: {
+      brain: {
+        business_name: BUSINESS,
+        booking_link: "https://example.com/book/northside",
+        ...newReceptionistDefaults(BUSINESS),
+        profile: {
+          address: "1200 Example Avenue, Brooklyn, NY 11208",
+          website: "https://example.com/northside",
+          tone: "Warm and unhurried.",
+          languages: languagesToOneShortOfTheCap(),
+          hours: {
+            mon: day,
+            tue: day,
+            wed: day,
+            thu: day,
+            fri: { open: "09:30", close: "19:00" },
+            sat: { open: "10:00", close: "17:00" },
+            sun: {},
+          },
+          // At the cap, so the closures fold offers no Add at all.
+          closures: Array.from({ length: MAX_CLOSURES }, (_, i) =>
+            closureAt(nowMs, i + 3, i === 0 ? "A public holiday" : `Closed ${i + 1}`),
+          ),
+          services: [
+            { name: "The long one", duration_min: 180, price_note: "quoted at consult" },
+            { name: "The quick one", duration_min: 45, price_note: "quoted at consult" },
+            { name: "The one with a consult", duration_min: 240, price_note: "quoted at consult" },
+            { name: "The evening one", duration_min: 60, price_note: "from $45" },
+            { name: "The short one", duration_min: 30, price_note: "$35" },
+          ],
+          notes: [{ title: "Walk-ins", text: "Walk-ins are welcome; booking ahead is best for the long ones." }],
+          escalate_when: ["They ask for the owner", "They are upset, or have a complaint"],
+          booking_rules: {
+            lead_hours: 2,
+            slot_min: 30,
+            max_days_ahead: 14,
+            party_max: 4,
+            consult_first: ["The one with a consult"],
+          },
+          guardrails: {
+            never_quote_prices: true,
+            never_confirm_booking: true,
+            disclose_ai: true,
+            no_health_advice: true,
+          },
+          handoff_number: "+12125550188",
         },
-        // At the cap, so the closures fold offers no Add at all.
-        closures: Array.from({ length: MAX_CLOSURES }, (_, i) =>
-          closureAt(nowMs, i + 3, i === 0 ? "A public holiday" : `Closed ${i + 1}`),
-        ),
-        services: [
-          { name: "The long one", duration_min: 180, price_note: "quoted at consult" },
-          { name: "The quick one", duration_min: 45, price_note: "quoted at consult" },
-          { name: "The one with a consult", duration_min: 240, price_note: "quoted at consult" },
-          { name: "The evening one", duration_min: 60, price_note: "from $45" },
-          { name: "The short one", duration_min: 30, price_note: "$35" },
-        ],
-        notes: [{ title: "Walk-ins", text: "Walk-ins are welcome; booking ahead is best for the long ones." }],
-        escalate_when: ["They ask for the owner", "They are upset, or have a complaint"],
-        booking_rules: {
-          lead_hours: 2,
-          slot_min: 30,
-          max_days_ahead: 14,
-          party_max: 4,
-          consult_first: ["The one with a consult"],
-        },
-        guardrails: {
-          never_quote_prices: true,
-          never_confirm_booking: true,
-          disclose_ai: true,
-          no_health_advice: true,
-        },
-        handoff_number: "+12125550188",
       },
+      calendar: { ical_url: "https://example.com/calendar.ics" },
     },
-    calendar: { ical_url: "https://example.com/calendar.ics" },
     known: {
       workspace: { name: BUSINESS, timezone: TIMEZONE },
       channels: [
