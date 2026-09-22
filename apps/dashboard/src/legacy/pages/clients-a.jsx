@@ -1462,7 +1462,7 @@ const plUndoList = async (id, name, flash) => {
 // the bar shows what the role allows and says why when it does not.
 // `phone`: the bar is docked along the foot of a phone's pane and scrolls sideways, so its menus are placed against the
 // window (MoreMenu escape), which that scroll cannot cut off.
-const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null, phone = false }) => {
+const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null, phone = false, sheet = null, onSheet = () => {}, onSelectAll = null }) => {
   const [busy, setBusy] = React.useState(false);
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -1579,7 +1579,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   const offersSources = (window.__offersYesSources || []).filter((s) => s.id !== "customer_message");
   return (
     <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
-      <span className="cl-bulk-count"><b>{ids.length}</b> selected</span>
+      <span className="cl-bulk-count">{ids.length || !phone ? <><b>{ids.length}</b> selected</> : "Tap people to select them"}</span>
       {canEdit && window.__lists && !naming && (
         <MoreMenu
           btnClass="btn btn-sm"
@@ -1841,6 +1841,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
   const [listAct, setListAct] = useState(null);
   const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
+  // A selection on a phone: the step its sheet is on (null when shut), and More › Select people, a selection begun with
+  // nobody picked yet. The page's, so its one keyboard listener shuts the sheet on Esc and the sheet is hookless.
+  const [bulkSheet, setBulkSheet] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
   const [phone, setPhone] = useState(plPhoneNow);
   React.useEffect(() => {
     const mq = window.matchMedia ? window.matchMedia(PL_PHONE_QUERY) : null;
@@ -2225,7 +2229,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // two more and clears it again still has their forty. Both bars count and act on only the rows they show
   // (shown AND selected), so a row the words hide is never acted on unseen; "all N that match" is a claim about what
   // is shown, so the words do take that back.
-  React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, viewRoute, chip]);
+  React.useEffect(() => { setSel(new Set()); setAllMatching(false); setSelectMode(false); setBulkSheet(null); }, [tab, listId, savedId, viewRoute, chip]);
   React.useEffect(() => { setAllMatching(false); }, [q]);
   const shownIds = rowsShown.map((r) => r.id);
   // The phone's Add a person: the desktop's door (plAddPerson), the page's draft. Added, the sheet closes and their
@@ -2666,6 +2670,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The Leads cells' doors (see cellCtxLeads below): the latest closures, behind one context that holds still.
   const leadCellActs = React.useRef({});
   const leadCellKept = React.useRef(null);
+  // Clearing a selection lets go of everything that came with it: the view "all N that match" stood for, the
+  // Select-people mode and the sheet's step. Esc, ✕ and Clear all clear it here. Esc left "all N that match" set, and
+  // the next lead selected was counted, and acted on, as the whole view.
+  const clearSelection = () => { setSel(new Set()); setAllMatching(false); setSelectMode(false); setBulkSheet(null); };
   // What the keyboard's one listener reads: this render's rows, cursor and doors.
   keys.current = {
     ids: shownIds,
@@ -2676,12 +2684,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     toggle: toggleSel,
     canSelect: onLeads ? canFind || canExport : canEditLists || canExport,
     // sel.size, not the rows shown as the bar counts them: Esc can still drop a selection nobody can see.
-    selected: sel.size > 0,
-    clearSel: () => setSel(new Set()),
+    // A Select-people selection with nobody picked yet is one too.
+    selected: sel.size > 0 || (phone && selectMode),
+    clearSel: clearSelection,
     // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
     focusSearch: () => { if (phone) setSearchOpen(true); if (searchRef.current) searchRef.current.focus(); },
-    sheetOpen: listsOpen || addOpen || !!listAct,
-    closeSheet: addOpen || listAct ? closePhoneSheet : null,
+    sheetOpen: listsOpen || addOpen || !!listAct || !!bulkSheet,
+    closeSheet: addOpen || listAct ? closePhoneSheet : bulkSheet ? () => setBulkSheet(null) : null,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
     peekOpen: onLeads && (!!peekId || !!lightboxId),
@@ -2820,7 +2829,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         sel={sel}
         onToggle={toggleSel}
         onToggleAll={toggleAll}
-        onClearSel={() => { setSel(new Set()); setAllMatching(false); }}
+        onClearSel={clearSelection}
         onSelectIds={(ids) => { setSel(new Set(ids)); setAllMatching(false); }}
         // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
         // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
@@ -2958,13 +2967,15 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     );
   }
 
-  // Whether anyone shown is selected: the bar shows then, and on a phone a tap on a row selects it rather than opening
-  // the person (Gmail's way; the face is the checkbox, clients.css).
-  const selecting = shown.some((p) => sel.has(p.id));
+  // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a
+  // row selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).
+  const selecting = (phone && selectMode) || shown.some((p) => sel.has(p.id));
   // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
   // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
   // list open, that list's own acts.
   const phoneMenu = [
+    // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
+    ...((canEditLists || canExport) && shown.length > 0 ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }] : []),
     ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
     { header: "Sort" },
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => { viewTouched.current = true; setSortBy(s.by); setSortDir(s.dir); } })),
@@ -3116,6 +3127,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
             sortDir={sortDir}
             onSort={onSort}
             onOpen={phone && selecting ? toggleSel : onOpenProfile}
+            selectMode={phone && selectMode}
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
             scrolled={scrolledX}
@@ -3131,7 +3143,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
           )}
         </div>
         {/* The bar counts, and acts on, the people shown and selected. */}
-        {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} />}
+        {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={clearSelection} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} sheet={phone ? bulkSheet : null} onSheet={setBulkSheet} onSelectAll={() => setSel(new Set(shownIds))} />}
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under). Last in the tree, after
             everything whose state a stub React keys by order. Its switch is the bar's; its first row is Everyone. */}
         {listsOpen && (

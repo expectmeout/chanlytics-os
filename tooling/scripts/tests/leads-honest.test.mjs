@@ -1269,6 +1269,20 @@ test("the bulk bar acts on the leads loaded and selected; Select all N that matc
   assert.equal(textOf(flashes.at(-1).msg), "Copied 3 emails; 2 had none you can use", "what was copied, and what could not be");
 });
 
+test("REGRESSION: Esc after Select all N that match lets go of the view too -- the next lead selected was counted, and acted on, as the whole view", () => {
+  fresh();
+  byTestId(draw(), "select-all").props.onChange();
+  click(byTestId(draw(), "leads-select-matching"));
+  assert.match(textOf(byTestId(draw(), "leads-bulk-bar")), /322 selected/);
+  assert.equal(press("Escape"), true);
+  assert.equal(byTestId(draw(), "leads-bulk-bar"), null, "Esc cleared the selection");
+  press("j");
+  draw();
+  assert.equal(press("x"), true, "x selects the lead under the cursor");
+  const bar = byTestId(draw(), "leads-bulk-bar");
+  assert.match(textOf(bar), /^1 selected/, "REGRESSION: 322 selected -- the view Esc should have let go of");
+});
+
 /* ------------------------------------ the words ------------------------------------ */
 
 test("no word the Leads scope says names the vendor, and no number on it is a dollar amount", () => {

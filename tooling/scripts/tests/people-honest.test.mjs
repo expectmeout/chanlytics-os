@@ -711,6 +711,49 @@ test("a phone sheet's list is rows of one shape, and a step inside a sheet has a
   assert.equal(byTestId(Sheet({ title: "3 selected", onClose: () => {}, testid: "y", children: [] }), "y-back"), null, "the first step has no way back");
 });
 
+test("on a phone More › Select people starts a selection with nobody picked: the faces are rings, a tap selects, and ✕ ends it", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  let tree = draw();
+  phoneMenuOf(tree).find((i) => i.label === "Select people").onClick();
+  tree = draw();
+  assert.match(find(tree, (n) => /\bpl-table-wrap\b/.test(String(n.props?.className || ""))).props.className, /\bselecting\b/, "the faces are rings, ready for a tap");
+  const bar = byTestId(tree, "bulk-bar");
+  assert.ok(bar, "the bar says the mode is on");
+  assert.match(textOf(bar), /Tap people to select them/, "and what to do, with nothing yet to act on");
+  assert.equal(byTestId(bar, "bulk-more"), null);
+  const before = opened.length;
+  rowOf(tree, "p1").props.onClick();
+  tree = draw();
+  assert.equal(opened.length, before, "a tap selects rather than opens");
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/);
+  rowOf(tree, "p1").props.onClick();
+  tree = draw();
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /Tap people to select them/, "the last one off, the mode stays until ✕");
+  click(byTestId(tree, "bulk-clear"));
+  tree = draw();
+  assert.equal(byTestId(tree, "bulk-bar"), null, "✕ ends it");
+  rowOf(tree, "p1").props.onClick();
+  assert.equal(opened.at(-1), "p1", "and a tap opens again");
+}));
+
+test("Esc ends a Select-people selection; a member who may neither edit nor export is not offered it", () => onPhone(async () => {
+  await freshPage({ people: [person(1)] });
+  let tree = draw();
+  phoneMenuOf(tree).find((i) => i.label === "Select people").onClick();
+  assert.ok(byTestId(draw(), "bulk-bar"));
+  assert.equal(press("Escape"), true, "the page takes the key");
+  assert.equal(byTestId(draw(), "bulk-bar"), null, "and the mode ends");
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    await freshPage({ people: [person(1)] });
+    tree = draw();
+    assert.equal(phoneMenuOf(tree).find((i) => i.label === "Select people"), undefined, "nothing a selection could become");
+  } finally {
+    globalThis.window.__ME = me;
+  }
+}));
+
 test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no second People | Leads -- the switch was in the sheet and, beside the bar's, would be twice", () => onPhone(async () => {
   await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   let tree = draw({ initialSaved: "s1" });

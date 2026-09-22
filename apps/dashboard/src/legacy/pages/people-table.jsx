@@ -60,9 +60,11 @@ const PL_NOUNS = { person: { one: "person", many: "people", all: "Select everyon
 // `busy`: the rows drawn are the last view's while the one asked for is on its way; a screen reader hears it, and
 // the page's stylesheet dims them (Leads: leads.css [data-loading]).
 // The columns are the page's to choose (plShownColumns): the table draws every one it is given.
-const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false }) => {
+const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false, selectMode = false }) => {
   const words = PL_NOUNS[noun] || PL_NOUNS.person;
-  const selecting = rows.some((p) => sel.has(p.id));
+  // `selectMode`: the page's Select people (a phone's more-menu), a selection begun with nobody picked yet: the faces are
+  // rings from the start.
+  const selecting = selectMode || rows.some((p) => sel.has(p.id));
   return (
     <div className={`cl-table-wrap pl-table-wrap ${selecting ? "selecting" : ""}`}>
       <div className={`pl-table-scroll ${scrolled ? "scrolled" : ""}`} onScroll={(e) => { const on = e.currentTarget.scrollLeft > 0; if (on !== scrolled) onScrolled(on); }} aria-busy={busy ? "true" : undefined} data-testid="people-table-scroll">
