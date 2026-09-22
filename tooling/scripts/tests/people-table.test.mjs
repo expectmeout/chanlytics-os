@@ -58,7 +58,7 @@ globalThis.window.React = globalThis.React;
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
 // A legacy file's Object.assign(window, …) writes to globalThis.window, a plain object here, while the page reads
 // the nine names as bare globals.
-for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plShownColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 
 const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
 const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
@@ -86,7 +86,7 @@ const COLS = [
   { key: "actions", label: "", sortable: false, fixed: true, cell: td("actions", () => "") },
 ];
 const ROWS = [{ id: "a1", name: "Ada Example", state: "new" }, { id: "b2", name: "Bo Example", state: "quiet" }];
-const table = (over = {}) => { seq = 0; cells = []; return T.PeopleTable({ columns: T.plDrawnColumns(COLS, {}, { withCalendar: false }), ctx: {}, rows: ROWS, total: 2, sortBy: "name", sortDir: "asc", onSort() {}, onOpen() {}, filtered: false, onClearFilters() {}, ...over }); };
+const table = ({ phone = false, ...over } = {}) => { seq = 0; cells = []; return T.PeopleTable({ columns: T.plShownColumns(T.plDrawnColumns(COLS, {}, { withCalendar: false }), phone), ctx: {}, rows: ROWS, total: 2, sortBy: "name", sortDir: "asc", onSort() {}, onOpen() {}, filtered: false, onClearFilters() {}, ...over }); };
 
 test("the helpers take the column list: sort keys, drawn columns, choices and options come from it", () => {
   assert.deepEqual(T.plSortKeys(COLS), ["name", "state", "visits"]);

@@ -189,6 +189,8 @@ const LeadRatedCard = ({ l }) => {
 // wear, and one quiet line about where -- or, for a row that waits, what would resolve it; for a left-out row,
 // what left it out. The two tags are the app's one StatePill, on the registry's tones (tone.ts): they were a
 // hand-styled pair of their own, and a Contacted tag drew grey while its dot, its pin and the registry said info.
+// The row's state, as a class on its tr (leads.css). One function, so a memoised row sees the same one each draw.
+const ldRowClass = (l) => `ld-row-${l.state}`;
 const ldBusinessCell = (l, x) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
@@ -916,12 +918,11 @@ const LeadsScope = (p) => {
             : (
               <PeopleTable
                 busy={!!p.loading}
-                phone={phone}
                 noun="lead"
                 columns={p.columns}
                 ctx={p.cellCtx}
                 rows={p.rows}
-                rowClass={(l) => `ld-row-${l.state}`}
+                rowClass={ldRowClass}
                 total={p.total}
                 sortBy={p.sortBy}
                 sortDir={p.sortDir}

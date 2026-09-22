@@ -721,6 +721,21 @@ const ldFinderSave = (f) => {
     }));
   } catch { /* a private window: the draft lives for the page */ }
 };
+// A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the
+// page's latest closures through `acts`, so the object itself is kept across draws (in `kept`) and a memoised row
+// handed it is left alone.
+const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind) => {
+  const k = kept.current;
+  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind) return k.ctx;
+  const door = (name) => (id) => acts.current[name](id);
+  const ctx = {
+    onOpen: door("onOpen"), onExpand: door("onExpand"),
+    values, mixedFits, hasCenter, canFind,
+    onCall: door("onCall"), onCopy: door("onCopy"), onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
+  };
+  kept.current = { values, mixedFits, hasCenter, canFind, ctx };
+  return ctx;
+};
 // Whether the window is a phone's width: the band People's cards use (clients.css, 900px) and the one the Columns
 // menu is judged by. Asked once, with a listener, so a window resized past it draws the other shape at once rather
 // than on the next state change; and the table then builds only what a desktop shows.
@@ -1669,7 +1684,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The selection, by id. Cleared when the view changes: a bar counting people
   // that are no longer on screen is the kind of bug bulk actions are made of.
   const [sel, setSel] = useState(() => new Set());
-  const toggleSel = (id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  // One function for the page's life: a memoised row (people-table.jsx PeopleRow) is handed it, and a new one every
+  // draw would redraw every row on every draw.
+  const toggleSel = React.useCallback((id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
   // The view the workspace remembers for this member (memberships.views, read
   // with the surface) wins over what this device remembers; the device copy
   // stays as the fallback for a route that is not there yet.
@@ -1965,8 +1982,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The columns drawn (PL_COLUMNS: every one this workspace can show, those this member turned off marked for a desktop
   // to hide), and what a cell needs to draw itself: the booking link, each row's words, the list open for taking people
   // off, their lists, and which columns a desktop shows.
-  const colCtx = onLeads ? { hasCenter: leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center) } : { withCalendar };
-  const columns = plDrawnColumns(cols, colChoices, colCtx);
+  const hasCenter = onLeads && leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
+  const colCtx = onLeads ? { hasCenter } : { withCalendar };
+  // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next.
+  const columns = React.useMemo(() => plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone), [cols, colChoices, onLeads, hasCenter, withCalendar, phone]); // eslint-disable-line react-hooks/exhaustive-deps
   const colOptions = plColumnOptions(cols, colChoices, colCtx);
   // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
   // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
@@ -2406,6 +2425,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const searchWordsFor = (id) => (window.__leadSearchWords ? window.__leadSearchWords(searchById(id), leads.tz) : { askedLine: "", keepsLine: "" });
   const exportHrefFor = (s) => (window.__href ? window.__href("GET leads/export", undefined, { search: s.id, list: "all", sort: "fit", dir: "asc" }) : null);
 
+  // The Leads cells' doors (see cellCtxLeads below): the latest closures, behind one context that holds still.
+  const leadCellActs = React.useRef({});
+  const leadCellKept = React.useRef(null);
   // What the keyboard's one listener reads: this render's rows, cursor and doors.
   keys.current = {
     ids: shownIds,
@@ -2445,19 +2467,11 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     const openSearch = searchById(leadView.searchId);
     // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
     const band = window.__LEAD_VM && window.__LEAD_VM.leadBand ? window.__LEAD_VM.leadBand(openSearch) : null;
-    const cellCtxLeads = {
-      onOpen: setPeekId,
-      onExpand: setLightboxId,
-      values,
-      mixedFits: !!(band && band.mixed),
-      onCall: callLead,
-      onCopy: copyLead,
-      onKeep: keepLead,
-      onExclude: excludeLead,
-      onPutBack: putBackLead,
-      hasCenter: colCtx.hasCenter,
-      canFind,
-    };
+    // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
+    // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
+    // changes, and a memoised row is left alone otherwise.
+    leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
+    const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind);
     const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
     // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
     const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });
@@ -2797,7 +2811,6 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
 
           <PeopleTable
             noun="person"
-            phone={phone}
             columns={columns}
             ctx={cellCtx}
             selectable={canEditLists || canExport}

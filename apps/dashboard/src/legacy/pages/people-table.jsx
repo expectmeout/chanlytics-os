@@ -17,8 +17,34 @@ const plSortKeys = (columns) => columns.filter((c) => c.sortable).map((c) => c.k
 // so a phone's cards keep the facts they draw by default. Hidden cells were gone from the cards too, and the Columns menu
 // that could put them back is not drawn on a phone.
 const plDrawnColumns = (columns, choices, x) => columns.filter((c) => !c.needs || c.needs(x)).map((c) => (plShows(c, choices, x) ? c : { ...c, off: true }));
+// The columns the table is handed: on a phone every one, the ones off marked (its cards keep the facts they draw by
+// default, #789); on a desktop only what shows. A desktop hid the rest with the same mark, so every cell of a column
+// turned off was built, cloned and inserted for nothing -- seven of the Leads scope's twelve, on every row, on every
+// draw. The page keeps the result while nothing it is made of changed (useMemo), so a memoised row sees one list.
+const plShownColumns = (drawn, phone) => (phone ? drawn : drawn.filter((c) => !c.off));
 
 const PL_NO_SEL = new Set();
+
+// One row. Drawn again only when something of its own changed: its view model, whether it is selected, the cursor,
+// the columns, the cell context. So a keystroke in the search box, a tick on another row, a J and an opened peek
+// each redraw the rows they touch and leave the rest -- every row was drawn again for any of them, ~0.17ms a row,
+// 85ms a keystroke at a page of 500. React.memo is not a hook, so the table stays hookless for the tests' stub
+// React, which has no memo and draws every row every time; what it proves is that every prop here is a primitive
+// or the same object from one draw to the next (leads-honest.test.mjs).
+const PeopleRow = ({ p, columns, ctx, words, selectable, selected, focused, tabStop, onToggle, onCursor, onOpen, rowClass }) => (
+  <tr id={`${words.one}-${p.id}`} className={`${selected ? "selected" : ""} ${focused ? "focused" : ""} ${rowClass ? rowClass(p) : ""}`} aria-selected={selectable ? selected : undefined} tabIndex={tabStop ? 0 : -1} onFocus={() => { if (!focused) onCursor(p.id); }} onClick={() => onOpen(p.id)}>
+    {selectable && (
+      <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
+        <input type="checkbox" className="cl-check" checked={selected} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
+      </td>
+    )}
+    {columns.map((c) => {
+      const td = c.cell(p, ctx);
+      return c.off ? React.cloneElement(td, { className: `${td.props.className || ""} pl-col-off` }) : td;
+    })}
+  </tr>
+);
+const PeopleRowMemo = React.memo ? React.memo(PeopleRow) : PeopleRow;
 // What the table calls its rows: the foot's count, the select-all label, and the row id prefix the page's cursor
 // effect reads (document.getElementById(`${noun}-${cursor}`)). The empty state's default title is People's own, and
 // the Leads scope passes an `empty` of its own, so a lead never draws it.
@@ -33,12 +59,9 @@ const PL_NOUNS = { person: { one: "person", many: "people", all: "Select everyon
 // order, and a list's own controls above the table come and go.
 // `busy`: the rows drawn are the last view's while the one asked for is on its way; a screen reader hears it, and
 // the page's stylesheet dims them (Leads: leads.css [data-loading]).
-// `phone`: a phone draws every column, the ones off marked pl-col-off, so its cards keep the facts they draw by
-// default (#789). A desktop hid those with the same mark, so every cell of a column turned off was built, cloned and
-// inserted for nothing -- seven of the Leads scope's twelve, on every row, on every draw. It draws only what shows.
-const PeopleTable = ({ columns: given, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false, phone = false }) => {
+// The columns are the page's to choose (plShownColumns): the table draws every one it is given.
+const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false }) => {
   const words = PL_NOUNS[noun] || PL_NOUNS.person;
-  const columns = phone ? given : given.filter((c) => !c.off);
   const selecting = rows.some((p) => sel.has(p.id));
   return (
     <div className={`cl-table-wrap pl-table-wrap ${selecting ? "selecting" : ""}`}>
@@ -69,17 +92,7 @@ const PeopleTable = ({ columns: given, ctx, rows, total, sortBy, sortDir, onSort
                 by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                 J and K move focus with the cursor (the page's effect on `cursor`). */}
             {rows.map((p, i) => (
-              <tr key={p.id} id={`${words.one}-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""} ${rowClass ? rowClass(p) : ""}`} aria-selected={selectable ? sel.has(p.id) : undefined} tabIndex={cursor === p.id || (!cursor && i === 0) ? 0 : -1} onFocus={() => { if (cursor !== p.id) onCursor(p.id); }} onClick={() => onOpen(p.id)}>
-                {selectable && (
-                  <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
-                  </td>
-                )}
-                {columns.map((c) => {
-                  const td = c.cell(p, ctx);
-                  return c.off ? React.cloneElement(td, { className: `${td.props.className || ""} pl-col-off` }) : td;
-                })}
-              </tr>
+              <PeopleRowMemo key={p.id} p={p} columns={columns} ctx={ctx} words={words} selectable={selectable} selected={sel.has(p.id)} focused={cursor === p.id} tabStop={cursor === p.id || (!cursor && i === 0)} onToggle={onToggle} onCursor={onCursor} onOpen={onOpen} rowClass={rowClass} />
             ))}
             {rows.length === 0 && (
               <tr>
@@ -140,4 +153,4 @@ const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick, buttonRef = nu
   </div>
 );
 
-Object.assign(window, { PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions, PL_NO_SEL });
+Object.assign(window, { PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plShownColumns, plColumnChoices, plColumnOptions, PL_NO_SEL });

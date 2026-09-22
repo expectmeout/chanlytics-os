@@ -68,7 +68,7 @@ globalThis.StatePill = globalThis.window.StatePill;
 // The table's own helpers: `leads-scope.jsx` reads plSortKeys at module scope (LEAD_SORT_KEYS), so the file it was
 // lifted from loads first here, as people-honest's harness loads it.
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plShownColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");   // Task 2's: LeadShape is its, and this file draws it
 await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
 for (const k of ["LeadPeek", "LeadShape", "LeadSlotShape", "LeadPeekActions", "LeadLightbox", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];

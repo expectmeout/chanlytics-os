@@ -136,6 +136,7 @@ globalThis.window = {
 };
 
 let cells = [];
+let setters = [];
 let seq = 0;
 const flashes = [];
 const went = [];
@@ -150,11 +151,26 @@ globalThis.React = {
     return node;
   },
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
+  // The setter is one function for the cell's life, as React's is: a memoised row is handed setters (people-table.jsx).
+  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; setters[k] ||= (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }; return [cells[k], setters[k]]; },
   useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
   useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
-  useMemo: (fn) => fn(),
-  useCallback: (fn) => fn,
+  // Kept while its deps hold, as React's is: the page's stable objects (a cell context, the columns) are proved here.
+  useMemo: (fn, deps) => {
+    const k = seq++;
+    const prev = cells[k];
+    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return prev.value;
+    cells[k] = { deps, value: fn() };
+    return cells[k].value;
+  },
+  // Kept while its deps hold, as React's is, and a cell of its own: the page hands a memoised row one function.
+  useCallback: (fn, deps) => {
+    const k = seq++;
+    const prev = cells[k];
+    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return prev.value;
+    cells[k] = { deps, value: fn };
+    return fn;
+  },
   useEffect: (fn, deps) => {
     const k = seq++;
     const prev = cells[k];
@@ -176,7 +192,7 @@ globalThis.Confirm = (p) => { confirms.push(p); return null; };
 globalThis.ChannelGlyph = () => null;
 globalThis.useHotkey = () => {};
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plShownColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 for (const k of ["PeopleRail", "PeopleStanding", "PeopleScopeTabs", "RailSection", "RailRow"]) globalThis[k] = globalThis.window[k];
 // The boards this task does not write: the finder (Task 8), the strip (Task 10) and the peek (Task 12). Drawn
@@ -303,6 +319,7 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
     ? { rows: [], lists: [], saved: [], groups: [], aggregates: { total: 0, needsYou: 0, reachedWeek: 0 }, views, attention: {}, savedRead: true, page: null, calendar: null }
     : undefined;
   cells = [];
+  setters = [];
   flashes.length = 0;
   went.length = 0;
   opened.length = 0;
@@ -905,7 +922,7 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
 
 const searchBox = (tree) => find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
 /** The tab refreshed, or the owner went to the Inbox and came back: the page's state is gone, the tab's storage is not. */
-const comeBack = (props) => { cells = []; for (const k of Object.keys(listeners)) delete listeners[k]; draw(props); return draw(props); };
+const comeBack = (props) => { cells = []; setters = []; for (const k of Object.keys(listeners)) delete listeners[k]; draw(props); return draw(props); };
 
 test("the search box's words, the row the cursor was on and the map come back with the view: after a refresh, and after leaving and coming back", () => {
   fresh();
@@ -1034,7 +1051,7 @@ const paned = (table) => {
   };
   // `onDraw` hears which draw is under way (1, 2, then 0 for none): what a test of ORDER needs, and nothing else does.
   const mount = (props, onDraw = () => {}) => {
-    cells = []; cells[at] = { current: pane };
+    cells = []; setters = []; cells[at] = { current: pane };
     for (const k of Object.keys(listeners)) delete listeners[k];
     heard.length = 0;
     onDraw(1); draw(props);
@@ -1116,6 +1133,31 @@ test("typing in the box keeps the selection: leads the words hide are still sele
   tree = draw();
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /5 selected/, "the box cleared, they are all back");
   assert.equal(byTestId(tree, "leads-bulk-hidden"), null, "with nothing hidden, nothing is said about it");
+});
+
+test("a row is drawn from what is its own, so a draw that changed nothing of a row can leave it alone: every prop is a primitive or the same object as last time", () => {
+  fresh();
+  const rowsOf = (tree) => all(tree, (n) => n.type && n.type.name === "PeopleRow" || (n.type && n.type.type && n.type.type.name === "PeopleRow"));
+  let tree = draw();
+  const a = rowsOf(tree);
+  assert.ok(a.length >= 5, "the table draws its rows as PeopleRow");
+  tree = draw();
+  const b = rowsOf(tree);
+  const stable = ["columns", "ctx", "onToggle", "onCursor", "onOpen", "rowClass", "words"];
+  for (const k of stable) assert.ok(Object.is(a[0].props[k], b[0].props[k]), `${k} is the same object on a draw that changed nothing`);
+  for (const k of ["selected", "focused", "tabStop", "selectable"]) assert.equal(typeof a[0].props[k], "boolean", `${k} is a boolean, never the whole selection or the cursor`);
+  assert.ok(Object.is(a[0].props.p, b[0].props.p), "and the row's own view model, which the surface rebuilds only when it publishes");
+  // What a press changes is the pressed row's alone.
+  press("j");
+  tree = draw();
+  const c = rowsOf(tree);
+  assert.deepEqual(c.map((r) => r.props.focused), [true, false, false, false, false]);
+  for (const k of stable) assert.ok(Object.is(c[1].props[k], b[1].props[k]), `${k} held through a key`);
+  press("x");
+  tree = draw();
+  const d = rowsOf(tree);
+  assert.deepEqual(d.map((r) => r.props.selected), [true, false, false, false, false]);
+  for (const k of stable) assert.ok(Object.is(d[1].props[k], b[1].props[k]), `${k} held through a tick`);
 });
 
 /** The finder as drawn by `fn`, or null when `fn` drew none: the recorder's last entry may be an older draw's. */
