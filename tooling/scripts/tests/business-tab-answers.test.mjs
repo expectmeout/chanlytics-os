@@ -867,7 +867,9 @@ test("Save stays a button focus can rest on while it saves, and the boxes take n
   saveFoldOf(tree, "tone");
   assert.equal(sent.length, 1, "a second press sends nothing more");
   assert.equal(boxIn(tree, "tone").props.readOnly, true);
-  press(buttonSaying(byTestId(tree, "rec-tone-presets"), "Warm and brief"));
+  const preset = buttonSaying(byTestId(tree, "rec-tone-presets"), "Warm and brief");
+  assert.deepEqual([preset.props.disabled, preset.props["aria-disabled"]], [undefined, true], "a preset says it waits as Save does, and keeps focus");
+  press(preset);
   tree = redrawTab();
   assert.equal(boxIn(tree, "tone").props.value, "Calm.", "a preset pressed while it saves changes nothing");
 });
