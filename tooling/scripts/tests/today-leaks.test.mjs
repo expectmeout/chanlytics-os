@@ -795,7 +795,7 @@ test("the last seven days in one sentence, in Reports' own numbers and words, ea
     },
   });
   assert.deepEqual(todayPeriodLine(r), {
-    text: "Last 7 days: 23 customer messages (up from 19), 91% answered by the receptionist, median reply 34s, 4 calls.",
+    text: "Last 7 days: 23 messages (up from 19), 91% answered by the receptionist, 4 calls.",
     to: "reports",
   });
   const quiet = reports({
@@ -819,8 +819,8 @@ test("the last seven days in one sentence, in Reports' own numbers and words, ea
   });
   assert.equal(
     todayPeriodLine(noReplies).text,
-    "Last 7 days: 1 customer message, 0% answered by the receptionist, 1 call.",
-    "no median without a reply; no comparison without one; the singulars; the lead from the range when Reports gives no period words",
+    "Last 7 days: 1 message, 0% answered by the receptionist, 1 call.",
+    "no comparison without one; the singulars; the lead from the range when Reports gives no period words",
   );
   assert.equal(todayPeriodLine(null), null);
   assert.equal(
@@ -841,13 +841,13 @@ test("the period line reads the view model Reports itself draws: a round trip th
   const { vm } = surface;
   const line = todayPeriodLine(surface);
   assert.equal(line.to, "reports");
-  assert.ok(line.text.startsWith(`${vm.period.now}: ${vm.answered.totals.in} customer messages`), line.text);
+  assert.ok(line.text.startsWith(`${vm.period.now}: ${vm.answered.totals.in} messages`), line.text);
   assert.ok(
     line.text.includes(`% answered by the receptionist`) &&
       line.text.includes(`${Math.round(vm.answered.share * 100)}%`),
     "Reports' own share, rounded as its tile is",
   );
-  assert.ok(line.text.includes(`median reply ${vm.replyTime.medianLabel}`), line.text);
+  assert.ok(!line.text.includes("median"), "the median reply stays on Reports, the sentence's one door");
   assert.ok(line.text.endsWith(`${vm.calls.total} call${vm.calls.total === 1 ? "" : "s"}.`), line.text);
   assert.ok(!line.text.includes("—"), "no em dash in a new sentence");
 });

@@ -366,6 +366,7 @@ export type Database = {
       }
       business_records: {
         Row: {
+          about: string
           business_type: string
           city: string
           company_type: string
@@ -390,6 +391,7 @@ export type Database = {
           website_url: string
         }
         Insert: {
+          about?: string
           business_type?: string
           city: string
           company_type?: string
@@ -414,6 +416,7 @@ export type Database = {
           website_url: string
         }
         Update: {
+          about?: string
           business_type?: string
           city?: string
           company_type?: string

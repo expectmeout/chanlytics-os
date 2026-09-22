@@ -78,12 +78,15 @@ const crOpenPicker = (e) => {
   try { el.showPicker(); } catch { /* not allowed here; the field still takes a typed date */ }
 };
 
-// One of the counts over the board: what it counts, the number, and what the number means or why there is none.
-const CrCount = ({ label, value, meta, tip, "data-testid": testid }) => (
+// One of the counts over the board: what it counts, the number, and a word on it. `meta` says why there is no number,
+// or that the days are still on their way, and always shows. `note` is the happy path's tail ("on your calendar",
+// "that fit Balayage", "at least 2h notice"): a desk's word, and one a phone leaves out (mobile.css).
+const CrCount = ({ label, value, meta, note, tip, "data-testid": testid }) => (
   <span className="cal-count" data-testid={testid}>
     <span className="cal-count-label" data-tip={tip || undefined}>{label}</span>
     <span className="cal-count-value tabular">{value}</span>
     {meta && <span className="cal-count-meta">{meta}</span>}
+    {!meta && note && <span className="cal-count-meta cal-count-note">{note}</span>}
   </span>
 );
 
@@ -589,11 +592,11 @@ const CalendarReal = ({ initialDay = null }) => {
           </div>
         </div>
         <p className="cal-counts" data-testid="cal-counts">
-          <CrCount label={statLabel} value={!feedOk || scopeUnread || scopeLoading ? "—" : statEvents} meta={!vm.feed.present ? "no calendar connected" : !feedOk ? "could not be read" : scopeUnread ? "couldn't read those days" : scopeLoading ? "reading those days" : "on your calendar"} data-testid="cal-count-taken" />
+          <CrCount label={statLabel} value={!feedOk || scopeUnread || scopeLoading ? "—" : statEvents} meta={!vm.feed.present ? "no calendar connected" : !feedOk ? "could not be read" : scopeUnread ? "couldn't read those days" : scopeLoading ? "reading those days" : null} note="on your calendar" data-testid="cal-count-taken" />
           {/* A calendar that can't be read leaves one count and why. Its card over the board says the rest: two more
               dashes said "needs the calendar" under it. */}
-          {feedOk && <CrCount label="Open times" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={openMeta ? "—" : statWindows} meta={openMeta || (service ? (service.consultFirst ? "for a consultation" : `that fit ${service.name}`) : null)} data-testid="cal-count-open" />}
-          {feedOk && <CrCount label="Next open time" value={vm.stats.next} meta={vm.ruleParts[0]} data-testid="cal-count-next" />}
+          {feedOk && <CrCount label="Open times" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={openMeta ? "—" : statWindows} meta={openMeta} note={service ? (service.consultFirst ? "for a consultation" : `that fit ${service.name}`) : null} data-testid="cal-count-open" />}
+          {feedOk && <CrCount label="Next open time" value={vm.stats.next} note={vm.ruleParts[0]} data-testid="cal-count-next" />}
         </p>
       </div>
       {service && service.consultFirst && (

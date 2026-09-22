@@ -746,6 +746,7 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
     "business_type",
     "company_type",
     "industry",
+    "about",
     "website_url",
     "street",
     "city",
@@ -769,6 +770,9 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   const empty = emptyBusinessRecord({ websiteUrl: "https://app.chanlytics.com/yes/x", email: "you@business.com" });
   const problems = businessRecordProblems(empty, "standard");
   assert.ok(problems.legal_name && problems.ein && problems.street, "an empty form says what is missing");
+  // What the business does: the ninth refusal of the live campaign (30919) was for a filing that never said it.
+  assert.equal(problems.about, "What the business does is needed.");
+  assert.equal(businessRecordProblems(empty, "sole_proprietor").about, "What the business does is needed.");
   assert.equal(problems.industry, undefined, "the closed lists start on a value Twilio accepts");
   assert.equal(problems.business_type, undefined);
   assert.equal(problems.company_type, undefined);
@@ -784,8 +788,20 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
     contact_last_name: "Segura",
     contact_email: "hi@chanlytics.com",
     contact_phone: "+16465550123",
+    about:
+      "A moving company in Brooklyn: homes and small offices across New York, packing and storage. Customers book a free estimate and pay per move.",
   };
   assert.deepEqual(businessRecordProblems(filled, "standard"), {}, "a filled one can be filed");
+  assert.equal(
+    businessRecordProblems({ ...filled, about: "Moving." }, "standard").about,
+    "Say a little more: what you sell, and who buys it.",
+    "a word is not a business model",
+  );
+  assert.equal(
+    businessRecordProblems({ ...filled, about: "x".repeat(501) }, "standard").about,
+    "Keep it under 500 characters.",
+    "no more than the database keeps (00152)",
+  );
   assert.equal(
     businessRecordProblems({ ...filled, ein: "123" }, "standard").ein,
     "A tax ID is nine digits, like 12-3456789.",

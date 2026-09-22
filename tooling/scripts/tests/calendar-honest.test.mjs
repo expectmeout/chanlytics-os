@@ -487,7 +487,7 @@ test("the booking rules come as parts, and a read's unfollowable repeats and und
   assert.ok(byTestId(tree, "cal-feed-note-undrawn"), "the undrawn events explained on the page");
   const next = stats(tree).find((c) => c.props.label === "Next open time");
   assert.equal(
-    next.props.meta,
+    next.props.note,
     "at least 2h notice",
     "the rule that decides how soon, not the whole sentence under a number",
   );
@@ -1453,7 +1453,7 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
   assert.ok(stats(line).every(Boolean), "the three counts are in it");
   for (const c of stats(line)) {
     const said = textOf(c);
-    for (const part of [c.props.label, c.props.value, c.props.meta].filter((p) => p != null))
+    for (const part of [c.props.label, c.props.value, c.props.meta, c.props.note].filter((p) => p != null))
       assert.ok(said.includes(String(part)), `"${said}" says ${part}`);
   }
   // The hours, the rules, the calendar's source, Refresh and the booking link wait under the board, one tap away.
@@ -1516,7 +1516,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   byTestId(tree, "cal-service").props.onChange({ target: { value: "Color correction" } });
   tree = page();
   assert.deepEqual(
-    [stats(tree)[1].props.value, stats(tree)[1].props.meta],
+    [stats(tree)[1].props.value, stats(tree)[1].props.note],
     [2, "for a consultation"],
     "REGRESSION: '0 · that fit Color correction'",
   );
@@ -1539,7 +1539,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   tree = page();
   byTestId(tree, "cal-service").props.onChange({ target: { value: "Balayage" } });
   tree = page();
-  assert.deepEqual([stats(tree)[1].props.value, stats(tree)[1].props.meta], [1, "that fit Balayage"]);
+  assert.deepEqual([stats(tree)[1].props.value, stats(tree)[1].props.note], [1, "that fit Balayage"]);
 });
 
 test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {

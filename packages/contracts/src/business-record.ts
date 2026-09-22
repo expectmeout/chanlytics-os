@@ -46,6 +46,13 @@ export interface BusinessRecordDto {
   country: string;
   website_url: string;
   industry: string;
+  /**
+   * What the business does, in the owner's words: what it sells, to whom, and how.
+   * The business page, the sign-up page and the campaign description all read it.
+   * The ninth refusal of the live campaign (30919) asked for exactly this: "the
+   * products, services, and industry".
+   */
+  about: string;
   business_type: string;
   company_type: string;
   contact_first_name: string;
@@ -69,6 +76,8 @@ export interface BusinessFieldVM {
   required: boolean;
   /** Placeholder text, shown empty. */
   placeholder?: string;
+  /** A few sentences rather than a word: the form draws a box several lines tall. */
+  multiline?: boolean;
   /** Which part of the form it belongs to. */
   group: "business" | "address" | "contact";
 }
@@ -106,6 +115,14 @@ const FIELD = {
   business_type: { label: "Legal form", options: BUSINESS_TYPES, group: "business" },
   company_type: { label: "Ownership", options: COMPANY_TYPES, group: "business" },
   industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
+  about: {
+    label: "What the business does",
+    hint: "Two or three sentences a stranger could follow: what you sell, who buys it, and how they pay. It goes on your public page and into your registration, and the carriers check it.",
+    placeholder:
+      "A moving company in Brooklyn. We move homes and small offices across New York and New Jersey, and pack and store for them. Customers book a free estimate and pay per move.",
+    multiline: true,
+    group: "business",
+  },
   website_url: {
     label: "Website",
     hint: "Yours, if you have one. Without it we publish a page for you at chanlytics.com carrying your name, address and the wording the carriers require — which is what they check.",
@@ -154,6 +171,7 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
     { name: "business_type", required: true },
     { name: "company_type", required: true },
     { name: "industry", required: true },
+    { name: "about", required: true },
     // NOT required, and this is the change gate 8 is. A carrier registration
     // needs a website that identifies the business and a privacy policy
     // carrying SMS language, on a domain that matches the brand -- and most
@@ -185,6 +203,7 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
       hint: "What customers call you. There is no filing to match — this is the name the carriers show beside your texts.",
     },
     { name: "industry", required: true },
+    { name: "about", required: true },
     {
       name: "website_url",
       required: false,
@@ -261,6 +280,7 @@ export function emptyBusinessRecord(o: { websiteUrl?: string; email?: string } =
     country: "US",
     website_url: o.websiteUrl ?? "",
     industry: DEFAULT_INDUSTRY,
+    about: "",
     business_type: DEFAULT_BUSINESS_TYPE,
     company_type: DEFAULT_COMPANY_TYPE,
     contact_first_name: "",
@@ -277,6 +297,9 @@ const EMAIL = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
 const E164 = /^\+[1-9]\d{6,14}$/;
 const REGION = /^[A-Za-z]{2}$/;
 const REGISTERABLE_COUNTRIES = ["US", "CA"];
+/** What `about` holds: one real sentence at least, and at most what the database keeps (00152). */
+export const ABOUT_MIN = 40;
+export const ABOUT_MAX = 500;
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -318,6 +341,10 @@ export function businessRecordProblems(
     out.contact_email = "That does not look like an email address.";
   if (has("contact_phone") && !E164.test(String(r.contact_phone).replace(/[\s()-]/g, "")))
     out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
+  // Enough to tell a reviewer what the business is, and no more than the pages and the filing carry.
+  if (has("about") && String(r.about).trim().length < ABOUT_MIN)
+    out.about = "Say a little more: what you sell, and who buys it.";
+  if (String(r.about ?? "").trim().length > ABOUT_MAX) out.about = `Keep it under ${ABOUT_MAX} characters.`;
   if (has("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
   if (has("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim()))
     out.website_url = "A full address a reviewer can open, starting with https://";
