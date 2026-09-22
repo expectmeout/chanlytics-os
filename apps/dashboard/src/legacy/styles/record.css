@@ -137,7 +137,8 @@
 .rec-sheet-sub { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-sheet-close { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
 .rec-sheet-close:hover { color: var(--ink); background: var(--bg-hover); }
-.rec-sheet-tools { flex: none; display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
+/* The tools wrap: a sentence beside a search (a full list's cap) squeezed the search to nothing at 320px. */
+.rec-sheet-tools { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 9px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
 .rec-sheet-body { --rec-gutter: 22px; --rec-key: 168px; isolation: isolate; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 var(--rec-gutter); }
 .rec-sheet-foot { flex: none; display: flex; flex-direction: column; gap: 11px; padding: 14px 22px 18px; border-top: 1px solid var(--line); background: var(--bg-raised); }
 /* The house's toasts (components.css .pp-toast-stack: fixed, centred, 18px off the bottom, over the sheet's layer)

@@ -1662,7 +1662,10 @@ html.legacy-on .bt-link { position: relative; }
 /* The services sheet (the canvas's Edit-Sheet): the search and Add above the rows, the rows in three columns, and the
    foot's line over its Save. A row the search leaves out is hidden, never taken off the page, so its display must
    yield to the attribute. The head holds still over the rows as they scroll. */
-.bt-services-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--ink-faint); }
+/* A search keeps room to type in: beside the cap's sentence at 320px it was squeezed to about nothing, and the tools
+   wrap (record.css) before it goes under 12rem. */
+.bt-services-search { flex: 1 1 12rem; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--ink-faint); }
+}
 .bt-services-search > .rec-box { flex: 1; }
 .bt-services { display: flex; flex-direction: column; gap: 4px; padding: 0 0 14px; }
 .bt-service-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 0.8fr) 28px; align-items: start; gap: 6px; }
