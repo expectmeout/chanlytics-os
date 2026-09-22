@@ -2484,12 +2484,45 @@ ready, and five sentences blooming at once is the shouting 4.1b exists to stop.
 - **The harness gained the three surfaces** (`_business-tab-harness.mjs`: `SETUP`, `POLICIES`, `TEMPLATES`), reset with
   the record as `__SETTINGS` is. `business-tab-answers.test.mjs`'s pause test now passes its policies to `drawTab`.
 
-**Proof.** `corepack pnpm test` 4147 green (4128 before: five in contracts, fourteen on the page). `corepack pnpm e2e:local -- e2e/settings-business.spec.ts`
-and `--scenario=salon` both 12/12. At 390px on the salon record, inside `[data-testid="rec-card-can"]`: no sideways
-scroll (page, pane or card), **0** bordered pills, **0** gradients, **1** font family, **0** colours outside the
-ink/accent/line tokens, **0** hidden sentences on screen at rest and 12 glyphs named in words. Whole, the card is
-530px tall on a phone and says one sentence (the photo switch is off); with the transfer number and the calendar feed
-taken out it says three; with replies held it says the hold once, above six rows, and 9 of the 12 glyphs go dim.
+**Fixed in review (22 Sep), same round.**
+
+- **B1.** The 27 new `settings.css` rules went in with no `?v=` bump, so a browser holding `settings.css?v=65` never
+  fetched one of them. 65 -> 67 over the round (`db241ba6`, `7d52cfa3`); main is still on 55, so no other session's
+  number was taken.
+- **B2.** The card drew a failed read for `undefined` as well as `null`. On a cold boot the settings surface lands
+  well before Setup -- the boot queue puts the tab's own surface first and `setupOverride` is fourteenth of sixteen --
+  so a healthy workspace read "Couldn't read the connections", with a Retry, until Setup arrived. Null is a failure and
+  undefined is still on its way, as `pages/setup.jsx` and `pages/settings.jsx` already have it; the card holds its
+  place with one line and says it is reading (`db241ba6`).
+- **I1.** Every row of the card, the three limits included, turns on the lines that answer, so the connections gone is
+  ONE failed read in place of the whole card, with one alarm and one Retry, rather than two of each for one cause.
+- **I2.** A failed templates read (`__TEMPLATES_ALL === null`) was being turned into "no approved booking-link
+  message", which narrows the call's row and M-3's clause on a read that never happened. It is said like the others,
+  and both surfaces lost at once are one sentence naming both.
+- **I3.** Nothing proved the kept sentence is OFF SCREEN: deleting `.bt-can-says`'s visually-hidden rule left all 3914
+  green and put nine paragraphs on the card. The 390px journey asks the page what it is laying out (`ee8a62fc`), and
+  both CSS-only rules -- that one and I4's dim ink -- were shown red against their mutants and green with them back.
+  For that the harness's fixture had to publish the three surfaces the card reads, built from the scenario's own
+  channels and brain; `__POLICIES` was `null`, which drew the card's failed read over a page the journey walks.
+- **I4.** `channels` said which channel an ability BELONGS to, so a live line with no transfer number drew a lit phone
+  beside "No number yet, so it takes a message instead". Two meanings on one row, and the rule allows one. A channel
+  now folds in the input the ability needs (`a63bf209`), so the pair of glyphs IS the row's readiness and `ready` is
+  exactly "one of the two does it" -- pinned over every combination of the nine inputs that gate one. The title of a
+  row nothing does takes the dim ink the three limits under it are already in, off the `data-ready` the row already
+  carried and nothing styled.
+- **M1, M2, M3, M4, M5** (`7e4166fd`, `7d52cfa3`). The hold door's words join `sentence` and `to` on `held`. The gap
+  before a door is a space in the sentence, not a margin, which indented the link off the paragraph's left edge every
+  time it wrapped on a phone. The sub-head is its first clause. The limits are a named group and the two ids nothing
+  pointed at are gone. Every door the card can offer is pressed in a test, and the fold or inline editor behind it
+  opens.
+
+**Proof.** `corepack pnpm test` 4152 green (4128 before: seven in contracts, seventeen on the page). `corepack pnpm e2e:local -- e2e/settings-business.spec.ts`
+and `--scenario=salon` both 12/12, with the journey's new block on the card. At 390px on the salon record, inside
+`[data-testid="rec-card-can"]`: no sideways scroll (page, pane or card), **0** bordered pills, **0** gradients,
+**1** font family, **0** colours outside the ink/accent/line tokens, **0** hidden sentences on screen at rest and 12
+glyphs named in words. Whole, the card is 512px tall on a phone and says one sentence (the photo switch is off), with
+8 of 12 glyphs lit; with the transfer number and the calendar feed taken out it says three and 5 are lit; with replies
+held it says the hold once, above six rows, and only the 3 a call still does stay lit.
 
 ### Task 4.1b: When Autonomy keeps the receptionist from replying, the card says so once
 
