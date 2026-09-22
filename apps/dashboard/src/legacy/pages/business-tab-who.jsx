@@ -305,7 +305,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
 
       {/* Nothing is asked twice (spec §3): the carrier record is Connections', and this card only says where it is. */}
       <p className="bt-card-foot" data-testid="rec-who-foot">
-        Your legal name and registered address are asked once on <button type="button" className="bt-link" onClick={() => window.CHANLY.nav("admin/integrations")}>Connections</button>, for the carriers. Nothing here repeats them.
+        Your legal name and registered address are asked once on <button type="button" className="bt-link" onClick={() => window.CHANLY.nav("admin/integrations")} data-testid="rec-who-carriers">Connections</button>, for the carriers. Nothing here repeats them.
       </p>
     </section>
   );

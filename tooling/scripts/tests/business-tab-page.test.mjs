@@ -2432,3 +2432,78 @@ test("on a phone a row open as a sheet is still drawn in its card behind it, so 
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-row-tone"), null);
 });
+
+/* ------------------------------------ what is on screen at rest ------------------------------------ */
+
+// Spec §11, as amended by Task 6.3: at rest the page draws only what an owner acts on without looking for it, and every
+// other act is in the tab order and drawn on hover or focus (record.css: a filled row's act is opacity 0 until its row
+// is hovered or holds focus). What the stub can tell is which controls are drawn at rest -- neither in a closed editor
+// (hidden, whole) nor a filled row's latent act; the journey measures the rest by computed style.
+const CONTROL = (n) =>
+  ["button", "a", "input", "select", "textarea"].includes(n.type) ||
+  n.props?.role === "switch" ||
+  n.props?.tabIndex === 0;
+/** Every control the page draws at rest, each with the row it is in: a component is walked as what it rendered. */
+const drawnAtRest = (tree) => {
+  const out = [];
+  const walk = (n, row) => {
+    if (n == null || typeof n !== "object") return;
+    if (Array.isArray(n)) return n.forEach((k) => walk(k, row));
+    if (n.props?.hidden === true) return;
+    const inRow = classes(n).includes("rec-row") ? n : row;
+    if (typeof n.type === "string" && CONTROL(n)) {
+      const latent =
+        classes(n).includes("rec-row-act") &&
+        inRow &&
+        inRow.props["data-empty"] !== "true" &&
+        inRow.props["data-state"] !== "warn";
+      if (!latent) out.push({ id: n.props["data-testid"] || textOf(n).trim(), n, row: inRow });
+    }
+    if (typeof n.type === "function") walk(n.rendered, inRow);
+    else walk(n.props?.children, inRow);
+  };
+  walk(tree, null);
+  return out;
+};
+
+test("at rest a whole record draws four controls, each one an owner acts on without looking for it", () => {
+  const drawn = drawnAtRest(drawTab());
+  assert.deepEqual(
+    drawn.map((c) => c.id),
+    [
+      // Where the carrier record is asked, a link in Who you are's foot sentence: part of what it says.
+      "rec-who-carriers",
+      // Days you're closed has none ahead: the act on an empty row is never hidden (§11).
+      "rec-row-act-closures",
+      // Look at a photo is off: what is missing says so, with its door, at full strength (§11).
+      "rec-can-door-vision",
+      // Read it: what the receptionist is told.
+      "rec-prompt-open",
+    ],
+  );
+  // Nothing is missing from this record, so the standing line has no gap and no door.
+  assert.equal(byTestId(drawTab(), "rec-standing-door"), null);
+});
+
+test("at rest an empty record adds only what is empty or missing, and the standing line's door", () => {
+  const drawn = drawnAtRest(drawTab({ profile: {} }));
+  const why = (c) =>
+    c.id === "rec-prompt-open" || c.id === "rec-who-carriers"
+      ? "always"
+      : c.id === "rec-standing-door"
+        ? "the gap"
+        : c.row && (c.row.props["data-empty"] === "true" || c.row.props["data-state"] === "warn")
+          ? "empty or wrong"
+          : /^rec-can-door-/.test(c.id)
+            ? "missing"
+            : null;
+  assert.deepEqual(
+    drawn.filter((c) => !why(c)).map((c) => c.id),
+    [],
+    "nothing else is drawn at rest",
+  );
+  assert.ok(
+    drawn.some((c) => c.id === "rec-standing-door"),
+    "the standing line's one link",
+  );
+});

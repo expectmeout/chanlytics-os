@@ -1067,6 +1067,85 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
+  test("at rest the record draws only what an owner acts on without looking for it, the one act under the pointer on approach, and every act on a phone", async ({
+    page,
+  }) => {
+    // Spec §11, as amended by Task 6.3, measured by computed style: a control is drawn when it is laid out and nothing
+    // over it is transparent. business-tab-page.test.mjs holds which controls the page draws at rest on a whole record
+    // and on an empty one; this is what the browser paints of them.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openRecord(page);
+    await page.mouse.move(0, 0);
+    await settled(page);
+    const drawn = () =>
+      page.evaluate(() => {
+        const pane = document.querySelector(".set-pane")!;
+        const out: { id: string; why: string | null }[] = [];
+        const controls = pane.querySelectorAll(
+          'button, a[href], input, select, textarea, [role="switch"], [tabindex="0"]',
+        );
+        for (const el of controls) {
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height) continue;
+          let seen = 1;
+          for (let n: Element | null = el; n && n !== pane; n = n.parentElement)
+            seen *= parseFloat(getComputedStyle(n).opacity);
+          if (seen <= 0) continue;
+          const id = el.getAttribute("data-testid") || el.getAttribute("href") || el.className;
+          const row = el.closest(".rec-row");
+          const why =
+            id === "rec-prompt-open"
+              ? "Read it"
+              : id === "rec-standing-door"
+                ? "the standing line's link"
+                : id === "set-export-all"
+                  ? "Download"
+                  : id === "rec-who-carriers" || el.closest(".set-team-mail") || el.classList.contains("set-mark")
+                    ? "part of a sentence it sits in"
+                    : row && (row.getAttribute("data-empty") === "true" || row.getAttribute("data-state") === "warn")
+                      ? "empty or wrong"
+                      : id.startsWith("rec-can-door-")
+                        ? "missing"
+                        : null;
+          out.push({ id, why });
+        }
+        return out;
+      });
+    const atRest = await drawn();
+    expect(
+      atRest.filter((c) => !c.why).map((c) => c.id),
+      "a control drawn at rest that an owner does not act on without looking for it",
+    ).toEqual([]);
+    expect(atRest.map((c) => c.why)).toContain("Read it");
+    // Download is Your data's, under the tab, and drawn wherever the app can name its door (window.__href); the
+    // harness has no export door to name, so it is held to being drawn only where it is on the page.
+    if (await page.getByTestId("set-export-all").count()) expect(atRest.map((c) => c.why)).toContain("Download");
+
+    // The one act under the pointer: a filled row, approached, draws its act, and it is the only filled row's act drawn.
+    const row = page.locator('.rec-row[data-empty="false"]:not([data-state="warn"]):has(.rec-row-act)').first();
+    const act = await row.locator(".rec-row-act").getAttribute("data-testid");
+    await row.hover();
+    await settled(page);
+    const near = await drawn();
+    expect(
+      near.filter((c) => !c.why).map((c) => c.id),
+      "the act under the pointer, and it alone",
+    ).toEqual([act]);
+
+    // On a phone nothing hovers, so every act is drawn.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.mouse.move(0, 0);
+    await settled(page);
+    expect(
+      await page
+        .locator(".rec-row-act")
+        .evaluateAll((els) =>
+          els.filter((el) => getComputedStyle(el).opacity !== "1").map((el) => el.getAttribute("data-testid")),
+        ),
+      "an act hidden on a phone",
+    ).toEqual([]);
+  });
+
   test.describe("on a touch phone", () => {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 

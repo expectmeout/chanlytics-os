@@ -278,6 +278,8 @@ Four things are never hidden: anything wrong or missing; the act on an empty row
 
 > **Amended 22 Sep, in execution (Task 5.1).** The first of the four is **Read it**, the door of the told section after *What it can do* (§4's amendment), not a *Read what it's told* in the head. Inside the prompt sheet, each block's door back to its row follows the same rule: drawn when its block is hovered or holds focus, and always on a touch screen and at a phone's width.
 
+> **Amended again 22 Sep, in execution (Task 6.3).** Counted, the claim is narrower in one way and wider in two. At rest, with the pointer away, a whole record (the salon's) draws **Read it**, **Download** under the tab (Your data's, with its mark and the two links in its deletion sentence), and nothing of the other twenty -- but also two things §11 did not count: the **Connections** link in Who you are's foot sentence, which is a word of that sentence rather than an act beside it, and whatever the four exceptions below put there (on the salon: *Add one* on Days you're closed, which is empty, and *Turn it on* beside Look at a photo, which is missing). The standing line's link is drawn only when there is a gap to close, so a whole record has none. The one act under the pointer is drawn on approach, and only it. `business-tab-page.test.mjs` names the four the tab draws at rest on a whole record and holds an empty one to the exceptions; the journey measures it by computed style at 1280 (pointer away, then on a filled row) and holds every act drawn at 390.
+
 ## 12. Tests
 
 House rule: no `readCode` assertions. Every test executes the page on the stub React, as `today-page.test.mjs` does.
