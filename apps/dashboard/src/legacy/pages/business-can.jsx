@@ -190,7 +190,7 @@ const BtCanCard = ({ brain, config, canEdit }) => {
             aria-describedby="bt-can-held-words"
             data-testid="rec-can-held-door"
           >
-            Your Autonomy tab
+            {abilities.held.door}
           </button>
         </p>
       ) : null}

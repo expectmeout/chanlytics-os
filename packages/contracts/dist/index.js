@@ -13941,6 +13941,7 @@ function abilityRows(i) {
   ];
   const held = repliesHeld ? {
     sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} \u2014 ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+    door: "Your Autonomy tab",
     to: "admin/autonomy"
   } : null;
   return { rows, held };

@@ -10981,8 +10981,10 @@ declare const ABILITY_CHANNEL_WORDS: Record<"whatsapp" | "voice", {
  */
 interface AbilitiesVM {
     rows: AbilityRowVM[];
+    /** `door` is what the press to that tab says, so the page draws the words and types none of them. */
     held: {
         sentence: string;
+        door: string;
         to: "admin/autonomy";
     } | null;
 }

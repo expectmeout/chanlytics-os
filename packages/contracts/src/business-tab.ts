@@ -893,7 +893,8 @@ export const ABILITY_CHANNEL_WORDS: Record<"whatsapp" | "voice", { has: string; 
  */
 export interface AbilitiesVM {
   rows: AbilityRowVM[];
-  held: { sentence: string; to: "admin/autonomy" } | null;
+  /** `door` is what the press to that tab says, so the page draws the words and types none of them. */
+  held: { sentence: string; door: string; to: "admin/autonomy" } | null;
 }
 
 /** How long a hand-off holds, in the words the page says it: "a day", "4 hours", "3 days". */
@@ -1057,6 +1058,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
   const held = repliesHeld
     ? {
         sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} — ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+        door: "Your Autonomy tab",
         to: "admin/autonomy" as const,
       }
     : null;

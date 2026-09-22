@@ -163,6 +163,11 @@ test("with replies held, the card says so once, above the rows, and no row repea
     const sentence = abilityRows({ ...MELANY_INPUTS, replyMode: mode }).held.sentence;
     assert.ok(textOf(held).includes(sentence), `${mode}: ${textOf(held)}`);
     assert.ok(sentence.includes(POLICY_MODE_WORDS[mode].chip), "in the pane's own words");
+    // The door's words are contracts' too (held.door), never typed into the JSX.
+    assert.equal(
+      textOf(byTestId(card, "rec-can-held-door")),
+      abilityRows({ ...MELANY_INPUTS, replyMode: mode }).held.door,
+    );
     // Once, and nowhere else: not on the six rows it holds.
     for (const a of abilityRows({ ...MELANY_INPUTS, replyMode: mode }).rows) {
       assert.ok(!textOf(byTestId(card, `rec-can-${a.id}`)).includes(sentence), `${a.id} does not repeat the hold`);

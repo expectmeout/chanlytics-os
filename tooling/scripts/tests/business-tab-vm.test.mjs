@@ -488,6 +488,9 @@ test("with replies held on the Autonomy tab, every chat ability is dark and the 
     assert.equal(rows.answer.ready, true);
     assert.ok(vm.held, `${mode} is held`);
     assert.equal(vm.held.to, "admin/autonomy");
+    // The door's words are contracts' too: the page draws the sentence and the door, and types neither.
+    assert.equal(vm.held.door, "Your Autonomy tab");
+    assert.ok(vm.held.sentence.includes("Autonomy tab"), "and the sentence names the tab the door goes to");
     // The pane's own words for the mode, never the stored value (legacy/CLAUDE.md #657).
     assert.ok(vm.held.sentence.includes(POLICY_MODE_WORDS[mode].chip), vm.held.sentence);
     assert.ok(vm.held.sentence.includes(POLICY_MODE_WORDS[mode].sub), vm.held.sentence);
