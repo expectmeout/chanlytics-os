@@ -910,10 +910,14 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
     const next = S.saveFold("hours", base, week).brain;
     const will = S.willSay({ was: base.brain, next, sections: "hours", channel: "whatsapp" });
     assert.equal(will.whole, blockOf(next).text, "the whole block as the save would leave it, in the composer's own words");
-    assert.deepEqual([linesOf(will.added).length, linesOf(will.removed).length], [1, 1], "a line rewritten is one of each");
-    assert.match(will.added, /17:00/);
-    assert.match(will.removed, /18:00/);
-    assert.equal(will.note, null, "and no line crossed");
+    assert.match(will.whole, /17:00/);
+    assert.deepEqual([will.added, will.removed, will.note], [null, null, null], "the hours' lines are runs (the test below), so none is said to come or go while the block stays; and no line crossed");
+    // A block whose lines are facts says each that comes and goes: a closed day added is one line that comes.
+    const days = S.draftOf("closures", base);
+    days.push({ date: "2099-07-04", note: "Independence Day" });
+    const more = S.willSay({ was: base.brain, next: S.saveFold("closures", base, days).brain, sections: "closures", channel: "whatsapp" });
+    assert.deepEqual([linesOf(more.added).length, more.removed], [1, null], "one line comes, none goes");
+    assert.match(more.added, /Independence Day/);
 
     // Unchanged, a fold still shows its block, and nothing comes or goes.
     const same = S.willSay({ was: base.brain, next: S.saveFold("hours", base, S.draftOf("hours", base)).brain, sections: "hours", channel: "whatsapp" });
@@ -1013,5 +1017,33 @@ test("the two caps the write schema keeps are in LIMITS, once, and a day with mo
     assert.deepEqual(S.problemsOf("hours", week), {});
   } finally {
     if (was) W.__configLimits = was; else delete W.__configLimits;
+  }
+});
+
+test("a block whose lines are runs says nothing goes unless the whole block goes: a changed Friday takes no Monday with it", () => {
+  // The quality review's probe. The hours block's lines are run-collapsed ("Monday–Thursday: 09:30–18:00"). Changing
+  // only Friday's close re-cut the runs, and "It will no longer be told" listed "Monday–Thursday: 09:30–18:00", a line
+  // about days that were unchanged. Which sections say their lines in runs is one table's (RUN_BLOCKS), never an
+  // `if (fold === "hours")` in the page.
+  try {
+    const base = previewed(taken());
+    assert.deepEqual(S.RUN_BLOCKS, ["hours"], "the hours are the one block the composer collapses into runs");
+    const week = S.draftOf("hours", base);
+    week.sat = { isOpen: true, shifts: [{ open: "09:30", close: "13:00" }, { open: "14:00", close: "18:00" }] };
+    const friday = S.willSay({ was: base.brain, next: S.saveFold("hours", base, week).brain, sections: "hours", channel: "whatsapp" });
+    assert.equal(friday.removed, null, "REGRESSION: it listed lines about days nobody changed");
+    assert.match(friday.whole, /Saturday: 09:30–13:00 and 14:00–18:00/, "the whole new block says what Saturday becomes");
+    assert.equal(friday.added, null, "and what comes is not listed apart from it either: a run re-cut is not a new fact");
+    // The whole block going is still said, line by line.
+    const shut = S.draftOf("hours", base);
+    DAYS.forEach((d) => { shut[d] = { isOpen: false, shifts: shut[d].shifts }; });
+    const gone = S.willSay({ was: base.brain, next: S.saveFold("hours", base, shut).brain, sections: "hours", channel: "whatsapp" });
+    assert.deepEqual(linesOf(gone.removed), linesOf(W.__businessTab.consequenceOf("hours", base.brain, "whatsapp").text));
+    // A closure's line is one fact, so the closures say each line that goes, as before.
+    const days = S.draftOf("closures", base);
+    const fewer = S.willSay({ was: base.brain, next: S.saveFold("closures", base, days.slice(1)).brain, sections: "closures", channel: "whatsapp" });
+    assert.match(fewer.removed, /Christmas/);
+  } finally {
+    delete W.__SETTINGS;
   }
 });

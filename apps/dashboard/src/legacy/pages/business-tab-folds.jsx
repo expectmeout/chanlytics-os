@@ -654,6 +654,17 @@ let btSaidOn = { brain: null, blocks: {} };
 const btBlockLines = (b) => (b && typeof b.text === "string" ? b.text.split("\n").filter((l) => l.trim() !== "") : []);
 
 /**
+ * The sections whose block's lines are RUNS rather than facts (the bridge's FOLD_BLOCK names each section's block).
+ * The composer collapses the week into runs of days that share their hours ("Monday–Thursday: 09:30–18:00"), so a
+ * change to one day re-cuts the runs, and the lines that fall out of the old block are about days nobody changed:
+ * changing Friday's close said "It will no longer be told: Monday–Thursday: 09:30–18:00". For such a section nothing
+ * comes or goes line by line while the block stays: the whole new block is drawn, and the lines go only when the whole
+ * block goes. A closure's line is one fact, so every other section says each line that comes and goes. A property of
+ * the section, here, in one table, never an `if (fold === "hours")` in the page.
+ */
+const BT_RUN_BLOCKS = ["hours"];
+
+/**
  * What a save would tell the receptionist, for a row or a fold alike: willSay({ was, next, sections, channel }).
  *
  * `was` is the brain the save goes on and `next` that brain as the save would leave it. Both are the saver's: `was` is
@@ -669,7 +680,8 @@ const btBlockLines = (b) => (b && typeof b.text === "string" ? b.text.split("\n"
  *   added    the lines the save adds or rewrites, which a row draws under "It will say";
  *   removed  the lines it takes away, under "It will no longer say": a line rewritten is one of each, and a save that
  *            drops one thing and adds another says both, where showing only what it adds hid what goes. A block the
- *            save takes away whole (the last open day closed, the last closure removed) goes line by line;
+ *            save takes away whole (the last open day closed, the last closure removed) goes line by line. A block
+ *            whose lines are runs (RUN_BLOCKS) says nothing comes or goes while it stays: its lines are not facts;
  *   whole    every line of its blocks as the save would leave them, which a fold draws under "Your receptionist will
  *            be told" for as long as it is open, changed or not;
  *   note     the sentence for a save that crosses the resolver's own line between composing a prompt and answering
@@ -704,6 +716,9 @@ const btWillSay = ({ was, next, sections, channel }) => {
       }
       const now = btBlockLines(after);
       whole.push(after.text);
+      // A run block that stays says nothing line by line; one that appears whole is every line new, as one that goes
+      // whole is every line gone.
+      if (BT_RUN_BLOCKS.includes(block) && before.length) continue;
       added.push(...now.filter((l) => !before.includes(l)));
       removed.push(...before.filter((l) => !now.includes(l)));
     }
@@ -718,8 +733,8 @@ const btWillSay = ({ was, next, sections, channel }) => {
 
 // Added to window.__businessTabSave, the object business-tab-save.jsx published: each fold's paths and keys (PATHS_OF,
 // KEYS_OF), its helpers (draftOf, saveProblems and its two halves, saveFold, holdsChanges, foldJob), how much of each thing the save
-// takes (LIMITS, and RULES: each booking rule's key, least, most and sentence), and what a row's or a fold's save will
-// tell the receptionist (willSay).
+// takes (LIMITS, and RULES: each booking rule's key, least, most and sentence), which sections say their block in runs
+// (RUN_BLOCKS), and what a row's or a fold's save will tell the receptionist (willSay).
 if (!window.__businessTabSave) throw new Error("business-tab-folds.jsx loads after business-tab-save.jsx: window.__businessTabSave is not there.");
 Object.assign(window.__businessTabSave, {
   PATHS_OF: BT_PATHS_OF,
@@ -733,5 +748,6 @@ Object.assign(window.__businessTabSave, {
   foldJob: btFoldJob,
   LIMITS: BT_LIMITS,
   RULES: BT_RULES,
+  RUN_BLOCKS: BT_RUN_BLOCKS,
   willSay: btWillSay,
 });

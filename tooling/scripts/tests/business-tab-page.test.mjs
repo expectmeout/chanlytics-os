@@ -1803,9 +1803,10 @@ test("the hours fold says what the receptionist will be told as the draft stands
   tree = redrawTab();
   says = byTestId(tree, "rec-fold-says-hours");
   const next = { ...stored, profile: { ...melany, hours: { ...melany.hours, mon: { open: "09:30", close: "17:00" } } } };
-  const goes = composed("hours", stored).filter((l) => !composed("hours", next).includes(l));
-  assert.equal(goes.length, 1);
-  assert.deepEqual(partsOf(says), [["Your receptionist will be told", composed("hours", next).join("\n")], ["It will no longer be told", goes[0]]]);
+  // The hours block's lines are runs of days: a changed Monday re-cuts them, and the lines that fall out of the old
+  // block are about days nobody changed. So nothing is said to go while the block stays (the folds test holds the
+  // rule); the whole new block says what Monday becomes.
+  assert.deepEqual(partsOf(says), [["Your receptionist will be told", composed("hours", next).join("\n")]]);
   assert.match(textOf(says), /17:00/, "it follows the draft");
 
   // Every day closed, on a record that still composes: the block goes whole, line by line.
