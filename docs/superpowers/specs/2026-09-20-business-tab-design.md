@@ -97,6 +97,8 @@ Its voice (the new field) · Languages · Rules it always keeps · Hands you a c
 
 **Hands you a customer** is one row naming both channels: the WhatsApp reasons (which compose only for WhatsApp — `config.ts` says "On the phone there is no token to emit"), and the phone's transfer number. Today these are a form section and a read-card row, a page apart, neither naming the other.
 
+> **Amended 22 Sep, in execution (Task 3.5).** The reasons compose on both channels. Only the `[[HUMAN]]` token is WhatsApp's: the call's hand-off block carries the same reasons ("and whenever:"), with the transfer, or a message taken, as what it does. The row's fold says so, and the transfer number stays Who you are's to edit (plan, Task 3.2's review).
+
 ### 4.6 Rules it always keeps — three strengths
 
 | Rule | Strength | What actually happens |
@@ -107,6 +109,8 @@ Its voice (the new field) · Languages · Rules it always keeps · Hands you a c
 | Never give health advice | Told, and trusted | Same. |
 
 The vision toggle is separated by a dashed rule and labelled as an ability, not a limit — it is the only one that starts off.
+
+> **Amended 22 Sep, in execution (Task 3.5).** Not the only one: "Never give health advice" is opt-in too (`GuardrailsSchema`, and the form's own "absent means on" for the other three). The photos switch starts off because it gives the receptionist an ability, and its hint says that, not that the four limits start on.
 
 ### 4.7 What it can do
 
