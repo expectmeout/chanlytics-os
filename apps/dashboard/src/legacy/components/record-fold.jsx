@@ -271,6 +271,13 @@ const recFocusIn = (el, inner, fallback = null) => {
     try { first.setSelectionRange(first.value.length, first.value.length); } catch { /* a box that holds no caret */ }
   }
 };
+// Gone from under the person: taken out of the document (an ask's own button, a removed row), or still in it and
+// hidden. The second is not the same thing said twice. An Add that fills a list to its cap is not removed -- the box
+// it was in is hidden and the sentence that says why stands where it was -- and the browser blurs a hidden box to the
+// document, which is the one place focus must never be left. Reading only document.contains, the hold below saw the
+// box still there and left the keyboard at the top of the page (measured in the Playwright journey,
+// e2e/settings-business.spec.ts, on the eighth language).
+const recGone = (el) => !el || !document.contains || !document.contains(el) || !!(el.closest && el.closest("[hidden]"));
 // Focus is on nothing a person put it on: nothing at all, the page itself, or something that has left the document (an
 // ask's own button, gone with the ask).
 const recFocusLost = () => {
@@ -317,12 +324,15 @@ const useRecFocusHold = (open, box, inner, fallback) => {
   // After every draw: no inputs, so it runs each time.
   useFoldEffect(() => {
     const went = had.current;
-    if (!open || !went || !document.contains || document.contains(went)) return;
+    if (!open || !went || !recGone(went)) return;
     had.current = null;
-    if (!recFocusLost()) return;
+    // Focus is still ON the thing that has just gone from under it: a box hidden rather than removed keeps it until
+    // the browser's next rendering update, which is after this effect, and then hands it to the document. Moved here,
+    // there is nothing left for the browser to blur. Focus a person moved themselves is elsewhere by now, and stays.
+    if (!recFocusLost() && document.activeElement !== went) return;
     const el = box.current;
     const back = last.current;
-    const there = back && back.focus && el && el.contains && el.contains(back) && document.contains(back);
+    const there = back && back.focus && el && el.contains && el.contains(back) && !recGone(back);
     if (there) back.focus(); else recFocusIn(el, inner, fallback);
   });
   return {
