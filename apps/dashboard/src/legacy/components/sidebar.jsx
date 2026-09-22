@@ -408,10 +408,9 @@ const Sidebar = ({
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} data-testid="sidebar">
-      {/* Mobile drawer header — hidden on desktop */}
+      {/* The drawer's close, hidden on desktop. The product's mark and name stood here over the workspace card,
+          which names the business this is -- the only name a member needs when they open the menu. */}
       <div className="sb-mobile-head">
-        <span className="sidebar-brand-mark">C</span>
-        <span className="sb-mobile-title">Chanlytics</span>
         <button className="btn btn-ghost btn-icon btn-sm" onClick={() => onClose && onClose()} aria-label="Close menu">
           <Icon name="x" size={14} />
         </button>
