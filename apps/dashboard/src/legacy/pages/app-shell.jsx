@@ -188,40 +188,14 @@ const ClientNotFound = ({ onNavigate }) => (
   </div>
 );
 
-// ---- Route skeleton (perceived loading on navigation) -------------------
-const RouteSkeleton = ({ pane, surface }) => (
-  // data-surface, so the skeleton's rail can be the width the surface's rail
-  // will be. Without it Settings loaded behind a 340px rail and settled into a
-  // 220px one.
-  <div className={`skel-page ${pane ? "pane" : ""}`} data-surface={surface} aria-hidden="true">
-    <div className="skel-head">
-      <div>
-        <div className="skel skel-title" />
-        <div className="skel skel-sub" />
-      </div>
-      <div className="skel skel-stats" />
-    </div>
-    {pane ? (
-      <div className="skel-pane">
-        <div className="skel-rail">
-          {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="skel skel-row" />)}
-        </div>
-        <div className="skel-main">
-          <div className="skel skel-block lg" />
-          <div className="skel skel-block" />
-          <div className="skel skel-block sm" />
-        </div>
-      </div>
-    ) : (
-      <div className="skel-main">
-        <div className="skel skel-block lg" />
-        <div className="skel-grid">
-          {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="skel skel-card" />)}
-        </div>
-      </div>
-    )}
-  </div>
-);
+// ---- A route on its way ---------------------------------------------------
+// Until its surface lands, the pane a page will fill stays empty and busy, and one status line says it is reading;
+// the words wait a beat (components.css .route-reading), so a surface that lands fast is never said. A skeleton
+// stood here until 22 Sep 2026: the mockup's page anatomy (a title, a subtitle, a stat strip, a list rail beside
+// a detail pane), which no real page kept, so every page jumped when it left -- a 58px head strip over all eleven
+// pane routes, a 340px rail on four pages that have none, a card grid over Today's two columns, two columns on a
+// phone. A loading state that moves the page when it leaves is worse than none. The route view is keyed on
+// readiness, so the route-in fade plays on the page as it lands rather than on the empty pane.
 
 // ---- Shell -------------------------------------------------------------
 // ---- Phone tab bar --------------------------------------------------------
@@ -839,10 +813,14 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <LiveCallBar />
         <ShellStatusBar />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
-        <div key={mountKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>
+        <div
+          key={routeLoading ? `${mountKey}/reading` : mountKey}
+          className={`main-scroll route-view ${pane ? "pane" : ""}`}
+          aria-busy={routeLoading ? "true" : undefined}
+        >
           <ShellErrorBoundary>
             {routeLoading
-              ? <RouteSkeleton pane={pane} surface={page} />
+              ? <div className="route-reading" role="status">Reading…</div>
               : surfaceUnavailable
                 ? <SurfaceUnavailable onNavigate={navigate} />
                 : content}

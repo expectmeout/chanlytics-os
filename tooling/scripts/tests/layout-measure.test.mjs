@@ -22,7 +22,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT, readCode, readRaw } from "./_source.mjs";
+import { ROOT, readRaw } from "./_source.mjs";
 
 const STYLES = path.join(ROOT, "apps/dashboard/src/legacy/styles");
 const sheets = fs.readdirSync(STYLES).filter((f) => f.endsWith(".css"));
@@ -152,22 +152,27 @@ test("a settings control is named by the row it sits in", () => {
   assert.ok(/const SetSeg = \(\{ value, options, onChange, \.\.\.rest \}\)/.test(settings), "SetSeg forwards it");
 });
 
-test("the loading skeleton stands where the surface will stand", () => {
-  // It carried a page's 28px gutter and a 16px grid gap onto PANE surfaces,
-  // which have neither -- every one is a full-bleed grid whose rail starts at
-  // x=0 -- so the instant real content replaced it the whole page jumped 28px
-  // left and the rail changed width. A loading state that moves the page when
-  // it leaves is worse than no loading state.
+test("a route on its way is an empty pane that says so after a beat, never a skeleton", () => {
+  // A skeleton stood in the route view until 22 Sep 2026: the mockup's page anatomy (a title, a subtitle, a stat
+  // strip, a list rail beside a detail pane), which no real page kept. Measured on production it matched nothing:
+  // a 58px head strip flush at the pane's edge over all eleven pane routes, a 340px rail on the four pages that
+  // have none (Calendar, Reports, Playbooks, Templates), one block and a 3x2 card grid over Today's two columns,
+  // and a 220px rail beside a 155px column on a 375px phone. Every page jumped when it left. A loading state that
+  // moves the page when it leaves is worse than none, so the pane stays empty and says it is reading once a beat
+  // has passed (app-shell.jsx RouteReading; shell-status.test.mjs draws it).
   const components = readRaw("apps/dashboard/src/legacy/styles/components.css");
-  assert.match(
-    components,
-    /\.skel-page\.pane \{ padding: 0; gap: 0; \}/,
-    "a pane skeleton has no page gutter, because pane surfaces have none",
+  assert.doesNotMatch(components, /\.skel\b|skel-/, "no skeleton rules");
+  const reading = components.match(/\.route-reading \{[^}]*\}/);
+  assert.ok(reading, "the reading line has a rule");
+  const delay = reading[0].match(/animation:[^;]*?\s(\d+)ms both/);
+  assert.ok(
+    delay && Number(delay[1]) >= 400,
+    "the words wait a beat (fill-mode both holds them back until then), so a surface that lands fast is never said",
   );
   assert.match(
     components,
-    /\.skel-pane \{[^}]*grid-template-columns: var\(--rail-list\)/,
-    "and its rail is a real rail width",
+    /@media \(max-width: 900px\) \{ \.route-reading \{ padding: 12px 16px; \} \}/,
+    "on a phone the line sits at the 16px gutter, where every page's first line sits",
   );
 
   // The rails themselves: eight literals for one structural element, of which
@@ -194,20 +199,6 @@ test("the loading skeleton stands where the surface will stand", () => {
       `${file} takes the list rail`,
     );
   }
-
-  // The skeleton cannot ask the surface how wide its rail is, so the two
-  // narrow ones are named -- and named in BOTH places or the rail resizes on
-  // load, which is the same jump in a different direction.
-  const narrowInSkeleton = /\.skel-page\[data-surface="([a-z-]+)"\]/g;
-  const named = [...components.matchAll(narrowInSkeleton)].map((m) => m[1]).sort();
-  assert.deepEqual(named, ["admin", "clients"], "exactly the surfaces whose rail is --rail-nav");
-
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
-  assert.ok(
-    shell.includes("<RouteSkeleton pane={pane} surface={page} />"),
-    "the shell tells the skeleton which surface it is standing in for",
-  );
-  assert.ok(shell.includes("data-surface={surface}"), "and the skeleton wears it");
 });
 
 test("digits in a column line up without being asked", () => {

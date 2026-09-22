@@ -1419,3 +1419,44 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   assert.equal(wrap(open).props["aria-label"], "Navigation");
   assert.equal(wrap(open).props["aria-modal"], undefined, "not modal: it does not move focus into itself");
 });
+
+test("a route whose surface has not landed is an empty pane that says it is reading, never a skeleton, and the page fades in as it lands", () => {
+  // The skeleton that stood here was the mockup's page anatomy and matched no real page, so every page jumped when
+  // it left (layout-measure.test.mjs says what was measured). Now the pane the page will fill is empty and busy, one
+  // status line says it is reading, and the route view is keyed on readiness so the route-in fade plays on the page
+  // as it lands, not on the empty pane.
+  const timers = [];
+  const keepTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (fn, ms) => {
+    timers.push(ms);
+    return 0;
+  };
+  const byClass = (tree, has) =>
+    find(tree, (n) => typeof n.props?.className === "string" && n.props.className.includes(has));
+  win.__surfaceGate = () => false;
+  try {
+    const { tree } = mount("#/inbox");
+    assert.ok(!byClass(tree, "skel"), "no skeleton");
+    assert.ok(!find(tree, (n) => n.type === "Inbox"), "the page is not drawn before its surface lands");
+    const view = byClass(tree, "route-view");
+    assert.equal(view.props["aria-busy"], "true", "the pane the page will fill is busy");
+    const reading = byClass(tree, "route-reading");
+    assert.ok(reading, "one line says it is reading");
+    assert.equal(reading.props.role, "status", "as a status, for a screen reader");
+    assert.equal(textOf(reading).trim(), "Reading…");
+    assert.ok(timers.includes(8000), "the unavailable pane still comes after eight seconds");
+    win.__surfaceGate = () => true;
+    const landed = mount("#/inbox");
+    const viewLanded = byClass(landed.tree, "route-view");
+    assert.notEqual(viewLanded.props.key, view.props.key, "keyed on readiness: the page fades in as it lands");
+    assert.equal(viewLanded.props["aria-busy"], undefined, "and is no longer busy");
+    assert.ok(!byClass(landed.tree, "route-reading"), "the line goes with the wait");
+    assert.ok(
+      find(landed.tree, (n) => n.type === "Inbox"),
+      "the page is there",
+    );
+  } finally {
+    globalThis.setTimeout = keepTimeout;
+    delete win.__surfaceGate;
+  }
+});
