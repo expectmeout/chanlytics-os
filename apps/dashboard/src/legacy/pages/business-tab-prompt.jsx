@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React */
 // Chanlytics — Settings › Business: what your receptionist is told.
 //
 // The last piece of the old page, rebuilt (docs/superpowers/specs/2026-09-20-business-tab-design.md §5; the plan's
