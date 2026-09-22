@@ -1367,11 +1367,13 @@ html.legacy-on .bt-link { position: relative; }
 .bt-prompt-block { display: flex; flex-direction: column; gap: 6px; scroll-margin-top: 16px; border-radius: var(--radius-sm); }
 .bt-prompt-block:focus { outline: none; }
 .bt-prompt-block:focus-visible { box-shadow: var(--focus-ring); }
-.bt-prompt-block-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; }
-.bt-prompt-block-label { flex: 1 1 auto; min-width: 0; margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
+/* The label and its door on one line; under the label, on a phone, its share. A grid, so a long label or share wraps
+   in its own column and the door never drops under them. */
+.bt-prompt-block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 12px; }
+.bt-prompt-block-label { grid-column: 1; grid-row: 1; min-width: 0; margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
 /* The share in words: a phone's indicator, where the contents are not drawn (below). */
-.bt-prompt-block-share { display: none; font-size: var(--text-xs); color: var(--ink-dim); }
-.bt-prompt-door { flex: none; font-size: var(--text-sm); }
+.bt-prompt-block-share { grid-column: 1 / -1; grid-row: 2; display: none; font-size: var(--text-xs); color: var(--ink-dim); }
+.bt-prompt-door { grid-column: 2; grid-row: 1; font-size: var(--text-sm); }
 /* The prompt itself, in the page's own face: sentences about a business, not a listing. It has real line breaks and
    keeps them, and an unbroken booking address must never widen the sheet. */
 .bt-prompt-block-text { margin: 0; font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -1533,10 +1535,14 @@ html.legacy-on .bt-link { position: relative; }
      block's head carries its share in words; and a foot with Close, within a thumb's reach, since there is nothing to
      save. */
   .bt-prompt-sheet { width: auto; }
+  /* At rest, the title and its door share the line, and who reads it takes the next rather than a sliver between them. */
+  .bt-told .rec-card-head { flex-wrap: wrap; row-gap: 4px; }
+  .bt-told .rec-card-title { flex: 1 1 auto; min-width: 0; }
+  .bt-told .rec-card-sub { order: 1; flex-basis: 100%; }
   .bt-prompt { display: block; padding-top: 12px; }
   .bt-prompt-rail { display: none; }
   .bt-prompt-blocks { gap: 18px; }
-  .bt-prompt-block-share { display: inline; }
+  .bt-prompt-block-share { display: block; }
   .bt-prompt-sheet .rec-sheet-foot { display: flex; }
   .bt-prompt-sheet .rec-sheet-foot > .btn { height: 40px; }
 }
