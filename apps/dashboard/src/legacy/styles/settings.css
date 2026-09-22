@@ -765,11 +765,12 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .set-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
 
 /* ── What the receptionist is told ────────────────────────────────────────
-   The composed prompt, verbatim. Monospace and generously leaded because it
-   is read to CHECK something — "does it still know my address", "why did it
-   say we open Sunday" — not skimmed. Collapsed by default: six thousand
-   characters is a wall, and the character count above it is the part that
-   actually reads at a glance. */
+   The composed prompt, verbatim. Generously leaded because it is read to CHECK
+   something — "does it still know my address", "why did it say we open Sunday"
+   — not skimmed. In the page's own face: it was monospace, on the argument
+   that it is a listing, and it is not — it is sentences about a business, and
+   a second typeface on this page is the first thing an owner notices about it.
+   Collapsed by default: six thousand characters is a wall. */
 .set-prompt-meta {
   display: flex;
   align-items: center;
@@ -819,7 +820,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   background: var(--bg-sunken);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 12px;
   line-height: var(--leading-relaxed);
   color: var(--ink-muted);

@@ -211,8 +211,11 @@ test("both channels can be read, since they are not the same text", () => {
 });
 
 test("six thousand characters cannot break the page layout", () => {
-  const body = css.slice(css.indexOf(".set-prompt-body"));
+  const body = css.slice(css.indexOf(".set-prompt-body"), css.indexOf(".set-prompt-body-sm"));
   assert.ok(body.includes("white-space: pre-wrap"), "the prompt has real newlines and must keep them");
   assert.ok(body.includes("overflow-wrap: anywhere"), "an unbroken booking URL must not widen the page");
   assert.ok(body.includes("overflow-y: auto"));
+  // The page reads in ONE typeface. The prompt is sentences somebody wrote about their business, not a listing, and a
+  // second face here is the "font changes" an owner sees before he reads a word of it.
+  assert.ok(!body.includes("font-mono"), "the prompt is set in the page's own face");
 });

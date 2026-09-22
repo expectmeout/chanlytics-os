@@ -109,7 +109,10 @@
 .rec-says-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
 .rec-says-part { display: flex; flex-direction: column; gap: 6px; }
 .rec-says-eyebrow { flex: none; font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
-.rec-says pre { flex: 1; min-width: 0; margin: 0; font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The lines the receptionist will be told, in the page's own face. A <pre> for the newlines it keeps, not for a
+   typeface: these are sentences about a business, and a second face on a card of sentences is the first thing an
+   owner notices about the page. */
+.rec-says pre { flex: 1; min-width: 0; margin: 0; font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .rec-says[data-inline="true"] { padding: 9px 11px; }
 .rec-says[data-inline="true"] .rec-says-part { flex-direction: row; align-items: flex-start; gap: 9px; }
 .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 2px; }
