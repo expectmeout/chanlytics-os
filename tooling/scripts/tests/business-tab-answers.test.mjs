@@ -22,6 +22,7 @@ import {
   FALLBACK_DEFAULTS,
   newReceptionistDefaults,
   hasProfile,
+  GUARDRAIL_KEYS,
 } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import {
@@ -462,6 +463,20 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     "REGRESSION: the canvas said all four start on, and health advice starts off",
   );
   assert.equal(switchOf(tree, "vision").props["aria-checked"], true);
+});
+
+test("the rules the fold draws are the four the schema keeps, in its order, and the photos switch is apart from them", () => {
+  // The page lists the four with their words (BTA_RULES), and cites contracts GUARDRAIL_KEYS without reading it: the
+  // bridge publishes the list on __businessTab as it installs, and this file's list is built when the classic script
+  // is compiled, before that. So the literal stays and this is the pin -- the rows the fold DRAWS, in order, are the
+  // schema's own keys (GuardrailsSchema.keyof()), so a rule added to the schema and not here has no switch and fails.
+  let tree = drawTab();
+  openFold(tree, "guardrails");
+  tree = redrawTab();
+  const rows = all(byTestId(tree, "rec-rules-switches"), (n) => classes(n).includes("bt-rule"));
+  const drawn = rows.map((n) => String(n.props["data-testid"]).replace("rec-rule-", ""));
+  assert.deepEqual(drawn, [...GUARDRAIL_KEYS, "vision"], "the four rules in the schema's order, then the photos power");
+  for (const key of GUARDRAIL_KEYS) assert.ok(switchOf(tree, key), `${key} has a switch`);
 });
 
 test("each switch saves only its own key, and the photos switch writes features.vision and nothing else", () => {

@@ -25,6 +25,7 @@ import {
   bookingRuleRefusal,
   BookingRulesSchema,
   guardrailsInForce,
+  GUARDRAIL_KEYS,
   PROFILE_LIMITS,
   profileRefusal,
 } from "@chanlytics/contracts";
@@ -1969,4 +1970,22 @@ test("a booking rule's refusal is contracts' bookingRuleRefusal, and the page's 
   } finally {
     W.__businessTab = tab;
   }
+});
+
+test("the guardrails fold writes the four keys the save's own schema has, in its order", () => {
+  // The page holds the four as a literal (BT_GUARDRAILS), because a classic script is compiled at file-load time and
+  // the bridge that publishes the list (__businessTab.GUARDRAIL_KEYS) installs after it: window is there to READ as a
+  // fold draws, not as this list is built. So the literal stays, and this is the pin instead -- what the fold actually
+  // writes into the config is the schema's own list (contracts GUARDRAIL_KEYS, GuardrailsSchema.keyof()), so a rule
+  // added to the schema and not to the page fails here rather than being quietly unwritable.
+  const prefix = "brain.profile.guardrails.";
+  assert.deepEqual(
+    S.PATHS_OF.guardrails.filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length)),
+    [...GUARDRAIL_KEYS],
+  );
+  // features.vision is the fold's fifth path and a power, not a rule it always keeps.
+  assert.deepEqual(S.PATHS_OF.guardrails.filter((p) => !p.startsWith(prefix)), ["features.vision"]);
+  // And a save writes every one of them, not only the keys the record already stored.
+  const saved = S.saveFold("guardrails", stored(), S.draftOf("guardrails", stored()));
+  assert.deepEqual(Object.keys(saved.brain.profile.guardrails).sort(), [...GUARDRAIL_KEYS].sort());
 });
