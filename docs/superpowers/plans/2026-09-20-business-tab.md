@@ -67,7 +67,8 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 | `apps/dashboard/src/legacy/pages/business-tab-gestures.jsx` | The page's two gestures, `BtRow` and `BtFold`, and the two questions both ask (Task 3.3's quality review). Load order: save → folds → gestures → the cards → the page, in BOTH lists. |
 | `apps/dashboard/src/legacy/pages/business-tab-who.jsx` | The *Who you are* card (Task 3.2), a file of its own since Task 3.3's quality review; `window.BtWhoCard`. |
 | `apps/dashboard/src/legacy/pages/business-tab-open.jsx` | The *When you're open* card: the week, the zone, the closed days, the calendar it reads (Task 3.3); `window.BtOpenCard`. |
-| `apps/dashboard/src/legacy/pages/business-tab-offer.jsx` | The *What you offer* card: the services row, the booking rules and consult-first (Task 3.4); `window.BtOfferCard`, and the services sheet the page draws after every card, `window.BtServicesSheet`. |
+| `apps/dashboard/src/legacy/pages/business-tab-offer.jsx` | The *What you offer* card: the services row, the booking rules and consult-first (Task 3.4); `window.BtOfferCard`, and, since the quality review, nothing of the services sheet. |
+| `apps/dashboard/src/legacy/pages/business-tab-services.jsx` | The services sheet (Task 3.4's quality review): `window.BtServicesSheet`, which the page draws after every card. |
 | `apps/dashboard/src/legacy/pages/business-can.jsx` | The *What it can do* card and the prompt sheet. |
 | `tooling/scripts/tests/business-tab-vm.test.mjs` | The sentence tables, as pure functions. |
 | `tooling/scripts/tests/prompt-blocks.test.mjs` | The prompt view, whose words are in it, and the resolver's equivalence. |

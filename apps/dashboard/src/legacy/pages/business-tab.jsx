@@ -7,8 +7,8 @@
 // This file draws the head and the standing line, and composes the cards. The page's two gestures, a row edited in its
 // place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
 // pages/business-tab-gestures.jsx; each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx,
-// business-tab-offer.jsx), loaded before this one and read from window as the page draws, and the services sheet is
-// drawn here, after every card. The other groups arrive with Task 3.5, and PaneWorkspace (settings.jsx) keeps drawing
+// business-tab-offer.jsx), loaded before this one and read from window as the page draws, and the services sheet
+// (business-tab-services.jsx) is drawn here, after every card. The other groups arrive with Task 3.5, and PaneWorkspace (settings.jsx) keeps drawing
 // the old card until Task 3.7 swaps this page in.
 //
 // The page composes and never derives. Every sentence with a number or a judgement in it is contracts', through
@@ -136,8 +136,8 @@ const BusinessTab = ({ flash = () => {} }) => {
       {window.BtOfferCard ? <window.BtOfferCard brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {/* The services sheet, LAST, after every card: the kit's sheet holds hooks and is drawn only while it is open, and
           the tests' stub React keeps every hook on the page as a cell in one order, so drawn before a card it shifted
-          that card's cells whenever it opened (BtSheet, business-tab-gestures.jsx). Whatever card comes next goes
-          above this line. */}
+          that card's cells whenever it opened (BtSheet, business-tab-gestures.jsx; the sheet is business-tab-services.jsx).
+          Whatever card comes next goes above this line. */}
       {window.BtServicesSheet ? <window.BtServicesSheet brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
     </>
   );

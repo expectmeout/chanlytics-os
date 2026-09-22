@@ -59,6 +59,7 @@ await import(`${L}/pages/business-tab-gestures.jsx`);
 await import(`${L}/pages/business-tab-who.jsx`);
 await import(`${L}/pages/business-tab-open.jsx`);
 await import(`${L}/pages/business-tab-offer.jsx`);
+await import(`${L}/pages/business-tab-services.jsx`);
 await import(`${L}/pages/business-tab.jsx`);
 const W = globalThis.window;
 // The tab's helpers, from the module the app installs: the standing line, and what each row will tell the receptionist.
