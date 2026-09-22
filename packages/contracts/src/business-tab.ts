@@ -710,18 +710,22 @@ export function instructionsWords(text: string | null | undefined): Instructions
 
 /** The fallbacks row at rest. */
 export interface FallbacksWordsVM {
-  /** "3 messages sent in your name". */
+  /** "3 messages, in your words", or "3 messages, the product's wording" when none differs from it. */
   line: string;
-  /** How many are not the product's wording: "2 differ from the default wording", or "all in the default wording". */
-  own: string;
 }
 
 /**
  * The three messages sent in the business's name when the receptionist cannot answer, at rest: how many there are, and
- * how many are not the product's wording (FALLBACK_DEFAULTS). "Differ from", not the canvas's "you wrote": a workspace
- * set up before the default wording was written was given messages with its details copied in (config.ts, S5), which
- * are not the default and were not written by the owner either. A message stored empty is sent in the default wording
- * (fallbackMessages), so it counts as the default; so does a workspace that stores none.
+ * whose words they are in.
+ *
+ * ONE line. It was two -- "3 messages sent in your name" and "3 differ from the default wording" -- and the second
+ * counts a difference nobody can act on from the row: which message differs, and the press that puts the product's
+ * wording back, are both inside the fold, on the message itself.
+ *
+ * "The product's wording", not "you wrote": a workspace set up before the default wording was written was given
+ * messages with its details copied in (config.ts, S5), which are neither the default nor the owner's. A message stored
+ * empty is sent in the default wording (fallbackMessages), so it counts as the default; so does a workspace that
+ * stores none.
  */
 export function fallbacksWords(
   fallbacks: Partial<Record<keyof typeof FALLBACK_DEFAULTS, string | null>> | null | undefined,
@@ -732,12 +736,7 @@ export function fallbacksWords(
     const t = typeof f[k] === "string" ? (f[k] as string).trim() : "";
     return t !== "" && t !== FALLBACK_DEFAULTS[k];
   }).length;
-  return {
-    line: `${count(keys.length)} messages sent in your name`,
-    own: differ
-      ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording`
-      : "all in the default wording",
-  };
+  return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
 
 /**

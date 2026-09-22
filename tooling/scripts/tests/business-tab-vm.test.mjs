@@ -977,35 +977,37 @@ test("the owner's own words are said by their opening, cut at a word; their size
   assert.equal(said.nearFull, undefined);
 });
 
-test("the three messages say how many differ from the default wording, never who wrote them", () => {
-  assert.deepEqual(fallbacksWords(FALLBACK_DEFAULTS), {
-    line: "3 messages sent in your name",
-    own: "all in the default wording",
-  });
+test("the three messages are one line: how many there are, and whose words they are in", () => {
+  // Two lines said it before -- "3 messages sent in your name" and "3 differ from the default wording" -- where the
+  // second counts a difference nobody can act on without opening the fold, which names each message that differs and
+  // offers the default back. One line now, and still never who wrote them: a workspace set up before the default
+  // wording was written was given messages nobody here typed.
+  assert.deepEqual(fallbacksWords(FALLBACK_DEFAULTS), { line: "3 messages, the product's wording" });
   assert.equal(
-    fallbacksWords(null).own,
-    "all in the default wording",
+    fallbacksWords(null).line,
+    "3 messages, the product's wording",
     "a workspace that stores none sends the default",
   );
   assert.equal(
-    fallbacksWords({ ...FALLBACK_DEFAULTS, error: "Sorry, something went wrong on our side." }).own,
-    "1 differs from the default wording",
+    fallbacksWords({ ...FALLBACK_DEFAULTS, error: "Sorry, something went wrong on our side." }).line,
+    "3 messages, in your words",
   );
   assert.equal(
-    fallbacksWords({ greeting: "Hi!", error: "Sorry.", non_text: "Thanks." }).own,
-    "3 differ from the default wording",
+    fallbacksWords({ greeting: "Hi!", error: "Sorry.", non_text: "Thanks." }).line,
+    "3 messages, in your words",
   );
   assert.equal(
-    fallbacksWords({ ...FALLBACK_DEFAULTS, error: `  ${FALLBACK_DEFAULTS.error}\n` }).own,
-    "all in the default wording",
+    fallbacksWords({ ...FALLBACK_DEFAULTS, error: `  ${FALLBACK_DEFAULTS.error}\n` }).line,
+    "3 messages, the product's wording",
     "space around a message is not a word of it",
   );
   assert.equal(
-    fallbacksWords({ ...FALLBACK_DEFAULTS, error: "" }).own,
-    "all in the default wording",
+    fallbacksWords({ ...FALLBACK_DEFAULTS, error: "" }).line,
+    "3 messages, the product's wording",
     "a message stored empty is sent in the default wording",
   );
-  assert.doesNotMatch(fallbacksWords({ greeting: "Hi!" }).own, /you wrote/);
+  assert.doesNotMatch(fallbacksWords({ greeting: "Hi!" }).line, /you wrote/);
+  assert.equal(fallbacksWords(FALLBACK_DEFAULTS).own, undefined, "the second line is gone");
 });
 
 test("a record whose details compose nothing is told the stored prompt and Autonomy's rules, and the rules fold's sentence says so", () => {

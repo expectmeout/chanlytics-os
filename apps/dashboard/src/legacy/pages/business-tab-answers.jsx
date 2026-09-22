@@ -608,11 +608,10 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         channel={null}
         gate={gate("the messages sent when it can't answer")}
         row={{
+          // One line. Which message differs from the product's wording, and the press that puts it back, are both
+          // inside the fold, on the message itself: a count of the difference on the row was a number to read twice.
           value: messages ? (
-            <span className="bt-messages" data-testid="rec-fallbacks-words">
-              <span>{messages.line}</span>
-              <span className="bt-messages-own">{messages.own}</span>
-            </span>
+            <span className="bt-messages" data-testid="rec-fallbacks-words">{messages.line}</span>
           ) : null,
           empty: "Not set",
           name: "Change the messages sent when it can't answer",

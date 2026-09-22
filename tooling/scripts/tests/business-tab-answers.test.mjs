@@ -991,13 +991,13 @@ test("a fold nobody typed in promises no crossing: on a record that composes not
 
 /* ------------------------------------ when it can't answer ------------------------------------ */
 
-test("the three messages at rest say how many there are and how many differ from the default wording", () => {
+test("the three messages at rest are one line: how many there are, and whose words they are in", () => {
   const row = byTestId(drawTab(), "rec-row-fallbacks");
   const vm = fallbacksWords(brainOf(melany).fallbacks);
-  assert.equal(textOf(byTestId(row, "rec-fallbacks-words")), `${vm.line}${vm.own}`);
-  assert.deepEqual([vm.line, vm.own], ["3 messages sent in your name", "3 differ from the default wording"]);
+  assert.equal(textOf(byTestId(row, "rec-fallbacks-words")), vm.line);
+  assert.equal(vm.line, "3 messages, in your words");
   const defaults = byTestId(drawTab({ brain: { fallbacks: FALLBACK_DEFAULTS } }), "rec-row-fallbacks");
-  assert.match(textOf(defaults), /all in the default wording/);
+  assert.match(textOf(defaults), /3 messages, the product's wording/);
 });
 
 test("each message shows what a customer reads, points at a link or a number written out, and offers the default wording back", () => {

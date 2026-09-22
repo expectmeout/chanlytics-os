@@ -1456,8 +1456,7 @@ html.legacy-on .bt-link { position: relative; }
 .bt-own-opening { min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); overflow-wrap: anywhere; }
 .bt-own-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 /* The three messages at rest, and in the fold: each its label, when it goes out, its box, and what a customer reads. */
-.bt-messages { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
-.bt-messages-own { font-size: var(--text-sm); color: var(--ink-dim); }
+.bt-messages { min-width: 0; }
 .bt-fallbacks { display: flex; flex-direction: column; gap: 16px; }
 .bt-fallback { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 .bt-fallback > .rec-box { align-self: stretch; }

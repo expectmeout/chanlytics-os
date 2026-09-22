@@ -13809,10 +13809,7 @@ function fallbacksWords(fallbacks) {
     const t = typeof f[k] === "string" ? f[k].trim() : "";
     return t !== "" && t !== FALLBACK_DEFAULTS[k];
   }).length;
-  return {
-    line: `${count(keys.length)} messages sent in your name`,
-    own: differ ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording` : "all in the default wording"
-  };
+  return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
 var RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
 var BOOLEAN_INPUTS = {
