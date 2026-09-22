@@ -151,6 +151,56 @@ test("a re-read that moves the thread says so on the pane; your own act does not
   } finally { delete globalThis.window.__inboxVerb; releasePane(); }
 });
 
+test("a snooze, an archive or a take-over is said the moment the server takes it -- not after the Inbox, the threads and Today are read again", async () => {
+  // The loading standard's D, the Inbox's way: the server owns the thread, so the pane still repaints from the
+  // re-read, but the toast waited for write + three surfaces read (~900ms) before saying anything. It comes at
+  // acceptance now; the act stays "yours" until the re-read lands, so the pane does not announce it to you.
+  const { threadVerbs } = globalThis.window;
+  const said = [];
+  const { verb } = threadVerbs((m) => said.push(m));
+  let reread = () => {};
+  const asked = [];
+  globalThis.window.__inboxVerb = async (_t, name, _payload, opts = {}) => {
+    asked.push([name, typeof opts.onAccepted]);
+    if (opts.onAccepted) opts.onAccepted();   // the door answered 2xx
+    await new Promise((r) => { reread = r; }); // the surfaces are read again, behind
+    return { ok: true, data: { message_id: name === "reply" ? "m-1" : undefined } };
+  };
+  try {
+    for (const [name, words] of [["snooze", "snoozed until tomorrow 10:00"], ["archive", "archived"], ["take-over", "you have it"], ["hand-back", "handed back"], ["wake", "awake"]]) {
+      said.length = 0;
+      const done = verb(rosa, name, {}, words);
+      await new Promise((r) => setTimeout(r, 0));
+      assert.equal(said.length, 1, `${name}: said at acceptance, before the re-read landed`);
+      assert.match(String(said[0].msg.props.children.join ? said[0].msg.props.children.map((c) => (typeof c === "string" ? c : "")).join("") : ""), new RegExp(words.split(" ")[0]));
+      assert.ok(globalThis.window.__threadOwnVerbs.n > 0, "and still your own act while its re-read is out");
+      reread();
+      assert.equal(await done, true);
+      assert.equal(said.length, 1, "said once, not again when the re-read lands");
+    }
+    // A reply's toast carries the receipt (its Undo window), so it still waits for the server's answer.
+    said.length = 0;
+    const sending = verb(rosa, "reply", { text: "See you Friday!" }, "reply on its way", true);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(said.length, 0, "a reply is said with its receipt");
+    reread();
+    await sending;
+    assert.equal(said.length, 1);
+    assert.deepEqual(asked.at(-1), ["reply", "undefined"]);
+  } finally { delete globalThis.window.__inboxVerb; }
+});
+
+test("a refused act says the refusal once, and never that it happened", async () => {
+  const { threadVerbs } = globalThis.window;
+  const said = [];
+  const { verb } = threadVerbs((m) => said.push(m));
+  globalThis.window.__inboxVerb = async () => ({ ok: false, code: "conflict", message: "A teammate has this conversation now." });
+  try {
+    assert.equal(await verb(rosa, "take-over", undefined, "you have it"), false);
+    assert.deepEqual(said.map((m) => m.tone), ["danger"]);
+  } finally { delete globalThis.window.__inboxVerb; }
+});
+
 /* ---------------------------- a draft counting down ---------------------------- */
 
 // Moved here from veto-ui.test.mjs, where it read inbox.jsx as a string: the hold is a function now, so it is run.

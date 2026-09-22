@@ -279,6 +279,32 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   assert.equal(all(broke, (n) => classes(n).includes("cl-attn-row")).length, busy().queue.rows.length, "the rows themselves stand");
 });
 
+test("a snooze or a resolve from the queue is said the moment the server takes it, not after the surfaces are read again", async () => {
+  clear();
+  const vm = busy();
+  const row = vm.queue.rows.find((r) => r.also);
+  assert.ok(row, "the fixture has a person with a second act");
+  let reread = () => {};
+  set({ TODAY_DATA: vm, __BROADCASTS: broadcasts(), __inboxVerb: async (_t, _verb, _payload, opts = {}) => {
+    if (opts.onAccepted) opts.onAccepted();
+    await new Promise((r) => { reread = r; });
+    return { ok: true, data: {} };
+  } });
+  const queue = byTestId(draw(W.AgentCommand), "today-queue");
+  const act = byTestId(queue, `queue-${row.also.verb}`);
+  const done = press(act);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(flashes.length, 1, "said at acceptance, while the Inbox, the threads and Today are read again");
+  assert.match(textOf(flashes[0].msg), new RegExp(row.who));
+  reread();
+  await done;
+  assert.equal(flashes.length, 1, "and said once");
+  // A refusal is the refusal, once.
+  set({ __inboxVerb: async () => ({ ok: false, code: "conflict", status: 409, message: "A teammate has this one now." }) });
+  await press(byTestId(byTestId(draw(W.AgentCommand), "today-queue"), `queue-${row.also.verb}`));
+  assert.equal(flashes.length, 2);
+});
+
 test("four rows: people take three while a run wants the fourth, and all four when none does", () => {
   clear();
   // Four people waiting — one more than the card gives them.

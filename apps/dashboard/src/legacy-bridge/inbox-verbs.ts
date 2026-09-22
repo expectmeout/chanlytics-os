@@ -73,14 +73,18 @@ export async function inboxVerb(
   thread: RealThread,
   verb: InboxVerb,
   payload?: { text?: string; until?: string; template?: { name: string; language: string } },
-  /** `refresh: false` for one step of a bulk act, which reads the surfaces again once, at its end. */
-  opts: { refresh?: boolean } = {},
+  /**
+   * `refresh: false` for one step of a bulk act, which reads the surfaces again once, at its end. `onAccepted` is
+   * called the moment the server takes the act, before the surfaces are read again: the page says so then, and the
+   * thread repaints from the re-read as it always did (the server owns its state).
+   */
+  opts: { refresh?: boolean; onAccepted?: () => void } = {},
 ): Promise<VerbResult> {
   const lock = `${thread.conversationId}:${verb}`;
   if (inFlight.has(lock)) return local("Still working on that one…");
   inFlight.add(lock);
   try {
-    return await runVerb(thread, verb, payload, opts.refresh !== false);
+    return await runVerb(thread, verb, payload, opts.refresh !== false, opts.onAccepted);
   } finally {
     inFlight.delete(lock);
   }
@@ -148,6 +152,7 @@ async function runVerb(
   verb: InboxVerb,
   payload?: { text?: string; until?: string; template?: { name: string; language: string }; emailTo?: string },
   refresh = true,
+  onAccepted?: () => void,
 ): Promise<VerbResult> {
   // A replayed send must return the ORIGINAL result, never a second message.
   //
@@ -173,34 +178,34 @@ async function runVerb(
   let result: VerbResult;
   switch (verb) {
     case "take-over":
-      result = await api()("POST conversations/[id]/take-over", { params: { id }, refresh });
+      result = await api()("POST conversations/[id]/take-over", { params: { id }, refresh, onAccepted });
       break;
     case "hand-back":
-      result = await api()("POST conversations/[id]/hand-back", { params: { id }, refresh });
+      result = await api()("POST conversations/[id]/hand-back", { params: { id }, refresh, onAccepted });
       break;
     case "snooze": {
       // Ten tomorrow where the business is, not where the browser is (zone.ts).
       const until = payload?.until ?? new Date(tomorrowAtIn(await workspaceZone(), Date.now(), 10)).toISOString();
-      result = await api()("POST conversations/[id]/snooze", { params: { id }, body: { until }, refresh });
+      result = await api()("POST conversations/[id]/snooze", { params: { id }, body: { until }, refresh, onAccepted });
       break;
     }
     case "wake":
       // Its own verb, not hand-back: waking ends the snooze and leaves the
       // thread exactly as it was, rather than resolving what it was about.
-      result = await api()("POST conversations/[id]/wake", { params: { id }, refresh });
+      result = await api()("POST conversations/[id]/wake", { params: { id }, refresh, onAccepted });
       break;
     case "archive":
-      result = await api()("POST conversations/[id]/archive", { params: { id }, refresh });
+      result = await api()("POST conversations/[id]/archive", { params: { id }, refresh, onAccepted });
       break;
     case "resolve":
       result = thread.escalationId
-        ? await api()("POST escalations/[id]/resolve", { params: { id: thread.escalationId }, refresh })
+        ? await api()("POST escalations/[id]/resolve", { params: { id: thread.escalationId }, refresh, onAccepted })
         : local("No open escalation on this thread.");
       break;
     case "reply":
       // `emailTo` is the operator's yes to where an email reply goes, when the server asked (Refusal.confirmEmailTo).
       result = await api()("POST conversations/[id]/reply", {
-        params: { id }, body: { text: payload?.text ?? "", ...(payload?.emailTo ? { email_to: payload.emailTo } : {}) }, idempotencyKey: sendKey, refresh,
+        params: { id }, body: { text: payload?.text ?? "", ...(payload?.emailTo ? { email_to: payload.emailTo } : {}) }, idempotencyKey: sendKey, refresh, onAccepted,
       });
       break;
     case "reply-template":
@@ -208,7 +213,7 @@ async function runVerb(
       // reject: "we do not know of an approved template" is a clearer thing to
       // say than "Template not found or not approved".
       result = tpl
-        ? await api()("POST conversations/[id]/reply", { params: { id }, body: { template: tpl }, idempotencyKey: sendKey, refresh })
+        ? await api()("POST conversations/[id]/reply", { params: { id }, body: { template: tpl }, idempotencyKey: sendKey, refresh, onAccepted })
         : local("This workspace has no approved template yet, so nothing can be sent outside the 24-hour window.");
       break;
     default:

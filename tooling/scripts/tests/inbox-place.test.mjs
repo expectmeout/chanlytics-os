@@ -246,6 +246,44 @@ test("your own act moves the open thread without a notice about it: its toast ha
   }
 });
 
+test("a reply half-written is kept for its thread in this tab: another thread, or a refresh, and back brings it back -- and it goes once the server took it", async () => {
+  // The pane is keyed by thread, so opening another thread dropped a half-written reply for good, and a refresh did
+  // too. The loading standard's G: kept per thread in the tab's one store (tab-memory.ts), never the device's.
+  const m = new Map();
+  const keepStore = globalThis.window.sessionStorage;
+  globalThis.window.sessionStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  const { installTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  installTabMemory(globalThis.window);
+  try {
+    const rosa = { id: "th-rosa", real: true, who: "Rosa Díaz", primaryChannel: "whatsapp", hasChat: true, windowOpen: true, optedOut: false };
+    const nina = { ...rosa, id: "th-nina", who: "Nina Park" };
+    // A new mount each time, as a thread switch (the pane is keyed by thread) and a refresh both make.
+    const draw = (thread, props = {}) => { cells = []; seq = 0; return InboxComposer({ thread, reply: "", onSend() {}, ...props }); };
+    const box = (tree) => find(tree, (n) => n.type === "textarea");
+    box(draw(rosa)).props.onChange({ target: { value: "Friday at 3 works for us" } });
+    assert.equal(box(draw(nina)).props.value, "", "another thread's box is its own");
+    assert.equal(box(draw(rosa)).props.value, "Friday at 3 works for us", "REGRESSION: back to Rosa, and what was written to her was gone");
+    // The receptionist's draft is its own: kept words win over it, and it is never kept as the member's.
+    assert.equal(box(draw(rosa, { reply: "Yes, 3pm works." })).props.value, "Friday at 3 works for us");
+    box(draw(nina, { reply: "Yes, 3pm works." })).props.onChange({ target: { value: "Yes, 3pm works." } });
+    assert.equal(globalThis.window.__tabMemory.draft("reply", "th-nina"), null, "the receptionist's words, untouched, are not a draft of yours");
+    // Sent, and the server took it: the words go.
+    let accept = () => {};
+    const tree = draw(rosa, { onSend: () => new Promise((r) => { accept = r; }) });
+    find(tree, (n) => n.type === "button" && n.props?.onClick && /Send/.test(textOf(n))).props.onClick();
+    accept(true);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(globalThis.window.__tabMemory.draft("reply", "th-rosa"), null, "a reply the server took is no draft");
+    // Emptied by hand: gone too.
+    box(draw(nina)).props.onChange({ target: { value: "Hi Nina" } });
+    box(draw(nina)).props.onChange({ target: { value: "" } });
+    assert.equal(globalThis.window.__tabMemory.draft("reply", "th-nina"), null);
+  } finally {
+    globalThis.window.sessionStorage = keepStore;
+    delete globalThis.window.__tabMemory;
+  }
+});
+
 test("REGRESSION (A15): the template send says when the list could not be read, with a way to read it again -- not that none is approved", () => {
   const closed = { id: "th-1", real: true, who: "Rosa Díaz", primaryChannel: "whatsapp", hasChat: true, windowOpen: false, optedOut: false };
   const draw = () => { cells = []; seq = 0; return InboxComposer({ thread: closed, reply: "" }); };
