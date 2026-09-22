@@ -170,7 +170,7 @@
 .settings .pol-dot { border-color: color-mix(in oklab, var(--ink) 45%, var(--bg-raised)); }
 /* Something happens under a finger. There is no hover on a phone, and tapping a
    dot, a chip, a path or a switch gave nothing back. */
-.settings .pol-dot:active, .settings .set-chip:active, .settings .cl-attn-cta:active,
+.settings .pol-dot:active, .settings .cl-attn-cta:active,
 .settings .cl-bucket-link:active, .settings .setup-path:active, .settings .biz-choice:active,
 .settings .setup-number:active, .settings .set-prompt-tab:active { transform: scale(0.97); }
 .settings .set-switch:active { filter: brightness(0.96); }
@@ -187,8 +187,6 @@
 .settings .sd-input { min-height: 36px; padding: 8px 11px; font-size: var(--set-label); border-radius: var(--radius-md); margin-bottom: 0; }
 .settings .sd-input:hover { border-color: var(--line-strong); }
 .settings .sd-input::placeholder { color: var(--ink-dim); }
-/* Where a fact came from is the whole point of the row it sits on. */
-.settings .set-fact-src { color: var(--ink-dim); }
 /* Setup's state word carries the row's tone; on white, ok read 3.42. The
    colour is a 6px mark rather than the whole word: ten rows saying "Ready" in
    green made the finished ones shout and left the one that wants you level
@@ -743,14 +741,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 
 .pol-evidence{display:block;font-size:var(--text-xs);color:var(--ink-dim);margin-top:3px}
 
-/* ============================ Business profile ============================
-   The first real form in Settings. Every field here is something the
-   receptionist says out loud, so the section headings say what it is FOR
-   rather than naming the database column. Built on the existing tokens and the
-   existing .set-switch, not a second input language. */
-
-.set-editor { max-width: var(--measure-prose); }
-
 .set-sec { padding: 20px 0; border-top: 1px solid var(--line); }
 .set-sec:first-of-type { border-top: none; padding-top: 8px; }
 
@@ -759,12 +749,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .set-sec-head { display: grid; gap: 3px; margin-bottom: 12px; }
 .set-sec-title { font-size: var(--set-label); font-weight: 600; color: var(--ink); }
 .set-sec-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
-/* When it can't answer (S5): each message with when it goes out, what a customer reads, and the default wording back. */
-.set-fallbacks { display: grid; gap: 18px; }
-.set-fallback { display: grid; gap: 6px; }
-.set-fallback-label { font-size: var(--set-label); font-weight: 500; color: var(--ink); }
-.set-fallback-reads { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); background: var(--bg-sunken); border-radius: var(--radius-md); padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.set-fallback-default { justify-self: start; }
 
 .set-input {
   width: 100%;
@@ -781,79 +765,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .set-input::placeholder { color: var(--ink-dim); }
 .set-input:hover { border-color: var(--line-strong); }
 .set-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
-.set-textarea { resize: vertical; line-height: var(--leading-normal); min-height: 62px; }
-
-/* Opening hours — a switch per day, because "leave it blank to mean closed"
-   is a rule nobody can see. Closed days collapse to a word instead of two
-   dead inputs. */
-.set-hours { display: flex; flex-direction: column; }
-.set-day {
-  display: flex; align-items: center; gap: 12px;
-  padding: 9px 0;
-  border-top: 1px solid var(--line);
-}
-.set-day:first-child { border-top: none; }
-.set-day-name { font-size: var(--set-label); color: var(--ink); width: 92px; flex-shrink: 0; }
-.set-day.closed .set-day-name { color: var(--ink-dim); }
-.set-input-time { width: 118px; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-.set-day-sep { font-size: var(--set-hint); color: var(--ink-dim); }
-.set-day-closed { font-size: var(--set-hint); color: var(--ink-faint); }
-.set-day-apply { display: inline-flex; gap: 10px; margin-left: auto; }
-
-/* Services — a header row so three bare inputs are not a guessing game. */
-.set-svc-head, .set-svc-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) 104px minmax(0, 1.3fr) 30px;
-  gap: 8px;
-  align-items: center;
-}
-.set-svc-head { padding: 0 0 6px; font-size: var(--text-xs); font-weight: 500; color: var(--ink-dim); }
-.set-svc-row { padding: 4px 0; }
-.set-svc-mins { display: flex; align-items: center; gap: 6px; }
-.set-svc-mins .set-input { text-align: right; }
-.set-svc-unit { font-size: var(--set-hint); color: var(--ink-dim); }
-
-/* Languages — offered, not typed. A comma-separated box asks for a spelling
-   and a separator, and gets two spellings of the same language. */
-.set-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.set-chip {
-  font: inherit; font-size: var(--set-hint);
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--line);
-  background: var(--bg-raised);
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
-}
-.set-chip:hover { border-color: var(--line-strong); color: var(--ink); }
-.set-chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 500; }
-.set-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.set-chip-add { display: flex; gap: 8px; margin-top: 9px; }
-.set-chip-add .set-input { max-width: 240px; }
-
-/* The rules use the same switch as everything else in Settings, with the
-   consequence spelled out — an owner turning one off should see what changes. */
-.set-rule { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
-.set-rule:first-of-type { border-top: none; }
-.set-rule .set-switch { margin-top: 1px; flex-shrink: 0; }
-.set-rule-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.set-rule-label { font-size: var(--set-label); font-weight: 500; line-height: 1.35; color: var(--ink); }
-.set-rule-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
-
-.set-editor-foot {
-  display: flex; align-items: center; gap: 8px;
-  padding-top: 14px; margin-top: 4px;
-  border-top: 1px solid var(--line);
-}
-.set-editor-note { font-size: var(--set-hint); color: var(--ink-dim); margin-right: auto; }
-
-@media (max-width: 640px) {
-  .set-svc-head { display: none; }
-  .set-svc-row { grid-template-columns: 1fr 1fr; }
-  .set-day { flex-wrap: wrap; }
-  .set-day-apply { margin-left: 0; width: 100%; }
-}
 
 /* ── What the receptionist is told ────────────────────────────────────────
    The composed prompt, verbatim. Monospace and generously leaded because it
@@ -927,90 +838,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   text-transform: uppercase;
   color: var(--ink-faint);
 }
-
-/* ── Who you are ──────────────────────────────────────────────────────────
-   The three fields a receptionist cannot exist without. A labelled column
-   rather than the bare inputs the rest of the form uses: these are typed once
-   at setup and then rarely, so the label has to survive being forgotten —
-   "(646) 932-5775" in an unlabelled box is not obviously the line customers
-   call rather than the owner's mobile. */
-.set-ident {
-  display: grid;
-  gap: 8px;
-}
-.set-ident-row {
-  display: grid;
-  grid-template-columns: 116px 1fr;
-  align-items: center;
-  gap: 12px;
-}
-.set-ident-key {
-  font-size: 12px;
-  color: var(--ink-dim);
-}
-.set-sec-note {
-  padding-top: 8px;
-  font-size: 12px;
-  color: var(--ink-faint);
-  line-height: var(--leading-normal);
-}
-@media (max-width: 640px) {
-  .set-ident-row { grid-template-columns: 1fr; gap: 4px; }
-}
-
-/* ── Days you are closed ──────────────────────────────────────────────────
-   Reuses the services row geometry (three fields + a remove gutter); only
-   the column widths differ, because two of the three are dates. */
-.set-closure-head,
-.set-closure-row {
-  grid-template-columns: 1fr 1fr 1.4fr 30px;
-}
-.set-closure-row .set-input[type="date"] {
-  /* Safari/Chrome give date inputs their own intrinsic width, which overflows
-     a narrow grid column and pushes the remove button off the row. */
-  min-width: 0;
-  width: 100%;
-}
-@media (max-width: 640px) {
-  .set-closure-head { display: none; }
-  .set-closure-row { grid-template-columns: 1fr 1fr; }
-  .set-closure-row .set-input:nth-child(3) { grid-column: 1 / -1; }
-}
-
-/* ── Split shifts ─────────────────────────────────────────────────────────
-   A day is a LIST of stretches now, so the times wrap as a group and the
-   "break" affordance sits with them. It is styled unlike the two copy links
-   beside it on purpose: those overwrite six other days, this adds one row to
-   this one, and the last incident here started with three identical-looking
-   links in the same 10px cluster. */
-.set-day-shifts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  min-width: 0;
-}
-.set-day-shift {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.set-day-break {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px dashed var(--line-strong);
-  background: transparent;
-  color: var(--ink-dim);
-  border-radius: var(--radius-full);
-  padding: 3px 10px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-out),
-              border-color var(--duration-fast) var(--ease-out);
-}
-.set-day-break:hover { color: var(--ink); border-color: var(--accent); }
-.set-day-break:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ── Create your workspace ────────────────────────────────────────────────
    Rendered INSTEAD of the app, for an account that belongs to nowhere. It
@@ -1104,17 +931,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .set-broken-issues { margin: 10px 0 0; padding-left: 18px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
 .set-broken-issues li { margin: 2px 0; }
 .set-notif-platform { margin-left: 8px; font-size: 10px; vertical-align: middle; }
-
-/* Notes the receptionist should know: a title beside its text, like a service row. */
-.set-note-row { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr auto; gap: 8px; align-items: start; margin-bottom: 8px; }
-.set-note-row .set-textarea { min-height: 0; }
-@media (max-width: 640px) { .set-note-row { grid-template-columns: 1fr; } }
-
-/* Booking rules: four small numbers side by side. */
-.set-br-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-bottom: 8px; }
-.set-br-field { display: grid; gap: 4px; }
-.set-br-label { font-size: 11px; color: var(--ink-muted); }
-@media (max-width: 640px) { .set-br-grid { grid-template-columns: 1fr; } }
 
 /* Setup: one page until the receptionist answers. The rows are the attention
    row People and Today share (attention-bits.jsx); the head carries the
@@ -1257,115 +1073,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    see -- rather than only inside a popover over a page about a salon. */
 /* A value a row states rather than edits. */
 .set-me-static { font-size: var(--set-label); color: var(--ink-muted); overflow-wrap: anywhere; }
-
-/* The editor, as four steps rather than fourteen headings in a row.
-   Hours and the days they do not apply to were four sections apart; the number
-   to publish and the number to transfer to were under headings a person had to
-   read twice to tell apart. A group says what the next few fields are FOR. */
-.set-group { display: flex; flex-direction: column; gap: 18px; padding: 18px 0 4px; border-top: 1px solid var(--line); }
-.set-group:first-of-type { border-top: none; padding-top: 4px; }
-.set-group-head { display: flex; flex-direction: column; gap: 2px; }
-.set-group-name { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
-.set-group-hint { font-size: 11.5px; color: var(--ink-dim); }
-
-/* One control for a set of words.
-   Languages was a grid of every language we could think of -- most of them off
-   -- plus a second field underneath to add one that was not in the grid. Two
-   widgets for one job, with the two chosen sitting among fourteen unchosen. */
-.set-tokens {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  min-height: 34px;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  max-width: 420px;
-}
-.set-tokens:focus-within { border-color: var(--accent); }
-.set-token {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; color: var(--ink);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  padding: 2px 4px 2px 9px;
-}
-.set-token-x { display: inline-flex; align-items: center; color: var(--ink-faint); border-radius: var(--radius-full); padding: 2px; }
-.set-token-x:hover { color: var(--ink); background: var(--bg-hover); }
-.set-token-input { flex: 1; min-width: 110px; border: none; background: none; outline: none; font: inherit; font-size: 12.5px; color: var(--ink); padding: 2px 0; }
-.set-token-input::placeholder { color: var(--ink-faint); }
-.set-token-offer { display: flex; flex-wrap: wrap; gap: 6px; }
-.set-token-add {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; color: var(--ink-dim);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-full);
-  padding: 3px 9px;
-}
-.set-token-add:hover { color: var(--ink); border-color: var(--ink-faint); border-style: solid; }
-
-/* A fact, and where it came from.
-   The Business card was eight rows of identical text, three of them things the
-   PLATFORM knows shown as if somebody had written them down -- which is how a
-   salon came to publish the number it transfers to as the number to call. */
-/* The published number: a choice, not a text box. Defaulting to the line
-   is what stops it drifting from the number the receptionist answers. */
-.set-pub { align-items: start; }
-.set-pub-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.set-pub-body .set-input { max-width: 260px; }
-.set-ident-note { grid-column: 1 / -1; font-size: 11.5px; line-height: 1.5; color: var(--ink-muted); padding: 2px 0 2px 0; }
-.set-fact { display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.set-fact-empty { color: var(--ink-dim); font-style: italic; }
-.set-fact-src {
-  font-size: 10px;
-  letter-spacing: .03em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  padding: 1px 7px;
-  white-space: nowrap;
-}
-.set-fact-src.disputed { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 40%, var(--line)); }
-
-/* A disagreement between what was typed and what the system knows. Not a toast:
-   the serious one means real customers are being sent to the wrong number, and
-   it was true for as long as the field existed because nothing compared them. */
-.set-conflict {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--bg-raised);
-  max-width: var(--measure-prose);
-}
-.set-conflict.serious { border-color: var(--danger); }
-.set-conflict.serious > .icon { color: var(--danger); }
-.set-conflict.minor > .icon { color: var(--ink-dim); }
-.set-conflict > .icon { flex-shrink: 0; margin-top: 1px; }
-.set-conflict-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.set-conflict-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.set-conflict-sub { font-size: 11.5px; line-height: 1.45; color: var(--ink-muted); }
-
-/* The zone the business runs on: a city and the time there, then the picker. */
-.set-tz { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.set-tz-select { min-width: 220px; max-width: 100%; }
-
-/* A fact edited in the row that states it.
-   Same shape as the timezone row above, one step up in ambition: a control, the
-   sentence that says what choosing it costs, and the two buttons. The row grows
-   to hold them rather than the value being replaced by a bare input, so the
-   label a person was reading stays where it was. */
-.set-row-editing { align-items: start; padding: 10px 0; }
-.set-pub-inline { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.set-pub-inline .set-input { max-width: 260px; }
-.set-pub-inline .cl-tabs { align-self: start; }
-.set-row-actions { display: flex; align-items: center; gap: 8px; }
 
 /* Back, when the create screen was opened from the workspace menu. */
 .cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: 13px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
