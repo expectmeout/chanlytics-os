@@ -21,7 +21,7 @@ The page already knows the right shape and does not use it. Three rows — the t
 | D1 | One view. The read card and the form stop being two surfaces; every fact is a row, and editing happens where the fact is stated. | They disagree about what exists: 9 facts readable, ~25 editable. Twelve facts are editable and invisible. |
 | D2 | The gesture is chosen by the shape of the data: **inline** for one value, **fold** for a set of fields, **sheet** for a list you scroll. | `useFieldSave` already proves the inline case. A 99-input list inside a 720px column is the wall we are removing. Ruben's choice. |
 | D3 | One fold open at a time; each fold saves only its own keys onto the stored config. | Otherwise the page becomes the long form again, and the all-or-nothing Save returns. |
-| D4 | Every fold footer states what the receptionist will be told, composed by the same function the edge runs. | `composeSystemPrompt` is pure and already in the browser as `window.__composedPrompt`. The link between a typed 2 and "at least 2 hours' notice" is currently drawn nowhere. |
+| D4 | Every fold footer states what the receptionist will be told, composed by the same function the edge runs. | The edge's resolver, `resolveSystemPrompt`, is pure. The settings read already runs it with the edge's inputs, and `window.__composedPrompt` shows what it composed. A fold's unsaved draft is resolved by the same function with the same inputs (plan Task 3.1). The link between a typed 2 and "at least 2 hours' notice" is currently drawn nowhere. |
 | D5 | `profile.tone` gets a field, and it is the first row of *How it answers*. | It is read (`:1036`), diffed (`:1109`), saved (`:1272`) and composed into every prompt — and `value={tone}` appears **zero times** in the file. |
 | D6 | A new card, **What it can do**, and an honest **what it cannot**. | The phone agent has four tools (`voice-shell.ts` `voiceShellTools`). This tab sets the inputs to three and never says a tool exists. |
 | D7 | The four guardrails are drawn at three different strengths, because they have three different guarantees. | One is structural, one has a detector on both channels, two are prompt lines — and `policy.ts` says so in its own header. |
@@ -67,13 +67,15 @@ Three clauses, not a meter: what it can answer, what it deliberately will not, a
 
 | Row | Source | Gesture |
 |---|---|---|
-| Name | `verified` when Google agrees, else `typed` | inline |
+| Name | `typed`, which is how the read reports a typed name even where Google agrees (below); a different name Google lists is offered as **Use Google's**, and a different workspace name is shown and never offered, since it is only what the workspace was called when it was made | inline |
 | Address | `verified` / `typed`, with **Use Google's** when they differ | inline |
-| Website | `typed`; empty says we publish `/b/<slug>` and file it | inline |
+| Website | `typed`; empty says the receptionist is given no website, which is exact: the prompt names one only when it is typed here, and the carriers are filed the carrier record's own website, or `/b/<slug>` when that has none (`a2p.ts`), never this field | inline |
 | Booking link | `typed`; the note about never confirming moves under it | inline |
 | Answers on | `provisioned`, read-only, one link to Connections | — |
 | Tells customers to call | `typed` or follows the line | inline (unchanged behaviour) |
 | Transfers a caller to | `typed` | inline (unchanged behaviour) |
+
+The chip is the source the settings read resolved (facts.ts `resolveFacts`, which this spec does not change), and it reports a typed value that agrees with Google's as typed: a name Google agrees with reads "you set this", and "from Google" is shown only on a value that came from Google alone.
 
 Foot: one sentence saying the legal name and registered address live on Connections and are asked once.
 
@@ -95,6 +97,8 @@ Its voice (the new field) · Languages · Rules it always keeps · Hands you a c
 
 **Hands you a customer** is one row naming both channels: the WhatsApp reasons (which compose only for WhatsApp — `config.ts` says "On the phone there is no token to emit"), and the phone's transfer number. Today these are a form section and a read-card row, a page apart, neither naming the other.
 
+> **Amended 22 Sep, in execution (Task 3.5).** The reasons compose on both channels. Only the `[[HUMAN]]` token is WhatsApp's: the call's hand-off block carries the same reasons ("and whenever:"), with the transfer, or a message taken, as what it does. The row's fold says so, and the transfer number stays Who you are's to edit (plan, Task 3.2's review).
+
 ### 4.6 Rules it always keeps — three strengths
 
 | Rule | Strength | What actually happens |
@@ -105,6 +109,8 @@ Its voice (the new field) · Languages · Rules it always keeps · Hands you a c
 | Never give health advice | Told, and trusted | Same. |
 
 The vision toggle is separated by a dashed rule and labelled as an ability, not a limit — it is the only one that starts off.
+
+> **Amended 22 Sep, in execution (Task 3.5).** Not the only one: "Never give health advice" is opt-in too (`GuardrailsSchema`, and the form's own "absent means on" for the other three). The photos switch starts off because it gives the receptionist an ability, and its hint says that, not that the four limits start on.
 
 ### 4.7 What it can do
 
@@ -125,6 +131,8 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 
 **Inline.** The value becomes an input on the same baseline. Save/Cancel on the row, Esc cancels, ⌘↵ saves. The consequence line sits between the field and the buttons. Refusals appear under the box before any round trip.
 
+> **Amended 21 Sep, in execution (Task 3.3).** The timezone row has no consequence line. Its consequence is the local time beside it (4.3): "New York, 7:23 PM there now" says what the choice does. The zone is in the prompt (the hours heading names it, and closures pass by its clock), but it is the workspace's, saved through its own route (`PATCH workspaces`), not a key of the brain a save sends, so no draft of it can be resolved as the edge resolves one (`FOLD_BLOCK.timezone` is null on purpose). Once the zone is saved, the settings surface is read again (`refresh-map.ts`), so the prompt's preview, the hours fold's hint and every fold's block name the new zone.
+
 **Fold.** Opens under its row inside the card, `grid-template-rows: 0fr → 1fr`. The accent left edge marks it. Its footer carries the composed block and its own Save. One at a time: opening another closes a clean fold and asks about a dirty one. The rows below are pushed, never covered, and the fold's top edge does not move.
 
 **Sheet.** Right-hand panel for the services list and the prompt. Head, search, rows, sticky footer. The page behind stays readable.
@@ -140,6 +148,7 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 | `RecordRow` | `.cl-prof-attr`, `.set-row`, `.set-team-row`, `.set-int-row` — four classes drawing one row |
 | `RecordField` | `.biz-field`, `.set-ident-row`, `.set-br-field`; wraps the existing `FieldError` |
 | `RecordFold` | new |
+| `RecordInline` | the inline editing `PublishedNumberRow` and `HandoffRow` each drew by hand (`.set-row-editing`, `.set-pub-inline`); beside `RecordFold` in `record-fold.jsx`, sharing its focus, keys, foot and `RecordSays`, what saving writes (added in Task 3.2's review) |
 | `RecordSheet` | new; the phone's `PeopleListsSheet` is the precedent |
 | `RecordSwitch` | `.set-switch`, lifted out of settings.css |
 | `RecordToggleGroup` | `.cl-tabs` used as a radiogroup |
@@ -164,7 +173,7 @@ All additive; nothing existing changes meaning but the one fix item 3 names, whe
    **`prompt-blocks.ts`** (split out of `business-tab.ts` by the Phase 1 review, because it reads what `config.ts` writes instead of holding sentences):
    - `promptBlocks(text, channel, from)` → the prompt cut into blocks with the row that wrote each, its character count, and a note wherever whose words they are needs saying.
 
-   `consequenceOf(section, draft)`, the block a fold shows, is composed in the bridge from `promptBlocks` over `composeSystemPrompt` (plan Task 3.1).
+   `consequenceOf(section, next, channel)`, the block a fold shows, is cut by `promptBlocks` from `resolveSystemPrompt` over the brain the fold would save, with the inputs the settings read's preview carries (plan Task 3.1).
 3. **No change to what `composeSystemPrompt` or `resolveSystemPrompt` return**, and no change at all to `facts.ts`, `capabilities.ts`, `policy.ts` or `voice-shell.ts`. The page reads what they already return.
 
    Amended 20 Sep, in execution. This line first said "no change to `config.ts`". But the prompt view cuts the *resolved* prompt, and the resolver decides whose words count as the owner's: `profile.extra_instructions` when there are any, and `brain.system_prompt` carried in their place when there are not (`config.ts:1292`). A page that re-derived that rule would drift from it. So one exported helper, `ownWordsOf(brain)`, lives beside the resolver and the resolver itself calls it. It is a pure extract: the prompt's output stays byte-identical, and the thirteen test files that exercise the resolver, plus an equivalence test, hold it there. The live line reads this file, so the promise that matters is about what it *returns*, not whether a line of it moved.

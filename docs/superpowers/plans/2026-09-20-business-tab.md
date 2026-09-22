@@ -58,15 +58,24 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 | `packages/contracts/src/prompt-blocks.ts` | The prompt view: `promptBlocks`, the composed prompt cut into the blocks that wrote it. Split out of `business-tab.ts` by the Phase 1 review. Pure. A fold's consequence is composed from it in the bridge (Task 3.1). |
 | `apps/dashboard/src/legacy/components/record-row.jsx` | `RecordRow`, `RecordSourceChip` — one row grammar. |
 | `apps/dashboard/src/legacy/components/record-field.jsx` | `RecordField`, `RecordSwitch`, `RecordToggleGroup`, `RecordCombobox`. |
-| `apps/dashboard/src/legacy/components/record-fold.jsx` | `RecordFold` + the one-open-at-a-time registry. |
+| `apps/dashboard/src/legacy/components/record-fold.jsx` | `RecordFold`, `RecordInline` (lifted from the page in Task 3.2's review) + the one-open-at-a-time registry. |
 | `apps/dashboard/src/legacy/components/record-sheet.jsx` | `RecordSheet`. |
 | `apps/dashboard/src/legacy/styles/record.css` | The kit's styles. Nothing page-specific. |
-| `apps/dashboard/src/legacy/pages/business-tab.jsx` | The page: standing line and the four groups. |
+| `apps/dashboard/src/legacy/pages/business-tab.jsx` | The page: the head, the standing line, and the cards composed. |
+| `apps/dashboard/src/legacy/pages/business-tab-save.jsx` | What the page's saves write: the one saver, the zone's own door, each row's check and patch (Task 3.2's review). Loads first. |
+| `apps/dashboard/src/legacy/pages/business-tab-folds.jsx` | Each fold's helpers (Task 3.6), and what a save will say (`willSay`, Task 3.3). |
+| `apps/dashboard/src/legacy/pages/business-tab-gestures.jsx` | The page's two gestures, `BtRow` and `BtFold`, and the two questions both ask (Task 3.3's quality review). Load order: save → folds → gestures → the cards → the page, in BOTH lists. |
+| `apps/dashboard/src/legacy/pages/business-tab-who.jsx` | The *Who you are* card (Task 3.2), a file of its own since Task 3.3's quality review; `window.BtWhoCard`. |
+| `apps/dashboard/src/legacy/pages/business-tab-open.jsx` | The *When you're open* card: the week, the zone, the closed days, the calendar it reads (Task 3.3); `window.BtOpenCard`. |
+| `apps/dashboard/src/legacy/pages/business-tab-offer.jsx` | The *What you offer* card: the services row, the booking rules and consult-first (Task 3.4); `window.BtOfferCard`, and, since the quality review, nothing of the services sheet. |
+| `apps/dashboard/src/legacy/pages/business-tab-services.jsx` | The services sheet (Task 3.4's quality review): `window.BtServicesSheet`, which the page draws after every card. |
 | `apps/dashboard/src/legacy/pages/business-can.jsx` | The *What it can do* card and the prompt sheet. |
 | `tooling/scripts/tests/business-tab-vm.test.mjs` | The sentence tables, as pure functions. |
 | `tooling/scripts/tests/prompt-blocks.test.mjs` | The prompt view, whose words are in it, and the resolver's equivalence. |
 | `tooling/scripts/tests/record-kit.test.mjs` | The record kit, executed (Phase 2). Named apart from the page's file, since the kit serves every Settings tab. |
-| `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed (Phase 3 creates it). |
+| `tooling/scripts/tests/_business-tab-harness.mjs` | The page as every test draws it: the stub, the globals, the fixture, `drawTab`, the presses. Not named `*.test.mjs`, so the runner skips it (Task 3.3's quality review). |
+| `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed: the head, the standing line, the saver, *Who you are*, and the gestures. Each card's tests are a file of their own over the harness. |
+| `tooling/scripts/tests/business-tab-open.test.mjs` | *When you're open*, executed (Task 3.3). Tasks 3.4 and 3.5 add `business-tab-offer.test.mjs` and `business-tab-answers.test.mjs` the same way. |
 | `tooling/scripts/tests/business-tab-folds.test.mjs` | Each fold patches only its own keys. |
 
 **Modified**
@@ -1445,6 +1454,12 @@ EOF
 
 The big one. The new page lands whole and `BusinessEditor` is deleted in the same commit, because two editors writing one versioned config is how they drift.
 
+> **How Phase 3 runs (21 Sep, before it started).** Four changes to the tasks below, each for a reason the tasks did not have in view:
+> 1. **The order is 3.1, 3.2, 3.6, 3.3, 3.4, 3.5, 3.7, 3.8.** Every fold in 3.3–3.5 saves through Task 3.6's helpers, so they come first, and 3.6's patch test is red before any fold can save.
+> 2. **The test code draws as the kit's tests draw.** `fresh(() => …)` draws nothing (Phase 2's correction, above). `drawTab` draws with `unmount()` then `W.React.createElement(W.BusinessTab, { flash })`, and a redraw is `again(() => W.React.createElement(W.BusinessTab, props))`, as `record-kit.test.mjs` does.
+> 3. **`PromptPreview` stays until Phase 5.** Task 3.7 deleted it, but what replaces it is Phase 5's prompt sheet, so between the two PRs an owner could not read what the receptionist is told. That view exists because a live salon lost its prompt unseen. Task 5.1 deletes it, with its `set-prompt-*` styles and `prompt-preview.test.mjs`, in the PR that brings the sheet.
+> 4. **Nothing `BusinessEditor` does is lost with it.** It does two things no task names. It creates the receptionist on a workspace that has none (the unconfigured card's *Set up the receptionist*), and Task 3.7 builds that as a fold of the new page, asking for what the old create form asked for. And it holds the four guardrail switches and the vision switch, which Task 3.5 builds as the *Rules it always keeps* fold: one `rec-rule-<key>` row per switch and the vision switch under a separator, for Phase 4's Task 4.2 to draw at three strengths.
+
 **Every "run it" step from here on is this command**, so it is not repeated in each step:
 
 ```bash
@@ -1454,6 +1469,12 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/busines
 A failing step fails with the assertion the previous step wrote. A passing step passes it and every test written before it — if an earlier test goes red, stop: the page has lost a behaviour, and that is the thing this plan exists to prevent.
 
 ### Task 3.1: The bridge publishes the view models
+
+> **Changed in execution (21 Sep).** The steps below are the plan as written. What shipped differs in four ways. The first is why the others follow. The edge never calls `composeSystemPrompt` on its own. It calls `resolveSystemPrompt`, which decides what composing skips. A record whose profile holds nothing it composes from (`hasProfile`) is answered with its stored prompt, and a cleared box has that prompt carried into it. The Autonomy rows become rules, and the number it gives out is the provisioned line unless one is typed. Composing the draft showed a rules-only record five rules, a notice period and a hand-off token it is never sent.
+> 1. `consequenceOf(section, next, channel)` takes the whole brain the fold's save would send, and a required channel. It parses `next` with `BrainConfigSchema` and resolves it with `resolveSystemPrompt`. The zone, the Autonomy rows and the platform's facts come from the settings read's preview, whose `PromptPreviewDto` now carries them as `inputs`. It cuts the result with the brain as `promptBlocks`' source. It is null for a draft that does not parse, with no preview (the same cases the preview is null for), and when the resolver writes no such block. An unknown fold or channel is a `TypeError` naming it.
+> 2. `FOLD_BLOCK` also maps the inline rows: the identity rows to `identity`, `consult_first` to `booking_rules`, `handoff_number` to `handoff`. Each real row no draft of the brain can show gets an explicit null with its reason. `fallbacks`, `calendar` and `vision` never reach the cached prompt. `timezone` does, but it is the workspace's, not a key of the brain.
+> 3. The helpers live in their own module, `legacy-bridge/business-tab.ts`, shaped like `today.ts` and installed beside `installToday`, not in `inbox-verbs.ts`, which is a courier. The harness gets the same object as `data/business-tab.js`, built by `serve-legacy.mjs`.
+> 4. The page's tests need a brain that parses (a `system_prompt` and `fallbacks`) and a `prompt` built with `composePromptPreview`, or every fold's block is null. Task 3.2's `settings()` below carries both.
 
 **Files:**
 - Modify: `apps/dashboard/src/legacy-bridge/inbox-verbs.ts` (which already publishes `__composedPrompt`)
@@ -1561,6 +1582,8 @@ Then add the fixture and the three helpers every later task reuses, after the im
 
 ```js
 import { standingLine } from "@chanlytics/contracts";
+// The settings read's own preview, built as the server builds it: a fold's draft is resolved with its inputs (Task 3.1).
+const { composePromptPreview } = await import("../../../apps/dashboard/src/server/prompt-preview.ts");
 
 /** Melany's Beauty Salon, the live tenant, as the surface hands it over. */
 const melany = {
@@ -1577,9 +1600,25 @@ const melany = {
   handoff_number: "+16469325775",
 };
 
+/** The brain as stored. It parses, as every saved one does, or consequenceOf resolves nothing from it. */
+const brainOf = (profile) => ({
+  business_name: "Melany's Beauty Salon",
+  booking_link: "https://booksy.com/en-us/1817434",
+  system_prompt: "You are the WhatsApp assistant for Melany's Beauty Salon. Answer warmly and briefly.",
+  fallbacks: { greeting: "Hi! Someone will be with you shortly.", error: "Sorry, something went wrong on our side.", non_text: "Thanks, a person will look at this." },
+  profile,
+});
+
 const settings = (profile = melany, over = {}) => ({
   version: 7,
-  config: { brain: { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/en-us/1817434", profile }, calendar: { ical_url: "https://app.chanlytics.com/api/v1/calendar/filler.ics" }, ...over },
+  config: { brain: brainOf(profile), calendar: { ical_url: "https://app.chanlytics.com/api/v1/calendar/filler.ics" }, ...over },
+  // Beside the config, the settings read hands over its preview, with the inputs it was resolved with.
+  prompt: composePromptPreview(brainOf(profile), {
+    tz: "America/New_York",
+    policy: {},
+    known: { workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" }, channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }], listing: null },
+    openings: null,
+  }),
 });
 
 const facts = (over = {}) => ({
@@ -1705,8 +1744,29 @@ git commit -m "Who you are, as rows"
 
 ### Task 3.3: *When you're open*
 
+> **Carried from the reviews of Tasks 3.1 and 3.2 (21 Sep). Do these first: they are the kit's and the bridge's, and every fold after this one copies them.**
+> - **The fold is level with the inline editor.** `RecordFold` passes `RecordSays` only `says` and `saysLabel`: no lines that will no longer be said, and no sentence for a save that crosses `hasProfile`. Hours, services, the voice, languages, notes and the hand-off reasons all count for `hasProfile`, so their folds need both. And `note` means the foot's line on `RecordFold` but the crossing sentence on `RecordInline`: rename one.
+> - **A save in progress is not an open, unsaved editor.** The box stays editable while Save says "Saving…", and what is typed then is dropped without a word when the save lands. The rail's "Leave without saving?" and another row's "Discard your changes?" still ask, and a yes does not stop the save. Make the fields read-only while a save is out, and block the question or change its words.
+> - **Focus returns only when it was lost, and to where the person was.** The "Keep editing" refocus fires whenever an ask goes away, typing included, so the caret jumps after the first keystroke; and it returns to the first field, which is wrong for a fold of many fields.
+> - The fold's head Close still cancels while a save is out, unlike the foot's Cancel and Esc. `useRecordFold`'s usage comment still draws the Confirm outside the fold; it should show `confirm=`, or a fold built from it gets no focus return. The hidden inline editor draws its own dispute line with an id, so `rec-row-<id>-other` is in the page twice while a disputed row is at rest.
+> - **The timezone.** Saving a zone (`window.__workspace.setTimezone`, `PATCH workspaces`) never re-reads settings, so the preview's zone, every fold's consequence and the prompt card keep the old one until something else is saved. Add `"PATCH workspaces": () => [settingsOverride]` to `legacy-bridge/refresh-map.ts`'s `AFTER` table, with a test that the preview's zone follows a zone change. The timezone row's consequence is the local time beside it (spec 4.3), not a prompt block (`FOLD_BLOCK.timezone` is null on purpose: the zone is the workspace's, not the brain's); amend the spec's section 5 to say so.
+> - **Every fold saves through Task 3.6's helpers and the page's one saver** (`window.__businessTabSave`): `draftOf` on the saver's base as it opens, kept as `opened`; on Save `saveProblems(fold, base, draft)` (the page's own checks and the save's schema, the page's sentence winning), each sentence under its field, and nothing sent while it holds one; then `saver.save(foldJob(fold, draft, { opened, said, done, flash }))`, never a hand-written patch. `holdsChanges` is its unsaved-changes test for `useRecordFold`. It calls `consequenceOf` only while it is open, on `saveFold(fold, saver.base(), draft).brain`. A list offers no Add past its count in `LIMITS`, and a number box takes its range from `RULES`.
+> - **One helper for what a fold will say.** The inline rows work out their "It will say" in `business-tab.jsx` (the base, the patched brain, `profileCrossing`, the block cache per base). Lift that into one helper before the folds copy it twelve times.
+
+> **Changed in execution (21 Sep).** The steps below are the plan as written. What shipped differs in these ways, and Tasks 3.4 and 3.5 build on them.
+> 1. **The carried items landed first, one commit each.** `RecordFold` takes `gone`, `goneLabel` and `note` through the one `RecordSays`, and its foot's line is `footNote`. `useRecordFold(id, { dirty, saving })` binds a second test: a fold whose save is out never gives way at once, the ask is recorded and not drawn while the gesture saves, and the save's answer is the answer (taken, the one asked for opens; refused, the question is drawn). The rail asks "Leave while this saves?" through `window.__settingsSaving`. Every kit control takes `readOnly`. Focus goes back only when it was lost, to the last field it was in. Two page tests that put a save out under another row's open editor now put it out through the saver.
+> 2. **`willSay({ was, next, sections, channel })`** is the one helper (`business-tab-folds.jsx`, on `window.__businessTabSave`). It answers `{ note, added, removed, whole }`: a row draws `added` and `removed`, a fold draws `whole` under "Your receptionist will be told" and `removed` under "It will no longer be told". A block the save takes away whole goes line by line, unless the record stops composing, where the sentence says all of it. A draft the save's schema refuses says nothing.
+> 3. **`BtFold` is the page's fold** (`business-tab.jsx`, the twin of `BtRow`, on `window`): the draft, the two checks, the one job, the two asks and `willSay`, once for every fold. A card hands it `row` (what the row says at rest) and `body({ draft, update, undo, press, problems, readOnly })`. On Save it asks the page's own checks first, because a shift typed half-way is dropped by the save and a week that "changes nothing" for that reason must be refused, not closed; then nothing to write closes; then the schema. A fold nobody typed in closes at once. `undo(fn)` is a toast's Undo that does nothing once the fold has closed. Three rules every body copies (Task 3.3's review): `update` answers whether it took the change, and a body toasts only when it did (a remove pressed under "Saving…" said it had removed a shift that was still there); every add and remove spreads `press(fn)`, which refuses while the fold saves the way Save does; and the fold's unsaved-changes test, for the registry and for Cancel, is "the draft is not the one it opened with", never `holdsChanges`, which judges only what Save would send, so a service row with no name is asked about before it is thrown away.
+> 4. **The card is a file of its own**, `pages/business-tab-open.jsx`, loaded between `business-tab-folds.jsx` and `business-tab.jsx` (both load lists), as Today's bands are files of their own. Tasks 3.4 and 3.5 may do the same. Inside a fold, rows that come and go (a day's shifts, the closed days) are drawn hookless, as plain boxes wearing the kit's `rec-input`, and the week's one menu is always drawn: the stub React's hook order.
+> 5. **Two sentences with a number moved to contracts**: `openWeekWords(hours, tz)` ("Six days a week, in New York time") and `closuresAheadWords(closures, tz, now)` ("2 ahead · next Dec 24 – 26 · Christmas"), published on `__businessTab`. The closures' dates and the ahead rule are the Calendar's own, lifted out of `toCalendarVM` as `closureDatesLabel` and `closuresFrom`.
+> 6. **The calendar's last read** is the Calendar surface's (`window.__CALENDAR`, contracts `toCalendarVM`), drawn with the Calendar page's own pill and `feed.detail`. That surface boots on every route, so nothing is warmed for it to exist; but its "read 4m ago" is counted from the moment IT was read, so the row states a read only for as long as the Calendar page itself keeps one (its `CR_REFRESH_MS`, five minutes, published with that page's words for a read that gives no reason as `window.__calendarPage`). One timer, set for the moment the read stops being fresh, draws the row again; it then asks `window.__calendar.refresh()`, keeps the last read where it is, dimmed, while that is on its way, and says so where the read would be if it fails.
+> 7. **The summary is `window.__hoursLines` joined as `hoursSummary` joins it.** `hoursSummary` is a module-level `const` of settings.jsx, which no other file can reach in the app, and it was not moved or published.
+> 8. **The ribbon's names are the page's.** The tests below first named them `rec-ribbon-day`, `rec-ribbon-bar` and `rec-hours-ribbon`, before the kit was cut, and the page shipped them under the kit's prefix; Task 3.3's quality review renamed them `bt-ribbon-day`, `bt-ribbon-bar` and `bt-hours-ribbon`, and the tests with them, since they live in settings.css and the kit knows nothing of a week. The fold's label column is `--bt-week-key`, not a literal.
+> 9. **The tests** draw with `drawTab`/`redrawTab`, open the week's menu before pressing a copy (`MoreMenu` draws its items only while open, and they carry no test ids, so the copies are found by their words, not by the plan's `rec-hours-copy-all`), and build the Calendar surface with contracts' `toCalendarVM`.
+
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
+- Create: `apps/dashboard/src/legacy/pages/business-tab-open.jsx` (both load lists)
 - Test: `tooling/scripts/tests/business-tab-page.test.mjs`
 
 - [ ] **Step 1: Write the failing test**
@@ -1718,11 +1778,11 @@ import { hoursLines } from "@chanlytics/contracts";
 const summaryOf = (hours) => hoursLines(hours).join(" · ");
 
 test("the ribbon draws the week, and a closed day carries no bar", () => {
-  const ribbon = byTestId(drawTab({ profile: melany }), "rec-hours-ribbon");
-  const days = all(ribbon, (n) => classes(n).includes("rec-ribbon-day"));
+  const ribbon = byTestId(drawTab({ profile: melany }), "bt-hours-ribbon");
+  const days = all(ribbon, (n) => classes(n).includes("bt-ribbon-day"));
   assert.equal(days.length, 7);
   const sunday = days[6];
-  assert.equal(find(sunday, (n) => classes(n).includes("rec-ribbon-bar")), null, "Sunday is shut, and looks it");
+  assert.equal(find(sunday, (n) => classes(n).includes("bt-ribbon-bar")), null, "Sunday is shut, and looks it");
 });
 
 test("the summary sentence is the one the composer wrote", () => {
@@ -1745,8 +1805,8 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
 
   said.undo();
   const after = again(() => W.BusinessTab({ flash: () => {} }));
-  const days = all(byTestId(after, "rec-hours-ribbon"), (n) => classes(n).includes("rec-ribbon-day"));
-  assert.equal(find(days[6], (n) => classes(n).includes("rec-ribbon-bar")), null, "Sunday is shut again");
+  const days = all(byTestId(after, "bt-hours-ribbon"), (n) => classes(n).includes("bt-ribbon-day"));
+  assert.equal(find(days[6], (n) => classes(n).includes("bt-ribbon-bar")), null, "Sunday is shut again");
 });
 
 test("the calendar row states its last read, and there is no button for it", () => {
@@ -1774,6 +1834,18 @@ git commit -am "The week has a shape"
 ---
 
 ### Task 3.4: *What you offer*, and the services sheet
+
+> **Noted 21 Sep, in Task 3.2's review.** `RecordSheet` holds four hooks and exists only while open, so on the tests' stub React it must be the page's last hook-holding child, or every row after it reads shifted cells. And the standing line's `services` door must open the services sheet, which the fold registry does not open.
+
+> **Changed in execution (21 Sep).** The steps below are the plan as written. What shipped differs in these ways, and Task 3.5 builds on them.
+> 1. **Task 3.3's re-review landed first, in one commit.** A calendar save whose re-read fails says so with its Retry, where the row had gone blank for good (`before` was asked ahead of `failed`); a `BtRow` with a `door` and no `commit` offers no press on a disagreement; `.bt-week-copy` sits at a phone's edge; and `BtFold`'s contract says a list is changed through `rows()`, never `update`.
+> 2. **The sheet is the same editor as a fold, and the registry opens it.** `BtFold`'s body was lifted out whole, hooks in the same order, as `useBtEditor` (business-tab-gestures.jsx), and `BtFold` and a new `BtSheet` both draw it. `BtSheet` holds the registry under its id (`useRecordFold("services")`, inside the editor) and is open while the registry says so, so the note above no longer holds: the standing line's door opens it by its id with no special case, opening it with a dirty fold open asks, and opening a fold with the sheet dirty asks in the sheet, above its Save. `BtSheet` also counts itself on the page (`drawn`), so the rail's "Yes, leave" lets go of it and it does not reopen with the tab. `rows()` is not copied: `removeAt` now answers the Undo it toasted, which the sheet also offers where the row was; either puts the row back once. Since the spec review, a row goes back between the same two rows it was taken from, whatever else was taken out or put back since: `rows()` keeps every waiting put-back in the list's order and moves it with the rows around it, and the sheet draws its Undos from `waiting()`. (Each once kept the index its row had when it went, so Service 6 out, then Service 3, put Service 6 back between 7 and 8.) `willSay` answers `chars`, the blocks' share of the prompt, and `total`, the length of the whole prompt the draft would give, which `consequenceOf` returns with the block, so the share is after the save on both sides of the division. `WRITTEN_ROWS` is published so the foot and Save count the rows the save writes. The consult-first mark and the search are contracts' own rules, `needsConsultation` and `foldName`, published on `__businessTab`, and the services row offers its act only while the sheet could open (`BtSheet.opens`), as a fold does.
+> 3. **The page draws the sheet, after every card** (`window.BtServicesSheet`, business-tab.jsx), not the offer card. Of the two ways the brief allowed, this is the one that survives Task 3.5 and Phase 4: *How it answers* and *What it can do* come after *What you offer*, so the card will not stay the page's last. The card's services row asks the registry for `"services"`, as the door does. A test breaks it both ways (the sheet moved before *When you're open* fails 18 tests).
+> 4. **The kit grew four things** (record-sheet.jsx, record-fold.jsx, record-row.jsx, record.css): `RecordSheet` takes `focusOn` (a row just added, or the Undo left where one was taken out, takes focus) and `busy` (aria-busy, which record.css draws its boxes read-only by, as a fold's), and after every draw it takes back focus that went with what held it, which landed on the page's body behind the modal; `RecordFoot` is on window for a sheet's Save; `RecordChips` and `.rec-chip` are the row of chips the plan's test counts, which the kit did not have.
+> 5. **The sheet's rows are `RecordBox`es, not `RecordField`s**: they come and go before `RecordSheet`'s own hooks, so they hold none. The search hides a row it leaves out (`hidden`), never unmounts or reorders it, and never hides a row changed since the sheet opened, so a name typed over until it no longer matches does not take its box out of sight. The page's classes wear the page's prefix (`bt-service-row`, not the plan's `rec-service-row`), as Task 3.3 renamed the ribbon; the test ids are the plan's (`rec-service-remove-<i>`). "N more below" was skipped; it is Task 6.3's step 1b to build or drop.
+> 6. **Six view models in contracts** (business-tab.ts, on `__businessTab`): `servicesWords` (the count, four chips, and how they are priced, judged by `violatesNoPrices`, the replies' own detector), `blockShareWords`, `servicesToldWords`, `servicesSaveWords`, `bookingRulesWords` and `BOOKING_RULE_HINTS`.
+> 7. **Words the canvas had that were not true.** An empty least notice is two hours' (availability.ts `BOOKING_DEFAULTS`, which `freeWindows` applies), so its hint is "Empty uses 2 hours.", not "Empty means no rule."; days ahead gains "Empty uses 14."; a record with none of the five set says the calendar's own rules, not "no rule"; and the fold's foot says "Saves these five rules and the notes, and nothing else on the page.", since it saves the notes too. The refusals were the old form's, and two said "leave it empty for no rule" of a rule with a default, in the hint's place under a box whose hint says otherwise; since the spec review each says what empty uses, worked out from `BOOKING_DEFAULTS` (published on `__businessTab`) and the rule's own range ("Least notice is 0 to 168 hours; leave it empty to use 2."). The rule boxes take no `min`/`max`, which a text box ignores.
+> 8. **The tests** are `business-tab-offer.test.mjs` (34 after the review), drawn with `drawTab`/`redrawTab`; the plan's search test counts the rows shown, since the hidden ones stay in the tree, and its booking-rules test reads `consequenceOf("booking_rules", saveFold(…).brain, "whatsapp")`, per Task 3.1's note. Ten deliberate breaks were each caught. Task 3.7's Playwright journey should add the sheet's focus paths, which the stub cannot see: after a remove, focus on the Undo left in its place; after that Undo, the row's first box; after Add, the new row's first box; and never on the page's body while the sheet is open.
 
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
@@ -1826,7 +1898,7 @@ test("the booking-rules fold shows what the composer will write", () => {
   const tree = drawTab({ profile: melany });
   openFold(tree, "booking_rules");
   const says = byTestId(again(() => W.BusinessTab({ flash: () => {} })), "rec-fold-says-booking_rules");
-  const block = W.__businessTab.consequenceOf("booking_rules", { brain: W.__SETTINGS.config.brain, profile: melany });
+  const block = W.__businessTab.consequenceOf("booking_rules", W.__SETTINGS.config.brain, "whatsapp");
   assert.match(textOf(says), new RegExp(block.text.split("\n")[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
@@ -1854,6 +1926,24 @@ git commit -am "What you offer, and the list that needed room"
 ---
 
 ### Task 3.5: *How it answers*, and the voice that had no box
+
+> **Decided 21 Sep, in Task 3.2's review.** The transfer number is edited in one place, Task 3.2's *Transfers a caller to* row. The *Hands you a customer* row below reads it and opens that row; it never edits it.
+
+> **Noted 21 Sep, in Task 3.4's review.** *How it answers* goes ABOVE the services sheet's line in `business-tab.jsx`, never below it. The sheet (`window.BtServicesSheet`) is drawn after every card because the kit's `RecordSheet` holds hooks and exists only while open, so it must be the page's last hook-holding child (Task 3.4's note 3). A card composed below that line is drawn after the sheet, and every hook it holds would read shifted cells whenever the sheet opens. The offer test's "last hook-holding child" check guards only the cards that exist when it runs: it proves nothing about a card added later. So when this card lands, run that test with the sheet open and this card's fold open after it, or add a row of this card to what the test opens and reads.
+>
+> **Carried from Task 3.1's review.** The rules fold's consequence includes the Autonomy tab's rule lines, since a draft is resolved with the settings read's own policy. The vision switch never changes the prompt's words (`FOLD_BLOCK.vision` is null: a photo's words go in the customer's own turn), so it shows no "It will say". A record whose profile composes nothing has no rules block at all: the fold says why once, in contracts' words, and never draws an empty block.
+
+> **Changed in execution (22 Sep).** The steps below are the plan as written. What shipped differs in these ways.
+> 1. **The card is a file of its own**, `pages/business-tab-answers.jsx` (`window.BtAnswersCard`), in both load lists after `business-tab-offer.jsx`, drawn by the page above the services sheet, which stays its last drawn child. Seven folds, each id the key it saves. So the hand-off row is `escalate_when`, not the plan's `handoff`: the plan's test reads `rec-row-escalate_when`. `abilityRows`' two hand-off abilities named `handoff`, a row nothing drew: the chat hand-off now opens `escalate_when`, and, since the review, the transfer opens `handoff_number`, the number's one editor (Task 3.2's decision). The plan's tone test typed Melany's own tone, which changes nothing; it types another and reads the fold's parts.
+> 2. **Four things the canvas said were not true, and are not said.** "It stops answering, marks the thread Needs you and emails your staff": the email goes to the Notifications tab's list (`notify.ts` `chooseAddressing`), which may be nobody, and the pause ends; the fold says the ability card's own sentence, now written once (`handoffChatWords`). "The phone agent has its own transfer, so the reasons above do not reach it": the composer writes the reasons under the call's hand-off heading too, so the fold says "Your reasons reach a call too." and the ability card's transfer sentence (`handoffCallWords`). The photos switch's "The four above are limits and start on": health advice starts off. "2 you wrote": a workspace set up before S5 was given messages with its details copied in, which nobody wrote, so the row says how many differ from the default wording (`fallbacksWords`).
+> 3. **Contracts** (`business-tab.ts`, on `__businessTab` with `hasProfile`): `TONE_PRESETS`, `handoffWords`, `handoffChatWords`, `handoffCallWords`, `notesWords`, `instructionsWords` and `fallbacksWords`, and `RULES_WITHOUT_FIELDS_WORDS`, the M-2 sentence, written once for Phase 4 to reuse.
+> 4. **The gestures grew three things** (business-tab-gestures.jsx, business-tab-folds.jsx). A fold of lines (`BtFold lines`: the voice and the languages are lines of Who you are) says only the lines its draft changes, under "It will be told", where the whole block said eight lines about one. `willSay` answers `caveat`, its blocks' own notes (prompt-blocks.ts), which a fold draws with the whole block: the rules' says which of its lines the Autonomy tab wrote, the hand-off's that it is always sent. And `rows()` puts back a word as itself, where it spread "Spanish" into an object. `linesOf` is published, so the hand-off fold asks the rule its save writes the reasons by.
+> 5. **The kit grew two things**, with kit tests: `RecordBox rows` is a textarea (a note's text, a message), and `RecordCombobox` takes `typed`, an option for a name the list does not hold, and `onKeyDown`, asked before its own keys (Backspace on the empty box gives back the last language); since the review, `onLeave(words)` too, as focus leaves a box with words in it, so a language typed and left there is added as the old form's was, not dropped.
+> 6. **`SET_LANGS` and `FALLBACK_ROWS` moved into the card**, published as `BT_OFFERED_LANGUAGES` and `BT_FALLBACK_ROWS`, and settings.jsx reads them as it loads, so each is written once. Not into contracts: the bridge installs after the manifest loads, so settings.jsx could read contracts only while drawing, which would have changed `BusinessEditor`'s body. Three settings tests import the card before settings.jsx, as both load lists have it. The four rules' labels and hints are the old form's, and `BusinessEditor` keeps its inline copy until Task 3.7 deletes it.
+> 7. **After S4 the own-words block is always the owner's**: the fold's save writes the carried words into the owner's field, so `promptBlocks`' carried note never shows under "Your receptionist will be told". The fold's own hint says where carried words came from and which wins, as the old form's did.
+> 8. **How long a hand-off holds off** is the Autonomy reply row's `pause_hours` from `__POLICIES`; a failed read of it (null) draws `FailedRead` where the sentence would be.
+> 9. **The tests**: `business-tab-answers.test.mjs` (31), two kit tests, eight vm tests, the bridge's list; 18 deliberate breaks were each caught. For Task 3.7's Playwright journey: after a language is added, focus stays in its box; Backspace in the empty box; the hand-off door moves focus into Who you are's transfer box; a note just added takes focus in its title.
+> 10. **Fixed in the review's round (22 Sep).** The M-2 sentence said the four rules "do not reach it", which the price detector makes untrue (it reads every reply whatever the profile, `layerTwo` in chat and `spokenBreach` on a call): it now says the four switches change nothing it is *told*. A fold says a save crosses the resolver's line only when its Save would send something (`holdsChanges`), because the instructions fold of a record that composes nothing opened untouched saying the details would start being given, and Save sent nothing. The hand-off fold says what a call does, and offers its door, only on a workspace with a line to call, as Who you are's transfer row says nothing it will say there. The languages say the old form's "It answers in whichever of these a customer uses.": on WhatsApp the composer says only "You speak: …". The rules fold opens its switches by contracts' `guardrailsInForce`, published on `__businessTab`, where `draftOf` held a copy. `business-tab-answers.test.mjs` is 36 tests, and every one of the review's mutations is now caught by at least one test.
 
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
@@ -1905,6 +1995,13 @@ git commit -am "The receptionist gets a voice, and a box to type it in"
 ### Task 3.6: Each fold patches only its own keys
 
 This is the test that guards the page's one historical catastrophe. Write it red, first.
+
+> **Changed in execution (21 Sep).** The steps below are the plan as written. What shipped differs in three ways.
+> 1. The helpers live in `pages/business-tab-folds.jsx`, loaded between `business-tab-save.jsx` (the page's one saver and the rows' tables, created by Task 3.2's review) and the page, not in `business-tab.jsx`. They are published on `window.__businessTabSave` as `PATHS_OF`, `KEYS_OF`, `draftOf(fold, stored)`, `saveFold(fold, stored, draft)` and `problemsOf(fold, draft)`. The plan's `draftFor(fold)` returned a changed draft for the test alone; `draftOf` is the draft a fold opens with, which the folds need anyway, and the test owns its edits.
+> 2. `PATHS_OF` names what each fold writes as dotted paths into the whole config, and `KEYS_OF` is read off it, so the test proves the WHOLE config is untouched outside a fold's paths, not only the profile. There are thirteen folds, not ten: `consult_first` (its own key inside `booking_rules`), `extra_instructions` (with the stored prompt) and `calendar` join the plan's list, and `guardrails` also writes `features.vision`.
+> 3. **A fold saves as one job, `foldJob(fold, draft, { opened, said, done, flash })`** (Task 3.6's review). Its patch runs on the config at send time, never the one the fold opened with. It sends nothing when the draft holds no changes (`holdsChanges`): some records are stored the way no fold writes them back, and an unchanged save of the instructions on a record that is only its hand-written prompt would have doubled the prompt. And it refuses, with its sentence, when the fold's own part of the settings changed after it opened (`opened` is required), so a services list held open never takes out the service a colleague added. The saver tries every patch: one that throws is said and dropped, and no longer takes the page down as it draws.
+> 4. **Two checks before a save.** `problemsOf` says the old form's sentences word for word, and, from one published table (`LIMITS`, `RULES`), the lengths and counts the save's schema refuses. `schemaProblems(fold, base, draft)` says what only the schema can judge (overlapping shifts, a date not on the calendar, a feed the receptionist may not read) under the same field keys, through the bridge's `saveIssues`, with `elsewhere` for a refusal that is not the fold's to fix. A fold sends only when both are `{}`.
+> 5. The test clones the stored record before every call and compares against the clone. The saver once handed a patch shallow copies, so a patch that edited a nested object in place changed the base too, was judged to change nothing, and was never sent (Task 3.2's review). Every patch now runs on a copy all the way down, and what a row will say is worked out on the brain its save goes on (the saver's base, one saver per browser tab), not on the settings read.
 
 **Files:**
 - Create: `tooling/scripts/tests/business-tab-folds.test.mjs`
@@ -2006,6 +2103,37 @@ git commit -m "A save patches, and the test that proves it"
 
 ### Task 3.7: Swap the page in, delete the form, rewrite the seven tests
 
+> **Changed in execution (22 Sep).** The steps below are the plan as written. What shipped differs in these ways.
+> 1. **The create-receptionist fold is its own card**, `pages/business-tab-create.jsx` (`window.BtCreateCard`), in both load lists after `business-tab-services.jsx`. At rest it draws the empty state the old card said, whose "Set up the receptionist" opens a `BtFold` with id `receptionist` holding the old create path's three fields; under it is *When you're open*'s own timezone row (`window.BtZoneRow`), not a copy of it. The fold saves through `foldJob` like every other, and writes `business_name`, `booking_link`, `phone_display` only where a different number is typed, and the product's prompt and messages ONLY where none is stored -- where the form wrote them on every save. It writes no `profile`: the form's profile of three guardrails composed exactly what no profile composes (`hasProfile` does not count guardrails) and absent is the same three rules in force, so it was a second way of saying nothing.
+> 2. **Two seams on the gestures made it possible.** `BtFold` takes `rest({ request, can })`, which draws something else in the row's place for a fold with no fact to state yet (`can` is `btOpening`'s own answer — whether there is a config to save onto and a draft that could be worked out of it, which is exactly what gates opening — and NOT whether the role may: a card's primary act is shown gated, where a row's own act is simply absent), and `check(draft)`, the card's own check beside `problemsOf`, for what the draft does not hold and only the page knows -- the line the workspace answers on. And a fold with a `rest` judges an UNTOUCHED Save instead of closing (`nothingYet`): there is nothing stored for a check to judge wrongly, and pressing Save on three empty required boxes must say what is missing, as the create form did, not look as though it saved.
+> 3. **The number the receptionist gives out is one box**, `window.btPublishedBox` (`business-tab-who.jsx`), drawn by the *Tells customers to call* row and by the create card, so the choice between the line and a different number and the four sentences that say what each costs are written once. Its placeholder was the LIVE SALON's transfer number (`+1 646 932 5775`), in both number boxes; both are the reserved fictional range now, as the rows they replaced used. That is a "no customer in the code" break that shipped on this branch in Task 3.2.
+> 4. **`PaneWorkspace`'s states are four returns, not three**: broken, the record (`window.BusinessTab`, with `PromptPreview` and `WorkspaceData` under it), the create card, and the mockup's own card for a pane with no settings read at all -- which is the standalone harness, and which the old `real ?` branches wrote twice.
+> 5. **Deleted with `BusinessEditor`**: `hoursSummary`, `MAX_SHIFTS`, `MAX_CLOSURE_ROWS`, `SET_DAYS`, `SET_LANGS`, `FALLBACK_ROWS`, `DAY_LABEL_SHORT`, and the card's own rows `FactRow`, `FactConflicts`, `PublishedNumberRow`, `HandoffRow` and `TimezoneRow`. `SetSectionHead` stays (Your data draws one). 294 lines of `settings.css` went with them. `settingsRulesKept`/`SET_EDITED_RULES` went too, in the fix round: they had no caller but `settings-save-keeps-rules.test.mjs`, and the guarantee they stood for — the rules a form does not render survive a save — is not a helper any more but the shape of every fold, which `business-tab-folds.test.mjs` proves for EVERY one of them over a record carrying `booking_rules.a_rule_added_later` and `profile.a_key_no_form_renders`. That test file is deleted with them.
+> 6. **The rail's second question changed words.** With the form gone, "The changes in the business editor have not been saved." names something that does not exist; it is "Nothing you changed on this tab has been saved."
+> 6b. **Task 3.5's carry-overs landed in the fix round.** The twenty caps a fold offers up to were literals in `business-tab-folds.jsx` (`BT_LIMITS`) with every number written again in the sentence beside it; they are contracts' `PROFILE_LIMITS`, read off the schema that would refuse the save, and `profileRefusal` writes each sentence from that one number, the way `bookingRuleRefusal` already did for the five booking rules. The page asks the bridge for both and states no number of its own without it. The fallbacks' "written out" predicate is contracts' `writtenOutDetail`, tested there. `BT_OFFERED_LANGUAGES` and `BT_FALLBACK_ROWS`, published only for the deleted form to read as it loaded, are gone.
+> 7. **Sixteen tests in `settings-editor.test.mjs` became four.** What it proved about a form's fields is proved where those fields now live, by drawing them (`business-tab-page/-open/-offer/-answers/-create.test.mjs`); what is left is settings.jsx's own and is what the swap turned on -- which of the cards the pane draws, the rail's question before it replaces a pane, the browser's before it unloads one, and that the record kit's registry is the one answer to both. `business-tab-create.test.mjs` (10) is the create card's own.
+> 8. **Sixteen more test files carried pins to the deleted form** and were re-pointed or executed: `availability`, `business-profile`, `calendar`, `facts`, `media`, `one-hours-algorithm`, `prompt-preview`, `receptionist-setup`, `settings-honest`, `settings-truth`, `settings-words`, `settings-owner-panes`, `split-shifts-closures`, `surface-registry`, `voice-pipeline` and `webhook-auth-evidence`. Twelve source reads went for good and `source-scan-baseline.json` fell. The fix round took the rest: a pin moved from the form's source to the PAGE's is still a pin, and `fs.readFileSync` is invisible to the ratchet, so the thirteen in `business-profile.test.mjs` and the one in `surface-registry.test.mjs` became comments naming the test that draws or saves each rule — that file now reads no source at all.
+> 9. **Three things the page does not do, on purpose.**
+>    - The **counting toast** on a refused save. The old form said "Not saved — 3 fields need a look." beside each sentence under its box; a row or a fold says what is wrong under the box it is about and flashes nothing at all (`business-tab-page.test.mjs`, "what stops a save is said under the box, before any round trip, and nothing is sent", asserts `flashes.length` is 0). The sheet, which can hold a refusal off screen, is the one place that still counts.
+>    - The calendar feed's **Check the address** button: the row states its last read and says a failed one with its Retry (the spec's *When you're open*).
+>    - The EmptyState **Add your business details**: the standing line names the one gap most worth closing and IS the door to the row that closes it (the spec's §4.1).
+> 10. **One deviation from the spec, deliberate.** §8's fact table says of the published number: "Asked once, in its row — not again in the create path." The create fold asks for it, through the very same box the row draws (`window.btPublishedBox`, note 3). A workspace with no receptionist has no row to be asked in — the record does not exist yet — and one whose line has not been provisioned has nothing at all to give a customer until somebody types a number, which is what made it one of the old create form's three required fields. So it is asked once per surface, in one box, with one rule for what it stores; the row is still the only place it is CHANGED afterwards.
+> 11. **The nightly journey exists**, `e2e/settings-business.spec.ts`, twelve tests over the notes below: the standing line's door, "Keep editing", a shift's and a closed day's remove, an item of the week's copy menu, an Add that fills a list to its cap, an Add that makes a row, a click away a redraw must not undo, a language left in the box by blur, the services sheet's own focus ring from opening to close (the Undo left where the row was, the row put back, the toast's Undo, Escape, the close), the sheet at 390px, a head and a foot that hold still over scrolling rows, no sideways scroll at 390px with each fold open, and the toast against the sheet's Save at 1,024, 1,280 and 390px. It never leaves the workspace changed: every editor it opens it cancels, and each test that typed re-reads the config and compares it with the one it started from. Proved before it was committed on a local harness (the #807 pattern: a server that plays the two Supabase auth calls `e2e/session.ts` makes and serves the standalone mockup from this worktree's source with a fixture first in its head), on two records — the seeded `chanlytics-e2e` workspace exactly as `tooling/scripts/e2e-workspace.mjs` leaves it, and a salon with a week of hours, closed days AT the cap, services and seven languages, which is the only way the cap branches run at all. Eight mutations of the page were each caught by a named assertion.
+>     - **It found two real defects.** An Add that fills a list to its cap left focus on `<body>`: the box is HIDDEN rather than removed, the kit's focus hold read only `document.contains`, saw the box still there and returned, and the browser then blurred a hidden box to the document. Fixed in `record-fold.jsx` — what counts as gone now includes hidden, and focus still ON the thing that has just gone counts as lost, which moves it before the browser can. And the no-horizontal-scroll check as first written could not have caught the 8px the *Who you are* card overflowed by: measured against that page with the arrow put back inside the clipped words, the DOCUMENT stayed exactly 390px wide and what scrolled was `.set-pane`. `expectNoSidewaysScroll` takes the panes beside the document now.
+>     - **The lift is enough for the Save and not for the foot.** Measured at 390px with an ask above Save, the sheet's foot is 303px tall against a lift of 184px, and 200px against it at 1,024px. The toast clears the Save button at all three widths with room to spare, which is what the note asked for and what the journey holds; it does sit over the top of the foot below 1,140px, where the told line is. Raising the lift to the foot's own height would put a toast in the middle of a phone, over the rows the note says not to cover, so it was left as it is and measured instead: the journey states both, and will say so if either stops being true.
+>     - **What it could not prove locally.** Nothing that needs a save (the harness refuses every write, by design, and the journey never presses Save), and nothing about the real Next bundle's timing — the harness compiles the legacy tree with Babel in the browser, so the whole suite runs under a raised timeout there and at the config's own 45s against production. The first run against the real `chanlytics-e2e` workspace is the 23 Sep nightly.
+
+
+> **Noted 21 Sep, in Task 3.3's review. Three things the swap must do, none of which is in the steps below.**
+> - **The standalone mockup lacks three of the page's globals.** `data/bridge-stubs.jsx` publishes no `__hoursLines`, no `__configLimits` and no `__workspace`, so once the page is mounted there the Hours row reads "Not set" over a week that has hours, the caps fall back to the page's literals, and the Timezone row offers no act. Publish `__hoursLines` through the contracts-built `data/business-tab.js` (`serve-legacy.mjs` already builds it from `legacy-bridge/business-tab.ts`): a hand port of it in `bridge-stubs.jsx` would be a second run-collapsing implementation, which is the one thing `hoursSummary`'s comment exists to forbid. `__configLimits` can ride the same bundle (contracts' `MAX_INTERVALS_PER_DAY` and `MAX_CLOSURES`); `__workspace` is a stub's to fake.
+> - **`BusinessTab` must listen for `surface:settings`, as `PaneWorkspace` does today.** The page subscribes to its saver and the calendar row to `surface:calendar`, and nothing else draws it again. A zone saved through `PATCH workspaces` re-reads settings (Task 3.3), and until the page hears that read the card's line ("Six days a week, in New York time"), the closures count on the business's day and the hours fold's hint keep the old zone. While `PaneWorkspace` is the parent it redraws the page for it; do not lose that in the swap, and test it by dispatching the event, not by redrawing by hand.
+> - **The *Who you are* card overflows a phone by 8px.** Measured under real React at 390px in Task 3.3's check: the page scrolls sideways by 8px, and the one element found past the edge is the svg arrow inside the "Answers on" door's visually hidden words (`.rec-row-act-words`, 1px and clipped at a phone's width). Confirm that is the cause, fix it before the swap (the arrow belongs beside the words, not inside the clipped box), and add a no-horizontal-scroll check at 390px to the Playwright journey below, so the next one is caught by a machine.
+
+> **Noted 21 Sep, in Task 3.2's review.** Add one nightly Playwright journey for the focus paths (a row opening and closing, "Keep editing", the standing line's door), which the stub cannot test because it never attaches refs. **Added in Task 3.3's review**, for the same journey, since the kit's `useRecFocus` now holds focus inside an open fold and only a browser can show it: after a shift's or a closed day's remove, focus is in the last field the person was in (the fold's first field when that row went), never on `<body>`; after the Add that fills a list to its cap turns into the sentence, the same; after an item of the week's copy menu, the same; after Add, focus is in the new row's first box, not on Add; and a click on the page outside an open fold, followed by anything that redraws it, leaves focus where the person put it. Both load lists already carry `pages/business-tab-save.jsx` and `pages/business-tab.jsx` (Task 3.2). **Added in Task 3.4's review**, for the same journey:
+> - **The services sheet at 390px.** Each service's three boxes stack into one row, with the remove at the right. The columns' head and the foot hold still while the rows scroll. The page and the sheet scroll nowhere sideways, measured with the same check as the page.
+> - **The toast and the sheet's Save** (added in Task 3.4's quality review). Open the sheet, remove a row, and check the toast's box and the Save button's box do not overlap, at 1,024, 1,280 and 390px wide. The toast stack is fixed and centred on the window (components.css), and the sheet is `min(540px, 92vw)` on the right with Save bottom-left in its foot, so they overlapped under about 1,290px. record.css now centres the stack over the page left of the sheet from 1,140px, and lifts it 184px above the bottom below that and on a phone. That lift is the foot's height with its told line on two lines and an ask above Save, measured nowhere yet. The journey measures it; if the foot is taller, raise the lift in record.css, never in components.css.
+> - **The sheet's focus paths.** As it opens, focus is on the sheet. After a remove, focus is on the Undo left where the row was. After that Undo, it is in the row's first box. After Add, it is in the new row's first box. Escape and Close ask when something was typed. As the sheet closes, focus goes back to the row's act. And while it is open, focus is never on `<body>`, including after the toast's Undo takes its toast away.
+
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/settings.jsx` — delete `BusinessEditor` (1013-1965) and `PromptPreview` (2190-2242); `PaneWorkspace` renders `window.BusinessTab`.
 - Modify: `apps/dashboard/src/legacy/styles/settings.css` — delete the dead families.
@@ -2080,6 +2208,17 @@ EOF
 
 ### Task 3.8: The box and the prompt view agree on the baseline in the owner's field
 
+> **Changed in execution (22 Sep).** The production query below was run first, and its answer is none, so this task shrank to the one-rule change its own production-query note allows for. What shipped, and what the count left open.
+> 1. **The count.** Read-only over every workspace in production (`public.tenant_config` joined to `public.tenants`), by the controller, 22 Sep. Six workspaces; two with a `brain.profile`; two with a non-empty `profile.extra_instructions`; **none whose `extra_instructions` is baseline-shaped** under contracts' `isBaselineInOwnersField` written out in SQL (the opening, then a name of at most 120 characters on one line with no sentence break, then the closing); none under a looser test that only asks whether it starts with the opening; and so none that composes nothing else. The query counted the other halves of the case too -- the copy in both places, the copy with no stored prompt behind it -- and each is zero. It holds no customer's words, only counts.
+> 2. **What shipped: the one rule.** `instructionsDraft` asks `whoseWords` (`packages/contracts/src/config.ts`), so the box and the prompt view read the owner's field by one rule: `own` opens as the owner's, `carried` and `prompt` open marked carried, `baseline` -- in the stored prompt or in the owner's own field -- and `none` open an empty box. The text is kept exactly as stored, spaces and all. Both functions' "until Phase 3" paragraphs are gone; they said something false the moment this landed.
+> 3. **And the two pins, flipped deliberately.** `prompt-blocks.test.mjs`'s "the instructions box opens exactly as it does on main" is "the instructions box opens by the prompt view's one rule, and exactly two rows moved to get there": its `moved` list now names those two rows -- the baseline in the owner's box, and the baseline under an earlier name in the owner's box -- and asserts no others move. "The box and the prompt view disagree on one case, knowingly, until Phase 3" is "the box and the prompt view agree on the baseline a save before S4 left in the owner's field", and that shape is in the agreement test's own list of shapes. Neither test was deleted.
+> 4. **And one pin on the save that cannot lose it** (`business-tab-folds.test.mjs`, "the own-words fold opens the baseline a save before S4 left in the owner's field empty, and an untouched Save writes nothing"): a record with the product's lines in the owner's field, a hand-written prompt behind them and no other field `hasProfile` counts. The fold opens empty, `holdsChanges` is false, the saver sends nothing, the config comes back identical and `resolveSystemPrompt` says the same thing on both channels before and after. The record also joins the two the untouched-save loop runs every fold over. The failure the fix undoes was proved by running the same test against the old `instructionsDraft` body. This is what makes the Phase 1 danger structural rather than lucky: the form's save wrote `extra.trim() || undefined` on every Save, and a fold sends nothing at all when its draft is the one it opened with.
+> 5. **What the count made unnecessary, and is NOT done. All three are open.**
+>    - **Keeping or moving the baseline when the box is emptied.** **The fix**'s bullets below ask the save to keep the field, or to write the baseline back to `system_prompt` in the same write, so a record whose only composed field is that copy keeps composing. Not built: nothing in production has that copy, and a save that only holds still cannot lose it. What is unanswered is the save with something TYPED in it -- an owner who types over the baseline writes their own words, which is right, but an owner who empties a box holding it still empties the field that was composing.
+>    - **A rename reaching a copy in the owner's field.** The Name row writes the baseline again under the new name only where it is the stored prompt; a copy in `profile.extra_instructions` keeps the old name, and *It will say* shows only the identity line. Not built, for the same count.
+>    - **The wider reconciliation: every field `hasProfile` counts.** Emptying the last one hands the receptionist its stored prompt, on any field, not only this one. The page already SAYS so before a save goes, in the row's own inline line (`profileCrossing` in `legacy-bridge/business-tab.ts`, the words contracts' `PROFILE_CROSSING_WORDS`), and saying is not reconciling. Nothing reconciles it.
+> 6. **Where they would go.** Phase 5's prompt sheet is the next place the prompt is looked at whole -- it is the surface that replaces `PromptPreview`, and the one place an owner sees what every field composes into. A save that has to decide what happens to the owner's field when it stops composing belongs beside the view that shows the consequence. Each of the three needs the before/after `resolveSystemPrompt` test the bullets below ask for; the harness for it is `business-tab-folds.test.mjs`'s `told`.
+
 Deferred here from Phase 1 on 21 Sep, because it changes what the live form does and Phase 1 promised to change nothing live. Land it in the same PR as Task 3.7, which rewrites the save.
 
 **The case.** A save before S4 copied the product's baseline prompt into the owner's own field (`profile.extra_instructions`). The prompt view (`whoseWords`, `promptBlocks`) calls it the platform's, which is true. The box (`instructionsDraft`) opens it as the owner's text, as it always has. A Phase 1 fix pass routed the box through `whoseWords` and made it open empty, and review found two ways that goes wrong on the old save:
@@ -2089,7 +2228,9 @@ Deferred here from Phase 1 on 21 Sep, because it changes what the live form does
 
 **The fix.** Route `instructionsDraft` through `whoseWords` (one rule, as Phase 1 intended). **And** make the new "In your own words" fold's save (Task 3.6's helper) handle `kind: "baseline"` in the owner's field without either failure:
 - opening the box empty is right, since no owner wrote it;
-- saving the box empty must not flip `hasProfile` off where it was on. Either keep the field until the owner writes their own, or move the baseline back to `system_prompt` in the same write, so the resolver still composes. Prove it with the Task 3.6 patch harness and a before/after `resolveSystemPrompt` comparison on a record whose only composed field is that copy.
+- saving the box empty must not flip `hasProfile` off where it was on. Either keep the field until the owner writes their own, or move the baseline back to `system_prompt` in the same write, so the resolver still composes. Prove it with the Task 3.6 patch harness and a before/after `resolveSystemPrompt` comparison on a record whose only composed field is that copy;
+- and a rename must reach that copy too (added in Task 3.2's review). The Name row writes the baseline again under a new name only where it is the stored prompt (`system_prompt`); with the baseline in the owner's own field, a rename leaves the old name there, so the resolved prompt keeps it and the Name row's *It will say* shows only the identity line. Whatever this task does with that field must carry the business's current name;
+- and not that field alone (widened in Task 3.2's review). Every field `hasProfile` counts can be the last one a save empties, and emptying it hands the receptionist its stored prompt: on a sparse record the prompt fell from 2,128 characters to 240, the hand-off token and every rule line gone. The inline rows say so before the save goes (`profileCrossing` on `__businessTab`, the words `PROFILE_CROSSING_WORDS`), but saying is not reconciling. The reconciliation concerns every field `hasProfile` counts, not only `extra_instructions`, and it needs the before/after `resolveSystemPrompt` test for each.
 
 **Tests.** The Phase 1 pins must flip when this lands, and they're written to:
 - `prompt-blocks.test.mjs` "the instructions box opens exactly as it does on main" loses its baseline-in-the-box rows' "unchanged" status;
@@ -2230,6 +2371,10 @@ On the page: `held` draws once, above the rows, with one door to the Autonomy ta
 
 ### Task 4.2: The rules, at three strengths
 
+> **Noted 22 Sep, in Task 3.5's review. Two things the rules row says at rest that this task must settle.**
+> - **The price chip goes when the switch is off.** The row's "Never quotes a price" chip is drawn only for a rule in force (`guardrailsInForce`), but the price detector runs whether the switch is on or off (the owner's decision, 20 Sep 2026: `violatesNoPrices` in chat, `spokenBreach` on a call). With the strengths drawn, keep that chip with the switch off, saying it is checked, never a row that reads as if prices went through.
+> - **On a record that composes nothing, the chips still name rules it is not told.** The fold says so once (`RULES_WITHOUT_FIELDS_WORDS`), but the row at rest lists the four as if they were lines it reads. Say at rest what the fold says, in the same words, or name only what holds on such a record: the checked price rule, and the booking it cannot make anyway.
+
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
 - Test: `tooling/scripts/tests/business-tab-page.test.mjs`
@@ -2313,9 +2458,13 @@ EOF
 
 ## Phase 5 — The prompt sheet (PR 5: "The prompt is a table of contents")
 
+> **Noted 22 Sep, in Task 3.4's quality review: one sheet slot, drawn last.** The services sheet is the page's last drawn child, because the kit's `RecordSheet` holds hooks and exists only while open (Task 3.4's note 3). A page test holds it there: it draws the page with the sheet closed and open, and asserts `window.BtServicesSheet` is the last child. Phase 5 cannot add a second sheet that is also always last; two cannot both be last. The prompt sheet goes through ONE sheet slot, drawn last in `business-tab.jsx`, which draws whichever sheet is open. Only one editor or sheet opens at a time (the registry), so the slot draws one sheet or none. When that slot lands, the last-child test asserts the slot, not a sheet.
+
 > **Carried from the Phase 1 re-review (21 Sep): M-5, a false block from inside a note.** This predates Phase 1's fixes. A note whose second line happens to open like the heading of a section the record *doesn't* have (e.g. "Services" on a record with no services) gets a block of its own, charged to that row. Review reproduced it. The fix: accept an opening only on a line that follows a blank line, because `composeSystemPrompt` always writes `\n${heading}`. Pin it with the note-continuation case, and check it against the full-sequence tests from Phase 1 item C.
 
 ### Task 5.1: The anchored prompt
+
+> **Deletes `PromptPreview` (added 21 Sep).** Phase 3 kept the card, so an owner is never without a view of the prompt. When the sheet lands, it goes: the component in `settings.jsx`, its `set-prompt-*` styles in `settings.css`, and `prompt-preview.test.mjs`'s pins on it, rewritten against the sheet as the rest were in Task 3.7.
 
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-can.jsx`
@@ -2324,7 +2473,7 @@ EOF
 - [ ] **Step 1: Write the failing test**
 
 ```js
-import { promptBlocks, composeSystemPrompt } from "@chanlytics/contracts";
+import { promptBlocks } from "@chanlytics/contracts";
 
 const drawPrompt = (channel = "whatsapp") => {
   const tree = drawTab({ profile: melany });
@@ -2334,11 +2483,8 @@ const drawPrompt = (channel = "whatsapp") => {
 
 test("the contents lists one entry per block, with what each costs", () => {
   const tree = drawPrompt();
-  const blocks = promptBlocks(
-    composeSystemPrompt(W.__SETTINGS.config.brain, melany, "whatsapp", "America/New_York"),
-    "whatsapp",
-    { profile: melany },
-  );
+  // The resolved prompt the sheet cuts, cut the way it cuts it: with the stored brain, so a carried prompt is found.
+  const blocks = promptBlocks(W.__SETTINGS.prompt.whatsapp, "whatsapp", W.__SETTINGS.config.brain);
   const entries = all(byTestId(tree, "rec-prompt-contents"), (n) => classes(n).includes("rec-prompt-entry"));
   assert.equal(entries.length, blocks.length);
   for (const b of blocks) {
@@ -2461,6 +2607,10 @@ In the harness: open a row, type, press another row (the ask), then Save. The pa
 - [ ] **Step 1: Count what is on screen at rest**
 
 Draw the page with no fold open and assert the number of focusable controls is four. This is the spec's §11 claim, and a test is the only thing that keeps it true.
+
+- [ ] **Step 1b: Decide "N more below" in the services sheet**
+
+The canvas's Edit-Sheet says "24 more below" under the rows in view. Task 3.4 skipped it, and it has no other home. It needs the sheet's body measured as it scrolls: which rows are past the bottom edge, recounted on scroll and as the search hides rows. The stub cannot see that, so its test is the Playwright journey's (Task 3.7). Build it here with that test, or drop it and say why in this plan. The head holds still, and Save names the count ("Save 33 services"). The count is already on screen.
 
 - [ ] **Step 2: Run everything one last time**
 

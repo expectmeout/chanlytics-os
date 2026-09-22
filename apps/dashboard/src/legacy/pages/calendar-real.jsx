@@ -27,6 +27,16 @@ const CR_HOUR_PX = 64;
 const CR_VIEWS = [["week", "Week"], ["day", "Day"], ["month", "Month"], ["agenda", "Agenda"]];
 /** Five minutes: the board reads itself again while open, so what it draws follows the clock. */
 const CR_REFRESH_MS = 5 * 60 * 1000;
+// What the page says of a read that gives no reason of its own (the feed's `problem` is contracts' sentence when there
+// is one): a last good read that could not be refreshed, and a calendar that could not be read.
+const CR_FEED_WORDS = {
+  stale: "The calendar could not be refreshed.",
+  unavailable: "The address is saved; check it in Settings › Business if this keeps happening.",
+};
+// Settings › Business states the same calendar's last read in its own row (pages/business-tab-open.jsx). It keeps a
+// read for as long as this board does, and says these two states in these words: one number and one spelling, here,
+// published because in the app each file is its own module.
+window.__calendarPage = { refreshMs: CR_REFRESH_MS, words: CR_FEED_WORDS };
 // The date arithmetic is contracts' (shiftKey, shiftMonth, monthLabelOf, clockLabel), reached through the bridge:
 // one implementation for the page, the surface and the tests.
 const crTyping = () => { const el = document.activeElement; return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable); };
@@ -586,7 +596,7 @@ const CalendarReal = ({ initialDay = null }) => {
               Until then the receptionist sends the booking link but never names an open time, and this board shows only your hours and closures.
             </span>
           ) : (
-            <span><b>Your calendar could not be read.</b> {vm.feed.problem || "The address is saved; check it in Settings › Business if this keeps happening."}{vm.feed.problem ? " Until it reads, the receptionist sends the booking link but never names an open time." : ""}</span>
+            <span><b>Your calendar could not be read.</b> {vm.feed.problem || CR_FEED_WORDS.unavailable}{vm.feed.problem ? " Until it reads, the receptionist sends the booking link but never names an open time." : ""}</span>
           )}
           {/* A calendar that can't be read: its only way back was Settings (C2). */}
           {vm.feed.state === "unavailable" && (
@@ -598,7 +608,7 @@ const CalendarReal = ({ initialDay = null }) => {
       {vm.feed.state === "ok" && vm.feed.stale && (
         <div className="cal-feed-card" data-testid="cal-feed-stale">
           <Icon name="calendar" size={14} />
-          <span><b>Showing the last good read.</b> {vm.feed.problem || "The calendar could not be refreshed."} The receptionist is using this read too; it tries again every few minutes.</span>
+          <span><b>Showing the last good read.</b> {vm.feed.problem || CR_FEED_WORDS.stale} The receptionist is using this read too; it tries again every few minutes.</span>
           <button type="button" className="btn btn-sm" onClick={refreshNow} disabled={refreshing} data-testid="cal-feed-stale-retry">{refreshing ? "Retrying…" : "Retry"}</button>
           <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Check the address</button>
         </div>

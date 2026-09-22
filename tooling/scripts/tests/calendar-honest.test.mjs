@@ -1291,26 +1291,25 @@ test("REGRESSION (C3): a service that needs a consultation is spoken of as the r
 });
 
 test("(C3) the bridge publishes the hours in the Calendar's words, for the Business card that says them beside the bar", async () => {
-  const { installInboxVerbs } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  const was = globalThis.window.__hoursLines;
+  // With the Business tab's helpers (business-tab.ts), which the mockup is handed too.
+  const { installBusinessTab } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
+  const W = globalThis.window;
+  const was = { lines: W.__hoursLines, tab: W.__businessTab, limits: W.__configLimits };
   try {
-    installInboxVerbs();
+    installBusinessTab();
     // What it says, not which copy of contracts it is: the runner loads the bridge's contracts apart from the test's.
     const week = { mon: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" } };
     assert.equal(
-      typeof globalThis.window.__hoursLines,
+      typeof W.__hoursLines,
       "function",
       "REGRESSION: the card summarised the prompt's runs in the prompt's clock",
     );
-    assert.deepEqual(globalThis.window.__hoursLines(week), [
-      "Mon 9 AM – 6 PM",
-      "Tue–Fri closed",
-      "Sat 10 AM – 4 PM",
-      "Sun closed",
-    ]);
-    assert.equal(globalThis.window.__hoursRuns, undefined, "and there is no second way to say them");
+    assert.deepEqual(W.__hoursLines(week), ["Mon 9 AM – 6 PM", "Tue–Fri closed", "Sat 10 AM – 4 PM", "Sun closed"]);
+    assert.equal(W.__hoursRuns, undefined, "and there is no second way to say them");
   } finally {
-    globalThis.window.__hoursLines = was;
+    W.__hoursLines = was.lines;
+    W.__businessTab = was.tab;
+    W.__configLimits = was.limits;
   }
 });
 
@@ -1501,4 +1500,38 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   byTestId(tree, "cal-service").props.onChange({ target: { value: "Balayage" } });
   tree = page();
   assert.deepEqual([stats(tree)[1].props.value, stats(tree)[1].props.meta], [1, "that fit Balayage"]);
+});
+
+test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {
+  // Settings › Business states the same calendar's last read in a row of its own (business-tab-open.jsx), for as long
+  // as this board keeps one, and in these words: one number and one spelling, this page's.
+  const keeps = globalThis.window.__calendarPage;
+  assert.equal(keeps.refreshMs, 5 * 60 * 1000, "the five minutes after which the board reads itself again");
+  assert.deepEqual(Object.keys(keeps.words).sort(), ["stale", "unavailable"]);
+  fresh(dto({ feed: { ...dto().feed, stale: true, reason: "unreachable", problem: null } }));
+  assert.ok(
+    textOf(byTestId(page(), "cal-feed-stale")).includes(keeps.words.stale),
+    "the card over a last good read says them",
+  );
+  fresh(
+    dto({
+      feed: {
+        present: true,
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+        problem: null,
+      },
+    }),
+  );
+  assert.ok(
+    textOf(byTestId(page(), "cal-feed-card")).includes(keeps.words.unavailable),
+    "and the card over a calendar that could not be read",
+  );
+  // A reason of the read's own wins over both.
+  fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }));
+  const said = textOf(byTestId(page(), "cal-feed-stale"));
+  assert.ok(said.includes("The calendar answered 503.") && !said.includes(keeps.words.stale), said);
 });

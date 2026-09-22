@@ -771,8 +771,10 @@ export interface ServiceLike {
 }
 
 // Accents off and case folded: "unas" finds "Uñas de gel", and a caller who
-// says "depilacion" means the service written "Depilación".
-const foldName = (s: string): string =>
+// says "depilacion" means the service written "Depilación". Exported for the
+// Business tab's services sheet, whose search folds a name the same way: one
+// rule for what counts as the same name, not a copy of it in the page.
+export const foldName = (s: string): string =>
   s
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
@@ -821,7 +823,9 @@ export interface ConsultRules {
  */
 export function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean {
   const n = foldName(name.trim());
-  return !!n && (rules?.consult_first ?? []).some((c) => foldName(String(c).trim()) === n);
+  // A stored list that is not one (a hand-edited record) names nothing, never a throw.
+  const list = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
+  return !!n && list.some((c) => foldName(String(c).trim()) === n);
 }
 
 /** What an asked-for service is offered as: itself, or a consultation first. */

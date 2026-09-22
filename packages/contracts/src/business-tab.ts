@@ -13,8 +13,25 @@
  * wrote it, is `prompt-blocks.ts`.
  */
 
-import { GuardrailsSchema } from "./config";
-import { hardLimitsWords } from "./policy";
+import {
+  BookingRulesSchema,
+  BrainConfigSchema,
+  BusinessProfileSchema,
+  ClosureSchema,
+  DAYS,
+  FALLBACK_DEFAULTS,
+  GuardrailsSchema,
+  INSTRUCTIONS_MAX,
+  MAX_CLOSURES,
+  MAX_INTERVALS_PER_DAY,
+  type Closure,
+  type Hours,
+} from "./config";
+import { hardLimitsWords, violatesNoPrices } from "./policy";
+import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
+import { closureDatesLabel, closuresFrom } from "./calendar";
+import { zoneDayKey } from "./clock";
+import { timezoneCity } from "./time";
 
 /**
  * The guardrail keys the profile stores, read off the schema rather than copied
@@ -123,6 +140,12 @@ export interface StandingVM {
   missing: { sentence: string; row: string } | null;
 }
 
+/**
+ * What a receptionist with no services cannot do, in ONE place: the standing line's gap says it ("It cannot say what you
+ * offer."), and so does the services sheet's foot once the last one is taken out (servicesToldWords).
+ */
+const CANNOT_SAY_SERVICES = "cannot say what you offer";
+
 const has = (v: unknown): boolean =>
   typeof v === "string"
     ? v.trim().length > 0
@@ -144,7 +167,7 @@ export function standingLine(i: StandingInputs): StandingVM {
   if (!has(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
   if (!has(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
   if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
-  if (!has(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
+  if (!has(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
   if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
   if (!has(p.tone))
     gaps.push({
@@ -169,6 +192,556 @@ export function standingLine(i: StandingInputs): StandingVM {
 
   return { can, wont, missing: gaps[0] ?? null };
 }
+
+/* ---- When you're open ---- */
+
+const DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"] as const;
+
+/**
+ * The line under the card's title: how much of the week is open, and whose clock the times are on. "Six days a week,
+ * in New York time".
+ *
+ * A day counts as open when the composer would state times for it (dayIntervals, which reads both shapes a stored day
+ * may have), so the card never counts a day the receptionist calls closed. With no open day there is no week to
+ * count, and the line says only whose clock it is; the Hours row under it says they are not set.
+ */
+export function openWeekWords(hours: Partial<Record<string, Hours>> | null | undefined, tz: string): string {
+  const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0).length;
+  const zone = `in ${timezoneCity(tz)} time`;
+  if (!open) return `Times are ${zone}`;
+  return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
+}
+
+export interface ClosuresAheadVM {
+  /** How many closures are still to come, by the business's own day. */
+  count: number;
+  /** "2 ahead · next Dec 24 – 26 · Christmas"; null when none is, and the row says "None ahead". */
+  line: string | null;
+}
+
+/**
+ * The closed days still ahead, counted on the BUSINESS's day, not the browser's: an owner working from another
+ * country must not be told a date has passed when it has not. A closure that ends today is still ahead, and one with
+ * no date is a row somebody started and never finished, which no save writes. A zone the clock cannot use is read as
+ * UTC, the clock's own rule (clock.ts), so the row is never lost to one.
+ */
+export function closuresAheadWords(
+  closures: readonly Closure[] | null | undefined,
+  tz: string,
+  now: Date,
+): ClosuresAheadVM {
+  const dated = (closures ?? []).filter((c) => !!c?.date);
+  const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
+  const next = ahead[0];
+  if (!next) return { count: 0, line: null };
+  const named = `${closureDatesLabel(next)}${next.note ? ` · ${next.note}` : ""}`;
+  return { count: ahead.length, line: `${ahead.length} ahead · ${ahead.length > 1 ? "next " : ""}${named}` };
+}
+
+/* ---- What you offer ---- */
+
+const count = (n: number): string => n.toLocaleString("en-US");
+
+/** A service as the settings read hands one over (contracts ServiceSchema), read defensively: the page is untyped. */
+export interface ServiceWordsInput {
+  name?: string | null;
+  duration_min?: number | null;
+  price_note?: string | null;
+}
+
+export interface ServicesWordsVM {
+  /** How many are on record. */
+  count: number;
+  /** "33 on record"; null with none, and the row says it has none. */
+  line: string | null;
+  /** How they are priced, in one sentence; null with none. */
+  priced: string | null;
+  /** The first four in the stored order, which is the order the receptionist reads them in: each name, and "180 min" where it has a duration ("180m" a screen reader may say as metres). */
+  chips: { name: string; takes: string | null }[];
+  /** "+29 more" past the four; null when every one is a chip. */
+  more: string | null;
+}
+
+/** How many services the row names at rest (the canvas's Record board). */
+const SERVICE_CHIPS = 4;
+// A note that sends the price to a consultation: "quoted at consult", "by consultation".
+const CONSULT = /\bconsult/i;
+// A note is written by the owner and read in a sentence: its first letter goes lower unless it opens an acronym.
+const inSentence = (note: string): string =>
+  /^[A-Z][a-z]/.test(note) ? `${note[0]!.toLowerCase()}${note.slice(1)}` : note;
+
+/**
+ * The services row at rest: how many are on record, the first few by name with how long each takes, and ONE sentence
+ * about how they are priced.
+ *
+ * A note "names a price" when the detector the replies are checked by would take it for one (policy.ts
+ * violatesNoPrices), never a second test of what a price looks like: a note that names one is composed into the prompt
+ * as written, and the detector swaps it out of every reply, so the owner is told how many there are. With none that
+ * does, a list that sends every price to a consultation says so ("Every one quoted at consult — none names a price.",
+ * the canvas's words, in the owner's own note); any other says only that none names one. A service with no name is a
+ * row nobody finished, which no save writes, and is not counted.
+ */
+export function servicesWords(services: readonly ServiceWordsInput[] | null | undefined): ServicesWordsVM {
+  // A stored list that is not one (a hand-edited record) is no services, never a throw: the page draws this as it draws.
+  const list = (Array.isArray(services) ? services : []).filter(
+    (s): s is ServiceWordsInput & { name: string } => !!s && typeof s.name === "string" && s.name.trim() !== "",
+  );
+  const n = list.length;
+  if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
+  const notes = list.map((s) => (typeof s.price_note === "string" ? s.price_note.trim() : ""));
+  const naming = notes.filter((note) => note !== "" && violatesNoPrices(note)).length;
+  const first = notes[0] ?? "";
+  const oneNote = first !== "" && notes.every((note) => note.toLowerCase() === first.toLowerCase());
+  const priced = naming
+    ? `${count(naming)} ${naming === 1 ? "names" : "name"} a price.`
+    : oneNote && CONSULT.test(first)
+      ? n === 1
+        ? `${first[0]!.toUpperCase()}${first.slice(1)} — it names no price.`
+        : `Every one ${inSentence(first)} — none names a price.`
+      : "None names a price.";
+  const chips = list.slice(0, SERVICE_CHIPS).map((s) => ({
+    name: s.name.trim(),
+    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null,
+  }));
+  return {
+    count: n,
+    line: `${count(n)} on record`,
+    priced,
+    chips,
+    more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null,
+  };
+}
+
+/**
+ * How much of everything the receptionist reads one block of its prompt is: "a quarter of everything it reads". `chars`
+ * is the block's own share of the prompt (PromptBlockVM.chars) and `total` the whole prompt's length, on one channel.
+ * Rough on purpose, the nearest of a few named shares, and "about" when even the nearest is some way off: a
+ * percentage would be a number nobody reads. Null when there is no block, or no prompt, to measure.
+ *
+ * The shares are inside the function: a table at the top of the module was kept, whole, in each of the four dists
+ * that bundle contracts and never call this.
+ */
+export function blockShareWords(chars: number, total: number): string | null {
+  const SHARES: ReadonlyArray<readonly [number, string]> = [
+    [1 / 10, "a tenth"],
+    [1 / 5, "a fifth"],
+    [1 / 4, "a quarter"],
+    [1 / 3, "a third"],
+    [2 / 5, "two fifths"],
+    [1 / 2, "half"],
+    [3 / 5, "three fifths"],
+    [2 / 3, "two thirds"],
+    [3 / 4, "three quarters"],
+    [4 / 5, "four fifths"],
+    [9 / 10, "nine tenths"],
+  ];
+  if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
+  const f = Math.min(1, chars / total);
+  if (f >= 0.95) return "nearly everything it reads";
+  if (f < 0.075) return "less than a tenth of everything it reads";
+  const [share, words] = SHARES.reduce((best, s) => (Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best));
+  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words} of everything it reads`;
+}
+
+/**
+ * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it
+ * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
+ * prompt's length. With none it says what that costs, in the standing line's own words for it (CANNOT_SAY_SERVICES).
+ */
+export function servicesToldWords(i: { count: number; chars: number | null; total: number | null }): string {
+  const n = i.count;
+  if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
+  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
+  const size = i.chars ? `, ${count(i.chars)} characters` : "";
+  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` — ${share}` : ""}.`;
+}
+
+/**
+ * The name of the Undo left where a service was taken out of the sheet, as a screen reader hears it: what it puts back,
+ * "Undo removing Balayage". Each was named only "Undo", and two waiting side by side could not be told apart.
+ */
+export function serviceUndoName(name: string | null | undefined): string {
+  const n = typeof name === "string" ? name.trim() : "";
+  return n ? `Undo removing ${n}` : "Undo removing a service";
+}
+
+/**
+ * What the services sheet's search has left in sight, said politely to a screen reader as it narrows: "11 of 33
+ * services". A search that leaves none says so as the sheet's own note does ("No service is called that."), and a list
+ * with no rows says it has none. With no search the page says nothing: every row is in sight, which the list shows.
+ */
+export function servicesFoundWords(shown: number, total: number): string {
+  if (!total) return "No services yet.";
+  if (!shown) return "No service is called that.";
+  return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
+}
+
+/** The sheet's Save, named for what it saves: "Save 33 services". */
+export function servicesSaveWords(n: number): string {
+  if (!n) return "Save with no services";
+  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
+}
+
+/** The booking rules the row states (contracts BookingRulesSchema), read defensively: the page is untyped. */
+export interface BookingRulesWordsInput {
+  lead_hours?: number | null;
+  slot_min?: number | null;
+  buffer_min?: number | null;
+  max_days_ahead?: number | null;
+  party_max?: number | null;
+  notes?: readonly string[] | null;
+}
+
+export interface BookingRulesWordsVM {
+  /** "At least 2 hours' notice · 30-minute slots · up to 14 days ahead · up to 4 people": the rules that are set; null with none. */
+  line: string | null;
+  /** "No chemical services after 4 PM. Bridal parties are booked by phone.": the notes, as sentences; null with none. */
+  notes: string | null;
+  /** What it does with none of the five set: the calendar's own rules, said as they are applied. */
+  none: string;
+}
+
+const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const plural = (n: number, one: string, many: string): string => `${count(n)} ${n === 1 ? one : many}`;
+
+/**
+ * The booking rules at rest, in ONE sentence: each of the five that is set, joined by " · " in the fold's order (the
+ * canvas's Record board). A rule left empty is not said as if the owner had set it; with none set, `none` says what
+ * the calendar offers by (availability.ts BOOKING_DEFAULTS, which freeWindows applies to every opening it hands the
+ * receptionist): at least two hours' notice, fourteen days ahead, half-hour slots, no gap. "No rule" would not be true.
+ * The notes are the owner's own lines, each said as a sentence.
+ */
+export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefined): BookingRulesWordsVM {
+  const r = rules ?? {};
+  const parts: string[] = [];
+  if (isNumber(r.lead_hours))
+    parts.push(
+      r.lead_hours === 0
+        ? "same-day bookings"
+        : `at least ${r.lead_hours === 1 ? "1 hour's" : `${count(r.lead_hours)} hours'`} notice`,
+    );
+  if (isNumber(r.slot_min)) parts.push(`${count(r.slot_min)}-minute slots`);
+  if (isNumber(r.buffer_min))
+    parts.push(
+      r.buffer_min === 0
+        ? "no gap between appointments"
+        : `${plural(r.buffer_min, "minute", "minutes")} between appointments`,
+    );
+  if (isNumber(r.max_days_ahead)) parts.push(`up to ${plural(r.max_days_ahead, "day", "days")} ahead`);
+  if (isNumber(r.party_max)) parts.push(`up to ${plural(r.party_max, "person", "people")}`);
+  const joined = parts.join(" · ");
+  // A stored list that is not one (a hand-edited record) is none, never a throw: the row is drawn from what is stored.
+  const notes = (Array.isArray(r.notes) ? r.notes : [])
+    .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    .map((x) => {
+      const t = x.trim();
+      return /[.!?…]$/.test(t) ? t : `${t}.`;
+    });
+  const d = BOOKING_DEFAULTS;
+  return {
+    line: joined ? `${joined[0]!.toUpperCase()}${joined.slice(1)}` : null,
+    notes: notes.length ? notes.join(" ") : null,
+    none: `The calendar's own — at least ${plural(d.lead_hours, "hour's", "hours'")} notice, up to ${plural(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`,
+  };
+}
+
+/** The five booking rules a box holds a number for, by the key the schema stores each under. */
+export type BookingRuleKey = "lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max";
+
+/**
+ * What a booking rule's box says when what is typed is not a whole number in the rule's range: the range, and what an
+ * empty box uses, each with its unit, in the hint's place under the box. The range is the save's own schema's
+ * (BookingRulesSchema's bounds, so a check never refuses what the save would take), and what empty uses is the defaults
+ * the openings are made with (BOOKING_DEFAULTS), which the box's hint says too (BOOKING_RULE_HINTS). The old form said
+ * "leave it empty for no rule" of the least notice and of the days ahead, each of which has a default; the party size has
+ * none, and the composer says nothing of a party when none is set, so its "no rule" is true. A key that is not one of the
+ * five is a TypeError, since the page is untyped.
+ */
+export function bookingRuleRefusal(key: BookingRuleKey): string {
+  const shape = BookingRulesSchema.shape as unknown as Record<
+    string,
+    { unwrap?: () => { minValue: number | null; maxValue: number | null } } | undefined
+  >;
+  const words: Record<BookingRuleKey, (lo: number, hi: number) => string> = {
+    lead_hours: (lo, hi) =>
+      `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi) =>
+      `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar’s ${plural(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi) =>
+      `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi) =>
+      `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`,
+  };
+  const say = Object.prototype.hasOwnProperty.call(words, key) ? words[key] : null;
+  const bound = say ? shape[key]?.unwrap?.() : null;
+  if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
+    throw new TypeError(
+      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words).join(", ")}), not ${JSON.stringify(key)}.`,
+    );
+  }
+  return say(bound.minValue, bound.maxValue);
+}
+
+/**
+ * What an empty box means, under each booking rule's box in its fold, where the box holds a number. From the defaults
+ * the openings are worked out with (BOOKING_DEFAULTS), so the hint is true: the canvas said "Empty means no rule." of
+ * the least notice, and an empty least notice is two hours'. The gap has no hint: empty is none. The party size has
+ * no default at all, and its hint says what the composer tells the receptionist of a larger group.
+ *
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: a top-level call is a side effect to the bundler, which would
+ * keep this in the four dists that bundle contracts and never use it.
+ */
+export const BOOKING_RULE_HINTS: Readonly<
+  Record<"lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max", string | null>
+> = /* @__PURE__ */ (() => ({
+  lead_hours: `Empty uses ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+  slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
+  buffer_min: null,
+  max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
+  party_max: "Larger groups go to a person.",
+}))();
+
+/**
+ * What a save says when it crosses the line the resolver draws between a record it composes from and one it answers
+ * with the stored prompt (config.ts `hasProfile`).
+ *
+ * Emptying the last field the resolver composes from hands the receptionist its stored prompt instead: on a sparse
+ * record the prompt fell from 2,128 characters to 240, with the hand-off token and every rule line gone. The first such
+ * field does the reverse, and the prompt grows from 240 to 1,939. Either way far more changes than the field's own
+ * line, so the row says so beside that line. It is not a refusal: the save still goes. Which way a save crosses is the
+ * bridge's to decide (legacy-bridge/business-tab.ts, `profileCrossing`), from `hasProfile` over the stored brain's
+ * profile and the next one's; these are the words.
+ */
+export const PROFILE_CROSSING_WORDS = {
+  stops:
+    "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
+  starts:
+    "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them.",
+} as const;
+
+export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
+
+/* ---- How it answers ---- */
+
+/**
+ * The three voices the voice's fold offers to start from (the canvas's Group-Answers board): a press puts the sentence
+ * in the box, and the owner makes it their own from there. Each is what the prompt then says after "Tone: ", for any
+ * trade, and well inside the 200 characters the profile keeps (BusinessProfileSchema.tone; a vm test holds them to it).
+ */
+export const TONE_PRESETS: readonly { label: string; tone: string }[] = [
+  {
+    label: "Warm and brief",
+    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked.",
+  },
+  {
+    label: "Professional, no small talk",
+    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks.",
+  },
+  {
+    label: "Chatty, first names",
+    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk.",
+  },
+];
+
+/**
+ * When the receptionist hands a customer over whatever the owner wrote: the composer's own triggers, on both channels
+ * (config.ts, the two hand-off blocks: a person asked for, someone upset, a question its instructions do not cover), in
+ * the words the page says them in. One clause, for the ability card and the hand-off row alike.
+ */
+const HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
+
+/**
+ * Words cut to at most `max` characters at a word boundary, with an ellipsis where anything was cut: a row at rest
+ * quotes the opening of something long, never the middle of a word.
+ */
+const cutAtWord = (text: string, max: number): string => {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max + 1);
+  const at = head.lastIndexOf(" ");
+  const cut = (at > 0 ? head.slice(0, at) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
+  return `${cut}…`;
+};
+
+/**
+ * What happens when a WhatsApp customer is handed over, checked against the edge: the composer teaches the model to end
+ * its reply with the [[HUMAN]] token (config.ts, the chat hand-off block), and a reply carrying it is sent with the token
+ * taken out; then the thread is paused for the Autonomy reply row's pause_hours (whatsapp/inbound.ts, a day when
+ * nothing is stored), an escalation is opened, which is what turns the thread Needs you in the Inbox, and the alert goes
+ * to the addresses the Notifications tab sets (notify.ts chooseAddressing: notifications.escalation_emails). After the
+ * pause it answers the next message itself. The canvas said "It stops answering, marks the thread Needs you and emails
+ * your staff": the email goes to whoever is on that list, which may be nobody, and the pause ends.
+ *
+ * The ability card's hand-off row and the hand-off row's fold both say it, so it is written once, here. `pauseHours` is
+ * that row's stored pause_hours as it is stored, read the way the Autonomy pane reads it (hardLimitsWords).
+ */
+export function handoffChatWords(i: { hasEscalateWhen: boolean; pauseHours: unknown }): string {
+  const when = i.hasEscalateWhen
+    ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it`
+    : `When ${HANDED_OVER_ANYWAY}, it`;
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
+}
+
+/**
+ * What a call does with a caller who needs a person (config.ts, the call hand-off block: "Use transfer_to_staff during
+ * opening hours -- it rings the line a person answers, and you stay on until they pick up"), for the ability card's
+ * transfer row and the hand-off row's fold alike.
+ */
+function transferWords(hasHandoffNumber: boolean): string {
+  return hasHandoffNumber
+    ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message."
+    : "No number yet, so it takes a message instead — which is better than a number nobody picks up.";
+}
+
+/**
+ * The hand-off on a call, under the hand-off row's reasons: what a transfer does, and that the reasons count there too.
+ * They do: the composer writes them under the call's hand-off heading as it writes them under the chat's ("and
+ * whenever:"). The canvas said the phone agent's own transfer kept the reasons from reaching it, which was not true.
+ */
+export function handoffCallWords(i: { hasHandoffNumber: boolean; hasEscalateWhen: boolean }): string {
+  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
+}
+
+/** The hand-off row at rest: one line for each channel, under its chip. */
+export interface HandoffWordsVM {
+  /** "on 2 reasons — They ask for a person, for the owner · They are upset…"; with none, when it hands over anyway. */
+  chat: string;
+  /** "transfers to +1 (646) 932-5775", or "takes a message" with no number. */
+  phone: string;
+}
+
+/** How many characters of the reasons the row quotes at rest, joined, before it cuts at a word. */
+const HANDOFF_REASONS_SHOWN = 64;
+
+/**
+ * The hand-off row at rest (the canvas's Record board): how many reasons the owner gave and the opening of them, and
+ * what a call does. `transfer` is the transfer number as the page shows it (the settings read's resolved fact, written
+ * for people); the row only states it, and the Who you are row is where it is changed. A stored list that is not one
+ * (a hand-edited record) is no reasons, never a throw: the page draws this as it draws.
+ */
+export function handoffWords(
+  reasons: readonly string[] | null | undefined,
+  transfer: string | null | undefined,
+): HandoffWordsVM {
+  const list = (Array.isArray(reasons) ? reasons : [])
+    .filter((r): r is string => typeof r === "string" && r.trim() !== "")
+    .map((r) => r.trim());
+  const n = list.length;
+  const number = typeof transfer === "string" ? transfer.trim() : "";
+  return {
+    chat: n
+      ? `on ${plural(n, "reason", "reasons")} — ${cutAtWord(list.join(" · "), HANDOFF_REASONS_SHOWN)}`
+      : `when ${HANDED_OVER_ANYWAY}`,
+    phone: number ? `transfers to ${number}` : "takes a message",
+  };
+}
+
+/** The notes row at rest: the first titles as chips, and how many more. */
+export interface NotesWordsVM {
+  count: number;
+  /** The first four titles, in the stored order, which is the order the receptionist reads them in. */
+  chips: string[];
+  /** "+3 more" past the four; null when every one is a chip. */
+  more: string | null;
+}
+
+const NOTE_CHIPS = 4;
+
+/**
+ * The notes row at rest (the canvas's Record board): each note by its title, four at most, and "+N more" past them. A
+ * note with no title is a row nobody finished (the schema needs one), and is not counted; a stored list that is not one
+ * is none.
+ */
+export function notesWords(
+  notes: readonly ({ title?: string | null } | null | undefined)[] | null | undefined,
+): NotesWordsVM {
+  const titles = (Array.isArray(notes) ? notes : [])
+    .map((n) => (n && typeof n.title === "string" ? n.title.trim() : ""))
+    .filter((t) => t !== "");
+  const n = titles.length;
+  return {
+    count: n,
+    chips: titles.slice(0, NOTE_CHIPS),
+    more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null,
+  };
+}
+
+/** The owner's own words, at rest and in their box. */
+export interface InstructionsWordsVM {
+  /** "1,180 characters"; null with nothing written. */
+  size: string | null;
+  /** Their opening, quoted and cut at a word; null with nothing written. */
+  opening: string | null;
+  /** "16,400 of 20,000 characters", past four fifths of what the receptionist takes (INSTRUCTIONS_MAX); null under it. */
+  nearFull: string | null;
+}
+
+/** How many characters of the owner's words the row quotes at rest, before it cuts at a word. */
+const OPENING_SHOWN = 72;
+
+/**
+ * "In your own words", said with its size (the canvas's Record board: "1,180 characters" and the opening, quoted), and,
+ * once the box holds more than four fifths of what the receptionist takes, how close it is to the end: the old form's
+ * count, under the box, whose number is the save's own limit (INSTRUCTIONS_MAX).
+ */
+export function instructionsWords(text: string | null | undefined): InstructionsWordsVM {
+  const t = typeof text === "string" ? text.trim() : "";
+  if (!t) return { size: null, opening: null, nearFull: null };
+  const n = t.length;
+  return {
+    size: plural(n, "character", "characters"),
+    opening: `“${cutAtWord(t, OPENING_SHOWN)}”`,
+    nearFull: n > INSTRUCTIONS_MAX * 0.8 ? `${count(n)} of ${count(INSTRUCTIONS_MAX)} characters` : null,
+  };
+}
+
+/** The fallbacks row at rest. */
+export interface FallbacksWordsVM {
+  /** "3 messages sent in your name". */
+  line: string;
+  /** How many are not the product's wording: "2 differ from the default wording", or "all in the default wording". */
+  own: string;
+}
+
+/**
+ * The three messages sent in the business's name when the receptionist cannot answer, at rest: how many there are, and
+ * how many are not the product's wording (FALLBACK_DEFAULTS). "Differ from", not the canvas's "you wrote": a workspace
+ * set up before the default wording was written was given messages with its details copied in (config.ts, S5), which
+ * are not the default and were not written by the owner either. A message stored empty is sent in the default wording
+ * (fallbackMessages), so it counts as the default; so does a workspace that stores none.
+ */
+export function fallbacksWords(
+  fallbacks: Partial<Record<keyof typeof FALLBACK_DEFAULTS, string | null>> | null | undefined,
+): FallbacksWordsVM {
+  const keys = Object.keys(FALLBACK_DEFAULTS) as (keyof typeof FALLBACK_DEFAULTS)[];
+  const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
+  const differ = keys.filter((k) => {
+    const t = typeof f[k] === "string" ? (f[k] as string).trim() : "";
+    return t !== "" && t !== FALLBACK_DEFAULTS[k];
+  }).length;
+  return {
+    line: `${count(keys.length)} messages sent in your name`,
+    own: differ
+      ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording`
+      : "all in the default wording",
+  };
+}
+
+/**
+ * What the rules fold says, once, on a record whose details compose nothing (config.ts hasProfile false). The resolver
+ * answers such a record with its stored prompt as it stands, and adds after it only the Autonomy tab's rules
+ * (resolveSystemPrompt's first branch), so none of the four switches changes a word it is TOLD, and there is no rules
+ * block for the fold to show. It says nothing of what the receptionist does: the price detector reads every reply
+ * whatever the profile holds (whatsapp/steps.ts layerTwo, and spokenBreach on a call), and nothing in the product can
+ * confirm a booking anyway. It first said "these four rules do not reach it", which Phase 4 would have drawn beside the
+ * price rule's "Checked, not just told". The prompt view says the same of that prompt (prompt-blocks.ts: "None of the
+ * details on this page are composed into it yet."), and the two must agree; Phase 4's rules at three strengths say it
+ * with these words too (the plan's M-2).
+ */
+export const RULES_WITHOUT_FIELDS_WORDS =
+  "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
 
 /**
  * What the receptionist can do, and what it cannot.
@@ -295,14 +868,6 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
             ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
             : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 
-  // The base triggers hold with no reasons at all -- they asked for a person, or it
-  // cannot help -- so the owner's reasons widen the hand-off; they do not switch it on.
-  const handoffWhen = i.hasEscalateWhen
-    ? "On your reasons, or when a customer asks for a person or it can't help, it"
-    : "When a customer asks for a person or it can't help, it";
-  // The stored pause, as the Autonomy pane and the edge read it: nothing stored is a day.
-  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
-
   return [
     {
       id: "answer",
@@ -343,24 +908,24 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
     {
       id: "transfer",
       title: "Put a caller through",
-      // config.ts: "Use transfer_to_staff during opening hours -- it rings the line a person
-      // answers, and you stay on until they pick up."
-      detail: i.hasHandoffNumber
-        ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message."
-        : "No number yet, so it takes a message instead — which is better than a number nobody picks up.",
+      // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
+      detail: transferWords(i.hasHandoffNumber),
       channels: { voice: i.voiceLive, whatsapp: false },
-      // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt.
-      runsOn: { label: "The transfer number", row: "handoff" },
+      // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
+      // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
+      runsOn: { label: "The transfer number", row: "handoff_number" },
       ready: i.voiceLive && i.hasHandoffNumber,
     },
     {
       id: "handoff",
       title: "Hand the thread to you",
-      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
-      // after that the receptionist answers the next message itself, Needs you or not.
-      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`,
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
+      // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
+      // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
+      // hand-off row's fold says it in the same words (handoffChatWords).
+      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
       channels: { voice: false, whatsapp: i.whatsappLive },
-      runsOn: { label: "Your reasons", row: "handoff" },
+      runsOn: { label: "Your reasons", row: "escalate_when" },
       ready: i.whatsappLive,
     },
     {
@@ -426,4 +991,196 @@ export function cannotRows(i: { smsLive: boolean }): CannotRowVM[] {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
   return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
+}
+
+/* ------------------------------------ what a fold will not take ------------------------------------ */
+
+/**
+ * The most of each thing a fold of the tab may hold, read off the schema that would refuse the save.
+ *
+ * Every one of these was a literal in the page (`BT_LIMITS`, pages/business-tab-folds.jsx) beside a sentence carrying
+ * the same number a second time, so a cap widened in the schema left the page offering less than the save would take
+ * and the sentence naming a number neither of them used. Read here, the schema is the one place a number lives, and
+ * `profileRefusal` below writes the sentence from this table -- the way `bookingRuleRefusal` writes the five booking
+ * rules' from `BookingRulesSchema`'s own bounds.
+ *
+ * `closures` and `shifts` are the two the save's own checks already published (`MAX_CLOSURES`,
+ * `MAX_INTERVALS_PER_DAY`); they are here so a fold asks one table rather than two.
+ *
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: a top-level call is a side effect to the bundler, which
+ * would keep this in the four dists that bundle contracts and never use it.
+ */
+export const PROFILE_LIMITS: Readonly<Record<ProfileLimitKey, number>> = /* @__PURE__ */ (() => {
+  // A cap, however the schema states it: a string's own `maxLength`, or an array's `max_length` check.
+  const cap = (schema: unknown): number => {
+    const s = schema as {
+      maxLength?: number | null;
+      def?: { checks?: { _zod?: { def?: { check?: string; maximum?: number } } }[] };
+    };
+    if (typeof s.maxLength === "number") return s.maxLength;
+    for (const c of s.def?.checks ?? []) {
+      const d = c?._zod?.def;
+      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
+    }
+    throw new TypeError(
+      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses.",
+    );
+  };
+  const floor = (schema: unknown): number => {
+    const s = schema as { minLength?: number | null };
+    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
+    return s.minLength;
+  };
+  const opt = <T>(schema: { unwrap(): T }): T => schema.unwrap();
+  const p = BusinessProfileSchema.shape;
+  const service = opt(p.services).element.shape;
+  const note = opt(p.notes).element.shape;
+  const rules = BookingRulesSchema.shape;
+  const minutes = opt(service.duration_min) as unknown as { maxValue: number | null };
+  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
+  return {
+    tone: cap(opt(p.tone)),
+    services: cap(opt(p.services)),
+    serviceName: cap(service.name),
+    serviceMinutes: minutes.maxValue,
+    servicePrice: cap(opt(service.price_note)),
+    languages: cap(opt(p.languages)),
+    languageMin: floor(opt(p.languages).element),
+    languageMax: cap(opt(p.languages).element),
+    reasons: cap(opt(p.escalate_when)),
+    reason: cap(opt(p.escalate_when).element),
+    consultFirst: cap(opt(rules.consult_first)),
+    consultFirstLine: cap(opt(rules.consult_first).element),
+    ruleNotes: cap(opt(rules.notes)),
+    ruleNote: cap(opt(rules.notes).element),
+    notes: cap(opt(p.notes)),
+    noteTitle: cap(note.title),
+    noteText: cap(note.text),
+    closureNote: cap(opt(ClosureSchema.shape.note)),
+    closures: MAX_CLOSURES,
+    shifts: MAX_INTERVALS_PER_DAY,
+    instructions: INSTRUCTIONS_MAX,
+    message: cap(BrainConfigSchema.shape.fallbacks.shape.greeting),
+  };
+})();
+
+/** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` says what each one refuses in. */
+export type ProfileLimitKey =
+  | "tone"
+  | "services"
+  | "serviceName"
+  | "serviceMinutes"
+  | "servicePrice"
+  | "languages"
+  | "languageMin"
+  | "languageMax"
+  | "reasons"
+  | "reason"
+  | "consultFirst"
+  | "consultFirstLine"
+  | "ruleNotes"
+  | "ruleNote"
+  | "notes"
+  | "noteTitle"
+  | "noteText"
+  | "closures"
+  | "closureNote"
+  | "shifts"
+  | "instructions"
+  | "message";
+
+/** What `profileRefusal` will say a sentence for: the caps a fold refuses AT, and the one range a language sits in. */
+export type ProfileRefusalKey =
+  | "tone"
+  | "services"
+  | "serviceName"
+  | "serviceMinutes"
+  | "servicePrice"
+  | "languages"
+  | "language"
+  | "reasons"
+  | "reason"
+  | "consultFirst"
+  | "consultFirstLine"
+  | "ruleNotes"
+  | "ruleNote"
+  | "notes"
+  | "noteTitle"
+  | "noteText"
+  | "closures"
+  | "closureNote"
+  | "shifts"
+  | "instructions"
+  | "message";
+
+/**
+ * What a fold says under the box when what is typed is more than the save would take.
+ *
+ * Each sentence names the same unit as the limit it is written from, and the limit is the schema's, so the two cannot
+ * disagree: the page said "At most 2,000 characters" beside a check reading `t.length > 2000`, the one number written
+ * twice in one line. `seen` is what was measured -- characters, rows, a day's shifts -- and is said back where the
+ * sentence has a place for it; `of` names what it was measured on, a day for `shifts` and the word itself for
+ * `language`. A key that is not one of these is a TypeError, since the page is untyped.
+ */
+export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: string): string {
+  const L = PROFILE_LIMITS;
+  const chars = (max: number): string =>
+    `At most ${count(max)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
+  const lines = (max: number, one: string, many: string): string =>
+    `At most ${plural(max, one, many)}, one to a line${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
+  const words: Record<ProfileRefusalKey, () => string> = {
+    tone: () => chars(L.tone),
+    services: () => `At most ${plural(L.services, "service", "services")}.`,
+    serviceName: () => chars(L.serviceName),
+    serviceMinutes: () => `At most ${count(L.serviceMinutes)} minutes, a whole day.`,
+    servicePrice: () => chars(L.servicePrice),
+    languages: () => `At most ${plural(L.languages, "language", "languages")}.`,
+    language: () => `“${of ?? ""}” is not a language's name: ${L.languageMin} to ${L.languageMax} characters.`,
+    reasons: () => lines(L.reasons, "reason", "reasons"),
+    reason: () => `Each reason is at most ${count(L.reason)} characters.`,
+    consultFirst: () => lines(L.consultFirst, "service", "services"),
+    consultFirstLine: () => `Each service is at most ${count(L.consultFirstLine)} characters.`,
+    ruleNotes: () => lines(L.ruleNotes, "note", "notes"),
+    ruleNote: () => `Each note is at most ${count(L.ruleNote)} characters.`,
+    notes: () => `At most ${plural(L.notes, "note", "notes")}.`,
+    noteTitle: () =>
+      `A note's title is at most ${count(L.noteTitle)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
+    noteText: () =>
+      `A note's text is at most ${count(L.noteText)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
+    closures: () => `At most ${plural(L.closures, "closed day", "closed days")}. Dates that have passed can go.`,
+    closureNote: () => chars(L.closureNote),
+    shifts: () =>
+      `At most ${plural(L.shifts, "shift", "shifts")} in a day — ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+    instructions: () => chars(L.instructions),
+    message: () => chars(L.message),
+  };
+  const say = Object.prototype.hasOwnProperty.call(words, key) ? words[key] : null;
+  if (!say) {
+    throw new TypeError(
+      `profileRefusal knows the tab's own caps (${Object.keys(words).join(", ")}), not ${JSON.stringify(key)}.`,
+    );
+  }
+  return say();
+}
+
+/**
+ * A detail written OUT in one of the three messages, where the name for it would keep it current.
+ *
+ * `{business}`, `{booking link}` and `{phone}` are filled in as each message goes out, so a message that spells the
+ * link or the number instead says what was true when it was typed and nothing after: a workspace that changed its
+ * booking link went on sending the old one, in its own name. The link is known exactly (the brain holds it); a number
+ * is recognised by its shape, since the one a customer would ring need not be the one on file.
+ *
+ * Answers "link", "number" or null, most-certain first: a message holding both is told about the link, which is the
+ * one the page can name exactly.
+ */
+const WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
+export function writtenOutDetail(
+  text: string | null | undefined,
+  bookingLink: string | null | undefined,
+): "link" | "number" | null {
+  const said = typeof text === "string" ? text : "";
+  const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
+  if (link && said.includes(link)) return "link";
+  return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
 }

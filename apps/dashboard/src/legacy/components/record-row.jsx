@@ -14,15 +14,21 @@
 //   and record.css never lets its act go latent, because there is no value to point at.
 // - `source` is a FactSource, drawn as the one pill in the `fact` kind (contracts tone.ts): its tone and its words
 //   are contracts', never this file's. `sourceLabel` overrides the words where the page has better ones.
-// - `disputed` { value, source, severity?, onUse, onKeep?, useLabel?, keepLabel?, sentence?, gate? } is a second
+// - `disputed` { value, source, severity?, onUse?, onKeep?, useLabel?, keepLabel?, sentence?, gate? } is a second
 //   answer that disagrees with this one. The row's chip becomes the kind's `disputed` (warn: a person settles it), and
-//   a line under the value carries the other answer, with its own source's pill and a press to take it instead.
-//   `severity` is "serious" or "minor", passed straight from contracts' FactConflict.
-// - `act` { label, onClick, gate?, testid? } is the row's one act. `gate` is window.gate(...)'s props, spread AFTER
-//   the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is named
-//   by its words and the row's label together ("Change Website"), and the two carry data-testid rec-row-act-<id>
-//   and rec-row-<id>. The act's data-rec-act is where a fold that closes (record-fold.jsx) gives focus back.
-// - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips).
+//   a line under the value carries the other answer, with its own source's pill and, given `onUse`, a press to take
+//   it instead. Without `onUse` the line is there to read and offers nothing: a role that may not settle it, or an
+//   answer that is information rather than a fill, is drawn no dead press. `severity` is "serious" or "minor",
+//   passed straight from contracts' FactConflict.
+// - `act` { label, onClick, gate?, testid?, name?, icon? } is the row's one act. `icon` names an Icon drawn after its words
+//   (an act that goes to another page: arrow-right), beside them and not in them, since a phone clips the words. `gate` is window.gate(...)'s props, spread
+//   AFTER the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is
+//   named by its words and the row's label together ("Change Website"), and the two carry data-testid
+//   rec-row-act-<id> and rec-row-<id>. Where the two make no sense together (a label that is a phrase, "Change Tells
+//   customers to call"; an act that goes somewhere, "Connections Answers on") the page names the act itself, `name`,
+//   a sentence that holds the act's own words so a person who says them still reaches it. The act's data-rec-act is
+//   where a fold that closes (record-fold.jsx) gives focus back.
+// - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips: RecordChips, below).
 // - Something wrong is on the row at full strength, hover or not: data-state="warn", which record.css draws as the warn
 //   wash with the key in the warn ink and the act always drawn. A serious disagreement is one (facts.ts: "Severity is
 //   about the CUSTOMER", so the published number that never reaches the receptionist); `wrong` is any other, a sentence
@@ -44,10 +50,12 @@ const RecordSourceChip = ({ source, label = null, tip = null }) => (
   <window.StatePill kind="fact" value={source} label={label} tip={tip} className="rec-src" />
 );
 
-// The other answer, under the value it disagrees with, and the press that takes it.
+// The other answer, under the value it disagrees with, and the press that takes it when there is one to offer.
 const RecordDispute = ({ id = null, disputed }) => {
   const otherId = id ? `rec-row-${id}-other` : undefined;
   const gated = disputed.gate || {};
+  const uses = typeof disputed.onUse === "function";
+  const keeps = typeof disputed.onKeep === "function";
   return (
     <div className="rec-row-dispute">
       <span className="rec-row-dispute-other" id={otherId}>
@@ -58,16 +66,20 @@ const RecordDispute = ({ id = null, disputed }) => {
           </>
         )}
       </span>
-      <span className="rec-row-dispute-acts">
-        <button type="button" className="btn btn-sm" onClick={disputed.onUse} aria-describedby={otherId} {...gated}>
-          {disputed.useLabel || REC_USE_WORDS[disputed.source] || "Use this one"}
-        </button>
-        {typeof disputed.onKeep === "function" && (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={disputed.onKeep} {...gated}>
-            {disputed.keepLabel || "Keep mine"}
-          </button>
-        )}
-      </span>
+      {uses || keeps ? (
+        <span className="rec-row-dispute-acts">
+          {uses && (
+            <button type="button" className="btn btn-sm" onClick={disputed.onUse} aria-describedby={otherId} {...gated}>
+              {disputed.useLabel || REC_USE_WORDS[disputed.source] || "Use this one"}
+            </button>
+          )}
+          {keeps && (
+            <button type="button" className="btn btn-sm btn-ghost" onClick={disputed.onKeep} {...gated}>
+              {disputed.keepLabel || "Keep mine"}
+            </button>
+          )}
+        </span>
+      ) : null}
     </div>
   );
 };
@@ -103,13 +115,17 @@ const RecordRow = ({
           type="button"
           className="rec-row-act"
           onClick={act.onClick}
-          aria-labelledby={id ? `${wordsId} ${keyId}` : undefined}
+          aria-label={act.name || undefined}
+          aria-labelledby={id && !act.name ? `${wordsId} ${keyId}` : undefined}
           aria-describedby={wrongId}
           data-rec-act={id || undefined}
           data-testid={act.testid || (id ? `rec-row-act-${id}` : undefined)}
           {...(act.gate || {})}
         >
           <span className="rec-row-act-words" id={wordsId}>{act.label}</span>
+          {/* Beside the words, never inside them: on a phone the words' box is clipped to 1px for a screen reader, and
+              an arrow drawn inside it was laid out 40px past the screen's edge. The chevron is a phone's sign. */}
+          {act.icon ? <span className="rec-row-act-icon" aria-hidden="true"><Icon name={act.icon} size={10} /></span> : null}
           <span className="rec-row-chev" aria-hidden="true"><Icon name="chevron" size={11} /></span>
         </button>
       ) : null}
@@ -117,4 +133,23 @@ const RecordRow = ({
   );
 };
 
-Object.assign(window, { RecordRow, RecordSourceChip });
+/**
+ * A row of chips, drawn under a row's value as its children: each names one thing the value counts, with its measure
+ * beside it where it has one ({ label, meta }: "Balayage" and "180m"), and `more` ("+29 more") after them, drawn with no
+ * edge. The words are the page's. Hookless, as everything drawn inside a row is: a row's children come and go.
+ */
+const RecordChips = ({ chips = [], more = null, testid = null }) => (
+  <span className="rec-chips" data-testid={testid || undefined}>
+    {chips.map((c, i) => (
+      <span key={i} className="rec-chip">
+        {c.label}
+        {c.meta ? <span className="rec-chip-meta">{c.meta}</span> : null}
+      </span>
+    ))}
+    {more ? <span className="rec-chip" data-more="true">{more}</span> : null}
+  </span>
+);
+
+// RecordDispute on its own is the inline editor's (record-fold.jsx): a row being edited keeps its disagreement on
+// screen, to read, while its press waits at rest on the row.
+Object.assign(window, { RecordRow, RecordSourceChip, RecordDispute, RecordChips });

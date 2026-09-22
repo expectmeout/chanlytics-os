@@ -46,7 +46,8 @@ export interface ApiOptions<K extends RouteKey> {
   refresh?: boolean | "behind";
   /**
    * Fired the moment the server accepts, before the surfaces are re-read, with what it answered: a form can say
-   * "saved", and an approve what it scheduled, without waiting for every re-read.
+   * "saved", and an approve what it scheduled, without waiting for every re-read; and a write that follows can build
+   * on the answer (the settings save's `{ config, version }`) instead of on a read that is about to be replaced.
    */
   onAccepted?: (data: OutputOf<Routes[K]>) => void;
 }

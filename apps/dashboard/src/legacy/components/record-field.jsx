@@ -1,11 +1,15 @@
 /* global React, Icon */
 // Chanlytics record kit: the fields.
 //
-// Each is announced as what it is. A field is a label that holds its box; a switch is role="switch" and says which
-// state it is in; a choice of a few is a radiogroup, one tab stop that the arrows walk; a long list you type into is
-// a combobox. None of them knows what it edits, and none has words of its own: every label, hint, option and tip here
+// Each is announced as what it is. A field is a label that holds its box; a box in a row of a list carries its name
+// (RecordBox); a switch is role="switch" and says which state it is in; a choice of a few is a radiogroup, one tab stop
+// that the arrows walk; a long list you type into is a combobox. None of them knows what it edits, and none has words of its own: every label, hint, option and tip here
 // is the page's. A control that commits takes `gate` (window.gate(...)'s props) and spreads it after its handlers, as
 // every committing control here does.
+//
+// Each takes `readOnly`, for the moment its fold's or its row's save is out (record-fold.jsx says why): a box keeps
+// its words and its focus and takes no typing, a switch and a choice say they are not to be pressed and a press does
+// nothing, and a combobox opens no list. Never `disabled`, which lets go of focus, to the page.
 //
 // Two tiers of tip, and the rule between them: if there is nothing to press in it, it is a chip. RecordTip is the
 // chip, the app's own dark tooltip (data-bits' __tip) on a mark; RecordTipCard is the white card, for a tip that
@@ -19,8 +23,8 @@ const { useState: useRfState, useEffect: useRfEffect, useRef: useRfRef, useId: u
 // the one FieldError (data-bits) with the id rec-<id>-problem, which the box names in aria-describedby as it marks
 // itself aria-invalid; a hint gives way to it. Given no `id`, the field takes one from React.useId, so two fields
 // never share a sentence. `rows` makes the box a textarea. onChange hands the page the words. Anything else
-// (inputMode, placeholder, maxLength, disabled, onKeyDown, onBlur) goes to the box as it is; the page's own className
-// and aria-describedby join the field's, so a consequence line of the page's can describe the box too.
+// (inputMode, placeholder, maxLength, readOnly, type, onKeyDown, onBlur) goes to the box as it is; the page's own
+// className and aria-describedby join the field's, so a consequence line of the page's can describe the box too.
 //
 // The rest is gathered by hand, not with `...rest` in the parameters. The standalone mockup compiles each file with
 // Babel into one shared global scope, and Babel keeps an object rest's excluded keys in a top-level `var _excluded`:
@@ -61,9 +65,57 @@ const RecordField = (props) => {
   );
 };
 
+// One labelled box for a row of a list: a shift's opening time, a closed day's date, a service's name. The list's header
+// names the column and is not read out, so the box carries its own name (`label`, heard, never seen: "Closed from, row
+// 2", "Monday closes, second shift"), and it wires what is wrong with it, its unit and the read-only state as RecordField
+// does. HOOKLESS, because the rows of a list come and go and the tests' stub React keeps every hook in one order
+// (record-fold.jsx's header): so it REQUIRES an `id`, and takes no name from React.useId. `problem` is the sentence
+// drawn under the box (the one FieldError, id rec-<id>-problem, which the box names as it marks itself aria-invalid);
+// `invalid` is the id of a sentence drawn ELSEWHERE that this box is wrong by (a day's two boxes share one), and marks
+// the box the same without drawing it. `size="sm"` is the box at the width of a time or a number, record.css's small
+// variant. `type` is the box's (a date, a time, a number); anything else (placeholder, min, inputMode, className) goes
+// to the box as it is, as RecordField's rest does, and gathered the same way for the same reason. `rows` makes the box
+// a textarea of that many rows, as RecordField's `rows` does, for words in a row of a list that run to sentences (a
+// note's text, a message sent in the business's name); a textarea has no `type`, so it takes none.
+//   <RecordBox id="closure-0-date" label="Closed from, row 1" type="date" value={c.date} onChange={…} problem={bad} />
+//   <RecordBox id="note-0-text" label="Note 1, what it says" rows={3} value={n.text} onChange={…} />
+const REC_BOX_OWN = new Set(["id", "label", "unit", "value", "onChange", "problem", "invalid", "readOnly", "type", "size", "rows", "testid"]);
+const RecordBox = (props) => {
+  const { id, label, unit = null, value, onChange, problem = null, invalid = null, readOnly = false, type = "text", size = null, rows = null, testid = null } = props;
+  if (!id) throw new TypeError("RecordBox needs an id: it is hookless, so it cannot make one, and its sentence is named by it.");
+  const rest = {};
+  for (const k of Object.keys(props)) if (!REC_BOX_OWN.has(k)) rest[k] = props[k];
+  const problemId = `rec-${id}-problem`;
+  const wrong = problem ? problemId : invalid || null;
+  const describedBy = [wrong, rest["aria-describedby"]].filter(Boolean).join(" ");
+  const own = {
+    ...rest,
+    id,
+    className: ["rec-input", rest.className].filter(Boolean).join(" "),
+    value: value == null ? "" : value,
+    onChange: (e) => { if (onChange) onChange(e.target.value); },
+    "aria-label": label,
+    "aria-invalid": wrong ? true : undefined,
+    "aria-describedby": describedBy || undefined,
+    readOnly: readOnly || undefined,
+  };
+  const box = rows ? <textarea {...own} rows={rows} /> : <input {...own} type={type} />;
+  return (
+    <span className="rec-box" data-size={size || undefined} data-testid={testid || undefined}>
+      {unit ? (
+        <span className="rec-input-group" data-invalid={wrong ? "true" : undefined}>
+          {box}
+          <span className="rec-input-unit">{unit}</span>
+        </span>
+      ) : box}
+      {problem ? <window.FieldError id={problemId} message={problem} /> : null}
+    </span>
+  );
+};
+
 // A switch: a real button with role="switch". A press asks the page for the other state. `label` names it, or
 // `labelledBy` points at the words beside it that already do.
-const RecordSwitch = ({ on, onChange, label = null, labelledBy = null, gate = null, testid = null }) => (
+const RecordSwitch = ({ on, onChange, label = null, labelledBy = null, readOnly = false, gate = null, testid = null }) => (
   <button
     type="button"
     role="switch"
@@ -71,8 +123,9 @@ const RecordSwitch = ({ on, onChange, label = null, labelledBy = null, gate = nu
     aria-checked={!!on}
     aria-label={labelledBy ? undefined : label || undefined}
     aria-labelledby={labelledBy || undefined}
+    aria-disabled={readOnly || undefined}
     data-testid={testid || undefined}
-    onClick={() => { if (onChange) onChange(!on); }}
+    onClick={() => { if (!readOnly && onChange) onChange(!on); }}
     {...(gate || {})}
   >
     <span className="rec-knob" aria-hidden="true" />
@@ -82,9 +135,9 @@ const RecordSwitch = ({ on, onChange, label = null, labelledBy = null, gate = nu
 // A choice of a few, drawn as a segmented control and announced as a radiogroup. It is one tab stop, on the chosen
 // option; the arrows pick the next or the one before and take focus there, wrapping at either end, and Home and End
 // go to the ends, as a radiogroup's keys do. `options` is [{ value, label }].
-const RecordToggleGroup = ({ label, value, options = [], onChange, gate = null, testid = null }) => {
+const RecordToggleGroup = ({ label, value, options = [], onChange, readOnly = false, gate = null, testid = null }) => {
   const at = options.findIndex((o) => o.value === value);
-  const refused = !!(gate && gate["aria-disabled"]);
+  const refused = readOnly || !!(gate && gate["aria-disabled"]);
   const walk = (e) => {
     const n = options.length;
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
@@ -107,8 +160,9 @@ const RecordToggleGroup = ({ label, value, options = [], onChange, gate = null, 
             role="radio"
             className="rec-seg-btn"
             aria-checked={checked}
+            aria-disabled={readOnly || undefined}
             tabIndex={checked || (at < 0 && i === 0) ? 0 : -1}
-            onClick={() => { if (onChange) onChange(o.value); }}
+            onClick={() => { if (!readOnly && onChange) onChange(o.value); }}
             {...(gate || {})}
           >
             {o.label}
@@ -129,6 +183,18 @@ const RecordToggleGroup = ({ label, value, options = [], onChange, gate = null, 
 // The options are the combobox pattern's <li role="option">: a pointer presses them, a keyboard never focuses them.
 // The list itself is never a tab stop (Chrome makes a list that scrolls one), and it holds the pointer, on an option
 // or on its scroll, so focus never leaves the box for it.
+//
+// Two things a box that ADDS from a list needs (the Business tab's languages), each the page's to decide:
+// - `typed(words)` answers an option for what is typed, drawn after the matches, or null: a name the list does not hold,
+//   offered as it was typed, in the page's words ({ value: "Xhosa", label: "Add “Xhosa”" }). Not drawn when an option
+//   already has its value. Picked, it is onChange's like any other.
+// - `onKeyDown` is the page's, asked before the box's own keys and never while the box is refused; a key it takes
+//   (preventDefault) goes no further. A token field takes Backspace on an empty box to give back the last token.
+//   `e.target.value` is what the box shows, so "" is an empty box.
+// - `onLeave(words)` is handed the words typed in the box, trimmed, as focus leaves it with some there (the box closes
+//   and clears as it always did), and never while it is refused. The old form's language box added what was typed as
+//   it lost focus; a box that only closed dropped it, so a fold saved without the language typed into it. Given none,
+//   leaving throws the words away, as it always did (the timezone's box).
 
 // What was typed into `was`, where `now` is `was` with the typing in it, anywhere; or `now` as it is.
 const recTypedInto = (was, now) => {
@@ -140,7 +206,7 @@ const recTypedInto = (was, now) => {
   return head + tail === was.length ? now.slice(head, now.length - tail) : now;
 };
 
-const RecordCombobox = ({ id, label, value = null, options = [], onChange, placeholder = undefined, gate = null, testid = null }) => {
+const RecordCombobox = ({ id, label, value = null, options = [], onChange, placeholder = undefined, readOnly = false, gate = null, typed = null, onKeyDown = null, onLeave = null, testid = null }) => {
   const [open, setOpen] = useRfState(false);
   const [query, setQuery] = useRfState("");
   const [active, setActive] = useRfState(0);
@@ -149,10 +215,12 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
   // Given no `id`, the list and its options take their names from React.useId, so two comboboxes never share one.
   const autoId = useRfId();
   const boxId = id || autoId;
-  const refused = !!(gate && gate["aria-disabled"]);
+  const refused = readOnly || !!(gate && gate["aria-disabled"]);
   const chosen = options.find((o) => o.value === value) || null;
   const q = query.trim().toLowerCase();
-  const shown = q ? options.filter((o) => String(o.label).toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)) : options;
+  const matched = q ? options.filter((o) => String(o.label).toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)) : options;
+  const offer = q && typeof typed === "function" ? typed(query.trim()) : null;
+  const shown = offer && !options.some((o) => o.value === offer.value) ? matched.concat([offer]) : matched;
   const expanded = open && !refused && shown.length > 0;
   const at = Math.max(0, Math.min(active, shown.length - 1));
   const listId = `rec-${boxId}-list`;
@@ -165,7 +233,19 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
   }, [expanded, at, boxId]);
   const shut = () => { setOpen(false); setQuery(""); setActive(0); };
   const pick = (o) => { shut(); if (onChange) onChange(o.value); };
+  const leave = () => {
+    const words = query.trim();
+    shut();
+    if (words && !refused && typeof onLeave === "function") onLeave(words);
+  };
   const onKey = (e) => {
+    // Refused (a gate's, or read-only while a save is out), the box takes no key: the arrows opened it underneath,
+    // where the list was not drawn but the box went blank for the search that was not to be typed.
+    if (refused) return;
+    if (typeof onKeyDown === "function") {
+      onKeyDown(e);
+      if (e.defaultPrevented) return;
+    }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (!expanded) { setOpen(true); setActive(Math.max(0, shown.findIndex((o) => o.value === value))); return; }
@@ -198,7 +278,7 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
           onMouseUp={(e) => { if (clickFocuses.current) { clickFocuses.current = false; e.preventDefault(); } }}
           onChange={(e) => { setQuery(open ? e.target.value : recTypedInto(chosen ? chosen.label : "", e.target.value)); setOpen(true); setActive(0); }}
           onKeyDown={onKey}
-          onBlur={shut}
+          onBlur={leave}
           {...(gate || {})}
         />
       </span>
@@ -251,4 +331,4 @@ const RecordTipCard = ({ title, body = null, act = null, testid = null }) => (
   </div>
 );
 
-Object.assign(window, { RecordField, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordTipCard });
+Object.assign(window, { RecordField, RecordBox, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordTipCard });

@@ -744,7 +744,7 @@ function parseRule(value, fallbackTz) {
   for (const k of Object.keys(parts2))
     if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
   const interval = Math.max(1, Number(parts2.INTERVAL ?? 1) || 1);
-  const count = parts2.COUNT ? Number(parts2.COUNT) : null;
+  const count2 = parts2.COUNT ? Number(parts2.COUNT) : null;
   let until = null;
   if (parts2.UNTIL) {
     until = toMs(parts2.UNTIL, {}, fallbackTz);
@@ -766,7 +766,7 @@ function parseRule(value, fallbackTz) {
     bymonthday = Number(parts2.BYMONTHDAY);
     if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
   }
-  return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
+  return { freq, interval, count: count2 && count2 > 0 ? count2 : null, until, byday, bymonthday };
 }
 function occurrences(start, durMs, rule, exdates, horizon) {
   const out = [];
@@ -1083,7 +1083,8 @@ function matchService(services, asked) {
 }
 function needsConsultation(name, rules) {
   const n = foldName(name.trim());
-  return !!n && (rules?.consult_first ?? []).some((c) => foldName(String(c).trim()) === n);
+  const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
+  return !!n && list2.some((c) => foldName(String(c).trim()) === n);
 }
 function offerFor(services, rules, asked) {
   const service = matchService(services, asked);
@@ -2691,10 +2692,9 @@ function isBaselinePrompt(text) {
   return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 function instructionsDraft(brain) {
-  const own = brain?.profile?.extra_instructions ?? "";
-  if (own.trim()) return { text: own, carried: false };
-  const prompt = brain?.system_prompt ?? "";
-  return prompt.trim() && !isBaselinePrompt(prompt) ? { text: prompt, carried: true } : { text: "", carried: false };
+  const whose = whoseWords(brain);
+  if (whose.kind === "own") return { text: whose.text, carried: false };
+  return whose.kind === "carried" || whose.kind === "prompt" ? { text: whose.text, carried: true } : { text: "", carried: false };
 }
 var NotificationsConfigSchema = z3.object({
   escalation_emails: z3.array(z3.string().email()).min(1).max(10),
@@ -3246,6 +3246,13 @@ function longDate(key) {
     new Date(Date.UTC(y, m - 1, d, 12))
   );
 }
+function closureDatesLabel(c) {
+  if (!(c.until && c.until > c.date)) return shortDate(c.date);
+  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
+}
+function closuresFrom(closures, todayKey) {
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
+}
 function readAgoLabel(iso, now) {
   if (!iso) return null;
   return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
@@ -3483,12 +3490,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
-  const ahead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
-  const closuresAhead = ahead.slice(0, 6).map((c) => ({
-    key: c.date,
-    label: c.until && c.until > c.date ? `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
-    note: c.note ?? null
-  }));
+  const ahead = closuresFrom(dto.closures, todayKey);
+  const closuresAhead = ahead.slice(0, 6).map((c) => ({ key: c.date, label: closureDatesLabel(c), note: c.note ?? null }));
   const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? void 0 }));
   const services = (dto.services ?? []).map((s) => ({
     name: s.name,
@@ -3547,9 +3550,9 @@ function spanForView(view, anchor) {
 function windowFor(anchor) {
   return { from: shiftKey(mondayOf(`${anchor.slice(0, 7)}-01`), -7), days: 63 };
 }
-function coversSpan(days, from, count) {
-  if (!days.length || count < 1) return false;
-  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count - 1);
+function coversSpan(days, from, count2) {
+  if (!days.length || count2 < 1) return false;
+  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count2 - 1);
 }
 function frameOf(key, todayKey) {
   const { y, m, d } = keyParts(key);
@@ -8701,7 +8704,7 @@ function reachLines(reach, p) {
   const t = p ? triggerOf(p.trigger) : null;
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
-  const one = (n, singular, plural7) => n === 1 ? singular : plural7;
+  const one = (n, singular, plural8) => n === 1 ? singular : plural8;
   const reasons = [
     {
       n: reach.noYes,
@@ -9718,8 +9721,8 @@ function starsOf(rating) {
   const n = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
   return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
 }
-function reviewsWords(count) {
-  return typeof count === "number" ? plural4(count, "review") : "reviews not counted yet";
+function reviewsWords(count2) {
+  return typeof count2 === "number" ? plural4(count2, "review") : "reviews not counted yet";
 }
 function listingLine(l) {
   if (!l.review_count) return `${l.name} \xB7 no reviews on Google yet`;
@@ -9800,9 +9803,9 @@ function gainedOver(days, periodDays) {
   const points = [];
   let prev = before.length ? baseline.review_count : null;
   for (let day = since; day <= last.day; day = shiftDay2(day, 1)) {
-    const count = byDay.get(day);
-    const gained = count !== void 0 && prev !== null ? Math.max(0, count - prev) : 0;
-    if (count !== void 0) prev = count;
+    const count2 = byDay.get(day);
+    const gained = count2 !== void 0 && prev !== null ? Math.max(0, count2 - prev) : 0;
+    if (count2 !== void 0) prev = count2;
     points.push({ day, label: fmtDay(day), short: String(dayDate(day).getDate()), gained });
   }
   const max = Math.max(0, ...points.map((p) => p.gained));
@@ -13558,6 +13561,7 @@ var STRENGTHS = {
 function ruleStrength(key) {
   return STRENGTHS[key];
 }
+var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
 function standingLine(i) {
   const p = i.profile ?? {};
@@ -13565,7 +13569,7 @@ function standingLine(i) {
   if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
   if (!has2(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
   if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
-  if (!has2(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
+  if (!has2(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
   if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
   if (!has2(p.tone))
     gaps.push({
@@ -13581,6 +13585,224 @@ function standingLine(i) {
   const wont = has2(p.services) ? "It offers a consult or the booking link instead of a price." : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
+var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+function openWeekWords(hours, tz) {
+  const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0).length;
+  const zone = `in ${timezoneCity(tz)} time`;
+  if (!open) return `Times are ${zone}`;
+  return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
+}
+function closuresAheadWords(closures, tz, now) {
+  const dated = (closures ?? []).filter((c) => !!c?.date);
+  const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
+  const next = ahead[0];
+  if (!next) return { count: 0, line: null };
+  const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
+  return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
+}
+var count = (n) => n.toLocaleString("en-US");
+var SERVICE_CHIPS = 4;
+var CONSULT = /\bconsult/i;
+var inSentence = (note) => /^[A-Z][a-z]/.test(note) ? `${note[0].toLowerCase()}${note.slice(1)}` : note;
+function servicesWords(services) {
+  const list2 = (Array.isArray(services) ? services : []).filter(
+    (s) => !!s && typeof s.name === "string" && s.name.trim() !== ""
+  );
+  const n = list2.length;
+  if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
+  const notes = list2.map((s) => typeof s.price_note === "string" ? s.price_note.trim() : "");
+  const naming = notes.filter((note) => note !== "" && violatesNoPrices(note)).length;
+  const first = notes[0] ?? "";
+  const oneNote = first !== "" && notes.every((note) => note.toLowerCase() === first.toLowerCase());
+  const priced = naming ? `${count(naming)} ${naming === 1 ? "names" : "name"} a price.` : oneNote && CONSULT.test(first) ? n === 1 ? `${first[0].toUpperCase()}${first.slice(1)} \u2014 it names no price.` : `Every one ${inSentence(first)} \u2014 none names a price.` : "None names a price.";
+  const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
+    name: s.name.trim(),
+    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
+  }));
+  return {
+    count: n,
+    line: `${count(n)} on record`,
+    priced,
+    chips,
+    more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null
+  };
+}
+function blockShareWords(chars, total) {
+  const SHARES = [
+    [1 / 10, "a tenth"],
+    [1 / 5, "a fifth"],
+    [1 / 4, "a quarter"],
+    [1 / 3, "a third"],
+    [2 / 5, "two fifths"],
+    [1 / 2, "half"],
+    [3 / 5, "three fifths"],
+    [2 / 3, "two thirds"],
+    [3 / 4, "three quarters"],
+    [4 / 5, "four fifths"],
+    [9 / 10, "nine tenths"]
+  ];
+  if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
+  const f = Math.min(1, chars / total);
+  if (f >= 0.95) return "nearly everything it reads";
+  if (f < 0.075) return "less than a tenth of everything it reads";
+  const [share, words2] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words2} of everything it reads`;
+}
+function servicesToldWords(i) {
+  const n = i.count;
+  if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
+  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
+  const size = i.chars ? `, ${count(i.chars)} characters` : "";
+  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
+}
+function serviceUndoName(name) {
+  const n = typeof name === "string" ? name.trim() : "";
+  return n ? `Undo removing ${n}` : "Undo removing a service";
+}
+function servicesFoundWords(shown, total) {
+  if (!total) return "No services yet.";
+  if (!shown) return "No service is called that.";
+  return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
+}
+function servicesSaveWords(n) {
+  if (!n) return "Save with no services";
+  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
+}
+var isNumber = (v) => typeof v === "number" && Number.isFinite(v);
+var plural6 = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
+function bookingRulesWords(rules) {
+  const r = rules ?? {};
+  const parts2 = [];
+  if (isNumber(r.lead_hours))
+    parts2.push(
+      r.lead_hours === 0 ? "same-day bookings" : `at least ${r.lead_hours === 1 ? "1 hour's" : `${count(r.lead_hours)} hours'`} notice`
+    );
+  if (isNumber(r.slot_min)) parts2.push(`${count(r.slot_min)}-minute slots`);
+  if (isNumber(r.buffer_min))
+    parts2.push(
+      r.buffer_min === 0 ? "no gap between appointments" : `${plural6(r.buffer_min, "minute", "minutes")} between appointments`
+    );
+  if (isNumber(r.max_days_ahead)) parts2.push(`up to ${plural6(r.max_days_ahead, "day", "days")} ahead`);
+  if (isNumber(r.party_max)) parts2.push(`up to ${plural6(r.party_max, "person", "people")}`);
+  const joined = parts2.join(" \xB7 ");
+  const notes = (Array.isArray(r.notes) ? r.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
+    const t = x.trim();
+    return /[.!?…]$/.test(t) ? t : `${t}.`;
+  });
+  const d = BOOKING_DEFAULTS;
+  return {
+    line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
+    notes: notes.length ? notes.join(" ") : null,
+    none: `The calendar's own \u2014 at least ${plural6(d.lead_hours, "hour's", "hours'")} notice, up to ${plural6(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
+  };
+}
+function bookingRuleRefusal(key) {
+  const shape = BookingRulesSchema.shape;
+  const words2 = {
+    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural6(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural6(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural6(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural6(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
+  };
+  const say = Object.prototype.hasOwnProperty.call(words2, key) ? words2[key] : null;
+  const bound = say ? shape[key]?.unwrap?.() : null;
+  if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
+    throw new TypeError(
+      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words2).join(", ")}), not ${JSON.stringify(key)}.`
+    );
+  }
+  return say(bound.minValue, bound.maxValue);
+}
+var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
+  lead_hours: `Empty uses ${plural6(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+  slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
+  buffer_min: null,
+  max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
+  party_max: "Larger groups go to a person."
+}))();
+var PROFILE_CROSSING_WORDS = {
+  stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
+  starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
+};
+var TONE_PRESETS = [
+  {
+    label: "Warm and brief",
+    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked."
+  },
+  {
+    label: "Professional, no small talk",
+    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks."
+  },
+  {
+    label: "Chatty, first names",
+    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk."
+  }
+];
+var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
+var cutAtWord = (text, max) => {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max + 1);
+  const at2 = head.lastIndexOf(" ");
+  const cut = (at2 > 0 ? head.slice(0, at2) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
+  return `${cut}\u2026`;
+};
+function handoffChatWords(i) {
+  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
+}
+function transferWords(hasHandoffNumber) {
+  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.";
+}
+function handoffCallWords(i) {
+  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
+}
+var HANDOFF_REASONS_SHOWN = 64;
+function handoffWords(reasons, transfer) {
+  const list2 = (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === "string" && r.trim() !== "").map((r) => r.trim());
+  const n = list2.length;
+  const number = typeof transfer === "string" ? transfer.trim() : "";
+  return {
+    chat: n ? `on ${plural6(n, "reason", "reasons")} \u2014 ${cutAtWord(list2.join(" \xB7 "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
+    phone: number ? `transfers to ${number}` : "takes a message"
+  };
+}
+var NOTE_CHIPS = 4;
+function notesWords(notes) {
+  const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
+  const n = titles.length;
+  return {
+    count: n,
+    chips: titles.slice(0, NOTE_CHIPS),
+    more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null
+  };
+}
+var OPENING_SHOWN = 72;
+function instructionsWords(text) {
+  const t = typeof text === "string" ? text.trim() : "";
+  if (!t) return { size: null, opening: null, nearFull: null };
+  const n = t.length;
+  return {
+    size: plural6(n, "character", "characters"),
+    opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
+    nearFull: n > INSTRUCTIONS_MAX * 0.8 ? `${count(n)} of ${count(INSTRUCTIONS_MAX)} characters` : null
+  };
+}
+function fallbacksWords(fallbacks) {
+  const keys = Object.keys(FALLBACK_DEFAULTS);
+  const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
+  const differ = keys.filter((k) => {
+    const t = typeof f[k] === "string" ? f[k].trim() : "";
+    return t !== "" && t !== FALLBACK_DEFAULTS[k];
+  }).length;
+  return {
+    line: `${count(keys.length)} messages sent in your name`,
+    own: differ ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording` : "all in the default wording"
+  };
+}
+var RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
@@ -13615,8 +13837,6 @@ function abilityRows(i) {
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
   const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
   const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  const handoffWhen = i.hasEscalateWhen ? "On your reasons, or when a customer asks for a person or it can't help, it" : "When a customer asks for a person or it can't help, it";
-  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
   return [
     {
       id: "answer",
@@ -13650,22 +13870,24 @@ function abilityRows(i) {
     {
       id: "transfer",
       title: "Put a caller through",
-      // config.ts: "Use transfer_to_staff during opening hours -- it rings the line a person
-      // answers, and you stay on until they pick up."
-      detail: i.hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.",
+      // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
+      detail: transferWords(i.hasHandoffNumber),
       channels: { voice: i.voiceLive, whatsapp: false },
-      // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt.
-      runsOn: { label: "The transfer number", row: "handoff" },
+      // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
+      // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
+      runsOn: { label: "The transfer number", row: "handoff_number" },
       ready: i.voiceLive && i.hasHandoffNumber
     },
     {
       id: "handoff",
       title: "Hand the thread to you",
-      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
-      // after that the receptionist answers the next message itself, Needs you or not.
-      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`,
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
+      // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
+      // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
+      // hand-off row's fold says it in the same words (handoffChatWords).
+      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
       channels: { voice: false, whatsapp: i.whatsappLive },
-      runsOn: { label: "Your reasons", row: "handoff" },
+      runsOn: { label: "Your reasons", row: "escalate_when" },
       ready: i.whatsappLive
     },
     {
@@ -13704,6 +13926,97 @@ function cannotRows(i) {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
   return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
+}
+var PROFILE_LIMITS = /* @__PURE__ */ (() => {
+  const cap2 = (schema) => {
+    const s = schema;
+    if (typeof s.maxLength === "number") return s.maxLength;
+    for (const c of s.def?.checks ?? []) {
+      const d = c?._zod?.def;
+      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
+    }
+    throw new TypeError(
+      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses."
+    );
+  };
+  const floor = (schema) => {
+    const s = schema;
+    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
+    return s.minLength;
+  };
+  const opt = (schema) => schema.unwrap();
+  const p = BusinessProfileSchema.shape;
+  const service = opt(p.services).element.shape;
+  const note = opt(p.notes).element.shape;
+  const rules = BookingRulesSchema.shape;
+  const minutes = opt(service.duration_min);
+  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
+  return {
+    tone: cap2(opt(p.tone)),
+    services: cap2(opt(p.services)),
+    serviceName: cap2(service.name),
+    serviceMinutes: minutes.maxValue,
+    servicePrice: cap2(opt(service.price_note)),
+    languages: cap2(opt(p.languages)),
+    languageMin: floor(opt(p.languages).element),
+    languageMax: cap2(opt(p.languages).element),
+    reasons: cap2(opt(p.escalate_when)),
+    reason: cap2(opt(p.escalate_when).element),
+    consultFirst: cap2(opt(rules.consult_first)),
+    consultFirstLine: cap2(opt(rules.consult_first).element),
+    ruleNotes: cap2(opt(rules.notes)),
+    ruleNote: cap2(opt(rules.notes).element),
+    notes: cap2(opt(p.notes)),
+    noteTitle: cap2(note.title),
+    noteText: cap2(note.text),
+    closureNote: cap2(opt(ClosureSchema.shape.note)),
+    closures: MAX_CLOSURES,
+    shifts: MAX_INTERVALS_PER_DAY,
+    instructions: INSTRUCTIONS_MAX,
+    message: cap2(BrainConfigSchema.shape.fallbacks.shape.greeting)
+  };
+})();
+function profileRefusal(key, seen, of) {
+  const L2 = PROFILE_LIMITS;
+  const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const lines = (max, one, many) => `At most ${plural6(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const words2 = {
+    tone: () => chars(L2.tone),
+    services: () => `At most ${plural6(L2.services, "service", "services")}.`,
+    serviceName: () => chars(L2.serviceName),
+    serviceMinutes: () => `At most ${count(L2.serviceMinutes)} minutes, a whole day.`,
+    servicePrice: () => chars(L2.servicePrice),
+    languages: () => `At most ${plural6(L2.languages, "language", "languages")}.`,
+    language: () => `\u201C${of ?? ""}\u201D is not a language's name: ${L2.languageMin} to ${L2.languageMax} characters.`,
+    reasons: () => lines(L2.reasons, "reason", "reasons"),
+    reason: () => `Each reason is at most ${count(L2.reason)} characters.`,
+    consultFirst: () => lines(L2.consultFirst, "service", "services"),
+    consultFirstLine: () => `Each service is at most ${count(L2.consultFirstLine)} characters.`,
+    ruleNotes: () => lines(L2.ruleNotes, "note", "notes"),
+    ruleNote: () => `Each note is at most ${count(L2.ruleNote)} characters.`,
+    notes: () => `At most ${plural6(L2.notes, "note", "notes")}.`,
+    noteTitle: () => `A note's title is at most ${count(L2.noteTitle)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
+    noteText: () => `A note's text is at most ${count(L2.noteText)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
+    closures: () => `At most ${plural6(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
+    closureNote: () => chars(L2.closureNote),
+    shifts: () => `At most ${plural6(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+    instructions: () => chars(L2.instructions),
+    message: () => chars(L2.message)
+  };
+  const say = Object.prototype.hasOwnProperty.call(words2, key) ? words2[key] : null;
+  if (!say) {
+    throw new TypeError(
+      `profileRefusal knows the tab's own caps (${Object.keys(words2).join(", ")}), not ${JSON.stringify(key)}.`
+    );
+  }
+  return say();
+}
+var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
+function writtenOutDetail(text, bookingLink) {
+  const said = typeof text === "string" ? text : "";
+  const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
+  if (link && said.includes(link)) return "link";
+  return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
 }
 
 // src/prompt-blocks.ts
@@ -14663,7 +14976,7 @@ function leadNoCardLine(what) {
   return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
 }
 var LEAD_PAUSED_TITLE = "Lead searches are paused for now";
-var plural6 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var plural7 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 function leadAnd(items) {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
@@ -14685,7 +14998,7 @@ function leadEndingLine(ending, f) {
       if (f.counted === 0) {
         return {
           mark,
-          title: `There are ${plural6(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
+          title: `There are ${plural7(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
           parts: ["Nothing was counted."],
           step: f.nearby.length ? { id: "nearby", label: `Look in ${leadAnd(f.nearby)}` } : null
         };
@@ -14709,7 +15022,7 @@ function leadEndingLine(ending, f) {
       return {
         mark,
         // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
-        title: `Found all ${plural6(f.seen, one, f.name)} in ${f.area}`,
+        title: `Found all ${plural7(f.seen, one, f.name)} in ${f.area}`,
         parts: [yours, ...f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : []],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
       };
@@ -15689,12 +16002,12 @@ function leadPlanFacts(plan, facts) {
 }
 function leadPlanAsk(plan, facts) {
   const binds = facts.bound !== null && facts.leadsLeft < plan.count;
-  const count = binds ? Math.max(0, facts.leadsLeft) : plan.count;
-  const label = `Find ${count} lead${count === 1 ? "" : "s"}`;
-  if (!binds) return { count, label, covers: null };
+  const count2 = binds ? Math.max(0, facts.leadsLeft) : plan.count;
+  const label = `Find ${count2} lead${count2 === 1 ? "" : "s"}`;
+  if (!binds) return { count: count2, label, covers: null };
   const who = planWho(plan);
-  const covers = facts.bound === "budget" ? `Emails for ${who} are hard to find, so this month covers about ${count} more. Find ${count} now?` : `You have ${count} lead${count === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
-  return { count, label, covers };
+  const covers = facts.bound === "budget" ? `Emails for ${who} are hard to find, so this month covers about ${count2} more. Find ${count2} now?` : `You have ${count2} lead${count2 === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
+  return { count: count2, label, covers };
 }
 
 // src/tone.ts
@@ -16186,6 +16499,7 @@ export {
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
   BOOKING_DEFAULTS,
+  BOOKING_RULE_HINTS,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
@@ -16459,6 +16773,8 @@ export {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
+  PROFILE_CROSSING_WORDS,
+  PROFILE_LIMITS,
   PROMPT_OPENINGS,
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,
@@ -16502,6 +16818,7 @@ export {
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
+  RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
   RUN_REPORT_STEPS,
   RenameLeadSearchSchema,
@@ -16552,6 +16869,7 @@ export {
   TODAY_LEAK_MAX,
   TODAY_QUEUE_MAX,
   TONES2 as TONES,
+  TONE_PRESETS,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   WABA_FIELDS,
@@ -16582,9 +16900,12 @@ export {
   billingAccountDto,
   billingDoorOpen,
   billingPill,
+  blockShareWords,
   bookedAfterAsk,
   bookingHeld,
   bookingLinkAction,
+  bookingRuleRefusal,
+  bookingRulesWords,
   bookingTemplate,
   brainMetaOf,
   broadcastFailureFix,
@@ -16633,6 +16954,9 @@ export {
   clockTime,
   clockWhen,
   closedOn,
+  closureDatesLabel,
+  closuresAheadWords,
+  closuresFrom,
   companyTypeOf,
   compareTemplates,
   compareWords,
@@ -16693,6 +17017,7 @@ export {
   extractContacts,
   factConflicts,
   fallbackMessages,
+  fallbacksWords,
   fastPath,
   feedBodyProblem,
   feedNotes,
@@ -16707,6 +17032,7 @@ export {
   fmtClock,
   fmtDay,
   fmtSeconds,
+  foldName,
   followupsToShow,
   footerOf,
   formatPhoneDisplay,
@@ -16730,7 +17056,10 @@ export {
   guardrailsInForce,
   guessName,
   guessSlotKind,
+  handoffCallWords,
+  handoffChatWords,
   handoffE164,
+  handoffWords,
   hardLimitsWords,
   hasProfile,
   hoursLines2 as hoursLines,
@@ -16745,6 +17074,7 @@ export {
   initialsOf,
   injectedTurn,
   instructionsDraft,
+  instructionsWords,
   inviteState,
   invoiceStatusWords,
   isActivityNoise,
@@ -16854,12 +17184,14 @@ export {
   normalizeNavigate,
   normalizePhone,
   notFoundPageMetadata,
+  notesWords,
   numberHealth,
   offerFor,
   offerLead,
   offeringHorizon,
   offersYesRefusal,
   ok,
+  openWeekWords,
   optInConfirmation,
   optInLink,
   optInPurposeOf,
@@ -16931,6 +17263,7 @@ export {
   previewHorizon,
   priceWords,
   priorOf,
+  profileRefusal,
   promptBlocks,
   providerNameOf,
   purposeOfPlaybook,
@@ -16989,6 +17322,11 @@ export {
   sendFailureIsOurs,
   sendableTemplates,
   serverNotificationRows,
+  serviceUndoName,
+  servicesFoundWords,
+  servicesSaveWords,
+  servicesToldWords,
+  servicesWords,
   setupRoute,
   setupSteps,
   sha256Hex,
@@ -17136,6 +17474,7 @@ export {
   windowFor,
   workspaceHotkey,
   writtenChannelOf,
+  writtenOutDetail,
   zoneDayKey,
   zoneMidnight,
   zoneOffsetMs,

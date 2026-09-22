@@ -192,6 +192,26 @@ function longDate(key: string): string {
   );
 }
 
+/**
+ * A closure's dates, as the board and Settings › Business both say them: "Dec 24", "Dec 24 – 26" within a month,
+ * "Dec 30 – Jan 2" across two. One spelling, here, so the row that counts the closures ahead and the board that
+ * draws them never name one date two ways.
+ */
+export function closureDatesLabel(c: Pick<Closure, "date" | "until">): string {
+  if (!(c.until && c.until > c.date)) return shortDate(c.date);
+  return `${shortDate(c.date)} – ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
+}
+
+/**
+ * The closures still ahead on the business's day `todayKey`, soonest first. One that ends today is still ahead; an
+ * `until` before its `date` is a one-day closure, as the composer reads it.
+ */
+export function closuresFrom<C extends Pick<Closure, "date" | "until">>(closures: readonly C[], todayKey: string): C[] {
+  return closures
+    .filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export function readAgoLabel(iso: string | null, now: Date): string | null {
   if (!iso) return null;
   return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
@@ -644,17 +664,10 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
-  const ahead = dto.closures
-    .filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey)
-    .sort((a, b) => a.date.localeCompare(b.date));
-  const closuresAhead: CalendarClosureVM[] = ahead.slice(0, 6).map((c) => ({
-    key: c.date,
-    label:
-      c.until && c.until > c.date
-        ? `${shortDate(c.date)} – ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`
-        : shortDate(c.date),
-    note: c.note ?? null,
-  }));
+  const ahead = closuresFrom(dto.closures, todayKey);
+  const closuresAhead: CalendarClosureVM[] = ahead
+    .slice(0, 6)
+    .map((c) => ({ key: c.date, label: closureDatesLabel(c), note: c.note ?? null }));
   // Sized by the phone tool's and the assistant's rule: a service that needs a consultation first, as a consultation (C5b).
   const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? undefined }));
   const services: CalendarServiceVM[] = (dto.services ?? []).map((s) => ({

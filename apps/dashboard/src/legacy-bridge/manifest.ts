@@ -98,6 +98,18 @@ import "@/legacy/pages/reports-sections.jsx";
 import "@/legacy/pages/reports.jsx";
 import "@/legacy/pages/tasks.jsx";
 import "@/legacy/pages/setup.jsx";
+// Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the
+// one-key save and how a number is written, which the old card in settings.jsx uses too.
+import "@/legacy/pages/business-tab-save.jsx";
+import "@/legacy/pages/business-tab-folds.jsx";
+import "@/legacy/pages/business-tab-gestures.jsx";
+import "@/legacy/pages/business-tab-who.jsx";
+import "@/legacy/pages/business-tab-open.jsx";
+import "@/legacy/pages/business-tab-offer.jsx";
+import "@/legacy/pages/business-tab-answers.jsx";
+import "@/legacy/pages/business-tab-services.jsx";
+import "@/legacy/pages/business-tab-create.jsx";
+import "@/legacy/pages/business-tab.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/billing-real.jsx";
 // After the mockup's settings: the Integrations pane and the one form it opens.

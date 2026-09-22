@@ -173,11 +173,8 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
   }
 });
 
-test("the browser only reads what the server composed: no composer runs in the page", () => {
-  assert.ok(
-    !verbs.includes("resolveSystemPrompt(") && !verbs.includes("describeNow("),
-    "the bridge no longer composes a prompt of its own, which is how it drifted",
-  );
+test("the card reads only what the server composed", () => {
+  // That the card's text is the server's, word for word, is executed in business-tab-bridge.test.mjs.
   assert.ok(verbs.includes("return { text: prompt[channel], now: prompt.now, tz: prompt.tz };"));
 });
 
@@ -193,7 +190,9 @@ test("nothing is shown when there is nothing true to show", () => {
   // that says "your receptionist is told nothing", which is a different claim.
   assert.ok(verbs.includes("if (!prompt) return null;"));
   assert.ok(pane.includes("if (!composed) return null;"));
-  assert.ok(pane.includes("{real && <PromptPreview />}"), "never rendered over mockup data");
+  // Drawn only under the record, which PaneWorkspace draws only for a workspace whose config holds a brain: never over
+  // the mockup's business, and never over a config the parser refused (Task 3.7 made the three states three returns).
+  assert.ok(pane.includes("if (real) {") && pane.includes("<PromptPreview />"), "never rendered over mockup data");
 });
 
 test("the clock is shown SEPARATELY, because it is sent separately", () => {

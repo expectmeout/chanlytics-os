@@ -231,7 +231,7 @@ test("day keys, the words, and the zone", () => {
   assert.equal(rulesLine(null), "Offers times with at least 2h notice · up to 14 days ahead · 30-min slots");
 });
 
-test("the doors and the page: read-only, the feed's address never in the browser, a feed checked before it is saved, the registry flipped", () => {
+test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(
     svc.includes("const feed = await loadFeed(tenantId, url, { fresh });"),
@@ -286,11 +286,9 @@ test("the doors and the page: read-only, the feed's address never in the browser
   assert.ok(readCode("apps/dashboard/src/legacy/pages/calendar.jsx").includes("window.CalendarSeed = CalendarPage;"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
-  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(
-    s.includes('data-testid="cal-check"') && s.includes("window.__calendar.previewFeed(icalUrl.trim())"),
-    "the feed is checked before it is saved",
-  );
+  // The form's "Check the address" button went with the form: the Business page's calendar row states its last read
+  // and its count, and says a read that failed with its Retry (the spec's "When you're open"), executed in
+  // business-tab-open.test.mjs. So a save no longer previews the feed first.
 });
 
 test("the words from Settings on the board: hours as runs, closures ahead, services with their length and consult-first; a month's label and span", async () => {

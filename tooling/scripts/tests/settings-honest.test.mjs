@@ -216,6 +216,10 @@ Object.assign(globalThis.window, {
   __fallbackDefaults: FALLBACK_DEFAULTS,
   __unknownDetails: unknownDetails,
 });
+await import("../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
+// How it answers owns the languages the old form offers and its three messages' labels, which settings.jsx reads as
+// it loads (business-tab-answers.jsx, before it in both load lists).
+await import("../../../apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {
@@ -241,7 +245,6 @@ const all = (tree, pred) => {
   return out;
 };
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
   if (typeof n === "string" || typeof n === "number") return String(n);
@@ -249,12 +252,6 @@ const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return textOf(n.props?.children);
 };
-const classed = (tree, cls) =>
-  find(tree, (n) =>
-    String(n.props?.className || "")
-      .split(" ")
-      .includes(cls),
-  );
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const labelled = (tree, tag, label) => find(tree, (n) => n.type === tag && n.props["aria-label"] === label);
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
@@ -321,26 +318,12 @@ const workspace = (over = {}) => {
     ...over,
   });
 };
-const absent = { value: null, source: "absent" };
 
 /* ------------------------------ the refresh ------------------------------ */
 
-test("REGRESSION (D7, S18): the Business card draws again when the settings surface is re-read -- after a save it kept the values from before", () => {
-  workspace();
-  settings("workspace");
-  // The re-read after a save lands: a new transfer number.
-  const was = globalThis.window.__FACTS;
-  globalThis.window.__FACTS = {
-    ...was,
-    facts: { ...was.facts, handoff_number: { value: "+17865550199", source: "typed" } },
-  };
-  globalThis.window.dispatchEvent({ type: "surface:settings" });
-  const tree = settle("workspace");
-  assert.ok(
-    textOf(byTestId(tree, "fact-transfers-a-caller-to")).includes("555-0199"),
-    "REGRESSION: the card still showed the number from before the save",
-  );
-});
+// REGRESSION (D7, S18): the Business card draws again when the settings surface is re-read -- after a save it
+// kept the values from before. The card is the Business page since Task 3.7, and it hears the read itself:
+// business-tab-open.test.mjs, "the page draws itself again when the settings surface is read again".
 
 test("REGRESSION (D7, S11): the Team card draws again when the settings surface is re-read -- an invitation just sent was not on it", () => {
   workspace();
@@ -355,84 +338,16 @@ test("REGRESSION (D7, S11): the Team card draws again when the settings surface 
 
 /* ------------------------------ what Business shows ------------------------------ */
 
-test("REGRESSION (S13): the timezone can be set before the receptionist exists -- it waited for one it does not depend on", () => {
-  workspace({
-    __SETTINGS: { role: "owner", version: 1, config: {} },
-    __FACTS: {
-      facts: {
-        business_name: absent,
-        voice_line: absent,
-        phone_display: absent,
-        handoff_number: absent,
-        address: absent,
-      },
-      conflicts: [],
-    },
-  });
-  const tree = settings("workspace");
-  assert.ok(
-    textOf(tree).includes("This workspace has no receptionist yet"),
-    "the fixture is a workspace with nothing set up",
-  );
-  assert.ok(byTestId(tree, "set-timezone"), "REGRESSION: the timezone row was hidden with the receptionist's details");
-  assert.ok(byTestId(tree, "set-tz-change"), "and it can be changed from there");
-});
+// REGRESSION (S13): the timezone can be set before the receptionist exists -- it waited for one it does not
+// depend on. The card a workspace with no receptionist sees draws When you're open's own timezone row under the
+// empty state: business-tab-create.test.mjs, "a workspace with no receptionist is told so...".
 
-test("REGRESSION (L7): Business writes numbers the way Setup does -- it showed +13055550100 and +17865550182", () => {
-  workspace();
-  let tree = settings("workspace");
-  const said = (id) => textOf(byTestId(tree, id));
-  assert.ok(said("fact-answers-on").includes("+1 (305) 555-0100"), `REGRESSION: ${said("fact-answers-on")}`);
-  assert.ok(!said("fact-answers-on").includes("+13055550100"));
-  assert.ok(
-    said("fact-transfers-a-caller-to").includes("+1 (786) 555-0182"),
-    `REGRESSION: ${said("fact-transfers-a-caller-to")}`,
-  );
-  assert.ok(
-    said("fact-tells-customers-to-call").includes("+1 (305) 555-0100"),
-    "the number it gives out, as it says it",
-  );
+// REGRESSION (L7): Business writes numbers the way Setup does -- it showed +13055550100 and +17865550182. The
+// three numbers are three rows of the Business page, each stating a number the way people write it and opening
+// its editor on the same: business-tab-page.test.mjs presses every one of them.
 
-  press(byTestId(tree, "set-pub-change"));
-  tree = again("workspace");
-  assert.ok(
-    said("fact-tells-customers-to-call").includes("+1 (305) 555-0100 — the line your receptionist answers"),
-    `REGRESSION: ${said("fact-tells-customers-to-call")}`,
-  );
-  assert.ok(!said("fact-tells-customers-to-call").includes("+13055550100"));
-
-  press(byTestId(tree, "set-handoff-change"));
-  tree = again("workspace");
-  assert.equal(
-    byTestId(tree, "set-handoff-input").props.value,
-    "+1 (786) 555-0182",
-    "a change starts from the number as it is shown",
-  );
-  assert.equal(whyNotAHandoff("+1 (786) 555-0182", "+13055550100"), null, "which the transfer check accepts");
-  assert.equal(handoffE164("+1 (786) 555-0182"), "+17865550182", "and stores as it was");
-});
-
-test("REGRESSION (L7): setting up the receptionist names the line the same way -- the create form showed +13055550100", () => {
-  workspace({
-    __SETTINGS: { role: "owner", version: 1, config: {} },
-    __FACTS: {
-      facts: {
-        business_name: absent,
-        voice_line: { value: "+13055550100", source: "provisioned" },
-        phone_display: { value: formatPhoneDisplay("+13055550100"), source: "provisioned" },
-        handoff_number: absent,
-        address: absent,
-      },
-      conflicts: [],
-    },
-  });
-  let tree = settings("workspace");
-  press(buttonSaying(tree, "Set up the receptionist"));
-  tree = again("workspace");
-  const note = textOf(byTestId(tree, "set-pub-note"));
-  assert.ok(note.includes("+1 (305) 555-0100 — the line your receptionist answers"), `REGRESSION: ${note}`);
-  assert.ok(!note.includes("+13055550100"));
-});
+// REGRESSION (L7): setting up the receptionist names the line the same way -- the create form showed
+// +13055550100. business-tab-create.test.mjs, "the line it answers on is named the way people write it".
 
 test("REGRESSION (S24): the Settings rail says which page is open -- only its colour did", () => {
   workspace();
@@ -448,46 +363,11 @@ test("REGRESSION (S24): the Settings rail says which page is open -- only its co
 
 test("REGRESSION (S16): a check that fails does not wear the green check of success -- the checks on Settings did", () => {
   workspace();
-  // The transfer number.
-  let tree = settings("workspace");
-  press(byTestId(tree, "set-handoff-change"));
-  tree = again("workspace");
-  type(byTestId(tree, "set-handoff-input"), "12");
-  tree = again("workspace");
-  press(byTestId(tree, "set-handoff-save"));
-  assert.match(textOf(toasts.at(-1)?.msg), /country code/);
-  assert.equal(
-    toasts.at(-1)?.tone,
-    "warn",
-    "REGRESSION: a number nobody can be transferred to was refused under a green check",
-  );
-  // The number it gives out.
-  tree = settings("workspace");
-  press(byTestId(tree, "set-pub-change"));
-  tree = again("workspace");
-  press(byTestId(tree, "set-pub-other"));
-  tree = again("workspace");
-  type(byTestId(tree, "set-pub-input"), "12345");
-  tree = again("workspace");
-  press(byTestId(tree, "set-pub-save"));
-  assert.match(textOf(toasts.at(-1)?.msg), /short code/);
-  assert.equal(toasts.at(-1)?.tone, "warn", "the published number's check");
-  // The business editor's own checks.
-  tree = settings("workspace");
-  press(buttonSaying(tree, "Edit"));
-  tree = again("workspace");
-  type(labelled(tree, "input", "Website"), "not a website");
-  tree = again("workspace");
-  press(buttonSaying(classed(tree, "set-editor-foot"), "Save"));
-  assert.match(
-    textOf(toasts.at(-1)?.msg),
-    /1 field needs a look/,
-    "the toast counts; the website's own sentence is under its box (settings-editor.test.mjs)",
-  );
-  assert.equal(toasts.at(-1)?.tone, "warn", "the website check");
-  assert.equal(saved.length, 0, "and a refused form is not saved");
+  // The transfer number, the number it gives out and the business's own fields are rows and folds of the
+  // Business page since Task 3.7: each check is said under the box it belongs to, and the toast only counts
+  // them (business-tab-page.test.mjs, business-tab-open/-offer/-answers.test.mjs). What is still this pane's:
   // Who is alerted.
-  tree = settings("notifications");
+  let tree = settings("notifications");
   type(labelled(tree, "input", "Add an address to alert"), "nobody");
   tree = again("notifications");
   press(buttonSaying(tree, "Add"));
@@ -507,35 +387,9 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   assert.equal(toasts.at(-1)?.tone, "warn", "the invitation's address check");
 });
 
-test("REGRESSION (S18): removing a service or a note can be undone, as a shift and a closure can -- it could not", () => {
-  workspace();
-  let tree = settings("workspace");
-  press(buttonSaying(tree, "Edit"));
-  tree = again("workspace");
-  const valued = (v) => all(tree, (n) => (n.type === "input" || n.type === "textarea") && n.props.value === v).length;
-  assert.equal(valued("Cut"), 1, "the editor holds the service");
-  press(labelled(tree, "button", "Remove Cut"));
-  tree = again("workspace");
-  assert.equal(valued("Cut"), 0);
-  const service = toasts.at(-1);
-  assert.match(textOf(service?.msg), /Cut/, "the toast names what went");
-  assert.equal(typeof service?.undo, "function", "REGRESSION: gone, with nothing to take it back");
-  service.undo();
-  tree = again("workspace");
-  assert.equal(labelled(tree, "input", "Service name")?.props.value, "Cut", "and Undo puts it back where it was");
-  assert.equal(valued("Color"), 1);
-
-  press(labelled(tree, "button", "Remove Parking"));
-  tree = again("workspace");
-  assert.equal(valued("Parking"), 0);
-  const note = toasts.at(-1);
-  assert.match(textOf(note?.msg), /Parking/);
-  assert.equal(typeof note?.undo, "function", "REGRESSION: a note's words gone with no Undo");
-  note.undo();
-  tree = again("workspace");
-  assert.equal(valued("Parking"), 1);
-  assert.equal(valued("Behind the building."), 1, "with its words");
-});
+// REGRESSION (S18): removing a service or a note can be undone, as a shift and a closure can -- it could not.
+// The services are a sheet and the notes a fold of the Business page now, and every list in one has the same
+// Undo, at its own index and only once: business-tab-offer.test.mjs and business-tab-answers.test.mjs.
 
 /* ------------------------------ words, and seats ------------------------------ */
 

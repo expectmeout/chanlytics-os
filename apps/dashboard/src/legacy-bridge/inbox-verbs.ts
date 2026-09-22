@@ -21,10 +21,7 @@ import type { ApiOptions, ApiResult, Params, RouteKey } from "../client/api";
 import {
   FALLBACK_DEFAULTS,
   INSTRUCTIONS_MAX,
-  MAX_CLOSURES,
-  MAX_INTERVALS_PER_DAY,
   fallbackMessages,
-  hoursLines,
   inboxTemplates,
   instructionsDraft,
   inviteState,
@@ -398,10 +395,8 @@ declare global {
     __fallbackMessages: typeof fallbackMessages;
     __fallbackDefaults: typeof FALLBACK_DEFAULTS;
     __unknownDetails: typeof unknownDetails;
-    __hoursLines: typeof hoursLines;
     /** The approved templates one person can be sent, and why the rest are not offered (I4). */
     __inboxTemplates: typeof inboxTemplates;
-    __configLimits: { maxIntervalsPerDay: number; maxClosures: number };
     /** "Last changed by Ada, two days ago", from the settings row's own author and stamp; "" when there is no stamp. */
     __lastChanged: () => string;
     /** An open invitation's state for the Team card: pending with its expiry, or expired. */
@@ -507,15 +502,9 @@ export function installInboxVerbs(): void {
   window.__fallbackMessages = fallbackMessages;
   window.__fallbackDefaults = FALLBACK_DEFAULTS;
   window.__unknownDetails = unknownDetails;
-  // The Settings card summarises the week with the SAME collapse the prompt
-  // uses, in the words the Calendar's bar uses (C3).
-  window.__hoursLines = hoursLines;
   // The composer offers the templates the reply route accepts for this person, in the owner's words (I4).
   window.__inboxTemplates = inboxTemplates;
   window.__inviteState = (expiresAt) => inviteState(expiresAt, Date.now());
-  // The editor must not offer a shift the write schema will refuse, so the
-  // cap is published rather than retyped.
-  window.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES };
   window.__lastChanged = () => lastChangedFor(window as unknown as LastChangedWindow, Date.now());
 }
 
@@ -535,13 +524,17 @@ export async function saveSettings(
   config: unknown,
   version: number,
   /**
-   * Fired the moment the SERVER accepts, before the surfaces are re-read.
+   * Fired the moment the SERVER accepts, before the surfaces are re-read, with
+   * the config and version the server now holds.
    *
    * The refresh that follows re-fetches every surface, which takes seconds.
    * A caller that waited for the whole promise showed nothing at all in the
-   * meantime, and pressing Save looked like it had done nothing.
+   * meantime, and pressing Save looked like it had done nothing. And a second
+   * save made in those seconds went out on the version read before the first,
+   * so the server refused it as someone else's; the Business tab's saver
+   * sends the next one on this answer instead.
    */
-  onAccepted?: () => void,
+  onAccepted?: (saved: { config: unknown; version: number }) => void,
   /** The tab's own client and refresh, or a test's stand-ins. */
   deps: { client?: Api; refresh?: () => Promise<void> } = {},
 ): Promise<VerbResult> {

@@ -188,8 +188,14 @@ test("REGRESSION: an unconfigured workspace is not shown somebody else's busines
     settings.includes("const unconfigured = connected && !real;"),
     "'no configuration' and 'this is the demo' must not be the same branch",
   );
-  assert.ok(settings.includes("{unconfigured ? ("), "and the card must take the honest one");
-  assert.ok(settings.includes("This workspace has no receptionist yet"), "an empty workspace says so");
+  assert.ok(
+    settings.includes("if (unconfigured) return window.BtCreateCard ? <window.BtCreateCard"),
+    "and the card must take the honest one",
+  );
+  // Task 3.7: the empty state, and the fold that sets a receptionist up from it, are the page's own card. Drawn,
+  // not read: business-tab-create.test.mjs, "a workspace with no receptionist is told so, and offered the one act
+  // that changes it", reads "This workspace has no receptionist yet" off the drawn card, and "with nothing read to
+  // save onto, the act is not offered at all" reads it again where there is no config behind the fold.
 });
 
 test("REGRESSION: the team card reads real members, not the seed store", () => {
@@ -248,13 +254,11 @@ test("every default pane is one the registry classifies", () => {
   }
 });
 
-test("the empty profile leads with a button, not a footnote", () => {
-  // Every workspace starts here. A faint Edit link in a card header is findable
-  // by someone who already knows the form exists.
-  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
-  assert.ok(settings.includes("Add your business details"));
-  assert.ok(settings.includes("<EmptyState"), "through the one EmptyState");
-});
+// The empty profile leads with a button, not a footnote. Every workspace starts here, and a faint Edit link in a
+// card header is findable only by someone who already knows the form exists. Since Task 3.7 the form is gone and
+// the page says it at the top instead: the standing line names the one gap most worth closing and IS the door to
+// the row that closes it (the spec's 4.1). Drawn and pressed, not read -- business-tab-page.test.mjs, "a missing
+// voice is named in the band, and the link opens its row".
 
 /* ------------------ the gate must resolve the same way ------------------- */
 
