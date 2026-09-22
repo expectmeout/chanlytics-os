@@ -982,3 +982,18 @@ test("Ctrl or Cmd with Enter saves the sheet, as it saves a fold", () => {
   assert.equal(sent[0].config.brain.profile.services[2].duration_min, 75);
   assert.equal(sheetOf(redrawTab()), null, "taken, and closed");
 });
+
+test("the services sheet is the page's last drawn child, with the sheet closed and open", () => {
+  // The rule the page's comment stated and nothing held: the kit's sheet holds hooks and is drawn only while open, so
+  // a card drawn after it reads shifted hook cells whenever it opens (business-tab-gestures.jsx BtSheet). A card
+  // composed below the sheet's line is the first thing this catches, before any of its rows misbehave.
+  const lastDrawn = (tree) => [].concat(tree.rendered.props.children).filter((c) => c != null && c !== false).at(-1);
+  let tree = drawTab({ profile: many });
+  assert.equal(lastDrawn(tree).type, W.BtServicesSheet, "closed");
+  tree = openSheet(tree);
+  assert.ok(sheetOf(tree));
+  assert.equal(lastDrawn(tree).type, W.BtServicesSheet, "and open");
+  // And the kit's sheet is the last thing the services sheet draws, so the last hook-holding thing on the page.
+  const sheet = lastDrawn(tree);
+  assert.deepEqual([sheet.rendered.type, sheet.rendered.rendered.type], [W.BtSheet, W.RecordSheet]);
+});

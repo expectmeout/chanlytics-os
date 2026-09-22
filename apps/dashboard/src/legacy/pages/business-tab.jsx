@@ -137,7 +137,8 @@ const BusinessTab = ({ flash = () => {} }) => {
       {/* The services sheet, LAST, after every card: the kit's sheet holds hooks and is drawn only while it is open, and
           the tests' stub React keeps every hook on the page as a cell in one order, so drawn before a card it shifted
           that card's cells whenever it opened (BtSheet, business-tab-gestures.jsx; the sheet is business-tab-services.jsx).
-          Whatever card comes next goes above this line. */}
+          Whatever card comes next goes above this line; a page test holds the sheet last (business-tab-offer.test.mjs),
+          and a second sheet goes through this one slot, not a second last line (the plan's Phase 5 note). */}
       {window.BtServicesSheet ? <window.BtServicesSheet brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
     </>
   );

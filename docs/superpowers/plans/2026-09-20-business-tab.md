@@ -2409,6 +2409,8 @@ EOF
 
 ## Phase 5 — The prompt sheet (PR 5: "The prompt is a table of contents")
 
+> **Noted 22 Sep, in Task 3.4's quality review: one sheet slot, drawn last.** The services sheet is the page's last drawn child, because the kit's `RecordSheet` holds hooks and exists only while open (Task 3.4's note 3). A page test holds it there: it draws the page with the sheet closed and open, and asserts `window.BtServicesSheet` is the last child. Phase 5 cannot add a second sheet that is also always last; two cannot both be last. The prompt sheet goes through ONE sheet slot, drawn last in `business-tab.jsx`, which draws whichever sheet is open. Only one editor or sheet opens at a time (the registry), so the slot draws one sheet or none. When that slot lands, the last-child test asserts the slot, not a sheet.
+
 > **Carried from the Phase 1 re-review (21 Sep): M-5, a false block from inside a note.** This predates Phase 1's fixes. A note whose second line happens to open like the heading of a section the record *doesn't* have (e.g. "Services" on a record with no services) gets a block of its own, charged to that row. Review reproduced it. The fix: accept an opening only on a line that follows a blank line, because `composeSystemPrompt` always writes `\n${heading}`. Pin it with the note-continuation case, and check it against the full-sequence tests from Phase 1 item C.
 
 ### Task 5.1: The anchored prompt
