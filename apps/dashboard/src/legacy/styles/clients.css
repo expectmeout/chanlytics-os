@@ -2104,7 +2104,12 @@
    control. Searching, the bar is the field, at 16px: a phone zooms into anything smaller. */
 .pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px 16px; flex: none; }
 .pp-bar .pt-scope { margin: 0; }
-.pp-bar .pt-scope button { height: 32px; min-width: 56px; padding: 0 8px; }
+.pp-bar .pt-scope button { height: 38px; min-width: 56px; padding: 0 8px; }
+/* The switch stands as tall as the list button beside it (44px with its frame); its halves are 38px, not the touch
+   floor's 44 each, which drew the switch 50px tall beside a 44px button. */
+html.legacy-on .pp-bar .pt-scope button { min-height: 0; }
+/* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
+.pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }
 .pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
 .pp-bar-pick .icon { flex: none; color: var(--ink-dim); }
 /* The words give way, not the chevron: an ellipsis on the button itself does nothing, it is a flex box. */
@@ -2159,7 +2164,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   /* People's rows: one card cell each (plCardCell), edge to edge, a hairline between -- the Inbox's list. The wrap's
      box and its 16px margin are a desktop's. */
   .clients:not(.leads-scope) .pl-table-wrap { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
-  .clients:not(.leads-scope) .cl-table-foot { padding: 12px 16px; border-top: 0; }
+  .clients:not(.leads-scope) .cl-table-foot { padding: 12px 16px; border-top: 0; background: transparent; }
   .pl-table tbody tr.pl-card-row { display: block; position: relative; padding: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
   /* A tap is not a keyboard's cursor: the accent edge and the hover ground belong to the desktop's J and K. */
   .pl-table tbody tr.pl-card-row.focused { background: transparent; box-shadow: none; }
@@ -2203,4 +2208,10 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .clients:not(.leads-scope) .cl-bulk { left: 0; right: 0; bottom: 0; transform: none; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 8px 16px; border-width: 1px 0 0; border-radius: 0; box-shadow: 0 -10px 28px -14px oklch(0 0 0 / 0.45); animation: none; }
   .clients:not(.leads-scope) .cl-bulk > * { flex: none; }
   .clients:not(.leads-scope) .pl-table-wrap.selecting { margin-bottom: 64px; }
+}
+
+@media (max-width: 900px) {
+  /* A row of the phone's Lists sheet is the sheet's width, so what is picked and what is pressed is the whole row: a
+     row was as wide as its words, and Everyone's picked ground a box around two words. */
+  .pl-sheet .cl-rail-row { width: 100%; text-align: left; }
 }

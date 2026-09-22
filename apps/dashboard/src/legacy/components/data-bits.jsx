@@ -635,7 +635,10 @@ Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, 
   };
   const place = (t) => {
     const text = t.getAttribute("data-tip");
-    if (!text) return;
+    // An element gone from the page gets no tip. A tap focuses what it presses, and a press that closes its sheet (a
+    // list picked in People's phone sheet) took the element away before the tip's 280ms were up: the tip was then
+    // placed at a detached box's zeros, over the top bar's corner, and stayed until the next press.
+    if (!text || !t.isConnected) return;
     const tip = ensure();
     tip.textContent = text;
     tip.classList.remove("show");
