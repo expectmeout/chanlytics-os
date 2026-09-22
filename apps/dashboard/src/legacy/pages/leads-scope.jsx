@@ -18,9 +18,37 @@
 // in the tab order, saying why when pressed (window.gate, data-bits.jsx), never disabled and never silent.
 // They are the system's small buttons, 26px like People's row acts: Call and Copy square (`btn-icon btn-sm`), the
 // words `btn-sm`. On a phone's card, leads.css draws Call at 44px.
-const LeadRowActions = ({ l, onCall, onCopy, onKeep, onExclude, onPutBack, canFind }) => (
+// Call asks first. It dialled the instant it was pressed -- a real call to a real business, from a row you might
+// only have been skimming -- and a call made from a desk phone could not be recorded at all, because the six
+// outcomes are armed by that button alone. The ways are contracts' (LEAD_CALL_WAYS), and the receptionist is not
+// among them: it answers your line and never rings a customer, which the Business page tells the owner in those
+// words (business-tab.ts CANNOT_ROWS). The number is the menu's heading, so you see what you would dial.
+const LeadCallMenu = ({ l, onCall, onCopyPhone, onLogCall, btnClass, label = null, testid = "lead-call" }) => {
+  const W = window.__LEAD_WORDS.callWays;
+  return (
+    <span data-testid={testid} onClick={(e) => e.stopPropagation()}>
+      <MoreMenu
+        align="right"
+        escape
+        icon="phone"
+        size={11}
+        title={`Call ${l.name}`}
+        btnClass={btnClass}
+        label={label}
+        items={[
+          { header: (window.__phoneDisplay && window.__phoneDisplay(l.phone)) || l.phone },
+          { label: W.dial.label, icon: "phone", onClick: () => onCall(l.id) },
+          { label: W.copy.label, icon: "copy", onClick: () => onCopyPhone(l.id) },
+          { label: W.log.label, icon: "check", meta: W.log.meta, onClick: () => onLogCall(l.id) },
+        ]}
+      />
+    </span>
+  );
+};
+
+const LeadRowActions = ({ l, onCall, onCopy, onCopyPhone, onLogCall, onKeep, onExclude, onPutBack, canFind }) => (
   <span className="cl-row-actions ld-row-actions">
-    {l.phone && !l.phoneWrong && <button type="button" className="btn btn-ghost btn-icon btn-sm ld-call" onClick={(e) => { e.stopPropagation(); onCall(l.id); }} title="Call from your phone" aria-label={`Call ${l.name}`} data-testid="lead-call"><Icon name="phone" size={11} /></button>}
+    {l.phone && !l.phoneWrong && <LeadCallMenu l={l} onCall={onCall} onCopyPhone={onCopyPhone} onLogCall={onLogCall} btnClass="btn btn-ghost btn-icon btn-sm ld-call" />}
     {l.email && l.emailState !== "invalid" && <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={(e) => { e.stopPropagation(); onCopy(l.id); }} title="Copy the email" aria-label={`Copy the email for ${l.name}`} data-testid="lead-copy"><Icon name="copy" size={11} /></button>}
     {l.cls === "review" && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onKeep(l.id); }} data-testid="lead-keep" {...(canFind ? {} : window.gate("find", "keep this lead"))}>Keep</button>}
     {l.cls === "review" && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onExclude(l.id); }} data-testid="lead-exclude" {...(canFind ? {} : window.gate("find", "exclude this lead"))}>Exclude</button>}
@@ -160,7 +188,7 @@ const LeadNameCard = ({ l, x }) => (
       {l.card.site ? <a href={l.card.site.href} target="_blank" rel="noopener noreferrer">{l.card.site.label}</a> : null}
       {l.card.maps ? <a href={l.card.maps.href} target="_blank" rel="noopener noreferrer">{l.card.maps.label}</a> : null}
       <span className="sp" />
-      {l.phone && !l.phoneWrong ? <button type="button" className="btn btn-sm btn-primary" onClick={() => x.onCall(l.id)}><Icon name="phone" size={11} /> Call</button> : null}
+      {l.phone && !l.phoneWrong ? <LeadCallMenu l={l} onCall={x.onCall} onCopyPhone={x.onCopyPhone} onLogCall={x.onLogCall} btnClass="btn btn-sm btn-primary" label="Call" testid="lead-card-call" /> : null}
     </div>
   </LeadCard>
 );
@@ -246,7 +274,7 @@ const LEAD_COLUMNS = [
   { key: "website", label: "Website", sortable: false, on: false, cell: (l) => <td key="website" className="shrink dim ld-website-cell">{l.host}</td> },
   { key: "search", label: "Search", sortable: false, on: false, cell: (l) => <td key="search" className="shrink dim ld-search-cell">{l.searchName}</td> },
   // The row's acts, where the eye ends: on hover and on the keyboard's cursor (clients.css shows .cl-row-actions then).
-  { key: "actions", label: "", sortable: false, fixed: true, cell: (l, x) => <td key="actions" className="shrink cl-actions-cell"><LeadRowActions l={l} onCall={x.onCall} onCopy={x.onCopy} onKeep={x.onKeep} onExclude={x.onExclude} onPutBack={x.onPutBack} canFind={x.canFind} /></td> },
+  { key: "actions", label: "", sortable: false, fixed: true, cell: (l, x) => <td key="actions" className="shrink cl-actions-cell"><LeadRowActions l={l} onCall={x.onCall} onCopy={x.onCopy} onCopyPhone={x.onCopyPhone} onLogCall={x.onLogCall} onKeep={x.onKeep} onExclude={x.onExclude} onPutBack={x.onPutBack} canFind={x.canFind} /></td> },
 ];
 
 // A lead's row on a phone is People's (plRowCard, clients-a.jsx; the phone pass, D8), so the two scopes are one list to
@@ -610,7 +638,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
                 <div className="s">{byId.get(picked).sub}</div>
               </div>
               {byId.get(picked).slots.phone.value ? (
-                <button type="button" className="btn btn-sm btn-primary" onClick={() => x.onCall(picked)} data-testid="map-card-call"><Icon name="phone" size={11} /> Call</button>
+                <LeadCallMenu l={byId.get(picked)} onCall={x.onCall} onCopyPhone={x.onCopyPhone} onLogCall={x.onLogCall} btnClass="btn btn-sm btn-primary" label="Call" testid="map-card-call" />
               ) : null}
             </div>
           ) : null}
@@ -1070,6 +1098,7 @@ const LeadsScope = (p) => {
             putBack: p.onPutBack,
             copyEmail: p.onCopy,
             copyPhone: p.onCopyPhone,
+            logCall: p.onLogCall,
             draft: p.draft,
             armed: p.armed,
             setMode: p.onPeekMode,

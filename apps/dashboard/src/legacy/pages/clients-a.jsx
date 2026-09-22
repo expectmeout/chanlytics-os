@@ -708,7 +708,8 @@ const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind) => {
   const ctx = {
     onOpen: door("onOpen"), onExpand: door("onExpand"),
     values, mixedFits, hasCenter, canFind,
-    onCall: door("onCall"), onCopy: door("onCopy"), onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
+    onCall: door("onCall"), onCopy: door("onCopy"), onCopyPhone: door("onCopyPhone"), onLogCall: door("onLogCall"),
+    onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
   };
   kept.current = { values, mixedFits, hasCenter, canFind, ctx };
   return ctx;
@@ -2718,6 +2719,15 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
   // The peek's phone line copies the number as it dials (the stored number), and names it as the peek draws it
   // (contracts' formatPhoneDisplay, published as __phoneDisplay).
+  // A call made from a desk phone, a softphone or a mobile that is not this one: the same six outcomes the button
+  // arms, without ringing anybody. There was no way to record one, so those calls left no mark on the lead.
+  const logLeadCall = (id) => {
+    const l = leadById(id);
+    if (!l) return;
+    setArmed({ kind: "call", leadId: id, asked: false, outcome: null, note: "" });
+    setPeekMode("info");
+    setPeekId(id);
+  };
   const copyPhone = (id) => {
     const l = leadById(id);
     if (!l || !l.phone) return;
@@ -2891,7 +2901,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
     // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
     // changes, and a memoised row is left alone otherwise.
-    leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
+    leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
     const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind);
     const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
     // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
@@ -3113,6 +3123,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onPutBack={putBackLead}
         onCopy={copyLead}
         onCopyPhone={copyPhone}
+        onLogCall={logLeadCall}
         onStripAction={onStripAction}
         onTakeOffered={takeOffered}
         onMore={leadsMore}
