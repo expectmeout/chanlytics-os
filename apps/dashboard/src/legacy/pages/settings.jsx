@@ -325,7 +325,7 @@ const YourName = ({ flash, ...rest }) => {
 // The old Business card's rows went with the card (Task 3.7): a fact with where it came from, the two numbers the
 // receptionist decides and the workspace's timezone are rows of the Business page now, each edited where it is
 // stated (pages/business-tab-who.jsx, pages/business-tab-open.jsx), over the page's own saver
-// (pages/business-tab-save.jsx). window.phoneShown and window.useFieldSave live there too.
+// (pages/business-tab-save.jsx). window.phoneShown lives there too.
 
 const PaneProfile = ({ flash }) => {
   const me = window.__ME || {};

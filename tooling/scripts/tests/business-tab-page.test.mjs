@@ -1491,43 +1491,6 @@ test("a save whose promise fails before the server takes it says so, and leaves 
   assert.ok(byTestId(tree, "rec-inline-website-cancel-confirm"), "and Cancel still asks, where it did nothing before");
 });
 
-test("the old card's one-key save lets go the same way when its save fails before the server takes it", async () => {
-  // useFieldSave, which the old card's two number rows (settings.jsx) take from window until Task 3.7 retires them.
-  unmount();
-  W.__SETTINGS = settings();
-  const flashes = [];
-  let field;
-  const Row = () => {
-    field = W.useFieldSave((f) => flashes.push(f));
-    return null;
-  };
-  const redrawRow = () => again(() => W.React.createElement(Row));
-  W.React.createElement(Row);
-  const publish = (b) => {
-    b.phone_display = "+16465550100";
-    return b;
-  };
-  for (const [fails, words] of [
-    [() => Promise.reject(new Error("The network went away.")), "The network went away."],
-    [
-      () => {
-        throw new Error("The save could not be sent.");
-      },
-      "The save could not be sent.",
-    ],
-  ]) {
-    W.__saveSettings = fails;
-    field[1](publish, "Saved.", () => assert.fail("nothing was saved"));
-    redrawRow();
-    assert.equal(field[0], true, "busy while the save is out");
-    await settle();
-    redrawRow();
-    assert.equal(field[0], false, words);
-    assert.deepEqual([flashes.at(-1).tone, textOf(flashes.at(-1).msg)], ["danger", words]);
-  }
-  unmount();
-});
-
 test("the number it gives out: your line stores nothing, and a different number is checked, then stored as typed", () => {
   const sent = saving();
   const flashes = [];

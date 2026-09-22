@@ -4,9 +4,9 @@
 // The page (pages/business-tab.jsx) draws; this file decides what its saves write. Here: each row's check (the
 // sentence that stops a save before any round trip, or null), what a row's draft stores, and its patch (the one-key
 // change a save makes: a pure function of the stored brain and profile that returns the brain); the tab's one saver,
-// which every row and fold saves through; how a number is written for people (phoneShown); and the old card's one-key
-// save (useFieldSave), until Task 3.7 retires that card. Each fold's helpers (what it opens with, what stops its save,
-// and the config its save writes) are business-tab-folds.jsx's, which loads next and adds them to what this publishes.
+// which every row and fold saves through; and how a number is written for people (phoneShown). Each fold's helpers
+// (what it opens with, what stops its save, and the config its save writes) are business-tab-folds.jsx's, which
+// loads next and adds them to what this publishes.
 //
 // Everything is published on window and read there as each consumer draws: in the app every legacy file is its own
 // module, where a top-level const of one is nothing to another. This file loads before business-tab.jsx, which loads
@@ -14,73 +14,16 @@
 // the standalone mockup compiles every file into one global scope, where a name declared twice throws and Babel's
 // `_excluded` for a rest is shared (record-field.jsx says how that bit).
 
-const { useState: useBtSaveState } = React;
-
 /**
  * A number as people write it, "+1 (305) 555-0100", the way Setup and Connections show one (contracts
  * formatPhoneDisplay, published by the bridge). Business showed the line it answers and the transfer number in the
  * E.164 they are stored as (the wiring audit's L7). Only E.164 is rewritten: anything else is shown as it was written,
  * which for the number it gives out is what the receptionist says.
  *
- * On window as `phoneShown`, since the Business tab and the old card in settings.jsx both show numbers: one rule for
+ * On window as `phoneShown`, since the Business tab shows a number in more than one of its folds: one rule for
  * writing them.
  */
 const btPhoneShown = (v) => (v && window.__phoneDisplay && /^\+[1-9][0-9]{6,14}$/.test(v) ? window.__phoneDisplay(v) : v);
-
-/**
- * One brain field, saved from the row it is shown in.
- *
- * The two numbers below used to be sections nine and thirteen of a fourteen-
- * section form -- "Tell customers to call" near the top of one step, "How
- * callers reach a person" most of a page later in another, both of them read
- * from the Business card five rows apart. Editing one meant opening a form,
- * finding it among twelve fields that had nothing to do with it, and pressing
- * a Save that wrote the entire configuration.
- *
- * It still writes the entire configuration -- PUT /settings is a versioned
- * compare-and-swap, and sending a fragment would delete the rest -- but it
- * starts from what is stored and changes ONE key, which is the same discipline
- * the big form's `save` learned after a rebuild lost a workspace its prompt.
- *
- * Moved from settings.jsx when the Business tab became a record (Task 3.2). On window as `useFieldSave`: the old
- * card's two number rows take it from there until Task 3.7 retires them. The Business tab's rows save through the
- * tab's one saver (btSaver) instead. Since the move it also lets go when the save fails before the server has taken
- * it (the promise rejects, or the call throws), as btSaver does: it said nothing then, and stayed busy for good, its
- * row's Save and Cancel pressing nothing.
- */
-function useBtFieldSave(flash) {
-  const [busy, setBusy] = useBtSaveState(false);
-  const settings = window.__SETTINGS || null;
-  const save = (change, said, done) => {
-    if (busy || !window.__saveSettings || !settings || !settings.config) return;
-    const cfg = settings.config;
-    const brain = cfg.brain || {};
-    setBusy(true);
-    const next = { ...cfg, brain: change({ ...brain }, { ...(brain.profile || {}) }) };
-    // Once the server has taken the save, nothing after it (the re-read that follows) is said as a refusal.
-    let accepted = false;
-    const refused = (words) => {
-      setBusy(false);
-      if (!accepted) flash({ tone: "danger", msg: <>{words || "That didn't go through."}</> });
-    };
-    let sent;
-    try {
-      sent = window.__saveSettings(next, settings.version, () => {
-        accepted = true;
-        setBusy(false);
-        done();
-        flash({ msg: said });
-      });
-    } catch (e) {
-      sent = Promise.reject(e);
-    }
-    Promise.resolve(sent).then((r) => {
-      if (r && r.ok) return;
-      refused(r && r.message);
-    }, (e) => refused(e && e.message));
-  };
-  return [busy, save];
-}
 
 // Two drafts are the same when saving either would write the same thing.
 const btSame = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
@@ -139,7 +82,7 @@ const btTried = (config, job) => {
 /**
  * One saver for the browser tab, so saves made close together go one at a time, and each builds on the one before.
  *
- * PUT /settings is a versioned compare-and-swap of the whole config (useFieldSave says why), and the settings re-read
+ * PUT /settings is a versioned compare-and-swap of the whole config -- sending a fragment would delete the rest -- and
  * that brings the new version lands about half a second after the server accepts. Each row saving on its own sent the
  * config and version as the page last drew them, so "Use Google's" on the address and then on the name sent version 7
  * twice, and the server refused the second as a colleague's save that never happened. So every row asks this saver:
@@ -453,7 +396,6 @@ const BT_PATCH_OF = {
 // business-tab-folds.jsx does not, and a new object left every fold helper undefined until a full reload.
 Object.assign(window, {
   phoneShown: btPhoneShown,
-  useFieldSave: useBtFieldSave,
   __businessTabSave: Object.assign(window.__businessTabSave || {}, {
     saver: btTabSaver,
     zone: btZoneDoor,
