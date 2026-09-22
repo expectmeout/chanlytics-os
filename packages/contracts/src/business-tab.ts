@@ -362,7 +362,8 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
   if (isNumber(r.max_days_ahead)) parts.push(`up to ${plural(r.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r.party_max)) parts.push(`up to ${plural(r.party_max, "person", "people")}`);
   const joined = parts.join(" · ");
-  const notes = (r.notes ?? []).filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => {
+  // A stored list that is not one (a hand-edited record) is none, never a throw: the row is drawn from what is stored.
+  const notes = (Array.isArray(r.notes) ? r.notes : []).filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => {
     const t = x.trim();
     return /[.!?…]$/.test(t) ? t : `${t}.`;
   });

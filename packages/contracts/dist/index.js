@@ -1062,7 +1062,8 @@ function matchService(services, asked) {
 }
 function needsConsultation(name, rules) {
   const n = foldName(name.trim());
-  return !!n && (rules?.consult_first ?? []).some((c) => foldName(String(c).trim()) === n);
+  const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
+  return !!n && list2.some((c) => foldName(String(c).trim()) === n);
 }
 function offerFor(services, rules, asked) {
   const service = matchService(services, asked);
@@ -11348,7 +11349,7 @@ function bookingRulesWords(rules) {
   if (isNumber(r.max_days_ahead)) parts2.push(`up to ${plural6(r.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r.party_max)) parts2.push(`up to ${plural6(r.party_max, "person", "people")}`);
   const joined = parts2.join(" \xB7 ");
-  const notes = (r.notes ?? []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
+  const notes = (Array.isArray(r.notes) ? r.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
     const t = x.trim();
     return /[.!?…]$/.test(t) ? t : `${t}.`;
   });

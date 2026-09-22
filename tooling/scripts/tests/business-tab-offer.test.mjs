@@ -1016,3 +1016,27 @@ test("each Undo left in a row's place has its own name and id, from what it puts
   tree = redrawTab();
   assert.deepEqual(drawnOf(tree).slice(0, 5), ["Service 1", "Service 2", "<Service 3>", "Service 4", "Service 5"]);
 });
+
+test("a hand-edited record whose consult-first list or rule notes are not lists draws its rows, and the sheet opens", () => {
+  // The quality review's probe: each threw as the card drew, and the whole of Settings went with it.
+  const errors = [];
+  const was = console.error;
+  console.error = (...args) => errors.push(args);
+  try {
+    // The preview is composed from a sane record (the server's composer parses what it composes); the stored config the
+    // page reads is then hand-edited, as the probe did, and the page drawn again over it.
+    drawTab({ profile: many });
+    Object.assign(W.__SETTINGS.config.brain.profile.booking_rules, { consult_first: "Extensions", notes: "Cash only" });
+    W.__businessTabSave.saver.reset();
+    // A page drawn afresh over it, as it is drawn when the tab opens on such a record.
+    unmount();
+    let tree = W.React.createElement(W.BusinessTab, { flash: () => {} });
+    assert.match(textOf(byTestId(tree, "rec-row-consult_first")), /None/, "a list that is not one is none");
+    assert.doesNotMatch(textOf(byTestId(tree, "rec-row-booking_rules")), /Cash only/);
+    tree = openSheet(tree);
+    assert.ok(sheetOf(tree), "and the sheet opens over it");
+    assert.equal(all(sheetOf(tree), (n) => classes(n).includes("bt-service-consult")).length, 0);
+  } finally {
+    console.error = was;
+  }
+});

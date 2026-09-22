@@ -154,7 +154,8 @@ const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
   const gate = (thing) => window.gate("settings", `change ${thing}`);
   const shared = { canEdit, flash, saver };
   const said = tab.bookingRulesWords ? tab.bookingRulesWords(rules) : { line: null, notes: null, none: null };
-  const consult = (rules.consult_first || []).join(", ");
+  // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
+  const consult = (Array.isArray(rules.consult_first) ? rules.consult_first : []).join(", ");
 
   return (
     <section className="rec-card" data-testid="rec-card-offer" aria-labelledby="bt-offer-title">

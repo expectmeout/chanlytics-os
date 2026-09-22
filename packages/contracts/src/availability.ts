@@ -689,7 +689,9 @@ export interface ConsultRules { consult_first?: readonly string[] }
  */
 export function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean {
   const n = foldName(name.trim());
-  return !!n && (rules?.consult_first ?? []).some((c) => foldName(String(c).trim()) === n);
+  // A stored list that is not one (a hand-edited record) names nothing, never a throw.
+  const list = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
+  return !!n && list.some((c) => foldName(String(c).trim()) === n);
 }
 
 /** What an asked-for service is offered as: itself, or a consultation first. */

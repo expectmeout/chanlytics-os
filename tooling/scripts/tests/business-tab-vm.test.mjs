@@ -27,6 +27,7 @@ import {
   bookingRulesWords,
   BOOKING_RULE_HINTS,
   bookingRuleRefusal,
+  needsConsultation,
   BookingRulesSchema,
   BOOKING_DEFAULTS,
   violatesNoPrices,
@@ -545,4 +546,15 @@ test("a booking rule's refusal says its range and what an empty box uses, each w
   assert.match(bookingRuleRefusal("lead_hours"), new RegExp(`^Least notice is ${lead.minValue} to ${lead.maxValue} hours; leave it empty to use ${BOOKING_DEFAULTS.lead_hours} hours\\.$`));
   assert.match(BOOKING_RULE_HINTS.lead_hours, new RegExp(`^Empty uses ${BOOKING_DEFAULTS.lead_hours} hours\\.$`));
   for (const bad of ["notes", "consult_first", "", undefined]) assert.throws(() => bookingRuleRefusal(bad), TypeError, String(bad));
+});
+
+test("a hand-edited record whose lists are not lists is read as none, never a throw", () => {
+  // The quality review's probe: a stored booking_rules.notes that is a string threw as the row drew, and took the page
+  // down with it. The page is drawn from whatever the record holds.
+  assert.equal(bookingRulesWords({ lead_hours: 2, notes: "Cash only" }).notes, null);
+  assert.equal(bookingRulesWords({ lead_hours: 2, notes: "Cash only" }).line, "At least 2 hours' notice");
+  assert.equal(bookingRulesWords({ notes: { a: 1 } }).notes, null);
+  // And the consult-first question, which the sheet asks of each row.
+  assert.equal(needsConsultation("Extensions", { consult_first: "Extensions" }), false);
+  assert.equal(needsConsultation("Extensions", { consult_first: ["extensions"] }), true);
 });
