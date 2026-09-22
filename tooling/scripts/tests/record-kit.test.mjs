@@ -988,6 +988,8 @@ test("while it saves a gesture says it is busy and draws no ask, and each contro
   input.props.onKeyDown({ key: "ArrowDown", preventDefault() {} });
   const after = redraw(W.RecordCombobox, { id: "tz", label: "Timezone", value: "America/New_York", options: [{ value: "America/New_York", label: "America/New York" }, { value: "America/Chicago", label: "America/Chicago" }], onChange: () => {}, readOnly: true });
   assert.equal(find(after, (n) => n.props?.role === "combobox").props["aria-expanded"], false);
+  // And it did not open underneath: the box still shows the chosen zone, not an empty search.
+  assert.equal(find(after, (n) => n.props?.role === "combobox").props.value, "America/New York", "REGRESSION: the arrow opened it, and the box went blank");
 });
 
 test("a fold's ask is its own: only the section holding the changes is asked, beside them", () => {

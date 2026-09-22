@@ -219,6 +219,9 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
   const shut = () => { setOpen(false); setQuery(""); setActive(0); };
   const pick = (o) => { shut(); if (onChange) onChange(o.value); };
   const onKey = (e) => {
+    // Refused (a gate's, or read-only while a save is out), the box takes no key: the arrows opened it underneath,
+    // where the list was not drawn but the box went blank for the search that was not to be typed.
+    if (refused) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (!expanded) { setOpen(true); setActive(Math.max(0, shown.findIndex((o) => o.value === value))); return; }
