@@ -1479,7 +1479,10 @@ html.legacy-on .bt-link { position: relative; }
 .rec-can-chip { display: inline-flex; color: var(--ink-dim); }
 .rec-can-chip[data-on="true"] { color: var(--ink); }
 .bt-can-why { flex: 1 1 100%; margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-.bt-can-why > .bt-link, .bt-can-held > .bt-link { margin-left: 6px; }
+/* A row nothing does reads as the three limits under it do, in the dim ink: one signal, no new colour, and the two
+   glyphs beside it say which channel it was. The gap before a door is a SPACE in the sentence, not a margin: a margin
+   indented the link off the paragraph's left edge every time it wrapped to a line of its own on a phone. */
+.bt-can-row[data-ready="false"] > .rec-row-key { color: var(--ink-dim); }
 /* A row that is whole keeps its sentence: a screen reader reads it, and a mouse gets it as the row's own tip. It is
    not on screen, because six two-clause sentences under six rows nothing on which needs deciding is the clutter the
    owner named -- and on a phone it is most of the card's height. */

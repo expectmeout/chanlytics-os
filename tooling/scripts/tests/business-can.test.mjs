@@ -16,7 +16,18 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { ABILITY_CHANNEL_WORDS, abilityRows, cannotRows, POLICY_MODE_WORDS } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
-import { POLICIES, SETUP, W, drawTab, melany, openFold, redrawTab, went } from "./_business-tab-harness.mjs";
+import {
+  POLICIES,
+  SETUP,
+  W,
+  drawTab,
+  melany,
+  openFold,
+  openFolds,
+  openRows,
+  redrawTab,
+  went,
+} from "./_business-tab-harness.mjs";
 
 after(() => unmount());
 
@@ -128,6 +139,51 @@ test("a whole ability is its title and two glyphs: the sentence is there to be r
   const vision = byTestId(card, "rec-can-vision");
   assert.ok(saidAtRest(vision), "the one that is off says so");
   assert.match(textOf(vision), /A photo is passed to a person/);
+});
+
+test("a row nothing does says so once: both glyphs dark, and the title in the dim ink", () => {
+  // The card's one signal per row. Contracts folds each ability's input into its channels, so the
+  // pair of glyphs IS the readiness; `data-ready` is what settings.css takes the title's ink from.
+  const thin = { ...melany, handoff_number: undefined };
+  const card = canCard(drawTab({ profile: thin }));
+  for (const a of abilityRows({ ...MELANY_INPUTS, hasHandoffNumber: false }).rows) {
+    const row = byTestId(card, `rec-can-${a.id}`);
+    assert.equal(row.props["data-ready"], a.ready ? "true" : "false", a.id);
+    assert.equal(
+      chipsOf(row).some((g) => g.props["data-on"] === "true"),
+      a.ready,
+      `${a.id}: a lit glyph and a row nothing does never sit together`,
+    );
+  }
+  // The two the salon record has nothing for, and no others.
+  assert.deepEqual(
+    all(card, (n) => (n.props?.["data-testid"] || "").startsWith("rec-can-") && n.props["data-ready"] === "false").map(
+      (n) => n.props["data-testid"],
+    ),
+    ["rec-can-transfer", "rec-can-vision"],
+  );
+});
+
+test("a door opens the row that supplies what is missing", () => {
+  // Every runsOn this card can offer, pressed: the fold or the inline editor behind it opens, by the
+  // same registry the standing line's door goes through (so a row holding changes is asked first).
+  const nothing = { ...melany, handoff_number: undefined, escalate_when: [] };
+  for (const [id, row] of [
+    ["open_times", "calendar"],
+    ["booking_link", "booking_link"],
+    ["transfer", "handoff_number"],
+    ["vision", "guardrails"],
+  ]) {
+    const tree = drawTab({ profile: nothing, brain: { booking_link: undefined }, config: { calendar: undefined } });
+    const door = byTestId(canCard(tree), `rec-can-door-${id}`);
+    assert.ok(door, `${id} offers its door`);
+    press(door);
+    const after = redrawTab();
+    assert.ok(
+      openFolds(after).includes(row) || openRows(after).includes(row),
+      `${id} opens ${row}, not ${openFolds(after).concat(openRows(after)).join(", ") || "nothing"}`,
+    );
+  }
 });
 
 test("a glyph says which channel in words, so dim is never the only thing that said it", () => {

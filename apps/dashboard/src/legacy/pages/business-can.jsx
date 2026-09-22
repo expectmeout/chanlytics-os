@@ -55,6 +55,10 @@ const BtcGlyph = ({ channel, has, words }) => (
 /**
  * One ability: its title, its two channels, and its sentence -- kept out of the way unless it carries a decision.
  *
+ * `data-ready` is the row's one signal and the glyphs are its per-channel spelling: contracts folds each ability's
+ * input into its channels, so `ready` is exactly "one of the two does it", and a row nothing does takes the dim ink
+ * the three limits under it are already in.
+ *
  * `door` opens the row that supplies the missing input, by its id, the way the standing line's door opens one (the
  * fold registry asks about changes first). A role that may not change the business is passed none: the row behind it
  * would not open, so the sentence stands alone rather than offering a press that refuses.
@@ -78,7 +82,7 @@ const BtcRow = ({ ability, words, door }) => {
       </span>
       {a.missing ? (
         <p className="bt-can-why">
-          <span id={saysId}>{a.detail}</span>
+          <span id={saysId}>{a.detail}</span>{" "}
           {open ? (
             <button
               type="button"
@@ -92,9 +96,8 @@ const BtcRow = ({ ability, words, door }) => {
           ) : null}
         </p>
       ) : (
-        <span className="bt-can-says" id={saysId}>
-          {a.detail}
-        </span>
+        // No id: nothing points at it, and inside the row a screen reader reads it in its place anyway.
+        <span className="bt-can-says">{a.detail}</span>
       )}
     </div>
   );
@@ -104,9 +107,7 @@ const BtcRow = ({ ability, words, door }) => {
 const BtcCannotRow = ({ limit }) => (
   <div className="rec-row bt-cannot-row" data-testid={`rec-cannot-${limit.id}`} title={limit.detail}>
     <span className="rec-row-key">{limit.title}</span>
-    <span className="bt-can-says" id={`rec-cannot-${limit.id}-says`}>
-      {limit.detail}
-    </span>
+    <span className="bt-can-says">{limit.detail}</span>
   </div>
 );
 
@@ -215,12 +216,12 @@ const BtCanCard = ({ brain, config, canEdit }) => {
         <h2 className="rec-card-title" id="bt-can-title">
           What it can do
         </h2>
-        <span className="rec-card-sub">On the lines that answer, from what is filled in here</span>
+        <span className="rec-card-sub">On the lines that answer</span>
       </div>
 
       {abilities && abilities.held ? (
         <p className="bt-can-held" data-testid="rec-can-held">
-          <span id="bt-can-held-words">{abilities.held.sentence}</span>
+          <span id="bt-can-held-words">{abilities.held.sentence}</span>{" "}
           <button
             type="button"
             className="bt-link"
