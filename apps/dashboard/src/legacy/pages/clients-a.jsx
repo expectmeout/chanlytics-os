@@ -885,6 +885,38 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
   );
 };
 
+// A list's acts, one door each, for a desktop's title line and the phone's sheet alike: what the door answered, and the
+// sentence to show where it refused. Rename and delete were written into their two components, and a list made with
+// people on it into two more (Save these, the bulk bar's New list); the phone's sheet would have been a fifth copy.
+const plRenameList = async (list, name) => {
+  const r = await window.__lists.rename(list.id, name);
+  return r.ok ? { ok: true } : { ok: false, error: r.message || "Could not rename the list." };
+};
+const plDeleteList = async (list) => {
+  const r = await window.__lists.remove(list.id);
+  return r.ok ? { ok: true } : { ok: false, error: r.message || "The list could not be deleted." };
+};
+// Made, then filled. A list whose filling the server refused (more people than it takes at once, say) is taken back,
+// so no empty list is left behind. `made` is the make's answer, `filled` the fill's (null when nothing was made).
+const plMakeListWith = async (name, ids) => {
+  const made = await window.__lists.create(name);
+  if (!made.ok) return { made, filled: null, id: null };
+  const id = plMadeId(made, name);
+  const filled = id ? await window.__lists.add(id, ids) : { ok: false, message: "The list was made but not found again." };
+  if (!filled.ok && id) await window.__lists.remove(id);
+  return { made, filled, id };
+};
+// Somebody the business meets before they ever write or call, added by hand through the door the calendar sweep uses:
+// a number already here opens that person rather than making a second one. The desktop's form and the phone's sheet
+// add through this and say it the same way.
+const plAddPerson = async ({ name, phone }) => {
+  const r = await window.__addPerson({ phone: phone.trim(), ...(name.trim() ? { name: name.trim() } : {}) });
+  if (r.ok) return { ok: true, id: r.data.contact_id, existed: !!r.data.existed };
+  // The field's own sentence where the route named one, else the refusal's.
+  return { ok: false, error: (r.fields && Object.values(r.fields)[0]) || r.message || "Could not add them." };
+};
+const plAddedWords = ({ name, phone }, existed) => (existed ? <><b>{name.trim() || phone.trim()}</b> was already here — opened</> : <><b>{name.trim() || phone.trim()}</b> added</>);
+
 // Deleting a list keeps the people; only the grouping goes. Asked once,
 // inline, in the words that say so. A refusal keeps the question open and
 // says why: it used to close with no word, the list still on screen.
@@ -896,9 +928,9 @@ const DeleteListButton = ({ list, onDeleted }) => {
     if (!window.__lists || busy) return;
     setBusy(true);
     setError(null);
-    const r = await window.__lists.remove(list.id);
+    const r = await plDeleteList(list);
     setBusy(false);
-    if (!r.ok) { setError(r.message || "The list could not be deleted."); return; }
+    if (!r.ok) { setError(r.error); return; }
     setArm(false);
     onDeleted();
   };
@@ -924,9 +956,9 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
     if (!n || busy || !window.__lists) return;
     if (n === list.name) { setEditing(false); return; }
     setBusy(true); setError(null);
-    const r = await window.__lists.rename(list.id, n);
+    const r = await plRenameList(list, n);
     setBusy(false);
-    if (!r.ok) { setError(r.message || "Could not rename the list."); return; }
+    if (!r.ok) { setError(r.error); return; }
     setEditing(false);
     onRenamed(n);
   };
@@ -1371,14 +1403,10 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
     const n = name.trim();
     if (!n || busy || !window.__lists) return;
     setBusy(true);
-    const c = await window.__lists.create(n);
-    if (!c.ok) { setBusy(false); flash({ tone: "danger", msg: <>{c.message || "Could not make the list."}</> }); return; }
-    const madeId = plMadeId(c, n);
-    const a = madeId ? await window.__lists.add(madeId, ids) : { ok: false, message: "The list was made but not found again." };
-    // An add the server refused (more people than it takes at once, say) leaves no empty list behind.
-    if (!a.ok && madeId) await window.__lists.remove(madeId);
+    const { made, filled, id } = await plMakeListWith(n, ids);
+    if (!made.ok) { setBusy(false); flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> }); return; }
     setBusy(false); setNaming(false); setName("");
-    flash(a.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></>, undo: () => plUndoList(madeId, n, flash) } : window.refusalToast(a, madeId ? `${n} was not made` : "Not added to the new list"));
+    flash(filled.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></>, undo: () => plUndoList(id, n, flash) } : window.refusalToast(filled, id ? `${n} was not made` : "Not added to the new list"));
   };
   // A yes recorded for a whole class at once — and WHICH yes, because they are two
   // separate answers and only one of them puts a person on a broadcast. This
@@ -1532,14 +1560,10 @@ const SaveShownAsList = ({ ids, suggested, flash }) => {
     const n = name.trim();
     if (!n || busy || !window.__lists) return;
     setBusy(true);
-    const c = await window.__lists.create(n);
-    if (!c.ok) { setBusy(false); flash({ tone: "danger", msg: <>{c.message || "Could not make the list."}</> }); return; }
-    const madeId = plMadeId(c, n);
-    const a = madeId ? await window.__lists.add(madeId, ids) : { ok: false, message: "The list was made but not found again." };
-    // An add the server refused (more people than it takes at once, say) leaves no empty list behind.
-    if (!a.ok && madeId) await window.__lists.remove(madeId);
+    const { made, filled, id } = await plMakeListWith(n, ids);
+    if (!made.ok) { setBusy(false); flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> }); return; }
     setBusy(false); setOpen(false); setName("");
-    flash(a.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(madeId, n, flash) } : window.refusalToast(a, "Not kept as a list"));
+    flash(filled.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(id, n, flash) } : window.refusalToast(filled, "Not kept as a list"));
   };
   if (!open) return <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setOpen(true); }} data-testid="save-shown">Save these {ids.length} as a list <Icon name="arrow-right" size={10} /></button>;
   return (
@@ -1565,13 +1589,12 @@ const AddPersonButton = ({ onAdded, flash }) => {
   const submit = async () => {
     if (busy || !phone.trim() || !window.__addPerson) return;
     setBusy(true); setError(null);
-    const r = await window.__addPerson({ phone: phone.trim(), ...(name.trim() ? { name: name.trim() } : {}) });
+    const r = await plAddPerson({ name, phone });
     setBusy(false);
-    // The field's own sentence where the route named one, else the refusal's.
-    if (!r.ok) { setError((r.fields && Object.values(r.fields)[0]) || r.message || "Could not add them."); return; }
-    flash({ msg: r.data.existed ? <><b>{name.trim() || phone.trim()}</b> was already here — opened</> : <><b>{name.trim() || phone.trim()}</b> added</> });
+    if (!r.ok) { setError(r.error); return; }
+    flash({ msg: plAddedWords({ name, phone }, r.existed) });
     close();
-    onAdded(r.data.contact_id);
+    onAdded(r.id);
   };
   if (!open) {
     return <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)} data-testid="add-person"><Icon name="plus" size={12} /> Add a person</button>;
