@@ -2882,6 +2882,7 @@ function hoursLines(hours) {
     return `${label}: ${r.text}`;
   });
 }
+var NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
 function hasProfile(p) {
   if (!p) return false;
   const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
@@ -13815,7 +13816,7 @@ function fallbacksWords(fallbacks) {
   }).length;
   return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
-var RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
+var RULES_WITHOUT_FIELDS_WORDS = `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
@@ -14112,7 +14113,9 @@ var PROMPT = {
   row: "extra_instructions",
   label: "In your own words",
   startsWith: "",
-  note: "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet."
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`
 };
 var BASELINE = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
 var AUTONOMY = {
@@ -16772,6 +16775,7 @@ export {
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_MS,
+  NO_FIELDS_COMPOSED_WORDS,
   NO_NUMBER_REACH,
   NO_REPLY_AFTER_MS,
   NoteSchema,

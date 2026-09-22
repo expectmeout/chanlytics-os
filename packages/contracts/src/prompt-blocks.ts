@@ -7,7 +7,7 @@
  * keep reading it the way the composer writes it.
  */
 
-import { PROMPT_OPENINGS as O, whoseWords, type WhoseWords } from "./config";
+import { NO_FIELDS_COMPOSED_WORDS, PROMPT_OPENINGS as O, whoseWords, type WhoseWords } from "./config";
 
 /**
  * The composed prompt, cut into the blocks that wrote it.
@@ -141,7 +141,9 @@ const PROMPT: BlockMark = {
   row: "extra_instructions",
   label: "In your own words",
   startsWith: "",
-  note: "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet.",
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`,
 };
 const BASELINE: BlockMark = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
 const AUTONOMY: BlockMark = {

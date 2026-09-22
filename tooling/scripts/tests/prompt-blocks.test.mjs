@@ -15,6 +15,8 @@ import {
   instructionsDraft,
   hasProfile,
   policyRules,
+  NO_FIELDS_COMPOSED_WORDS,
+  RULES_WITHOUT_FIELDS_WORDS,
 } from "@chanlytics/contracts";
 
 const brain = {
@@ -251,11 +253,10 @@ test("a workspace whose fields compose nothing is told its prompt is read as it 
       );
       assert.equal(mine.text, OLD.trim(), `${channel}: the prompt, word for word`);
       assert.doesNotMatch(mine.note ?? "", /before it had fields/, channel);
-      assert.equal(
-        mine.note,
-        "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet.",
-        channel,
-      );
+      // The second sentence is the rules fold's own, not a near-miss of it: one sentence, in contracts, built
+      // into both notes on this page (the plan's M-2).
+      assert.equal(mine.note, `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`, channel);
+      assert.ok(RULES_WITHOUT_FIELDS_WORDS.startsWith(NO_FIELDS_COMPOSED_WORDS), "and the rules fold opens with it");
     }
   }
 });

@@ -21,6 +21,7 @@ import {
   DAYS,
   FALLBACK_DEFAULTS,
   GuardrailsSchema,
+  NO_FIELDS_COMPOSED_WORDS,
   INSTRUCTIONS_MAX,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
@@ -762,12 +763,13 @@ export function fallbacksWords(
  * block for the fold to show. It says nothing of what the receptionist does: the price detector reads every reply
  * whatever the profile holds (whatsapp/steps.ts layerTwo, and spokenBreach on a call), and nothing in the product can
  * confirm a booking anyway. It first said "these four rules do not reach it", which Phase 4 would have drawn beside the
- * price rule's "Checked, not just told". The prompt view says the same of that prompt (prompt-blocks.ts: "None of the
- * details on this page are composed into it yet."), and the two must agree; Phase 4's rules at three strengths say it
- * with these words too (the plan's M-2).
+ * price rule's "Checked, not just told".
+ *
+ * Its opening sentence is NO_FIELDS_COMPOSED_WORDS (config.ts), which the prompt view's note over the same record's
+ * stored prompt is also built from (prompt-blocks.ts): the two are on one page, so they are one sentence rather than
+ * two that happen to agree (the plan's M-2).
  */
-export const RULES_WITHOUT_FIELDS_WORDS =
-  "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
+export const RULES_WITHOUT_FIELDS_WORDS = `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
 
 /**
  * What the receptionist can do, and what it cannot.

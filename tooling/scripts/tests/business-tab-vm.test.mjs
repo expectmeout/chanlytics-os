@@ -50,6 +50,7 @@ import {
   instructionsWords,
   fallbacksWords,
   RULES_WITHOUT_FIELDS_WORDS,
+  NO_FIELDS_COMPOSED_WORDS,
   BusinessProfileSchema,
   FALLBACK_DEFAULTS,
   INSTRUCTIONS_MAX,
@@ -1221,11 +1222,13 @@ test("a record whose details compose nothing is told the stored prompt and Auton
     "no rules block for the fold to show",
   );
   // The fold's sentence agrees with the prompt view's note on the same page: nothing on it is composed yet.
-  assert.match(blocks[0].note, /None of the details on this page are composed into it yet/);
-  assert.match(RULES_WITHOUT_FIELDS_WORDS, /^Nothing on this page is composed into what it reads yet/);
+  // M-2: not two sentences that happen to agree -- both are built from the one contracts keeps, so a change to
+  // either is a change to both, and the page cannot drift into saying it two ways again.
+  assert.ok(blocks[0].note.includes(NO_FIELDS_COMPOSED_WORDS), "the prompt view's note carries it");
+  assert.ok(RULES_WITHOUT_FIELDS_WORDS.startsWith(NO_FIELDS_COMPOSED_WORDS), "and the fold's note opens with it");
   assert.match(
     RULES_WITHOUT_FIELDS_WORDS,
-    /these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds\.$/,
+    /These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds\.$/,
   );
   // What it is TOLD, never what it does: the price detector reads every reply whatever the profile (layerTwo on a chat
   // reply, spokenBreach on a call), and nothing can confirm a booking anyway. Phase 4 draws this beside "Checked, not

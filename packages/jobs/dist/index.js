@@ -797,6 +797,7 @@ function parseTenantConfig(raw) {
   const r2 = parseTenantConfigResult(raw);
   return r2.ok ? r2.config : null;
 }
+var NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
@@ -1312,6 +1313,15 @@ var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name2, code2]) => [code2, name2])
 );
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var RULES_WITHOUT_FIELDS_WORDS = `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
+var PROMPT = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`
+};
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
   label: "Password",
@@ -7242,6 +7252,7 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure2(c2, n2, ctx));
 });
+var NO_FIELDS_COMPOSED_WORDS2 = "None of the details on this page are composed into what it reads yet.";
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
@@ -7757,6 +7768,15 @@ var US_NAMES2 = Object.fromEntries(
   Object.entries(US_STATES2).map(([name2, code2]) => [code2, name2])
 );
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
+var RULES_WITHOUT_FIELDS_WORDS2 = `${NO_FIELDS_COMPOSED_WORDS2} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
+var PROMPT2 = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS2}`
+};
 var PASSWORD_MIN2 = 12;
 var PASSWORD_WORDS2 = {
   label: "Password",
@@ -9781,6 +9801,7 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure3(c2, n2, ctx));
 });
+var NO_FIELDS_COMPOSED_WORDS3 = "None of the details on this page are composed into what it reads yet.";
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
@@ -10296,6 +10317,15 @@ var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name2, code2]) => [code2, name2])
 );
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
+var RULES_WITHOUT_FIELDS_WORDS3 = `${NO_FIELDS_COMPOSED_WORDS3} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
+var PROMPT3 = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS3}`
+};
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {
   label: "Password",
@@ -11352,6 +11382,7 @@ var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure22(c2, n2, ctx));
 });
+var NO_FIELDS_COMPOSED_WORDS22 = "None of the details on this page are composed into what it reads yet.";
 var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS22 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
@@ -11917,6 +11948,15 @@ var US_NAMES22 = Object.fromEntries(
   Object.entries(US_STATES22).map(([name2, code2]) => [code2, name2])
 );
 var ACTIVITY_KINDS22 = [...DECISION_VERBS22, ...EVENT_KINDS22];
+var RULES_WITHOUT_FIELDS_WORDS22 = `${NO_FIELDS_COMPOSED_WORDS22} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
+var PROMPT22 = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS22}`
+};
 var PASSWORD_MIN22 = 12;
 var PASSWORD_WORDS22 = {
   label: "Password",
@@ -12889,6 +12929,7 @@ var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure32(c2, n2, ctx));
 });
+var NO_FIELDS_COMPOSED_WORDS32 = "None of the details on this page are composed into what it reads yet.";
 var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS32 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
@@ -13404,6 +13445,15 @@ var US_NAMES32 = Object.fromEntries(
   Object.entries(US_STATES32).map(([name2, code2]) => [code2, name2])
 );
 var ACTIVITY_KINDS32 = [...DECISION_VERBS32, ...EVENT_KINDS32];
+var RULES_WITHOUT_FIELDS_WORDS32 = `${NO_FIELDS_COMPOSED_WORDS32} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
+var PROMPT32 = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS32}`
+};
 var PASSWORD_MIN32 = 12;
 var PASSWORD_WORDS32 = {
   label: "Password",
@@ -14944,6 +14994,7 @@ var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure4(c2, n2, ctx));
 });
+var NO_FIELDS_COMPOSED_WORDS4 = "None of the details on this page are composed into what it reads yet.";
 var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS4 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;
@@ -15459,6 +15510,15 @@ var US_NAMES4 = Object.fromEntries(
   Object.entries(US_STATES4).map(([name2, code2]) => [code2, name2])
 );
 var ACTIVITY_KINDS4 = [...DECISION_VERBS4, ...EVENT_KINDS4];
+var RULES_WITHOUT_FIELDS_WORDS4 = `${NO_FIELDS_COMPOSED_WORDS4} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
+var PROMPT4 = {
+  row: "extra_instructions",
+  label: "In your own words",
+  startsWith: "",
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS4}`
+};
 var PASSWORD_MIN4 = 12;
 var PASSWORD_WORDS4 = {
   label: "Password",
