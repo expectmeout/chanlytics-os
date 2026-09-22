@@ -26,6 +26,7 @@ import {
   melany,
   redrawTab,
   openFolds,
+  typeAt,
   went,
 } from "./_business-tab-harness.mjs";
 
@@ -178,24 +179,42 @@ test("the page draws one sheet slot, last, and it draws one sheet or none", () =
 });
 
 test("opened after the services sheet, and the services sheet after it, every editor keeps its own", () => {
-  // The two sheets share the slot's tail: a draft typed into the services sheet, closed, the prompt sheet opened and
-  // closed, and the services sheet opened again reads the stored list, and every row before the slot says what it said.
+  // The two sheets share the slot's tail: a draft typed into the services sheet and thrown away, the prompt sheet
+  // opened and closed, and the services sheet opened again reads the stored list with no trace of the draft, while
+  // every row before the slot says what it said and the prompt sheet drew its own blocks in between.
+  const names = (tree) =>
+    all(
+      byTestId(tree, "rec-sheet-services"),
+      (n) => n.type === "input" && /name$/.test(n.props["aria-label"] || ""),
+    ).map((n) => n.props.value);
   let tree = drawTab({ profile: melany });
   const rest = textOf(byTestId(tree, "rec-row-hours"));
-  press(byTestId(tree, "rec-prompt-open"));
-  tree = redrawTab();
-  press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
-  tree = redrawTab();
   press(byTestId(tree, "rec-row-act-services"));
   tree = redrawTab();
-  const names = all(
-    byTestId(tree, "rec-sheet-services"),
-    (n) => n.type === "input" && /name$/.test(n.props["aria-label"] || ""),
-  );
+  typeAt(tree, "Service 1 name", "A draft nobody saved");
+  tree = redrawTab();
+  assert.deepEqual(names(tree), ["A draft nobody saved", "Highlights"], "the draft is in the sheet");
+  press(find(byTestId(tree, "rec-sheet-services"), (n) => n.props?.["aria-label"] === "Close"));
+  tree = redrawTab();
+  press(byTestId(tree, "rec-sheet-services-cancel-yes"));
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-sheet-services"), null, "thrown away, and closed");
+
+  press(byTestId(tree, "rec-prompt-open"));
+  tree = redrawTab();
   assert.deepEqual(
-    names.map((n) => n.props.value),
-    ["Balayage", "Highlights"],
+    all(sheetOf(tree), (n) => /^rec-prompt-block-/.test(n.props?.["data-testid"] || "")).map(
+      (n) => n.props["data-testid"],
+    ),
+    cut("whatsapp").map((b) => `rec-prompt-block-${b.id}`),
+    "the prompt sheet draws its own blocks",
   );
+  press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
+  tree = redrawTab();
+
+  press(byTestId(tree, "rec-row-act-services"));
+  tree = redrawTab();
+  assert.deepEqual(names(tree), ["Balayage", "Highlights"], "the stored list, and the draft is gone");
   assert.equal(textOf(byTestId(tree, "rec-row-hours")), rest);
 });
 
