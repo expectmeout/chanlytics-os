@@ -80,6 +80,8 @@ export const businessPageFor = cache(async function businessPageFor(slug: string
     contactEmail: r.contact_email,
     publicPhoneE164: numberOf("voice") ?? numberOf("whatsapp"),
     websiteUrl: r.website_url || null,
+    about: r.about,
+    industry: r.industry,
     services: (profile?.services ?? []).map((s) => ({
       name: s.name,
       durationMin: s.duration_min ?? null,

@@ -116,6 +116,8 @@ const RECORD = {
   tenant_id: A,
   ...emptyBusinessRecord({ websiteUrl: "https://harbormoving.example", email: "ada@example.com" }),
   legal_name: "Harbor Moving LLC",
+  about:
+    "A moving company in Brooklyn: homes and small offices across New York, packing and storage. Customers book a free estimate and pay per move.",
   trade_name: "Harbor Moving",
   ein: "12-3456789",
   street: "193 Jamaica Ave",
@@ -826,6 +828,8 @@ test("release finds a number the row lost the receipt for and gives it back — 
 /** The form as the dashboard sends it: the owner's words, some of them untidy. */
 const FORM = {
   legal_name: " Harbor Moving LLC ",
+  about:
+    "A moving company in Brooklyn: homes and small offices across New York, packing and storage. Customers book a free estimate and pay per move.",
   trade_name: "Harbor Moving",
   ein: "12-3456789",
   street: "193 Jamaica Ave",
@@ -1047,7 +1051,7 @@ test("register: the one free path — a campaign the carriers sent back, correct
   const f = form(req);
   assert.match(
     f.get("Description"),
-    /^Messages are sent by Harbor Moving \(Harbor Moving LLC\) to its own customers/,
+    /^About Harbor Moving \(Harbor Moving LLC\): A moving company in Brooklyn[^]*\. Messages are sent by Harbor Moving \(Harbor Moving LLC\) to its own customers/,
     "the workspace's CURRENT name, beside the registered one -- the corrections are the point",
   );
   assert.ok(

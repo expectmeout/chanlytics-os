@@ -81,6 +81,18 @@ const nextConfig: NextConfig = {
       // was refused on it (30891, 18 Sep 2026: "unverifiable website"). Re-filing an
       // approved brand re-vets it, so the old address answers instead — both
       // prefixes, and every page beneath them (form, sign, terms).
+      //
+      // EXCEPT THE ADDRESS ITSELF, which is filed as the brand's WEBSITE (Trust Hub
+      // business information, read 22 Sep 2026), not as its opt-in page. Sent to the
+      // sign-up page, it was read as the business's website twice: the eighth refusal
+      // (30919, 21 Sep) found no business on it, and the ninth (30919 on
+      // USE_CASE_DESCRIPTION, 22 Sep) found no "operational business model", which a
+      // page asking for a yes cannot show. So it goes to the company's own website,
+      // which says what the business sells, to whom and how it charges. The campaign
+      // names the sign-up page by its own address. Temporary, because only the
+      // brand's filing decides what this address is, and a 308 is cached for good.
+      // First match wins, so this comes before the prefix rule, which also matches it.
+      { source: "/yes/billing-probe", destination: "https://www.chanlytics.com/", permanent: false },
       { source: "/yes/billing-probe/:path*", destination: "/yes/chanlytics/:path*", permanent: true },
       { source: "/b/billing-probe/:path*", destination: "/b/chanlytics/:path*", permanent: true },
     ];

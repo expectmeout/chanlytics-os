@@ -1094,6 +1094,9 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .biz-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
 @media (max-width: 640px) { .biz-fields { grid-template-columns: 1fr; } }
 .biz-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* A few sentences, not a word: the whole row, and a box that grows with what is written. */
+.biz-field-wide { grid-column: 1 / -1; }
+.biz-area { resize: vertical; line-height: 1.5; }
 .biz-label { font-size: var(--set-hint); color: var(--ink-muted); }
 .biz-input {
   width: 100%;

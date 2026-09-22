@@ -136,6 +136,17 @@ export function campaignFactsFor(o: {
    * to guess that it and "RJ Capital LLC" are one business.
    */
   legalName?: string | null;
+  /**
+   * What the business does, in the owner's words (`business_records.about`).
+   *
+   * The NINTH refusal (30919, 22 Sep 2026) was filed against USE_CASE_DESCRIPTION.
+   * The description said who sends, to whom and why, but never what the business
+   * IS. A reviewer read "appointments" and "receptionist software", opened the
+   * website to see what kind of business books appointments, and could not
+   * "verify the operational business model". So the description opens with it,
+   * in the same words the business page shows.
+   */
+  about?: string | null;
   optInUrl: string;
   privacyUrl: string;
   termsUrl: string;
@@ -165,6 +176,9 @@ export function campaignFactsFor(o: {
   // same business said twice.
   const legal = (o.legalName ?? "").trim();
   const who = legal && legal.toLowerCase() !== name.trim().toLowerCase() ? `${name} (${legal})` : name;
+  // What the business does, as one finished sentence or more, ready to stand in front of the rest.
+  const about = (o.about ?? "").trim().split(/\s+/).join(" ");
+  const aboutLead = about ? `About ${who}: ${/[.!?]$/.test(about) ? about : `${about}.`} ` : "";
   // The paper version of the opt-in page. Named in the flow because a reviewer can
   // only accept a form they can see.
   const formUrl = `${o.optInUrl}/form`;
@@ -233,7 +247,7 @@ export function campaignFactsFor(o: {
     // is what the texting line actually carries: replies and appointment
     // messages. Offers and news go by WhatsApp, and the door refuses a
     // promotion by text (core deliver: sms_carries_no_promotions).
-    description: `Messages are sent by ${who} to its own customers: people who wrote to ${name} first, or who said yes on its sign-up page (${o.optInUrl}) or its signed sign-up form. Messages are replies to what a customer asked, and confirmations and reminders about that customer's own appointments. No marketing or promotional content is sent from this number. Messages are composed by ${name}'s staff and by its receptionist software and sent through the Chanlytics OS application, on ${name}'s own behalf.`,
+    description: `${aboutLead}Messages are sent by ${who} to its own customers: people who wrote to ${name} first, or who said yes on its sign-up page (${o.optInUrl}) or its signed sign-up form. Messages are replies to what a customer asked, and confirmations and reminders about that customer's own appointments. No marketing or promotional content is sent from this number. Messages are composed by ${name}'s staff and by its receptionist software and sent through the Chanlytics OS application, on ${name}'s own behalf.`,
 
     // THE CLAIM HAS TO BE TRUE, and one half of it was not. This flow used to open
     // by calling the two opt-ins symmetric -- that giving either left the other
@@ -484,6 +498,7 @@ export async function filingProblems(
     street: o.record.street,
     city: o.record.city,
     websiteUrl: o.record.website_url,
+    about: o.record.about,
     hasOptInNumber: o.hasOptInNumber ?? true,
   })) {
     problems.push(`${p.what} ${p.fix}`);
@@ -810,6 +825,7 @@ export async function registerLine(
     campaign: campaignFactsFor({
       businessName: o.workspaceName,
       legalName: o.record.legal_name,
+      about: o.record.about,
       optInUrl: o.optInUrl,
       privacyUrl: o.privacyUrl,
       termsUrl: o.termsUrl,

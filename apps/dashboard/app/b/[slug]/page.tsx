@@ -72,9 +72,15 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
         ))}
       </ul>
 
+      {/*
+        What the business IS, in its owner's words, before the list of what can be booked. The ninth refusal of
+        the live campaign (30919, 22 Sep 2026) wanted "the products, services, and industry" on the page, and a
+        services list names what can be booked without saying what kind of business books it.
+      */}
+      {(vm.about || vm.services.length > 0) && <h2>What we do</h2>}
+      {vm.about && <p data-testid="bp-about">{vm.about}</p>}
       {vm.services.length > 0 && (
         <>
-          <h2>What we do</h2>
           <ul data-testid="bp-services">
             {vm.services.map((s) => (
               <li key={s.name}>
