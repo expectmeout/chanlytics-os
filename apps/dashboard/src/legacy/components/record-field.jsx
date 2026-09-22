@@ -74,31 +74,32 @@ const RecordField = (props) => {
 // `invalid` is the id of a sentence drawn ELSEWHERE that this box is wrong by (a day's two boxes share one), and marks
 // the box the same without drawing it. `size="sm"` is the box at the width of a time or a number, record.css's small
 // variant. `type` is the box's (a date, a time, a number); anything else (placeholder, min, inputMode, className) goes
-// to the box as it is, as RecordField's rest does, and gathered the same way for the same reason.
+// to the box as it is, as RecordField's rest does, and gathered the same way for the same reason. `rows` makes the box
+// a textarea of that many rows, as RecordField's `rows` does, for words in a row of a list that run to sentences (a
+// note's text, a message sent in the business's name); a textarea has no `type`, so it takes none.
 //   <RecordBox id="closure-0-date" label="Closed from, row 1" type="date" value={c.date} onChange={…} problem={bad} />
-const REC_BOX_OWN = new Set(["id", "label", "unit", "value", "onChange", "problem", "invalid", "readOnly", "type", "size", "testid"]);
+//   <RecordBox id="note-0-text" label="Note 1, what it says" rows={3} value={n.text} onChange={…} />
+const REC_BOX_OWN = new Set(["id", "label", "unit", "value", "onChange", "problem", "invalid", "readOnly", "type", "size", "rows", "testid"]);
 const RecordBox = (props) => {
-  const { id, label, unit = null, value, onChange, problem = null, invalid = null, readOnly = false, type = "text", size = null, testid = null } = props;
+  const { id, label, unit = null, value, onChange, problem = null, invalid = null, readOnly = false, type = "text", size = null, rows = null, testid = null } = props;
   if (!id) throw new TypeError("RecordBox needs an id: it is hookless, so it cannot make one, and its sentence is named by it.");
   const rest = {};
   for (const k of Object.keys(props)) if (!REC_BOX_OWN.has(k)) rest[k] = props[k];
   const problemId = `rec-${id}-problem`;
   const wrong = problem ? problemId : invalid || null;
   const describedBy = [wrong, rest["aria-describedby"]].filter(Boolean).join(" ");
-  const box = (
-    <input
-      {...rest}
-      id={id}
-      type={type}
-      className={["rec-input", rest.className].filter(Boolean).join(" ")}
-      value={value == null ? "" : value}
-      onChange={(e) => { if (onChange) onChange(e.target.value); }}
-      aria-label={label}
-      aria-invalid={wrong ? true : undefined}
-      aria-describedby={describedBy || undefined}
-      readOnly={readOnly || undefined}
-    />
-  );
+  const own = {
+    ...rest,
+    id,
+    className: ["rec-input", rest.className].filter(Boolean).join(" "),
+    value: value == null ? "" : value,
+    onChange: (e) => { if (onChange) onChange(e.target.value); },
+    "aria-label": label,
+    "aria-invalid": wrong ? true : undefined,
+    "aria-describedby": describedBy || undefined,
+    readOnly: readOnly || undefined,
+  };
+  const box = rows ? <textarea {...own} rows={rows} /> : <input {...own} type={type} />;
   return (
     <span className="rec-box" data-size={size || undefined} data-testid={testid || undefined}>
       {unit ? (
@@ -182,6 +183,14 @@ const RecordToggleGroup = ({ label, value, options = [], onChange, readOnly = fa
 // The options are the combobox pattern's <li role="option">: a pointer presses them, a keyboard never focuses them.
 // The list itself is never a tab stop (Chrome makes a list that scrolls one), and it holds the pointer, on an option
 // or on its scroll, so focus never leaves the box for it.
+//
+// Two things a box that ADDS from a list needs (the Business tab's languages), each the page's to decide:
+// - `typed(words)` answers an option for what is typed, drawn after the matches, or null: a name the list does not hold,
+//   offered as it was typed, in the page's words ({ value: "Xhosa", label: "Add “Xhosa”" }). Not drawn when an option
+//   already has its value. Picked, it is onChange's like any other.
+// - `onKeyDown` is the page's, asked before the box's own keys and never while the box is refused; a key it takes
+//   (preventDefault) goes no further. A token field takes Backspace on an empty box to give back the last token.
+//   `e.target.value` is what the box shows, so "" is an empty box.
 
 // What was typed into `was`, where `now` is `was` with the typing in it, anywhere; or `now` as it is.
 const recTypedInto = (was, now) => {
@@ -193,7 +202,7 @@ const recTypedInto = (was, now) => {
   return head + tail === was.length ? now.slice(head, now.length - tail) : now;
 };
 
-const RecordCombobox = ({ id, label, value = null, options = [], onChange, placeholder = undefined, readOnly = false, gate = null, testid = null }) => {
+const RecordCombobox = ({ id, label, value = null, options = [], onChange, placeholder = undefined, readOnly = false, gate = null, typed = null, onKeyDown = null, testid = null }) => {
   const [open, setOpen] = useRfState(false);
   const [query, setQuery] = useRfState("");
   const [active, setActive] = useRfState(0);
@@ -205,7 +214,9 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
   const refused = readOnly || !!(gate && gate["aria-disabled"]);
   const chosen = options.find((o) => o.value === value) || null;
   const q = query.trim().toLowerCase();
-  const shown = q ? options.filter((o) => String(o.label).toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)) : options;
+  const matched = q ? options.filter((o) => String(o.label).toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)) : options;
+  const offer = q && typeof typed === "function" ? typed(query.trim()) : null;
+  const shown = offer && !options.some((o) => o.value === offer.value) ? matched.concat([offer]) : matched;
   const expanded = open && !refused && shown.length > 0;
   const at = Math.max(0, Math.min(active, shown.length - 1));
   const listId = `rec-${boxId}-list`;
@@ -222,6 +233,10 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
     // Refused (a gate's, or read-only while a save is out), the box takes no key: the arrows opened it underneath,
     // where the list was not drawn but the box went blank for the search that was not to be typed.
     if (refused) return;
+    if (typeof onKeyDown === "function") {
+      onKeyDown(e);
+      if (e.defaultPrevented) return;
+    }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (!expanded) { setOpen(true); setActive(Math.max(0, shown.findIndex((o) => o.value === value))); return; }

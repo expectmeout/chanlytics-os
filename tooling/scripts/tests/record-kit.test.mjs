@@ -227,6 +227,27 @@ test("a box in a row of a list carries its own name and its sentence, needs no h
   assert.throws(() => draw(W.RecordBox, { label: "nameless", value: "", onChange: () => {} }), (e) => e instanceof TypeError && /needs an id/.test(e.message));
 });
 
+test("a box in a row of a list is a textarea when its words run to sentences, named and wired as the input is, and hookless", () => {
+  // A note's text and a message sent in the business's name are rows of a list that come and go, so they are boxes
+  // with no hook; their words run to lines, so the box is a textarea.
+  const typed = [];
+  const tree = draw(W.RecordBox, { id: "note-1-text", label: "Note 2, what it says", rows: 3, value: "Behind the building.", onChange: (v) => typed.push(v), problem: "Each note needs both a title and the text to say.", readOnly: true, placeholder: "What it says" });
+  const box = find(tree, (n) => n.type === "textarea");
+  assert.ok(box, "a textarea");
+  assert.equal(find(tree, (n) => n.type === "input"), null, "and no input beside it");
+  assert.deepEqual(
+    [box.props.id, box.props.rows, box.props["aria-label"], box.props.value, box.props.readOnly, box.props.placeholder, classes(box), box.props.type],
+    ["note-1-text", 3, "Note 2, what it says", "Behind the building.", true, "What it says", ["rec-input"], undefined],
+  );
+  assert.deepEqual([box.props["aria-invalid"], box.props["aria-describedby"]], [true, "rec-note-1-text-problem"]);
+  assert.equal(textOf(byId(tree, "rec-note-1-text-problem")), "Each note needs both a title and the text to say.");
+  box.props.onChange({ target: { value: "Behind the building, on the left." } });
+  assert.deepEqual(typed, ["Behind the building, on the left."]);
+  assert.equal(all(tree, (n) => typeof n.type === "function").length, 2, "the box and its FieldError: no hook");
+  // Without rows it is the input it always was.
+  assert.equal(find(draw(W.RecordBox, { id: "note-1-title", label: "Note 2 title", value: "", onChange: () => {} }), (n) => n.type === "textarea"), null);
+});
+
 test("a switch is a switch, and says which state it is in", () => {
   const flips = [];
   const tree = draw(W.RecordSwitch, { on: true, label: "Never quote a price", onChange: (v) => flips.push(v) });
@@ -359,6 +380,57 @@ test("a combobox searches what is typed onto its chosen label, and its list is n
   const list = find(tree, (n) => n.props?.role === "listbox");
   assert.equal(list.props.tabIndex, -1);
   assert.equal(all(tree, (n) => n.props?.role === "option" && typeof n.props.onMouseDown === "function").length, 0, "the list holds the pointer, not each option");
+});
+
+test("a combobox that adds can offer what is typed after the matches, and the page's keys come first", () => {
+  const picked = [];
+  const keys = [];
+  const chosen = ["English"];
+  const props = {
+    id: "langs",
+    label: "Add a language",
+    value: null,
+    options: [{ value: "Spanish", label: "Spanish" }, { value: "Portuguese", label: "Portuguese" }],
+    onChange: (v) => picked.push(v),
+    // The page's rule for what may be taken as typed: not a name already chosen or already offered.
+    typed: (words) => (chosen.concat(["Spanish", "Portuguese"]).some((l) => l.toLowerCase() === words.toLowerCase()) ? null : { value: words, label: `Add “${words}”` }),
+    onKeyDown: (e) => { keys.push(e.key); if (e.key === "Backspace" && e.target.value === "") e.preventDefault(); },
+  };
+  const box = (tree) => find(tree, (n) => n.props?.role === "combobox");
+  const opts = (tree) => all(tree, (n) => n.props?.role === "option").map((o) => textOf(o));
+  let tree = draw(W.RecordCombobox, props);
+  box(tree).props.onChange({ target: { value: "Xhosa" } });
+  tree = redraw(W.RecordCombobox, props);
+  assert.deepEqual(opts(tree), ["Add “Xhosa”"], "nothing matches, so what is typed is the one option");
+  assert.equal(box(tree).props["aria-expanded"], true);
+  box(tree).props.onKeyDown({ key: "Enter", target: { value: "Xhosa" }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } });
+  assert.deepEqual(picked, ["Xhosa"], "Enter takes it, as it takes any option");
+  tree = redraw(W.RecordCombobox, props);
+  box(tree).props.onChange({ target: { value: "Po" } });
+  tree = redraw(W.RecordCombobox, props);
+  assert.deepEqual(opts(tree), ["Portuguese", "Add “Po”"], "after the matches, never before them");
+  box(tree).props.onChange({ target: { value: "spanish" } });
+  tree = redraw(W.RecordCombobox, props);
+  assert.deepEqual(opts(tree), ["Spanish"], "a name the page says it holds is not offered twice");
+  // The page's keys first: a key it takes goes no further, and one it leaves is the box's.
+  const back = { key: "Backspace", target: { value: "" }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  box(tree).props.onKeyDown(back);
+  assert.equal(back.defaultPrevented, true);
+  const esc = { key: "Escape", target: { value: "spanish" }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  box(tree).props.onKeyDown(esc);
+  tree = redraw(W.RecordCombobox, props);
+  assert.equal(box(tree).props["aria-expanded"], false, "Escape, which the page left, still closes the list");
+  assert.deepEqual(keys, ["Enter", "Backspace", "Escape"]);
+  // Refused, the box takes no key, the page's included.
+  tree = draw(W.RecordCombobox, { ...props, readOnly: true });
+  box(tree).props.onKeyDown({ key: "Backspace", target: { value: "" }, defaultPrevented: false, preventDefault() {} });
+  assert.deepEqual(keys, ["Enter", "Backspace", "Escape"], "not while the box is read-only");
+  // Given no `typed`, nothing that is not an option is offered.
+  tree = draw(W.RecordCombobox, { ...props, typed: null });
+  box(tree).props.onChange({ target: { value: "Xhosa" } });
+  tree = redraw(W.RecordCombobox, { ...props, typed: null });
+  assert.deepEqual(opts(tree), []);
+  assert.equal(box(tree).props["aria-expanded"], false);
 });
 
 test("a tip you cannot click is a chip; one you can is a card", () => {
