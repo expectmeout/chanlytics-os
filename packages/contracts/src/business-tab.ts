@@ -13,7 +13,7 @@
  * wrote it, is `prompt-blocks.ts`.
  */
 
-import { DAYS, GuardrailsSchema, type Closure, type Hours } from "./config";
+import { BookingRulesSchema, DAYS, GuardrailsSchema, type Closure, type Hours } from "./config";
 import { hardLimitsWords, violatesNoPrices } from "./policy";
 import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
 import { closureDatesLabel, closuresFrom } from "./calendar";
@@ -372,6 +372,35 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
     notes: notes.length ? notes.join(" ") : null,
     none: `The calendar's own — at least ${plural(d.lead_hours, "hour's", "hours'")} notice, up to ${plural(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`,
   };
+}
+
+/** The five booking rules a box holds a number for, by the key the schema stores each under. */
+export type BookingRuleKey = "lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max";
+
+/**
+ * What a booking rule's box says when what is typed is not a whole number in the rule's range: the range, and what an
+ * empty box uses, each with its unit, in the hint's place under the box. The range is the save's own schema's
+ * (BookingRulesSchema's bounds, so a check never refuses what the save would take), and what empty uses is the defaults
+ * the openings are made with (BOOKING_DEFAULTS), which the box's hint says too (BOOKING_RULE_HINTS). The old form said
+ * "leave it empty for no rule" of the least notice and of the days ahead, each of which has a default; the party size has
+ * none, and the composer says nothing of a party when none is set, so its "no rule" is true. A key that is not one of the
+ * five is a TypeError, since the page is untyped.
+ */
+export function bookingRuleRefusal(key: BookingRuleKey): string {
+  const shape = BookingRulesSchema.shape as unknown as Record<string, { unwrap?: () => { minValue: number | null; maxValue: number | null } } | undefined>;
+  const words: Record<BookingRuleKey, (lo: number, hi: number) => string> = {
+    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar’s ${plural(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`,
+  };
+  const say = Object.prototype.hasOwnProperty.call(words, key) ? words[key] : null;
+  const bound = say ? shape[key]?.unwrap?.() : null;
+  if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
+    throw new TypeError(`bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words).join(", ")}), not ${JSON.stringify(key)}.`);
+  }
+  return say(bound.minValue, bound.maxValue);
 }
 
 /**

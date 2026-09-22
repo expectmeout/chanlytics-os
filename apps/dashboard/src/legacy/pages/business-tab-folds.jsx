@@ -86,36 +86,30 @@ const btLines = (text) => String(text == null ? "" : text).split("\n").map((x) =
 
 /**
  * The booking rules the booking_rules fold edits, each with the range the schema allows (contracts
- * BookingRulesSchema) and the sentence for a number outside it. One table, so the range a save writes and the range a
- * check refuses are never two. Its notes are the fold's too; consult_first is a fold of its own.
+ * BookingRulesSchema, whose bounds a folds test holds these to), as a plain [key, least, most]. One table, so the range
+ * a save writes and the range a check refuses are never two. Its notes are the fold's too; consult_first is a fold of
+ * its own.
  *
- * Each sentence says what an empty box truly means, from the defaults the openings are worked out with (contracts
- * BOOKING_DEFAULTS, which availability.ts freeWindows applies, published by the bridge on window.__businessTab), the
- * one source the box's hint reads too (BOOKING_RULE_HINTS). The old form's said "leave it empty for no rule" of the
- * least notice and of the days ahead, under a box whose hint says an empty one uses two hours, or fourteen days, and
- * the kit draws the refusal in the hint's place. A sentence is worked out as it is asked for (the fourth of each row
- * is a getter), since the bridge installs after this file loads; with no bridge to ask, it says the calendar's own and
- * no number. The party size has no default, and the composer says nothing of a party when none is set: its "no rule"
- * is true.
+ * The sentence for a number outside a rule's range is contracts' (bookingRuleRefusal, through the bridge), asked for
+ * when the check runs: it states the range and what an empty box uses, with its unit ("…leave it empty to use 2 hours."),
+ * and a sentence with a number in it is contracts' (spec §3). The old form's said "leave it empty for no rule" of rules
+ * that have a default, under a box whose hint says what it uses. With no bridge to ask, the page states no number of its
+ * own: only that the box is refused.
  */
-const btRuleDefault = (key) => {
-  const d = window.__businessTab && window.__businessTab.BOOKING_DEFAULTS;
-  return d && typeof d[key] === "number" ? d[key] : null;
-};
-const btRule = (key, lo, hi, words) => {
-  const rule = [key, lo, hi];
-  Object.defineProperty(rule, 3, { enumerable: true, get: () => words(lo, hi, btRuleDefault(key)) });
-  return rule;
-};
 const BT_RULES = [
-  btRule("lead_hours", 0, 168, (lo, hi, d) => `Least notice is ${lo} to ${hi} hours; leave it empty ${d == null ? "for the calendar’s own" : `to use ${d}`}.`),
+  ["lead_hours", 0, 168],
   // The slot length has a field of its own now (S2): 15 to 240 minutes, as the schema allows; blank is the calendar's
   // default.
-  btRule("slot_min", 15, 240, (lo, hi, d) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar’s ${d == null ? "own" : d}.`),
-  btRule("buffer_min", 0, 120, (lo, hi, d) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${d == null ? "the calendar’s own" : d === 0 ? "none" : `${d} minutes`}.`),
-  btRule("max_days_ahead", 1, 90, (lo, hi, d) => `Times are offered ${lo} to ${hi} days ahead; leave it empty ${d == null ? "for the calendar’s own" : `to use ${d}`}.`),
-  btRule("party_max", 1, 20, (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`),
+  ["slot_min", 15, 240],
+  ["buffer_min", 0, 120],
+  ["max_days_ahead", 1, 90],
+  ["party_max", 1, 20],
 ];
+const BT_RULE_REFUSED = "That is not a number this rule takes.";
+const btRuleRefusal = (key) => {
+  const tab = window.__businessTab;
+  return tab && typeof tab.bookingRuleRefusal === "function" ? tab.bookingRuleRefusal(key) : BT_RULE_REFUSED;
+};
 // A blank box stores no rule, never zero, and the default applies where the rule has one; anything that is not a whole
 // number in the rule's range would store none either, which is why problemsOf refuses it first. Digits only: parseInt
 // read "2.5" as 2, "30min" as 30 and "1e2" as 1, and stored a rule nobody typed.
@@ -500,8 +494,8 @@ const BT_PROBLEMS_OF = {
   booking_rules: (draft) => {
     const d = draft || {};
     const found = {};
-    BT_RULES.forEach(([key, lo, hi, words]) => {
-      if (btfTrimmed(d[key]) !== "" && btRuleNumber(d[key], lo, hi) === undefined) found[key] = words;
+    BT_RULES.forEach(([key, lo, hi]) => {
+      if (btfTrimmed(d[key]) !== "" && btRuleNumber(d[key], lo, hi) === undefined) found[key] = btRuleRefusal(key);
     });
     const notes = btLines(d.notes);
     if (notes.length > BT_LIMITS.ruleNotes) found.notes = `At most ${btCount(BT_LIMITS.ruleNotes)} notes, one to a line — this is ${btCount(notes.length)}.`;

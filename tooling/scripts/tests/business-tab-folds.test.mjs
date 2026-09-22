@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   newReceptionistDefaults, instructionsDraft, FALLBACK_DEFAULTS, unknownDetails, INSTRUCTIONS_MAX, resolveSystemPrompt,
-  hasProfile, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, BOOKING_DEFAULTS, BOOKING_RULE_HINTS,
+  hasProfile, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, BOOKING_DEFAULTS, BOOKING_RULE_HINTS, bookingRuleRefusal, BookingRulesSchema,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "./_legacy-react.mjs";
 
@@ -450,10 +450,10 @@ test("problemsOf says the old form's sentences, but for what an empty box means,
   const ranges = [
     // The old form's said "leave it empty for no rule" of the least notice and the days ahead, each of which has a
     // default (BOOKING_DEFAULTS): the refusal says it, as the box's hint does.
-    ["lead_hours", ["-1", "169", "soon"], ["0", "168"], "Least notice is 0 to 168 hours; leave it empty to use 2."],
-    ["slot_min", ["14", "241"], ["15", "240"], "A slot is 15 to 240 minutes; leave it empty for the calendar’s 30."],
+    ["lead_hours", ["-1", "169", "soon"], ["0", "168"], "Least notice is 0 to 168 hours; leave it empty to use 2 hours."],
+    ["slot_min", ["14", "241"], ["15", "240"], "A slot is 15 to 240 minutes; leave it empty for the calendar’s 30 minutes."],
     ["buffer_min", ["-1", "121"], ["0", "120"], "The gap is 0 to 120 minutes; leave it empty for none."],
-    ["max_days_ahead", ["0", "91"], ["1", "90"], "Times are offered 1 to 90 days ahead; leave it empty to use 14."],
+    ["max_days_ahead", ["0", "91"], ["1", "90"], "Times are offered 1 to 90 days ahead; leave it empty to use 14 days."],
     ["party_max", ["0", "21"], ["1", "20"], "A booking is for 1 to 20 people; leave it empty for no rule."],
   ];
   for (const [key, bad, good, words] of ranges) {
@@ -707,7 +707,7 @@ test("a booking rule typed as anything but a whole number is refused with its ru
   const draft = S.draftOf("booking_rules", stored());
   for (const typed of ["2.5", "30min", "1e2", "-1"]) {
     const found = S.problemsOf("booking_rules", { ...draft, lead_hours: typed });
-    assert.equal(found.lead_hours, "Least notice is 0 to 168 hours; leave it empty to use 2.", typed);
+    assert.equal(found.lead_hours, "Least notice is 0 to 168 hours; leave it empty to use 2 hours.", typed);
   }
   assert.deepEqual(S.problemsOf("booking_rules", { ...draft, lead_hours: " 24 " }), {});
 });
@@ -1063,27 +1063,22 @@ test("a block whose lines are runs says nothing goes unless the whole block goes
   }
 });
 
-test("a booking rule's refusal says what an empty box means from the one source its hint reads, BOOKING_DEFAULTS", () => {
+test("a booking rule's refusal is contracts' bookingRuleRefusal, and the page's ranges are the save's own schema's", () => {
   // The spec review's probe: the refusal is drawn in the hint's place, and said "leave it empty for no rule" under a box
-  // whose hint says an empty one uses two hours.
-  const words = Object.fromEntries(S.RULES.map(([key, , , sentence]) => [key, sentence]));
+  // whose hint says an empty one uses two hours. The quality review: a sentence with a number in it is contracts'
+  // (spec §3), and RULES is a plain table, where its sentences were getters over a bridge that loads after the page.
   const rules = S.draftOf("booking_rules", stored());
-  for (const [key, , hi] of S.RULES) assert.equal(S.problemsOf("booking_rules", { ...rules, [key]: String(hi + 1) })[key], words[key], key);
-  assert.deepEqual(BOOKING_DEFAULTS, { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 });
-  assert.match(words.lead_hours, new RegExp(`to use ${BOOKING_DEFAULTS.lead_hours}\\.$`));
-  assert.match(BOOKING_RULE_HINTS.lead_hours, new RegExp(`^Empty uses ${BOOKING_DEFAULTS.lead_hours} hours`), "the hint the refusal replaces says the same");
-  assert.match(words.max_days_ahead, new RegExp(`to use ${BOOKING_DEFAULTS.max_days_ahead}\\.$`));
-  assert.match(words.slot_min, new RegExp(`the calendar’s ${BOOKING_DEFAULTS.slot_min}\\.$`));
-  assert.match(words.buffer_min, /empty for none\.$/, "a gap of 0 is none");
-  assert.match(words.party_max, /empty for no rule\.$/, "a party of any size is booked when none is set, and the composer says nothing of one");
-  // One source: a default moved in contracts moves the sentence, and with no bridge to ask it states no number.
+  for (const [key, lo, hi] of S.RULES) {
+    assert.equal(S.problemsOf("booking_rules", { ...rules, [key]: String(hi + 1) })[key], bookingRuleRefusal(key), key);
+    const bound = BookingRulesSchema.shape[key].unwrap();
+    assert.deepEqual([lo, hi], [bound.minValue, bound.maxValue], `${key}: the range a check refuses is the range the save keeps`);
+  }
+  assert.ok(S.RULES.every((rule) => rule.length === 3 && rule.every((x) => typeof x !== "function")), "a plain [key, least, most]");
+  // Without the bridge the page states no number of its own: it says only that the box is refused.
   const tab = W.__businessTab;
   try {
-    W.__businessTab = { ...tab, BOOKING_DEFAULTS: { ...BOOKING_DEFAULTS, lead_hours: 3, buffer_min: 10 } };
-    assert.equal(S.RULES[0][3], "Least notice is 0 to 168 hours; leave it empty to use 3.");
-    assert.equal(S.RULES.find(([key]) => key === "buffer_min")[3], "The gap is 0 to 120 minutes; leave it empty for 10 minutes.");
     delete W.__businessTab;
-    assert.equal(S.RULES[0][3], "Least notice is 0 to 168 hours; leave it empty for the calendar’s own.");
+    assert.equal(S.problemsOf("booking_rules", { ...rules, lead_hours: "500" }).lead_hours, "That is not a number this rule takes.");
   } finally {
     W.__businessTab = tab;
   }

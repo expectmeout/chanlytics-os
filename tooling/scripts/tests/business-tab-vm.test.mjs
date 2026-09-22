@@ -26,6 +26,8 @@ import {
   blockShareWords,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
+  bookingRuleRefusal,
+  BookingRulesSchema,
   BOOKING_DEFAULTS,
   violatesNoPrices,
 } from "@chanlytics/contracts";
@@ -526,4 +528,21 @@ test("a booking rule's box says what empty means, from the defaults the openings
     max_days_ahead: "Empty uses 14.",
     party_max: "Larger groups go to a person.",
   });
+});
+
+test("a booking rule's refusal says its range and what an empty box uses, each with its unit, from the schema and the defaults", () => {
+  // The quality review: "leave it empty to use 2" named no unit, and the sentences were the page's.
+  assert.deepEqual(["lead_hours", "slot_min", "buffer_min", "max_days_ahead", "party_max"].map(bookingRuleRefusal), [
+    "Least notice is 0 to 168 hours; leave it empty to use 2 hours.",
+    "A slot is 15 to 240 minutes; leave it empty for the calendar’s 30 minutes.",
+    "The gap is 0 to 120 minutes; leave it empty for none.",
+    "Times are offered 1 to 90 days ahead; leave it empty to use 14 days.",
+    // No default: a party of any size is booked when none is set, and the composer says nothing of one.
+    "A booking is for 1 to 20 people; leave it empty for no rule.",
+  ]);
+  // Its range is the save's own schema's, and what empty uses is the one BOOKING_DEFAULTS, which the hint reads too.
+  const lead = BookingRulesSchema.shape.lead_hours.unwrap();
+  assert.match(bookingRuleRefusal("lead_hours"), new RegExp(`^Least notice is ${lead.minValue} to ${lead.maxValue} hours; leave it empty to use ${BOOKING_DEFAULTS.lead_hours} hours\\.$`));
+  assert.match(BOOKING_RULE_HINTS.lead_hours, new RegExp(`^Empty uses ${BOOKING_DEFAULTS.lead_hours} hours\\.$`));
+  for (const bad of ["notes", "consult_first", "", undefined]) assert.throws(() => bookingRuleRefusal(bad), TypeError, String(bad));
 });

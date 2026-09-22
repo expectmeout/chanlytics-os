@@ -11359,6 +11359,22 @@ function bookingRulesWords(rules) {
     none: `The calendar's own \u2014 at least ${plural6(d.lead_hours, "hour's", "hours'")} notice, up to ${plural6(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
   };
 }
+function bookingRuleRefusal(key) {
+  const shape = BookingRulesSchema.shape;
+  const words2 = {
+    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural6(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural6(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural6(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural6(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
+  };
+  const say = Object.prototype.hasOwnProperty.call(words2, key) ? words2[key] : null;
+  const bound = say ? shape[key]?.unwrap?.() : null;
+  if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
+    throw new TypeError(`bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words2).join(", ")}), not ${JSON.stringify(key)}.`);
+  }
+  return say(bound.minValue, bound.maxValue);
+}
 var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
   lead_hours: `Empty uses ${plural6(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
   slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
@@ -13873,6 +13889,7 @@ export {
   bookedAfterAsk,
   bookingHeld,
   bookingLinkAction,
+  bookingRuleRefusal,
   bookingRulesWords,
   bookingTemplate,
   brainMetaOf,

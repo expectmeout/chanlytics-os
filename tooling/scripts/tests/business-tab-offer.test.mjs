@@ -5,7 +5,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate, needsConsultation, foldName, serviceUndoName } from "@chanlytics/contracts";
+import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate, needsConsultation, foldName, serviceUndoName, bookingRuleRefusal } from "@chanlytics/contracts";
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import { W, cancelFoldOf, composePromptPreview, drawTab, escape, foldOf, labelled, melany, openFold, openFolds, openRows, ownWords, redrawTab, saveFoldOf, saving, typeAt, without } from "./_business-tab-harness.mjs";
 
@@ -646,7 +646,8 @@ test("each booking rule saves within its range; outside it, or not a whole numbe
   const sent = saving();
   const S = W.__businessTabSave;
   const labels = { lead_hours: "Least notice hours", slot_min: "Slot length minutes", buffer_min: "Gap between appointments minutes", max_days_ahead: "Offers times up to days ahead", party_max: "Most people per booking people" };
-  for (const [key, lo, hi, words] of S.RULES) {
+  for (const [key, lo, hi] of S.RULES) {
+    const words = bookingRuleRefusal(key);
     for (const bad of [String(hi + 1), String(lo - 1), "2.5", "30min", "1e2"]) {
       if (bad === "-1" && lo === 0) continue;
       let tree = drawTab();
