@@ -1455,9 +1455,9 @@ html.legacy-on .bt-link { position: relative; }
 .bt-note, .bt-note-head { align-self: stretch; display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; align-items: start; gap: 6px 8px; }
 .bt-note > .field-error { grid-column: 1 / -1; }
 .bt-note-head { font-size: var(--text-xs); color: var(--ink-dim); }
-/* The owner's own words at rest: their size, then their opening, quoted, in the muted ink. */
+/* The owner's own words at rest: their opening, quoted, in the muted ink. Their size went with the count, which is
+   under the box that edits them now (contracts instructionsWords). */
 .bt-own { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
-.bt-own-size { flex: none; font-variant-numeric: tabular-nums; }
 .bt-own-opening { min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); overflow-wrap: anywhere; }
 .bt-own-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 /* The three messages at rest, and in the fold: each its label, when it goes out, its box, and what a customer reads. */

@@ -14,7 +14,7 @@
 //   and record.css never lets its act go latent, because there is no value to point at.
 // - `source` is a FactSource, said quietly beside the value in the `fact` kind's words and tone (contracts tone.ts),
 //   and NOT said at all when it is `typed` (RecordSourceChip says why). `sourceLabel` overrides the words where the
-//   page has better ones.
+//   page has better ones -- except on `typed`, which draws nothing at all, so there are no words to override.
 // - `disputed` { value, source, severity?, onUse?, onKeep?, useLabel?, keepLabel?, sentence?, gate? } is a second
 //   answer that disagrees with this one. The row's source becomes the kind's `disputed` (warn: a person settles it), and
 //   a line under the value carries the other answer, with its own source said the same way and, given `onUse`, a press to take
