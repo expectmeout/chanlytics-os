@@ -23,8 +23,8 @@ after(() => unmount());
  * platform provisioned, `handoff` the number a caller who insists on a person is transferred to; both absent is the
  * workspace as it arrives, before Connections has given it a line.
  */
-const drawCreate = ({ flash = () => {}, line = null, handoff = null, config = {} } = {}) => {
-  W.__SETTINGS = { version: 3, config, prompt: null };
+const drawCreate = ({ flash = () => {}, line = null, handoff = null, config = {}, read = true } = {}) => {
+  W.__SETTINGS = read ? { version: 3, config, prompt: null } : null;
   W.__FACTS = {
     facts: {
       voice_line: { value: line, source: line ? "provisioned" : "absent" },
@@ -113,6 +113,14 @@ test("the line it answers on is named the way people write it, and choosing it i
   const note = textOf(byTestId(tree, "rec-create-number-note"));
   assert.ok(note.startsWith("+1 (305) 555-0100 — the line your receptionist answers"), note);
   assert.ok(!note.includes("+13055550100"), "REGRESSION: the stored form, in front of the owner");
+});
+
+test("with nothing read to save onto, the act is not offered at all", () => {
+  // A dead button spends a press to reach nothing: the fold cannot work out a draft without a config behind it
+  // (btOpening), so it would never open. The row's act asks the same question before it offers one.
+  const tree = drawCreate({ read: false });
+  assert.match(textOf(find(tree, (n) => classes(n).includes("empty"))), /This workspace has no receptionist yet/, "the state is still said");
+  assert.equal(byTestId(tree, "rec-create-open"), null, "and nothing is offered that would do nothing");
 });
 
 /* ------------------------------------ what stops it ------------------------------------ */
@@ -216,6 +224,36 @@ test("the line it answers on is stored as no number at all, which is what makes 
   assert.equal(sent.length, 1);
   assert.deepEqual(Object.keys(sent[0].config.brain).sort(), ["booking_link", "business_name", "fallbacks", "system_prompt"]);
   assert.equal("phone_display" in sent[0].config.brain, false, "absent is the schema's way of saying: the line it answers");
+});
+
+test("a number typed and then put back to the line is stored as no number, not as the line", () => {
+  // The row this box is shared with has the same case (business-tab-page.test.mjs, "A number typed before, put
+  // back to the line"): pressing A different number fills the box with the line it answers on, so a draft that
+  // kept what was in the box would publish the line as an OVERRIDE -- a stored string that stops following the
+  // line the moment the line changes, which is the whole reason absent is the right answer.
+  const sent = saving();
+  let tree = drawCreate({ line: "+13083368109" });
+  setUp(tree);
+  tree = redrawCreate();
+  typeIn(tree, "rec-create-name", "Bella Nails");
+  tree = redrawCreate();
+  typeIn(tree, "rec-create-link", "https://bella.example/book");
+  tree = redrawCreate();
+
+  const choose = (words) => {
+    press(find(byTestId(tree, "rec-create-number-choice"), (n) => n.props?.role === "radio" && textOf(n) === words));
+    tree = redrawCreate();
+  };
+  choose("A different number");
+  assert.equal(boxIn(tree, "rec-create-number").props.value, "+1 (308) 336-8109", "the box fills with the line it answers on");
+  choose("Your line");
+  const box = () => find(byTestId(tree, "rec-create-number"), (n) => classes(n).includes("bt-inline-box"));
+  assert.equal(box().props.hidden, true, "and choosing the line puts the box away, with what was in it");
+  assert.equal(boxIn(tree, "rec-create-number").props.value, "+1 (308) 336-8109", "which the draft still carries");
+
+  save(tree);
+  assert.equal(sent.length, 1);
+  assert.equal("phone_display" in sent[0].config.brain, false, "nothing is stored, so what it gives out follows the line");
 });
 
 /* ------------------------------------ who may do it ------------------------------------ */

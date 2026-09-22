@@ -584,7 +584,9 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
     draft: now, open, problems: found, readOnly: busy, update, change, rows, press,
     focus: (row) => setFocusOn({ row }), opened: live.current.opened, opening: live.current.opening,
   };
-  return { open, busy, stored, fields, will, asks, submit, focusOn, request: fold.request };
+  // `can` is what gates opening (btOpening): there is a config to save onto and a draft that could be worked out of
+  // it. A card's `rest` asks it before it offers its act, as a row's act asks `stored`.
+  return { open, busy, stored, can, fields, will, asks, submit, focusOn, request: fold.request };
 };
 
 /* ------------------------------------ a set of fields, under the row that states them ------------------------------------ */
@@ -670,7 +672,7 @@ const BtFold = ({
   const note = will ? [will.note, lines ? null : will.caveat].filter(Boolean).join(" ") || null : null;
   return (
     <>
-      {e.open ? null : rest ? rest({ request: e.request, can: !!e.stored }) : (
+      {e.open ? null : rest ? rest({ request: e.request, can: e.can }) : (
         <window.RecordRow
           id={id}
           label={label}
