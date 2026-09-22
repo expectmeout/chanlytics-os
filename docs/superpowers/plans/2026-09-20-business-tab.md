@@ -2443,6 +2443,54 @@ Both functions throw a `TypeError` naming any boolean input that is not a boolea
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Commit**
 
+**Changed in execution (22 Sep).** 4.1 and 4.1b shipped together, test-first, on `design/what-it-can-do`. The card is
+`pages/business-can.jsx` (the name this task gave it), its tests `tooling/scripts/tests/business-can.test.mjs` -- its
+own file, as each of the four cards before it has one, rather than a fifteenth section of the page's own two-thousand
+line file. It is ONE card, "What it can do", with a second group head "And what it cannot" (`rec-card-cannot` on the
+group), so the page gains one card and not two.
+
+**Built to the owner's quiet rule from the start (Task 4.0's).** An ability is its title and two glyphs, chat and
+phone, from `components/icons.jsx`, lit `--ink` where the channel has it and dim `--ink-dim` where it does not -- no
+pill, no badge, no second colour, and each glyph carries its name from contracts (`ABILITY_CHANNEL_WORDS`: "in chat",
+"not in chat", "on a call", "not on a call"), because dim on its own says nothing to a screen reader. The sentence is
+drawn where it cannot be missed ONLY where what stops the ability is a row of this page, which contracts decides
+(`AbilityRowVM.missing`); then the row says what happens instead and offers that row as a `.bt-link`, on a phone too.
+Everywhere else the sentence is still in the row, visually hidden (`.bt-can-says`) so a screen reader reads it, and on
+the row's `title` for a mouse. `missing` rather than `!ready` on purpose: under a held reply mode five rows are not
+ready, and five sentences blooming at once is the shouting 4.1b exists to stop.
+
+- **The door is a link in the sentence, not the kit's `rec-row-act`.** `runsOn.label` is a noun on four of the six rows
+  ("The transfer number"), and the kit's act names itself by its words AND its row's label, which would have read
+  "The transfer number Put a caller through". As a link after the sentence that explains the gap, described by it
+  (`aria-describedby`), the noun reads as what it is, and the card draws no chevron at all.
+- **A viewer is offered no door**, as every other row of this page offers them no act; the sentence stays.
+- **M-3 landed in contracts with its own test** (`1efc1e96`): `linkGoes` never asked whether the CALL could send the
+  link, so a workspace on both lines with no approved booking-link template was told, on the openings row, that its
+  call offers times "then the link". Both clauses now name the channel that keeps them -- ", then the link in chat",
+  "-- in chat it sends the link instead" -- and a workspace with no call says them plain.
+- **4.1b changed `abilityRows`' shape**: it takes `replyMode` (checked as it runs, like the booleans) and answers
+  `{ rows, held }`. Under ask or never every row's chat channel is dark, `handoff` and `vision` are not ready, and the
+  booking link has no channel AT ALL -- the call's send goes through the same gate the Replies row holds
+  (`outbound-gate.ts`, `policy_hold`), which the plan's text above mentions and the first draft of the row did not
+  honour. A transfer is untouched. The sentence names the mode in `POLICY_MODE_WORDS`' own words and carries the call
+  clause only where there is a call.
+- **Both failed reads.** `__POLICIES` null (or not read yet) and `__SETUP` null are one answer: the rows that need it
+  are a `FailedRead` naming the surface, never a guessed false. What it cannot do reads only the lines, so it stands
+  on its own when the Autonomy tab is the thing missing. The card reads the Replies row with the edge's own default
+  for a row that is not there (`reply-posture.ts`: `ask`), and an unknown stored mode holds, as the gate holds it.
+- **The bridge publishes three more** (`legacy-bridge/business-tab.ts`): `capabilityStatus`, so "this line answers" is
+  decided once for Setup and for this card; `ABILITY_CHANNEL_WORDS`; and `POLICY_MODES`, so the page can tell a stored
+  mode it knows from one it does not without keeping a copy of the enum.
+- **The harness gained the three surfaces** (`_business-tab-harness.mjs`: `SETUP`, `POLICIES`, `TEMPLATES`), reset with
+  the record as `__SETTINGS` is. `business-tab-answers.test.mjs`'s pause test now passes its policies to `drawTab`.
+
+**Proof.** `corepack pnpm test` 4147 green (4128 before: five in contracts, fourteen on the page). `corepack pnpm e2e:local -- e2e/settings-business.spec.ts`
+and `--scenario=salon` both 12/12. At 390px on the salon record, inside `[data-testid="rec-card-can"]`: no sideways
+scroll (page, pane or card), **0** bordered pills, **0** gradients, **1** font family, **0** colours outside the
+ink/accent/line tokens, **0** hidden sentences on screen at rest and 12 glyphs named in words. Whole, the card is
+530px tall on a phone and says one sentence (the photo switch is off); with the transfer number and the calendar feed
+taken out it says three; with replies held it says the hold once, above six rows, and 9 of the 12 glyphs go dim.
+
 ### Task 4.1b: When Autonomy keeps the receptionist from replying, the card says so once
 
 Found by the Phase 1 fix pass, decided by the controller on 21 Sep. With the Autonomy tab's **Replies** row set to *Asks you* or *Stays quiet*, the WhatsApp receptionist composes no reply at all (`apps/edge/lib/whatsapp/inbound.ts` ~698), and a call's booking-link send is refused (`apps/edge/lib/outbound-gate.ts` ~123). Built as Task 4.1 stands, every chat ability on the card would still read ready — six claims, all false at once.
@@ -2464,6 +2512,8 @@ On the page: `held` draws once, above the rows, with one door to the Autonomy ta
 - [ ] **Step 3: Implement.** `replyMode` comes from the reply row of `__POLICIES`. When `__POLICIES` is null the read failed: draw `FailedRead` for the card, as Task 4.1 already does, never a guessed mode.
 - [ ] **Step 4: Run them and watch them pass**
 - [ ] **Step 5: Commit**
+
+**Changed in execution (22 Sep).** Shipped with Task 4.1, in the same commits; that task's note holds both.
 
 > **Not settled here, and not the card's to settle:** under Booking = *Asks you*, the phone's `check_availability` refuses to offer times while the call still starts with the openings list and chat is handed them with every message — the edge disagrees with itself. Until that is decided, the card says only what holds on both channels (the Phase 1 fix pass wrote those sentences). Raised with the owner on 21 Sep.
 >

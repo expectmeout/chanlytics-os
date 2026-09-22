@@ -129,6 +129,18 @@ Six abilities, each with which channel has it and what it runs on, computed from
 
 And what it cannot: book, move or cancel an appointment (structural); call a customer (it answers, and the only number it rings is the owner's, to transfer); send a text message (not sold until the carriers approve a line, and not listed once texting is live on the workspace's line).
 
+> **Amended 22 Sep, in execution (Tasks 4.1 and 4.1b).** Three sentences of this section are now narrower, each
+> because the code refuses what the wider one promised.
+>
+> | Said here | Said on the card |
+> |---|---|
+> | Say which times are open ... "then the link" | **"then the link in chat"** on a workspace on both lines with no approved booking-link template: the call has no template to deliver, so it cannot send it (M-3) |
+> | Send the booking link ... While the Autonomy tab holds bookings, it sends none | and **while the Autonomy tab holds REPLIES** (Asks you, Stays quiet) it has no channel at all: the call's send is refused by the same gate (`outbound-gate.ts`) |
+> | Six abilities, each with which channel has it and what it runs on | each with which channel has it; **what it runs on is drawn only where that row is still empty**, which is the one thing an owner can act on from here (Task 4.0's rule) |
+>
+> The Replies row is said ONCE for the whole card, above the rows, with one door to the Autonomy tab -- one cause with
+> one fix on another tab, and six rows repeating it is the page shouting.
+
 > **Corrected 20 Sep, by the Phase 1 review.** This section first said the phone "texts" the booking link, that a hand-off never resumes, that a transfer "steps out", and that the receptionist "never dials". None was true. The link is a WhatsApp template and never an SMS; a hand-off is a pause that ends; the transfer stays on the line and runs only during opening hours; and the transfer does dial — the owner's number. A redesign whose argument is that the old page said untrue things cannot ship an untrue sentence, so each one is pinned by a test that fails on the old wording.
 
 ## 5. The three gestures
