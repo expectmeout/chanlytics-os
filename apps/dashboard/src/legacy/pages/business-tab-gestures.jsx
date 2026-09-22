@@ -374,7 +374,8 @@ const btOpening = (id, saver) => {
  *   it will say     willSay on saveFold(id, saver.base(), draft).brain, only while it is open and only for a draft the
  *                   page's own checks pass: the whole block under "Your receptionist will be told", the lines that go,
  *                   the block's share of the prompt (`chars`), and the sentence for a save that crosses the resolver's
- *                   line. `channel` null says none (the calendar's address and the zone are in no draft of the brain).
+ *                   line, only when its Save would send something (holdsChanges). `channel` null says none (the
+ *                   calendar's address and the zone are in no draft of the brain).
  *
  * `prefix` names its two asks' Confirms (rec-fold-<id>, rec-sheet-<id>). What a body is handed is `fields` in what it
  * answers, which BtFold's contract says in full.
@@ -554,10 +555,16 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
     saver.save(judged.job);
   };
 
-  // What it will say is worked out as it draws, so it is tried: a draft the helpers throw on draws no block.
-  const will = open && channel ? btWorkedOut(`what the ${id} fold will say`, () => (
-    Object.keys(S.problemsOf(id, now)).length ? null : S.willSay({ was: base.brain, next: S.saveFold(id, base, now).brain, sections: id, channel })
-  )) : null;
+  // What it will say is worked out as it draws, so it is tried: a draft the helpers throw on draws no block. The crossing
+  // (willSay's `note`) is a save's, so it is said only of a draft whose Save sends something (holdsChanges): a draft
+  // written as the save writes it can cross the resolver's line when nothing was typed (the instructions of a record
+  // that composes nothing, carried into the owner's field, S4), and the fold said the details would start being given
+  // of a Save that then sent nothing (the review's probe P1).
+  const will = open && channel ? btWorkedOut(`what the ${id} fold will say`, () => {
+    if (Object.keys(S.problemsOf(id, now)).length) return null;
+    const said = S.willSay({ was: base.brain, next: S.saveFold(id, base, now).brain, sections: id, channel });
+    return said && said.note && !S.holdsChanges(id, base, now) ? { ...said, note: null } : said;
+  }) : null;
 
   // What a body is handed (BtFold's contract says each). `focus(row)` puts focus in the first box of the row the body
   // named `row` (its data-rec-row), as an added row takes it; `opened` is the draft the editor opened with, and

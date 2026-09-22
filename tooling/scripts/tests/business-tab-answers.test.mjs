@@ -582,6 +582,31 @@ test("emptying the only words a record composes from says it stops composing, an
   assert.match(textOf(none), /None/);
 });
 
+test("a fold nobody typed in promises no crossing: on a record that composes nothing, the carried words open with no sentence, and Save sends nothing", () => {
+  // The review's probe P1. The record composes nothing, so it is answered with its stored prompt, which the box opens
+  // with, carried. Written as the save writes it, that draft would compose (S4), and the fold said the details would
+  // start being given; but nothing was typed, so Save sends nothing.
+  const sent = saving();
+  let tree = drawTab({ profile: { guardrails: { disclose_ai: true } } });
+  assert.equal(hasProfile(W.__SETTINGS.config.brain.profile), false, "the fixture composes nothing");
+  openFold(tree, "extra_instructions");
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-own-carried"), "the box opens with the stored prompt, carried");
+  assert.equal(byTestId(tree, "rec-fold-says-extra_instructions-note"), null, "REGRESSION: it said the details would start being given, of a save that sends nothing");
+  saveFoldOf(tree, "extra_instructions");
+  tree = redrawTab();
+  assert.deepEqual([sent.length, openFolds(tree)], [0, []]);
+  // Typed in, the save goes and crosses, and says so.
+  openFold(tree, "extra_instructions");
+  tree = redrawTab();
+  typeIn(tree, "extra_instructions", "Cash only.");
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-fold-says-extra_instructions-note")), PROFILE_CROSSING_WORDS.starts);
+  saveFoldOf(tree, "extra_instructions");
+  assert.equal(sent.length, 1);
+  assert.equal(hasProfile(sent[0].config.brain.profile), true, "and the record it saves composes");
+});
+
 /* ------------------------------------ when it can't answer ------------------------------------ */
 
 test("the three messages at rest say how many there are and how many differ from the default wording", () => {
