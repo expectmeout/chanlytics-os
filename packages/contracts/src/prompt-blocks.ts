@@ -57,6 +57,12 @@ export interface PromptBlockVM {
   text: string;
   /** Its exact share of the prompt, separators included, so the blocks sum to the whole. */
   chars: number;
+  /**
+   * The same share as a fraction of the prompt it was cut from (`chars` over the prompt's length), so the shares add up
+   * to one. The prompt sheet draws a block's cost as this share and never as a count (the owner's rule, 22 Sep: a
+   * character count is technical data), and divides nothing itself.
+   */
+  share: number;
   /** A caveat worth saying beside the block. */
   note?: string;
 }
@@ -247,7 +253,7 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
   starts.forEach((s, n) => segments.push({ from: s.at, to: starts[n + 1]?.at ?? lines.length, mark: s.mark }));
   const ranges = segments.filter((s) => s.from < s.to);
 
-  const out: (Omit<PromptBlockVM, "id" | "text"> & { from: number; to: number })[] = [];
+  const out: (Omit<PromptBlockVM, "id" | "text" | "share"> & { from: number; to: number })[] = [];
   let carry = 0;
   ranges.forEach((seg, n) => {
     const body = lines.slice(seg.from, seg.to).join("\n");
@@ -283,6 +289,11 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
   return out.map(({ from: a, to: b, ...block }) => {
     const n = (times.get(block.row) ?? 0) + 1;
     times.set(block.row, n);
-    return { id: n === 1 ? block.row : `${block.row}-${n}`, ...block, text: lines.slice(a, b).join("\n").trim() };
+    return {
+      id: n === 1 ? block.row : `${block.row}-${n}`,
+      ...block,
+      share: block.chars / text.length,
+      text: lines.slice(a, b).join("\n").trim(),
+    };
   });
 }

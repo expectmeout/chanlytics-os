@@ -389,6 +389,19 @@ test("every character belongs to exactly one block", () => {
   }
 });
 
+test("each block carries its share of the whole, and the shares make the whole", () => {
+  // The prompt sheet draws a block's cost as a share, never a count (the owner's 22 Sep rule): the page divides
+  // nothing, so the share is the cut's own, over the prompt it cut.
+  for (const channel of ["whatsapp", "voice"]) {
+    const text = composeSystemPrompt(brain, everything, channel, tz, NOW, ASK);
+    const blocks = promptBlocks(text, channel, { profile: everything });
+    for (const b of blocks) assert.equal(b.share, b.chars / text.length, `${channel}: ${b.id}`);
+    const whole = blocks.reduce((n, b) => n + b.share, 0);
+    assert.ok(Math.abs(whole - 1) < 1e-9, `${channel}: the shares add up to everything it reads (${whole})`);
+  }
+  assert.deepEqual(promptBlocks("", "whatsapp", null), [], "nothing to cut, nothing to share");
+});
+
 test("every block has an id of its own, and a row keeps its meaning", () => {
   // On a call the platform speaks on both sides of the owner's words, so a row can
   // recur, and a key or a test id built from the row collides there.
