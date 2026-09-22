@@ -18,7 +18,16 @@ import {
   PROMPT_NOW,
 } from "@chanlytics/contracts";
 import { unmount, again, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
-import { W, drawTab, melany, redrawTab, openFolds } from "./_business-tab-harness.mjs";
+import {
+  W,
+  KNOWN,
+  composePromptPreview,
+  drawTab,
+  melany,
+  redrawTab,
+  openFolds,
+  went,
+} from "./_business-tab-harness.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -350,6 +359,39 @@ test("every block a row of this page wrote opens that row, and the platform's op
   }
   const tree = drawPrompt();
   assert.equal(byTestId(tree, "rec-prompt-door-platform"), null, "Chanlytics' own lines are no row's");
+});
+
+test("the closed days' block opens the closed days' fold", () => {
+  // Melany's record has no closure ahead, so the block exists only on a record with one: a month out, whatever today is.
+  const date = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  const tree = drawPrompt("whatsapp", { profile: { ...melany, closures: [{ date, note: "Inventory" }] } });
+  press(byTestId(tree, "rec-prompt-door-closures"));
+  const next = redrawTab();
+  assert.equal(sheetOf(next), null, "the sheet closes");
+  assert.equal(W.__recordFolds.open(), "closures");
+  assert.deepEqual(openFolds(next), ["closures"], "and the closed days' fold is the one open");
+});
+
+test("the Autonomy tab's rules open the Autonomy tab", () => {
+  // A record whose details compose nothing is answered with its own prompt and only the Autonomy tab's rules after it
+  // (resolveSystemPrompt), so those rules are a block of their own -- here, with Booking and FAQ on "ask".
+  let tree = drawTab({ profile: null });
+  W.__SETTINGS.prompt = composePromptPreview(W.__SETTINGS.config.brain, {
+    tz: "America/New_York",
+    policy: { booking: { mode: "ask" }, faq: { mode: "ask" } },
+    known: KNOWN,
+    openings: null,
+  });
+  tree = redrawTab();
+  press(byTestId(tree, "rec-prompt-open"));
+  tree = redrawTab();
+  const door = byTestId(tree, "rec-prompt-door-autonomy");
+  assert.ok(door, "the Autonomy tab's rules offer a door");
+  went.length = 0;
+  press(door);
+  assert.deepEqual(went, ["admin/autonomy"], "to the Autonomy tab");
+  assert.equal(sheetOf(redrawTab()), null, "and the sheet has closed");
+  assert.equal(W.__recordFolds.open(), null);
 });
 
 test("a role that may not change the business reads the whole prompt, and is offered no door into a row", () => {
