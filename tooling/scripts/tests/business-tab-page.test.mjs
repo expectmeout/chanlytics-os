@@ -1275,13 +1275,14 @@ test("the standing line's door opens the row it names, and that row asks before 
   assert.ok(byTestId(tree, "rec-inline-address-ask-confirm"), "it asks first, beside them");
   assert.equal(boxOf(tree, "address").props.value, "2581 Pitkin Ave, Brooklyn, NY 11208");
 
-  // A row this page does not draw yet is asked for by its id, for the fold that draws it to open, and its door is named
-  // by its sentence alone.
+  // A fold is opened the same way: the voice's gap opens How it answers' voice fold, and its door is heard with that
+  // row's act and label (business-tab-answers.test.mjs holds the fold it opens).
   tree = drawTab({ profile: { ...melany, tone: undefined } });
   const toTone = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
-  assert.equal(heard(toTone), standingLine(W.__SETTINGS.config.brain).missing.sentence);
+  assert.equal(heard(toTone), `${standingLine(W.__SETTINGS.config.brain).missing.sentence} Give it one Its voice`);
   press(toTone);
   assert.equal(W.__recordFolds.open(), "tone");
+  assert.deepEqual(openFolds(redrawTab()), ["tone"]);
 });
 
 test("nothing a fold works out as it draws can take the page down: a draft its helpers throw on draws no block, and Save says so and sends nothing", () => {

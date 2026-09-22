@@ -14,7 +14,7 @@
  * calendar row keeps one timer for as long as the Calendar page keeps a read (five minutes), and left on it would hold
  * the file's process open for as long.
  */
-import { stateOf, roleGate, formatPhoneDisplay, whyNotAPhone, whyNotAHandoff, samePhone, handoffE164, resolveFacts, factConflicts, newReceptionistDefaults, hoursLines, timezoneWords, timezoneCity, knownTimezones, DEFAULT_TIMEZONE, MAX_INTERVALS_PER_DAY, MAX_CLOSURES } from "@chanlytics/contracts";
+import { stateOf, roleGate, formatPhoneDisplay, whyNotAPhone, whyNotAHandoff, samePhone, handoffE164, resolveFacts, factConflicts, newReceptionistDefaults, hoursLines, timezoneWords, timezoneCity, knownTimezones, DEFAULT_TIMEZONE, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, instructionsDraft, INSTRUCTIONS_MAX, fallbackMessages, FALLBACK_DEFAULTS, unknownDetails } from "@chanlytics/contracts";
 import { installLegacyReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
@@ -42,6 +42,13 @@ Object.assign(globalThis, {
   __configLimits: { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES },
   __tz: { words: timezoneWords, city: timezoneCity, known: knownTimezones, device: () => "America/Chicago" },
   DEFAULT_TIMEZONE,
+  // How it answers: what the instructions box opens with and how much it holds, and the three messages sent in the
+  // business's name, their default wording and the details a message may name (inbox-verbs.ts).
+  __instructionsDraft: instructionsDraft,
+  __instructionsMax: INSTRUCTIONS_MAX,
+  __fallbackMessages: fallbackMessages,
+  __fallbackDefaults: FALLBACK_DEFAULTS,
+  __unknownDetails: unknownDetails,
 });
 await import(`${L}/components/data-bits.jsx`);
 await import(`${L}/components/record-row.jsx`);
@@ -59,6 +66,7 @@ await import(`${L}/pages/business-tab-gestures.jsx`);
 await import(`${L}/pages/business-tab-who.jsx`);
 await import(`${L}/pages/business-tab-open.jsx`);
 await import(`${L}/pages/business-tab-offer.jsx`);
+await import(`${L}/pages/business-tab-answers.jsx`);
 await import(`${L}/pages/business-tab-services.jsx`);
 await import(`${L}/pages/business-tab.jsx`);
 const W = globalThis.window;

@@ -949,11 +949,10 @@ const MAX_CLOSURE_ROWS = ((window.__configLimits || {}).maxClosures) || 60;
 
 const SET_DAYS = [["mon","Monday"],["tue","Tuesday"],["wed","Wednesday"],["thu","Thursday"],["fri","Friday"],["sat","Saturday"],["sun","Sunday"]];
 
-// Offered rather than typed. A comma-separated box asks someone to guess both
-// the spelling and the separator, and "Espanol" and "Spanish" would then be two
-// different languages to anything reading this later. Anything not listed can
-// still be added by hand.
-const SET_LANGS = ["English", "Spanish", "Portuguese", "French", "Haitian Creole", "Mandarin", "Cantonese", "Arabic", "Russian", "Polish", "Italian", "Hindi"];
+// Offered rather than typed (the reason is with the list). The Business tab's How it answers card offers the same
+// languages and owns the list (business-tab-answers.jsx, loaded before this file in both lists), read from window as
+// this file loads, until Task 3.7 deletes this form: one list, never a copy.
+const SET_LANGS = window.BT_OFFERED_LANGUAGES;
 
 const SetSectionHead = ({ title, hint }) => (
   <div className="set-sec-head">
@@ -962,13 +961,10 @@ const SetSectionHead = ({ title, hint }) => (
   </div>
 );
 
-// The three messages sent in the business's name when the receptionist cannot answer (S5), in the order an owner meets
-// them, each with when it goes out -- the edge's own conditions (whatsapp/inbound.ts), in an owner's words.
-const FALLBACK_ROWS = [
-  { key: "error", label: "If it can't write a reply", when: "The AI service failed or couldn't finish an answer. The conversation then waits for you." },
-  { key: "non_text", label: "If it gets something it can't read", when: "A voice note, a sticker, or a photo it can't look at. It then stays out of that conversation and asks for you." },
-  { key: "greeting", label: "If replies can't be written at all", when: "Only while Chanlytics' AI connection is down. Each conversation then waits for you." },
-];
+// The three messages sent in the business's name when the receptionist cannot answer (S5), each with its label and when
+// it goes out: How it answers' own list (business-tab-answers.jsx), read from window as this file loads, as SET_LANGS
+// is.
+const FALLBACK_ROWS = window.BT_FALLBACK_ROWS;
 
 const BusinessEditor = ({ settings, onDone, flash }) => {
   const brain = (settings.config && settings.config.brain) || {};

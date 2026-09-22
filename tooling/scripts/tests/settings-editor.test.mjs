@@ -143,6 +143,9 @@ Object.assign(globalThis.window, {
   __TEAM: [], __TEAM_INVITES: [],
 });
 await import("../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
+// How it answers owns the languages the old form offers and its three messages' labels, which settings.jsx reads as
+// it loads (business-tab-answers.jsx, before it in both load lists).
+await import("../../../apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {
