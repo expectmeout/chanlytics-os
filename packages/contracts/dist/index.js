@@ -3495,6 +3495,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
   const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
   const feedLine = dto.feed.state === "ok" ? feedDetail : dto.feed.state === "unavailable" ? `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}` : "No calendar connected";
+  const feedRead = dto.feed.state === "ok" ? `read ${ago3 ?? "just now"}` : dto.feed.state === "unavailable" && ago3 ? `last read ${ago3}` : "";
   const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
@@ -3526,6 +3527,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
       health: feedHealth,
       line: feedLine,
       detail: feedDetail,
+      read: feedRead,
       events: dto.feed.events,
       source: dto.feed.source ?? "your calendar",
       problem: dto.feed.problem ?? null,

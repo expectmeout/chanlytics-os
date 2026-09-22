@@ -439,20 +439,20 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }) => {
 /* ------------------------------------ the calendar it reads ------------------------------------ */
 
 /**
- * The address as the row states it: where it points, never the whole of it. A private feed's address is a long secret
- * (…/ical/<account>/private-<key>/basic.ics), and the row is read over a shoulder. A non-owner's arrives masked by the
- * server, which is no address to take apart: it is shown as it arrives.
+ * WHERE it reads, as the row states it: the host, and nothing after it.
+ *
+ * A private feed's address is a long secret (…/ical/<account>/private-<key>/basic.ics), the row is read over a
+ * shoulder, and the path is not a thing anybody checks at a glance -- "app.chanlytics.com" answers "which calendar is
+ * this?" and the whole of it waits in the box that edits it. An address this cannot parse (a non-owner's arrives
+ * masked by the server, which is no address to take apart) is named for what it is instead.
  */
-const btoShortFeed = (url) => {
+const btoFeedHost = (url) => {
   const raw = String(url || "").trim();
-  if (!raw || raw.includes("…")) return raw;
+  if (!raw) return "";
   try {
-    const u = new URL(raw.replace(/^webcal:/i, "https:"));
-    const parts = u.pathname.split("/").filter(Boolean);
-    const path = parts.length > 2 ? `/…/${parts[parts.length - 1]}` : u.pathname.replace(/\/$/, "");
-    return `${u.host}${path}`;
+    return new URL(raw.replace(/^webcal:/i, "https:")).host || "Your calendar";
   } catch {
-    return raw;
+    return "Your calendar";
   }
 };
 
@@ -551,10 +551,22 @@ const BtoFeedRead = ({ stored }) => {
   const feed = C && C.vm ? C.vm.feed : null;
   if (!feed || feed.state === "none") return null;
   const words = keeps.words || {};
+  // One mark for whether the last read worked, and one phrase for when it was. The mark carries the Calendar page's
+  // own words (contracts CALENDAR_FEED_WORDS through the chrome bridge, as its pill does) in its accessible name and
+  // under a pointer: a coloured pill of four words on a row that already states a fact is two facts, and on a phone it
+  // took a line. Where it read from and how many events it found are in the fold (BtoFeedBox).
+  const state = window.__chrome && window.__chrome.state ? window.__chrome.state("calendar", feed.health) : { tone: "plain", label: feed.health };
   return (
     <span className="bt-feed" data-testid="rec-calendar-read" data-state={feed.health} data-reading={fresh ? undefined : "true"} aria-busy={fresh ? undefined : true}>
-      <window.StatePill kind="calendar" value={feed.health} testid="rec-calendar-state" />
-      {feed.detail ? <span className="bt-feed-detail">{feed.detail}</span> : null}
+      <span
+        className="bt-feed-dot"
+        role="img"
+        aria-label={state.label}
+        data-tip={state.label}
+        data-tone={state.tone}
+        data-testid="rec-calendar-state"
+      />
+      {feed.read ? <span className="bt-feed-when">{feed.read}</span> : null}
       {feed.state !== "ok" || feed.stale ? (
         <span className="bt-feed-problem">{feed.problem || (feed.stale ? words.stale : words.unavailable) || null}</span>
       ) : null}
@@ -562,9 +574,22 @@ const BtoFeedRead = ({ stored }) => {
   );
 };
 
-/** The calendar's one box, with the old form's note under it about what the address is. */
+/**
+ * The whole of what the last read found, for the fold: where it read from, when, and how many events it took
+ * (contracts toCalendarVM's feed.detail, the Calendar page's own line). Hookless, and drawn from the read the row is
+ * already keeping fresh: a fold is only open while somebody is looking at it.
+ */
+const BtoFeedWhole = () => {
+  const C = window.__CALENDAR || null;
+  const feed = C && C.vm ? C.vm.feed : null;
+  if (!feed || feed.state === "none" || !feed.detail) return null;
+  return <p className="bt-fold-note" data-testid="rec-calendar-whole">{feed.detail}</p>;
+};
+
+/** The calendar's one box, the whole of its last read, and the old form's note about what the address is. */
 const BtoFeedBox = ({ draft, update, problems, readOnly, stored }) => (
   <>
+    {stored ? <BtoFeedWhole /> : null}
     <window.RecordField
       id="bt-calendar"
       label="Calendar feed address"
@@ -677,7 +702,7 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
         channel={null}
         gate={gate("the calendar it reads")}
         row={{
-          value: feed ? <span className="bt-feed-address">{btoShortFeed(feed)}</span> : null,
+          value: feed ? <span className="bt-feed-where">{btoFeedHost(feed)}</span> : null,
           empty: "Not connected",
           hint: feed ? null : "Read-only, so it can say which times are open before sending the link.",
           children: <BtoFeedRead stored={!!feed} />,

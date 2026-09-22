@@ -413,6 +413,12 @@ export interface CalendarVM {
     health: CalendarFeedHealth;
     /** The line without the state the pill says: where and when it was read, when it was tried; "" when that is all. */
     detail: string;
+    /**
+     * WHEN it was last read, and nothing else: "read 4m ago", "last read 4m ago" for one that failed since, "" with
+     * no read at all. For a row that states the calendar as one fact of a record and keeps the rest (where it reads
+     * from, how many events it found) for whoever opens it.
+     */
+    read: string;
     /** Repeating events whose pattern the receptionist cannot follow: only their first date is taken. */
     skippedRecurring: number;
     /** Events past what a crowded day draws; their times are still taken. */
@@ -659,6 +665,13 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       : dto.feed.state === "unavailable"
         ? `Your calendar could not be read${feedDetail ? ` · ${feedDetail}` : ""}`
         : "No calendar connected";
+  // When it was read, on its own: a row that says only that is saying the one part an owner acts on ("is it current?").
+  const feedRead =
+    dto.feed.state === "ok"
+      ? `read ${ago ?? "just now"}`
+      : dto.feed.state === "unavailable" && ago
+        ? `last read ${ago}`
+        : "";
   const feedHealth: CalendarFeedHealth = dto.feed.state === "ok" ? (stale ? "stale" : "ok") : dto.feed.state;
 
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
@@ -694,6 +707,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       health: feedHealth,
       line: feedLine,
       detail: feedDetail,
+      read: feedRead,
       events: dto.feed.events,
       source: dto.feed.source ?? "your calendar",
       problem: dto.feed.problem ?? null,

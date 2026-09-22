@@ -988,28 +988,41 @@ const readOk = (over = {}) => ({
   ...over,
 });
 
-test("the calendar row states its last read, and there is no button for it", () => {
+test("the calendar row says where it reads and when, and keeps the address, the count and the source in its fold", () => {
   W.__CALENDAR = calendarRead(readOk());
   try {
     const tree = drawTab({ profile: melany });
     const row = byTestId(tree, "rec-row-calendar");
-    assert.match(textOf(row), /read/i);
     assert.equal(
       find(row, (n) => /Check the address/i.test(textOf(n))),
       null,
       "a row that can say it needs no button",
     );
-    // The Calendar page's own pill and line, word for word: where it was read from, when, and how many events.
-    const read = byTestId(row, "rec-calendar-read");
-    assert.equal(textOf(byTestId(read, "rec-calendar-state")), CALENDAR_FEED_WORDS.ok);
-    assert.match(textOf(read), new RegExp(escape(W.__CALENDAR.vm.feed.detail)));
-    assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
-    // The address is where it points, never the whole of it, and only an act opens its box.
-    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-address"))), "app.chanlytics.com/…/filler.ics");
+    // At rest: the host it reads, when it was last read, and one mark that says whether that worked. The words the
+    // mark carries are the Calendar page's, in its accessible name and under a pointer -- not a pill of its own.
+    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-where"))), "app.chanlytics.com");
+    const mark = byTestId(row, "rec-calendar-state");
+    assert.equal(mark.props["aria-label"], CALENDAR_FEED_WORDS.ok);
+    assert.equal(mark.props["data-tip"], CALENDAR_FEED_WORDS.ok);
+    assert.equal(textOf(mark), "", "a mark, not a word on the row");
+    assert.equal(textOf(byTestId(row, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
+    assert.equal(W.__CALENDAR.vm.feed.read, "read 4m ago");
+    // And nothing else: no secret of an address, no count of events, no "from" anybody.
+    const words = textOf(byTestId(row, "rec-row-calendar"));
+    assert.doesNotMatch(words, /\.ics/, "the whole address is a long secret, read over a shoulder");
+    assert.doesNotMatch(words, /\d+ events?/);
+    assert.doesNotMatch(words, /From Google Calendar/);
     assert.deepEqual(
       all(row, (n) => n.type === "button").map((b) => b.props["data-testid"]),
       ["rec-row-act-calendar"],
     );
+    // Opened, the fold holds the address whole, and the whole of what the last read found.
+    openFold(tree, "calendar");
+    const open = redrawTab();
+    const box = find(foldOf(open, "calendar"), (n) => classes(n).includes("rec-input"));
+    assert.equal(box.props.value, "https://app.chanlytics.com/api/v1/calendar/filler.ics", "the address, whole");
+    assert.equal(textOf(byTestId(open, "rec-calendar-whole")), W.__CALENDAR.vm.feed.detail);
+    assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
   } finally {
     delete W.__CALENDAR;
   }
@@ -1030,16 +1043,16 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
       }),
     );
     let row = byTestId(drawTab(), "rec-row-calendar");
-    assert.equal(textOf(byTestId(row, "rec-calendar-state")), CALENDAR_FEED_WORDS.unavailable);
+    assert.equal(byTestId(row, "rec-calendar-state").props["aria-label"], CALENDAR_FEED_WORDS.unavailable);
     assert.match(textOf(row), /The calendar answered 404: the address no longer points at a calendar\./);
-    assert.match(textOf(row), /tried 4m ago/);
+    assert.doesNotMatch(textOf(row), /tried 4m ago/, "when it was tried is in the fold, with the rest of the read");
     assert.doesNotMatch(textOf(row), /\d+ events?/, "no count is claimed of a calendar that was not read");
     // A last good read, shown as that.
     W.__CALENDAR = calendarRead(
       readOk({ stale: true, reason: "unreachable", problem: "The calendar could not be reached." }),
     );
     row = byTestId(drawTab(), "rec-row-calendar");
-    assert.equal(textOf(byTestId(row, "rec-calendar-state")), CALENDAR_FEED_WORDS.stale);
+    assert.equal(byTestId(row, "rec-calendar-state").props["aria-label"], CALENDAR_FEED_WORDS.stale);
     assert.match(textOf(row), /The calendar could not be reached\./);
     // With no reason given, each state is said in the Calendar page's own words for it, from where that page keeps
     // them: a last good read could not be REFRESHED, which is not the sentence for a calendar that could not be read.
@@ -1067,15 +1080,15 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     assert.equal(byTestId(row, "rec-calendar-read"), null);
     assert.equal(
       textOf(find(row, (n) => classes(n).includes("rec-row-val"))),
-      "app.chanlytics.com/…/filler.ics",
-      "REGRESSION guard: the address, and never a read it does not have",
+      "app.chanlytics.com",
+      "REGRESSION guard: where it reads, and never a read it does not have",
     );
     assert.deepEqual(asked, ["refresh"], "it asks for one as it mounts");
     // And says what that finds when it lands.
     W.__CALENDAR = calendarRead(readOk({ events: 3 }));
     W.dispatchEvent({ type: "surface:calendar" });
     tree = redrawTab();
-    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /3 events/);
+    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
     assert.equal(asked.length, 1, "fresh, it is not asked for again");
     // The surface itself could not be read: said where the line would be, with the one Retry.
     delete W.__CALENDAR;
@@ -1162,8 +1175,9 @@ test("with no feed the calendar row is empty and says what the address is for; i
     // sends nothing, so the mask is never saved over the address.
     tree = drawTab({ flash, config: { calendar: { ical_url: "https://calendar.google.c…ic.ics" } } });
     assert.equal(
-      textOf(find(byTestId(tree, "rec-row-calendar"), (n) => classes(n).includes("bt-feed-address"))),
-      "https://calendar.google.c…ic.ics",
+      textOf(find(byTestId(tree, "rec-row-calendar"), (n) => classes(n).includes("bt-feed-where"))),
+      "Your calendar",
+      "a masked address is no address to take a host out of: the row names what it is instead",
     );
     openFold(tree, "calendar");
     tree = redrawTab(flash);
@@ -1190,7 +1204,7 @@ test("a viewer reads when the business is open and is offered no act on any of i
     );
     assert.match(textOf(card), new RegExp(escape(summaryOf(melany.hours))));
     assert.match(textOf(card), /1 ahead · Dec 24 – 26 · Christmas/);
-    assert.match(textOf(card), /12 events/, "and everything is there to read");
+    assert.match(textOf(card), /read 4m ago/, "and everything is there to read");
     // Nothing opens an editor for it, whatever asks.
     for (const id of ["hours", "timezone", "closures", "calendar"]) {
       W.__recordFolds.request(id);
@@ -1587,7 +1601,7 @@ test("an idle page stops stating a read when the Calendar page would have read a
     assert.deepEqual(
       [
         byTestId(tree, "rec-calendar-read").props["data-reading"],
-        /3 events/.test(textOf(byTestId(tree, "rec-calendar-read"))),
+        textOf(byTestId(tree, "rec-calendar-read")) === W.__CALENDAR.vm.feed.read,
       ],
       [undefined, true],
     );
@@ -1649,7 +1663,7 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
       ["true", true],
       "dimmed (spec 9: a read in flight dims the last value), and said to be busy",
     );
-    assert.match(textOf(read), /12 events/, "the same words, not a skeleton and not a gap");
+    assert.match(textOf(read), /read 4m ago/, "the same words, not a skeleton and not a gap");
     assert.equal(byTestId(tree, "rec-calendar-unread"), null);
     // Landed, it is stated plainly.
     W.__CALENDAR = calendarRead(readOk({ events: 9 }));
@@ -1664,7 +1678,7 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
       ],
       [undefined, undefined],
     );
-    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /9 events/);
+    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
 
     // No read is asked for from a tab nobody is looking at, as the Calendar page's own timer holds off; back in view,
     // the row looks again and asks.
@@ -1707,7 +1721,7 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     assert.equal(byTestId(row, "rec-calendar-read"), null, "the old read is not stated as if it were the latest");
     assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what its last read found/);
     assert.doesNotMatch(textOf(row), /12 events|read 4m ago/);
-    assert.match(textOf(row), /filler\.ics/, "the address is still the settings read's, and still stated");
+    assert.match(textOf(row), /app\.chanlytics\.com/, "where it reads is still the settings read's, and still said");
     // Its Retry asks again, the last read comes back dimmed meanwhile, and a read that lands is stated.
     press(byTestId(row, "rec-calendar-unread-retry"));
     tree = redrawTab();
@@ -1724,7 +1738,7 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     answers[1](true);
     await settle();
     tree = redrawTab();
-    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /5 events/);
+    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
     assert.equal(byTestId(tree, "rec-calendar-unread"), null);
     // A refresh that throws is a refresh that failed.
     W.__calendar = { refresh: () => Promise.reject(new Error("offline")) };
@@ -1925,7 +1939,7 @@ test("after the calendar's address is saved, nothing is said of a read until the
     let tree = drawTab();
     assert.match(
       textOf(byTestId(tree, "rec-calendar-read")),
-      /12 events/,
+      /read 4m ago/,
       "the old calendar's read, fresh, under the old address",
     );
     openFold(tree, "calendar");
@@ -1950,7 +1964,7 @@ test("after the calendar's address is saved, nothing is said of a read until the
     W.__CALENDAR = { ...calendarRead(readOk({ events: 3 })), fetchedAt: Date.now() + 1 };
     W.dispatchEvent({ type: "surface:calendar" });
     tree = redrawTab();
-    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /3 events/);
+    assert.equal(textOf(byTestId(tree, "rec-calendar-read")), W.__CALENDAR.vm.feed.read);
   } finally {
     delete W.__CALENDAR;
     delete W.__calendar;
