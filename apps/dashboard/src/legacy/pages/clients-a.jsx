@@ -1142,11 +1142,10 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, children = null, lis
 // The strip drew the same two people the table's own first rows drew, with the same sentences; "Needs you" was
 // said in four places at once (the rail, a stat card, a tab, and every matching row's pill). Every number it
 // held is still on the page: the rail counts each state, and each row says its own.
-// On a phone, where the rail is not drawn, the line also holds the way to the lists: one word, or the name of
-// the list that is open, and a tap brings the rail up as a sheet. Hidden on a desktop, whose rail is beside it.
+// On a phone the list being shown is the bar's (PeoplePhoneBar); the line keeps the counts.
 // Under Leads the line is leadsStanding's (contracts leads.ts, Task 4.6): "322 leads · 272 ready · 3 searches",
 // and "1 search needs you" is the tap that opens the search waiting on an answer.
-const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown = false, onNeeds, onLists = null, listWord = null }) => (
+const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown = false, onNeeds }) => (
   scope === "leads" ? (
     <div className="pl-standing" data-testid="leads-standing">
       <span className="pl-standing-total">{leads.total}</span>
@@ -1186,14 +1185,6 @@ const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown
       <span className="pl-standing-part">
         <span className="pl-standing-dot" aria-hidden="true">·</span>
         <span className="pl-standing-reached">{agg.reachedWeek} reached this week</span>
-      </span>
-    )}
-    {onLists && (
-      <span className="pl-standing-part pl-standing-lists">
-        <span className="pl-standing-dot" aria-hidden="true">·</span>
-        <button type="button" className={`pl-standing-needs ${listWord ? "on" : ""}`} onClick={onLists} data-testid="people-lists-pick">
-          {listWord || "Lists"} <Icon name="chevron-down" size={10} />
-        </button>
       </span>
     )}
   </div>
@@ -1719,7 +1710,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => {
     const onNew = () => {
       setNewListSignal((n) => n + 1);
-      if (window.matchMedia && window.matchMedia("(max-width: 720px)").matches) setListsOpen(true);
+      // The rail is hidden at 900px and under (mobile.css), so there the box opens in the sheet: this asked 720px, and
+      // from 721 to 900 it opened inside a rail nobody could see.
+      if (plPhoneNow()) setListsOpen(true);
     };
     window.addEventListener("segments:new", onNew);
     return () => window.removeEventListener("segments:new", onNew);
@@ -2498,7 +2491,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     // sel.size, not the rows shown as the bar counts them: Esc can still drop a selection nobody can see.
     selected: sel.size > 0,
     clearSel: () => setSel(new Set()),
-    focusSearch: () => { if (searchRef.current) searchRef.current.focus(); },
+    // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
+    focusSearch: () => { if (phone) setSearchOpen(true); if (searchRef.current) searchRef.current.focus(); },
     sheetOpen: listsOpen,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
@@ -2775,6 +2769,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     );
   }
 
+  // People's more-menu on a phone, the bar's last control (filled in with the menu's own items, below).
+  const phoneMenu = [];
+
   return (
     <div className="clients">
       <PeopleRail
@@ -2795,15 +2792,32 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
 
       <div className="cl-main">
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
+          {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). */}
+          {phone && (
+            <PeoplePhoneBar
+              scope="people"
+              onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : "Everyone"}
+              onLists={() => setListsOpen(true)}
+              listsOpen={listsOpen}
+              q={q}
+              onQ={setQ}
+              searchRef={searchRef}
+              searchOpen={searchOpen}
+              onSearchOpen={setSearchOpen}
+              searchLabel="Search by name or phone"
+              testid="people"
+              trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
+            />
+          )}
           <PeopleStanding
             scope="people"
             agg={agg}
             needsShown={tab === "needs_you"}
             onNeeds={() => setTab((t) => (t === "needs_you" ? "all" : "needs_you"))}
-            onLists={() => setListsOpen(true)}
-            listWord={activeSaved ? activeSaved.name : activeList ? activeList.label : null}
           />
 
+          {!phone && (
           <div className="cl-controls">
             <div className="cl-search-wrap">
               <Icon name="search" size={13} />
@@ -2825,8 +2839,13 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
               </button>
             </div>
           </div>
+          )}
 
+          {/* A phone draws no list head: the bar names the list, the Lists sheet has Everyone and the more-menu the
+              list's own acts. A list's own step stays, one card. */}
+          {(!phone || listStep) && (
           <div className="cl-section">
+            {!phone && (
             <div className="cl-section-head">
               <div className="cl-section-lead">
                 {/* The count is the line above and the table's own foot; here it would be a third. A list picked is
@@ -2857,6 +2876,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
                   : (filtered ? "Filtered" : "")}
               </span>
             </div>
+            )}
             {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
                 said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
             {listStep && (
@@ -2868,6 +2888,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
               </div>
             )}
           </div>
+          )}
 
           <PeopleTable
             noun="person"

@@ -553,34 +553,87 @@ test("a list kept by hand is the page's title when open, with its rename, its de
   assert.equal(byTestId(tree, "row-drop-list"), null, "and nobody can be taken off a list that is not open");
 });
 
-test("on a phone the rail's lists are behind one tap on the standing line, as a sheet; a pick closes it, and New list opens the box in it", async () => {
+/* ------------------------------ People on a phone (the phone pass, 22 Sep) ------------------------------ */
+
+/** A phone's width for the page's life: set before the first draw, as a phone opens the page. */
+const onPhone = async (fn) => {
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
+  try { return await fn(); } finally { delete globalThis.window.matchMedia; }
+};
+const idsShown = (tree) => all(tree, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id);
+
+test("REGRESSION: on a phone People is one bar, one line and the people -- a 57px search box, three text buttons and an 'Everyone' title stood between them", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  let tree = draw();
+  const bar = byTestId(tree, "people-phone-bar");
+  assert.ok(bar, "the bar");
+  assert.deepEqual(all(bar, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]), [["People", true], ["Leads", false]]);
+  assert.equal(textOf(byTestId(bar, "people-phone-lists")).trim(), "Everyone", "the list being shown");
+  assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search by name or phone");
+  assert.ok(find(bar, (n) => n.type === globalThis.MoreMenu), "and the page's more-menu");
+  assert.equal(find(tree, (n) => n.props?.className === "cl-controls"), null, "REGRESSION: the controls row");
+  assert.equal(find(tree, (n) => n.props?.className === "cl-section-head"), null, "REGRESSION: the list head, under a bar that names the list");
+  const standing = byTestId(tree, "people-standing");
+  assert.match(textOf(standing), /2 people/, "the one line stays");
+  assert.equal(byTestId(standing, "people-lists-pick"), null, "the line holds counts; the list is the bar's");
+  // A pick in the sheet names the list in the bar.
+  click(byTestId(tree, "people-phone-lists"));
+  tree = draw();
+  click(find(byTestId(tree, "people-lists-sheet"), (n) => n.type === "button" && textOf(n).includes("Regulars")));
+  tree = draw();
+  assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars");
+  assert.deepEqual(idsShown(tree), ["person-p1"]);
+}));
+
+test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
+  await freshPage({ people: [person(1)] });
+  const tree = draw();
+  assert.equal(byTestId(tree, "people-phone-bar"), null);
+  assert.ok(find(tree, (n) => n.props?.className === "cl-controls"));
+  assert.ok(find(tree, (n) => n.props?.className === "cl-section-head"));
+});
+
+test("on a phone search is a button that opens the bar into the field; Cancel gives the bar back and clears the words", () => onPhone(async () => {
+  await freshPage({ people: [person(1, { display_name: "Rosa Diaz" }), person(2, { display_name: "Ana Lee" })] });
+  let tree = draw();
+  assert.equal(byTestId(tree, "people-phone-search"), null, "no box until asked");
+  click(byTestId(tree, "people-phone-search-open"));
+  tree = draw();
+  const field = byTestId(tree, "people-phone-search");
+  assert.equal(field.props.type, "search");
+  assert.equal(field.props.autoFocus, true);
+  assert.equal(byTestId(tree, "people-phone-lists"), null, "the bar is the field while searching");
+  field.props.onChange({ target: { value: "rosa" } });
+  tree = draw();
+  assert.deepEqual(idsShown(tree), ["person-p1"]);
+  click(byTestId(tree, "people-phone-search-cancel"));
+  tree = draw();
+  assert.ok(byTestId(tree, "people-phone-lists"), "Cancel gives the bar back");
+  assert.equal(idsShown(tree).length, 2, "and clears the words");
+  // The page's / opens it too.
+  press("/");
+  assert.ok(byTestId(draw(), "people-phone-search"), "/ opens the field");
+}));
+
+test("on a phone the lists are behind the bar's list button, as a sheet; a pick closes it, and New list opens the box in it", () => onPhone(async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   let tree = draw();
   assert.equal(byTestId(tree, "people-lists-sheet"), null, "closed until asked");
-  const pick = byTestId(tree, "people-lists-pick");
-  assert.ok(pick && textOf(pick).includes("Lists"), "the standing line's way to the lists");
-  click(pick);
+  click(byTestId(tree, "people-phone-lists"));
   tree = draw();
   const sheet = byTestId(tree, "people-lists-sheet");
   assert.ok(sheet, "the sheet");
-  assert.ok(find(sheet, (n) => n.type === "aside" && n.props?.className === "cl-rail"), "the same rail, drawn in the sheet as well");
+  assert.ok(find(sheet, (n) => n.type === "aside" && n.props?.className === "cl-rail"), "the rail's own rows, in the sheet");
   click(find(sheet, (n) => n.type === "button" && textOf(n).includes("Regulars")));
   tree = draw();
   assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes it");
-  assert.ok(textOf(byTestId(tree, "saved-filter")).includes("Regulars"), "with the list open");
-  assert.ok(textOf(byTestId(tree, "people-lists-pick")).includes("Regulars"), "and the line names it");
+  assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars", "and the bar names the list");
   // The shell's and a profile's New list: on a phone the sheet comes up with the box open.
-  globalThis.window.matchMedia = () => ({ matches: true });
-  try {
-    globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
-    tree = draw();
-    tree = draw();
-    assert.ok(byTestId(tree, "people-lists-sheet"), "the sheet");
-    assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
-  } finally {
-    delete globalThis.window.matchMedia;
-  }
-});
+  globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
+  tree = draw();
+  tree = draw();
+  assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
+}));
 
 test("a list's own route lands on People with that list picked -- Playbooks' list, an answer's jump and a kept address still arrive", async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
@@ -860,10 +913,10 @@ test("a key with a modifier is not the page's: Ctrl-K is Ask's, and Ctrl-J, Ctrl
   assert.equal(byTestId(tree, "bulk-bar"), null, "and nobody was selected");
 });
 
-test("Esc closes the phone's lists sheet first, and the selection stays; the next Esc clears it", async () => {
+test("Esc closes the phone's lists sheet first, and the selection stays; the next Esc clears it", () => onPhone(async () => {
   await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   byTestId(draw(), "select-all").props.onChange();
-  click(byTestId(draw(), "people-lists-pick"));
+  click(byTestId(draw(), "people-phone-lists"));
   assert.ok(byTestId(draw(), "people-lists-sheet"), "the sheet is open");
   press("Escape");
   let tree = draw();
@@ -872,7 +925,7 @@ test("Esc closes the phone's lists sheet first, and the selection stays; the nex
   assert.equal(press("Escape"), true);
   tree = draw();
   assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
-});
+}));
 
 test("x and Space select nobody for a member who can neither edit lists nor export, and the foot's keys say what the member's keys do", async () => {
   await freshPage({ people: [person(1), person(2)] });
