@@ -25,6 +25,7 @@ import {
   hasProfile,
   hoursRuns,
   MAX_INTERVALS_PER_DAY,
+  PROFILE_LIMITS,
 } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
@@ -181,11 +182,10 @@ test("one shift is still stored as open/close, never as a one-item array", () =>
   const folds = readCode("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
   assert.ok(folds.includes("shifts.length === 1 ? { open: shifts[0].open, close: shifts[0].close }"));
   assert.ok(folds.includes(": { intervals: shifts.map((s) => ({ open: s.open, close: s.close })) };"));
-  // The cap the fold offers is the write schema's, through the bridge; the literal is the standalone-mockup
-  // fallback and must equal it, or the fold offers a fifth shift the save refuses. business-tab-open.test.mjs
-  // fills a day to the cap and presses Add again.
-  assert.ok(
-    folds.includes(`maxIntervalsPerDay) || ${MAX_INTERVALS_PER_DAY}`),
-    "the fallback must equal the schema's cap",
-  );
+  // The cap the fold offers is the write schema's, and it is no longer written twice: the page reads contracts'
+  // PROFILE_LIMITS, which is read off the schemas (business-tab-vm.test.mjs holds every one of them to its schema,
+  // and business-tab-bridge.test.mjs holds the page's copy to contracts'). business-tab-open.test.mjs fills a day to
+  // the cap and presses Add again.
+  assert.equal(PROFILE_LIMITS.shifts, MAX_INTERVALS_PER_DAY, "the fold's cap is the schema's cap");
+  assert.ok(!/maxIntervalsPerDay\)\s*\|\|/.test(folds), "REGRESSION: a literal cap in the page, beside the schema's");
 });
