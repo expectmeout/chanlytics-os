@@ -826,7 +826,7 @@ test("a photo is looked at when the switch is on, and passed to a person when it
 });
 
 test("each half of a hand-off opens the row that supplies it: the transfer number's one editor, and the reasons' fold", () => {
-  // The transfer number is edited in one place, Who you are's "Transfers a caller to" (handoff_number, Task 3.2's
+  // The transfer number is edited in one place, Who you are's "Transfer number" (handoff_number, Task 3.2's
   // decision); the reasons are "Hands you a customer", whose id is the key its fold saves (escalate_when). Both once
   // named "handoff", a row nothing drew, so a door to it would have opened nothing.
   const rows = idOf(abilityRows(live));
@@ -1065,8 +1065,8 @@ test("a block's cost is its share on screen, and its exact size only where a scr
 
 test("who reads the prompt is one phrase per channel, and the clock beside it says why it is apart", () => {
   assert.deepEqual(PROMPT_READERS, {
-    whatsapp: "every WhatsApp message, word for word",
-    voice: "every phone call, composed when the call starts",
+    whatsapp: "Every WhatsApp message, word for word",
+    voice: "Every phone call, composed when the call starts",
   });
   // What is sent beside the prompt is rebuilt each time, which is the whole reason it is drawn apart; the sentence
   // PromptPreview kept for it, word for word.

@@ -14041,8 +14041,8 @@ function promptTotalWords(total) {
   return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
 }
 var PROMPT_READERS = {
-  whatsapp: "every WhatsApp message, word for word",
-  voice: "every phone call, composed when the call starts"
+  whatsapp: "Every WhatsApp message, word for word",
+  voice: "Every phone call, composed when the call starts"
 };
 var PROMPT_NOW = {
   label: {
@@ -14290,7 +14290,7 @@ function abilityRows(i) {
       // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
       detail: transferWords(i.hasHandoffNumber),
       channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
-      // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
+      // The transfer number's one editor, Who you are's "Transfer number" (the plan's Task 3.2 decision): the
       // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
       runsOn: { label: "The transfer number", row: "handoff_number" },
       ready: i.voiceLive && i.hasHandoffNumber,

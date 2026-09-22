@@ -277,7 +277,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
       <Row
         {...shared}
         id="handoff_number"
-        label="Transfers a caller to"
+        label="Transfer number"
         named="transfer number"
         channel={voiceLine ? "voice" : null}
         value={transfer.value ? phoneShown(transfer.value) : null}

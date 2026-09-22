@@ -259,6 +259,17 @@ Sentence case throughout; no colons in a label; the label names the thing and th
 
 > **Amended again 22 Sep, in execution (Task 5.1).** The told section has no Show: its door is **Read it**, which opens the prompt sheet, and its phrase follows the channel last chosen ("every phone call, composed when the call starts" on Phone). The character count is on no glass at all -- a block's cost is its share, a thin bar, or "a quarter of everything it reads" on a phone, and the count is the accessible description of the entry that draws it. What is sent beside the prompt is "Sent alongside it, rebuilt for every message", and "... for every call" on Phone, where it said "every message" on both.
 
+> **Amended 22 Sep, in execution (Task 6.2).** Four settlements, each held by `business-tab-words.test.mjs`, which draws the tab (at rest, both sheets open, a viewer's page and an empty record) and asserts every retired phrase absent, every kept one present and every label sentence case with no colon and no instruction in it:
+>
+> | Retired | Kept |
+> |---|---|
+> | Transfers a caller to (Who you are's row label) | **Transfer number** -- the row stays: it is the number's one editor (§4.2, §4.5's amendment, Task 3.2), and one fact has one editor. *Hands you a customer* is the one hand-off row, naming both channels, and it reads the number and opens this row. What §10 retired was the label, a phrase, where the rule is that a label names the thing |
+> | Your reasons, one per line · Anything else about booking, one per line | **Your reasons** · **Anything else about booking**, with "One per line." as the hint under each box |
+> | every WhatsApp message, word for word (the told section's line, lower case) | **Every WhatsApp message, word for word**, and **Every phone call, composed when the call starts**: a line on its own starts as a sentence |
+> | Calendar (the Calendar page's rules bar) | **Calendar it reads**, the Business row's name, on both pages |
+>
+> *what it's told* is the told section, **What your receptionist is told** (Task 5.1), with its door **Read it**; its rows each name their own part (*Things it should know*, *In your own words*).
+
 ## 11. What is on screen
 
 At rest: **four** controls — *Read what it's told*, the standing line's one link, *Download*, and the one act under the pointer. Twenty more are in the tab order at all times and draw themselves on hover or focus.

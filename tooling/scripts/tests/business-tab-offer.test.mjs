@@ -902,7 +902,7 @@ test("the booking rules fold holds the five numbers, each with its unit and what
     "Gap between appointments",
     "Offers times up to",
     "Most people per booking",
-    "Anything else about booking, one per line",
+    "Anything else about booking",
   ]);
   assert.deepEqual(all(fold, (n) => classes(n).includes("rec-input-unit")).map(textOf), [
     "hours",
@@ -917,8 +917,9 @@ test("the booking rules fold holds the five numbers, each with its unit and what
     BOOKING_RULE_HINTS.slot_min,
     BOOKING_RULE_HINTS.max_days_ahead,
     BOOKING_RULE_HINTS.party_max,
+    "One per line.",
   ]);
-  assert.equal(heardBox(tree, "Anything else about booking, one per line").type, "textarea");
+  assert.equal(heardBox(tree, "Anything else about booking").type, "textarea");
   assert.match(textOf(fold), /Saves these five rules and the notes, and nothing else on the page\./);
   assert.match(textOf(fold), /It never books\. It says which times are open and sends the link\./);
 });
@@ -976,7 +977,7 @@ test("the booking rules' save writes those rules and their notes, and nothing el
   tree = redrawTab();
   typeHeard(
     tree,
-    "Anything else about booking, one per line",
+    "Anything else about booking",
     "No chemical services after 4 PM\n\nBridal parties are booked by phone  ",
   );
   tree = redrawTab();

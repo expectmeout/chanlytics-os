@@ -127,7 +127,7 @@ test("Who you are draws seven rows, in the spec's order", () => {
     "Booking link",
     "Answers on",
     "Tells customers to call",
-    "Transfers a caller to",
+    "Transfer number",
   ]);
 });
 

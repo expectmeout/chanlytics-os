@@ -261,7 +261,7 @@ const BtaRules = ({ draft, update, readOnly, unread }) => {
  * chat hand-off does, and how long it holds off, which is the Autonomy tab's; handoffCallWords says what a transfer
  * does, and that the reasons reach a call too).
  *
- * The transfer number is only shown here, never edited: Who you are's "Transfers a caller to" is its one editor (the
+ * The transfer number is only shown here, never edited: Who you are's "Transfer number" is its one editor (the
  * plan's decision in Task 3.2's review), and a door opens that row, by its id, as the standing line's door opens a
  * row. With the Autonomy tab's read failed, how long it holds off cannot be said, and a failed read says so where the
  * sentence would be. On a workspace with no line to call (`calls` false) no receptionist of it takes a call, so what a
@@ -279,7 +279,8 @@ const BtaHandoff = ({ draft, update, press, problems, readOnly, words, transfer,
     <>
       <window.RecordField
         id="bt-escalate-when"
-        label="Your reasons, one per line"
+        label="Your reasons"
+        hint="One per line."
         rows={4}
         value={draft}
         onChange={(v) => update(() => v, ["escalate_when"])}
