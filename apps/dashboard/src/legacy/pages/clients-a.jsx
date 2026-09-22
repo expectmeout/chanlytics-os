@@ -2173,15 +2173,19 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [found, setFound] = useState(null);
   const [searchMore, setSearchMore] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);
+  // Whether the server is being asked right now: the line under the table says so and the table is busy while it is
+  // (the loading standard's one on-its-way rule). It was silent, and the rows the server found landed unannounced.
+  const [searching, setSearching] = useState(false);
   React.useEffect(() => {
-    if (!hasMore || !q.trim() || !window.__peopleSearch) { setFound(null); setSearchFailed(false); return undefined; }
+    if (!hasMore || !q.trim() || !window.__peopleSearch) { setFound(null); setSearchFailed(false); setSearching(false); return undefined; }
     let on = true;
     const t = setTimeout(() => {
+      setSearching(true);
       window.__peopleSearch(q)
-        .then((r) => { if (on) { setFound(r.rows); setSearchMore(!!r.more); setSearchFailed(false); } })
-        .catch(() => { if (on) { setFound(null); setSearchFailed(true); } });
+        .then((r) => { if (on) { setFound(r.rows); setSearchMore(!!r.more); setSearchFailed(false); setSearching(false); } })
+        .catch(() => { if (on) { setFound(null); setSearchFailed(true); setSearching(false); } });
     }, 250);
-    return () => { on = false; clearTimeout(t); };
+    return () => { on = false; clearTimeout(t); setSearching(false); };
   }, [q, hasMore]);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMore = async () => {
@@ -2328,14 +2332,34 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     for (const s of saved) for (const id of s.ids) (m[id] = m[id] || []).push(s.name);
     return m;
   }, [saved]);
-  const cellCtx = {
-    bookingLink: people.bookingLink || null,
-    attention: people.attention,
-    onOpen: onOpenProfile,
-    drop: activeSaved && canEditLists && window.__lists ? { list: activeSaved, onDrop: dropFromList } : null,
-    listsOf,
-    shows: Object.fromEntries(columns.filter((c) => !c.off).map((c) => [c.key, true])),
-  };
+  // What a cell needs, behind ONE object that holds still until something in it changes: the rows are PeopleRowMemo,
+  // which draws a row again only when a prop of its own changed, and a context made new on every draw redrew every
+  // row on every keystroke (the same fault the Leads scope's cellCtxLeads fixed). The doors are the latest closures
+  // behind refs, so a new closure is not a new context; the columns are told apart by their keys, not their array.
+  const cellOpenRef = React.useRef(onOpenProfile);
+  cellOpenRef.current = onOpenProfile;
+  const cellDropRef = React.useRef(dropFromList);
+  cellDropRef.current = dropFromList;
+  const cellCtxRef = React.useRef(null);
+  const cellCtxKey = [people.bookingLink || null, people.attention, saved, activeSaved ? activeSaved.id : null, canEditLists && !!window.__lists, columns.map((c) => (c.off ? `-${c.key}` : c.key)).join(",")];
+  if (!cellCtxRef.current || cellCtxRef.current.key.some((v, i) => !Object.is(v, cellCtxKey[i]))) {
+    cellCtxRef.current = {
+      key: cellCtxKey,
+      ctx: {
+        bookingLink: people.bookingLink || null,
+        attention: people.attention,
+        onOpen: (id) => cellOpenRef.current(id),
+        drop: activeSaved && canEditLists && window.__lists ? { list: activeSaved, onDrop: (person) => cellDropRef.current(person) } : null,
+        listsOf,
+        shows: Object.fromEntries(columns.filter((c) => !c.off).map((c) => [c.key, true])),
+      },
+    };
+  }
+  const cellCtx = cellCtxRef.current.ctx;
+  // What a row press does, behind one function for the same reason: the shell hands the page a new onOpenProfile on
+  // every route change, and a phone in a selection turns a press into a toggle, so the door changes while the rows should not.
+  const rowOpenRef = React.useRef(null);
+  const rowOpen = React.useRef((id) => rowOpenRef.current(id)).current;
   // The leads loaded, filtered at once by the box (their name, their kind and their area) and by one criterion
   // of the Excluded view. A sentence is not sent anywhere: words to chips is release C.
   const leadShown = React.useMemo(() => {
@@ -2479,28 +2503,36 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The page keeps the owner's place in each view (ldPlaceLoad, above). The page stays mounted from one view to the
   // next, so a view that is opened -- by the first draw, the rail, Back -- is given ITS place: its own words in the
   // box, its cursor and its map, or none of them, and never the last view's filters.
+  // People's views keep their place the same way (the loading standard's F): everyone, a smart list, a kept list or a
+  // state, each with its own words, cursor and scroll -- a search typed on a list was gone after a trip to a profile.
+  // Under People the page keys them by its own view; under Leads by the address's (viewRoute), as before.
+  const peopleView = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "all";
+  const placeView = onLeads ? viewRoute : peopleView;
+  const placePage = onLeads ? "leads" : "people";
+  const placeLoad = (view) => (window.__tabMemory ? window.__tabMemory.place(placePage, view) : null);
+  const placeSave = (view, place) => { if (window.__tabMemory) window.__tabMemory.keepPlace(placePage, view, place); };
   const placeOf = React.useRef(undefined);  // the view whose place the state below holds
   const placeNow = React.useRef(null);      // that view and its place as last drawn: what a scroll is saved with
   const placeTop = React.useRef(0);
   const placeDue = React.useRef(null);      // a scroll position waiting for its view's rows
   React.useEffect(() => {
-    if (!onLeads) return;
-    const p = ldPlaceLoad(viewRoute) || {};
+    const p = placeLoad(placeView) || {};
     setQ(p.q || "");
     cursorCameBack.current = p.cursor || null;
     setCursor(p.cursor || null);
-    setMapOpen(!!p.map);
-    if (placeOf.current !== undefined) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
+    if (onLeads) {
+      setMapOpen(!!p.map);
+      if (placeOf.current !== undefined) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
+    }
     placeTop.current = p.top || 0;
-    placeDue.current = { view: viewRoute, top: p.top || 0, q: p.q || "", fresh: true };
-  }, [viewRoute]); // eslint-disable-line react-hooks/exhaustive-deps
+    placeDue.current = { view: placeView, top: p.top || 0, q: p.q || "", fresh: true };
+  }, [placeView]); // eslint-disable-line react-hooks/exhaustive-deps
   // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
   React.useEffect(() => {
-    if (!onLeads) return;
-    if (placeOf.current !== viewRoute) { placeOf.current = viewRoute; return; }
-    ldPlaceSave(viewRoute, { q, cursor, map: mapOpen, top: placeTop.current });
-  }, [viewRoute, q, cursor, mapOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (onLeads && placeOf.current === viewRoute) placeNow.current = { view: viewRoute, place: { q, cursor, map: mapOpen } };
+    if (placeOf.current !== placeView) { placeOf.current = placeView; return; }
+    placeSave(placeView, onLeads ? { q, cursor, map: mapOpen, top: placeTop.current } : { q, cursor, top: placeTop.current });
+  }, [placeView, q, cursor, mapOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (placeOf.current === placeView) placeNow.current = { view: placeView, place: onLeads ? { q, cursor, map: mapOpen } : { q, cursor } };
   // The list goes back to where it was once the rows on screen are this view's (the surface says which view it
   // holds) AND are the ones its own words leave. Scrolled before the view landed, it would be the last view's rows
   // that moved. Scrolled on the draw that opens the view -- which still draws every row, the words being put back
@@ -2508,17 +2540,18 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // Words that are no longer the place's are the owner's, typed since: they have moved on, and nothing is put back.
   // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the
   // page's to re-order; leads_page's order is the one rule), and the rows on screen are the old order until it lands.
-  const viewLanded = onLeads && leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir;
+  // People's rows are in hand before the page draws (the surface publishes them), so its view has always landed.
+  const viewLanded = !onLeads || (leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir);
   React.useEffect(() => {
     const due = placeDue.current;
-    if (!onLeads || !due || due.view !== viewRoute) return;
+    if (!due || due.view !== placeView) return;
     if (q !== due.q) { if (!due.fresh) placeDue.current = null; due.fresh = false; return; }
     due.fresh = false;
     if (!viewLanded) return;
     placeDue.current = null;
     const sc = ldScroller(scrollRef.current);
     if (sc) sc.scrollTop = due.top;
-  }, [viewRoute, viewLanded, q]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [placeView, viewLanded, q]); // eslint-disable-line react-hooks/exhaustive-deps
   // A Find half-written comes back with the page (ldFinderLoad, above), and is kept as it changes. The first pass
   // still holds the page's empty state, so it keeps nothing: it would clear the draft it is about to be given.
   const finderKept = React.useRef(false);
@@ -2541,7 +2574,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // the box that scrolls is the table's own, inside the pane. Saved once it settles, with the place as last drawn.
   React.useEffect(() => {
     const el = scrollRef.current;
-    if (!onLeads || !el || !el.addEventListener) return undefined;
+    if (!el || !el.addEventListener) return undefined;
     let t = null;
     const on = (e) => {
       const sc = e && e.target;
@@ -2552,7 +2585,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
         if (!now || placeDue.current) return;
         placeTop.current = sc.scrollTop;
-        ldPlaceSave(now.view, { ...now.place, top: sc.scrollTop });
+        placeSave(now.view, { ...now.place, top: sc.scrollTop });
       }, 200);
     };
     el.addEventListener("scroll", on, { passive: true, capture: true });
@@ -3097,6 +3130,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
   // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a
   // row selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).
   const selecting = (phone && selectMode) || shown.some((p) => sel.has(p.id));
+  rowOpenRef.current = phone && selecting ? toggleSel : onOpenProfile;
   // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
   // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
   // list open, that list's own acts.
@@ -3253,17 +3287,18 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={onSort}
-            onOpen={phone && selecting ? toggleSel : onOpenProfile}
+            onOpen={rowOpen}
             selectMode={phone && selectMode}
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
             scrolled={scrolledX}
             onScrolled={setScrolledX}
+            busy={searching}
             empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
           />
           {hasMore && (
             <div className="cl-section-sub pl-more" data-testid="people-more">
-              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? (searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
+              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
               {" "}
               <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
             </div>
