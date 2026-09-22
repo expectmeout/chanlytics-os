@@ -57,7 +57,8 @@ test("the runs and the composed prompt cannot disagree — same source", () => {
 });
 
 test("the Settings card no longer keeps its own copy of the loop", () => {
-  const pane = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  // The card is the Business page since Task 3.7; the summary went with it, still a wrapper over the shared lines.
+  const pane = readCode("apps/dashboard/src/legacy/pages/business-tab-open.jsx");
   assert.ok(pane.includes("window.__hoursLines(hours)"), "it asks for the shared lines, which collapse the same runs");
   assert.ok(
     !pane.includes("spans[j + 1].text === spans[i].text"),

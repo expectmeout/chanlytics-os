@@ -156,29 +156,28 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
 });
 
 test("the field that caused this says what it is", () => {
-  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(!/set-ident-key">Phone line</.test(pane), "REGRESSION: the editor called it the same thing as the line it answers");
-  assert.ok(pane.includes('<span className="set-ident-key">Tell customers to call</span>'), "it is what goes in the words");
+  // Task 3.7 deleted the form. The three numbers are three rows of the Business page, each edited where it is stated
+  // (business-tab-who.jsx); business-tab-page.test.mjs draws and presses every one of them.
+  const pane = readRaw("apps/dashboard/src/legacy/pages/business-tab-who.jsx");
+  assert.ok(!/label="Phone line"/.test(pane), "REGRESSION: the editor called it the same thing as the line it answers");
+  assert.ok(pane.includes('label="Tells customers to call"'), "it is what goes in the words");
   // And not a text box at all any more: the line is the default, and publishing
   // anything else is a deliberate act with a reason shown under it.
-  assert.ok(pane.includes('data-testid="set-pub-line"') && pane.includes('data-testid="set-pub-other"'), "two options, the line first");
-  assert.ok(pane.includes('phone_display: phone || undefined,'), "and choosing the line writes nothing, so it follows the line");
+  assert.ok(pane.includes('{ value: "line", label: "Your line" }, { value: "other", label: "A different number" }'), "two options, the line first");
 
   // Three numbers, three names, and only the provisioned one links away. The
   // two the receptionist DECIDES are edited in the row that states them: they
   // were sections nine and thirteen of a fourteen-section form, a page apart
   // from each other and from the card that reads them.
-  assert.ok(pane.includes('<FactRow label="Answers on" fact={F.voice_line} to="admin/integrations"'), "the line is Connections' to own");
-  assert.ok(pane.includes('<PublishedNumberRow fact={F.phone_display} flash={flash} />'));
-  assert.ok(pane.includes('<HandoffRow fact={F.handoff_number} flash={flash} />'));
+  assert.ok(pane.includes('window.CHANLY.nav("admin/integrations")') && pane.includes('label="Answers on"'), "the line is Connections' to own");
+  assert.ok(pane.includes('id="phone_display"') && pane.includes('id="handoff_number"'), "and the two the receptionist decides are rows of their own");
   // One key, on top of what is stored -- PUT /settings is a whole-config CAS,
   // and a fragment would delete the rest. The save itself moved to
   // pages/business-tab-save.jsx with the Business tab (Task 3.2); these rows
   // take it from window, settings-honest.test.mjs presses them, and
   // business-tab-page.test.mjs runs the save when it fails.
-  assert.ok(pane.includes("window.useFieldSave(flash)"));
-  assert.ok(pane.includes("if (value) brain.phone_display = value; else delete brain.phone_display;"), "absent means the line, so clearing it removes the key");
-  assert.ok(pane.includes("<FactConflicts />"), "and a serious disagreement is said out loud, not left in a document");
+  // Absent means the line, so clearing the box removes the key: the row's patch, run in business-tab-page.test.mjs.
+  assert.ok(pane.includes("btDispute(pub, conflictOn(\"phone_display\")"), "and a serious disagreement is said out loud, on the row it is about");
 });
 
 test("Setup stops saying ready while a customer-facing fact is wrong", async () => {
@@ -275,27 +274,22 @@ test("a config change records who and what, and neither is the values", async ()
 });
 
 test("the editor is four steps, and the days sit beside the hours they qualify", () => {
-  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  const groups = [...pane.matchAll(/className="set-group-name">([^<]+)</g)].map((m) => m[1]);
-  assert.deepEqual(groups, ["Your business", "When you are open", "What you offer", "How it answers"]);
-
-  // Fourteen headings in a row, in an order nobody chose: the weekly grid was
-  // four sections above the days it does not apply to, with the services and
-  // the calendar feed in between.
-  const order = [...pane.matchAll(/title="([^"]+)"/g)].map((m) => m[1]);
-  const at = (t) => order.indexOf(t);
-  assert.equal(at("Days you are closed"), at("When you are open") + 1, "the closures follow the hours");
-  assert.ok(at("Where you are") < at("When you are open"), "who and where, then when");
-  assert.ok(at("Languages") > at("Booking rules"), "and how it answers comes last, after what it answers about");
+  // Fourteen headings in a row, in an order nobody chose: the weekly grid was four sections above the days it does
+  // not apply to, with the services and the calendar feed in between. Task 3.7 deleted that form; the four steps are
+  // the four cards of the Business page, in this order, and what each one draws is EXECUTED in its own test file
+  // (business-tab-open.test.mjs asserts the cards in order, and the four rows of When you are open in theirs).
+  const page = readRaw("apps/dashboard/src/legacy/pages/business-tab.jsx");
+  const cards = [...page.matchAll(/window\.(Bt(?:Who|Open|Offer|Answers))Card \?/g)].map((m) => m[1]);
+  assert.deepEqual(cards, ["BtWho", "BtOpen", "BtOffer", "BtAnswers"]);
 });
 
 test("languages is one control, not a grid plus a second control", () => {
-  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(pane.includes('data-testid="set-langs"') && pane.includes("set-token-input"), "a token field");
-  assert.ok(!/className={`set-chip \$\{langs\.includes/.test(pane), "REGRESSION: fourteen languages shouting, two of them chosen");
+  // The fourteen languages shouting, two of them chosen, went with the form (Task 3.7). The languages are one fold of
+  // the Business page: the chosen ones as tokens, each with its remove, and ONE box to add another, over the common
+  // ones as an offer rather than a wall. business-tab-answers.test.mjs draws it and adds, removes and caps it.
+  const pane = readRaw("apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
+  assert.ok(pane.includes('data-testid="rec-languages"') && pane.includes("window.RecordCombobox"), "a token field");
+  assert.ok(!/set-chip/.test(pane), "REGRESSION: fourteen languages shouting, two of them chosen");
   assert.ok(!pane.includes('placeholder="Another language"'), "and no second field underneath to add a fifteenth");
-  // The common ones are an OFFER, shown only while there is room to consider
-  // them — not a wall that has to be read before the field can be used.
-  assert.ok(pane.includes("SET_LANGS.filter((l) => !langs.includes(l)).slice(0, 6)"), "at most six suggestions, and only unchosen ones");
-  assert.ok(pane.includes('ev.key === "Backspace" && !langAdd && langs.length'), "backspace takes the last one back, as every token field does");
+  assert.ok(pane.includes('e.key === "Backspace" && e.target && e.target.value === "" && chosen.length'), "backspace takes the last one back, as every token field does");
 });

@@ -87,6 +87,34 @@ test("its act opens the three things a receptionist cannot answer anyone without
   assert.equal(boxIn(tree, "rec-create-link").props.value, "");
 });
 
+test("no other business is anyone's example: the boxes are empty and the placeholders are fictional", () => {
+  // The setup form's placeholders were the live salon's own name and its working transfer number, shown to the next
+  // business as its example. Every box here starts empty, and the one placeholder that is a number is the reserved
+  // 555-01xx range (the rows this box is shared with used it; business-tab-who.jsx).
+  let tree = drawCreate();
+  setUp(tree);
+  tree = redrawCreate();
+  const boxes = all(byTestId(tree, "rec-fold-receptionist"), (n) => n.type === "input");
+  assert.deepEqual(boxes.map((b) => b.props.value), ["", "", ""], "nothing is filled in");
+  const said = JSON.stringify(boxes.map((b) => [b.props.placeholder, b.props.title]));
+  for (const leak of ["Melany", "932 5775", "932-5775", "booksy", "1817434"]) {
+    assert.ok(!said.includes(leak), `a real business's ${leak} must not be a placeholder`);
+  }
+  assert.ok(said.includes("555 0143"), "555-01xx is the reserved fictional range");
+});
+
+test("the line it answers on is named the way people write it, and choosing it is offered first", () => {
+  // REGRESSION (L7): the create form showed +13055550100 -- the stored form, which nobody writes or reads out.
+  let tree = drawCreate({ line: "+13055550100" });
+  setUp(tree);
+  tree = redrawCreate();
+  const choice = byTestId(tree, "rec-create-number-choice");
+  assert.deepEqual(all(choice, (n) => n.props?.role === "radio").map(textOf), ["Your line", "A different number"]);
+  const note = textOf(byTestId(tree, "rec-create-number-note"));
+  assert.ok(note.startsWith("+1 (305) 555-0100 — the line your receptionist answers"), note);
+  assert.ok(!note.includes("+13055550100"), "REGRESSION: the stored form, in front of the owner");
+});
+
 /* ------------------------------------ what stops it ------------------------------------ */
 
 test("every empty field says so under itself, nothing is sent, and the fold stays open", () => {

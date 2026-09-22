@@ -167,11 +167,12 @@ test("the edge reads the feed once per five minutes and tells both receptionists
 });
 
 test("Settings collects the rules and the feed; the feed address is whole only for an owner", () => {
-  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(pane.includes('put("booking_rules", Object.keys(rules).length ? rules : undefined);'));
-  assert.ok(pane.includes("...(feed ? { calendar: { ical_url: feed } } : { calendar: undefined }),"));
-  assert.ok(pane.includes('title="Calendar it may look at"') && pane.includes('title="Booking rules"'));
-  assert.ok(pane.includes("Nothing is booked from here; the booking link does that, whichever tool is behind it."));
+  // The rules and the feed are folds of the Business page now (Task 3.7 deleted the form), and each patches only its
+  // own keys. What each writes, the row that states the feed and the sentence that it is only ever read are EXECUTED
+  // in business-tab-folds.test.mjs and business-tab-open.test.mjs, so four pins that were here are gone.
+  const page = readRaw("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
+  assert.ok(page.includes('btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);'));
+  assert.ok(page.includes('btPut(section, "ical_url", feed || undefined);'));
   const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
   assert.ok(route.includes('member.role === "owner" || !cfg.calendar'));
   assert.ok(route.includes("maskFeedUrl(cfg.calendar.ical_url)"));

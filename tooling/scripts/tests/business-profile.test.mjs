@@ -165,51 +165,53 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
-const settingsJsx = fs.readFileSync(
-  path.join(here, "../../../apps/dashboard/src/legacy/pages/settings.jsx"), "utf8",
-).split("\r\n").join("\n");
+// The form is gone (Task 3.7). What it did is the Business page's: the tab's ONE saver and each row's patch
+// (pages/business-tab-save.jsx), and each fold's draft and write (pages/business-tab-folds.jsx). Every rule below is
+// also run, against the stored record, by business-tab-folds.test.mjs and business-tab-page.test.mjs.
+const readPage = (f) =>
+  fs.readFileSync(path.join(here, `../../../apps/dashboard/src/legacy/pages/${f}`), "utf8").split("\r\n").join("\n");
+const saveJsx = readPage("business-tab-save.jsx");
+const foldsJsx = readPage("business-tab-folds.jsx");
 
 test("the editor sends the WHOLE config, not just its own section", () => {
-  // PUT is a whole-config write. Sending only `brain` would delete
-  // notifications; sending only `profile` would delete the prompt beside it.
-  // Asserted as intent, not as formatting: the identity fields (name, phone
-  // line, booking link) now live in this object too, so it spans lines.
-  assert.ok(settingsJsx.includes("...settings.config,"), "every other section must survive");
-  assert.ok(settingsJsx.includes("...brain,"), "and everything already on the brain");
-  assert.ok(
-    settingsJsx.indexOf("...brain,") < settingsJsx.indexOf("profile,"),
-    "the spread must come first, or it overwrites the edits",
-  );
+  // PUT is a whole-config write. Sending only `brain` would delete notifications; sending only `profile` would
+  // delete the prompt beside it. A row or a fold says only what IT changes now, and the saver applies that to a
+  // copy of the whole stored config -- all the way down, so a patch that edits a nested object in place cannot
+  // change the config it is about to be compared with.
+  assert.ok(saveJsx.includes("const copy = structuredClone(config);"), "every other section must survive");
+  assert.ok(saveJsx.includes("return { ...copy, brain: job.change(brain, { ...(brain.profile || {}) }) };"), "and everything already on the brain");
 });
 
 test("the version travels with the write", () => {
   // Optimistic concurrency is the only thing standing between two owners
   // editing at once and one of them losing their work silently.
-  assert.ok(settingsJsx.includes("__saveSettings(next, settings.version, () => {"));
+  assert.ok(saveJsx.includes("sent = window.__saveSettings(patched, from.version, (saved) => {"));
 });
 
 test("an empty field is omitted rather than stored as an empty string", () => {
   // "" is not a fact. Storing it would have the composed prompt state an
   // address of nothing.
-  assert.ok(settingsJsx.includes('put("address", address.trim() || undefined);'));
+  assert.ok(saveJsx.includes('address: btPatchProfile("address"),'));
+  assert.ok(foldsJsx.includes("const btPut = (o, key, value) => { if (value === undefined) delete o[key]; else o[key] = value; };"));
 });
 
 test("a day with no times is stored as CLOSED, not omitted", () => {
   // Closed is a real answer; absent reads as "we did not say", and the
   // receptionist would have nothing to tell someone asking about Sunday.
-  assert.ok(settingsJsx.includes("hrs[d] = shifts.length === 0 ? {}"));
+  assert.ok(foldsJsx.includes("hours[d] = shifts.length === 0 ? {}"));
 });
 
 test("the guardrail checkboxes start ON when the config is silent", () => {
   // Absent means on everywhere else; rendering three unticked boxes would
   // invite an owner to believe the rules were off.
-  assert.match(settingsJsx, /never_quote_prices: \(p0\.guardrails \|\| \{\}\)\.never_quote_prices !== false/);
+  // One rule, in contracts: absent is on for the three the schema defaults on, and off for the opt-in fourth.
+  assert.ok(foldsJsx.includes("...window.__businessTab.guardrailsInForce(p.guardrails),"));
 });
 
 test("a save failure is shown, never swallowed", () => {
   // A 409 means someone else saved first — the owner has to know their edit
   // did not land.
-  assert.ok(settingsJsx.includes("if (r.ok) return;"), "a failed save must still report");
+  assert.ok(saveJsx.includes("refused(sent && sent.message") || saveJsx.includes("refused("), "a failed save must still report");
 });
 
 test("REGRESSION: seven closed days is not a profile", () => {
@@ -226,8 +228,8 @@ test("REGRESSION: seven closed days is not a profile", () => {
 
 test("the editor does not send an hours map nobody filled in", () => {
   assert.ok(
-    settingsJsx.includes("SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].shifts.some((s) => s.open && s.close))"),
-    "an untouched form must not save seven closed days and read as never open",
+    foldsJsx.includes("const stated = BT_DAYS.some((d) => week[d] && week[d].isOpen && (week[d].shifts || []).some((s) => s.open && s.close));"),
+    "an untouched week must not save seven closed days and read as never open",
   );
 });
 
@@ -236,15 +238,17 @@ test("REGRESSION: a save is not a rebuild — unknown profile keys survive", () 
   // renders, so every key it did not know about was deleted on every save.
   // That is the mechanism that lost a live workspace its 5,027-character
   // prompt: nobody deleted it, a rebuild dropped what it did not recognise.
-  assert.ok(settingsJsx.includes("const profile = { ...p0 };"), "start from what is stored");
-  assert.ok(!settingsJsx.includes("const profile = {};"), "never from nothing");
+  // No fold builds a profile at all now: each writes or deletes its OWN key on the stored one, so a key it has
+  // never heard of cannot be dropped.
+  assert.ok(foldsJsx.includes("next.brain.profile[key] = value;"), "write the one key");
+  assert.ok(!foldsJsx.includes("const profile = {};") && !foldsJsx.includes("profile = { ...p0 }"), "and never rebuilds one");
 });
 
 test("an emptied field DELETES its key rather than leaving the stored value", () => {
   // The other half of starting from the stored profile: clearing the address
   // has to clear it, not silently keep yesterday's.
-  assert.ok(settingsJsx.includes(
-    "const put = (k, v) => { if (v === undefined) delete profile[k]; else profile[k] = v; };",
+  assert.ok(foldsJsx.includes(
+    "if (value === undefined) { if (next.brain && next.brain.profile) delete next.brain.profile[key]; return; }",
   ));
 });
 
@@ -290,13 +294,13 @@ test("the owner's instructions hold as much as the prompt they grew out of -- 8,
 });
 
 test("the editor pre-fills the existing prompt so it is visible, not magic", () => {
-  assert.ok(settingsJsx.includes("const draft0 = window.__instructionsDraft(brain);"));
+  assert.ok(foldsJsx.includes("extra_instructions: (p, brain) => window.__instructionsDraft(brain),"));
 });
 
 test("saving reports the moment the SERVER accepts, not after the refetch", () => {
   // The refresh re-reads every surface — seconds during which pressing Save
   // did nothing observable, which is exactly how it was reported.
-  assert.ok(settingsJsx.includes("window.__saveSettings(next, settings.version, () => {"));
+  assert.ok(saveJsx.includes("sent = window.__saveSettings(patched, from.version, (saved) => {"));
 });
 
 /* ---- a composed prompt must know HOW to reach a human, not only when ---- */

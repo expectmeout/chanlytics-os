@@ -121,7 +121,9 @@ test("nothing is shown when there is nothing true to show", () => {
   // that says "your receptionist is told nothing", which is a different claim.
   assert.ok(verbs.includes("if (!prompt) return null;"));
   assert.ok(pane.includes("if (!composed) return null;"));
-  assert.ok(pane.includes("{real && <PromptPreview />}"), "never rendered over mockup data");
+  // Drawn only under the record, which PaneWorkspace draws only for a workspace whose config holds a brain: never over
+  // the mockup's business, and never over a config the parser refused (Task 3.7 made the three states three returns).
+  assert.ok(pane.includes("if (real) {") && pane.includes("<PromptPreview />"), "never rendered over mockup data");
 });
 
 test("the clock is shown SEPARATELY, because it is sent separately", () => {

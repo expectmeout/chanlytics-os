@@ -470,7 +470,7 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
     press(railTab(drawRail(), "Team"));
     let ask = byTestId(drawRail(), "set-leave-confirm");
     assert.match(textOf(ask), /Leave without saving\?/);
-    assert.match(textOf(ask), /have not been saved/);
+    assert.match(textOf(ask), /Nothing you changed on this tab has been saved\./);
     assert.deepEqual(went, [], "nothing goes until it is answered");
     press(byTestId(drawRail(), "set-leave-no"));
     assert.equal(byTestId(drawRail(), "set-leave-confirm"), null);
@@ -484,7 +484,7 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
     ask = byTestId(drawRail(), "set-leave-confirm");
     assert.match(textOf(ask), /Leave while this saves\?/);
     assert.match(textOf(ask), /on its way and carries on without this page/);
-    assert.doesNotMatch(textOf(ask), /have not been saved/);
+    assert.doesNotMatch(textOf(ask), /has been saved/);
     press(byTestId(drawRail(), "set-leave-yes"));
     assert.deepEqual(went, ["team"]);
   } finally {

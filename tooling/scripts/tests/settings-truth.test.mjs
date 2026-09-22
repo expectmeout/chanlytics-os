@@ -38,7 +38,7 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   assert.ok(surface.includes("broken: { issues: cfg.issues ?? [] }"));
   assert.ok(pane.includes("const broken = !!(settings && settings.broken);"));
   assert.ok(pane.includes("This workspace's settings can't be read"));
-  assert.ok(pane.indexOf("if (broken) {") < pane.indexOf("if (connected && editing) {"), "the broken branch wins over the editor");
+  assert.ok(pane.indexOf("if (broken) {") < pane.indexOf("if (real) {"), "the broken branch wins over the record");
   assert.equal((pane.match(/disabled=\{broken \|\| busy/g) ?? []).length, 3, "every notifications write is closed on a broken config");
   // The parser really does tell the two apart.
   assert.equal(parseTenantConfigResult({}).ok, true, "an empty config is not broken");
@@ -90,9 +90,10 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   assert.equal(ROLE_PERMS.owner.settings, true);
   assert.equal(ROLE_PERMS.operator.settings, false, "PUT /settings is owner-only; an operator's form opened on the autonomy gate and was refused at Save");
   assert.equal(ROLE_PERMS.viewer.settings, false);
-  assert.equal((pane.match(/window\.gate\("settings"\)/g) ?? []).length, 7, "Edit, Save, Set up, Add your business details, Change timezone, and the two numbers edited in their own rows — every one of them a PUT an operator is refused");
-  const editor = pane.slice(pane.indexOf("const BusinessEditor"), pane.indexOf("const PaneWorkspace"));
-  assert.ok(!editor.includes('gate("autonomy")'), "the form no longer opens on a gate the door refuses");
+  // Every act of the Business page is a PUT an operator is refused, so every card gates on "settings" and names what
+  // it acts on, and none opens on a gate the door refuses. Drawn, not read: business-tab-open.test.mjs reads the
+  // sentence on every act of a card, and business-tab-page.test.mjs draws the whole page for a viewer and finds no
+  // act at all on it.
   assert.ok(pane.includes('gate("autonomy")'), "the autonomy matrix keeps its own gate — PUT /policies is operator-or-owner");
   // Delay edits.
   assert.ok(pane.includes("if (d && reply) put(reply, undefined, { replyDelayMs: d[1] });"));
@@ -135,9 +136,10 @@ test("the workspace timezone is visible and an owner can change it", () => {
   // closures were upcoming and the hours the receptionist quoted -- with no
   // write path anywhere, so every workspace sat on 00001's America/New_York
   // default without being asked.
-  assert.ok(pane.includes('data-testid="set-timezone"'), "the row exists");
-  assert.ok(pane.includes("{real && <TimezoneRow flash={flash} />}"), "on the business card, beside the hours it qualifies");
-  assert.ok(pane.includes('window.gate("settings")') && /set-tz-change/.test(pane), "and changing it is a settings write, refused to an operator");
+  // The row is When you're open's (business-tab-open.jsx BtoZone, drawn as rec-row-timezone), beside the hours it
+  // qualifies; it saves through the workspace's own door and not the settings save, and the card a workspace with
+  // no receptionist sees draws the same row. All three are drawn: business-tab-open.test.mjs, "the timezone row
+  // says the zone and the time there, and saves through the workspace's own door", and business-tab-create.test.mjs.
 
   const mig = readRaw("supabase/migrations/00084_workspace_timezone.sql");
   assert.ok(mig.includes("create policy tenants_owner_update on public.tenants"), "RLS is the row floor");

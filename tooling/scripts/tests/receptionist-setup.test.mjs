@@ -30,14 +30,20 @@ const NAME = "Aurora Nails & Spa";
 const PHONE = "(646) 555-0134";
 const LINK = "https://booksy.com/en-us/999999_aurora-nails";
 
-/** What the form PUTs for a workspace whose config is `{}`. */
+/**
+ * What the create fold PUTs for a workspace whose config is `{}` (pages/business-tab-create.jsx, the fold
+ * business-tab-folds.jsx calls "receptionist"; business-tab-create.test.mjs presses it and reads what it sent).
+ *
+ * The form this replaced wrote a profile holding the three guardrails as well. hasProfile does not count them, so a
+ * profile of guardrails alone composed exactly what no profile composes, and absent is the same three rules in force
+ * (the page reads each as on unless an explicit false). Writing none is the same receptionist, said once.
+ */
 const freshConfig = () => ({
   brain: {
     business_name: NAME,
     phone_display: PHONE,
     booking_link: LINK,
     ...newReceptionistDefaults(NAME),
-    profile: { guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true } },
   },
 });
 
@@ -84,10 +90,11 @@ test("the fallbacks name the owner's details, and a customer reads the owner's o
 
 test("a fresh workspace answers from its fields as soon as it has any", () => {
   const cfg = freshConfig();
-  assert.equal(hasProfile(cfg.brain.profile), false, "guardrails alone are not a profile");
+  assert.equal(hasProfile(cfg.brain.profile), false, "a new receptionist has no profile to answer from yet");
+  assert.equal(hasProfile({ guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true } }), false, "guardrails alone are not a profile");
   const withHours = {
     ...cfg.brain,
-    profile: { ...cfg.brain.profile, hours: { mon: { open: "10:00", close: "19:00" } } },
+    profile: { hours: { mon: { open: "10:00", close: "19:00" } } },
   };
   const prompt = resolveSystemPrompt(withHours, "whatsapp", "America/New_York");
   assert.ok(prompt.includes("Monday: 10:00–19:00"));
@@ -95,53 +102,16 @@ test("a fresh workspace answers from its fields as soon as it has any", () => {
   assert.ok(prompt.includes("Rules you must follow"), "guardrails compose in from the start");
 });
 
-/* --------------------------- the form itself ----------------------------- */
+/* --------------------- the fold that sets one up ------------------------- */
 
-const pane = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-
-test("the form collects the three things a receptionist cannot exist without", () => {
-  for (const field of ["setBizName", "setPhoneDisplay", "setBookingLink"]) {
-    assert.ok(pane.includes(field), `${field} must be editable`);
-  }
-  assert.ok(pane.includes("business_name: name,"));
-  // Written as undefined, never "". Absent is the schema's way of saying "use
-  // the line the receptionist answers", and it is the default: a required
-  // free-text copy of a provisioned number is how the first live salon came
-  // to publish the number it transfers to.
-  assert.ok(pane.includes("phone_display: phone || undefined,"));
-  assert.ok(pane.includes('if (!phone && !voiceLine) found.phone = needs("a phone number")'), "and only a workspace with no line AND nothing typed is missing one");
-  assert.ok(pane.includes("booking_link: link,"));
-});
-
-test("an existing workspace's own words are never overwritten by a default", () => {
-  // These are what a customer reads when the model is unreachable. Replacing
-  // them because somebody opened a form would substitute our words for theirs.
-  // The prompt's words move rather than stay (S4): the box shows them, a save
-  // keeps what the owner left there as their instructions, and the prompt goes
-  // back to the baseline -- settings-editor.test.mjs runs it.
-  assert.ok(pane.includes("system_prompt: defaults.system_prompt,"));
-  assert.ok(pane.includes("fallbacks: { greeting: fallbacks.greeting.trim(), error: fallbacks.error.trim(), non_text: fallbacks.non_text.trim() },"));
-});
-
-test("the workspace that most needs this form is the one that can open it", () => {
-  assert.ok(pane.includes("if (connected && editing) {"), "an unconfigured workspace must reach the editor");
-  assert.ok(pane.includes("Set up the receptionist"), "and the empty state must offer the way in");
-});
-
-test("a bad booking link is caught before a round trip, and names itself", () => {
-  // The API surfaces only the first issue's message with no path: "Config
-  // rejected: Invalid url" names no field at all.
-  assert.ok(pane.includes("The receptionist needs {missing} before it can answer anyone."));
-  assert.ok(pane.includes("That booking link needs to be a full web address"));
-});
-
-test("the setup form does not show one customer another customer's details", () => {
-  // The placeholders were the live salon's real name and real phone number.
-  // A different business setting itself up would have been shown them as its
-  // example — someone else's working line, in their form.
-  const ident = pane.slice(pane.indexOf("set-ident"), pane.indexOf("Where you are"));
-  for (const leak of ["Melany", "932-5775", "booksy.com", "1817434"]) {
-    assert.ok(!ident.includes(leak), `a real business's ${leak} must not be a placeholder`);
-  }
-  assert.ok(ident.includes("(555) 010-1234"), "555-01xx is the reserved fictional range");
-});
+// The form is gone (Task 3.7), and with it the eleven source-text pins that were here. What set a receptionist up is
+// a fold of the Business page -- the card pages/business-tab-create.jsx over the "receptionist" fold of
+// pages/business-tab-folds.jsx -- and business-tab-create.test.mjs EXECUTES every claim they made, on the stub React:
+//   the three boxes it collects, each named by its visible label, and that nothing else is asked for;
+//   an empty name, number or link said under its own box, with nothing sent;
+//   a booking link that is not a full web address, and a number that is not a number, said the same way;
+//   choosing the line it answers on storing NO number, which is what makes the published number follow the line;
+//   one request carrying the three facts with the product's own prompt and messages, and nothing else;
+//   and a role that may not change the business told why, with nothing opening for it.
+// business-tab-folds.test.mjs saves the same fold onto a brain that already has a prompt and messages, and holds that
+// it keeps them. Which workspace reaches the card is surface-registry.test.mjs's.

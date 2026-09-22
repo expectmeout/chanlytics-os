@@ -132,9 +132,9 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
 });
 
 test("the owner turns it on in Workspace, and a save carries the section", () => {
-  const s = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(s.includes("const [vision, setVision] = useSetState(feat0.vision === true);"), "off unless explicitly on");
-  assert.ok(s.includes('data-testid="rule-vision"'));
-  assert.ok(s.includes('aria-label="Look at photos customers send"'));
-  assert.ok(s.includes("...(vision || feat0.vision !== undefined ? { features: { ...feat0, vision } } : {}),"), "untouched workspaces keep no section");
+  // Since Task 3.7 it is a switch of the Business page's "Rules it always keeps" fold, which patches features.vision
+  // and nothing else (business-tab-answers.test.mjs draws it, business-tab-folds.test.mjs saves it).
+  const s = readRaw("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
+  assert.ok(s.includes("vision: (config.features || {}).vision === true,"), "off unless explicitly on");
+  assert.ok(s.includes("if (vision || features.vision !== undefined) next.features = { ...features, vision };"), "untouched workspaces keep no section");
 });

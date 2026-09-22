@@ -247,13 +247,10 @@ const textOf = (n) => {
 };
 const classed = (tree, cls) => find(tree, (n) => String(n.props?.className || "").split(" ").includes(cls));
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
-const labelled = (tree, tag, label) => find(tree, (n) => n.type === tag && n.props["aria-label"] === label);
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
-const type = (node, value) => node.props.onChange({ target: { value } });
 const fresh = () => { cells = new Map(); saved.length = 0; for (const k of Object.keys(listeners)) delete listeners[k]; };
 const draw = (tab) => { frames = [{ key: "root", hook: 0, kids: {} }]; lastTree = globalThis.window.SettingsPage({ tab, onTab() {} }); return lastTree; };
 const settings = (tab) => { fresh(); return draw(tab); };
-const again = draw;
 
 /** A workspace on the settings surface, in its real shape; `rules` are its stored booking rules. */
 const workspace = (over = {}, rules = {}) => {
@@ -344,55 +341,14 @@ test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits 
   assert.deepEqual(calls.at(-1), ["reply", undefined, { pauseHours: 4 }], "only the pause travels, and no mode");
 });
 
-test("REGRESSION (S2): the slot length can be set from the Business editor -- a save kept it, and no field could change it", () => {
-  workspace({}, { slot_min: 45, lead_hours: 2 });
-  let tree = settings("workspace");
-  press(buttonSaying(tree, "Edit"));
-  tree = again("workspace");
-  const slotBox = labelled(tree, "input", "Slot length in minutes");
-  assert.ok(slotBox, "REGRESSION: no field could set the slot length");
-  assert.equal(slotBox.props.value, "45", "it starts from what is stored");
-  type(slotBox, "20");
-  tree = again("workspace");
-  press(buttonSaying(classed(tree, "set-editor-foot"), "Save"));
-  const rules = saved.at(-1)?.config?.brain?.profile?.booking_rules;
-  assert.equal(rules?.slot_min, 20, "and a save writes the new length");
-  assert.equal(rules?.lead_hours, 2, "beside the rules it did not touch");
+// REGRESSION (S2): the slot length can be set from the Business editor -- a save kept it, and no field could
+// change it. It is a box of the Business page's *Booking rules* fold now, which patches only the rules it renders
+// and keeps the rest of what is stored: business-tab-offer.test.mjs types it, and business-tab-folds.test.mjs
+// saves the fold over a record carrying a rule no fold draws.
 
-  workspace({}, { slot_min: 45 });
-  tree = settings("workspace");
-  press(buttonSaying(tree, "Edit"));
-  tree = again("workspace");
-  type(labelled(tree, "input", "Slot length in minutes"), "");
-  tree = again("workspace");
-  press(buttonSaying(classed(tree, "set-editor-foot"), "Save"));
-  const cleared = saved.at(-1)?.config?.brain?.profile?.booking_rules || {};
-  assert.equal("slot_min" in cleared, false, "an emptied field is no rule, so the calendar's default applies");
-});
-
-test("REGRESSION (C3): the Business card says the hours in the Calendar's clock, and the editor checks the calendar's address as an address -- the card said 'Mon–Fri 09:00–18:00' beside a Calendar in 9 AM, and the editor 'Check the link', the booking link's word", () => {
-  const hours = { mon: { open: "09:00", close: "18:00" }, tue: { open: "09:00", close: "18:00" }, wed: { open: "09:00", close: "18:00" }, thu: { open: "09:00", close: "18:00" }, fri: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" }, sun: {} };
-  workspace({
-    __SETTINGS: {
-      role: "owner", version: 4,
-      config: {
-        brain: { business_name: "Northside Studio", booking_link: "https://book.example/northside", system_prompt: "You answer for Northside Studio.", profile: { hours, booking_rules: {} } },
-        calendar: { ical_url: "https://calendar.example/northside.ics" },
-      },
-    },
-  });
-  let tree = settings("workspace");
-  const isHours = (n) => {
-    if (String(n.props?.className || "") !== "cl-prof-attr") return false;
-    const key = classed(n, "cl-prof-attr-key");
-    return !!key && textOf(key) === "Hours";
-  };
-  const row = find(tree, isHours);
-  assert.ok(row, "the card names the hours");
-  const said = textOf(classed(row, "cl-prof-attr-val"));
-  assert.ok(said.includes("Mon–Fri 9 AM – 6 PM · Sat 10 AM – 4 PM · Sun closed"), `REGRESSION: the card said 09:00–18:00: ${said}`);
-  press(buttonSaying(tree, "Edit"));
-  tree = again("workspace");
-  assert.equal(textOf(byTestId(tree, "cal-check")).trim(), "Check the address", "REGRESSION: 'Check the link', the booking link's word");
-  assert.ok(buttonSaying(tree, "Open Calendar"), "the page by its name, as Connections and Today say it");
-});
+// REGRESSION (C3): the Business card says the hours in the Calendar's clock -- it said 'Mon–Fri 09:00–18:00'
+// beside a Calendar in 9 AM. The card is the Business page's *When you're open*, whose summary is the composer's
+// own run-collapsing through the bridge (business-tab-open.test.mjs, "the summary sentence is the one the composer
+// wrote"); one-hours-algorithm.test.mjs holds it to the one implementation. The editor's "Check the address"
+// button went with the form: the calendar row states its last read instead, and says a read that failed with its
+// Retry (the spec's When you're open; business-tab-open.test.mjs draws both).

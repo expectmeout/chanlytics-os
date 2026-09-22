@@ -49,15 +49,18 @@ test("a freshly applied agent, with the provider's own defaults added, is conver
 // the rows themselves are written by the webhook, run in retell-webhook-door.test.mjs.
 
 test("The transfer number is compared with the receptionist's own line, not the number customers are told", () => {
-  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
   // The comparison moved into contracts with the field it guards. What the row
   // hands it is still the LINE -- the number customers are told is usually the
   // one a person answers, which is exactly where a transfer should go, so
   // comparing against that refused the very number the owner wanted.
-  assert.ok(pane.includes("window.__whyNotAHandoff(typed, voiceLine)"));
-  assert.ok(pane.includes('const voiceLine = ((((window.__FACTS || {}).facts || {}).voice_line) || {}).value || "";'), "the provisioned line, not phone_display");
+  // Since Task 3.7 the transfer number is a row of the Business page, and its check is the page's one table of them
+  // (business-tab-save.jsx CHECK_OF), asked with the line the Who you are card read off the settings read.
+  const row = readRaw("apps/dashboard/src/legacy/pages/business-tab-save.jsx");
+  assert.ok(row.includes("window.__whyNotAHandoff(d, line)"));
+  // What the row hands it is the PROVISIONED line the settings read resolved, never phone_display: the Who you are
+  // card reads F.voice_line and asks the check with it, which business-tab-page.test.mjs presses.
   const phone = readCode("packages/contracts/src/phone.ts");
   assert.ok(phone.includes("normalizePhone(norm) === normalizePhone(ownLine)"));
   assert.ok(!/phone_?[Dd]isplay/.test(phone), "REGRESSION: the salon's own human line was refused as the receptionist's");
-  assert.ok(pane.includes('"every phone call, composed when the call starts"'), "the phone tab is true now that the line runs the shell");
+  // (The prompt card saying which channel reads it is settings-truth.test.mjs's F33.)
 });

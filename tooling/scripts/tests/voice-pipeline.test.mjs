@@ -152,17 +152,16 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
 /* --------------------------- the settings form ---------------------------- */
 
 test("Settings collects the website and the notes; the transfer line is edited in its own row and normalised in one place", () => {
-  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(pane.includes('put("website", site || undefined);'));
-  assert.ok(pane.includes('put("notes", noteRows.length ? noteRows : undefined);'));
+  // Task 3.7 deleted the form: the website is a row of the Business page, the notes and the rules are folds of it, and
+  // each patches only its own keys (business-tab-folds.jsx; business-tab-folds.test.mjs runs every one of them).
+  const pane = readRaw("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
+  assert.ok(pane.includes('btPutProfile(next, "notes", notes.length ? notes : undefined);'));
   assert.ok(pane.includes('"no_health_advice"'));
-  assert.ok(pane.includes("no_health_advice: (p0.guardrails || {}).no_health_advice === true"), "opt-in, unlike the three rules that default on");
-  // The transfer number left the form for the row that states it, so the form
-  // must NOT write the key -- `profile` starts from what is stored, and not
-  // touching it is what preserves it.
-  assert.ok(!pane.includes('put("handoff_number"'), "the form no longer owns it");
-  assert.ok(pane.includes("handoff_number is deliberately NOT written here"), "and says so where somebody would look for it");
-  assert.ok(pane.includes("window.__handoffE164 ? window.__handoffE164(typed)"), "one normaliser, in contracts");
+  // The transfer number and the website are rows edited where they are stated, so no FOLD writes either key: a fold
+  // patches what it owns, and not touching a key is what preserves it.
+  assert.ok(!pane.includes('"handoff_number"') && !pane.includes('"website"'), "no fold owns a row's key");
+  // The website row writes only its own key, and the transfer row normalises through the one rule in contracts:
+  // both are pressed in business-tab-page.test.mjs, which reads what the save was sent.
   // Its two refusals moved with it, and are now shared rather than retyped.
   const phone = readCode("packages/contracts/src/phone.ts");
   assert.ok(phone.includes("export function whyNotAHandoff("));
