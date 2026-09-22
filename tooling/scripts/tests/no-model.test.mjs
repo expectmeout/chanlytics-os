@@ -12,7 +12,7 @@ import { ESCALATION_REASONS } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { noModelPlan, NO_MODEL_PAGE } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/steps.ts")).href
+  pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href
 );
 
 test("no model: the workspace's own greeting goes as a labelled fallback, and the thread goes to a person", () => {

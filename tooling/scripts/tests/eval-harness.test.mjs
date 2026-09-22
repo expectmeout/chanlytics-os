@@ -122,7 +122,7 @@ test("the runner knocks with the key and saves the exchange where git ignores it
 });
 
 test("every reply leaves a quality signal on its usage event, and the diagnostics read the day back", () => {
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(wa.includes("const tBrain = Date.now();") && wa.includes("brainMs = Date.now() - tBrain;"));
   assert.ok(
     wa.includes("intent: brainMeta?.intent ?? null,") &&
@@ -146,7 +146,7 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
   assert.ok(!PolicyLimitsSchema.safeParse({ max_llm_tokens_day: 10 }).success, "below a sensible floor");
   assert.ok(ESCALATION_REASONS.includes("budget"));
   assert.ok(ESCALATION_REASON_LABELS.budget.includes("budget"));
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(
     wa.includes("const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);"),
     "the cap is handed to the read, which stops at it",

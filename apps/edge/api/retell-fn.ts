@@ -31,7 +31,7 @@
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
-import { effectiveReplyMode } from "../lib/receptionist/reply-posture.js";
+import { effectiveReplyMode } from "../lib/packages/core.js";
 import {
   emitEvent,
   resolveChannel,

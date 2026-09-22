@@ -13,7 +13,7 @@
  * is never the fallback.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import type { ThreadTurn } from "./thread.js";
+import type { ThreadTurn } from "../packages/core.js";
 import { BRAIN_OUTPUT_JSON_SCHEMA, parseBrainOutput, brainMetaOf, type BrainMeta } from "../packages/contracts.js";
 import { logger } from "../log.js";
 

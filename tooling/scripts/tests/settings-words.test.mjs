@@ -178,7 +178,7 @@ test("REGRESSION (S19): nothing names the Business tab 'Workspace' -- Setup's ro
 test("REGRESSION (S6): the hard limits say which two never change and which two are the owner's to set, from one home for their defaults -- the card called the last two Chanlytics' and nothing could change them", async () => {
   assert.equal(contracts.REPLY_CAP_DEFAULT, 20, "REGRESSION: the defaults lived in the page and the runtime, apart");
   assert.equal(contracts.PAUSE_HOURS_DEFAULT, 24);
-  const steps = await import("../../../apps/edge/lib/whatsapp/steps.ts");
+  const steps = await import("../../../packages/core/src/inbound/steps.ts");
   assert.equal(
     steps.MAX_REPLIES_PER_DAY,
     contracts.REPLY_CAP_DEFAULT,

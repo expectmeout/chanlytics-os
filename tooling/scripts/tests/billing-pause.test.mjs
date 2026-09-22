@@ -79,12 +79,12 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
       rt.includes("paused: false,"),
     "one read, the same query the clock uses",
   );
-  const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const inbound = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(
     inbound.includes("if (rt?.paused) {") && /sink\.escalate\(\s*"paused",/.test(inbound),
     "kept, held for a person, not answered",
   );
-  const inboundRaw = readRaw("apps/edge/lib/whatsapp/inbound.ts");
+  const inboundRaw = readRaw("packages/core/src/inbound/answer.ts");
   assert.ok(
     inboundRaw.indexOf("if (rt?.paused) {") <
       inboundRaw.indexOf("// E3: the reply policy is consulted BEFORE generation."),

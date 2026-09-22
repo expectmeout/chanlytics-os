@@ -26,8 +26,8 @@ const { outboundGate } = await import(
   pathToFileURL(path.join(here, "../../../apps/edge/lib/receptionist/outbound-gate.ts")).href
 );
 
-const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
+const wa = readCode("packages/core/src/inbound/answer.ts");
+const steps = readCode("packages/core/src/inbound/steps.ts");
 
 test("WhatsApp: the person's mode is looked up before the first branch that can speak", () => {
   const lookup = wa.indexOf("personMode = await ports.leads.personReplyMode(");
@@ -45,7 +45,7 @@ test("WhatsApp: the person's mode is looked up before the first branch that can 
 test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
   assert.ok(wa.includes('const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");'));
   // The escalation and the alert still happen — a photo always needs a human.
-  assert.ok(wa.includes('sink.escalate("non_text", `Customer sent a ${m.type} message — ${why}.`)'));
+  assert.ok(wa.includes('sink.escalate("non_text", `Customer sent a ${raw.type} message — ${why}.`)'));
 });
 
 test("WhatsApp: a person's hold is its own reason, alerted once per open hold", () => {

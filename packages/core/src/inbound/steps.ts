@@ -1,11 +1,11 @@
 /**
- * The named steps of the WhatsApp handler: decisions with no side effects,
- * so each one is a truth table a test can run. inbound.ts orchestrates them;
+ * The named steps of the receptionist: decisions with no side effects, so
+ * each one is a truth table a test can run. answer.ts orchestrates them;
  * nothing here reads the database, the store or the clock unless it is
  * handed one.
  */
-import { replyDelayMs, violatesNoPrices, policyAskClass } from "../packages/contracts.js";
-import type { BrainConfig, BrainMeta, PolicyLimits } from "../packages/contracts.js";
+import { replyDelayMs, violatesNoPrices, policyAskClass } from "@chanlytics/contracts";
+import type { BrainConfig, BrainMeta, PolicyLimits } from "@chanlytics/contracts";
 
 export const PAUSE_MS = 24 * 3600 * 1000; // human echo pauses the bot for 24h
 export const MAX_REPLIES_PER_DAY = 20; // per thread

@@ -18,7 +18,12 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const EDGE = path.join(here, "../../../apps/edge");
+const ROOT = path.join(here, "../../..");
+const EDGE = path.join(ROOT, "apps/edge");
+// The message path moved into packages/core as a verb over ports; the
+// envelope it logs through did not. The lines below are read where they
+// live now, and prove exactly what they proved on the edge.
+const ANSWER = path.join(ROOT, "packages/core/src/inbound/answer.ts");
 const { logger, errField } = await import(pathToFileURL(path.join(EDGE, "lib/log.ts")).href);
 
 /** Capture what a logger writes, without touching the real console. */
@@ -113,9 +118,7 @@ test("the message path's event names are unchanged by the conversion", () => {
   // atomic is_new claim — `wa_skip_pg_dupe`, still here — is the dedupe. With
   // the store gone there is no second gate left for it to name.
   // The message path and the webhook: the names span both files now.
-  const src =
-    fs.readFileSync(path.join(EDGE, "lib/whatsapp/inbound.ts"), "utf8") +
-    fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
+  const src = fs.readFileSync(ANSWER, "utf8") + fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
   const required = [
     "wa_replied",
     "wa_skip_pg_dupe",
@@ -137,13 +140,15 @@ test("the message path's event names are unchanged by the conversion", () => {
 });
 
 test("the converted message-path lines carry the tenant", () => {
-  // The logger is bound once in handleInbound; if that binding is removed or
-  // the calls revert to bare console, the tenant silently stops appearing.
-  const src = fs.readFileSync(path.join(EDGE, "lib/whatsapp/inbound.ts"), "utf8");
+  // The logger is bound once in answerInbound, where the tenant becomes
+  // known; if that binding is removed or the calls revert to bare console,
+  // the tenant silently stops appearing. The factory is a port now (the verb
+  // may not import the edge), and the edge hands in this same logger.
+  const src = fs.readFileSync(ANSWER, "utf8");
   assert.match(
     src,
-    /const L = logger\(\{ tenant_id: tenantId, wamid: m\.id, from_tail: phoneTail\(from\), type: m\.type \}\)/,
-    "handleInbound must bind the tenant into its logger",
+    /const L = ports\.log\(\{ tenant_id: tenantId, wamid: raw\.id, from_tail: phoneTail\(from\), type: raw\.type \}\)/,
+    "answerInbound must bind the tenant into its logger",
   );
   for (const call of ['L.info("wa_replied"', 'L.info("wa_skip_opt_out"', 'L.error("wa_state_unavailable"']) {
     assert.ok(src.includes(call), `${call} reverted to an unbound console call`);

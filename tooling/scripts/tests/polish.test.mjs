@@ -57,7 +57,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     "a handoff is said in the owner's words, about its thread",
   );
   assert.ok(!alerts.includes("WhatsApp handoff needed"));
-  const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const inbound = readCode("packages/core/src/inbound/answer.ts");
   // One closure builds the context now, so the name and the thread are stated
   // once rather than retyped at a dozen call sites — and every call site goes
   // through it, which is what is asserted instead of a count.

@@ -232,8 +232,8 @@ test("the brain asks for the record, reads it through the parse, and keeps the o
 });
 
 test("the handler keeps the record on the row, holds a reply below the dial, and tells the escalation why", () => {
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
+  const steps = readCode("packages/core/src/inbound/steps.ts");
   assert.ok(wa.includes("let brainMeta: BrainMeta | undefined;"));
   assert.ok(wa.includes("brainMeta = r.meta;"));
   assert.ok(

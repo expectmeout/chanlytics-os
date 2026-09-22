@@ -63,7 +63,7 @@ test("garbage in the config falls back rather than producing NaN", () => {
 
 /* ---------------------- the wiring the rule depends on -------------------- */
 
-const edge = read("apps/edge/lib/whatsapp/inbound.ts");
+const edge = read("packages/core/src/inbound/answer.ts");
 const sink = read("apps/edge/lib/whatsapp/persist.ts");
 const verbs = read("apps/dashboard/src/server/verbs.ts");
 const reply = read("packages/core/src/conversations/reply.ts");

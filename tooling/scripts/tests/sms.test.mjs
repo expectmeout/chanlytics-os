@@ -317,12 +317,12 @@ test("Twilio's calls, pinned: the Messaging Service, the sender pool, the messag
 });
 
 test("the pilot allowlist gates the deployment's own number, never a tenant that brought its own", () => {
-  const code = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const code = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(
     code.includes("if (isEnvDefault && allow.length && !allow.includes(digits(from))) {"),
     "REGRESSION: the pilot allowlist muted every tenant on every channel — a business that connected its own number had its customers persisted, marked processed and never answered",
   );
-  const raw = readRaw("apps/edge/lib/whatsapp/inbound.ts");
+  const raw = readRaw("packages/core/src/inbound/answer.ts");
   assert.ok(
     raw.includes("THE PILOT ALLOWLIST, scoped to the number it was made for."),
     "and the reason it is scoped stays written down",
@@ -342,13 +342,13 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // with its line as the carrier, an empty TwiML for every answer -- is run in
   // sms-door.test.mjs. Scans deleted rather than re-pointed: a behaviour a
   // test runs does not also need a test that reads it.
-  const road = readRaw("apps/edge/lib/whatsapp/inbound.ts");
+  const road = readRaw("packages/core/src/inbound/answer.ts");
   assert.ok(
     road.indexOf("if (carrier?.held) {") > road.indexOf("if (optedOut) {") &&
       road.indexOf("if (carrier?.held) {") < road.indexOf("// Routing is on the NORMALIZED type"),
     "after consent, before any branch that speaks",
   );
-  const code = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const code = readCode("packages/core/src/inbound/answer.ts");
   // EVERY ingest, not three of them: a count breaks whenever a legitimate new
   // ingest is added (the unreachable-sender guard was the fourth) and says
   // nothing about the one that might have dropped the channel.
