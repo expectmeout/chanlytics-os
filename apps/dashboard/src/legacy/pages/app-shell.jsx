@@ -17,8 +17,9 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGate(page, param);
 
 /** Surfaces whose own route param is a prop they follow, not a new identity. Live writes the call it opens to the
- *  address (replaced), so each call being its own mount would tear the page down on every click. */
-const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts", "live"]);
+ *  address (replaced), so each call being its own mount would tear the page down on every click; Conversations writes
+ *  the row on its tab (`<tab>:<id>`) the same way. */
+const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts", "live", "conversations"]);
 // What a route is MOUNTED under (the long note where it is used says why that is not the route). Leads follows its
 // address as a prop -- the page reads `leadsRoute` on every draw and its one read is keyed by it -- so every view of
 // Leads, and a lead opened over one, is the page already there. People's own views and a profile keep their whole
@@ -572,7 +573,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     const cv = window.CV_ROUTE(param);
     const cvTab = cv.channel !== "all" && (cvData.CV_CHANNELS || []).find((t) => t.id === cv.channel);
     const cvWho = cv.id && ((cvData.CONVERSATIONS || []).find(c => c.id === cv.id) || {}).who;
-    activeNav = { phone: "calls", chats: "chats", mail: "email" }[param] || "conversations";
+    activeNav = { phone: "calls", chats: "chats", mail: "email" }[cv.channel] || "conversations";
     crumbs = cvWho
       ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, cvWho]
       : cvTab

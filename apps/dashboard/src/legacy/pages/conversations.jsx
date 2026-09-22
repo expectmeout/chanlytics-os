@@ -25,15 +25,34 @@ window.CV_IN_CHANNEL = inChannel;
 
 // ONE rule for the word after "conversations/", which the shell asks: a tab either kind of workspace draws -- a wire a
 // row can be on, in the view model's words (CV_ICON's keys; a real workspace draws one tab per wire, surface-data.ts
-// conversationTabs), or one of the mockup's grouped tabs -- or else a row's id, a conversation's or a call's (cv-).
+// conversationTabs), or one of the mockup's grouped tabs -- or a row's id, a conversation's or a call's (cv-) -- or
+// both, `<tab>:<id>`: the tab in view and the row open on it, which is what the page writes as a row opens (cvAddress,
+// replaced, never pushed), so a refresh opens the same row on the same tab and Back leaves the page.
 // The shell knew only the mockup's three tabs, so on a real workspace WhatsApp and Email were read as the ids of
-// conversations nobody could find: the list stayed on All, and the pane said the conversation wasn't shown.
+// conversations nobody could find: the list stayed on All, and the pane said the conversation wasn't shown. And the
+// address held a tab OR a row, so the row a person had open was nobody's after a refresh.
 const cvOwn = (map, key) => Object.prototype.hasOwnProperty.call(map, key);
+const cvIsTab = (word) => word === "all" || cvOwn(CV_ICON, word) || cvOwn(CV_TAB_KEYS, word);
 const cvRoute = (word) => {
   if (!word || word === "all") return { channel: "all", id: null };
-  return cvOwn(CV_ICON, word) || cvOwn(CV_TAB_KEYS, word) ? { channel: word, id: null } : { channel: "all", id: word };
+  const at = word.indexOf(":");
+  if (at < 0) return cvIsTab(word) ? { channel: word, id: null } : { channel: "all", id: word };
+  const tab = word.slice(0, at);
+  const id = word.slice(at + 1) || null;
+  return cvIsTab(tab) ? { channel: tab, id } : { channel: "all", id: word };
+};
+// The one spelling of the other direction: a tab alone, a row alone (on All), or a row on its tab.
+const cvAddress = (channel, id) => {
+  const tab = !channel || channel === "all" ? null : channel;
+  if (!tab) return id ? `conversations/${id}` : "conversations";
+  return id ? `conversations/${tab}:${id}` : `conversations/${tab}`;
 };
 window.CV_ROUTE = cvRoute;
+window.CV_ADDRESS = cvAddress;
+// The box's words, kept per tab in the tab's storage (the loading standard's F, legacy-bridge/tab-memory.ts): a
+// search typed on Phone is there again after a trip to People or a refresh; none on the standalone harness.
+const cvPlace = (channel) => (window.__tabMemory && window.__tabMemory.place("conversations", channel || "all")) || {};
+const cvKeepPlace = (channel, patch) => { if (window.__tabMemory) window.__tabMemory.keepPlace("conversations", channel || "all", { ...cvPlace(channel), ...patch }); };
 
 // The row's outcome as the one pill draws it. The words a page knows better
 // stay here (which channel answered, what you chose); the tones are the map's,
@@ -171,7 +190,11 @@ const cvOpens = (c) => {
 // ---------- Page ----------
 const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = window.CONVERSATIONS_DATA;
-  const [query, setQuery] = useCvState("");
+  // The box's words, per tab: typed here this visit, else what the tab kept. The page is one mount across its tabs
+  // (app-shell.jsx PARAM_FOLLOWED_AS_PROP), so a tab pressed reads its own words at once, with no draw in between.
+  const [typed, setTyped] = useCvState({});
+  const query = typed[channel] !== undefined ? typed[channel] : cvPlace(channel).q || "";
+  const setQuery = (v) => { setTyped((t) => ({ ...t, [channel]: v })); cvKeepPlace(channel, { q: v }); };
   const [selectedId, setSelectedId] = useCvState(initialId);
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
   const [phoneOpen, setPhoneOpen] = useCvState(!!initialId);
@@ -214,7 +237,14 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   // A deep link to a conversation that is not here must not open someone
   // else's transcript in silence: the first row still shows, with a notice.
   const requestedMissing = !!initialId && selectedId === initialId && visible.length > 0 && !asked;
+  // A tab pressed is a new list, opened on its first row.
   useCvEffect(() => { if (!initialId) setSelectedId(null); }, [channel]);
+  // A row opened is the address's, said more exactly (replaced): a refresh opens it again, and Back leaves the page.
+  const openRow = (id) => {
+    setSelectedId(id);
+    setPhoneOpen(true);
+    if (window.appNavigate) window.appNavigate(cvAddress(channel, id), { replace: true });
+  };
 
   // Counted from the tabs THIS workspace has, by the same rule that filters
   // them: a tab that is drawn always carries the number of rows it will show.
@@ -242,7 +272,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
                 className={`fleet-filter-chip ${channel === ch.id ? "active" : ""}`}
                 aria-pressed={channel === ch.id}
                 data-testid={`cv-tab-${ch.id}`}
-                onClick={() => window.CHANLY.nav(ch.id === "all" ? "conversations" : `conversations/${ch.id}`)}
+                onClick={() => window.CHANLY.nav(cvAddress(ch.id, null))}
               >
                 {ch.label}
                 <span className="fleet-filter-count tabular">{counts[ch.id]}</span>
@@ -252,7 +282,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
         </div>
         <div className="cv-rows">
           {visible.map(c => (
-            <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={(id) => { setSelectedId(id); setPhoneOpen(true); }} />
+            <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={openRow} />
           ))}
           {visible.length === 0 && (CONVERSATIONS.length === 0
             // A workspace with none yet is not a filter with no match.

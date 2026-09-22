@@ -31,7 +31,8 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
   assert.ok(thread.includes("{onBack && ("), "no Back on desktop's markup path when nobody asked for one");
   const cv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
   assert.ok(cv.includes('${phoneOpen ? "phone-detail" : ""}'));
-  assert.ok(cv.includes("onSelect={(id) => { setSelectedId(id); setPhoneOpen(true); }}"));
+  // A row pressed opens the pane (openRow: the row, the phone's turn, and the address).
+  assert.ok(cv.includes("const openRow = (id) => {") && cv.includes("    setPhoneOpen(true);") && cv.includes("onSelect={openRow}"));
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(css.includes(".ix-back { display: none; }"), "hidden by default");
   assert.ok(css.includes(".inbox.phone-thread .ix-list { display: none; }"));

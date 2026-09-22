@@ -443,6 +443,10 @@ test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the 
     assert.equal(pageAt("#/conversations/cv-4").props.initialId, "cv-4", "a call's id still opens it");
     const phone = pageAt("#/conversations/phone").props;
     assert.deepEqual([phone.channel, phone.initialId], ["phone", null], "a channel is a filter, not an id");
+    const on = pageAt("#/conversations/phone:cv-4");
+    assert.deepEqual([on.props.channel, on.props.initialId], ["phone", "cv-4"], "a row on its tab, as the page writes it when a row opens");
+    assert.equal(on.title, "Emily Chen · Conversations · Inbox · Chanlytics", "named in the trail");
+    assert.equal(find(mount("#/conversations/phone:cv-4").tree, (n) => n.type === "Sidebar").props.active, "calls", "and the nav lights the tab, not the raw word");
   } finally {
     delete win.CONVERSATIONS_DATA;
     delete globalThis.ConversationsPage;
@@ -490,7 +494,7 @@ test("a link to a call opens that call on Live -- the route had no place for its
 test("a page that follows its own address is one mount across it -- Settings' panes, the Inbox's threads, Broadcasts' runs, Live's calls -- and every other page's param is its own mount, the safe default", () => {
   // Run, where chrome.test.mjs used to match the Set's source text: the shell as drawn is what decides.
   shell.installShell(win);
-  for (const name of ["LiveMonitorPage"]) globalThis[name] = name;
+  for (const name of ["LiveMonitorPage", "ConversationsPage"]) globalThis[name] = name;
   win.ixRouteThread = (id) => ({ id, who: null });
   try {
     const key = (hash) => find(mount(hash).tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key;
@@ -499,11 +503,13 @@ test("a page that follows its own address is one mount across it -- Settings' pa
     one("#/inbox", "#/inbox/th-1", "#/inbox/th-2");
     one("#/broadcasts", "#/broadcasts/run:r-1");
     one("#/live", "#/live/c-1", "#/live/c-2");
+    one("#/conversations", "#/conversations/phone", "#/conversations/phone:cv-1", "#/conversations/cv-2");
     // Not following its param: showing another entity in a surface built for the last one is the danger, so the
     // default is a new mount.
     assert.notEqual(key("#/calendar/2026-10-01"), key("#/calendar/2026-10-02"), "the Calendar's days are their own mounts");
   } finally {
     delete globalThis.LiveMonitorPage;
+    delete globalThis.ConversationsPage;
     delete win.ixRouteThread;
   }
 });
