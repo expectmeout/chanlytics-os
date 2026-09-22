@@ -2362,11 +2362,20 @@ function changedConfigFields(before, after) {
   const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
   return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
 }
-function lastChangedWords(updatedAt, byName, nowMs) {
+function lastChangedName(m) {
+  const name = (m.display_name ?? "").trim();
+  if (name) return name;
+  const local = (m.email ?? "").trim().split("@")[0]?.trim() ?? "";
+  return local || "a member";
+}
+function lastChangedWords(updatedAt, by, nowMs) {
   const at2 = updatedAt ? Date.parse(updatedAt) : NaN;
   if (Number.isNaN(at2)) return "";
   const when = agoWords(at2, nowMs);
-  return byName ? `Last changed by ${byName}, ${when}` : `Last changed ${when}, before we kept track of who`;
+  if (by.who === "you") return `Changed by you, ${when}`;
+  if (by.who === "member") return `Last changed by ${by.name}, ${when}`;
+  if (by.who === "gone") return `Last changed by someone no longer on the team, ${when}`;
+  return `Last changed ${when}, before we kept track of who`;
 }
 
 // src/config.ts
@@ -17104,6 +17113,7 @@ export {
   languageName,
   languageTag,
   languageWords,
+  lastChangedName,
   lastChangedWords,
   leadAllowanceFact,
   leadAnd,

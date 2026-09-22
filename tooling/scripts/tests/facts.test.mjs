@@ -336,15 +336,20 @@ test("a config change records who and what, and neither is the values", async ()
     ["features", "notifications"],
   );
   assert.deepEqual(changedConfigFields(withFeed, withFeed), []);
-  const { lastChangedWords, agoWords } = await import("@chanlytics/contracts");
+  const { lastChangedWords, lastChangedName, agoWords } = await import("@chanlytics/contracts");
   const now = Date.parse("2026-09-11T12:00:00Z");
   const at = "2026-09-09T12:00:00Z";
-  assert.equal(lastChangedWords(at, "Ada", now), `Last changed by Ada, ${agoWords(Date.parse(at), now)}`);
-  assert.equal(
-    lastChangedWords(at, null, now),
-    `Last changed ${agoWords(Date.parse(at), now)}, before we kept track of who`,
-  );
-  assert.equal(lastChangedWords(null, "Ada", now), "", "no stamp, nothing said");
+  const when = agoWords(Date.parse(at), now);
+  assert.equal(lastChangedWords(at, { who: "member", name: "Ada" }, now), `Last changed by Ada, ${when}`);
+  assert.equal(lastChangedWords(at, { who: "you" }, now), `Changed by you, ${when}`, "the viewer is named as you");
+  assert.equal(lastChangedWords(at, { who: "gone" }, now), `Last changed by someone no longer on the team, ${when}`);
+  assert.equal(lastChangedWords(at, { who: "unknown" }, now), `Last changed ${when}, before we kept track of who`);
+  assert.equal(lastChangedWords(null, { who: "you" }, now), "", "no stamp, nothing said");
+  // Never an address. A line under the page's title is read over a shoulder and on a phone, and
+  // "ruben@rjcapital.io" is longer than the sentence it sits in.
+  assert.equal(lastChangedName({ display_name: "Ada Lovelace", email: "ada@example.com" }), "Ada Lovelace");
+  assert.equal(lastChangedName({ display_name: "  ", email: "bo.chen@example.com" }), "bo.chen");
+  assert.equal(lastChangedName({ display_name: null, email: null }), "a member");
 
   const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
   assert.ok(

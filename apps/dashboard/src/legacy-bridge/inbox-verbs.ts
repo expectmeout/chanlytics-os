@@ -26,6 +26,8 @@ import {
   instructionsDraft,
   inviteState,
   lastChangedWords,
+  lastChangedName,
+  type LastChangedBy,
   newReceptionistDefaults,
   refusalOf,
   tomorrowAtIn,
@@ -556,20 +558,26 @@ export async function saveSettings(
 interface LastChangedWindow {
   __SETTINGS?: { updatedAt?: string | null; updatedBy?: string | null } | null;
   __TEAM?: Array<{ userId: string; email: string | null; displayName: string }> | null;
-  __identity?: { member: (m: { email: string | null; display_name: string | null }) => { name: string } };
+  __ME?: { id?: string | null } | null;
 }
 
-/** The Business card's "last changed" line: the author named from the roster, or said to be gone from it. */
+/**
+ * The Business card's "last changed" line: the reader's own change said as
+ * theirs, someone else's named from the roster, or said to be gone from it.
+ * Never an address -- contracts' `lastChangedName` says why.
+ */
 export function lastChangedFor(w: LastChangedWindow, nowMs: number): string {
   const s = w.__SETTINGS;
   if (!s) return "";
-  const who = s.updatedBy ? ((w.__TEAM ?? []).find((m) => m.userId === s.updatedBy) ?? null) : null;
-  const name = who
-    ? w.__identity
-      ? w.__identity.member({ email: who.email, display_name: who.displayName || null }).name
-      : who.displayName || who.email || "a member"
-    : s.updatedBy
-      ? "someone no longer on the team"
-      : null;
-  return lastChangedWords(s.updatedAt, name, nowMs);
+  return lastChangedWords(s.updatedAt, lastChangedBy(w), nowMs);
+}
+
+function lastChangedBy(w: LastChangedWindow): LastChangedBy {
+  const by = w.__SETTINGS?.updatedBy;
+  if (!by) return { who: "unknown" };
+  if (w.__ME?.id && w.__ME.id === by) return { who: "you" };
+  const who = (w.__TEAM ?? []).find((m) => m.userId === by) ?? null;
+  return who
+    ? { who: "member", name: lastChangedName({ email: who.email, display_name: who.displayName }) }
+    : { who: "gone" };
 }
