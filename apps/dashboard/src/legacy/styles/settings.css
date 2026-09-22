@@ -1314,12 +1314,12 @@ html.legacy-on .bt-link { position: relative; }
 .bt-ribbon-name { font-size: var(--text-xs); line-height: 1; text-align: center; color: var(--ink-dim); }
 .bt-ribbon-day[data-open="false"] .bt-ribbon-name { color: var(--ink-faint); }
 .bt-hours-line { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
-/* One day's track. A closed day is hatched and holds no bar: shut, and looks it at a glance, which seven identical
-   rows of switches never did. */
-/* A closed day is this track with no bar on it. It wore diagonal stripes, which at a phone's width is seven pieces of
-   hatching over a card of sentences; the day's own words say it is closed, on the ribbon by its dimmed name and in the
-   fold by "Closed". */
-.bt-week-track { position: relative; display: block; height: 22px; min-width: 0; border-radius: var(--radius-xs); background: var(--bg-sunken); overflow: hidden; }
+/* One day's track: the ground the day's bars sit on, and a closed day is this with no bar on it. It wore diagonal
+   stripes, which at a phone's width is seven pieces of hatching over a card of sentences; the day's own words say it is
+   closed, on the ribbon by its dimmed name and in the fold by "Closed". The ground is --bg-hover, a step from both the
+   surfaces a track is drawn on: it was --bg-sunken, which is what the fold itself became once the fold stopped being a
+   gradient, so inside the fold the bars floated on nothing at all. */
+.bt-week-track { position: relative; display: block; height: 22px; min-width: 0; border-radius: var(--radius-xs); background: var(--bg-hover); overflow: hidden; }
 /* The hours themselves, as a shape and not a colour: a filled bar on the dim track. It was a green wash inside a green
    edge, seven of them across a card of sentences, and green here says nothing -- these hours are not "good", they are
    simply the ones the receptionist states. The accent is not it either: on this shell the accent means "right now". */

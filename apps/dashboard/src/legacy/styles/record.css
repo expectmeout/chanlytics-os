@@ -105,7 +105,10 @@
 /* What saving writes, in the composer's own words: a sentence of the page's first where the change reaches past its
    lines, then the lines it adds and the lines it takes away, each under its eyebrow. An inline editor's row sets each
    eyebrow beside its lines on a desktop, as the canvas's Edit-Inline does; a fold, and every phone, stacks them. */
-.rec-says { display: flex; flex-direction: column; gap: 8px; padding: 11px 12px; background: var(--bg-sunken); border-radius: var(--radius-md); }
+/* Its ground is the page's, not the fold's. The fold is --bg-sunken, so a block that was also --bg-sunken had nothing
+   to stand on the moment the fold stopped being a gradient: the lines a save will tell the receptionist dissolved into
+   the fold around them. */
+.rec-says { display: flex; flex-direction: column; gap: 8px; padding: 11px 12px; background: var(--bg); border-radius: var(--radius-md); }
 .rec-says-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
 .rec-says-part { display: flex; flex-direction: column; gap: 6px; }
 .rec-says-eyebrow { flex: none; font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
