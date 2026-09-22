@@ -260,9 +260,10 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
       supabase = createClient();
     } catch (e) {
       // A build with no address for the client cannot join the live feed. That is the feed being down, and the
-      // shell's line says so (live updates not coming through); it was a rejection nothing was waiting on, which
-      // node charged to whichever test was running once a boot finished before its test's stop().
-      console.warn("realtime_client_unavailable", e instanceof Error ? e.message : e);
+      // shell's line says so (live updates not coming through); in a real build it is a defect, so the console says
+      // it as one. It was a rejection nothing was waiting on, which node charged to whichever test was running once
+      // a boot finished before its test's stop().
+      console.error("realtime_client_unavailable", e instanceof Error ? e.message : e);
       setConnection({ realtimeDown: true });
       return;
     }

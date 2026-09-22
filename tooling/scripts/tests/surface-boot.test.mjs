@@ -333,6 +333,29 @@ test("what the page on screen draws from other surfaces follows its own surface,
   const draws = ROUTE_DRAWS.today;
   for (const k of ["calendar", "broadcasts", "reports"])
     assert.ok(draws.includes(k), `Today names ${k} among what it draws`);
+  // Each name is an override that exists, read from the modules that export them: a renamed surface would otherwise
+  // leave its entry inert and this test green.
+  const keepError = console.error;
+  console.error = () => {};
+  let known;
+  try {
+    const modules = await Promise.all(
+      ["surface-data", "setup", "leads", "google", "billing"].map((m) =>
+        importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`),
+      ),
+    );
+    known = new Set(
+      modules.flatMap((mod) =>
+        Object.values(mod)
+          .filter((v) => v && typeof v === "object" && typeof v.key === "string" && typeof v.apply === "function")
+          .map((v) => v.key),
+      ),
+    );
+  } finally {
+    console.error = keepError;
+  }
+  for (const k of draws)
+    assert.ok(known.has(k), `${k} is a surface an override feeds (known: ${[...known].join(", ")})`);
   const { order, overrides } = crowd(keys, { hash: "#/today" });
   const stop = startSurfaces(overrides);
   await settle(80);
@@ -350,20 +373,21 @@ test("a boot that cannot make the live feed's client says the feed is down, and 
   // runner's own promise chain, and node charged the rejection to whichever test was running: inbox-list-honest's
   // act-behind-a-re-read, which passed only while the boot was still waiting on its 800 ms retry.
   const { getConnection, setConnection } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
-  const warned = [];
-  const keepWarn = console.warn;
-  console.warn = (...a) => warned.push(a[0]);
+  const said = [];
+  const keepError = console.error;
+  console.error = (...a) => said.push(a[0]);
   win.location.pathname = "/w/acme";
   win.location.hash = "";
   win.__ACTIVE_WORKSPACE = "id-a";
   setConnection({ realtimeDown: false });
-  const stop = startSurfaces([{ key: "inbox", refreshOnMessageInserts: true, apply: async () => {} }]);
+  let stop = () => {};
   try {
+    stop = startSurfaces([{ key: "inbox", refreshOnMessageInserts: true, apply: async () => {} }]);
     await settle(20);
     assert.equal(getConnection().realtimeDown, true, "the shell's line says live updates are not coming through");
-    assert.ok(warned.includes("realtime_client_unavailable"), "and the console says why, once");
+    assert.equal(said.filter((w) => w === "realtime_client_unavailable").length, 1, "and the console says why, once");
   } finally {
-    console.warn = keepWarn;
+    console.error = keepError;
     stop();
     setConnection({ realtimeDown: false });
   }

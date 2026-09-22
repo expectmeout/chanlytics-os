@@ -130,9 +130,10 @@ export const ROUTE_SURFACE: Record<string, string> = {
  * Today draws the day beside its queue from the calendar, the queue's runs from
  * broadcasts, the card's period line and Worth a look from reports, the day's
  * playbook rows, the bell's rows for While you were away, a call in progress
- * from live, the card's Setup and Google lines, and the channel glyphs and
- * Worth a look's people from People -- last, because contacts is the heaviest
- * read and everything above it can be drawn without it. Measured on the salon
+ * from live, the card's Setup and Google lines, and from People the day card's
+ * needs-someone flag and channel glyphs and Worth a look's people -- last,
+ * because contacts is the heaviest read; the bands that read it draw without it
+ * and again when it lands (surface:clients). Measured on the salon
  * (22 Sep 2026): the calendar was read eleventh, behind Settings, People and
  * Leads that nobody was looking at, so the day popped in 1.6 s after the queue
  * beside it. A route absent here draws only its own surface.
