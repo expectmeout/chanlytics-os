@@ -1488,7 +1488,11 @@ html.legacy-on .bt-link { position: relative; }
   .bt-week-row { grid-template-columns: minmax(0, 1fr) auto; }
   .bt-week-row > .bt-week-day { grid-column: 1; grid-row: 1; }
   .bt-week-row > .bt-week-more { grid-column: 2; grid-row: 1; align-self: center; }
-  .bt-week-row > .bt-week-track { grid-column: 1 / -1; grid-row: 2; }
+  /* No bar beside a phone's day. The axis it is read against is not drawn here (below), so a bar with no scale says
+     only "some of the day", which the two time boxes under it already say exactly -- seven of them is about 180px of a
+     phone's height spent restating the boxes. The ribbon at rest keeps its bars: there the seven ARE the answer, and
+     there is no row of boxes beside them. */
+  .bt-week-row > .bt-week-track { display: none; }
   .bt-week-row > .bt-week-times { grid-column: 1 / -1; grid-row: 3; width: auto; }
   .bt-week-row > .field-error { grid-column: 1 / -1; }
   .bt-week-axis { display: none; }
