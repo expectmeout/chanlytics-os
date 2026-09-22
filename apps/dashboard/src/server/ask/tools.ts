@@ -3,8 +3,9 @@ import {
   ASK_CAPS,
   ASK_FINISH_JSON_SCHEMA,
   EVERYONE_LABEL,
+  NO_NUMBER_REACH,
   PEOPLE_LISTS,
-  eligibleFor,
+  audiencePreview,
   type AudienceKind,
   numberHealth,
   toPersonRowVM,
@@ -30,7 +31,7 @@ import {
   isDayKey,
   shiftKey,
   toCalendarVM,
-  eligibleForPlaybook,
+  playbookRunReach,
   nextRunLabel,
   scheduleLine,
   starterForTrigger,
@@ -134,12 +135,12 @@ export const READ_TOOLS: ToolDef[] = [
   },
   {
     name: "list_audiences",
-    description: "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with TWO counts, because there are two consents: said_yes_to_offers (what a promotional template needs) and said_yes_to_messages (what a utility or authentication one needs). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
+    description: "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with FOUR counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
     input_schema: obj({}, []),
   },
   {
     name: "list_playbooks",
-    description: "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus the four triggers with how many people said yes on each list right now and each one's starter template. Read this to say what is running, and before proposing a playbook.",
+    description: "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus every trigger with who its moment names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Read this to say what is running, and before proposing a playbook.",
     input_schema: obj({}, []),
   },
   {
@@ -668,15 +669,24 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     s.add(m.contact_id);
     byList.set(m.segment_id, s);
   }
-  // BOTH sizes for every audience, because this listing is read BEFORE a template
-  // is chosen and the two answers differ. A single `said_yes` here was the
-  // marketing count under a name that did not say so, so the assistant would
+  // FOUR sizes for every audience: this listing is read BEFORE a template is
+  // chosen, the two answers differ, and who gave an answer is not who can be sent
+  // the message, which also needs a number (#663). A single `said_yes` here was
+  // the marketing count under a name that did not say so, so the assistant would
   // report "nobody said yes" about a utility template that could reach everybody
-  // who had ever texted START.
-  const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => ({
-    said_yes_to_offers: eligibleFor(rows, kind, id, ids, "marketing").length,
-    said_yes_to_messages: eligibleFor(rows, kind, id, ids, "conversational").length,
-  });
+  // who had ever texted START; and `said_yes_to_offers` was the REACH, so a list
+  // whose one yes to offers had no number read as nobody's yes. The send screen's
+  // own counts (audiencePreview): `sending` is the number on its chip.
+  const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
+    const offers = audiencePreview(rows, kind, id, ids, "marketing");
+    const messages = audiencePreview(rows, kind, id, ids, "conversational");
+    return {
+      said_yes_to_offers: offers.saidYes,
+      can_be_sent_offers: offers.sending,
+      said_yes_to_messages: messages.saidYes,
+      can_be_sent_messages: messages.sending,
+    };
+  };
   const audiences = [
     { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
     ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "offers_ok" && l.id !== "opted_out").map((l) => ({ kind: "list", audience_id: l.id, label: l.label, ...sizes("list", l.id, null) })),
@@ -694,7 +704,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
       body: x.body_preview,
     })),
     number: { present: !!ch.data, health: health.label, can_send: health.canSend, limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay },
-    note: "Two consents, two counts. A promotional template reaches said_yes_to_offers; a utility or authentication one reaches said_yes_to_messages. Pick the template first, then read the matching count -- never quote the larger one.",
+    note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. Pick the template first, then quote its can_be_sent count as who the broadcast reaches -- never a larger count. When that is 0 and its said_yes is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have.`,
   };
 }
 
@@ -724,8 +734,14 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   const withV = await withVisits(t.ctx, t.tenantId, people, t.now);
   const vm = withV.people.map((r) => toPersonRowVM(r, t.timezone, t.now));
   const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
-  const pool = (trigger: string) =>
-    eligibleForPlaybook(vm, { trigger: trigger as (typeof PLAYBOOK_TRIGGERS)[number]["id"], cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime()).length;
+  // Who each moment names that said the yes its template needs, and who of them
+  // a run reaches, by the runner's own draw before anyone has heard from a
+  // playbook. `said_yes_now` was the reach, so a moment whose yes had no number
+  // to send to read as nobody's yes.
+  const moment = (trigger: string) => {
+    const drawn = playbookRunReach(vm, { trigger: trigger as (typeof PLAYBOOK_TRIGGERS)[number]["id"], cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime());
+    return { said_yes_now: drawn.saidYes, can_be_sent_now: drawn.reach.will };
+  };
   return {
     route: "outbound",
     timezone: facts.timezone,
@@ -752,10 +768,10 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       label: x.label,
       when: x.hint,
       policy_class: x.cls,
-      said_yes_now: pool(x.id),
+      ...moment(x.id),
       starter_template: starterForTrigger(x.id)?.title ?? null,
     })),
-    note: "A run reaches only people with a recorded yes, never twice within the playbook's gap, one playbook message per person per week. Nothing here has run because you read it.",
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have. Nothing here has run because you read it.`,
   };
 }
 

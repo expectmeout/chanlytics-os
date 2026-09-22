@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
-import { ASK_MAX_ROUNDS, ASK_MODEL, noNumberWords } from "@chanlytics/contracts";
+import { ASK_MAX_ROUNDS, ASK_MODEL, EVERYONE_LABEL, NO_NUMBER_REACH, noNumberWords } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -26,7 +26,7 @@ const { runRound } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { runTool, newToolContext, READ_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
 const { buildProposal, ACT_TOOLS } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
 const { buildSnapshot } = await import(at("apps/dashboard/src/server/ask/snapshot.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+const { workspaceFacts, ASK_RULES } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -472,6 +472,106 @@ test("REGRESSION: a broadcast to nobody is refused with the cause it has -- Ask 
   assert.ok(walkIns.includes("Nobody there has said yes to offers yet"), walkIns);
   assert.ok(walkIns.includes("or get their yes with the phrase and the QR on Broadcasts."), walkIns);
   assert.ok(!walkIns.includes("on this page"), `REGRESSION: ${walkIns}`);
+});
+
+/** A person as people_list returns them: the reads map them through toPersonRowVM, as the page's bridge does. */
+const peopleListRow = (over) => ({
+  display_name: null, wa_profile_name: null, phone_e164: null, email: null, consent: "opted_in", consent_source: "desk", consent_updated_at: iso(NOW.getTime() - 20 * 86_400_000),
+  marketing_consent: null, marketing_consent_source: null, marketing_consent_updated_at: null, dnc: false, channels: ["whatsapp"], conversation_count: 1, escalation_count: 0,
+  needs_human: false, open_escalation_reason: null, open_escalation_since: null, latest_conversation_id: null, latest_state: "open", latest_paused_until: null,
+  latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null, last_message_at: iso(NOW.getTime() - 3 * 86_400_000), last_message_direction: "inbound",
+  last_message_sender: "client", last_inbound_text: "Thanks!", last_inbound_at: iso(NOW.getTime() - 3 * 86_400_000), last_call_at: null, last_outbound_call_at: null,
+  last_inbound_call_at: null, created_at: iso(NOW.getTime() - 40 * 86_400_000), ...over,
+});
+const ANA = "cccccccc-cccc-4ccc-8ccc-cccccccccca1";
+const LUIS = "cccccccc-cccc-4ccc-8ccc-cccccccccca2";
+const ROSA = "cccccccc-cccc-4ccc-8ccc-cccccccccca3";
+/** Three answers: a yes to offers with no number, a number with a yes to messages only, and a number with both. */
+const threeAnswers = () => {
+  const yesToOffers = { marketing_consent: "opted_in", marketing_consent_source: "customer_message", marketing_consent_updated_at: iso(NOW.getTime() - 20 * 86_400_000) };
+  return [
+    // Wrote in by email and said yes to both there: an address, and no number.
+    peopleListRow({ id: ANA, display_name: "Ana Reyes", email: "ana@example.com", channels: ["email"], consent_source: "customer_message", ...yesToOffers }),
+    // A number, and a yes to messages only.
+    peopleListRow({ id: LUIS, display_name: "Luis Mora", phone_e164: "+15555550101" }),
+    // A number, and a yes to both: the one an offer reaches.
+    peopleListRow({ id: ROSA, display_name: "Rosa Diaz", phone_e164: "+15555550102", ...yesToOffers }),
+  ];
+};
+
+test("REGRESSION: list_audiences tells who said yes from who can be sent it -- 'said_yes_to_offers' was the reach, so a yes with no number to send to read as nobody's yes", async () => {
+  const S_REG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+  const S_WALK = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
+  const people = threeAnswers();
+  const t = tables({
+    segments: [{ id: S_REG, tenant_id: A, name: "Regulars" }, { id: S_WALK, tenant_id: A, name: "Walk-ins" }],
+    segment_members: [[S_REG, ANA], [S_REG, LUIS], [S_WALK, LUIS], [S_WALK, ROSA]].map(([segment_id, contact_id]) => ({ tenant_id: A, segment_id, contact_id })),
+  });
+  const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
+  const out = await runTool(tc, { name: "list_audiences", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  /** One audience's four counts: said yes to offers, can be sent one; said yes to messages, can be sent one. */
+  const counts = (label) => {
+    const a = read.audiences.find((x) => x.label === label);
+    return a && [a.said_yes_to_offers, a.can_be_sent_offers, a.said_yes_to_messages, a.can_be_sent_messages];
+  };
+  // Ana's yes to offers is a yes: what Regulars lacks is a number to send it to (#663).
+  assert.deepEqual(counts("Regulars"), [1, 0, 2, 1], "REGRESSION: Regulars read 'said_yes_to_offers: 0', and the model said nobody on it had said yes");
+  assert.deepEqual(counts("Walk-ins"), [1, 1, 2, 2], "where everyone who said yes has a number, the two are one");
+  assert.deepEqual(counts(EVERYONE_LABEL), [2, 1, 3, 2]);
+  // The note tells the model which count is the send, and why the other can be larger, in the product's one spelling.
+  assert.ok(read.note.includes(NO_NUMBER_REACH), read.note);
+  for (const name of ["said_yes_to_offers", "can_be_sent_offers", "said_yes_to_messages", "can_be_sent_messages"]) {
+    assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);
+    assert.ok(READ_TOOLS.find((d) => d.name === "list_audiences").description.includes(name), `and so does the tool's description: ${name}`);
+  }
+});
+
+test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
+  const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
+  const out = await runTool(tc, { name: "list_playbooks", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  /** One trigger's two counts: who its moment names that said the yes it needs, and who of them a run can reach. */
+  const counts = (id) => {
+    const x = read.triggers.find((y) => y.trigger === id);
+    return x && [x.said_yes_now, x.can_be_sent_now];
+  };
+  // The month's offer names everyone: Ana and Rosa said yes to offers, and only Rosa has a number to send one to.
+  assert.deepEqual(counts("everyone_monthly"), [2, 1], "REGRESSION: it read 'said_yes_now: 1', and Ana's yes was nobody's");
+  // The visit reminder names tomorrow's visits, and there is no calendar here: nobody, either way.
+  assert.deepEqual(counts("visit_tomorrow"), [0, 0]);
+  assert.ok(read.note.includes(NO_NUMBER_REACH), read.note);
+  for (const name of ["said_yes_now", "can_be_sent_now"]) {
+    assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);
+    assert.ok(READ_TOOLS.find((d) => d.name === "list_playbooks").description.includes(name), `and so does the tool's description: ${name}`);
+  }
+});
+
+test("REGRESSION: a proposed playbook's card says who said yes apart from who a run reaches -- '0 on the list said yes now' about a list whose yes had no number", async () => {
+  const t = tables({ templates: [{ id: TPL, tenant_id: A, channel: "whatsapp", name: "saturday_hours", language: "en", meta_status: "approved", category: "MARKETING", variables: [], body_preview: "We are open Saturday 9 to 5.", hidden_at: null }] });
+  /** The card's summary, the words the owner approves it from and the model reads back. */
+  const summary = async (people) => {
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
+    const r = await buildProposal(tc, "propose_playbook", { trigger: "everyone_monthly", template_id: TPL, params: [] });
+    assert.equal(r.isError, false, r.result);
+    return r.proposal.summary;
+  };
+  // Ana said yes to offers and has no number; Luis has one and said yes to messages only: nobody can be sent a run.
+  const [ana, luis] = threeAnswers();
+  const noNumber = await summary([ana, luis]);
+  assert.ok(noNumber.includes(" · 1 person on the list said yes to offers, with no number to send to · "), `REGRESSION: ${noNumber}`);
+  // Where a run reaches somebody, the count is who it reaches, as People and the send screen say it.
+  const reaches = await summary(threeAnswers());
+  assert.ok(reaches.includes(" · 1 person on the list said yes to offers · "), reaches);
+});
+
+test("the rule the model reads before any broadcast tells nobody's yes from a yes with no number to send to", () => {
+  const rule = ASK_RULES.find((r) => r.includes("never propose a broadcast to nobody"));
+  assert.ok(rule.includes(NO_NUMBER_REACH), rule);
+  assert.ok(rule.includes("how many said yes and how many can be sent it"), rule);
+  assert.ok(rule.includes("or the ones who did have no number to send to"), rule);
 });
 
 test("the real ports are the real modules, and an override reaches only the field it names", async () => {

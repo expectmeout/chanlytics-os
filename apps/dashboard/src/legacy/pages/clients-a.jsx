@@ -661,7 +661,8 @@ const PL_LIST_TIP = {
   quiet: "No message or call in 30 days",
   phoned_only: "Only ever phoned — no WhatsApp thread",
   opted_in: "Said yes to hearing from you — replies and messages about their own visit",
-  offers_ok: "Said yes to OFFERS, separately — the only people a promotional broadcast may reach",
+  // The list is who can RECEIVE an offer (contracts mayReceive): a yes with no number to send to is not on it.
+  offers_ok: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional broadcast may reach",
   opted_out: "Asked to stop; the receptionist stays silent, offers included",
   booked: "An appointment ahead on your calendar — the booking is the conversion",
   booked_week: "An appointment in the next seven days",

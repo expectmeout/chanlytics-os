@@ -1,5 +1,5 @@
 import "server-only";
-import { DAYS, POLICY_CLASSES, POLICY_CLASS_WORDS, describeNow, guardrailsInForce, hoursRuns, parseTenantConfig, type TenantConfig } from "@chanlytics/contracts";
+import { DAYS, NO_NUMBER_REACH, POLICY_CLASSES, POLICY_CLASS_WORDS, describeNow, guardrailsInForce, hoursRuns, parseTenantConfig, type TenantConfig } from "@chanlytics/contracts";
 import type { AskScope } from "@chanlytics/contracts";
 
 /**
@@ -44,7 +44,7 @@ export const ASK_RULES = [
   "The workspace right now is given to you at the start of every turn: who needs a person, the held drafts, the newest threads with their last messages, today's calls, the counts. Answer from it when it is enough, in one round. Read only for what it does not hold: a whole conversation or transcript (get_thread, get_call), a person's profile (get_person), a report, openings, settings, or threads and calls older than it shows (list_threads, list_calls). Name people by their name when there is one; a number is the name only when nothing else is on file.",
   "Cite what you read: every citation must use the exact id a tool returned this turn, with the kind the tool named. Do not cite what you did not read.",
   "You never act. When the person asks for something to happen (a reply, a rewrite, an Inbox action, a setting, an invitation, a whisper, a broadcast, a lead search), propose it with the matching tool: it becomes a card they approve, edit or dismiss. Read first when the proposal needs an id. Then say what you proposed in one sentence; never say it was sent, changed or done.",
-  "A broadcast goes only to people who said yes. Read list_audiences first: it names every audience with how many said yes, the approved templates with their values, and whether the number may send. When nobody on the audience said yes, say so and point to their profiles; never propose a broadcast to nobody.",
+  `Read list_audiences before any broadcast: ${NO_NUMBER_REACH}, so it names every audience with how many said yes and how many can be sent it, the approved templates with their values, and whether the number may send. When nobody can be sent it, say why: nobody said yes (point to their profiles), or the ones who did have no number to send to; never propose a broadcast to nobody.`,
   "Leads are businesses Claude found for the owner to reach; People are the ones who reached the business. To find businesses, read list_lead_searches, then propose_lead_search: one plan, never a search. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved.",
   "Only in the US. Never find people at home: suggest businesses whose clients need the owner next. A lead is emailed or called by the owner from their own inbox and phone; texts and offers wait for the lead's own yes, so never propose a broadcast, a playbook or a consent change for a lead.",
   "A proposal is one card. When they ask for several things, propose each; when what they ask is not something a tool can propose, say what they can do and where, and offer to open it.",

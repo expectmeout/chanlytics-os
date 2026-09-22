@@ -1005,10 +1005,11 @@ export interface PlaybookCardVM extends PlaybookDto {
   schedule: string;
   /** "today 10:00", "tomorrow 10:00" or "paused", by the business's clock. */
   next: string;
-  /** How many are on the trigger's list with a recorded yes right now and
-   *  clear of the week's breath -- before the gap, which only the run applies. */
+  /** How many on the trigger's list a run reaches right now -- a recorded yes and
+   *  a number to send to -- clear of the week's breath, before the gap, which
+   *  only the run applies. */
   candidates: number;
-  /** How many more said yes but heard from a broadcast of any kind this week, and wait. */
+  /** How many more it would reach but heard from a broadcast of any kind this week, and wait. */
   held: number;
   /** Everyone its moment names, and who of them no run reaches whatever the week: the card's grey. Null when not read. */
   named: PlaybookNamed | null;
@@ -1025,6 +1026,8 @@ export interface PlaybookNamed {
   noYes: number;
   stopped: number;
   noNumber: number;
+  /** How many of them said the yes the playbook needs, a number or not: a yes with no number is not no yes. */
+  saidYes: number;
 }
 
 export interface PlaybookTriggerOption {
@@ -1086,7 +1089,7 @@ export const playbooksOverride: SurfaceOverride = {
     // And everyone each moment names, with who of them no run reaches whatever the week.
     const named = (trigger: string): PlaybookNamed | null => {
       const x = pb.pools?.[trigger];
-      return x && typeof x.pool === "number" ? { pool: x.pool, noYes: x.noYes ?? 0, stopped: x.stopped ?? 0, noNumber: x.noNumber ?? 0 } : null;
+      return x && typeof x.pool === "number" ? { pool: x.pool, noYes: x.noYes ?? 0, stopped: x.stopped ?? 0, noNumber: x.noNumber ?? 0, saidYes: x.saidYes ?? 0 } : null;
     };
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;

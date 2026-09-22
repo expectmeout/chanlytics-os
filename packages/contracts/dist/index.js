@@ -7581,7 +7581,7 @@ function eligibleForPlaybook(rows, p, touches, nowMs) {
 function playbookRunReach(rows, p, touches, nowMs) {
   const reach = { pool: 0, will: 0, noNumber: 0, stopped: 0, noYes: 0, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 };
   const t = triggerOf(p.trigger);
-  if (!t) return { eligible: [], reach };
+  if (!t) return { eligible: [], reach, saidYes: 0 };
   const purpose = purposeOfPlaybook(t.cls);
   const named = t.kind === "visit" ? rows.filter((r) => {
     if (!r.calendarTz) return false;
@@ -7589,6 +7589,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
     return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
   }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
+  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed = [];
   for (const r of named) {
     const why = whyNotReceive(r, purpose);
@@ -7600,7 +7601,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
   if (t.kind === "visit") {
     allowed.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
     reach.will = allowed.length;
-    return { eligible: allowed, reach };
+    return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS6;
   const picked = allowed.filter((r) => {
@@ -7620,7 +7621,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
   const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
   reach.overCap = picked.length - eligible.length;
   reach.will = eligible.length;
-  return { eligible, reach };
+  return { eligible, reach, saidYes };
 }
 function planRun(mode, now) {
   switch (mode) {
@@ -7691,9 +7692,13 @@ function playbookReach(p) {
   if (p.candidates > 0) return "sends";
   return p.held > 0 ? "all-heard" : "nobody";
 }
-var PLAYBOOK_REACH_DOOR = {
-  nobody: { label: "Get their yes", to: GET_YES_ROUTE }
-};
+function playbookReachDoor(reach, named) {
+  return reach === "nobody" && named !== null && named.pool > 0 && named.saidYes === 0 ? { label: "Get their yes", to: GET_YES_ROUTE } : null;
+}
+function playbookNoNumberWords(p, named) {
+  if (!named || named.saidYes === 0 || p.candidates + p.held > 0) return null;
+  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
+}
 var PLAYBOOK_REACH_WORDS = {
   waiting: null,
   paused: null,
@@ -9370,9 +9375,10 @@ function setupSteps(i, nowMs = Date.now()) {
   }
   {
     const offers = i.consent.offers;
+    const said = i.consent.offersSaidYes;
     const talk = i.consent.yes;
-    const alsoTalk = talk > offers ? [`${plural5(talk, "person", "people")} said yes to messages about their own visit`] : [];
-    row2(offers > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural5(offers, "person", "people")} said yes to offers.`, details: alsoTalk, verb: { label: "Open Broadcasts", to: "broadcasts" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: alsoTalk, verb: { label: "Get their yes", to: "broadcasts" } });
+    const alsoTalk = talk > said ? [`${plural5(talk, "person", "people")} said yes to messages about their own visit`] : [];
+    row2(offers > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural5(offers, "person", "people")} said yes to offers.`, details: alsoTalk, verb: { label: "Open Broadcasts", to: "broadcasts" } } : said > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "waiting_you", required: false, sentence: `${plural5(said, "person", "people")} said yes to offers, but nobody can be sent one yet \u2014 ${NO_NUMBER_REACH}.`, details: alsoTalk, verb: { label: "Open People", to: "clients" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: alsoTalk, verb: { label: "Get their yes", to: GET_YES_ROUTE } });
   }
   if (i.google?.ready) {
     const g = i.google.listing;
@@ -13634,7 +13640,6 @@ export {
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_NAME_MAX,
-  PLAYBOOK_REACH_DOOR,
   PLAYBOOK_REACH_WORDS,
   PLAYBOOK_STATES,
   PLAYBOOK_TRIGGERS,
@@ -14102,7 +14107,9 @@ export {
   platformRows,
   platformSummary,
   playbookName,
+  playbookNoNumberWords,
   playbookReach,
+  playbookReachDoor,
   playbookRunReach,
   playbooksStillSending,
   pointsDelta,

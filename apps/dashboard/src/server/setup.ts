@@ -93,7 +93,7 @@ export async function setupDtoFor(
   now = new Date(),
 ): Promise<SetupDto> {
 
-  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersYes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady, activations, email] = await Promise.all([
+  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersSaid, offersReach, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady, activations, email] = await Promise.all([
     getTenantConfig(supabase, tenantId),
     supabase.from("tenant_channels").select("kind, status, number_e164, config, created_at").eq("tenant_id", tenantId),
     supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
@@ -104,14 +104,19 @@ export async function setupDtoFor(
     calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, { canAct: false }).catch(() => null),
     viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId),
     supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("consent", "opted_in").is("erased_at", null),
-    // The OTHER answer, counted on its own column. `dnc` is excluded here and not
-    // above because a do-not-contact blocks a promotion outright, and the row this
-    // feeds is the one that says whether a broadcast can go out at all -- the same
-    // condition `contacts_marketing_reachable` (00095) uses.
+    // The OTHER answer, counted on its own column, twice: who gave it, and who of
+    // them a promotional broadcast reaches. `dnc` is excluded here and not above
+    // because a do-not-contact blocks a promotion outright, and a STOP sets it
+    // (00095's set_contact_consent) -- so this is `saidYesTo(r, "marketing")` in
+    // SQL, the predicate of the `contacts_marketing_audience` index (00095).
+    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId)
+      .eq("marketing_consent", "opted_in").eq("dnc", false).is("erased_at", null),
     supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId)
       // `mayReceive(r, "marketing")` in SQL, because this is a count and not a list:
       // the yes to offers, no do-not-contact, and a number to send to. The number was
-      // missing, so this row counted people the broadcast route would not enrol.
+      // missing, so this row counted people the broadcast route would not enrol --
+      // and read alone, it called a yes with no number (someone who only emails, a
+      // walk-in recorded without one) nobody's yes.
       .eq("marketing_consent", "opted_in").eq("dnc", false).is("erased_at", null).not("phone_e164", "is", null),
     // What the owner has asked a person at Chanlytics for, newest first (00123: a line, a port, a repair). From the
     // events the ask records, not the bell: a bell row cannot say which thing was asked for, and the edge's own
@@ -135,6 +140,9 @@ export async function setupDtoFor(
   if (lastCall.error) throw new Error(lastCall.error.message);
   if (templates.error) throw new Error(templates.error.message);
   if (yes.error) throw new Error(yes.error.message);
+  // A count that could not be read is not a zero: read as one, the row says nobody has said yes.
+  if (offersSaid.error) throw new Error(offersSaid.error.message);
+  if (offersReach.error) throw new Error(offersReach.error.message);
   if (requested.error) throw new Error(requested.error.message);
   if (activations.error) throw new Error(activations.error.message);
 
@@ -213,7 +221,7 @@ export async function setupDtoFor(
       invitesOpen: "invites" in team ? team.invites.length : (team as { invitesOpen: number }).invitesOpen,
       alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
     },
-    consent: { yes: yes.count ?? 0, offers: offersYes.count ?? 0 },
+    consent: { yes: yes.count ?? 0, offers: offersReach.count ?? 0, offersSaidYes: offersSaid.count ?? 0 },
     requests: requestsFrom(requested.data),
     lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },
     google: {

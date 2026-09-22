@@ -6,8 +6,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS, serverNotificationRows, verbForRoute, LINE_STEP_WORDS, textingWords } from "@chanlytics/contracts";
+import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS, serverNotificationRows, verbForRoute, LINE_STEP_WORDS, textingWords, GET_YES_ROUTE, NO_NUMBER_REACH } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
+import { setupDtoFor } from "../../../apps/dashboard/src/server/setup.ts";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const VOICE = "+13055550124";
@@ -23,7 +25,7 @@ const empty = (over = {}) => ({
   templates: { approved: 0, pending: 0, startersApproved: 0 },
   calendar: { state: "none" },
   team: { members: 1, invitesOpen: 0, alertEmails: 0 },
-  consent: { yes: 0, offers: 0 },
+  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
   requests: { line: null },
   later: [],
   ...over,
@@ -38,7 +40,7 @@ const live = (over = {}) => empty({
   templates: { approved: 6, pending: 0, startersApproved: 5 },
   calendar: { state: "ok" },
   team: { members: 2, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 3, offers: 1 },
+  consent: { yes: 3, offers: 1, offersSaidYes: 1 },
   // The owner's own act (00108): a workspace that answers everywhere has said so.
   activations: [
     { capability: "voice", activated_at: "2026-09-08T09:00:00Z", activated_by: "u-owner", deactivated_at: null },
@@ -120,12 +122,74 @@ test("a workspace that answers everywhere: eight of nine — the kept number is 
   assert.equal(row(vm, "yes").sentence, "1 person said yes to offers.");
   assert.deepEqual(row(vm, "yes").details, ["3 people said yes to messages about their own visit"],
     "and the other count rides along, so the owner knows what to go and ask for");
-  const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0 } }, NOW);
+  const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0, offersSaidYes: 0 } }, NOW);
   assert.equal(row(none, "yes").sentence, "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.");
   assert.equal(row(none, "yes").state, "not_started", "three conversational yeses do not make this row ready");
-  const both = setupSteps({ ...live(), consent: { yes: 3, offers: 3 } }, NOW);
+  // The door lands on the QR itself (#663), as People's, Today's and Playbooks' do: the top of Broadcasts is the
+  // ledger, where the QR can be below the fold.
+  assert.deepEqual(row(none, "yes").verb, { label: "Get their yes", to: GET_YES_ROUTE });
+  const both = setupSteps({ ...live(), consent: { yes: 3, offers: 3, offersSaidYes: 3 } }, NOW);
   assert.deepEqual(row(both, "yes").details, [], "nothing to add when the two agree");
   assert.equal(vm.rows.every((r) => !r.later), true);
+});
+
+test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setup counted only who can be sent an offer, and told the owner nobody had said yes", async () => {
+  // The chain, run: the server's read of the workspace, then the row it makes. The row read one count, who a
+  // broadcast reaches (a yes AND a number), and called a zero "Nobody has said yes to offers yet" -- about a
+  // workspace whose one yes to offers came by email, or from a walk-in recorded with no number.
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const contact = (id, over) => ({ id, tenant_id: T, consent: "opted_in", marketing_consent: "unknown", dnc: false, erased_at: null, phone_e164: null, email: null, ...over });
+  const db = fakeDb({
+    contacts: [
+      // Wrote in by email and said yes to both there: an address, and no number.
+      contact("c-ana", { marketing_consent: "opted_in", email: "ana@example.com" }),
+      // A number, and a yes to messages only.
+      contact("c-luis", { phone_e164: "+15555550101" }),
+      // Said yes to offers, then STOP: a stop is a do-not-contact, and no yes outlives it (00095).
+      contact("c-stop", { consent: "opted_out", marketing_consent: "opted_in", dnc: true, phone_e164: "+15555550102" }),
+      // Erased: nobody's answer any more.
+      contact("c-gone", { marketing_consent: "opted_in", erased_at: "2026-09-01T00:00:00Z" }),
+    ],
+  });
+  const dto = await setupDtoFor(db, T, { kind: "back_office" }, new Date(NOW));
+  assert.deepEqual(dto.consent, { yes: 2, offers: 0, offersSaidYes: 1 }, "REGRESSION: the read counted who can be sent an offer, and nobody who said yes without a number");
+  const yes = row(setupSteps({ ...dto, later: [] }, NOW), "yes");
+  assert.ok(!/Nobody has said yes/.test(yes.sentence), `REGRESSION: ${yes.sentence}`);
+  // What is missing is a number, not an answer: it waits on the owner, says why in #663's reason, and opens People,
+  // where a number is added -- never the QR, which would ask Ana for the yes she gave.
+  assert.deepEqual(
+    { state: yes.state, stateWords: yes.stateWords, sentence: yes.sentence, details: yes.details, verb: yes.verb },
+    {
+      state: "waiting_you", stateWords: "Waiting on you",
+      sentence: `1 person said yes to offers, but nobody can be sent one yet — ${NO_NUMBER_REACH}.`,
+      details: ["2 people said yes to messages about their own visit"],
+      verb: { label: "Open People", to: "clients" },
+    },
+  );
+  // Two, and the messages answer no larger than the offers one: nothing to add under it.
+  const two = row(setupSteps(live({ consent: { yes: 2, offers: 0, offersSaidYes: 2 } }), NOW), "yes");
+  assert.deepEqual([two.state, two.sentence, two.details], ["waiting_you", `2 people said yes to offers, but nobody can be sent one yet — ${NO_NUMBER_REACH}.`, []]);
+  // And a yes with a number beside it makes the row ready, as before: the reach is the row's number.
+  const one = row(setupSteps(live({ consent: { yes: 3, offers: 1, offersSaidYes: 2 } }), NOW), "yes");
+  assert.deepEqual([one.state, one.sentence, one.verb], ["ready", "1 person said yes to offers.", { label: "Open Broadcasts", to: "broadcasts" }]);
+});
+
+test("a count of who said yes that cannot be read fails Setup's read -- a zero it never counted reads as 'nobody has said yes'", async () => {
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const tables = () => ({ contacts: [{ id: "c-ana", tenant_id: T, consent: "opted_in", marketing_consent: "opted_in", dnc: false, erased_at: null, phone_e164: null }] });
+  /** The fake's faults, read once per query: the k-th read of contacts fails as PostgREST fails, and the rest answer. */
+  const failing = (k) => {
+    let n = 0;
+    return new Proxy({}, { get: (_, key) => (key === "contacts.select" && ++n === k ? { message: "canceling statement due to statement timeout" } : undefined) });
+  };
+  // Setup reads contacts only to count the answers: to messages, to offers, and to offers with a number.
+  const seen = fakeDb(tables());
+  await setupDtoFor(seen, T, { kind: "back_office" }, new Date(NOW));
+  const counts = seen.seen.filter((q) => q.table === "contacts").length;
+  assert.equal(counts, 3);
+  for (let k = 1; k <= counts; k++) {
+    await assert.rejects(setupDtoFor(fakeDb(tables(), failing(k)), T, { kind: "back_office" }, new Date(NOW)), /statement timeout/, `REGRESSION: count ${k} of ${counts} failed, and Setup read it as a zero`);
+  }
 });
 
 test("calls only: the sentence says what is missing, and WhatsApp can now wait for later", () => {

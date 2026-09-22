@@ -24,6 +24,7 @@ import { dayWords, trialWords, maySpend, billingDoorOpen, BILLING_TEST_MODE_CLAU
 import { SOLE_PROP_LIMITS } from "./registration-path";
 import { capabilityStatus, type ActivationRecord, type CapabilityStatus } from "./capabilities";
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
+import { GET_YES_ROUTE, NO_NUMBER_REACH } from "./people";
 
 export interface SetupDto {
   business: {
@@ -55,8 +56,16 @@ export interface SetupDto {
    * yes to offers", so a workspace with seven people who had texted START was
    * told it had seven people it could send an offer to, and the composer then
    * refused all seven.
+   *
+   * `offers` is who a promotional broadcast REACHES: that yes, and a number to
+   * send it to (`mayReceive`). `offersSaidYes` is everyone who gave the answer,
+   * a number or not (`saidYesTo`), so `offers` is never larger. A zero reach has
+   * two causes and only one is a missing yes: someone who has only ever emailed,
+   * or a walk-in recorded with a yes and no number, said it and cannot be sent
+   * an offer. Read from `offers` alone, the row told that owner nobody had said
+   * yes, and sent them to the QR for an answer they had (#663's rule).
    */
-  consent: { yes: number; offers: number };
+  consent: { yes: number; offers: number; offersSaidYes: number };
   /**
    * Facts that disagree with what the platform knows (contracts/facts.ts).
    *
@@ -650,15 +659,26 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   //
   // The OFFERS answer decides this row, because a marketing broadcast is what it
   // sends people to. The conversational count rides along as a detail when the
-  // two differ, which is the common case and the useful one: "seven answer you,
-  // none has said yes to offers" tells the owner exactly what to go and ask for.
+  // two answers differ, which is the common case and the useful one: "seven
+  // answer you, none has said yes to offers" tells the owner exactly what to go
+  // and ask for.
+  //
+  // Ready is a yes an offer can reach, and its number is that reach, in the
+  // shorthand People and the send screen use. A yes with no number to send to is
+  // the owner's to finish (#663's rule): People is where a number is added, and
+  // the QR would ask for an answer they gave. Nobody's yes is the one to go and
+  // get, and its door lands on the QR itself, as People's, Today's and
+  // Playbooks' do.
   {
     const offers = i.consent.offers;
+    const said = i.consent.offersSaidYes;
     const talk = i.consent.yes;
-    const alsoTalk = talk > offers ? [`${plural(talk, "person", "people")} said yes to messages about their own visit`] : [];
+    const alsoTalk = talk > said ? [`${plural(talk, "person", "people")} said yes to messages about their own visit`] : [];
     row(offers > 0
       ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural(offers, "person", "people")} said yes to offers.`, details: alsoTalk, verb: { label: "Open Broadcasts", to: "broadcasts" } }
-      : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: alsoTalk, verb: { label: "Get their yes", to: "broadcasts" } });
+      : said > 0
+        ? { id: "yes", icon: "tag", title: "The first yes", state: "waiting_you", required: false, sentence: `${plural(said, "person", "people")} said yes to offers, but nobody can be sent one yet — ${NO_NUMBER_REACH}.`, details: alsoTalk, verb: { label: "Open People", to: "clients" } }
+        : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: alsoTalk, verb: { label: "Get their yes", to: GET_YES_ROUTE } });
   }
 
   // 9. Your Google listing — public, found from the facts above; new reviews reach the bell and Reports.

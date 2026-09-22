@@ -368,16 +368,8 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   assert.equal(PROPOSAL_GATE.broadcast, "approve");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes('name: "list_audiences"') && tools.includes('case "list_audiences": out = await listAudiences(t); break;'));
-  // Both sizes, named for the yes each one counts. `said_yes` alone was the
-  // marketing count under a name that did not say so, so the assistant reported
-  // "nobody said yes" about a utility template that could reach everybody.
-  assert.ok(tools.includes('said_yes_to_offers: eligibleFor(rows, kind, id, ids, "marketing").length'));
-  assert.ok(tools.includes('said_yes_to_messages: eligibleFor(rows, kind, id, ids, "conversational").length'));
-  // The note the assistant reads before it proposes anything. "Only people who said
-  // yes can be on a broadcast; the counts are exactly them" was true of one number
-  // and there are two, so it would have quoted whichever it happened to read.
-  assert.ok(tools.includes("Two consents, two counts."));
-  assert.ok(tools.includes("never quote the larger one."));
+  // Every size, named for what it counts -- who said each yes, and who can be sent a message on it -- and the note
+  // the assistant reads before it proposes anything: ask-turn.test.mjs runs list_audiences for both.
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
   assert.ok(pr.includes('name: "propose_broadcast"') && pr.includes('case "propose_broadcast": return await proposeBroadcast(t, input);'));
   assert.ok(pr.includes("const purpose = purposeOfTemplate(tpl.category);"), "the proposal asks for the same yes the route will");

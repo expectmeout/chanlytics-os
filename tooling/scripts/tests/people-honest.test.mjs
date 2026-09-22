@@ -388,6 +388,14 @@ test("a selection never outlives its view, and does outlive a search: a list pic
   assert.equal(byTestId(draw(), "bulk-bar"), null, "another view: a bar counting people who are no longer on screen is what bulk acts go wrong with");
 });
 
+test("REGRESSION: the rail's 'Can receive offers' says it needs a number -- its tip read 'Said yes to OFFERS', beside a count that leaves out a yes with no number to send to", async () => {
+  await freshPage({ people: [person(1)] });
+  const rows = all(draw(), (n) => n.type === "button" && String(n.props?.className || "").split(" ").includes("cl-rail-row"));
+  const offers = rows.find((b) => textOf(b).startsWith("Can receive offers"));
+  assert.ok(offers, "the list is on the rail");
+  assert.ok(String(offers.props["data-tip"]).includes("Said yes to OFFERS, separately, with a number to send to"), `REGRESSION: ${offers.props["data-tip"]}`);
+});
+
 test("REGRESSION (B27): lists that could not be read say so on the rail, the profile and Lists, and the people stay", async () => {
   await freshPage({ people: [person(1)], listsFail: true });
   let tree = draw();

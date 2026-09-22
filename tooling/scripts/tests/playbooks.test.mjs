@@ -13,9 +13,10 @@ import assert from "node:assert/strict";
 import {
   BROADCAST_STATES, DECISION_SUBJECTS, DECISION_VERBS, PLAYBOOK_BREATH_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS,
   eligibleForPlaybook, localDate, localHour, nextRunLabel, planRun, runDueNow, scheduleLine, toBroadcastVM, triggerOf,
-  PLAYBOOK_REACH_DOOR,
   PLAYBOOK_REACH_WORDS,
   playbookReach,
+  playbookReachDoor,
+  playbookNoNumberWords,
   GET_YES_ROUTE,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
@@ -205,9 +206,31 @@ test("what the next run will DO: a playbook running against an empty list is not
   assert.equal(PLAYBOOK_REACH_WORDS.nobody, "nobody to send to");
   assert.equal(PLAYBOOK_REACH_WORDS["all-heard"], "waiting out the week's gap");
   for (const quiet of ["sends", "paused", "waiting"]) assert.equal(PLAYBOOK_REACH_WORDS[quiet], null, `${quiet}: the schedule is the whole truth, so nothing is added`);
-  // "nobody to send to" is fixed by a yes, and the card says where; "waiting out the week's gap" is waited out.
-  assert.deepEqual(PLAYBOOK_REACH_DOOR.nobody, { label: "Get their yes", to: GET_YES_ROUTE });
-  assert.equal(PLAYBOOK_REACH_DOOR["all-heard"], undefined, "nothing to fix, so no door");
+  // "nobody to send to" is fixed by a yes when the moment names somebody and not one of them said it, and the card
+  // says where; "waiting out the week's gap" is waited out.
+  const named = (pool, saidYes) => ({ pool, saidYes });
+  assert.deepEqual(playbookReachDoor("nobody", named(3, 0)), { label: "Get their yes", to: GET_YES_ROUTE });
+  assert.equal(playbookReachDoor("all-heard", named(3, 3)), null, "nothing to fix, so no door");
+  for (const r of ["sends", "paused", "waiting"]) assert.equal(playbookReachDoor(r, named(3, 0)), null, r);
+});
+
+test("REGRESSION: a playbook whose yes has no number to send to is not one nobody said yes to -- its card sent the owner to the QR for an answer given, and said '0 on the list said yes'", () => {
+  const named = (pool, saidYes) => ({ pool, saidYes });
+  // Somebody on the list said the yes, and nobody can be sent a run: what is missing is a number (#663's rule).
+  assert.equal(playbookReachDoor("nobody", named(3, 1)), null, "REGRESSION: the QR asked for an answer they had given");
+  // Nobody on the list at all, or a list that could not be read: a yes fixes neither.
+  assert.equal(playbookReachDoor("nobody", named(0, 0)), null, "the moment names nobody");
+  assert.equal(playbookReachDoor("nobody", null), null, "who it names is not known");
+  // The card's count says how many said the yes the playbook needs, and what they are missing, in the send screen's
+  // words (saidYesWords) -- only when nobody can be sent a run; otherwise the card's own count stands.
+  const card = (policy_class, candidates, held) => ({ policy_class, candidates, held });
+  assert.equal(playbookNoNumberWords(card("reengage", 0, 0), named(3, 1)), "1 person on the list said yes to offers, with no number to send to");
+  assert.equal(playbookNoNumberWords(card("campaign", 0, 0), named(3, 2)), "2 people on the list said yes to offers, none with a number to send to");
+  assert.equal(playbookNoNumberWords(card("booking", 0, 0), named(1, 1)), "1 person on the list said yes to messages, with no number to send to", "a reminder needs the yes to messages");
+  assert.equal(playbookNoNumberWords(card("reengage", 2, 0), named(3, 3)), null, "a run reaches somebody");
+  assert.equal(playbookNoNumberWords(card("reengage", 0, 2), named(3, 3)), null, "they said yes, have a number, and wait out the week");
+  assert.equal(playbookNoNumberWords(card("reengage", 0, 0), named(3, 0)), null, "nobody said it: '0 on the list said yes' is true");
+  assert.equal(playbookNoNumberWords(card("reengage", 0, 0), null), null, "not known");
 });
 
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {
