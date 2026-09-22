@@ -1043,3 +1043,22 @@ test("a hand-edited record whose consult-first list or rule notes are not lists 
   }
 });
 
+test("Escape in a search with words in it clears the search first, and the next Escape is the sheet's", () => {
+  // The quality review: Escape in the search closed the sheet (or asked), where a search box's Escape clears it.
+  let tree = openSheet(drawTab({ profile: ten }));
+  searchFor(tree, "Service 3");
+  tree = redrawTab();
+  const box = () => find(byTestId(tree, "rec-services-search"), (n) => n.type === "input");
+  const esc = () => ({ key: "Escape", defaultPrevented: false, stopped: false, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } });
+  const first = esc();
+  box().props.onKeyDown(first);
+  assert.deepEqual([first.stopped, first.defaultPrevented], [true, false], "the sheet never hears it, and the box's own clear is not stopped");
+  tree = redrawTab();
+  assert.deepEqual([box().props.value, shownOf(tree).length, !!sheetOf(tree)], ["", 10, true], "cleared, every row back, the sheet open");
+  // Empty, the search leaves Escape to the sheet: it goes on to close it.
+  const second = esc();
+  box().props.onKeyDown(second);
+  assert.equal(second.stopped, false);
+  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown(second);
+  assert.equal(sheetOf(redrawTab()), null, "nothing typed: it closes");
+});

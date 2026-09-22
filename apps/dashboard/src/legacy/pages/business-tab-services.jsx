@@ -104,6 +104,10 @@ const BtsServicesSheet = ({ brain, canEdit, flash, saver }) => {
           <window.RecordBox
             id="bt-services-search" label="Search services" type="search" value={q} placeholder="Search services"
             onChange={(v) => setSearch({ opening: f.opening, q: v })} autoComplete="off" spellCheck={false} testid="rec-services-search"
+            // Escape with words in the search clears them, and goes no further: the sheet's Escape closed it, or asked, over a
+            // search a person only meant to empty. Not preventDefault, which would stop the box's own clear. Empty, the key
+            // is the sheet's.
+            onKeyDown={(e) => { if (e.key === "Escape" && q !== "") { e.stopPropagation(); setSearch({ opening: f.opening, q: "" }); } }}
           />
         </span>
         {/* The write schema takes no more than this, so the sheet does not offer it (rows' canAdd). */}
