@@ -26,6 +26,54 @@ const btTextBox = (words) => ({ draft, set, problem, field }) => (
 );
 
 /**
+ * The number the receptionist gives out, as its box: the line it answers, or a different number, and what that choice
+ * costs, in one note. The draft is { own, typed } (business-tab-save.jsx STORED_AS says what each stores). `line` is the
+ * line the workspace answers on ("" with none, where the box is the only way to give one), `handoff` the transfer
+ * number, and `testid` the prefix of the choice's and the note's test ids. Drawn by the Who you are row and by the
+ * create card (business-tab-create.jsx), so the choice and its words are written once. Hookless but for the box.
+ */
+const btPublishedBox = ({ line, handoff, testid }) => ({ draft, set, problem, field, gate: pressable, readOnly }) => {
+  const lineShown = window.phoneShown(line);
+  return (
+    <>
+      {line ? (
+        <window.RecordToggleGroup
+          label="The number to tell customers to call"
+          value={draft.own ? "line" : "other"}
+          options={[{ value: "line", label: "Your line" }, { value: "other", label: "A different number" }]}
+          onChange={(v) => set(v === "line" ? { own: true, typed: draft.typed } : { own: false, typed: draft.typed || lineShown })}
+          readOnly={readOnly}
+          gate={pressable}
+          testid={`${testid}-choice`}
+        />
+      ) : null}
+      <div className="bt-inline-box" hidden={draft.own && line ? true : undefined}>
+        <window.RecordField
+          {...field}
+          value={draft.typed}
+          onChange={(t) => set({ own: draft.own, typed: t })}
+          problem={problem}
+          placeholder={lineShown || "+1 646 932 5775"}
+          inputMode="tel"
+          autoComplete="tel"
+        />
+      </div>
+      <span className="bt-inline-note" data-testid={`${testid}-note`}>
+        {draft.own && line
+          ? <><b className="tabular">{lineShown}</b> — the line your receptionist answers. It follows the line, so changing your number changes nothing to keep in step.</>
+          : window.__samePhone && window.__samePhone(draft.typed, line)
+            ? <>That is your line. Choose <b>Your line</b> and it stays right when the number changes.</>
+            : handoff && window.__samePhone && window.__samePhone(draft.typed, handoff)
+              ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{lineShown}</b>.</>
+              : line
+                ? <>Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.</>
+                : <>The receptionist has no line of its own yet, so this is the number it gives out.</>}
+      </span>
+    </>
+  );
+};
+
+/**
  * A disagreement on a row, from what the settings read resolved: the other answer (facts.ts `disputed`) and the
  * resolver's sentence and severity for it (factConflicts). `take` turns the other answer into the draft that takes it,
  * and `take.from`, where it is given, names the sources whose answer may be taken; from any other, the disagreement is
@@ -219,43 +267,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
             said: v ? <>Customers are told to call <b className="tabular">{v}</b> now.</> : <>Customers are told to call your line.</>,
           };
         }}
-        body={({ draft, set, problem, field, gate: pressable, readOnly }) => (
-          <>
-            {voiceLine ? (
-              <window.RecordToggleGroup
-                label="The number to tell customers to call"
-                value={draft.own ? "line" : "other"}
-                options={[{ value: "line", label: "Your line" }, { value: "other", label: "A different number" }]}
-                onChange={(v) => set(v === "line" ? { own: true, typed: draft.typed } : { own: false, typed: draft.typed || lineShown })}
-                readOnly={readOnly}
-                gate={pressable}
-                testid="rec-inline-phone_display-choice"
-              />
-            ) : null}
-            <div className="bt-inline-box" hidden={draft.own && voiceLine ? true : undefined}>
-              <window.RecordField
-                {...field}
-                value={draft.typed}
-                onChange={(t) => set({ own: draft.own, typed: t })}
-                problem={problem}
-                placeholder={lineShown || "+1 646 932 5775"}
-                inputMode="tel"
-                autoComplete="tel"
-              />
-            </div>
-            <span className="bt-inline-note" data-testid="rec-inline-phone_display-note">
-              {draft.own && voiceLine
-                ? <><b className="tabular">{lineShown}</b> — the line your receptionist answers. It follows the line, so changing your number changes nothing to keep in step.</>
-                : window.__samePhone && window.__samePhone(draft.typed, voiceLine)
-                  ? <>That is your line. Choose <b>Your line</b> and it stays right when the number changes.</>
-                  : handoff && window.__samePhone && window.__samePhone(draft.typed, handoff)
-                    ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{lineShown}</b>.</>
-                    : voiceLine
-                      ? <>Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.</>
-                      : <>The receptionist has no line of its own yet, so this is the number it gives out.</>}
-            </span>
-          </>
-        )}
+        body={btPublishedBox({ line: voiceLine, handoff, testid: "rec-inline-phone_display" })}
       />
 
       {/* Where a caller who insists on a person is transferred. Empty is a choice. Shown, and changed from, the way the
@@ -299,4 +311,4 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
   );
 };
 
-Object.assign(window, { BtWhoCard: BtWho });
+Object.assign(window, { BtWhoCard: BtWho, btPublishedBox });

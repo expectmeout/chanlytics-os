@@ -689,4 +689,6 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
   );
 };
 
-Object.assign(window, { BtOpenCard });
+// The zone's row too, for the one other place it is drawn: a workspace with no receptionist yet, whose day it decides
+// all the same (business-tab-create.jsx).
+Object.assign(window, { BtOpenCard, BtZoneRow: BtoZone });
