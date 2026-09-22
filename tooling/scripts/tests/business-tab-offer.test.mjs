@@ -874,3 +874,22 @@ test("while the sheet could not open, the services row offers no act, as a fold 
   // With a list, the act is there.
   assert.ok(byTestId(drawTab({ profile: many }), "rec-row-act-services"));
 });
+
+test("an Undo from an earlier opening says the editor it was in has closed, even on a list that is full now", () => {
+  // The quality review's P2: the sheet closed and opened again on sixty services, and the old toast's Undo said the
+  // list was full, as if the row could go back once one was taken out. It cannot: its editor went.
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = openSheet(drawTab({ profile: full, flash }), flash);
+  press(byTestId(tree, "rec-service-remove-0"));
+  tree = redrawTab(flash);
+  const old = flashes.at(-1).undo;
+  press(byTestId(tree, "rec-sheet-cancel-services"));
+  tree = redrawTab(flash);
+  press(byTestId(tree, "rec-sheet-services-cancel-yes"));
+  tree = openSheet(redrawTab(flash), flash);
+  assert.equal(rowsOf(tree).length, LIMIT);
+  old();
+  assert.deepEqual([flashes.at(-1).tone, said(flashes.at(-1))], ["warn", "Not put back — the editor it was in has closed. Open it again to change it."], "REGRESSION: it said the list was full");
+  assert.equal(rowsOf(redrawTab(flash)).length, LIMIT);
+});

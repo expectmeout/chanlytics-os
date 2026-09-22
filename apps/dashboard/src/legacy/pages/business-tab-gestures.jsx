@@ -491,10 +491,12 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
         let done = false;
         const again = () => {
           if (done) return true;
-          if (live.current.open && latest().length >= max) { if (full) flash({ tone: "warn", msg: <>Not put back — {full}</> }); return false; }
+          // From an earlier opening, or once the editor has closed, that is what it says, before anything about the
+          // list it no longer belongs to (the quality review's P2: it said the list was full).
           if (!live.current.open || live.current.opening !== opening) return back();
           settle();
           if (!BtPutBacks.find(live.current.backs, id)) { flash({ tone: "warn", msg: <>{BT_UNDO_REPLACED}</> }); return false; }
+          if (latest().length >= max) { if (full) flash({ tone: "warn", msg: <>Not put back — {full}</> }); return false; }
           if (!back()) return false;
           done = true;
           noted();
