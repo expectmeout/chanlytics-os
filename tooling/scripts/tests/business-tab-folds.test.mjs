@@ -607,7 +607,8 @@ const BASELINE_IN_THE_OWNERS_FIELD = {
     profile: {
       extra_instructions: newReceptionistDefaults("Northside Studio").system_prompt,
       guardrails: { never_quote_prices: true },
-      handoff_number: "+16469325775",
+      // The reserved fictional range, as the page's own boxes use: a live business's number is configuration, never a literal.
+      handoff_number: "+12125550143",
     },
   },
 };
