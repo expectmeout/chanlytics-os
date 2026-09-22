@@ -689,6 +689,24 @@ test("Esc closes the phone's own sheet, and the page holds its keys while one is
   }
 }));
 
+test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no second People | Leads -- the switch was in the sheet and, beside the bar's, would be twice", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  let tree = draw({ initialSaved: "s1" });
+  tree = draw({ initialSaved: "s1" });
+  click(byTestId(tree, "people-phone-lists"));
+  tree = draw({ initialSaved: "s1" });
+  const sheet = byTestId(tree, "people-lists-sheet");
+  assert.equal(byTestId(sheet, "people-scope"), null, "one switch, the bar's");
+  const everyone = byTestId(sheet, "rail-everyone");
+  assert.match(textOf(everyone), /Everyone\s*2/, "Everyone, first, with everyone's count");
+  assert.equal(everyone.props["aria-current"], undefined, "not current while a list is open");
+  click(everyone);
+  tree = draw({ initialSaved: "s1" });
+  assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes the sheet");
+  assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone");
+  assert.equal(idsShown(tree).length, 2);
+}));
+
 test("on a phone the lists are behind the bar's list button, as a sheet; a pick closes it, and New list opens the box in it", () => onPhone(async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   let tree = draw();

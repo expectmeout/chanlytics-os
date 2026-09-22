@@ -1114,11 +1114,20 @@ const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, s
 
 // The rail. The switch heads it in both scopes; under Leads the rows below it are the Leads scope's (LeadsRailRows,
 // leads-scope.jsx), drawn with the same kit, so the smart lists and the lists kept by hand are People's alone.
-const PeopleRail = ({ scope = "people", onScope = () => {}, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
+// `scopeTabs` is false in the phone's sheet, whose bar has the switch; `everyone` ({ count, active, onPick }) is the
+// sheet's first row, the way back to everyone.
+const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
   <aside className="cl-rail">
-    <PeopleScopeTabs scope={scope} onScope={onScope} />
+    {scopeTabs && <PeopleScopeTabs scope={scope} onScope={onScope} />}
     {scope === "leads" ? children : (
     <>
+    {/* The way back to everyone, first, where a phone looks for it: a desktop's is Show everyone on the list's title
+        line, which a phone does not draw. */}
+    {everyone && (
+      <div className="cl-rail-section cl-rail-everyone">
+        <RailRow label="Everyone" count={everyone.count} active={everyone.active} onPick={everyone.onPick} testid="rail-everyone" />
+      </div>
+    )}
     <RailSection label="Smart lists" icon="sparkle">
       {groups.map((g) => {
         const own = lists.filter((l) => (l.group || "reach") === g.id);
@@ -3061,12 +3070,14 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         </div>
         {/* The bar counts, and acts on, the people shown and selected. */}
         {shown.some((p) => sel.has(p.id)) && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} />}
-        {/* The phone's rail, as a sheet (the rail itself is not drawn under 720px). Last in the tree, after everything
-            whose state a stub React keys by order. */}
+        {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under). Last in the tree, after
+            everything whose state a stub React keys by order. Its switch is the bar's; its first row is Everyone. */}
         {listsOpen && (
           <PeopleListsSheet onClose={() => setListsOpen(false)}>
             <PeopleRail
               scope="people"
+              scopeTabs={false}
+              everyone={{ count: agg.total, active: !listId && !savedId, onPick: () => { setListId(null); setSavedId(null); setListsOpen(false); } }}
               onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
               lists={lists}
               groups={people.groups || PL_DEFAULT_GROUPS}
