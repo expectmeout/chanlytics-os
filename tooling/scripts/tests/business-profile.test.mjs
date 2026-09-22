@@ -161,52 +161,36 @@ test("an unknown profile field is refused, not ignored", () => {
 
 /* ------------------------- the editor's write contract -------------------- */
 
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-const here = path.dirname(fileURLToPath(import.meta.url));
 // The form is gone (Task 3.7). What it did is the Business page's: the tab's ONE saver and each row's patch
-// (pages/business-tab-save.jsx), and each fold's draft and write (pages/business-tab-folds.jsx). Every rule below is
-// also run, against the stored record, by business-tab-folds.test.mjs and business-tab-page.test.mjs.
-const readPage = (f) =>
-  fs.readFileSync(path.join(here, `../../../apps/dashboard/src/legacy/pages/${f}`), "utf8").split("\r\n").join("\n");
-const saveJsx = readPage("business-tab-save.jsx");
-const foldsJsx = readPage("business-tab-folds.jsx");
+// (pages/business-tab-save.jsx), and each fold's draft and write (pages/business-tab-folds.jsx). Every rule the
+// form's half of this file pinned is now RUN against the stored record, by business-tab-folds.test.mjs,
+// business-tab-page.test.mjs, business-tab-open.test.mjs and business-tab-answers.test.mjs; each is named where
+// its rule was. So this file reads no source at all any more, and what is left of it executes contracts.
 
-test("the editor sends the WHOLE config, not just its own section", () => {
-  // PUT is a whole-config write. Sending only `brain` would delete notifications; sending only `profile` would
-  // delete the prompt beside it. A row or a fold says only what IT changes now, and the saver applies that to a
-  // copy of the whole stored config -- all the way down, so a patch that edits a nested object in place cannot
-  // change the config it is about to be compared with.
-  assert.ok(saveJsx.includes("const copy = structuredClone(config);"), "every other section must survive");
-  assert.ok(saveJsx.includes("return { ...copy, brain: job.change(brain, { ...(brain.profile || {}) }) };"), "and everything already on the brain");
-});
+// The editor sends the WHOLE config, not just its own section: PUT is a whole-config write, so sending only
+// `brain` would delete notifications and sending only `profile` would delete the prompt beside it. A row or a
+// fold says only what IT changes now, and the saver applies that to a copy of the whole stored config, all the
+// way down. Drawn and saved, not read -- business-tab-folds.test.mjs saves EVERY fold and asserts three things
+// about each: the config it was handed is byte-identical afterwards (so the copy really is deep), nothing outside
+// the fold's own paths changed anywhere in the config, and the sections beside the brain come back as they were.
 
-test("the version travels with the write", () => {
-  // Optimistic concurrency is the only thing standing between two owners
-  // editing at once and one of them losing their work silently.
-  assert.ok(saveJsx.includes("sent = window.__saveSettings(patched, from.version, (saved) => {"));
-});
+// The version travels with the write: optimistic concurrency is the only thing between two owners editing at once
+// and one of them losing their work silently. Drawn -- business-tab-page.test.mjs sends two saves in a row and
+// reads the versions off them ([7, 8]), and the harness's stand-in refuses a version the server has moved past,
+// which "a save the server refuses is said in its words" then reads back as the server's own sentence.
 
-test("an empty field is omitted rather than stored as an empty string", () => {
-  // "" is not a fact. Storing it would have the composed prompt state an
-  // address of nothing.
-  assert.ok(saveJsx.includes('address: btPatchProfile("address"),'));
-  assert.ok(foldsJsx.includes("const btPut = (o, key, value) => { if (value === undefined) delete o[key]; else o[key] = value; };"));
-});
+// An empty field is omitted rather than stored as an empty string: "" is not a fact, and storing it would have the
+// composed prompt state an address of nothing. Drawn -- business-tab-page.test.mjs empties the address row on a
+// record whose only other fact is going, presses Save, and reads the sent config back: hasProfile(profile) is
+// false, which is only true if the key was DELETED rather than left as an empty string.
 
-test("a day with no times is stored as CLOSED, not omitted", () => {
-  // Closed is a real answer; absent reads as "we did not say", and the
-  // receptionist would have nothing to tell someone asking about Sunday.
-  assert.ok(foldsJsx.includes("hours[d] = shifts.length === 0 ? {}"));
-});
+// A day with no times is stored as CLOSED, not omitted: closed is a real answer, and absent reads as "we did not
+// say", leaving the receptionist nothing to tell someone asking about Sunday. Saved, not read --
+// business-tab-folds.test.mjs saves the hours fold and asserts the stored Sunday is {}.
 
-test("the guardrail checkboxes start ON when the config is silent", () => {
-  // Absent means on everywhere else; rendering three unticked boxes would
-  // invite an owner to believe the rules were off.
-  // One rule, in contracts: absent is on for the three the schema defaults on, and off for the opt-in fourth.
-  assert.ok(foldsJsx.includes("...window.__businessTab.guardrailsInForce(p.guardrails),"));
-});
+// The rules start ON when the config is silent: absent means on everywhere else, and three unticked boxes would
+// invite an owner to believe the rules were off. Drawn -- business-tab-answers.test.mjs, "absent means on: a
+// record that stores no rules opens with three on, and a Save that changes nothing sends nothing".
 
 // A save failure is shown, never swallowed: a 409 means someone else saved first, and the owner has to know their
 // edit did not land. Drawn, not read -- business-tab-page.test.mjs, "a save the server refuses is said in its words,
@@ -225,31 +209,19 @@ test("REGRESSION: seven closed days is not a profile", () => {
   assert.equal(hasProfile({ hours: { ...allClosed, mon: { open: "09:00", close: "17:00" } } }), true);
 });
 
-test("the editor does not send an hours map nobody filled in", () => {
-  assert.ok(
-    foldsJsx.includes("const stated = BT_DAYS.some((d) => week[d] && week[d].isOpen && (week[d].shifts || []).some((s) => s.open && s.close));"),
-    "an untouched week must not save seven closed days and read as never open",
-  );
-});
+// An untouched week must not save seven closed days and read as a business never open. Saved, not read --
+// business-tab-folds.test.mjs saves the hours fold with every day switched off and asserts the profile then holds
+// no `hours` key at all ("Every day closed is no hours at all, rather than a week that reads as never open").
 
-test("REGRESSION: a save is not a rebuild — unknown profile keys survive", () => {
-  // save() built `profile` from {} and re-added only the keys this form
-  // renders, so every key it did not know about was deleted on every save.
-  // That is the mechanism that lost a live workspace its 5,027-character
-  // prompt: nobody deleted it, a rebuild dropped what it did not recognise.
-  // No fold builds a profile at all now: each writes or deletes its OWN key on the stored one, so a key it has
-  // never heard of cannot be dropped.
-  assert.ok(foldsJsx.includes("next.brain.profile[key] = value;"), "write the one key");
-  assert.ok(!foldsJsx.includes("const profile = {};") && !foldsJsx.includes("profile = { ...p0 }"), "and never rebuilds one");
-});
+// REGRESSION: a save is not a rebuild -- unknown profile keys survive. save() built `profile` from {} and re-added
+// only the keys the form rendered, so every key it did not know about was deleted on every save. That is the
+// mechanism that lost a live workspace its 5,027-character prompt: nobody deleted it, a rebuild dropped what it
+// did not recognise. No fold builds a profile at all now. Saved, not read -- business-tab-folds.test.mjs saves
+// EVERY fold over a record carrying profile.a_key_no_form_renders and booking_rules.a_rule_added_later and reads
+// both back after each one.
 
-test("an emptied field DELETES its key rather than leaving the stored value", () => {
-  // The other half of starting from the stored profile: clearing the address
-  // has to clear it, not silently keep yesterday's.
-  assert.ok(foldsJsx.includes(
-    "if (value === undefined) { if (next.brain && next.brain.profile) delete next.brain.profile[key]; return; }",
-  ));
-});
+// The other half of starting from the stored profile: clearing the address has to clear it, not silently keep
+// yesterday's. Drawn and saved -- the empty-address save above, business-tab-page.test.mjs.
 
 /* ---------------- nothing already there may be lost --------------------- */
 
@@ -292,15 +264,15 @@ test("the owner's instructions hold as much as the prompt they grew out of -- 8,
   assert.ok(TenantConfigWriteSchema.safeParse({ brain: { ...brain, system_prompt: "x".repeat(20_000) } }).success, "the prompt itself holds the same, so whatever it holds fits the box");
 });
 
-test("the editor pre-fills the existing prompt so it is visible, not magic", () => {
-  assert.ok(foldsJsx.includes("extra_instructions: (p, brain) => window.__instructionsDraft(brain),"));
-});
+// The instructions box opens pre-filled with the workspace's existing prompt, so nothing a business already told
+// its receptionist quietly disappears the moment it fills in a form -- and never with the product's own opening
+// lines, which no owner wrote (S4). Drawn -- business-tab-answers.test.mjs, "own words carried from the prompt
+// before the form say so, and the save writes them as the owner's and the product's lines as the prompt".
 
-test("saving reports the moment the SERVER accepts, not after the refetch", () => {
-  // The refresh re-reads every surface — seconds during which pressing Save
-  // did nothing observable, which is exactly how it was reported.
-  assert.ok(saveJsx.includes("sent = window.__saveSettings(patched, from.version, (saved) => {"));
-});
+// Saving reports the moment the SERVER accepts, not after the refetch: the refresh re-reads every surface, seconds
+// during which pressing Save did nothing observable, which is exactly how it was reported. Drawn --
+// business-tab-open.test.mjs reads the toast off the page as soon as the stand-in accepts, with the re-read still
+// to come, and the fold closed.
 
 /* ---- a composed prompt must know HOW to reach a human, not only when ---- */
 {
