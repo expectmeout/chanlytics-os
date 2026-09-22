@@ -1665,6 +1665,14 @@ html.legacy-on .bt-link { position: relative; }
 /* A search keeps room to type in: beside the cap's sentence at 320px it was squeezed to about nothing, and the tools
    wrap (record.css) before it goes under 12rem. */
 .bt-services-search { flex: 1 1 12rem; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--ink-faint); }
+/* The sheet is drawn in .app-root, out of the Settings pane (record-sheet.jsx says why), so the pane's sizing does not
+   reach it: its buttons are a fold's 30px .btn-sm (.settings .btn-sm, above), and a remove is 44px wide under a finger
+   (mobile.css gives .settings' icon buttons that), where it was 26px in both. Scoped to this sheet, not the settings
+   root, which it is not inside. */
+.bt-services-sheet .btn-sm { height: 30px; padding: 0 12px; font-size: var(--text-sm); border-radius: var(--radius-md); }
+.bt-services-sheet .btn-icon.btn-sm { width: 30px; padding: 0; }
+@media (pointer: coarse) {
+  html.legacy-on .bt-services-sheet .btn-icon.btn-sm { width: 44px; }
 }
 .bt-services-search > .rec-box { flex: 1; }
 .bt-services { display: flex; flex-direction: column; gap: 4px; padding: 0 0 14px; }
