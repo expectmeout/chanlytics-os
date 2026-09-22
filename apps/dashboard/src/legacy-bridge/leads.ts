@@ -17,6 +17,7 @@ import {
   type LeadChips, type LeadClass, type LeadCounts, type LeadMonthDto, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
+import { readCache } from "./read-cache";
 import { workspaceZone } from "./zone";
 import { getActiveWorkspace } from "./workspace";
 import { type SurfaceOverride } from "./surface-data";
@@ -84,7 +85,7 @@ async function leadRead<O>(key: string, query?: Record<string, string>): Promise
 /* --------------------------------------------------------- what is loaded */
 
 /** What the Leads surface holds between reads. */
-let leadsLoaded: {
+interface LeadsLoaded {
   tz: string;
   view: LeadsView;
   key: string;
@@ -96,8 +97,16 @@ let leadsLoaded: {
   next: { key: string; id: string } | null;
   offered: LeadRowDto[];
   suggestions: LeadSuggestionsDto | null;
-} | null = null;
+}
+let leadsLoaded: LeadsLoaded | null = null;
 let view: LeadsView = DEFAULT_VIEW;
+/**
+ * The views this tab has read, by their key: a rail pick used to be a round trip each way, with the old view's rows
+ * under the new title until it landed. A view held here paints at once, its Show more pages with it, and is read
+ * again behind. It is the read cache (read-cache.ts): in memory, scoped to the workspace, cleared with the session,
+ * and a warm shares a read already in flight.
+ */
+const held = readCache<LeadsLoaded>("leads-views");
 /** Bumped by every read that replaces the rows; a read that finishes under a newer number is dropped. */
 let reads = 0;
 
@@ -135,21 +144,50 @@ function publishLeads(failed = false): void {
   };
 }
 
-/** A new view: page one under its key. The old rows go with the old key. */
-async function readView(v: LeadsView): Promise<void> {
-  const mine = ++reads;
+/** Page one of a view, read under its key: what a first read and a warm both do. */
+async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
   const key = viewKey(v);
   const [searches, page, tz] = await Promise.all([
     leadRead<LeadSearchesAnswer>("GET lead-searches"),
     leadRead<LeadsPageAnswer>("GET leads", queryOf(v)),
     workspaceZone(),
   ]);
-  if (mine !== reads) return; // superseded: a newer view asked after this one
   // The first day's suggestions, and only then: a workspace with a search has work to read instead.
   const suggestions = searches.searches.length === 0 ? await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null) : leadsLoaded?.suggestions ?? null;
-  if (mine !== reads) return;
-  leadsLoaded = { tz, view: v, key, searches: searches.searches, counts: page.counts ?? searches.counts ?? NO_COUNTS, month: page.month ?? null, rows: page.rows, next: page.next, offered: [], suggestions };
+  return { tz, view: v, key, searches: searches.searches, counts: page.counts ?? searches.counts ?? NO_COUNTS, month: page.month ?? null, rows: page.rows, next: page.next, offered: [], suggestions };
+}
+
+/**
+ * A new view. One this tab holds paints at once and is read again behind (a refresh: patched, its pages kept);
+ * one it does not is page one under its key, and the old rows go with the old key.
+ */
+async function readView(v: LeadsView): Promise<void> {
+  const mine = ++reads;
+  const key = viewKey(v);
+  const have = held.peek(key);
+  if (have) {
+    leadsLoaded = have;
+    publishLeads();
+    window.dispatchEvent(new CustomEvent("surface:leads"));
+    await refreshView();
+    return;
+  }
+  const loaded = await held.through(key, () => readPageOne(v));
+  if (mine !== reads) return; // superseded: a newer view asked after this one
+  leadsLoaded = loaded;
   publishLeads();
+}
+
+/** A view the owner may pick next (a rail row under the pointer): read into what is held, and nothing on the page moves. */
+export async function warmLeadsView(to: string): Promise<void> {
+  const parsed = parseLeadsRoute(to);
+  if (!parsed) return;
+  const v: LeadsView = { ...DEFAULT_VIEW, searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips as Partial<LeadChips>, sort: view.sort, dir: view.dir };
+  // What the cache's own warm does, but one a caller can wait for. A warm that fails costs nothing; the pick reads
+  // for itself. Two warms in flight are one request: the client shares an identical read for two seconds.
+  const key = viewKey(v);
+  if (held.peek(key)) return;
+  await held.through(key, () => readPageOne(v)).catch(() => undefined);
 }
 
 /** The same view again, after a write or a Realtime change: patch, keep the pages, offer the rest. */
@@ -217,9 +255,15 @@ export async function leadsMore(): Promise<void> {
   window.dispatchEvent(new CustomEvent("surface:leads"));
 }
 
-/** "12 new": the owner asked for them, so the view is read again in its order. */
+/** "12 new": the owner asked for them, so the view is read again in its order -- page one afresh, in place, so the view held keeps up. */
 export async function leadsTakeOffered(): Promise<void> {
-  await readView(view);
+  const L = leadsLoaded;
+  if (!L) return readView(view);
+  const key = L.key;
+  const fresh = await readPageOne(L.view);
+  if (!leadsLoaded || leadsLoaded.key !== key) return;
+  Object.assign(L, { searches: fresh.searches, counts: fresh.counts, month: fresh.month, rows: fresh.rows, next: fresh.next, offered: [] });
+  publishLeads();
   window.dispatchEvent(new CustomEvent("surface:leads"));
 }
 
@@ -320,6 +364,7 @@ export function peekVMFor(leadId: string): LeadPeekVM | null {
 
 export function installLeadsCourier(): void {
   window.__leadsView = leadsView;
+  window.__leadsWarm = warmLeadsView;
   window.__leadsMore = leadsMore;
   window.__leadsTakeOffered = leadsTakeOffered;
   // The three the page derives its address, its rail and its standing line from: contracts', handed over, never re-spelled.
@@ -358,6 +403,7 @@ declare global {
   interface Window {
     __LEADS?: LeadsSurface;
     __leadsView?: typeof leadsView;
+    __leadsWarm?: typeof warmLeadsView;
     __leadsMore?: typeof leadsMore;
     __leadsTakeOffered?: typeof leadsTakeOffered;
     __leadsRouteOf?: typeof leadsRoute;

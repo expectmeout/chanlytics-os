@@ -42,6 +42,7 @@ globalThis.window = {
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
 const { installLeadsCourier, leadsOverride } = await import("../../../apps/dashboard/src/legacy-bridge/leads.ts");
+const { clearReadCaches } = await import("../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 installLeadsCourier();
 
 /* -------------------------------- fixtures ------------------------------- */
@@ -127,6 +128,9 @@ const json = (status, body) => new Response(JSON.stringify(body), { status, head
  * same URL inside two seconds -- so the nth answer is not the nth call.
  */
 function wire(opts = {}) {
+  // A new wire is a new world: what the tab held of the last one goes, as it does when the workspace is dropped.
+  // `keep: true` is the same world answering differently (slower, or with a change): what is held stays.
+  if (!opts.keep) clearReadCaches();
   const state = {
     searches: opts.searches ?? [],
     counts: opts.counts ?? ZERO,
@@ -390,13 +394,70 @@ test("a bulk act over ids shows on every row at once; one over a whole view show
   assert.deepEqual([no.ok, ...ids.map(stageOf)], [false, "ready", "ready"]);
 });
 
+/* ------------------------------ views, held ------------------------------ */
+
+test("a view the surface has already read paints at once on the way back, with its Show more pages, and is refreshed behind: a rail pick used to be a round trip each way", async () => {
+  const w = wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1), next: PAGE2 });
+  await globalThis.window.__leadsView("clients/leads");
+  await globalThis.window.__leadsMore();
+  assert.equal(L().rows.length, PAGE1.length + PAGE2.length);
+  await globalThis.window.__leadsView("clients/leads:l-ready");
+  assert.equal(L().rows.length, READY.length);
+  // Back to all leads, with every answer held: what is on the page is what the surface held, before any read lands.
+  const held = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : PAGE1), next: PAGE2, hold: true });
+  const heard = [];
+  const on = () => heard.push([L().route, L().rows.length]);
+  globalThis.window.addEventListener("surface:leads", on);
+  const back = globalThis.window.__leadsView("clients/leads");
+  assert.deepEqual([L().route, L().rows.length, L().next], ["clients/leads", PAGE1.length + PAGE2.length, null], "the held view, its Show more pages with it, before the wire has answered");
+  assert.deepEqual(heard, [["clients/leads", PAGE1.length + PAGE2.length]], "and the page was told at once");
+  assert.ok(held.reads.some((u) => u.includes("list=all")), "read again behind it all the same");
+  held.release(() => true);
+  await back;
+  globalThis.window.removeEventListener("surface:leads", on);
+  assert.equal(L().rows.length, PAGE1.length + PAGE2.length, "the refresh patched what it holds and dropped no page");
+  // The other way too, and a view never read still reads first.
+  const again = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1), hold: true });
+  const toReady = globalThis.window.__leadsView("clients/leads:l-ready");
+  assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length]);
+  again.release(() => true);
+  await toReady;
+  const toNurture = globalThis.window.__leadsView("clients/leads:l-nurture");
+  assert.equal(L().route, "clients/leads:l-ready", "a view never read shows nothing of itself until it lands");
+  again.release(() => true);
+  await toNurture;
+  assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-nurture", NURTURE.length]);
+});
+
+test("a view is warmed on intent: the read goes out, nothing on the page moves, and the pick that follows paints at once", async () => {
+  const w = wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.search === SEARCH_ID ? READY : PAGE1) });
+  await globalThis.window.__leadsView("clients/leads");
+  const before = w.reads.length;
+  const heard = [];
+  const on = () => heard.push(L().route);
+  globalThis.window.addEventListener("surface:leads", on);
+  await globalThis.window.__leadsWarm(`clients/leads:s-${SEARCH_ID}`);
+  assert.ok(w.reads.slice(before).some((u) => u.includes(`search=${SEARCH_ID}`)), "the search's page was read");
+  assert.deepEqual([L().route, heard], ["clients/leads", []], "and the page stayed where it was, told nothing");
+  const held = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.search === SEARCH_ID ? READY : PAGE1), hold: true });
+  const pick = globalThis.window.__leadsView(`clients/leads:s-${SEARCH_ID}`);
+  assert.deepEqual([L().route, L().rows.length], [`clients/leads:s-${SEARCH_ID}`, READY.length], "picked: painted from what the warm read, before the wire answers");
+  held.release(() => true);
+  await pick;
+  globalThis.window.removeEventListener("surface:leads", on);
+  // Warmed once: a second hover reads nothing more while the view is held.
+  const twice = held.reads.length;
+  await globalThis.window.__leadsWarm(`clients/leads:s-${SEARCH_ID}`);
+  assert.equal(held.reads.length, twice, "held already: no read");
+});
+
 test("the courier installs exactly the names the page and the screens call, and no words of its own", () => {
   const installed = Object.keys(globalThis.window).filter((k) => k.startsWith("__lead")).sort();
   assert.deepEqual(installed, [
     "__leadBusinessLine", "__leadCheckAgain", "__leadDraft", "__leadErase", "__leadExclude", "__leadKeep", "__leadPeekVM", "__leadPutBack",
     "__leadRail", "__leadSearchAnswer", "__leadSearchMore", "__leadSearchRemove", "__leadSearchRename",
     "__leadSearchStop", "__leadSearchUndo", "__leadSearchWords", "__leadStage", "__leadUndo",
-    "__leadsBulk", "__leadsMore", "__leadsRouteOf", "__leadsRouteParse", "__leadsStanding", "__leadsTakeOffered", "__leadsView",
+    "__leadsBulk", "__leadsMore", "__leadsRouteOf", "__leadsRouteParse", "__leadsStanding", "__leadsTakeOffered", "__leadsView", "__leadsWarm",
   ]);
   assert.equal(globalThis.window.__leadsRouteOf({ searchId: SEARCH_ID, list: "ready", cls: null }), `clients/leads:s-${SEARCH_ID}:l-ready`);
   assert.deepEqual(globalThis.window.__leadsRouteParse(`clients/leads:s-${SEARCH_ID}:l-ready`), { searchId: SEARCH_ID, list: "ready", cls: null, chips: {}, peek: null });

@@ -1046,7 +1046,9 @@ const RailGroup = ({ label, testid = null, children }) => (
  * the pick, never a button inside a button, and the pick fills the row, so a press anywhere on it but the acts picks
  * it. While the row is being named, `edit` stands in for the pick and its acts; `after` hangs under it (a Confirm).
  */
-const RailRow = ({ label, count = null, active = false, onPick, smart = false, tip = null, mark = null, menu = null, edit = null, after = null, testid = null, className = "", pickClass = "" }) => {
+// `onWarm` is the row under the pointer, or reached by Tab: a scope may read the view its press would open ahead of
+// the press (the Leads scope does), as the Settings rail warms a tab. A press asks for nothing of its own.
+const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, smart = false, tip = null, mark = null, menu = null, edit = null, after = null, testid = null, className = "", pickClass = "" }) => {
   const cls = `cl-rail-row${smart ? " smart" : ""}${active ? " active" : ""}${className ? ` ${className}` : ""}`;
   const said = (
     <>
@@ -1056,12 +1058,12 @@ const RailRow = ({ label, count = null, active = false, onPick, smart = false, t
     </>
   );
   if (!menu && !edit && !after) {
-    return <button type="button" className={cls} onClick={onPick} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>;
+    return <button type="button" className={cls} onClick={onPick} onPointerEnter={onWarm || undefined} onFocus={onWarm || undefined} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>;
   }
   return (
     <div className={`${cls} has-acts`}>
       {edit || (
-        <button type="button" className={`cl-rail-pick${pickClass ? ` ${pickClass}` : ""}`} onClick={onPick} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>
+        <button type="button" className={`cl-rail-pick${pickClass ? ` ${pickClass}` : ""}`} onClick={onPick} onPointerEnter={onWarm || undefined} onFocus={onWarm || undefined} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>
       )}
       {edit ? null : menu}
       {after}
@@ -2433,6 +2435,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
       canFind,
     };
     const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
+    // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
+    const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });
+    const pickSearchRoute = (id) => window.__leadsRouteOf({ searchId: railToggle(leadView.searchId, id), list: "all", cls: null });
     // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
     // make a new round open the plan card instead, because nothing that counts against the month may start
     // without the owner approving what runs.
@@ -2480,6 +2485,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         search={openSearch}
         strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
         rows={rowsShown}
+        // The rows drawn are the last view's until the surface holds the one the address names (a view it has read
+        // before paints at once; one it has not is on its way): said, not left looking right and being wrong.
+        loading={!viewLanded}
         total={leads.counts[leadView.list] ?? leads.counts.all}
         columns={columns}
         colOptions={colOptions}
@@ -2563,8 +2571,11 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
         // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
         // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
-        onPickList={(id) => { setChip(null); nav(window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null })); }}
-        onPickSearch={(id) => { setChip(null); nav(window.__leadsRouteOf({ searchId: railToggle(leadView.searchId, id), list: "all", cls: null })); }}
+        onPickList={(id) => { setChip(null); nav(pickListRoute(id)); }}
+        onPickSearch={(id) => { setChip(null); nav(pickSearchRoute(id)); }}
+        // The row under the pointer reads its view ahead of the press (the surface holds it; leads.ts warmLeadsView).
+        onWarmList={(id) => window.__leadsWarm && window.__leadsWarm(pickListRoute(id))}
+        onWarmSearch={(id) => window.__leadsWarm && window.__leadsWarm(pickSearchRoute(id))}
         onPickClass={(cls) => { setChip(null); goto({ cls }); }}
         chip={chip}
         onPickChip={setChip}
