@@ -224,3 +224,38 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");
   assert.ok(inbox.includes("}, [initialThreadId]);"), "the Inbox follows a later deep-link");
 });
+
+test("the drawer shut is off the page, and its scrim is glass to the browser's bar", () => {
+  // Safari on iOS 26 colours its own status-bar strip from the fixed or sticky
+  // element under the top edge's midpoint (WebKit, LocalFrameView::fixedContainerEdges),
+  // and keeps that colour for as long as the element that gave it is rendered and
+  // visible (Page::updateFixedContainerEdges). A drawer parked at translateX(-102%)
+  // is rendered and visible, so the scrim's grey outlived the drawer, until a reload.
+  // Shut, the wrapper is display: none -- no renderer, nothing to keep -- and the
+  // transitions still slide both ways. The fixed box is the sidebar, not the wrapper:
+  // the wrapper's display transition also runs when a window crosses 900px, and a
+  // fixed sidebar stays out of flow while its wrapper is display: contents for those
+  // 240ms. Open, the scrim carries a backdrop-filter, which the bar reads as glass and
+  // leaves its own colour alone, as it does for .ask-overlay; blur(0) changes nothing.
+  const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css").replace(/\r\n/g, "\n");
+  for (const pin of [
+    "  .side-wrap {\n    display: none;\n    transition: display 240ms;\n    transition-behavior: allow-discrete;\n  }",
+    ".side-wrap.open { display: contents; }",
+    "  .side-wrap .sidebar {\n    position: fixed;",
+    "    transform: translateX(-102%);\n    transition: transform 240ms var(--ease-out);",
+    ".side-wrap.open .sidebar { transform: none; }",
+    "@starting-style {",
+    ".side-wrap.open .sidebar { transform: translateX(-102%); }",
+    ".side-wrap, .side-wrap .sidebar { transition: none; }",
+  ])
+    assert.ok(css.includes(pin), pin);
+  assert.ok(
+    css.indexOf("@starting-style {") < css.indexOf(".side-wrap.open .sidebar { transform: translateX(-102%); }"),
+    "the slide-in's first frame is a starting style, not the resting one",
+  );
+  const block = (sel) => css.slice(css.indexOf(sel + " {\n"), css.indexOf("\n  }", css.indexOf(sel + " {\n")));
+  assert.ok(!block("  .side-wrap").includes("position:"), "the wrapper is not the fixed box");
+  const backdrop = block("  .nav-backdrop");
+  assert.ok(backdrop.includes("backdrop-filter: blur(0);"), "the filter is on the scrim");
+  assert.ok(backdrop.includes("background: rgb(0 0 0 / 0.45);"), "and the scrim still darkens in both themes");
+});
