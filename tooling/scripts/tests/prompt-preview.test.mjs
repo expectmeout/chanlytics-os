@@ -239,7 +239,14 @@ test("the record's own rules in settings.css paint no gradient and set no second
 });
 
 test("six thousand characters cannot break the page layout", () => {
-  const body = css.slice(css.indexOf(".set-prompt-body"), css.indexOf(".set-prompt-body-sm"));
+  // Both ends are found, and in that order, BEFORE the slice: `indexOf` answers -1 for a rule that was renamed, and
+  // `slice(-1, -1)` is the empty string while `slice(0, -1)` is very nearly the whole stylesheet -- either way the
+  // four assertions below would stop being about `.set-prompt-body` without saying so.
+  const from = css.indexOf(".set-prompt-body");
+  const to = css.indexOf(".set-prompt-body-sm");
+  assert.ok(from > -1, "the rule this test is about is still called .set-prompt-body");
+  assert.ok(to > from, "and .set-prompt-body-sm still follows it, which is where the slice ends");
+  const body = css.slice(from, to);
   assert.ok(body.includes("white-space: pre-wrap"), "the prompt has real newlines and must keep them");
   assert.ok(body.includes("overflow-wrap: anywhere"), "an unbroken booking URL must not widen the page");
   assert.ok(body.includes("overflow-y: auto"));

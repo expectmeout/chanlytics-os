@@ -298,11 +298,24 @@ test("M-1: what it will not do names the difference between the channels, once",
   // A workspace with no call answers only in chat, where the plain sentence is exact. Naming a channel it does not
   // answer on would be the page teaching an owner about a line they do not have.
   assert.equal(standingLine(full, false).wont, "It offers a consult or the booking link instead of a price.");
-  // Still three clauses, on either channel (spec 4.1): what it can say, what it will not, and the one gap.
+  // Still three clauses, on either channel (spec 4.1): what it can say, what it will not, and the one gap. The VM
+  // having three keys is true by construction and proves nothing; what could go wrong is the middle clause growing
+  // into two sentences, so it is counted as a reader counts it -- by its full stops.
   for (const calls of [true, false]) {
     const s = standingLine({ ...full, profile: { ...full.profile, tone: undefined } }, calls);
-    assert.equal(Object.keys(s).length, 3);
-    assert.ok(s.can && s.wont && s.missing);
+    assert.ok(s.can && s.wont && s.missing, `calls=${calls}: all three`);
+    for (const [what, clause] of [
+      ["can", s.can],
+      ["wont", s.wont],
+      ["missing", s.missing.sentence],
+    ]) {
+      assert.equal(
+        clause.split(".").filter((p) => p.trim() !== "").length,
+        1,
+        `calls=${calls}: ${what} is one sentence`,
+      );
+      assert.match(clause, /\.$/, `calls=${calls}: ${what} ends`);
+    }
   }
   // Nothing to price is still nothing said, whichever lines answer.
   for (const calls of [true, false]) {
