@@ -709,7 +709,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     assert.ok(bridge.includes(path), path);
   assert.ok(bridge.includes('"POST messages/[id]/cancel-send"'), "a sent reply's undo is the cancel window");
   assert.ok(
-    bridge.includes("applySettingsChange(before"),
+    /applySettingsChange\(\s*before\b/.test(bridge),
     "a settings card applies the change to the loaded config, with its version",
   );
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
@@ -935,7 +935,7 @@ test("a place to open is normalised to the app's route, never dropped over its s
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(loop.includes("normalizeNavigate(f.navigate.to, tc.read)") && !loop.includes("safeNavigate("));
   assert.ok(
-    loop.includes('console.warn("ask_navigate_dropped"'),
+    /console\.warn\(\s*"ask_navigate_dropped"/.test(loop),
     "a dropped target is logged so the next spelling can be taught",
   );
 });
@@ -969,7 +969,7 @@ test("context first: the day rides into every turn, its rows can be cited, loade
     "the day rides in first, kept twenty seconds for a follow-up",
   );
   assert.ok(
-    loop.includes('console.error("ask_snapshot_failed"'),
+    /console\.error\(\s*"ask_snapshot_failed"/.test(loop),
     "a failed snapshot costs the snapshot, never the turn",
   );
   assert.ok(
@@ -987,8 +987,8 @@ test("context first: the day rides into every turn, its rows can be cited, loade
     "what the prompt already holds needs no read",
   );
   assert.ok(
-    readCode("tooling/scripts/eval-ask.mjs").includes(
-      "const fromSnapshot = e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t)) && !m.tools.some((t) => OVERVIEW.includes(t));",
+    /const fromSnapshot =\s+e\.tools_any && e\.tools_any\.some\(\(t\) => OVERVIEW\.includes\(t\)\) && !m\.tools\.some\(\(t\) => OVERVIEW\.includes\(t\)\);/.test(
+      readCode("tooling/scripts/eval-ask.mjs"),
     ),
     "the eval knows an overview can come from the snapshot",
   );
@@ -1101,7 +1101,7 @@ test("a proposal and the answer share a round; a read beside a finish sets the f
     "act tools beside finish run first, then the answer stands",
   );
   assert.ok(
-    loop.includes('console.warn("ask_finish_beside_read"') && loop.includes("finish = undefined;"),
+    /console\.warn\(\s*"ask_finish_beside_read"/.test(loop) && loop.includes("finish = undefined;"),
     "an answer written before its read is not an answer",
   );
   assert.ok(
@@ -1256,7 +1256,7 @@ test("the speed pass, two: no definitions tool, a proposal ends the turn, the sn
     "the cards are the answer",
   );
   assert.ok(
-    l.includes("outcomes.every(({ out }) => !out.isError) && proposals.length > before"),
+    /outcomes\.every\(\(\{ out \}\) => !out\.isError\) &&\s*proposals\.length > before/.test(l),
     "a refused proposal keeps the round",
   );
   assert.ok(
@@ -1314,7 +1314,7 @@ test("prefetch: the reads a question names plainly run beside the snapshot and r
   assert.ok(
     l.includes("const plan = prefetchPlan(input.text);") &&
       l.includes("ports.snapshot(tc, input.timezone, input.scope).catch(") &&
-      l.includes("Promise.all(plan.map(async (run) => {"),
+      /Promise\.all\(\s*plan\.map\(async \(run\) => \{/.test(l),
     "the reads run beside the snapshot",
   );
   assert.ok(l.includes("toolsUsed.push(p.run.name);"), "a prefetched read is a read the turn made");
@@ -1329,8 +1329,8 @@ test("prefetch: the reads a question names plainly run beside the snapshot and r
 test("the speed pass, four: the day above needs no second read, said last where it weighs most", () => {
   const p = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(
-    p.includes('if (t.snapshot) lines.push("The workspace right now is in the block above.') &&
-      p.includes("if (t.prefetched) lines.push("),
+    /if \(t\.snapshot\)\s*lines\.push\(\s*"The workspace right now is in the block above\./.test(p) &&
+      /if \(t\.prefetched\)\s*lines\.push\(/.test(p),
     "the sentence lives in the last block",
   );
   assert.ok(
@@ -1342,7 +1342,9 @@ test("the speed pass, four: the day above needs no second read, said last where 
     "a message to many is a broadcast or one reply per thread",
   );
   assert.ok(
-    readCode("apps/dashboard/src/server/ask/loop.ts").includes("now, snapshot: !!snapshot, prefetched: !!prefetch })"),
+    /\bnow,\s*snapshot: !!snapshot,\s*prefetched: !!prefetch,?\s*\}\)/.test(
+      readCode("apps/dashboard/src/server/ask/loop.ts"),
+    ),
     "the loop says what rode in",
   );
 });

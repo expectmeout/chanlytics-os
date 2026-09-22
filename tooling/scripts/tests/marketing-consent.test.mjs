@@ -538,7 +538,7 @@ test('every read of "said yes to offers" points at the offers column', () => {
   const server = readCode("apps/dashboard/src/server/setup.ts");
   assert.match(
     server,
-    /\.eq\("marketing_consent", "opted_in"\)\.eq\("dnc", false\)/,
+    /\.eq\("marketing_consent", "opted_in"\)\s*\.eq\("dnc", false\)/,
     "and it is counted the way the reachable view counts it",
   );
 

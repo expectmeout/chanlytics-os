@@ -404,12 +404,12 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes('name: "get_calendar"') &&
-      tools.includes('case "get_calendar": out = await getCalendar(t, run.input); break;'),
+      /case "get_calendar":\s*out = await getCalendar\(t, run\.input\);\s*break;/.test(tools),
   );
   assert.ok(tools.includes("Nothing is booked from here — the booking link does that."));
   assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt.ts").includes(
-      '"calendar": "The owner\'s calendar as the receptionist reads it',
+    /"?calendar"?:\s*"The owner's calendar as the receptionist reads it/.test(
+      readCode("apps/dashboard/src/server/ask/prompt.ts"),
     ),
   );
 });
@@ -475,8 +475,8 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
       bridge.includes("if (coversSpan(have, need.from, need.days)) return true;"),
   );
   assert.ok(
-    bridge.includes(
-      "spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel",
+    /spanFor: spanForView,\s*windowFor,\s*covers: coversSpan,\s*frameOf,\s*shiftKey,\s*shiftMonth,\s*monthLabel: monthLabelOf,\s*clockLabel/.test(
+      bridge,
     ),
     "the arithmetic reaches the page, all of it",
   );

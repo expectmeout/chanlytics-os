@@ -105,7 +105,7 @@ test("the wiring: one profile row per account, written by its owner only, read b
 
   const ws = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
   assert.ok(
-    ws.includes('from("profiles").select("display_name").eq("user_id", userId).maybeSingle()'),
+    /from\("profiles"\)\s*\.select\("display_name"\)\s*\.eq\("user_id", userId\)\s*\.maybeSingle\(\)/.test(ws),
     "the identity the seam fetches at boot carries the name",
   );
   assert.ok(

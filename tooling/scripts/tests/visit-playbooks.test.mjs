@@ -282,11 +282,11 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   );
   const runner = readCode("apps/edge/lib/playbooks.ts");
   for (const s of [
-    "feedItemsFor(tenantId, url, tz, now, daysAhead)",
-    'visits.set(r.id, { timezone: tz, source: "calendar", state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) })',
-    "toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, tz, now)",
+    /feedItemsFor\(tenantId, url, tz, now, daysAhead\)/,
+    /visits\.set\(r\.id, \{\s*timezone: tz,\s*source: "calendar",\s*state: "ok",\s*next: toVisitDto\(v\.next\),\s*last: toVisitDto\(v\.last\),?\s*\}\)/,
+    /toPersonRowVM\(\{ \.\.\.r, visits: visits\.get\(r\.id\) \?\? null \}, tz, now\)/,
   ])
-    assert.ok(runner.includes(s), s);
+    assert.ok(s.test(runner), String(s));
   const handler = readCode("packages/jobs/src/handlers.ts");
   assert.ok(
     handler.includes('.select("contact_id, facts")'),

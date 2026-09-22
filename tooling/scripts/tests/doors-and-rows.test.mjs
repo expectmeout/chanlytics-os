@@ -33,15 +33,15 @@ test("every conversation verb counts the rows its UPDATE hit, in the one adapter
     assert.ok(
       ports.includes(`${port}: (`) &&
         ports.includes(`${port}: (`) &&
-        new RegExp(port + ": \\([^)]*\\) => changed\\(").test(ports),
+        new RegExp(port + ": \\([^)]*\\) =>\\s*changed\\(").test(ports),
       `${port}: the UPDATE must be row-counted`,
     );
   }
   assert.ok(ports.includes("return !!data && data.length > 0;"), "changed() is the one place zero rows is judged");
   assert.ok(
-    ports.includes('.eq("state", "snoozed").select("id")') &&
-      ports.includes('.eq("state", "open").select("id")') &&
-      ports.includes('.eq("status", "queued").select("id")'),
+    /\.eq\("state", "snoozed"\)\s*\.select\("id"\)/.test(ports) &&
+      /\.eq\("state", "open"\)\s*\.select\("id"\)/.test(ports) &&
+      /\.eq\("status", "queued"\)\s*\.select\("id"\)/.test(ports),
     "wake, resolve and cancel-send are guarded on the state they leave",
   );
 });

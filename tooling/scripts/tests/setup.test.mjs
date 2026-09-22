@@ -771,14 +771,14 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
     assert.ok(server.includes(`${field}: r.${field},`), `${field} reaches the page`);
   }
   assert.ok(
-    readCode("apps/dashboard/src/server/setup.ts").includes(
-      "lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },",
+    /lines: \{\s*rows: lineRows,\s*ready: lineStatus\.ready,\s*provider: lineStatus\.provider,\s*costs: \{ local_number_month_usd: lineStatus\.costs\.local_number_month_usd \},?\s*\},/.test(
+      readCode("apps/dashboard/src/server/setup.ts"),
     ),
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
   assert.ok(
-    bridge.includes(
-      'refreshOnTables: ["lines", "notifications", "tenant_channels", "capability_activations", "business_records", "billing_accounts", "google_connections"]',
+    /refreshOnTables: \[\s*"lines",\s*"notifications",\s*"tenant_channels",\s*"capability_activations",\s*"business_records",\s*"billing_accounts",\s*"google_connections",?\s*\]/.test(
+      bridge,
     ),
     "every table a row derives from repaints the page",
   );
@@ -849,7 +849,7 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(
     app.includes("installSetup();") &&
-      app.includes("notificationsOverride, setupOverride, googleOverride, billingOverride];"),
+      /notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride,?\s*\];/.test(app),
     "the surface boots with the rest",
   );
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");

@@ -209,8 +209,10 @@ test("a core verb knows no database, framework, provider or environment", () => 
   for (const group of ["conversations", "messages", "campaigns"]) {
     const dir = path.join(here, `../../../packages/core/src/${group}`);
     for (const f of fs.readdirSync(dir)) {
-      for (const line of readCode(`packages/core/src/${group}/${f}`).split("\n")) {
-        if (!/^import /.test(line)) continue;
+      // Prettier prints a long import over several lines, so each import
+      // statement is flattened to one line before it is judged.
+      for (const stmt of readCode(`packages/core/src/${group}/${f}`).matchAll(/^import\s[\s\S]*?;$/gm)) {
+        const line = stmt[0].replace(/\s+/g, " ");
         const ok =
           /from "\.\.?\//.test(line) ||
           /from "@chanlytics\/contracts"/.test(line) ||

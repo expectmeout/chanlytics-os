@@ -459,8 +459,8 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   assert.ok(edge.includes("audience: googleAudience()"));
   const server = readCode("apps/dashboard/src/server/google.ts");
   assert.ok(
-    server.includes(
-      'audience: ready.audience === "testing" || ready.audience === "unverified" || ready.audience === "verified" ? ready.audience : null,',
+    /audience:\s*ready\.audience === "testing" \|\| ready\.audience === "unverified" \|\| ready\.audience === "verified"\s*\? ready\.audience\s*: null,/.test(
+      server,
     ),
   );
   const route = readCode("apps/dashboard/app/api/v1/google/route.ts");

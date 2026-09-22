@@ -363,7 +363,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   const one = readCode("apps/dashboard/app/api/v1/playbooks/[id]/route.ts");
   assert.ok(
     one.includes('state === "running" ? "start_playbook" : "pause_playbook"') &&
-      one.includes('"pause_playbook", { name: p.name, deleted: true }'),
+      /"pause_playbook", \{\s*name: p\.name,\s*deleted: true,?\s*\}/.test(one),
     "pause, resume and delete are recorded",
   );
   const run = readCode("apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts");
@@ -398,7 +398,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     );
   const pools = readCode("apps/dashboard/src/server/playbooks.ts");
   assert.ok(
-    pools.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, breath, now.getTime());"),
+    /cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 \},\s*breath,\s*now\.getTime\(\),?\s*\);/.test(pools),
     "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program; on the server over everyone since Calendar 3 (run in calendar-counts.test.mjs)",
   );
   assert.ok(
@@ -407,7 +407,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     ),
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("broadcastsOverride, playbooksOverride"),
+    /broadcastsOverride,\s*playbooksOverride/.test(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx")),
     "booted with the rest",
   );
   // "Running · next run tomorrow 10:00" is a promise the run cannot keep when
@@ -512,7 +512,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes('name: "list_playbooks"') &&
-      tools.includes('case "list_playbooks": out = await listPlaybooksTool(t); break;'),
+      /case "list_playbooks":\s*out = await listPlaybooksTool\(t\);\s*break;/.test(tools),
   );
   assert.ok(
     tools.includes("listPlaybooks(t.ctx, t.tenantId)") && tools.includes("nextRunLabel(p, facts.timezone, t.now)"),
@@ -522,7 +522,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
   assert.ok(
     pr.includes('name: "propose_playbook"') &&
-      pr.includes('case "propose_playbook": return await proposePlaybook(t, input);'),
+      /case "propose_playbook":\s*return await proposePlaybook\(t, input\);/.test(pr),
   );
   assert.ok(
     pr.includes("checked = await checkPlaybookInput(t.ctx, t.tenantId, {"),
@@ -549,7 +549,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
       turn.includes('playbook: "bolt"') &&
       turn.includes('p.kind === "playbook" ? "outbound"'),
   );
-  assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes('"playbook": "A standing rule'));
+  assert.ok(/playbook:\s*"A standing rule/.test(readCode("apps/dashboard/src/server/ask/prompt.ts")));
   const sug = buildAskSuggestions({
     surface: "people",
     language: "en",

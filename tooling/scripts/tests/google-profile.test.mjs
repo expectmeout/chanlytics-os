@@ -719,8 +719,8 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   const connect = readCode("apps/dashboard/app/api/v1/google/connect/route.ts");
   assert.ok(
     connect.includes('role: "owner",') &&
-      connect.includes(
-        "signState(secret, { t: member.tenantId, u: ctx.userId, n: newNonce(), exp: Date.now() + STATE_TTL_MS })",
+      /signState\(secret, \{\s*t: member\.tenantId,\s*u: ctx\.userId,\s*n: newNonce\(\),\s*exp: Date\.now\(\) \+ STATE_TTL_MS,?\s*\}\)/.test(
+        connect,
       ),
   );
   assert.ok(connect.includes("new Response(null, { status: 302, headers: { location: url } })"));
@@ -741,16 +741,16 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
     "the state's key is the one the dashboard already shares with the edge",
   );
   assert.ok(
-    server.includes(
-      'export const CONNECTION_COLUMNS = "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";',
+    /export const CONNECTION_COLUMNS =\s*"google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";/.test(
+      server,
     ),
     "never credentials_ref",
   );
   const reply = readCode("apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts");
   assert.ok(reply.includes('role: "operator",') && reply.includes('rate: "google_reply",'));
   assert.ok(
-    reply.includes(
-      'recordDecision(ctx, member.tenantId, "review", id, "reply_review", { comment, replied_at: repliedAt })',
+    /recordDecision\(ctx, member\.tenantId, "review", id, "reply_review", \{\s*comment,\s*replied_at: repliedAt,?\s*\}\)/.test(
+      reply,
     ),
   );
   const locations = readCode("apps/dashboard/app/api/v1/google/locations/route.ts");

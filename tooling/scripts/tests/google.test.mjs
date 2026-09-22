@@ -629,7 +629,8 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   const lib = readCode("apps/edge/lib/google.ts");
   assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
   assert.ok(
-    lib.includes("planListingCheck(") && lib.includes('kind: "review", title: b.title, body: b.body, route: "reports"'),
+    lib.includes("planListingCheck(") &&
+      /kind: "review",\s*title: b\.title,\s*body: b\.body,\s*route: "reports"/.test(lib),
     "the plan decides, the edge writes and rings",
   );
   assert.ok(
@@ -675,7 +676,7 @@ test("the dashboard: owners link and search, operators read, members look; the p
   const refresh = readCode("apps/dashboard/app/api/v1/google/refresh/route.ts");
   assert.ok(refresh.includes('role: "operator",') && refresh.includes('rate: "google_refresh",'));
   const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
-  assert.ok(get.includes("googleFor(ctx.supabase, member.tenantId), googleReadiness()"));
+  assert.ok(/googleFor\(ctx\.supabase, member\.tenantId\),\s*googleReadiness\(\)/.test(get));
   const server = readCode("apps/dashboard/src/server/google.ts");
   assert.ok(server.includes('edgeHeaders("/api/admin/google"') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
@@ -695,8 +696,8 @@ test("the dashboard: owners link and search, operators read, members look; the p
     "a link repaints Setup too",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes(
-      "setupOverride, googleOverride, billingOverride]",
+    /setupOverride,\s*googleOverride,\s*billingOverride,?\s*\]/.test(
+      readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"),
     ) && readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installGoogle();"),
   );
   const rt = readCode("packages/db/src/realtime.ts");
@@ -729,8 +730,8 @@ test("the dashboard: owners link and search, operators read, members look; the p
     "the listing row keeps its verbs' names",
   );
   assert.ok(
-    search.includes('console.error("google_search_failed"') &&
-      !search.includes('typeof b.error === "string" ? b.error :'),
+    /console\.error\(\s*"google_search_failed"/.test(search) &&
+      !/typeof b\.error === "string" \? b\.error :/.test(search),
     "Google's words go to the log, not the owner",
   );
   assert.ok(

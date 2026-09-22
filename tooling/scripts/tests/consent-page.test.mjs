@@ -345,7 +345,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     "the page has its own styles, and the two asks are visibly separate blocks",
   );
   assert.ok(
-    css.includes(".yes a.yes-btn { color: #06231d;"),
+    /\.yes a\.yes-btn \{\s*color: #06231d;/.test(css),
     "REGRESSION: .yes a outranks .yes-btn and painted the button's label teal on teal",
   );
 });

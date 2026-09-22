@@ -502,7 +502,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     "secrets through the vault doors",
   );
   assert.ok(lib.includes("ensure: () => ensureVoiceAgent(db, cfg, secrets, tenant)"));
-  assert.ok(lib.includes('provider: "twilio-sip", line_id: lineId'), "the routing row names its line");
+  assert.ok(/provider: "twilio-sip",\s*line_id: lineId/.test(lib), "the routing row names its line");
   const client = lib.slice(lib.indexOf("export function lineForClient"), lib.indexOf("export function linePorts"));
   assert.ok(!/_sid/.test(client), "no provider SID reaches the page");
   const agent = readCode("apps/edge/lib/voice-agent.ts");

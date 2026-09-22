@@ -42,8 +42,8 @@ test("the brain takes the instruction as one more system block and stops showing
   assert.ok(b.includes("steer?: string,"));
   assert.ok(b.includes('...(steer ? [{ type: "text", text: steer }] : []),'));
   assert.ok(
-    b.includes(
-      'const prior = last && last.role === "user" && last.content.trim() === userText.trim() ? history.slice(0, -1) : history;',
+    /const prior =\s*last && last\.role === "user" && last\.content\.trim\(\) === userText\.trim\(\) \? history\.slice\(0, -1\) : history;/.test(
+      b,
     ),
   );
   assert.ok(b.includes('const messages = [...prior, { role: "user" as const, content: userContent }];'));
@@ -73,8 +73,8 @@ test("the dashboard route keeps its doors and records the decision only after th
   assert.ok(r.includes('role: "operator",'));
   assert.ok(r.includes('if (m.sender !== "ai" || m.status !== "queued") {'));
   const steered = r.indexOf("const r = await steerDraft(id, text);");
-  const recorded = r.indexOf(
-    'recordDecision(ctx, m.tenant_id, "message", m.id, "edit", { steer: text, new_message_id: r.messageId })',
+  const recorded = r.search(
+    /recordDecision\(ctx, m\.tenant_id, "message", m\.id, "edit", \{\s*steer: text,\s*new_message_id: r\.messageId,?\s*\}\)/,
   );
   assert.ok(steered > 0 && recorded > steered);
   assert.ok(r.includes('"The rewrite would have quoted a price, so the original draft stays."'));

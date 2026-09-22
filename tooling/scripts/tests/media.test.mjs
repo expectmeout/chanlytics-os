@@ -169,12 +169,14 @@ test("vision: only small real images, and the words beside the picture restate t
 test("the handler looks only when the workspace, the mode and the moment allow, and never fetches twice", () => {
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(
-    wa.includes(
-      'const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type)',
+    /const maySee =\s*n\.type === "media" &&\s*!!n\.media &&\s*!!rt\?\.features\?\.vision &&\s*isVisionMime\(n\.media\.mime_type\)/.test(
+      wa,
     ),
   );
   assert.ok(
-    wa.includes('&& !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil'),
+    /&&\s*!!brainCfg &&\s*\(replyMode === "auto" \|\| replyMode === "veto"\) &&\s*Date\.now\(\) > thread\.pausedUntil/.test(
+      wa,
+    ),
     "a held workspace or person gets the old path",
   );
   assert.ok(wa.includes("got.bytes.byteLength <= VISION_MAX_BYTES"));
@@ -202,7 +204,9 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
     "a photo that could not be fetched is handed over, not answered from its caption",
   );
   assert.ok(
-    wa.includes('const bodyText: string = maySee ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");'),
+    /const bodyText: string = maySee \? \(?n\.media\?\.caption\?\.trim\(\) \|\| "\[photo\]"\)? : \(?n\.body \?\? ""\)?;/.test(
+      wa,
+    ),
     "the record keeps the caption, not the instruction",
   );
   assert.ok(wa.includes("photo ? photoUserText(n.media?.caption) : bodyText,"));

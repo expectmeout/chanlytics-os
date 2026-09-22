@@ -522,10 +522,9 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   // The number's refusals are run: core-campaigns.test.mjs.
   assert.ok(readCode("apps/dashboard/app/api/v1/channels/route.ts").includes('quality: s("quality_rating"),'));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(
-    sd.includes(
-      "health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),",
-    ),
+  assert.match(
+    sd,
+    /health: numberHealth\(\{\s*quality: wa\?\.quality \?\? null,\s*event: wa\?\.quality_event \?\? null,\s*limit: wa\?\.messaging_limit \?\? null,?\s*\}\),/,
   );
   assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
@@ -604,21 +603,21 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes('name: "list_audiences"') &&
-      tools.includes('case "list_audiences": out = await listAudiences(t); break;'),
+      /case "list_audiences":\s*out = await listAudiences\(t\);\s*break;/.test(tools),
   );
   // Every size, named for what it counts -- who said each yes, and who can be sent a message on it -- and the note
   // the assistant reads before it proposes anything: ask-turn.test.mjs runs list_audiences for both.
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
   assert.ok(
     pr.includes('name: "propose_broadcast"') &&
-      pr.includes('case "propose_broadcast": return await proposeBroadcast(t, input);'),
+      /case "propose_broadcast":\s*return await proposeBroadcast\(t, input\);/.test(pr),
   );
   assert.ok(
     pr.includes("const purpose = purposeOfTemplate(tpl.category);"),
     "the proposal asks for the same yes the route will",
   );
   // A broadcast to nobody is refused, not proposed, with the cause it has: ask-turn.test.mjs runs it.
-  assert.ok(pr.includes('if (!tpl || tpl.meta_status !== "approved") return refuse('), "only an approved template");
+  assert.match(pr, /if \(!tpl \|\| tpl\.meta_status !== "approved"\)\s*return refuse\(/, "only an approved template");
   assert.ok(pr.includes('kind: "broadcast",') && pr.includes('needs: "operator",'));
   const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
   assert.ok(
@@ -632,7 +631,9 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
     "undo is the cancel route",
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
-  assert.ok(prompt.includes('"said yes":') && prompt.includes('"broadcast":') && prompt.includes('"held back":'));
+  assert.ok(
+    prompt.includes('"said yes":') && /\n\s+"?broadcast"?:\s*\n/.test(prompt) && prompt.includes('"held back":'),
+  );
   assert.ok(prompt.includes("never propose a broadcast to nobody"));
   assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes('broadcast: "wave"'));
   assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-text.jsx").includes('kBroadcast: "broadcast"'));

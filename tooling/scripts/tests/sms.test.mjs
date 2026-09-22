@@ -359,20 +359,22 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   );
   assert.ok(
     code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") &&
-      code.includes(
-        'const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: "system") => sink.deliver(from, wire(text), meta, purpose, kind);',
+      /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
+        code,
       ) &&
       !code.includes("sendText("),
     "one door out: the carrier is this message's sms wire, and the sink's door sends on it",
   );
   assert.ok(
-    code.includes("queueReply(db, tenantId, ing, from, wire(replyText), delayMs, L, plan.source, brainMeta, channel)"),
+    /queueReply\(\s*db,\s*tenantId,\s*ing,\s*from,\s*wire\(replyText\),\s*delayMs,\s*L,\s*plan\.source,\s*brainMeta,\s*channel,?\s*\)/.test(
+      code,
+    ),
     "a held draft is written for its wire",
   );
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(
     persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') &&
-      persist.includes('to, channel, sender: "ai", purpose, proactive: false,'),
+      /to,\s*channel,\s*sender: "ai",\s*purpose,\s*proactive: false,/.test(persist),
     "the sink's door sends on this message's channel, as the receptionist",
   );
   // Conversational unless the caller says otherwise, which only the confirmation
@@ -405,7 +407,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   const edge = readCode("apps/edge/lib/lines.ts");
   assert.ok(
     edge.includes("smsInboundUrl: smsInboundUrl(edgeFnUrl()),") &&
-      edge.includes('.eq("kind", kind).eq("external_id", externalId)'),
+      /\.eq\("kind", kind\)\s*\.eq\("external_id", externalId\)/.test(edge),
     "the sms row is keyed on the number the text was sent to",
   );
   // Who that row may belong to -- refused while another workspace is still

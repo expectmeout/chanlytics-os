@@ -106,8 +106,8 @@ test("the dashboard: the route proves the operator, the service reaches the edge
 test("the webhook writes the row Meta changed; Settings shows every template with its status and one verb", async () => {
   const w = readCode("apps/edge/lib/waba-events.ts");
   assert.ok(w.includes('"template_category_update"'), "a recategorised template changes who may receive it");
-  assert.ok(w.includes('.from("templates").update({ meta_status: mapStatus(event), rejected_reason: reason })'));
-  assert.ok(w.includes('.from("templates").update({ category: mapCategory('));
+  assert.match(w, /\.from\("templates"\)\s*\.update\(\{ meta_status: mapStatus\(event\), rejected_reason: reason \}\)/);
+  assert.match(w, /\.from\("templates"\)\s*\.update\(\{\s*category: mapCategory\(/);
   assert.ok(
     w.includes(
       'const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);',

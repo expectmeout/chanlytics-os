@@ -145,7 +145,7 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   const src = readCode("apps/dashboard/src/legacy-bridge/whatsapp-connect.ts");
   assert.ok(src.includes('const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";'));
   assert.ok(
-    src.includes('response_type: "code", override_default_response_type: true'),
+    /response_type: "code",\s*override_default_response_type: true/.test(src),
     "a code, never a user token, reaches this page",
   );
   assert.ok(src.includes('api()("POST channels/whatsapp/connect"'));

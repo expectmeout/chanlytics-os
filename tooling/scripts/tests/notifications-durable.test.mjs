@@ -68,7 +68,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
       route.includes('rate: "notify_mark",'),
   );
   assert.ok(
-    route.includes("read: !!m?.read_at, dismissed: !!m?.dismissed_at,"),
+    /read: !!m\?\.read_at,\s*dismissed: !!m\?\.dismissed_at,/.test(route),
     "this person's marks ride on each row",
   );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
@@ -77,8 +77,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     "repaints as the edge writes a row",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes(
-      "calendarOverride, notificationsOverride, setupOverride, googleOverride, billingOverride]",
+    /calendarOverride,\s*notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride,?\s*\]/.test(
+      readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"),
     ),
   );
   assert.ok(
@@ -87,8 +87,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
   const bell = readCode("apps/dashboard/src/legacy-bridge/notifications.ts");
   assert.ok(
-    bell.includes(
-      "dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), deviceState()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at)",
+    /dedupeFeed\(\[\s*\.\.\.applyReadState\(feedFromGlobals\(win, Date\.now\(\)\), deviceState\(\)\),\s*\.\.\.serverNotificationRows\(win\.__NOTIFICATIONS\?\.dto\),?\s*\]\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(
+      bell,
     ),
     "derived beside kept, once, newest first, the seen moment the server's",
   );
@@ -101,8 +101,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   const notify = readCode("apps/edge/lib/notify.ts");
   assert.ok(
     notify.includes("export async function recordNotification(") &&
-      notify.includes(
-        "await recordNotification(target.tenantId, { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about }, ports.db === undefined ? pg() : ports.db);",
+      /await recordNotification\(\s*target\.tenantId,\s*\{ kind: msg\.kind, title: msg\.subject, body: msg\.body, route: msg\.route, about: msg\.about \},\s*ports\.db === undefined \? pg\(\) : ports\.db,?\s*\);/.test(
+        notify,
       ),
     "the row first, addressed or not",
   );
@@ -119,7 +119,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   // sweep alerts too, and two copies of who-may-be-told is how a business's
   // delivery failure once reached a different business's owner.
   assert.ok(
-    readCode("apps/edge/lib/job-alert.ts").includes("{ kind: news.kind, route: news.route,"),
+    /\{\s*kind: news\.kind,\s*route: news\.route,/.test(readCode("apps/edge/lib/job-alert.ts")),
     "the job that raises the alert decides what it is; this file only decides who may be told",
   );
   // The look and the door of a broadcast that finished: good news, on the page it happened on.
@@ -141,8 +141,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
   assert.ok(
     readCode("apps/edge/lib/playbooks.ts").includes('kind: "playbook",') &&
-      readCode("apps/edge/lib/waba-events.ts").includes(
-        "await notify(target, { kind: described.kind, route: described.route,",
+      /await notify\(target, \{\s*kind: described\.kind,\s*route: described\.route,/.test(
+        readCode("apps/edge/lib/waba-events.ts"),
       ),
     "the change decides its kind and its door (describeWabaChange); the sender never re-derives them",
   );

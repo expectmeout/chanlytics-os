@@ -278,7 +278,10 @@ test("the wiring: the door files the four columns and keeps them across retries,
     mig.includes("drop function if exists public.ingest_call(") && mig.includes("from public, anon, authenticated;"),
     "a new parameter is a drop and a create, and the door stays the edge's alone",
   );
-  assert.ok(readCode("packages/db/src/repositories/calls.ts").includes("p_analysis: ((n.analysis ?? null) as Json),"));
+  assert.match(
+    readCode("packages/db/src/repositories/calls.ts"),
+    /p_analysis: \(?\(n\.analysis \?\? null\) as Json\)?,/,
+  );
   const dto = readCode("apps/dashboard/src/server/dto.ts");
   assert.ok(
     dto.includes("summary, wanted, outcome, follow_up, caller_name, transcript_object") &&

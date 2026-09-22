@@ -248,7 +248,7 @@ test("the wiring: the page branches on the channel and reads the reason's senten
       !pills.includes("Customer's turn"),
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('whatsapp: "WhatsApp", phone: "Phone"'),
+    /whatsapp: "WhatsApp",\s*phone: "Phone"/.test(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts")),
     "the phone chip has a label",
   );
 });

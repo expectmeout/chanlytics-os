@@ -112,11 +112,11 @@ test("the three surfaces agree on the filler's cases", () => {
 
 test("the wiring: every surface reads the one function, and Today's queue is named for what it holds", () => {
   for (const [file, s] of [
-    ["packages/contracts/src/viewmodels.ts", "standingOf({"],
-    ["packages/contracts/src/people.ts", "standingOf({"],
-    ["packages/contracts/src/today.ts", "standingOf({"],
+    ["packages/contracts/src/viewmodels.ts", /standingOf\(\s*\{/],
+    ["packages/contracts/src/people.ts", /standingOf\(\s*\{/],
+    ["packages/contracts/src/today.ts", /standingOf\(\s*\{/],
   ])
-    assert.ok(readCode(file).includes(s), `${file} reads standingOf`);
+    assert.ok(s.test(readCode(file)), `${file} reads standingOf`);
   const today = readCode("packages/contracts/src/today.ts");
   assert.ok(
     !today.includes("live.escalations_open"),

@@ -170,8 +170,8 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // deliver.test.mjs runs the door).
   assert.ok(
     inbound.includes("whatsapp: ports.sender(waCfgFor(rt, isEnvDefault)),") &&
-      inbound.includes(
-        'const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: "system") => sink.deliver(from, wire(text), meta, purpose, kind);',
+      /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
+        inbound,
       ),
     "the customer is texted on the tenant's credentials, through the door, or not at all",
   );

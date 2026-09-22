@@ -88,7 +88,7 @@ test("EVERY path where a human takes control withdraws the draft", () => {
   // meant to replace.
   for (const [name, src, withdraw] of [
     ["reply", reply, /ports\.withdrawDrafts\(/],
-    ["the adapter", takeOver, /withdrawDrafts: \(tenantId, id\) => cancelPendingAiReply\(/],
+    ["the adapter", takeOver, /withdrawDrafts: \(tenantId, id\) =>\s*cancelPendingAiReply\(/],
   ]) {
     assert.match(src, withdraw, `${name} must withdraw a held draft`);
   }

@@ -130,7 +130,7 @@ test("the second door: an operator can record a signed marketing consent", () =>
     "the contact is the row: read under RLS in verbs.ts, a 404 when the caller cannot see it or it is erased",
   );
   assert.ok(
-    r.includes('purpose: "marketing", consent, source, note, previous: contact.marketing_consent ?? null,'),
+    /purpose: "marketing",\s*consent,\s*source,\s*note,\s*previous: contact\.marketing_consent \?\? null,/.test(r),
     "the ledger names the purpose",
   );
   assert.ok(

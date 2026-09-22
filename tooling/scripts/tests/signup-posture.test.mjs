@@ -119,12 +119,12 @@ test("the page renders the door it actually is", () => {
   // has said which door this is.
   assert.ok(page.includes('const [posture, setPosture] = useState<"open" | "waitlist" | "invite" | null>(null);'));
   assert.ok(page.includes("disabled={busy || posture === null}"), "disabled until the posture is known");
-  assert.ok(page.includes('waiting ? SIGNUP_WORDS.waitlistCta : "Create workspace"'));
+  assert.match(page, /waiting\s*\?\s*SIGNUP_WORDS\.waitlistCta\s*:\s*"Create workspace"/);
   assert.ok(page.includes("waiting ? SIGNUP_WORDS.waitlistTitle : SIGNUP_WORDS.title"));
 
   // A waitlist submission has nowhere to navigate: no code is coming and no
   // screen would accept one.
-  assert.ok(page.includes("if (j.data?.waitlisted) { setJoined(true); return; }"));
+  assert.match(page, /if \(j\.data\?\.waitlisted\) \{\s*setJoined\(true\);\s*return;\s*\}/);
   assert.ok(page.includes('data-testid="signup-joined"'));
 
   // The code field belongs to the invite posture alone — an open sign-up must

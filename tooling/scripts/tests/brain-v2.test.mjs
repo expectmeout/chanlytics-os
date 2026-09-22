@@ -247,8 +247,8 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
     "so does the sent row, through the door",
   );
   assert.ok(
-    steps.includes(
-      'replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;',
+    /replyMode === "auto" &&\s*minConfidence > 0 &&\s*typeof brainMeta\?\.confidence === "number" &&\s*brainMeta\.confidence < minConfidence;/.test(
+      steps,
     ),
   );
   assert.ok(
@@ -257,11 +257,11 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
   );
   assert.ok(
     steps.includes('source: heldForConfidence ? "low_confidence" : "veto_window"') &&
-      wa.includes("plan.source, brainMeta, channel)"),
+      /plan\.source,\s*brainMeta,\s*channel,?\s*\)/.test(wa),
     "the draft remembers why it waited",
   );
   assert.equal(
-    (wa.match(/brainMeta\?\.reason \? `\$\{brainMeta\.reason\} — "\$\{bodyText\}"` : bodyText/g) ?? []).length,
+    (wa.match(/brainMeta\?\.reason\s*\? `\$\{brainMeta\.reason\} — "\$\{bodyText\}"`\s*: bodyText/g) ?? []).length,
     2,
     "both escalation paths carry the reason",
   );

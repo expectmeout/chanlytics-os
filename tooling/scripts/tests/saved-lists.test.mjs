@@ -65,8 +65,8 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
     "adding someone twice is not an error",
   );
   assert.ok(
-    one.includes(
-      'if (error.code === "42501") throw new AppError("validation", "One of those people is not in this workspace any more.");',
+    /if \(error\.code === "42501"\)\s*throw new AppError\("validation", "One of those people is not in this workspace any more\."\);/.test(
+      one,
     ),
     "RLS's refusal gets words",
   );

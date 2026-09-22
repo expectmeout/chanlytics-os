@@ -660,8 +660,9 @@ test("the two waits are told apart, and the carriers answering rings once", () =
     edge.includes("const verdict = registrationVerdict(line.sms_state, smsState, {"),
     "the state BEFORE the write is what decides whether this is news",
   );
-  assert.ok(
-    edge.includes("recordNotification(line.tenant_id, { kind: verdict.kind"),
+  assert.match(
+    edge,
+    /recordNotification\(line\.tenant_id,\s*\{\s*kind:\s*verdict\.kind/,
     "the bell is the workspace's own row, addressed or not",
   );
 });

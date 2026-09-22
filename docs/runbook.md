@@ -70,18 +70,32 @@ corepack pnpm format:check    # what CI runs
 git commit --no-verify        # skips the hook; CI will still check
 ```
 
-**Rebasing a branch across the formatting commit.** A branch older than the
+**Bringing a branch across the formatting commit.** A branch older than the
 commit that formatted the tree conflicts on every file it touched. Do not
-resolve by hand: take the branch's side, format, continue.
+resolve by hand: take the branch's side, format, continue. Which side is
+"the branch's" depends on the operation, because git names them from the
+point of view of what is being applied:
 
 ```bash
+# Rebasing: the branch's commits are replayed onto main, so the branch is "theirs".
 git rebase origin/main
-# on each conflicting file:
-git checkout --theirs -- <file>   # during a rebase, "theirs" is the branch being replayed
+git checkout --theirs -- <file>
 corepack pnpm exec prettier --write <file>
 git add <file>
 git rebase --continue
+
+# Merging main into the branch: the branch is the checkout, so it is "ours".
+git merge origin/main
+git checkout --ours -- <file>
+corepack pnpm exec prettier --write <file>
+git add <file>
+git commit
 ```
+
+Before opening the pull request, `corepack pnpm exec prettier --write` every
+non-ignored file the branch touched, so `format:check` is green on the first
+run. The ported shell and the committed dists are outside the check
+(`.prettierignore`) and need nothing.
 
 ## Test it
 

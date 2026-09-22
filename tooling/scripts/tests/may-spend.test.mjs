@@ -122,7 +122,7 @@ test("both money routes carry the second door", () => {
     guard.includes('throw new AppError("payment_required"'),
     "402, not 403: the fix is a card, not a different account",
   );
-  assert.ok(guard.includes('if (!data) throw new AppError("payment_required"'), "no billing row is not permission");
+  assert.ok(/if \(!data\)\s*throw new AppError\("payment_required"/.test(guard), "no billing row is not permission");
 });
 
 test("payment_required is its own code, mapped to 402", () => {

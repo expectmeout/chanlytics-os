@@ -82,7 +82,7 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.ok(seam.includes('refreshOnTables: ["calls"]'), "Live listens to calls alone");
   const rt = readCode("packages/db/src/realtime.ts");
   assert.ok(
-    rt.includes(", w.table, payload.eventType)"),
+    /,\s*w\.table,\s*payload\.eventType,?\s*\)/.test(rt),
     "the subscription hands the table and the event to the callback",
   );
 });

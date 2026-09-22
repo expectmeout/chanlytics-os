@@ -204,8 +204,8 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
 test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
   const bridge = readCode("apps/dashboard/src/legacy-bridge/today.ts");
   assert.ok(
-    bridge.includes(
-      "export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped };",
+    /export const TODAY_HELPERS = \{\s*day: todayDay,\s*periodLine: todayPeriodLine,\s*runs: todayRunWords,\s*runsSub: todayRunsSub,\s*runApproved: todayRunApproved,\s*leaks: todayLeaks,\s*awayGrouped: todayAwayGrouped,?\s*\};/.test(
+      bridge,
     ),
     "the helpers, in order",
   );

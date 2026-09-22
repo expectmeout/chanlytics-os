@@ -757,12 +757,12 @@ test("the service-role client cannot be obtained without passing the check", () 
   assert.match(src, /export async function backOffice\(ctx: RouteContext\): Promise<BackOffice>/);
   assert.match(src, /if \(!\(await admitted\(ctx\)\)\) throw new AppError\("not_found", "No such page\.", 404\);/);
   // Every cross-tenant read takes the handle rather than reaching for a client.
-  for (const fn of [
-    "platformOverview(office: BackOffice)",
-    "platformTenant(office: BackOffice",
-    "platformEvents(office: BackOffice",
+  for (const [fn, tail] of [
+    ["platformOverview", "\\)"],
+    ["platformTenant", ","],
+    ["platformEvents", ","],
   ]) {
-    assert.ok(src.includes(`export async function ${fn}`), fn);
+    assert.match(src, new RegExp(`export async function ${fn}\\(\\s*office: BackOffice\\s*${tail}`), fn);
   }
   // A database that cannot answer is not a "no". Telling a real admin "No such
   // page" during a Postgres hiccup is the moment they opened this for.
@@ -943,7 +943,7 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   assert.ok(audit !== -1 && act !== -1 && audit < act, "recorded first, then done");
   assert.match(
     fn,
-    /if \(auditErr\) throw new AppError\("internal", .*503\);/,
+    /if \(auditErr\)\s+throw new AppError\("internal", [^;]*503\);/,
     "and refused when it cannot be recorded",
   );
   assert.match(

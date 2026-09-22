@@ -414,8 +414,9 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   );
   const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
   assert.ok(
-    one.includes('ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: input.hidden === true })') &&
-      one.includes('role: "operator",'),
+    /ctx\.supabase\.rpc\("set_template_hidden", \{\s*p_template_id: id,\s*p_hidden: input\.hidden === true,?\s*\}\)/.test(
+      one,
+    ) && one.includes('role: "operator",'),
   );
   // The sync hiding Meta's sample on first sight only, and the create door
   // keeping the words a person gave each slot, are run in templates-doors.test.mjs.

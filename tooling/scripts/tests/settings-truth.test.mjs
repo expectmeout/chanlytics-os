@@ -39,7 +39,7 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
 test("F32: a config the parser refuses is its own state, and no form can save over it", () => {
   const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
   assert.ok(route.includes("parseTenantConfigResult(row.config)"));
-  assert.ok(route.includes("configBroken: true as const, issues: parsed.issues"));
+  assert.match(route, /configBroken: true as const,\s*issues: parsed\.issues/);
   assert.ok(
     !route.includes("parseTenantConfig(row.config) ?? {}"),
     "REGRESSION: a broken config collapsed to {} and read as 'no receptionist yet'",
@@ -102,7 +102,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
     "the acknowledgement states it only when it actually acknowledged",
   );
   assert.equal(
-    (inbound.match(/, pauseHours\)\)/g) ?? []).length,
+    (inbound.match(/,\s*pauseHours,?\s*\),?\s*\)/g) ?? []).length,
     3,
     "and the escalating reply does, held, sent, or kept unsent because its hold could not be written",
   );

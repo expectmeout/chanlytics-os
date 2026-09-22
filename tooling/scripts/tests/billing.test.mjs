@@ -410,7 +410,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     lib.indexOf("const raw = (env.BILLING_TRIAL_DAYS") < lib.indexOf("const n = Number(raw)"),
     "trimmed first, parsed second",
   );
-  assert.ok(lib.includes('s.subscriptions.resume(row.stripe_subscription_id, { billing_cycle_anchor: "now"'));
+  assert.match(lib, /s\.subscriptions\.resume\(row\.stripe_subscription_id, \{\s*billing_cycle_anchor: "now"/);
   assert.ok(lib.includes('if (error.code === "23505") return false;'), "a second delivery hits the primary key");
   assert.ok(
     lib.includes("planBilling(") && lib.includes('kind: "billing"'),
@@ -454,8 +454,8 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   }
   const server = readCode("apps/dashboard/src/server/billing.ts");
   assert.ok(
-    server.includes(
-      'export const BILLING_COLUMNS = "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";',
+    /export const BILLING_COLUMNS =\s*"mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";/.test(
+      server,
     ),
     "never a customer or subscription id",
   );
@@ -467,7 +467,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(
     setup.includes("billingFor(supabase, tenantId),") &&
       setup.includes("billingReadiness(),") &&
-      setup.includes("trial_days: billingReady.trial_days, cancel_at: billingRow.cancel_at"),
+      /trial_days: billingReady\.trial_days,\s*cancel_at: billingRow\.cancel_at/.test(setup),
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/billing.ts");
   assert.ok(
@@ -476,7 +476,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
       bridge.includes("win.location.assign(r.data.url)"),
   );
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
-  assert.ok(app.includes("googleOverride, billingOverride]") && app.includes("installBilling();"));
+  assert.ok(/googleOverride,\s*billingOverride,?\s*\]/.test(app) && app.includes("installBilling();"));
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/billing-real.jsx";'),
   );

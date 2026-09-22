@@ -230,7 +230,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
       lib.includes("reviewReplyModeOf(await listPolicies(db, tenantId))"),
   );
   assert.ok(
-    lib.includes("const answered = first ? [] : await answerNewReviews("),
+    /const answered = first\s*\?\s*\[\]\s*:\s*await answerNewReviews\(/.test(lib),
     "the first sync is history, never answered",
   );
   assert.ok(lib.includes('if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];'));
@@ -265,7 +265,10 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {} }'));
 
   const store = readCode("apps/dashboard/src/legacy-bridge/policy-store.ts");
-  assert.ok(store.includes('{ id: "reviews", cls: "reviews", ...W("reviews"), modes: ["Auto", "Ask", "Never"]'));
+  assert.match(
+    store,
+    /\{\s*id: "reviews",\s*cls: "reviews",\s*\.\.\.W\("reviews"\),\s*modes: \["Auto", "Ask", "Never"\]/,
+  );
   const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
   assert.ok(
     reports.includes('if (r.replied || mode === "never" || !window.__google || !window.__google.draft) return;'),

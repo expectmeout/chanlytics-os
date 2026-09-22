@@ -174,7 +174,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   assert.ok(svc.includes("Answer with one JSON object and nothing else"));
   assert.ok(svc.includes("The footer must say how to opt out"), "a marketing draft carries the opt-out line");
   assert.ok(
-    svc.includes("const check = validateTemplateDraft({ name: d.data.name"),
+    /const check = validateTemplateDraft\(\{\s*name: d\.data\.name/.test(svc),
     "the draft passes the same check a submission does",
   );
   assert.ok(svc.includes("do not use a booking_link slot"), "no slot the workspace cannot fill");
@@ -215,8 +215,8 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   );
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/templates.ts").includes("window.__templates = templates;"));
   assert.ok(
-    readCode("apps/edge/lib/waba-events.ts").includes(
-      "It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window.`, alert: true }",
+    /It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window\.`,\s*alert: true,?\s*\}/.test(
+      readCode("apps/edge/lib/waba-events.ts"),
     ),
     "an approval is news the owner waits for",
   );

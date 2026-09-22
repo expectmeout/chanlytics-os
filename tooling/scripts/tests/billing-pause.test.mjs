@@ -81,7 +81,7 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
   );
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(
-    inbound.includes("if (rt?.paused) {") && inbound.includes('sink.escalate("paused",'),
+    inbound.includes("if (rt?.paused) {") && /sink\.escalate\(\s*"paused",/.test(inbound),
     "kept, held for a person, not answered",
   );
   const inboundRaw = readRaw("apps/edge/lib/whatsapp/inbound.ts");

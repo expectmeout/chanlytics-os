@@ -81,8 +81,8 @@ test("removal records what the row said, because the row is gone", () => {
 });
 
 test("the routes hand the caller through", () => {
-  assert.ok(teamIdRoute.includes("setMemberRole(ctx,"));
-  assert.ok(teamIdRoute.includes("removeMember(ctx,"));
+  assert.match(teamIdRoute, /setMemberRole\(\s*ctx,/);
+  assert.match(teamIdRoute, /removeMember\(\s*ctx,/);
 });
 
 /* --------------------------- the stranded invite -------------------------- */
@@ -117,7 +117,7 @@ test("the index matches how the reader actually filters", () => {
   // plain column is correct — and that invariant is what makes it correct.
   assert.ok(service.includes('.eq("email", email.toLowerCase())'));
   const invite = readCode("apps/dashboard/app/api/v1/team/invite/route.ts");
-  assert.ok(invite.includes(".trim().toLowerCase()"), "stored lowercased at the door");
+  assert.ok(/\.trim\(\)\s*\.toLowerCase\(\)/.test(invite), "stored lowercased at the door");
 });
 
 /* ---- the card writes to the SERVER, not to the seeded roster ---- */

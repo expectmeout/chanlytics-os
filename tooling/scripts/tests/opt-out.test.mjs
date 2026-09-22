@@ -207,7 +207,7 @@ test("the patterns are anchored and case-insensitive", () => {
     const at = edgeSrc.indexOf('age === "stale"');
     assert.ok(at > -1);
     const branch = edgeSrc.slice(at, at + 700);
-    assert.ok(branch.includes('sink.escalate("stale"'), "escalate rather than return quietly");
+    assert.ok(/sink\.escalate\(\s*"stale"/.test(branch), "escalate rather than return quietly");
     assert.ok(branch.includes("tell("), "and tell somebody");
     assert.ok(!/wa_skip_stale/.test(edgeSrc), "the silent drop must be gone, not merely bypassed");
   });

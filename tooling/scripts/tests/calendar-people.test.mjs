@@ -553,11 +553,11 @@ test("the wiring: the board and the profile read one match; both receptionists a
   );
   const edge = readCode("apps/edge/lib/availability.ts");
   assert.ok(
-    edge.includes(
-      "export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }",
+    /export async function visitsFor\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
+      edge,
     ) &&
-      edge.includes(
-        'return describeVisits(visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own), rt.timezone, now.getTime());',
+      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),?\s*\);/.test(
+        edge,
       ),
   );
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
@@ -685,7 +685,7 @@ test("one refused number costs one person, never everyone behind them", () => {
     "a refusal must not end the batch before the rule has been consulted",
   );
   assert.ok(
-    svc.includes('console.error("calendar_people_refused"') &&
+    /console\.error\(\s*"calendar_people_refused"/.test(svc) &&
       svc.includes("refused, of: rows.length, added: added.length"),
     "and it says once how many people the refusals cost, not once per row",
   );
@@ -719,15 +719,15 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   assert.ok(
     lib.includes(".insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name })") &&
       lib.includes('if (iErr.code !== "23505") throw') &&
-      lib.includes('kind: "contact.added", category: "contact"'),
+      /kind: "contact\.added",\s*category: "contact"/.test(lib),
     "get-or-create with the service role, an event for each person created",
   );
   assert.ok(lib.includes('.is("display_name", null)'), "a name fills only an empty one");
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(
-    svc.includes("if (opts.canAct) people.push(...await addPeopleSeen(") &&
-      svc.includes(
-        'ctx.supabase.rpc("create_person", { p_tenant_id: tenantId, p_phone_e164: r.phone, p_display_name: r.name ?? "", p_source: "calendar", p_title: r.title })',
+    /if \(opts\.canAct\)\s*people\.push\(\s*\.\.\.\(await addPeopleSeen\(/.test(svc) &&
+      /ctx\.supabase\.rpc\("create_person", \{\s*p_tenant_id: tenantId,\s*p_phone_e164: r\.phone,\s*p_display_name: r\.name \?\? "",\s*p_source: "calendar",\s*p_title: r\.title,?\s*\}\)/.test(
+        svc,
       ),
     "an owner's read adds through the door, before the board is matched",
   );
@@ -766,8 +766,8 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   );
   const edgeAv = readCode("apps/edge/lib/availability.ts");
   assert.ok(
-    edgeAv.includes(
-      "export async function feedItemsFor(tenantId: string, url: string, tz: string, now = new Date(), daysAhead = 14)",
+    /export async function feedItemsFor\(\s*tenantId: string,\s*url: string,\s*tz: string,\s*now = new Date\(\),\s*daysAhead = 14,?\s*\)/.test(
+      edgeAv,
     ),
     "the sweep reads the feed through the same cache",
   );
@@ -1005,8 +1005,8 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts");
   assert.ok(route.includes('rate: "person_edit",') && route.includes('role: "operator",'));
   assert.ok(
-    route.includes('rpc("set_person_name", { p_contact_id: id, p_name: name ?? "" })') &&
-      route.includes('rpc("set_person_notes", { p_contact_id: id, p_notes: notes ?? "" })'),
+    /rpc\("set_person_name", \{\s*p_contact_id: id,\s*p_name: name \?\? "",?\s*\}\)/.test(route) &&
+      /rpc\("set_person_notes", \{\s*p_contact_id: id,\s*p_notes: notes \?\? "",?\s*\}\)/.test(route),
   );
   assert.ok(route.includes('"Send a name, notes or an email address."'), "the schema refuses in the same words");
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
@@ -1424,8 +1424,8 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
       route.includes('booking_link: typeof bookingLink === "string"'),
   );
   assert.ok(
-    readCode("apps/dashboard/src/server/calendar.ts").includes(
-      "const all = allVisitsIn(index, person).map((x) => toVisitDto(x) as VisitDto).slice(-60);",
+    /const all = allVisitsIn\(index, person\)\s*\.map\(\(x\) => toVisitDto\(x\) as VisitDto\)\s*\.slice\(-60\);/.test(
+      readCode("apps/dashboard/src/server/calendar.ts"),
     ),
   );
 });

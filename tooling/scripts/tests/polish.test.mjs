@@ -69,7 +69,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   assert.ok((inbound.match(/\btell\(/g) ?? []).length >= 12, "and reaches the owner through the one closure");
   // A call said by name, about its call or the thread that needs a call back, runs: retell-webhook-door.test.mjs.
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/notifications.ts").includes("dedupeFeed([...applyReadState("),
+    /dedupeFeed\(\[\s*\.\.\.applyReadState\(/.test(readCode("apps/dashboard/src/legacy-bridge/notifications.ts")),
     "the bridge shows the feed once",
   );
   const server = readCode("apps/dashboard/src/server/broadcasts.ts");
