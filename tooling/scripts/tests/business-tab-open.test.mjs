@@ -1027,7 +1027,14 @@ test("the calendar row says where it reads and when, and keeps the address, the 
     assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
     // A read that failed says in the fold what it tried and when, which the row at rest leaves to the reason.
     W.__CALENDAR = calendarRead(
-      readOk({ state: "unavailable", read_at: null, events: 0, reason: "http", status: 404, problem: "The calendar answered 404." }),
+      readOk({
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        reason: "http",
+        status: 404,
+        problem: "The calendar answered 404.",
+      }),
     );
     const bad = redrawTab();
     assert.match(textOf(byTestId(bad, "rec-calendar-whole")), /tried 4m ago/);
@@ -1218,7 +1225,14 @@ test("a viewer reads when the business is open and is offered no act on any of i
     assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
     // A read that failed is the same: what it tried, and when, where an owner would open the fold for it.
     W.__CALENDAR = calendarRead(
-      readOk({ state: "unavailable", read_at: null, events: 0, reason: "http", status: 404, problem: "The calendar answered 404." }),
+      readOk({
+        state: "unavailable",
+        read_at: null,
+        events: 0,
+        reason: "http",
+        status: 404,
+        problem: "The calendar answered 404.",
+      }),
     );
     const failed = byTestId(drawTab({ profile: { ...melany, closures: [XMAS] } }), "rec-row-calendar");
     assert.match(textOf(failed), /tried 4m ago/, "a viewer reads what the last try was, too");
