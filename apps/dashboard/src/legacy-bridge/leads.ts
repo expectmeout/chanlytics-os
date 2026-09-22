@@ -17,7 +17,6 @@ import {
   type LeadChips, type LeadClass, type LeadCounts, type LeadMonthDto, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
-import { readCache } from "./read-cache";
 import { workspaceZone } from "./zone";
 import { getActiveWorkspace } from "./workspace";
 import { type SurfaceOverride } from "./surface-data";
@@ -101,12 +100,23 @@ interface LeadsLoaded {
 let leadsLoaded: LeadsLoaded | null = null;
 let view: LeadsView = DEFAULT_VIEW;
 /**
- * The views this tab has read, by their key: a rail pick used to be a round trip each way, with the old view's rows
- * under the new title until it landed. A view held here paints at once, its Show more pages with it, and is read
- * again behind. It is the read cache (read-cache.ts): in memory, scoped to the workspace, cleared with the session,
- * and a warm shares a read already in flight.
+ * The views this tab has read, by their key (the workspace and the whole view), the last eight: a rail pick used to
+ * be a round trip each way, with the old view's rows under the new title until it landed. A view held here paints
+ * at once, its Show more pages with it, and is read again behind, patched. Not the read cache (read-cache.ts): that
+ * is emptied by every write, and a held view is safe across one, because it is read again the moment it is shown.
+ * In memory only: signing out and a workspace change are both a new document.
  */
-const held = readCache<LeadsLoaded>("leads-views");
+const held = new Map<string, LeadsLoaded>();
+const HELD_MAX = 8;
+function hold(l: LeadsLoaded): void {
+  held.delete(l.key);
+  held.set(l.key, l);
+  while (held.size > HELD_MAX) held.delete(held.keys().next().value as string);
+}
+/** The views this tab holds go: what the runner asks on a workspace change, and a test on a new wire. */
+export function forgetLeadsViews(): void {
+  held.clear();
+}
 /** Bumped by every read that replaces the rows; a read that finishes under a newer number is dropped. */
 let reads = 0;
 
@@ -163,8 +173,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
  */
 async function readView(v: LeadsView): Promise<void> {
   const mine = ++reads;
-  const key = viewKey(v);
-  const have = held.peek(key);
+  const have = held.get(viewKey(v));
   if (have) {
     leadsLoaded = have;
     publishLeads();
@@ -172,7 +181,8 @@ async function readView(v: LeadsView): Promise<void> {
     await refreshView();
     return;
   }
-  const loaded = await held.through(key, () => readPageOne(v));
+  const loaded = await readPageOne(v);
+  hold(loaded);
   if (mine !== reads) return; // superseded: a newer view asked after this one
   leadsLoaded = loaded;
   publishLeads();
@@ -183,11 +193,14 @@ export async function warmLeadsView(to: string): Promise<void> {
   const parsed = parseLeadsRoute(to);
   if (!parsed) return;
   const v: LeadsView = { ...DEFAULT_VIEW, searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips as Partial<LeadChips>, sort: view.sort, dir: view.dir };
-  // What the cache's own warm does, but one a caller can wait for. A warm that fails costs nothing; the pick reads
-  // for itself. Two warms in flight are one request: the client shares an identical read for two seconds.
-  const key = viewKey(v);
-  if (held.peek(key)) return;
-  await held.through(key, () => readPageOne(v)).catch(() => undefined);
+  // A warm that fails costs nothing; the pick reads for itself. Two warms in flight, or a warm and the pick that
+  // follows it, are one request: the client shares an identical read for two seconds.
+  if (held.has(viewKey(v))) return;
+  try {
+    hold(await readPageOne(v));
+  } catch {
+    /* the pick reads for itself */
+  }
 }
 
 /** The same view again, after a write or a Realtime change: patch, keep the pages, offer the rest. */

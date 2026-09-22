@@ -41,8 +41,7 @@ globalThis.window = {
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
-const { installLeadsCourier, leadsOverride } = await import("../../../apps/dashboard/src/legacy-bridge/leads.ts");
-const { clearReadCaches } = await import("../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { installLeadsCourier, leadsOverride, forgetLeadsViews } = await import("../../../apps/dashboard/src/legacy-bridge/leads.ts");
 installLeadsCourier();
 
 /* -------------------------------- fixtures ------------------------------- */
@@ -130,7 +129,7 @@ const json = (status, body) => new Response(JSON.stringify(body), { status, head
 function wire(opts = {}) {
   // A new wire is a new world: what the tab held of the last one goes, as it does when the workspace is dropped.
   // `keep: true` is the same world answering differently (slower, or with a change): what is held stays.
-  if (!opts.keep) clearReadCaches();
+  if (!opts.keep) forgetLeadsViews();
   const state = {
     searches: opts.searches ?? [],
     counts: opts.counts ?? ZERO,
@@ -427,6 +426,18 @@ test("a view the surface has already read paints at once on the way back, with i
   again.release(() => true);
   await toNurture;
   assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-nurture", NURTURE.length]);
+});
+
+test("a view held stays held across a write: a Keep on one view does not make the way back to another a read again", async () => {
+  const w = wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : [REVIEW, ...PAGE1]) });
+  await globalThis.window.__leadsView("clients/leads:l-ready");
+  await globalThis.window.__leadsView("clients/leads");
+  assert.equal((await globalThis.window.__leadKeep(SEARCH_DONE.id, REVIEW.id)).ok, true);
+  const held = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : PAGE1), hold: true });
+  const back = globalThis.window.__leadsView("clients/leads:l-ready");
+  assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length], "painted from what is held, the write notwithstanding: it is read again behind");
+  held.release(() => true);
+  await back;
 });
 
 test("a view is warmed on intent: the read goes out, nothing on the page moves, and the pick that follows paints at once", async () => {
