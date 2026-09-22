@@ -1182,8 +1182,8 @@ test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rul
   const bar = byTestId(page(), "cal-rules");
   assert.deepEqual(
     all(bar, (n) => n.props?.className === "cal-rules-label").map(textOf),
-    ["Hours", "Closed", "Booking", "Calendar"],
-    "REGRESSION: 'Rules'",
+    ["Hours", "Closed", "Booking", "Calendar it reads"],
+    "REGRESSION: 'Rules'; and the calendar is 'Calendar it reads', here as on Business (spec §10)",
   );
   assert.ok(textOf(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textOf(bar)}`);
   const edit = find(bar, (n) => n.type === "button" && textOf(n).startsWith("Edit in"));
