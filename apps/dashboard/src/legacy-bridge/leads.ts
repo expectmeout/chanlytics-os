@@ -48,6 +48,7 @@ interface LeadsPageAnswer { rows: LeadRowDto[]; next: { key: string; id: string 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
 const PAGE = 500;
+const SNAPSHOT_ROWS = 100;
 
 /* ------------------------------------------------------ how a call is sent */
 
@@ -230,6 +231,13 @@ async function refreshView(): Promise<void> {
 export const leadsOverride: SurfaceOverride = {
   key: "leads",
   globals: ["__LEADS"],
+  // The tab's cache holds the first hundred rows of the view: all an instant paint needs, and a fifth of what a
+  // full page costs to keep and to parse on every boot. The read behind the paint says the rest, so the snapshot
+  // offers nothing and has no page after it.
+  trimSnapshot: (snap) => {
+    const L = snap.__LEADS as LeadsSurface | undefined;
+    return L ? { ...snap, __LEADS: { ...L, rows: L.rows.slice(0, SNAPSHOT_ROWS), next: null, offered: 0 } } : snap;
+  },
   events: ["surface:leads"],
   // A run commits a page every few seconds and a check lands per batch: the strip and the rows follow the database.
   refreshOnTables: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],

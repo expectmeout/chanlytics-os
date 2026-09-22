@@ -58,7 +58,7 @@ globalThis.window.React = globalThis.React;
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
 // A legacy file's Object.assign(window, …) writes to globalThis.window, a plain object here, while the page reads
 // the nine names as bare globals.
-for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plShownColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 
 const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
 const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
@@ -86,7 +86,7 @@ const COLS = [
   { key: "actions", label: "", sortable: false, fixed: true, cell: td("actions", () => "") },
 ];
 const ROWS = [{ id: "a1", name: "Ada Example", state: "new" }, { id: "b2", name: "Bo Example", state: "quiet" }];
-const table = (over = {}) => { seq = 0; cells = []; return T.PeopleTable({ columns: T.plDrawnColumns(COLS, {}, { withCalendar: false }), ctx: {}, rows: ROWS, total: 2, sortBy: "name", sortDir: "asc", onSort() {}, onOpen() {}, filtered: false, onClearFilters() {}, ...over }); };
+const table = ({ phone = false, ...over } = {}) => { seq = 0; cells = []; return T.PeopleTable({ columns: T.plShownColumns(T.plDrawnColumns(COLS, {}, { withCalendar: false }), phone), ctx: {}, rows: ROWS, total: 2, sortBy: "name", sortDir: "asc", onSort() {}, onOpen() {}, filtered: false, onClearFilters() {}, ...over }); };
 
 test("the helpers take the column list: sort keys, drawn columns, choices and options come from it", () => {
   assert.deepEqual(T.plSortKeys(COLS), ["name", "state", "visits"]);
@@ -106,10 +106,19 @@ test("the table says its noun: the foot, the select-all label and the row ids fo
   assert.deepEqual(all(one, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id), ["person-a1"]);
 });
 
-test("a heading that sorts is a button with aria-sort on its th; an off column carries pl-col-off on its heading and every cell", () => {
+test("a heading that sorts is a button with aria-sort on its th; a column turned off is not built at all on a desktop, and on a phone it is drawn with pl-col-off for the cards", () => {
   const t = table({ sortBy: "state", sortDir: "desc" });
   const ths = all(t, (n) => n.type === "th");
   assert.equal(ths.find((n) => textOf(n).startsWith("State")).props["aria-sort"], "descending");
   assert.equal(all(t, (n) => n.props?.className === "cl-th-sort").length, 2, "Person and State sort; Visits is not drawn without a calendar");
-  assert.equal(all(t, (n) => /pl-col-off/.test(n.props?.className || "")).length, 1 + ROWS.length, "the Email heading and its two cells");
+  // A desktop hides an off column with CSS, so every cell of it was built, cloned and inserted for nothing: seven of
+  // twelve Leads columns, on every row, on every draw.
+  assert.equal(all(t, (n) => /pl-col-off/.test(n.props?.className || "")).length, 0, "REGRESSION: the Email heading and its two cells were built and hidden");
+  assert.deepEqual(ths.map(textOf).map((x) => x.replace(/[▲▼]/g, "").trim()), ["Person", "State", "Receptionist", ""], "the columns shown, and only those");
+  assert.equal(all(t, (n) => n.type === "td").length, 4 * ROWS.length, "four cells a row");
+  // A phone draws every column: its cards keep the facts they draw by default (#789), and pl-col-off is how the
+  // card rules tell one the member turned off.
+  const ph = table({ sortBy: "state", sortDir: "desc", phone: true });
+  assert.equal(all(ph, (n) => /pl-col-off/.test(n.props?.className || "")).length, 1 + ROWS.length, "on a phone: the Email heading and its two cells, marked");
+  assert.equal(all(ph, (n) => n.type === "td").length, 5 * ROWS.length);
 });

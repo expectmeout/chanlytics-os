@@ -12853,6 +12853,12 @@ var milesLabel = (m) => {
 };
 var ratingLabel = (rating, reviews) => rating === null || rating === void 0 ? "" : `${rating.toFixed(1)} \xB7 ${reviews ?? 0}`;
 var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_WORDS[closedReason] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage];
+var LEAD_TILE_PX = 96;
+function leadTileSrc(url, px = LEAD_TILE_PX) {
+  if (!url) return null;
+  if (!/^https:\/\/lh3\.googleusercontent\.com\//.test(url)) return url;
+  return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
+}
 function toLeadRowVM(r, tz, now, search = null) {
   const nowMs = now.getTime();
   const foundMs = Date.parse(r.found_at);
@@ -12920,7 +12926,7 @@ function toLeadRowVM(r, tz, now, search = null) {
     slots: leadSlots(r),
     rated,
     spread: spread2,
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null, logo: r.logo_url ?? null },
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: leadTileSrc(r.image_url), logo: r.logo_url ?? null },
     waitsOn,
     state,
     stateTag,
@@ -13552,6 +13558,7 @@ export {
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
   LEAD_TALKING_NOTE,
+  LEAD_TILE_PX,
   LEAD_UNCLAIMED_NOTE,
   LEAD_UNDO_MS,
   LEAD_UNREACHABLE_KEY,
@@ -13983,6 +13990,7 @@ export {
   leadSearchWords,
   leadSlots,
   leadSuppressionHash,
+  leadTileSrc,
   leadTintOf,
   leadTodayLine,
   leadUndoable,

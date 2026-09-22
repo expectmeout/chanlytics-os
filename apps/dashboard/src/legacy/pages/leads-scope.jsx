@@ -92,7 +92,7 @@ const LeadTile = ({ l, size = 48, onExpand }) => {
   const cls = `ld-tile tint-${l.tile.tint}`;
   const layers = (
     <>
-      {l.tile.image ? <img className="ph" src={l.tile.image} alt="" loading="lazy" onError={hide} /> : null}
+      {l.tile.image ? <img className="ph" src={l.tile.image} alt="" loading="lazy" decoding="async" onError={hide} /> : null}
       {l.tile.logo ? <img className="lg" src={l.tile.logo} alt="" loading="lazy" onError={hide} /> : null}
     </>
   );
@@ -189,6 +189,9 @@ const LeadRatedCard = ({ l }) => {
 // wear, and one quiet line about where -- or, for a row that waits, what would resolve it; for a left-out row,
 // what left it out. The two tags are the app's one StatePill, on the registry's tones (tone.ts): they were a
 // hand-styled pair of their own, and a Contacted tag drew grey while its dot, its pin and the registry said info.
+// The row's classes on its tr (leads.css): a lead's row, its state, and its class. One function, so a memoised
+// row sees the same one each draw. The stylesheet reads them rather than asking every tr :has(td.ld-biz-cell).
+const ldRowClass = (l) => `ld-row ld-row-${l.state} ld-cls-${l.cls}`;
 const ldBusinessCell = (l, x) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
@@ -706,9 +709,10 @@ const LeadsScope = (p) => {
   const chips = ldExcludedChips(L.rows);
   const search = p.search;
   // The same band People's cards use (clients.css) and the same one the page's listener judges the Columns menu
-  // by. Read on every draw, not stored: a window resized past it must draw the other shape on the next state
-  // change, and nothing here is a hook.
-  const phone = !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+  // by. The page hands it down (plPhone, clients-a.jsx): it listens to the query, so a window resized past the band
+  // draws the other shape at once, where this read it on every draw and drew the other shape only on the next state
+  // change. Nothing here is a hook.
+  const phone = !!p.phone;
   const railRows = (
     <LeadsRailRows
           rail={rail}
@@ -919,7 +923,7 @@ const LeadsScope = (p) => {
                 columns={p.columns}
                 ctx={p.cellCtx}
                 rows={p.rows}
-                rowClass={(l) => `ld-row-${l.state}`}
+                rowClass={ldRowClass}
                 total={p.total}
                 sortBy={p.sortBy}
                 sortDir={p.sortDir}

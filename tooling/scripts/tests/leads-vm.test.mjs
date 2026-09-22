@@ -17,7 +17,7 @@ import {
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
   LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars, leadMapPlot, leadMapNote,
-  leadPlanAsk, leadPlanFacts, leadPlanLikely, leadTodayLine, leadHoursShort,
+  leadPlanAsk, leadPlanFacts, leadPlanLikely, leadTodayLine, leadHoursShort, leadTileSrc,
 } from "../../../packages/contracts/src/leads.ts";
 import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LeadSearchPlanSchema } from "../../../packages/contracts/src/lead-search.ts";
 
@@ -100,6 +100,19 @@ test("the lead that is open is part of the address, after the view it is open ov
   assert.equal(parseLeadsRoute(`leads:p-${LEAD}`).peek, LEAD, "the shell's own param, without the page's name");
   assert.equal(parseLeadsRoute("clients/leads:p-not-an-id").peek, null, "anything that is not an id is no lead at all");
   assert.equal(leadsRoute({ searchId: SEARCH, peek: null }), `clients/leads:s-${SEARCH}`, "no lead open says nothing");
+});
+
+test("a row's tile asks the listing's photo at the size it is drawn: 96px for a 48px box on a 2x screen, where 408x268 came down for every row", () => {
+  const G = "https://lh3.googleusercontent.com/grass-cs/ACvplmPNqyybAbCdEfGh1234567890=w408-h268-k-no";
+  assert.equal(leadTileSrc(G), "https://lh3.googleusercontent.com/grass-cs/ACvplmPNqyybAbCdEfGh1234567890=s96-c", "a square crop, which the tile draws with object-fit anyway (proved to answer 96x96 in a browser)");
+  assert.equal(leadTileSrc("https://lh3.googleusercontent.com/p/AF1QipM=w1200-h800"), "https://lh3.googleusercontent.com/p/AF1QipM=s96-c");
+  assert.equal(leadTileSrc("https://example.com/photo.jpg"), "https://example.com/photo.jpg", "anything that is not Google's photo service is left as it is");
+  assert.equal(leadTileSrc("https://lh3.googleusercontent.com/grass-cs/ACvplm"), "https://lh3.googleusercontent.com/grass-cs/ACvplm", "and so is one with no size suffix to replace");
+  assert.equal(leadTileSrc(null), null);
+  const vm = toLeadRowVM(row({ image_url: G }), TZ, NOW, null);
+  assert.equal(vm.tile.image, leadTileSrc(G), "the row's tile takes the small one");
+  const peek = toLeadPeekVM(row({ image_url: G }), null, TZ, NOW);
+  assert.equal(peek.tile.image, G, "the peek's band and the photo expanded keep the whole photograph");
 });
 
 test("a stage change in the page's words becomes the door's arguments; the door, not the page, decides what converts", () => {
