@@ -58,13 +58,18 @@ export async function POST(request: Request): Promise<Response> {
   if (!db) return json(503, { ok: false, error: "no_database" });
 
   let body: Body = {};
-  try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* validated below */
+  }
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const what = typeof body.what === "string" ? body.what : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !WHAT[what]) return json(400, { ok: false, error: "tenant_id and a known `what` are required" });
+  if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !WHAT[what])
+    return json(400, { ok: false, error: "tenant_id and a known `what` are required" });
 
   const tenant = await db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();
   if (tenant.error) return json(503, { ok: false, error: tenant.error.message });

@@ -34,7 +34,14 @@
  */
 import type { ZodType } from "zod";
 import { AppError, type SpendWords } from "@chanlytics/contracts";
-import { memberContext, requireRole, requireSpend, withRoute, type MemberContext, type RouteContext } from "./with-route";
+import {
+  memberContext,
+  requireRole,
+  requireSpend,
+  withRoute,
+  type MemberContext,
+  type RouteContext,
+} from "./with-route";
 import { takeRate, type RateBucket } from "./rate-limit";
 import { backOffice, type BackOffice } from "./platform";
 
@@ -72,11 +79,13 @@ export function row<R extends { tenant_id: string }>(load: (ctx: RouteContext, p
 }
 
 type RowOf<S> = S extends { readonly load: (ctx: RouteContext, params: Params) => Promise<infer R> } ? R : never;
-export type Given<S extends Scope> =
-  S extends { kind: "workspace" } ? { member: Member }
-  : S extends { kind: "row" } ? { member: Member; row: RowOf<S> }
-  : S extends { kind: "platform" } ? { office: BackOffice }
-  : Record<never, never>;
+export type Given<S extends Scope> = S extends { kind: "workspace" }
+  ? { member: Member }
+  : S extends { kind: "row" }
+    ? { member: Member; row: RowOf<S> }
+    : S extends { kind: "platform" }
+      ? { office: BackOffice }
+      : Record<never, never>;
 export type Call<S extends Scope, I> = { ctx: RouteCtx; req: Request; input: I } & Given<S>;
 
 export interface Policy {
@@ -177,7 +186,12 @@ function parse<T>(schema: ZodType<T>, raw: unknown): T {
     const field = i.path.filter((p) => typeof p === "string").join(".");
     if (field && !Object.prototype.hasOwnProperty.call(fields, field)) fields[field] = i.message;
   }
-  throw new AppError("validation", `${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`, 400, Object.keys(fields).length ? { fields } : undefined);
+  throw new AppError(
+    "validation",
+    `${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
+    400,
+    Object.keys(fields).length ? { fields } : undefined,
+  );
 }
 
 interface Spec<S extends Scope, I, O> {
@@ -217,14 +231,19 @@ function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>)
     if (spec.rate) await takeRate(ctx.userId, spec.rate, undefined, spec.spend === true);
     const input =
       kind === "write"
-        ? spec.input ? parse(spec.input, await bodyOf(req)) : undefined
+        ? spec.input
+          ? parse(spec.input, await bodyOf(req))
+          : undefined
         : spec.query
           ? parse(spec.query, Object.fromEntries([...new URL(req.url).searchParams].filter(([k]) => k !== "workspace")))
           : undefined;
     return spec.handle({ ctx, req, input, ...given } as unknown as Call<S, I>);
   };
 
-  const handler = Object.assign(withRoute((req, ctx) => run(req, ctx)), { policy, run });
+  const handler = Object.assign(
+    withRoute((req, ctx) => run(req, ctx)),
+    { policy, run },
+  );
   return handler as typeof handler & Shape<I, O>;
 }
 

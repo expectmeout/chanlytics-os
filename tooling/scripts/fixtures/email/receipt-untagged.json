@@ -6,9 +6,7 @@
     "from": "A Business <sender@example.com>",
     "message_id": "<010001a0b05060f2-00000000-0000-0000-0000-000000000000-000000@email.amazonses.com>",
     "subject": "A transactional email the platform sent",
-    "to": [
-      "someone@example.com"
-    ]
+    "to": ["someone@example.com"]
   },
   "type": "email.sent"
 }

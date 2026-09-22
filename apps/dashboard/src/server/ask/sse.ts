@@ -10,12 +10,30 @@ export interface GatewayBlockStart {
   index: number;
   block: { type: "text" } | { type: "tool_use"; id: string; name: string };
 }
-export interface GatewayTextDelta { type: "text"; index: number; text: string }
-export interface GatewayInputDelta { type: "input_json"; index: number; partial: string }
-export interface GatewayBlockStop { type: "block_stop"; index: number }
-export interface GatewayStop { type: "stop"; stopReason: string | null }
-export interface GatewayError { type: "error"; message: string }
-export type GatewayEvent = GatewayBlockStart | GatewayTextDelta | GatewayInputDelta | GatewayBlockStop | GatewayStop | GatewayError;
+export interface GatewayTextDelta {
+  type: "text";
+  index: number;
+  text: string;
+}
+export interface GatewayInputDelta {
+  type: "input_json";
+  index: number;
+  partial: string;
+}
+export interface GatewayBlockStop {
+  type: "block_stop";
+  index: number;
+}
+export interface GatewayStop {
+  type: "stop";
+  stopReason: string | null;
+}
+export interface GatewayError {
+  type: "error";
+  message: string;
+}
+export type GatewayEvent =
+  GatewayBlockStart | GatewayTextDelta | GatewayInputDelta | GatewayBlockStop | GatewayStop | GatewayError;
 
 /** Whether a 400 from the API names the strict-tool or format feature, so the loop can retry without it. */
 export function featureRejected(message: string): boolean {
@@ -38,18 +56,28 @@ export function parseFrame(frame: string): GatewayEvent | null {
   }
   if (!data) return null;
   let ev: RawEvent;
-  try { ev = JSON.parse(data); } catch { return null; }
+  try {
+    ev = JSON.parse(data);
+  } catch {
+    return null;
+  }
   switch (ev.type) {
     case "content_block_start": {
       const b = ev.content_block;
       if (!b || typeof ev.index !== "number") return null;
-      if (b.type === "tool_use") return { type: "block_start", index: ev.index, block: { type: "tool_use", id: b.id ?? "", name: b.name ?? "" } };
+      if (b.type === "tool_use")
+        return {
+          type: "block_start",
+          index: ev.index,
+          block: { type: "tool_use", id: b.id ?? "", name: b.name ?? "" },
+        };
       return { type: "block_start", index: ev.index, block: { type: "text" } };
     }
     case "content_block_delta": {
       if (typeof ev.index !== "number" || !ev.delta) return null;
       if (ev.delta.type === "text_delta") return { type: "text", index: ev.index, text: ev.delta.text ?? "" };
-      if (ev.delta.type === "input_json_delta") return { type: "input_json", index: ev.index, partial: ev.delta.partial_json ?? "" };
+      if (ev.delta.type === "input_json_delta")
+        return { type: "input_json", index: ev.index, partial: ev.delta.partial_json ?? "" };
       return null;
     }
     case "content_block_stop":

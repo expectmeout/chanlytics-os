@@ -32,8 +32,18 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const { supabase, userId } = ctx;
     const tenantId = member.tenantId;
-    const asked = input.ids ? [...new Set(input.ids.split(",").map((s) => s.trim()).filter(Boolean))] : null;
-    if (asked && asked.length > IDS_MAX) throw new AppError("validation", `Ask for at most ${IDS_MAX} conversations at once.`);
+    const asked = input.ids
+      ? [
+          ...new Set(
+            input.ids
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+          ),
+        ]
+      : null;
+    if (asked && asked.length > IDS_MAX)
+      throw new AppError("validation", `Ask for at most ${IDS_MAX} conversations at once.`);
     for (const id of asked ?? []) requireUuid(id, "conversation");
     const base = supabase.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId);
     const { data: convs, error } = await (asked

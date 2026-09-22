@@ -57,7 +57,11 @@ export function agoShort(atMs: number, nowMs: number): string {
  * "just now" · "5m ago" · "3h ago" · "2d ago", and a date once the gap is
  * older than `dateAfterMs` (a week unless the caller says otherwise).
  */
-export function agoWords(atMs: number, nowMs: number, opts: { dateAfterMs?: number; date?: (ms: number) => string } = {}): string {
+export function agoWords(
+  atMs: number,
+  nowMs: number,
+  opts: { dateAfterMs?: number; date?: (ms: number) => string } = {},
+): string {
   const gap = Math.max(0, nowMs - atMs);
   const dateAfter = opts.dateAfterMs ?? WEEK_MS;
   if (gap >= dateAfter && opts.date) return opts.date(atMs);

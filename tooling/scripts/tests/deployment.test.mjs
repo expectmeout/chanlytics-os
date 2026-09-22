@@ -16,7 +16,10 @@ test("production is live; a preview or a laptop is not, unless it says so", () =
   assert.deepEqual(deploymentFrom({ VERCEL_ENV: "production" }), { env: "production", providersLive: true });
   assert.deepEqual(deploymentFrom({ VERCEL_ENV: "preview" }), { env: "preview", providersLive: false });
   assert.deepEqual(deploymentFrom({ VERCEL_ENV: "development" }), { env: "development", providersLive: false });
-  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "preview", EDGE_PROVIDERS: "live" }), { env: "preview", providersLive: true });
+  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "preview", EDGE_PROVIDERS: "live" }), {
+    env: "preview",
+    providersLive: true,
+  });
   assert.deepEqual(deploymentFrom({ EDGE_PROVIDERS: "live" }), { env: "development", providersLive: true });
 });
 
@@ -24,5 +27,9 @@ test("an unset or unknown VERCEL_ENV is a laptop, never production", () => {
   assert.deepEqual(deploymentFrom({}), { env: "development", providersLive: false });
   assert.deepEqual(deploymentFrom({ VERCEL_ENV: "" }), { env: "development", providersLive: false });
   assert.deepEqual(deploymentFrom({ VERCEL_ENV: "Production" }), { env: "development", providersLive: false });
-  assert.equal(deploymentFrom({ EDGE_PROVIDERS: "yes" }).providersLive, false, "only the word live opens the providers");
+  assert.equal(
+    deploymentFrom({ EDGE_PROVIDERS: "yes" }).providersLive,
+    false,
+    "only the word live opens the providers",
+  );
 });

@@ -56,7 +56,10 @@ test("number_drift() is silent about the states that are fine and loud about the
   assert.ok(fn.includes("where l.tenant_id = c.tenant_id and l.e164 = c.number_e164"));
   // A diagnostic that dies on the data it is diagnosing is worse than none.
   assert.match(fn, /~\* '\^\[0-9a-f\]\{8\}-/, "the line_id is shaped like an id before it is cast to one");
-  assert.ok(fn.includes("revoke execute on function public.number_drift() from public, anon, authenticated;") || SQL.includes("revoke execute on function public.number_drift() from public, anon, authenticated;"));
+  assert.ok(
+    fn.includes("revoke execute on function public.number_drift() from public, anon, authenticated;") ||
+      SQL.includes("revoke execute on function public.number_drift() from public, anon, authenticated;"),
+  );
 });
 
 // /api/diag reading number_drift(), with an empty list as agreement, is run in diag-door.test.mjs.

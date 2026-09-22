@@ -14,11 +14,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const skip = !URL_ || !KEY
-  ? "no database in env"
-  : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
-    ? "refusing a database that is not on this machine: this suite counts hits"
-    : false;
+const skip =
+  !URL_ || !KEY
+    ? "no database in env"
+    : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+      ? "refusing a database that is not on this machine: this suite counts hits"
+      : false;
 
 let db;
 const actors = [];

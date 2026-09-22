@@ -184,11 +184,22 @@ export function toConversationDto(c: ConversationRow, messages: MessageDto[], us
 export function stripWordTimings(raw: unknown): CallDto["transcript_object"] {
   if (!Array.isArray(raw)) return null;
   return raw.map((t) => {
-    const turn = (t ?? {}) as { role?: string; content?: string; words?: Array<{ start?: number; end?: number }>; start?: number; end?: number };
+    const turn = (t ?? {}) as {
+      role?: string;
+      content?: string;
+      words?: Array<{ start?: number; end?: number }>;
+      start?: number;
+      end?: number;
+    };
     const words = turn.words ?? [];
     const start = typeof turn.start === "number" ? turn.start : words[0]?.start;
     const end = typeof turn.end === "number" ? turn.end : words[words.length - 1]?.end;
-    return { role: turn.role, content: turn.content, ...(typeof start === "number" ? { start } : {}), ...(typeof end === "number" ? { end } : {}) };
+    return {
+      role: turn.role,
+      content: turn.content,
+      ...(typeof start === "number" ? { start } : {}),
+      ...(typeof end === "number" ? { end } : {}),
+    };
   });
 }
 

@@ -27,7 +27,15 @@ import "server-only";
 import { createServiceClient } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AppError, platformHealthOf, QUEUE_SHOWN, type PlatformHealth, type PlatformQueue, type PlatformTenantDto, type SweepHealthRow } from "@chanlytics/contracts";
+import {
+  AppError,
+  platformHealthOf,
+  QUEUE_SHOWN,
+  type PlatformHealth,
+  type PlatformQueue,
+  type PlatformTenantDto,
+  type SweepHealthRow,
+} from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 
 let svc: SupabaseClient<Database> | null = null;
@@ -121,8 +129,14 @@ export async function platformOverview(office: BackOffice): Promise<PlatformTena
  */
 export async function platformHealth(office: BackOffice, now = new Date()): Promise<PlatformHealth> {
   const [health, backlog] = await Promise.all([
-    office.db.rpc("sweep_health").then((r) => r, () => ({ data: null, error: { message: "unreadable" } })),
-    office.db.rpc("jobs_backlog").then((r) => r, () => ({ data: null, error: { message: "unreadable" } })),
+    office.db.rpc("sweep_health").then(
+      (r) => r,
+      () => ({ data: null, error: { message: "unreadable" } }),
+    ),
+    office.db.rpc("jobs_backlog").then(
+      (r) => r,
+      () => ({ data: null, error: { message: "unreadable" } }),
+    ),
   ]);
   const rows = (!health.error && Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
   const due = !backlog.error && typeof backlog.data === "number" ? backlog.data : null;
@@ -164,19 +178,27 @@ export async function platformWaitlist(office: BackOffice, limit = QUEUE_SHOWN):
  * not both claim it, and the row count says which of them this was. `invited_by`
  * is the attribution the table was given a column for.
  */
-export async function platformWaitlistInvited(office: BackOffice, ctx: RouteContext, id: string): Promise<"marked" | "already"> {
+export async function platformWaitlistInvited(
+  office: BackOffice,
+  ctx: RouteContext,
+  id: string,
+): Promise<"marked" | "already"> {
   const { data, error } = await office.db
     .from("waitlist")
     .update({ invited_at: new Date().toISOString(), invited_by: ctx.userId })
     .eq("id", id)
     .is("invited_at", null)
     .select("id");
-  if (error) throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+  if (error)
+    throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
   return data && data.length > 0 ? "marked" : "already";
 }
 
 /** One workspace's identity, for the detail view's heading. */
-export async function platformTenant(office: BackOffice, tenantId: string): Promise<{ id: string; slug: string; name: string; status: string; timezone: string; created_at: string } | null> {
+export async function platformTenant(
+  office: BackOffice,
+  tenantId: string,
+): Promise<{ id: string; slug: string; name: string; status: string; timezone: string; created_at: string } | null> {
   const { data, error } = await office.db
     .from("tenants")
     .select("id, slug, name, status, timezone, created_at")
@@ -286,7 +308,8 @@ export async function platformLineAct(
     subject_id: lineId,
     data: { action, by: ctx.userId, by_email: ctx.email ?? null },
   });
-  if (auditErr) throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+  if (auditErr)
+    throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
 
   const a = await edgeLines(EDGE_OP[action](tenantId, lineId), 60_000);
   return { ok: a.status === 200, status: a.status, body: a.body };

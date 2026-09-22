@@ -31,7 +31,9 @@ test.describe("Ask on a real workspace", () => {
     await signIn(page);
   });
 
-  test("⌘K opens the palette on the workspace; the button and New Chat are live; nothing invented", async ({ page }) => {
+  test("⌘K opens the palette on the workspace; the button and New Chat are live; nothing invented", async ({
+    page,
+  }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("tb-ask")).toBeEnabled();
@@ -76,7 +78,10 @@ test.describe("Ask on a real workspace", () => {
     });
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"]).toContain("x-ndjson");
-    const lines = (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const lines = (await res.text())
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
     expect(lines[0].t).toBe("thread");
     const final = lines.find((l) => l.t === "final");
     expect(final, "a final message").toBeTruthy();
@@ -108,7 +113,10 @@ test.describe("Ask on a real workspace", () => {
       timeout: 90_000,
     });
     expect(res.status()).toBe(200);
-    const lines = (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const lines = (await res.text())
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
     const final = lines.find((l) => l.t === "final");
     expect(final).toBeTruthy();
     if (!final.message.failed) {
@@ -118,10 +126,13 @@ test.describe("Ask on a real workspace", () => {
       expect(invite.payload.email).toBe("ask-e2e-card@example.com");
       expect(final.message.text).not.toMatch(/\bI (have )?(sent|invited)\b/i);
       // Dismissing is recorded on the turn; approving would send a real email.
-      const out = await page.request.post(scoped(`/api/v1/ask/messages/${final.message.id}/proposals/${invite.id}`, ws), {
-        data: { state: "dismissed", receipt: "Not now", atMs: Date.now() },
-        ...fromTheApp,
-      });
+      const out = await page.request.post(
+        scoped(`/api/v1/ask/messages/${final.message.id}/proposals/${invite.id}`, ws),
+        {
+          data: { state: "dismissed", receipt: "Not now", atMs: Date.now() },
+          ...fromTheApp,
+        },
+      );
       expect(out.status()).toBe(200);
       const back = await apiGet(page, `/api/v1/ask/threads/${lines[0].id}`);
       const { data } = await back.json();
@@ -160,9 +171,17 @@ test.describe("Ask on a real workspace", () => {
     const question = `who wrote today? check ${nonce}`;
     const ws = await activeWorkspace(page);
     const ask = async () => {
-      const res = await page.request.post(scoped("/api/v1/ask", ws), { data: { text: question, thread_id: null, scope: null, surface: "today" }, ...fromTheApp, timeout: 90_000 });
+      const res = await page.request.post(scoped("/api/v1/ask", ws), {
+        data: { text: question, thread_id: null, scope: null, surface: "today" },
+        ...fromTheApp,
+        timeout: 90_000,
+      });
       expect(res.status()).toBe(200);
-      return (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l)).find((l) => l.t === "thread").id as string;
+      return (await res.text())
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l))
+        .find((l) => l.t === "thread").id as string;
     };
     const first = await ask();
     await page.goto("/#/today");

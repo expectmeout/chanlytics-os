@@ -7,7 +7,13 @@
  */
 import type { Json } from "@chanlytics/db";
 import { numberHealth, parseTenantConfig, toPersonRowVM } from "@chanlytics/contracts";
-import type { ApproveRunPorts, AssemblePorts, CancelBroadcastPorts, CreateBroadcastPorts, TemplateValuesPorts } from "@chanlytics/core";
+import type {
+  ApproveRunPorts,
+  AssemblePorts,
+  CancelBroadcastPorts,
+  CreateBroadcastPorts,
+  TemplateValuesPorts,
+} from "@chanlytics/core";
 import type { RouteContext } from "./with-route";
 import { changed } from "./core-ports";
 import { recordDecision } from "./verbs";
@@ -33,7 +39,11 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
       return data;
     },
     bookingLink: async () => {
-      const { data } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+      const { data } = await ctx.supabase
+        .from("tenant_config")
+        .select("config")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
       return parseTenantConfig(data?.config ?? null)?.brain?.booking_link ?? null;
     },
   };
@@ -45,7 +55,12 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
     create: async (row) => {
       const { data, error } = await ctx.supabase
         .from("broadcasts")
-        .insert({ tenant_id: tenantId, ...row, params: row.params as unknown as Json, audience: { kind: row.audience.kind, id: row.audience.id, label: row.audience.label } })
+        .insert({
+          tenant_id: tenantId,
+          ...row,
+          params: row.params as unknown as Json,
+          audience: { kind: row.audience.kind, id: row.audience.id, label: row.audience.label },
+        })
         .select("id")
         .single();
       if (error || !data) throw new Error(error?.message ?? "broadcast not created");
@@ -53,7 +68,12 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
     },
     enrol: async (id, rows) => {
       for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
-        const chunk = rows.slice(i, i + INSERT_CHUNK).map((r) => ({ broadcast_id: id, contact_id: r.contact_id, tenant_id: tenantId, ...(r.facts ? { facts: r.facts as unknown as Json } : {}) }));
+        const chunk = rows.slice(i, i + INSERT_CHUNK).map((r) => ({
+          broadcast_id: id,
+          contact_id: r.contact_id,
+          tenant_id: tenantId,
+          ...(r.facts ? { facts: r.facts as unknown as Json } : {}),
+        }));
         const { error } = await ctx.supabase.from("broadcast_recipients").insert(chunk);
         if (error) throw new Error(error.message);
       }
@@ -84,10 +104,18 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
       return (await withVisits(ctx, tenantId, rows, now)).people.map((r) => toPersonRowVM(r, tz, now));
     },
     savedList: async (id) => {
-      const { data: seg, error: sErr } = await ctx.supabase.from("segments").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+      const { data: seg, error: sErr } = await ctx.supabase
+        .from("segments")
+        .select("id, name")
+        .eq("id", id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
       if (sErr) throw new Error(sErr.message);
       if (!seg) return null;
-      const { data: members, error: mErr } = await ctx.supabase.from("segment_members").select("contact_id").eq("segment_id", seg.id);
+      const { data: members, error: mErr } = await ctx.supabase
+        .from("segment_members")
+        .select("contact_id")
+        .eq("segment_id", seg.id);
       if (mErr) throw new Error(mErr.message);
       return { name: seg.name, memberIds: (members ?? []).map((m) => m.contact_id) };
     },
@@ -102,7 +130,10 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
         .maybeSingle();
       if (chErr) throw new Error(chErr.message);
       if (!ch) return null;
-      const cfg = (ch.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<string, unknown>;
+      const cfg = (ch.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<
+        string,
+        unknown
+      >;
       const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
       return numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
     },
@@ -113,7 +144,15 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
 export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRunPorts {
   return {
     timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
-    release: (id, at) => changed(ctx.supabase.from("broadcasts").update({ state: "scheduled", scheduled_for: at.toISOString() }).eq("id", id).eq("state", "pending_approval").select("id")),
+    release: (id, at) =>
+      changed(
+        ctx.supabase
+          .from("broadcasts")
+          .update({ state: "scheduled", scheduled_for: at.toISOString() })
+          .eq("id", id)
+          .eq("state", "pending_approval")
+          .select("id"),
+      ),
     hold: async (id) => {
       await ctx.supabase.from("broadcasts").update({ state: "pending_approval" }).eq("id", id);
     },
@@ -127,7 +166,10 @@ export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRun
 export function cancelBroadcastPorts(ctx: RouteContext, tenantId: string): CancelBroadcastPorts {
   return {
     withdraw: (id) => cancelKindFor(tenantId, "broadcast_send", "broadcast_id", id),
-    cancel: (id, from) => changed(ctx.supabase.from("broadcasts").update({ state: "canceled" }).eq("id", id).eq("state", from).select("id")),
+    cancel: (id, from) =>
+      changed(
+        ctx.supabase.from("broadcasts").update({ state: "canceled" }).eq("id", id).eq("state", from).select("id"),
+      ),
     record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };
 }

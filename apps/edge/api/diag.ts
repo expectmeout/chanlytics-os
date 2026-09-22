@@ -75,7 +75,10 @@ export async function GET(request: Request): Promise<Response> {
     if (!db) {
       out.pages = { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" };
     } else {
-      const { data, error } = await db.from("operator_pages").select("key, first_at, last_at, count, alerted_at").order("last_at", { ascending: false });
+      const { data, error } = await db
+        .from("operator_pages")
+        .select("key, first_at, last_at, count, alerted_at")
+        .order("last_at", { ascending: false });
       if (error) {
         out.pages = { error: error.message.slice(0, 200) };
       } else {
@@ -177,12 +180,26 @@ export async function GET(request: Request): Promise<Response> {
       out.retellAuth = {
         key_fingerprint: createHash("sha256").update(env.RETELL_API_KEY).digest("hex").slice(0, 12),
         recent: db
-          ? ((await db.from("events").select("created_at, data").eq("kind", "webhook.auth").order("created_at", { ascending: false }).limit(5)).data ?? [])
+          ? ((
+              await db
+                .from("events")
+                .select("created_at, data")
+                .eq("kind", "webhook.auth")
+                .order("created_at", { ascending: false })
+                .limit(5)
+            ).data ?? [])
           : [],
         // What the last deliveries DID — per event: status carried and
         // normalised, turns brought, whether the ingest declined them.
         deliveries: db
-          ? ((await db.from("events").select("created_at, subject_id, data").eq("kind", "webhook.delivery").order("created_at", { ascending: false }).limit(20)).data ?? [])
+          ? ((
+              await db
+                .from("events")
+                .select("created_at, subject_id, data")
+                .eq("kind", "webhook.delivery")
+                .order("created_at", { ascending: false })
+                .limit(20)
+            ).data ?? [])
           : [],
       };
     } catch (e) {
@@ -196,7 +213,10 @@ export async function GET(request: Request): Promise<Response> {
   // the staging allowlist (a reply skipped is a customer unanswered) and the
   // environment token a channel without its own credentials rides.
   out.whatsapp = {
-    allowlist_numbers: (env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean).length,
+    allowlist_numbers: (env.WHATSAPP_TEST_ALLOWLIST || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean).length,
     env_fallback_token: !!env.WHATSAPP_ACCESS_TOKEN,
     signup_ready: !!(env.META_APP_SECRET && env.META_ES_CONFIG_ID),
   };

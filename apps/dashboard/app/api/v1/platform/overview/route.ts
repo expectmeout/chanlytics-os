@@ -32,7 +32,11 @@ import { platformHealth, platformOverview, platformWaitlist } from "@/server/pla
 export const GET = read({
   scope: platform,
   handle: async ({ office }) => {
-    const [tenants, health, queue] = await Promise.all([platformOverview(office), platformHealth(office), platformWaitlist(office)]);
+    const [tenants, health, queue] = await Promise.all([
+      platformOverview(office),
+      platformHealth(office),
+      platformWaitlist(office),
+    ]);
     return { tenants, health, queue };
   },
 });

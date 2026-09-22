@@ -18,8 +18,13 @@ export const GET = read({
     const since = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString();
     const sb = ctx.supabase;
     const [rows, seen] = await Promise.all([
-      sb.from("notifications").select("id, kind, title, body, route, subject_type, subject_id, created_at")
-        .eq("tenant_id", tenantId).gte("created_at", since).order("created_at", { ascending: false }).limit(LIMIT),
+      sb
+        .from("notifications")
+        .select("id, kind, title, body, route, subject_type, subject_id, created_at")
+        .eq("tenant_id", tenantId)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(LIMIT),
       sb.from("notification_reads").select("seen_at").eq("tenant_id", tenantId).eq("user_id", ctx.userId).maybeSingle(),
     ]);
     if (rows.error) throw new Error(rows.error.message);
@@ -30,16 +35,27 @@ export const GET = read({
     // build a map consulted at most LIMIT times. One more round trip bounds it.
     const ids = (rows.data ?? []).map((r) => r.id);
     const marks = ids.length
-      ? await sb.from("notification_marks").select("notification_id, read_at, dismissed_at").eq("user_id", ctx.userId).in("notification_id", ids)
+      ? await sb
+          .from("notification_marks")
+          .select("notification_id, read_at, dismissed_at")
+          .eq("user_id", ctx.userId)
+          .in("notification_id", ids)
       : { data: [], error: null };
     if (marks.error) throw new Error(marks.error.message);
     const byId = new Map((marks.data ?? []).map((m) => [m.notification_id, m]));
     const notifications: NotificationDto[] = (rows.data ?? []).map((r) => {
       const m = byId.get(r.id);
       return {
-        id: r.id, kind: r.kind, title: r.title, body: r.body, route: r.route,
-        subject_type: r.subject_type, subject_id: r.subject_id, created_at: r.created_at,
-        read: !!m?.read_at, dismissed: !!m?.dismissed_at,
+        id: r.id,
+        kind: r.kind,
+        title: r.title,
+        body: r.body,
+        route: r.route,
+        subject_type: r.subject_type,
+        subject_id: r.subject_id,
+        created_at: r.created_at,
+        read: !!m?.read_at,
+        dismissed: !!m?.dismissed_at,
       };
     });
     const out: NotificationsDto = { notifications, seen_at: seen.data?.seen_at ?? null };
@@ -71,7 +87,8 @@ export const PUT = write({
       if (error) throw new AppError("validation", error.message);
       return { seen_at: ((data ?? {}) as { seen_at?: string }).seen_at ?? null };
     }
-    if (typeof body.id !== "string") throw new AppError("validation", "Send { seen: true } or { id, read?, dismissed? }.");
+    if (typeof body.id !== "string")
+      throw new AppError("validation", "Send { seen: true } or { id, read?, dismissed? }.");
     const id = requireUuid(body.id, "notification");
     const read = typeof body.read === "boolean" ? body.read : undefined;
     const dismissed = typeof body.dismissed === "boolean" ? body.dismissed : undefined;

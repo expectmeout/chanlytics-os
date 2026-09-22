@@ -17,7 +17,10 @@ export const GET = read({
       .eq("user_id", ctx.userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    const views = data?.views && typeof data.views === "object" && !Array.isArray(data.views) ? (data.views as Record<string, unknown>) : {};
+    const views =
+      data?.views && typeof data.views === "object" && !Array.isArray(data.views)
+        ? (data.views as Record<string, unknown>)
+        : {};
     return { views };
   },
 });

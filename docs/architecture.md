@@ -66,12 +66,12 @@ flowchart LR
   RT -->|row changes, one workspace| UI
 ```
 
-| Path | What it is | Deployed as |
-|---|---|---|
-| `apps/edge` | The webhooks, the sweeps, the job runner, the key-guarded admin doors, diagnostics. Vanilla Vercel Node functions, no framework. Holds every provider key and the service role. | Vercel project `chanlytics-messaging` |
-| `apps/dashboard` | Next.js: auth, the public pages, the operator UI, and the `/api/v1` app plane. Holds no provider key. | Vercel project `chanlytics-os`, `app.chanlytics.com` |
-| `packages/*` | `contracts`, `core`, `db`, `channels`, `jobs`. Bundled into both apps. | with each app |
-| `supabase/` | The schema, replayed from zero in CI. RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials. | Supabase project |
+| Path             | What it is                                                                                                                                                                      | Deployed as                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `apps/edge`      | The webhooks, the sweeps, the job runner, the key-guarded admin doors, diagnostics. Vanilla Vercel Node functions, no framework. Holds every provider key and the service role. | Vercel project `chanlytics-messaging`                |
+| `apps/dashboard` | Next.js: auth, the public pages, the operator UI, and the `/api/v1` app plane. Holds no provider key.                                                                           | Vercel project `chanlytics-os`, `app.chanlytics.com` |
+| `packages/*`     | `contracts`, `core`, `db`, `channels`, `jobs`. Bundled into both apps.                                                                                                          | with each app                                        |
+| `supabase/`      | The schema, replayed from zero in CI. RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials.                                            | Supabase project                                     |
 
 The two apps deploy independently from `main`. A change both must agree on
 ships in a shape that works whichever deploys first.
@@ -98,12 +98,12 @@ Each channel has a door on the edge that verifies the wire, and a plan
 function that decides what to do with what arrived, run over a database in
 memory by a test.
 
-| Channel | Door | Decides | Then |
-|---|---|---|---|
-| WhatsApp | `apps/edge/api/whatsapp.ts` | `apps/edge/lib/whatsapp/steps.ts` | `apps/edge/lib/whatsapp/inbound.ts`: persist, read the posture, ask the brain, deliver or hold |
-| SMS | `apps/edge/api/inbound-sms.ts` | `apps/edge/lib/sms-ingress.ts` | The same handler, with the carrier's consent words and the texting rules |
-| Voice | `apps/edge/api/retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`, `retell-webhook.ts` | `apps/edge/lib/call-start.ts` | The call runs at the provider from the same business facts; the webhook writes the call into the thread |
-| Email | `apps/edge/api/resend-webhook.ts` | `apps/edge/lib/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
+| Channel  | Door                                                                                             | Decides                           | Then                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WhatsApp | `apps/edge/api/whatsapp.ts`                                                                      | `apps/edge/lib/whatsapp/steps.ts` | `apps/edge/lib/whatsapp/inbound.ts`: persist, read the posture, ask the brain, deliver or hold                                                                         |
+| SMS      | `apps/edge/api/inbound-sms.ts`                                                                   | `apps/edge/lib/sms-ingress.ts`    | The same handler, with the carrier's consent words and the texting rules                                                                                               |
+| Voice    | `apps/edge/api/retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`, `retell-webhook.ts` | `apps/edge/lib/call-start.ts`     | The call runs at the provider from the same business facts; the webhook writes the call into the thread                                                                |
+| Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email-ingress.ts`  | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
 
 The receptionist itself: `apps/edge/lib/tenant-runtime.ts` reads the
 workspace's config through one door; `packages/contracts/src/config.ts`
@@ -147,13 +147,13 @@ Arrows point at what a package depends on, read upward: `jobs` depends on
 `core`, `db`, `channels` and `contracts`; `core` on `db`, `channels` and
 `contracts`; `db` and `channels` on `contracts` alone; `contracts` on nothing.
 
-| Package | Holds | Rule |
-|---|---|---|
-| `contracts` | Types, zod schemas, the closed sets generated from the database (`schema-sets.generated.ts`), the view models every page reads, the prompt composer, the words the UI says | Pure. No client, no framework, no environment. It is larger than its name: view models and prompt composition live here today |
-| `core` | The use cases as verbs over ports: `conversations` (reply, take over, hand back, snooze, wake, resolve, archive), `campaigns` (assemble a run, create a broadcast, run a playbook, approve, cancel), `messages` (send, broadcast batch, email intake, line provisioning), `leads` (the finder's runner, judge, cleaning, endings), and `deliver` | A verb takes a `ports` object and a command and returns an outcome. No database client, framework, provider or environment inside a verb. The adapters live at the doors |
-| `db` | Supabase repositories, the generated database types, realtime | The one place a table name is typed |
-| `channels` | Provider adapters: Meta (WhatsApp, templates, Embedded Signup), Retell (calls, agents, the prompt shell), Twilio (lines, SMS, A2P), Resend (email), Google (Places, Business Profile, OAuth), Apify (actors), the lead judge, the edge token | Owns each provider's wire format. Knows nothing about threads |
-| `jobs` | The ledger, the tick, the handlers, escalation on failure | Handlers build ports from the job's context and call core |
+| Package     | Holds                                                                                                                                                                                                                                                                                                                                            | Rule                                                                                                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `contracts` | Types, zod schemas, the closed sets generated from the database (`schema-sets.generated.ts`), the view models every page reads, the prompt composer, the words the UI says                                                                                                                                                                       | Pure. No client, no framework, no environment. It is larger than its name: view models and prompt composition live here today                                            |
+| `core`      | The use cases as verbs over ports: `conversations` (reply, take over, hand back, snooze, wake, resolve, archive), `campaigns` (assemble a run, create a broadcast, run a playbook, approve, cancel), `messages` (send, broadcast batch, email intake, line provisioning), `leads` (the finder's runner, judge, cleaning, endings), and `deliver` | A verb takes a `ports` object and a command and returns an outcome. No database client, framework, provider or environment inside a verb. The adapters live at the doors |
+| `db`        | Supabase repositories, the generated database types, realtime                                                                                                                                                                                                                                                                                    | The one place a table name is typed                                                                                                                                      |
+| `channels`  | Provider adapters: Meta (WhatsApp, templates, Embedded Signup), Retell (calls, agents, the prompt shell), Twilio (lines, SMS, A2P), Resend (email), Google (Places, Business Profile, OAuth), Apify (actors), the lead judge, the edge token                                                                                                     | Owns each provider's wire format. Knows nothing about threads                                                                                                            |
+| `jobs`      | The ledger, the tick, the handlers, escalation on failure                                                                                                                                                                                                                                                                                        | Handlers build ports from the job's context and call core                                                                                                                |
 
 ## The app plane
 
@@ -200,22 +200,22 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
 ## Where to look
 
-| To change | Look in |
-|---|---|
-| What the receptionist says | `packages/contracts/src/config.ts` (the composer), `apps/edge/lib/brain.ts`, the Business tab in Settings |
-| Whether it speaks at all | `apps/edge/lib/reply-posture.ts`, `policies` and `packages/contracts/src/policy.ts` |
-| Who may be messaged | `packages/contracts/src/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts` |
-| A new channel | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `deliver.ts` |
-| A new operator verb | A core verb in `packages/core/src/conversations`, a route under `/api/v1/conversations/[id]`, a row in `route-policy.json`, the shell's `inbox-verbs.ts` |
-| A new job kind | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change |
-| A new sweep | A cron door, a `sweep_status` registration, the pg_cron schedule |
-| Billing | `apps/edge/lib/billing.ts`, `apps/edge/api/stripe-webhook.ts` |
-| The lead finder | `packages/core/src/leads`, `apps/edge/lib/lead-*.ts`, `apps/dashboard/src/server/leads.ts`, migration `00140` |
-| Ask | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask.ts` |
-| The calendar | `apps/dashboard/src/server/calendar.ts`, `packages/contracts/src/availability.ts`, `apps/edge/api/cron/calendar.ts` |
-| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `apps/edge/lib/lines.ts`, `a2p.ts` |
-| Email | `packages/channels/src/email*.ts`, `apps/edge/lib/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts` |
-| Voice | `packages/channels/src/voice-*.ts`, the four `retell-*` doors |
+| To change                              | Look in                                                                                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| What the receptionist says             | `packages/contracts/src/config.ts` (the composer), `apps/edge/lib/brain.ts`, the Business tab in Settings                                                |
+| Whether it speaks at all               | `apps/edge/lib/reply-posture.ts`, `policies` and `packages/contracts/src/policy.ts`                                                                      |
+| Who may be messaged                    | `packages/contracts/src/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts`                                                                    |
+| A new channel                          | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `deliver.ts`                                        |
+| A new operator verb                    | A core verb in `packages/core/src/conversations`, a route under `/api/v1/conversations/[id]`, a row in `route-policy.json`, the shell's `inbox-verbs.ts` |
+| A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                             |
+| A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                         |
+| Billing                                | `apps/edge/lib/billing.ts`, `apps/edge/api/stripe-webhook.ts`                                                                                            |
+| The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/lead-*.ts`, `apps/dashboard/src/server/leads.ts`, migration `00140`                                            |
+| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask.ts`                                                                                       |
+| The calendar                           | `apps/dashboard/src/server/calendar.ts`, `packages/contracts/src/availability.ts`, `apps/edge/api/cron/calendar.ts`                                      |
+| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `apps/edge/lib/lines.ts`, `a2p.ts`                                                                         |
+| Email                                  | `packages/channels/src/email*.ts`, `apps/edge/lib/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                        |
+| Voice                                  | `packages/channels/src/voice-*.ts`, the four `retell-*` doors                                                                                            |
 
 ## Tests
 

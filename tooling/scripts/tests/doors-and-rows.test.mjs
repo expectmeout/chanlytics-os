@@ -18,7 +18,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode, readRaw } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { isRetryableAuthError } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/auth-errors.ts")).href);
+const { isRetryableAuthError } = await import(
+  pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/auth-errors.ts")).href
+);
 
 const route = (p) => readCode(p.startsWith("packages/") ? p : `apps/dashboard/app/api/v1/${p}/route.ts`);
 
@@ -28,16 +30,31 @@ test("every conversation verb counts the rows its UPDATE hit, in the one adapter
   // row-counted through the one helper.
   const ports = readCode("apps/dashboard/src/server/core-ports.ts");
   for (const port of ["claim", "release", "snooze", "wake", "archive", "resolve", "cancelQueued"]) {
-    assert.ok(ports.includes(`${port}: (`) && ports.includes(`${port}: (`) && new RegExp(port + ": \\([^)]*\\) => changed\\(").test(ports), `${port}: the UPDATE must be row-counted`);
+    assert.ok(
+      ports.includes(`${port}: (`) &&
+        ports.includes(`${port}: (`) &&
+        new RegExp(port + ": \\([^)]*\\) => changed\\(").test(ports),
+      `${port}: the UPDATE must be row-counted`,
+    );
   }
   assert.ok(ports.includes("return !!data && data.length > 0;"), "changed() is the one place zero rows is judged");
-  assert.ok(ports.includes('.eq("state", "snoozed").select("id")') && ports.includes('.eq("state", "open").select("id")') && ports.includes('.eq("status", "queued").select("id")'), "wake, resolve and cancel-send are guarded on the state they leave");
+  assert.ok(
+    ports.includes('.eq("state", "snoozed").select("id")') &&
+      ports.includes('.eq("state", "open").select("id")') &&
+      ports.includes('.eq("status", "queued").select("id")'),
+    "wake, resolve and cancel-send are guarded on the state they leave",
+  );
 });
 
 test("ids are validated by the one guard, never by a private regex", () => {
   const validated = [
-    "escalations/[id]/resolve", "messages/[id]/cancel-send", "team/[id]",
-    "conversations/[id]", "calls/[id]/recording", "contacts/[id]", "calls",
+    "escalations/[id]/resolve",
+    "messages/[id]/cancel-send",
+    "team/[id]",
+    "conversations/[id]",
+    "calls/[id]/recording",
+    "contacts/[id]",
+    "calls",
   ];
   // A route that declares a row scope never sees the id: its loader in verbs.ts
   // (the one chokepoint for that row) calls the guard, which
@@ -52,9 +69,18 @@ test("ids are validated by the one guard, never by a private regex", () => {
 
 test("the reply's idempotency key belongs to the caller and to the intent (core-reply.test.mjs runs the replay; here the shape)", () => {
   const src = route("packages/core/src/conversations/reply.ts");
-  assert.ok(src.includes("const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;"), "scoped to the caller");
-  assert.ok(src.includes("const sameIntent = prior?.request_hash === intentHash;"), "a different body is a different intent, and a receipt with no hash never answers");
-  assert.ok(src.includes("await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);"), "the stored hash is the one compared");
+  assert.ok(
+    src.includes("const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;"),
+    "scoped to the caller",
+  );
+  assert.ok(
+    src.includes("const sameIntent = prior?.request_hash === intentHash;"),
+    "a different body is a different intent, and a receipt with no hash never answers",
+  );
+  assert.ok(
+    src.includes("await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);"),
+    "the stored hash is the one compared",
+  );
   // The check happens BEFORE any side effect of the send. The first of those
   // is the claim, which is also the pause: it used to be a mirror into a
   // second store, and the ordering rule outlived it unchanged.
@@ -67,14 +93,24 @@ test("an auth outage is a 503 at the gate too, and the predicate is shared", () 
   assert.equal(isRetryableAuthError(null), false);
   assert.equal(isRetryableAuthError({ status: 401, name: "AuthApiError" }), false);
   assert.equal(isRetryableAuthError({ status: 503, name: "AuthApiError" }), true);
-  assert.equal(isRetryableAuthError({ name: "AuthRetryableFetchError" }), true, "no status = could not reach the auth server");
+  assert.equal(
+    isRetryableAuthError({ name: "AuthRetryableFetchError" }),
+    true,
+    "no status = could not reach the auth server",
+  );
   const middleware = readCode("apps/dashboard/proxy.ts");
   const wrapper = readCode("apps/dashboard/src/server/with-route.ts");
-  for (const [name, src] of [["middleware", middleware], ["withRoute", wrapper]]) {
+  for (const [name, src] of [
+    ["middleware", middleware],
+    ["withRoute", wrapper],
+  ]) {
     assert.ok(src.includes("isRetryableAuthError(authErr)"), `${name} uses the shared predicate`);
   }
   assert.ok(middleware.includes('"upstream_auth"'));
-  assert.ok(middleware.indexOf("isRetryableAuthError(authErr)") < middleware.indexOf('code: "unauthorized"'), "the outage branch runs before the 401");
+  assert.ok(
+    middleware.indexOf("isRetryableAuthError(authErr)") < middleware.indexOf('code: "unauthorized"'),
+    "the outage branch runs before the 401",
+  );
 });
 
 test("the doors agree with the code above them", () => {
@@ -96,7 +132,9 @@ test("customer numbers stay out of edge logs", () => {
   // retell-inbound-door.test.mjs.
   const notify = readCode("apps/edge/lib/notify.ts");
   // Every log line that mentions a subject passes it through the redactor.
-  const unredacted = notify.split("\n").filter((l) => /console\.(error|log|warn)\(/.test(l) && /subject/.test(l) && !/redactNumbers\(/.test(l));
+  const unredacted = notify
+    .split("\n")
+    .filter((l) => /console\.(error|log|warn)\(/.test(l) && /subject/.test(l) && !/redactNumbers\(/.test(l));
   assert.deepEqual(unredacted, [], "a subject line names the customer");
   assert.ok(notify.includes("function redactNumbers(subject: string): string"));
 });

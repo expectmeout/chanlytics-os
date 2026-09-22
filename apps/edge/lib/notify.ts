@@ -71,7 +71,10 @@ export function platformFrom(): string | null {
  * first.
  */
 export function platformTo(): string[] {
-  return (env.LEAD_TO || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return (env.LEAD_TO || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /** What the transport and the row store can be replaced with, by a test. The real ones are the default. */
@@ -125,10 +128,7 @@ export type Addressing =
   /** Nowhere to send. */
   | { kind: "none" };
 
-export function chooseAddressing(
-  target: NotifyTarget,
-  platform: { to: string[]; from: string | null },
-): Addressing {
+export function chooseAddressing(target: NotifyTarget, platform: { to: string[]; from: string | null }): Addressing {
   const configured = target.notifications;
   if (configured?.escalation_emails?.length) {
     const from = configured.from || platform.from;
@@ -197,8 +197,13 @@ export async function recordNotification(
   const L = logger({ tenant: tenantId });
   try {
     const { error } = await db.from("notifications").insert({
-      tenant_id: tenantId, kind, title: n.title.slice(0, 200), body: n.body.slice(0, 4000),
-      route: n.route ?? null, subject_type: n.about?.type ?? null, subject_id: n.about?.id ?? null,
+      tenant_id: tenantId,
+      kind,
+      title: n.title.slice(0, 200),
+      body: n.body.slice(0, 4000),
+      route: n.route ?? null,
+      subject_type: n.about?.type ?? null,
+      subject_id: n.about?.id ?? null,
     });
     if (error) L.error("notification_record_failed", { kind, error: error.message });
   } catch (e) {
@@ -210,7 +215,11 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
   const L = logger({ tenant: target.tenantId });
   const send = ports.send ?? post;
   // The row first: it is the workspace's own record, addressed or not.
-  await recordNotification(target.tenantId, { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about }, ports.db === undefined ? pg() : ports.db);
+  await recordNotification(
+    target.tenantId,
+    { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about },
+    ports.db === undefined ? pg() : ports.db,
+  );
   const addressing = chooseAddressing(target, { to: platformTo(), from: platformFrom() });
 
   switch (addressing.kind) {

@@ -25,7 +25,11 @@ export interface AddedFromCalendar {
   erased: number;
 }
 
-export async function addPeopleFromCalendar(db: SupabaseClient<Database>, tenantId: string, rows: CalendarPerson[]): Promise<AddedFromCalendar> {
+export async function addPeopleFromCalendar(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  rows: CalendarPerson[],
+): Promise<AddedFromCalendar> {
   const out: AddedFromCalendar = { seen: rows.length, added: 0, named: 0, erased: 0 };
   if (!rows.length) return out;
   const phones = rows.map((r) => r.phone);
@@ -44,12 +48,19 @@ export async function addPeopleFromCalendar(db: SupabaseClient<Database>, tenant
   const known = new Map((existing ?? []).map((c) => [c.phone_e164 as string, c]));
 
   for (const r of rows) {
-    if (gone.has(r.phone)) { out.erased += 1; continue; }
+    if (gone.has(r.phone)) {
+      out.erased += 1;
+      continue;
+    }
     const have = known.get(r.phone);
     if (have) {
       // A name we did not have is worth keeping; one we have is never overwritten.
       if (!have.display_name && r.name) {
-        const { error: uErr } = await db.from("contacts").update({ display_name: r.name }).eq("id", have.id).is("display_name", null);
+        const { error: uErr } = await db
+          .from("contacts")
+          .update({ display_name: r.name })
+          .eq("id", have.id)
+          .is("display_name", null);
         if (!uErr) out.named += 1;
       }
       continue;
@@ -66,8 +77,11 @@ export async function addPeopleFromCalendar(db: SupabaseClient<Database>, tenant
     }
     out.added += 1;
     await db.from("events").insert({
-      tenant_id: tenantId, kind: "contact.added", category: "contact",
-      subject_type: "contact", subject_id: created.id,
+      tenant_id: tenantId,
+      kind: "contact.added",
+      category: "contact",
+      subject_type: "contact",
+      subject_id: created.id,
       data: { source: "calendar", title: r.title, uid: r.uid, start: new Date(r.start).toISOString() },
     });
   }

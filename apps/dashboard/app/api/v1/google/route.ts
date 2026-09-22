@@ -11,8 +11,16 @@ import { googleFor, googleReadiness } from "@/server/google";
 export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
-    const [data, ready, policies] = await Promise.all([googleFor(ctx.supabase, member.tenantId), googleReadiness(), listPolicies(ctx.supabase, member.tenantId)]);
-    const google: GoogleDto = { ready: { places: ready.places, profile: ready.profile, audience: ready.audience }, ...data, reply_mode: reviewReplyModeOf(policies) };
+    const [data, ready, policies] = await Promise.all([
+      googleFor(ctx.supabase, member.tenantId),
+      googleReadiness(),
+      listPolicies(ctx.supabase, member.tenantId),
+    ]);
+    const google: GoogleDto = {
+      ready: { places: ready.places, profile: ready.profile, audience: ready.audience },
+      ...data,
+      reply_mode: reviewReplyModeOf(policies),
+    };
     return { google };
   },
 });

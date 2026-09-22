@@ -16,7 +16,11 @@ export const POST = write({
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : "failed";
-      throw new AppError(a.status === 409 ? "conflict" : a.status === 503 ? "upstream_auth" : "internal", BILLING_SAID[reason] ?? `Billing could not be refreshed (${reason}).`, a.status === 409 ? 409 : a.status === 503 ? 503 : 502);
+      throw new AppError(
+        a.status === 409 ? "conflict" : a.status === 503 ? "upstream_auth" : "internal",
+        BILLING_SAID[reason] ?? `Billing could not be refreshed (${reason}).`,
+        a.status === 409 ? 409 : a.status === 503 ? 503 : 502,
+      );
     }
     return { status: typeof b.status === "string" ? b.status : "none" };
   },

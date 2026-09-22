@@ -25,13 +25,17 @@ export function judgeCase(c, r) {
   if (!r.meta) failures.push("no record (intent/confidence) came back");
   if (e.intent !== undefined) {
     const want = Array.isArray(e.intent) ? e.intent : [e.intent];
-    if (!want.includes(r.meta?.intent ?? "")) failures.push(`intent ${r.meta?.intent ?? "none"}, wanted ${want.join("|")}`);
+    if (!want.includes(r.meta?.intent ?? ""))
+      failures.push(`intent ${r.meta?.intent ?? "none"}, wanted ${want.join("|")}`);
   }
-  if (e.escalate !== undefined && !!r.escalate !== e.escalate) failures.push(`escalate ${!!r.escalate}, wanted ${e.escalate}`);
-  if (e.language !== undefined && r.meta?.language !== e.language) failures.push(`language ${r.meta?.language ?? "none"}, wanted ${e.language}`);
+  if (e.escalate !== undefined && !!r.escalate !== e.escalate)
+    failures.push(`escalate ${!!r.escalate}, wanted ${e.escalate}`);
+  if (e.language !== undefined && r.meta?.language !== e.language)
+    failures.push(`language ${r.meta?.language ?? "none"}, wanted ${e.language}`);
   for (const p of e.includes ?? []) if (!new RegExp(p, "i").test(text)) failures.push(`missing /${p}/`);
   for (const p of e.excludes ?? []) if (new RegExp(p, "i").test(text)) failures.push(`must not say /${p}/`);
-  if (e.min_confidence !== undefined && !((r.meta?.confidence ?? 0) >= e.min_confidence)) failures.push(`confidence ${r.meta?.confidence ?? "none"} < ${e.min_confidence}`);
+  if (e.min_confidence !== undefined && !((r.meta?.confidence ?? 0) >= e.min_confidence))
+    failures.push(`confidence ${r.meta?.confidence ?? "none"} < ${e.min_confidence}`);
   return { pass: failures.length === 0, failures };
 }
 
@@ -44,12 +48,18 @@ export function validateCases(cases) {
     if (!c.id || typeof c.id !== "string") problems.push("a case has no id");
     else if (seen.has(c.id)) problems.push(`duplicate id ${c.id}`);
     else seen.add(c.id);
-    if (typeof c.text !== "string" || !c.text.trim() || c.text.length > 500) problems.push(`${c.id}: text is empty or over 500 chars`);
+    if (typeof c.text !== "string" || !c.text.trim() || c.text.length > 500)
+      problems.push(`${c.id}: text is empty or over 500 chars`);
     const e = c.expect ?? {};
     for (const p of [...(e.includes ?? []), ...(e.excludes ?? [])]) {
-      try { new RegExp(p, "i"); } catch { problems.push(`${c.id}: bad pattern ${p}`); }
+      try {
+        new RegExp(p, "i");
+      } catch {
+        problems.push(`${c.id}: bad pattern ${p}`);
+      }
     }
-    if (e.min_confidence !== undefined && !(e.min_confidence >= 0 && e.min_confidence <= 1)) problems.push(`${c.id}: min_confidence out of range`);
+    if (e.min_confidence !== undefined && !(e.min_confidence >= 0 && e.min_confidence <= 1))
+      problems.push(`${c.id}: min_confidence out of range`);
   }
   return problems;
 }
@@ -64,9 +74,18 @@ export function formatReport(cases, results) {
     const j = judgeCase(c, r);
     if (j.pass) passed++;
     tokens += (r?.usage?.input_tokens ?? 0) + (r?.usage?.output_tokens ?? 0);
-    const conf = r?.meta?.confidence !== undefined && r?.meta?.confidence !== null ? `${Math.round(r.meta.confidence * 100)}%` : "--";
+    const conf =
+      r?.meta?.confidence !== undefined && r?.meta?.confidence !== null
+        ? `${Math.round(r.meta.confidence * 100)}%`
+        : "--";
     const head = `${j.pass ? " ok " : "FAIL"} ${c.id.padEnd(16)} ${(r?.meta?.intent ?? "-").padEnd(10)} ${conf.padStart(4)} ${String(r?.ms ?? "-").padStart(6)}ms`;
-    lines.push(j.pass ? head : `${head}\n       ${j.failures.join("; ")}\n       said: ${String(r?.text ?? "").replace(/\s+/g, " ").slice(0, 160)}`);
+    lines.push(
+      j.pass
+        ? head
+        : `${head}\n       ${j.failures.join("; ")}\n       said: ${String(r?.text ?? "")
+            .replace(/\s+/g, " ")
+            .slice(0, 160)}`,
+    );
   }
   lines.push(`\n${passed}/${cases.length} passed · ${tokens.toLocaleString("en-US")} tokens`);
   return { text: lines.join("\n"), passed, total: cases.length };

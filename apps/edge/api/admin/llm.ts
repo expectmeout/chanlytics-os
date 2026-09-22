@@ -50,13 +50,21 @@ export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   if (raw.length > GATEWAY_MAX_BODY) return json(413, { ok: false, error: "too_large" });
   let body: { tenant_id?: string; user_id?: string; purpose?: string; request?: unknown } = {};
-  try { body = JSON.parse(raw); } catch { /* below */ }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    /* below */
+  }
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const userId = String(body.user_id || "");
-  if (!UUID.test(tenantId) || !UUID.test(userId) || !(GATEWAY_PURPOSES as readonly string[]).includes(String(body.purpose))) {
+  if (
+    !UUID.test(tenantId) ||
+    !UUID.test(userId) ||
+    !(GATEWAY_PURPOSES as readonly string[]).includes(String(body.purpose))
+  ) {
     return json(400, { ok: false, error: "tenant_id, user_id and a purpose required" });
   }
   const purpose = body.purpose as GatewayPurpose;
@@ -101,10 +109,21 @@ export async function POST(request: Request): Promise<Response> {
   const stream = teeUsage(upstream.body, async (usage, stopReason) => {
     const latency = Date.now() - t0;
     L.info("ask_gateway_turn", { tenant: tenantId, ...usage, stop_reason: stopReason, ms: latency });
-    await recordAskUsage(db, tenantId, userId, { ...usage, model: v.request.model, latency_ms: latency, stop_reason: stopReason, stream: true, purpose });
+    await recordAskUsage(db, tenantId, userId, {
+      ...usage,
+      model: v.request.model,
+      latency_ms: latency,
+      stop_reason: stopReason,
+      stream: true,
+      purpose,
+    });
   });
   return new Response(stream, {
     status: 200,
-    headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" },
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-store",
+      "x-accel-buffering": "no",
+    },
   });
 }

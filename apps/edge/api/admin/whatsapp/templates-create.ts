@@ -26,8 +26,14 @@ export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as {
-    tenant_id?: unknown; user_id?: unknown; name?: unknown; language?: unknown; category?: unknown;
-    components?: unknown; body?: unknown; examples?: unknown;
+    tenant_id?: unknown;
+    user_id?: unknown;
+    name?: unknown;
+    language?: unknown;
+    category?: unknown;
+    components?: unknown;
+    body?: unknown;
+    examples?: unknown;
   } | null;
   const ws = workspaceFor(auth, body?.tenant_id);
   if (!ws.ok) return ws.response;
@@ -41,7 +47,13 @@ export async function POST(request: Request): Promise<Response> {
   const text = typeof body?.body === "string" ? body.body : null;
   const examples = Array.isArray(body?.examples) ? (body.examples as unknown[]).map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
-  const labels = Array.isArray((body as { labels?: unknown })?.labels) ? ((body as { labels: unknown[] }).labels).map((l) => String(l ?? "").trim().slice(0, 40)) : [];
+  const labels = Array.isArray((body as { labels?: unknown })?.labels)
+    ? (body as { labels: unknown[] }).labels.map((l) =>
+        String(l ?? "")
+          .trim()
+          .slice(0, 40),
+      )
+    : [];
   if (!UUID.test(tenantId)) return json(400, { ok: false, error: "bad_tenant" });
   if (!NAME.test(name) || !language || !["MARKETING", "UTILITY"].includes(category) || !components || !text) {
     return json(400, { ok: false, error: "bad_template" });
@@ -64,13 +76,22 @@ export async function POST(request: Request): Promise<Response> {
 
   const made = await createTemplate(creds.accessToken, ch.waba_id, { name, language, category, components });
   if (!made.ok) {
-    L.error("wa_template_create_failed", { tenant_id: tenantId, name, status: made.status, error: made.error.slice(0, 300) });
+    L.error("wa_template_create_failed", {
+      tenant_id: tenantId,
+      name,
+      status: made.status,
+      error: made.error.slice(0, 300),
+    });
     return json(502, { ok: false, error: "meta_refused", detail: made.error });
   }
 
   const status = mapStatus(made.data.status);
   const positions = [...new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
-  const variables = positions.map((n) => ({ position: n, label: labels[n - 1] || `Value ${n}`, example: examples[n - 1] ?? null }));
+  const variables = positions.map((n) => ({
+    position: n,
+    label: labels[n - 1] || `Value ${n}`,
+    example: examples[n - 1] ?? null,
+  }));
   const row = {
     tenant_id: tenantId,
     channel: "whatsapp",

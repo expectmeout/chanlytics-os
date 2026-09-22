@@ -1,4 +1,13 @@
-import { BROADCAST_CHUNK, BROADCAST_GAP_MS, OUTCOME_UNKNOWN, firstNameOf, parseParamSpecs, purposeOfTemplate, renderTemplate, resolveParams } from "@chanlytics/contracts";
+import {
+  BROADCAST_CHUNK,
+  BROADCAST_GAP_MS,
+  OUTCOME_UNKNOWN,
+  firstNameOf,
+  parseParamSpecs,
+  purposeOfTemplate,
+  renderTemplate,
+  resolveParams,
+} from "@chanlytics/contracts";
 import type { Delivered } from "../deliver";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, ContactRow, RecipientMark, RecipientRow } from "./ports";
 
@@ -17,7 +26,11 @@ export const BROADCAST_STALL_RETRY_MS = 60_000;
  * marking each of them "WhatsApp refused" would end the run as sent.
  */
 function wireIsDown(out: Extract<Delivered, { outcome: "failed" }>): boolean {
-  return out.reason === "no_credentials" || out.reason === "no_sender_for_channel" || (out.reason === "provider" && (out.status === 401 || out.status === 403));
+  return (
+    out.reason === "no_credentials" ||
+    out.reason === "no_sender_for_channel" ||
+    (out.reason === "provider" && (out.status === 401 || out.status === 403))
+  );
 }
 
 /**
@@ -56,7 +69,13 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // template going out under a subscription that stopped.
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast “${b.name}” not sent`, body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again." });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast “${b.name}” not sent`,
+      body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again.",
+    });
     return;
   }
   // Only while still scheduled: a cancel that landed between the read above
@@ -67,7 +86,13 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
     await ports.fail(b.id, "template_not_approved");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast “${b.name}” stopped`, body: `The template “${b.template_name}” is no longer approved by WhatsApp, so nothing was sent.` });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast “${b.name}” stopped`,
+      body: `The template “${b.template_name}” is no longer approved by WhatsApp, so nothing was sent.`,
+    });
     return;
   }
   // WHICH yes this send needs. Meta's category is the authority — it can
@@ -110,8 +135,14 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   /** One person, to the wire and back. "stop" when the run cannot go on past them. */
   const one = async (r: RecipientRow): Promise<"go on" | "stop"> => {
     const c = people.get(r.contact_id) ?? null;
-    if (!c || c.erased_at) { await skip(r.contact_id, "erased"); return "go on"; }
-    if (!c.phone_e164) { await skip(r.contact_id, "no_phone"); return "go on"; }
+    if (!c || c.erased_at) {
+      await skip(r.contact_id, "erased");
+      return "go on";
+    }
+    if (!c.phone_e164) {
+      await skip(r.contact_id, "no_phone");
+      return "go on";
+    }
     // A run that died between the wire and its own bookkeeping left this
     // person a message row and a queued recipient row. Resumed (jobs/settle
     // reschedules the rest), the batch reads the row rather than sending twice:
@@ -120,23 +151,37 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     // Their row records when the message actually LEFT, not when this run
     // noticed it had: the broadcast's page lists its people in that order, and
     // a resumed run stamping "now" on an hour-old send reorders the whole list.
-    if (prior) { await mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt }); return "go on"; }
+    if (prior) {
+      await mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
+      return "go on";
+    }
     // The thread this send belongs to. Which yes this message needs, the
     // pause, and the workspace's status are the door's to re-read at the
     // wire, below — the one place a stale answer cannot be taken back.
     const target = await ports.target(c.phone_e164);
-    if (!target) { await skip(r.contact_id, "no_thread"); return "go on"; }
+    if (!target) {
+      await skip(r.contact_id, "no_thread");
+      return "go on";
+    }
 
     // Their own words in the slots: a first name nobody has on file reads
     // "there"; a slot nothing can fill holds the person, never a blank send.
     // A visit run's words for this person, resolved when the run was made.
-    const facts = (r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {}) as Record<string, unknown>;
+    const facts = (r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {}) as Record<
+      string,
+      unknown
+    >;
     const params = resolveParams(specs, {
-      firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink,
+      firstName: firstNameOf(c.display_name, c.wa_profile_name),
+      businessName,
+      bookingLink,
       visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
       visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
     });
-    if (params.some((v) => !v)) { await skip(r.contact_id, "missing_value"); return "go on"; }
+    if (params.some((v) => !v)) {
+      await skip(r.contact_id, "missing_value");
+      return "go on";
+    }
     const words = renderTemplate(tpl.body_preview, params);
     // CLAIM THIS PERSON BEFORE THE WIRE IS TOUCHED. deliver records a
     // broadcast's message only once the provider has accepted it, so a run
@@ -157,33 +202,61 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     // on the tenant's credentials, and the row either way. A refusal leaves no
     // row: the person's own line says why they were held. A broadcast is the
     // owner's words (the row says so) sent by the machine (the door is told so).
-    const out = await ports.deliver({
-      tenantId: cmd.tenantId,
-      conversationId: target.conversationId,
-      contactId: c.id,
-      to: c.phone_e164,
-      channel: "whatsapp",
-      sender: "human",
-      kind: "broadcast",
-      purpose,
-      proactive: true,
-      body: words,
-      template: { name: b.template_name, language: b.template_language, params },
-      // A run's message names its playbook, so a thread reads "by the Win-back playbook".
-      meta: {
-        source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,
-        ...(b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name) } : {}),
-      },
-    }).catch((e: unknown) => { throw new ThrownAtTheDoor(e); });
-    if (out.outcome === "sent") { await mark(r.contact_id, { state: "sent", message_id: out.messageId }); return "go on"; }
-    if (out.outcome === "refused") { await skip(r.contact_id, out.reason); return "go on"; }
+    const out = await ports
+      .deliver({
+        tenantId: cmd.tenantId,
+        conversationId: target.conversationId,
+        contactId: c.id,
+        to: c.phone_e164,
+        channel: "whatsapp",
+        sender: "human",
+        kind: "broadcast",
+        purpose,
+        proactive: true,
+        body: words,
+        template: { name: b.template_name, language: b.template_language, params },
+        // A run's message names its playbook, so a thread reads "by the Win-back playbook".
+        meta: {
+          source: "broadcast",
+          broadcast_id: b.id,
+          broadcast_name: b.name,
+          ...(b.playbook_id
+            ? {
+                playbook_id: b.playbook_id,
+                playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name),
+              }
+            : {}),
+        },
+      })
+      .catch((e: unknown) => {
+        throw new ThrownAtTheDoor(e);
+      });
+    if (out.outcome === "sent") {
+      await mark(r.contact_id, { state: "sent", message_id: out.messageId });
+      return "go on";
+    }
+    if (out.outcome === "refused") {
+      await skip(r.contact_id, out.reason);
+      return "go on";
+    }
     await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
     if (!wireIsDown(out)) return "go on";
     // The wire, not the person: the run stops here and says so, rather than
     // burning everyone still queued as refused and ending as "sent".
-    const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
+    const cause =
+      out.reason === "no_credentials"
+        ? "the number is not connected"
+        : out.reason === "no_sender_for_channel"
+          ? "this runtime has no WhatsApp wire"
+          : `WhatsApp answered HTTP ${out.status}`;
     await ports.fail(b.id, "wire_unavailable");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast “${b.name}” stopped`, body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings › Channels and send it again.` });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast “${b.name}” stopped`,
+      body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings › Channels and send it again.`,
+    });
     return "stop";
   };
 
@@ -218,7 +291,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     if ((await ports.state(b.id)) !== "sending") return;
     // A batch that reached nobody waits before the next: every read failed,
     // and trying again this second is how a failing read spins the ledger.
-    if (batch.length > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    if (batch.length > 0 && marked === 0)
+      await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     else await ports.scheduleNext(b.id);
     return;
   }

@@ -42,5 +42,9 @@ export async function draftReviewReply(facts: ReviewReplyFacts, review: ReviewTo
   const raw = res.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
   const text = cleanDraft(raw);
   if (!text) return { ok: false, error: "empty_draft" };
-  return { ok: true, text, usage: res.usage ? { input_tokens: res.usage.input_tokens, output_tokens: res.usage.output_tokens } : null };
+  return {
+    ok: true,
+    text,
+    usage: res.usage ? { input_tokens: res.usage.input_tokens, output_tokens: res.usage.output_tokens } : null,
+  };
 }

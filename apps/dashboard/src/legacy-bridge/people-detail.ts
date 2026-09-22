@@ -1,4 +1,14 @@
-import { CONSENT_SOURCES, TIMELINE_FILTERS, filterTimeline, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
+import {
+  CONSENT_SOURCES,
+  TIMELINE_FILTERS,
+  filterTimeline,
+  mayReceive,
+  offersYesRefusal,
+  toPersonVM,
+  verbalOptInScript,
+  type PersonVM,
+  type SendPurpose,
+} from "@chanlytics/contracts";
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
@@ -76,7 +86,10 @@ export async function deletePerson(id: string): Promise<DeleteResult> {
  * they follow the workspace policy again. Owner-only on the server. The list
  * is re-read afterwards because the Receptionist column reads from it.
  */
-export async function setPersonReceptionist(id: string, mode: "auto" | "ask" | "never" | "inherit"): Promise<DeleteResult> {
+export async function setPersonReceptionist(
+  id: string,
+  mode: "auto" | "ask" | "never" | "inherit",
+): Promise<DeleteResult> {
   return api()("PUT contacts/[id]/receptionist", { params: { id }, body: { mode } });
 }
 
@@ -134,7 +147,12 @@ export async function setPersonMarketingConsent(id: string, body: ConsentBody): 
  * person. It used to be one request per person -- fifty round trips and
  * fifty takes of the consent bucket for one act at the desk.
  */
-export interface ManyResult { ok: boolean; done: number; failed: number; message?: string }
+export interface ManyResult {
+  ok: boolean;
+  done: number;
+  failed: number;
+  message?: string;
+}
 
 type ManyRoute = "PUT contacts/consent" | "PUT contacts/marketing-consent";
 const MANY_ROUTE: Record<SendPurpose, ManyRoute> = {
@@ -148,7 +166,12 @@ function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): Ma
   const d = r.data as { done: number; failed: { id: string; message: string }[]; skipped: string[] };
   const failed = d.failed.length + d.skipped.length;
   const why = d.failed[0]?.message ?? (d.skipped.length ? "no longer in this workspace" : undefined);
-  return { ok: failed === 0, done: d.done, failed, message: failed ? `${failed} could not be ${verb}${why ? ` — ${why}` : ""}` : undefined };
+  return {
+    ok: failed === 0,
+    done: d.done,
+    failed,
+    message: failed ? `${failed} could not be ${verb}${why ? ` — ${why}` : ""}` : undefined,
+  };
 }
 
 async function recordMany(ids: string[], body: ConsentBody, purpose: SendPurpose): Promise<ManyResult> {
@@ -176,7 +199,10 @@ export async function appendPersonNotesMany(ids: string[], line: string): Promis
  * `window.__addPerson({ phone, name })` answers with the id and whether they
  * were already here; the People surface re-reads after it.
  */
-export async function addPerson(body: { phone: string; name?: string }): Promise<ApiResult<{ contact_id: string; existed: boolean }>> {
+export async function addPerson(body: {
+  phone: string;
+  name?: string;
+}): Promise<ApiResult<{ contact_id: string; existed: boolean }>> {
   return api()("POST contacts", { body });
 }
 
@@ -191,7 +217,10 @@ export async function addPerson(body: { phone: string; name?: string }): Promise
  * The copy is told when the reply lands, so a read of People that went out
  * before then keeps the view rather than the server's older answer.
  */
-export async function saveView(page: string, view: Record<string, unknown>): Promise<ApiResult<{ views: Record<string, unknown> }>> {
+export async function saveView(
+  page: string,
+  view: Record<string, unknown>,
+): Promise<ApiResult<{ views: Record<string, unknown> }>> {
   const landed = keepSavedView(page, view);
   try {
     return await api()("PUT views/[page]", { params: { page }, body: { view }, refresh: false });
@@ -230,8 +259,14 @@ declare global {
     __verbalOptInScript?: (businessName: string) => string;
     __setPersonReceptionistMany?: (ids: string[], mode: ReceptionistMany) => Promise<ManyResult>;
     __appendPersonNotesMany?: (ids: string[], line: string) => Promise<ManyResult>;
-    __addPerson?: (body: { phone: string; name?: string }) => Promise<ApiResult<{ contact_id: string; existed: boolean }>>;
-    __saveView?: (page: string, view: Record<string, unknown>) => Promise<ApiResult<{ views: Record<string, unknown> }>>;
+    __addPerson?: (body: {
+      phone: string;
+      name?: string;
+    }) => Promise<ApiResult<{ contact_id: string; existed: boolean }>>;
+    __saveView?: (
+      page: string,
+      view: Record<string, unknown>,
+    ) => Promise<ApiResult<{ views: Record<string, unknown> }>>;
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
@@ -246,7 +281,11 @@ declare global {
  * is re-read because names show on every row, and the profile reloads on
  * the same event.
  */
-export interface DetailsBody { name?: string; notes?: string; email?: string }
+export interface DetailsBody {
+  name?: string;
+  notes?: string;
+  email?: string;
+}
 
 export async function setPersonDetails(id: string, body: DetailsBody): Promise<DeleteResult> {
   return api()("PUT contacts/[id]/details", { params: { id }, body });

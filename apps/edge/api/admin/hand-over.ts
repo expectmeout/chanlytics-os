@@ -38,18 +38,22 @@ export async function POST(request: Request): Promise<Response> {
   if (!env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
 
   let body: { call_id?: string; line?: string } = {};
-  try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* below */
+  }
   const callId = String(body.call_id || "");
   const line = String(body.line || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !E164.test(line)) {
     return json(400, { ok: false, error: "call_id + line (E.164) required" });
   }
 
-  const r = await updateLiveCall(
-    { apiKey: env.RETELL_API_KEY },
-    callId,
-    { additionalContext: frameHandOver(), triggerResponse: true, variables: { handoff_number: line } },
-  );
+  const r = await updateLiveCall({ apiKey: env.RETELL_API_KEY }, callId, {
+    additionalContext: frameHandOver(),
+    triggerResponse: true,
+    variables: { handoff_number: line },
+  });
   // The line is the business's own and stays out of the log; the outcome is
   // what a search needs.
   L.info("admin_hand_over", { call_id: callId, ok: r.ok, status: r.status });

@@ -161,10 +161,7 @@ async function resolveWaCredentials(
   };
 }
 
-export async function loadTenantRuntime(
-  db: SupabaseClient<Database>,
-  routed: RoutedChannel,
-): Promise<TenantRuntime> {
+export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: RoutedChannel): Promise<TenantRuntime> {
   const hit = cache.get(routed.tenantId);
   if (hit && hit.exp > Date.now()) {
     // Fresh while the stamp agrees. A setting saved on the dashboard is a new
@@ -176,11 +173,7 @@ export async function loadTenantRuntime(
   try {
     const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", routed.tenantId).maybeSingle(),
-      db
-        .from("policies")
-        .select("class, mode, limits")
-        .eq("tenant_id", routed.tenantId)
-        .is("subject_type", null),
+      db.from("policies").select("class, mode, limits").eq("tenant_id", routed.tenantId).is("subject_type", null),
       // WhatsApp credentials belong to the tenant's WHATSAPP channel, not to
       // whichever channel happened to route this request.
       //
@@ -219,7 +212,8 @@ export async function loadTenantRuntime(
     const parseResult = parseTenantConfigResult(cfgQ.data?.config);
     if (!parseResult.ok) {
       logger().error("tenant_config_parse_failed", {
-        tenant: routed.tenantId, issues: parseResult.issues.slice(0, 5),
+        tenant: routed.tenantId,
+        issues: parseResult.issues.slice(0, 5),
       });
     }
     const parsed = parseResult.ok ? parseResult.config : null;

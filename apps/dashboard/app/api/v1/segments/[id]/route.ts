@@ -38,21 +38,36 @@ export const PUT = write({
       }
     }
     if (remove.length) {
-      const { error } = await ctx.supabase.from("segment_members").delete().eq("segment_id", id).in("contact_id", remove);
+      const { error } = await ctx.supabase
+        .from("segment_members")
+        .delete()
+        .eq("segment_id", id)
+        .in("contact_id", remove);
       if (error) throw new Error(error.message);
     }
     if (add.length) {
-      const rows = add.map((contact_id) => ({ segment_id: id, contact_id, tenant_id: list.tenant_id, added_by: ctx.userId }));
-      const { error } = await ctx.supabase.from("segment_members").upsert(rows, { onConflict: "segment_id,contact_id", ignoreDuplicates: true });
+      const rows = add.map((contact_id) => ({
+        segment_id: id,
+        contact_id,
+        tenant_id: list.tenant_id,
+        added_by: ctx.userId,
+      }));
+      const { error } = await ctx.supabase
+        .from("segment_members")
+        .upsert(rows, { onConflict: "segment_id,contact_id", ignoreDuplicates: true });
       if (error) {
         // RLS's with-check is the refusal for a person of another workspace or
         // one who was erased; PostgREST reports it as a policy violation.
-        if (error.code === "42501") throw new AppError("validation", "One of those people is not in this workspace any more.");
+        if (error.code === "42501")
+          throw new AppError("validation", "One of those people is not in this workspace any more.");
         throw new Error(error.message);
       }
     }
 
-    const { data: members, error: mErr } = await ctx.supabase.from("segment_members").select("contact_id").eq("segment_id", id);
+    const { data: members, error: mErr } = await ctx.supabase
+      .from("segment_members")
+      .select("contact_id")
+      .eq("segment_id", id);
     if (mErr) throw new Error(mErr.message);
     const out: SavedListDto = { id, name: rename ?? list.name, ids: (members ?? []).map((m) => m.contact_id) };
     return out;

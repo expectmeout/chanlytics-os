@@ -12,11 +12,28 @@ export const GET = read({
     const { supabase } = ctx;
     const tenantId = member.tenantId;
     const [rows, lastMsg, lastCall] = await Promise.all([
-      supabase.from("tenant_channels").select("id, kind, number_e164, status, created_at, config").eq("tenant_id", tenantId).order("kind"),
-      supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
-        .order("channel_ts", { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
-      supabase.from("calls").select("started_at").eq("tenant_id", tenantId).eq("direction", "inbound")
-        .order("started_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
+      supabase
+        .from("tenant_channels")
+        .select("id, kind, number_e164, status, created_at, config")
+        .eq("tenant_id", tenantId)
+        .order("kind"),
+      supabase
+        .from("messages")
+        .select("channel_ts, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("direction", "inbound")
+        .eq("channel", "whatsapp")
+        .order("channel_ts", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("calls")
+        .select("started_at")
+        .eq("tenant_id", tenantId)
+        .eq("direction", "inbound")
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
     if (rows.error) throw new Error(rows.error.message);
     if (lastMsg.error) throw new Error(lastMsg.error.message);
@@ -26,7 +43,10 @@ export const GET = read({
       voice: lastCall.data?.started_at ?? null,
     };
     const channels: ChannelDto[] = (rows.data ?? []).map((c) => {
-      const cfg = (c.config && typeof c.config === "object" && !Array.isArray(c.config) ? c.config : {}) as Record<string, unknown>;
+      const cfg = (c.config && typeof c.config === "object" && !Array.isArray(c.config) ? c.config : {}) as Record<
+        string,
+        unknown
+      >;
       const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
       return {
         id: c.id,

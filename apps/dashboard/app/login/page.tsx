@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PASSWORD_WORDS, SIGNUP_WORDS, emailNotConfirmed, requestCodeWords, verifyCodeWords } from "@chanlytics/contracts";
+import {
+  PASSWORD_WORDS,
+  SIGNUP_WORDS,
+  emailNotConfirmed,
+  requestCodeWords,
+  verifyCodeWords,
+} from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
@@ -46,7 +52,9 @@ export default function LoginPage() {
   // HTML, so React hydrates the node and never calls .focus(). Focus
   // explicitly on mount and again when the code step hands back — otherwise
   // returning to this form starts with a dead click into the page.
-  useEffect(() => { fieldRef.current?.focus(); }, [stage]);
+  useEffect(() => {
+    fieldRef.current?.focus();
+  }, [stage]);
 
   // Back from Google without a session: the callback says so once, here.
   useEffect(() => {
@@ -196,7 +204,12 @@ export default function LoginPage() {
             />
             <button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
             <div className="auth-row">
-              <button type="button" className="auth-linkbtn" onClick={() => void sendCode()} disabled={busy || !email.trim()}>
+              <button
+                type="button"
+                className="auth-linkbtn"
+                onClick={() => void sendCode()}
+                disabled={busy || !email.trim()}
+              >
                 {PASSWORD_WORDS.codeInstead}
               </button>
               <a href={`/reset-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`}>
@@ -224,7 +237,11 @@ export default function LoginPage() {
                 : await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
               return error ? requestCodeWords(error) : null;
             }}
-            onBack={() => { setStage("password"); setError(null); setUnconfirmed(false); }}
+            onBack={() => {
+              setStage("password");
+              setError(null);
+              setUnconfirmed(false);
+            }}
             backLabel={PASSWORD_WORDS.passwordInstead}
           />
         )}
@@ -236,7 +253,9 @@ export default function LoginPage() {
           {error && <div className="error">{error}</div>}
           {nudge && <div className="hint">{PASSWORD_WORDS.wrongNudge}</div>}
         </div>
-        <div className="hint">{SIGNUP_WORDS.newHere} <a href="/signup">Create your workspace</a></div>
+        <div className="hint">
+          {SIGNUP_WORDS.newHere} <a href="/signup">Create your workspace</a>
+        </div>
       </div>
     </AuthShell>
   );

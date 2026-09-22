@@ -25,16 +25,40 @@ const FINAL = new Set(["succeeded", "failed", "aborted", "timed_out"]);
 const live = (j) => j.state == null || j.state === "scheduled" || j.state === "fired";
 
 /** The token the edge derives for a run row (lead-wires.ts), under a test secret. */
-export const webhookToken = async (runRowId) => crypto.createHmac("sha256", "a-test-secret-for-lead-webhooks").update(`lead-webhook:${runRowId}`).digest("base64url");
+export const webhookToken = async (runRowId) =>
+  crypto.createHmac("sha256", "a-test-secret-for-lead-webhooks").update(`lead-webhook:${runRowId}`).digest("base64url");
 export const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
-export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", startMs = Date.parse("2026-09-19T12:00:00.000Z") } = {}) {
-  const clock = { ms: startMs, now: () => new Date(clock.ms), advance: (ms) => { clock.ms += ms; } };
+export function leadWorld({
+  plan = PLAN,
+  searchesOn = true,
+  month = "2026-09",
+  startMs = Date.parse("2026-09-19T12:00:00.000Z"),
+} = {}) {
+  const clock = {
+    ms: startMs,
+    now: () => new Date(clock.ms),
+    advance: (ms) => {
+      clock.ms += ms;
+    },
+  };
   const nowIso = () => new Date(clock.ms).toISOString();
   const T = {
     tenants: [{ id: TENANT, slug: "lead-world", name: "Lead World", timezone: "America/Chicago", status: "active" }],
-    lead_platform: [{ id: uuid(), searches_on: false, tenants_on: searchesOn ? [TENANT] : [], note: null, prices_checked_at: null }],
-    lead_searches: [], lead_rounds: [], lead_runs: [], leads: [], lead_places: [], lead_search_members: [], lead_judgments: [], lead_suppressions: [], lead_counters: [], contacts: [], jobs: [],
+    lead_platform: [
+      { id: uuid(), searches_on: false, tenants_on: searchesOn ? [TENANT] : [], note: null, prices_checked_at: null },
+    ],
+    lead_searches: [],
+    lead_rounds: [],
+    lead_runs: [],
+    leads: [],
+    lead_places: [],
+    lead_search_members: [],
+    lead_judgments: [],
+    lead_suppressions: [],
+    lead_counters: [],
+    contacts: [],
+    jobs: [],
   };
   /** What the commit refuses by value (00140 hashes; the rows in lead_suppressions carry the real hash for the adapter's read). */
   const suppressedValues = new Set();
@@ -42,13 +66,36 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
 
   /** scheduleJobOnce's rule, with 00140's index on lead_collect's run and seq modelled. */
   w.scheduleOnce = async (kind, dueAt, payload) => {
-    if (kind === "lead_collect" && T.jobs.some((j) => j.kind === "lead_collect" && live(j) && j.payload.run_id === payload.run_id && j.payload.seq === payload.seq)) return "already_scheduled";
-    T.jobs.push({ id: uuid(), tenant_id: TENANT, kind, state: "scheduled", due_at: new Date(dueAt).toISOString(), payload, attempts: 0, created_at: nowIso() });
+    if (
+      kind === "lead_collect" &&
+      T.jobs.some(
+        (j) =>
+          j.kind === "lead_collect" && live(j) && j.payload.run_id === payload.run_id && j.payload.seq === payload.seq,
+      )
+    )
+      return "already_scheduled";
+    T.jobs.push({
+      id: uuid(),
+      tenant_id: TENANT,
+      kind,
+      state: "scheduled",
+      due_at: new Date(dueAt).toISOString(),
+      payload,
+      attempts: 0,
+      created_at: nowIso(),
+    });
     return "scheduled";
   };
   /** A suppression as 00140 writes one: the keyed digest on the row, the value kept for the commit's check. */
   w.suppress = async (kind, value, what = "erased") => {
-    T.lead_suppressions.push({ id: uuid(), tenant_id: TENANT, kind, hash: await leadSuppressionHash(TENANT, value), what, created_at: nowIso() });
+    T.lead_suppressions.push({
+      id: uuid(),
+      tenant_id: TENANT,
+      kind,
+      hash: await leadSuppressionHash(TENANT, value),
+      what,
+      created_at: nowIso(),
+    });
     suppressedValues.add(`${kind}:${value}`);
   };
   const end = (round, ending) => {
@@ -65,13 +112,66 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
 
   const rpcs = {
     get_cron_sweep_key: () => "sweep-key-for-this-file",
-    lead_searches_on: ({ p_tenant_id }) => T.lead_platform[0].searches_on || T.lead_platform[0].tenants_on.includes(p_tenant_id),
+    lead_searches_on: ({ p_tenant_id }) =>
+      T.lead_platform[0].searches_on || T.lead_platform[0].tenants_on.includes(p_tenant_id),
     lead_search_create: ({ p_tenant_id, p_plan, p_via, p_estimate_usd }) => {
-      if (!rpcs.lead_searches_on({ p_tenant_id })) return { error: "paused", sentence: "Lead searches are paused for now. Your leads are all here, and nothing is being counted." };
-      const used = T.lead_search_members.filter((m) => m.tenant_id === p_tenant_id && m.counted).length + T.lead_rounds.filter((r) => r.tenant_id === p_tenant_id && r.state !== "ended").reduce((a, r) => a + r.allowance_reserved - r.allowance_used, 0);
-      if (used + p_plan.count > 500) return { error: "month_leads_used", left: Math.max(0, 500 - used), sentence: `This month covers ${Math.max(0, 500 - used)} more leads.` };
-      const search = { id: uuid(), tenant_id: p_tenant_id, created_by: OWNER_USER, via: p_via, card: p_plan.card, name: p_plan.name, asked: p_plan.asked, plan: p_plan, removed_at: null, created_at: nowIso() };
-      const round = { id: uuid(), tenant_id: p_tenant_id, search_id: search.id, seq: 1, purpose: "probe", plan: p_plan, plan_version: p_plan.version, target: Math.min(25, p_plan.count), state: "queued", ending: null, ending_pending: null, question: null, answered: null, waiting_since: null, allowance_reserved: p_plan.count, allowance_used: 0, cost_reserved_usd: p_estimate_usd, cost_usd: 0, judge_tokens: 0, judge_model: null, month, day: "2026-09-19", platform_day: "2026-09-19", started_at: null, ended_at: null, created_at: nowIso(), nearby: [] };
+      if (!rpcs.lead_searches_on({ p_tenant_id }))
+        return {
+          error: "paused",
+          sentence: "Lead searches are paused for now. Your leads are all here, and nothing is being counted.",
+        };
+      const used =
+        T.lead_search_members.filter((m) => m.tenant_id === p_tenant_id && m.counted).length +
+        T.lead_rounds
+          .filter((r) => r.tenant_id === p_tenant_id && r.state !== "ended")
+          .reduce((a, r) => a + r.allowance_reserved - r.allowance_used, 0);
+      if (used + p_plan.count > 500)
+        return {
+          error: "month_leads_used",
+          left: Math.max(0, 500 - used),
+          sentence: `This month covers ${Math.max(0, 500 - used)} more leads.`,
+        };
+      const search = {
+        id: uuid(),
+        tenant_id: p_tenant_id,
+        created_by: OWNER_USER,
+        via: p_via,
+        card: p_plan.card,
+        name: p_plan.name,
+        asked: p_plan.asked,
+        plan: p_plan,
+        removed_at: null,
+        created_at: nowIso(),
+      };
+      const round = {
+        id: uuid(),
+        tenant_id: p_tenant_id,
+        search_id: search.id,
+        seq: 1,
+        purpose: "probe",
+        plan: p_plan,
+        plan_version: p_plan.version,
+        target: Math.min(25, p_plan.count),
+        state: "queued",
+        ending: null,
+        ending_pending: null,
+        question: null,
+        answered: null,
+        waiting_since: null,
+        allowance_reserved: p_plan.count,
+        allowance_used: 0,
+        cost_reserved_usd: p_estimate_usd,
+        cost_usd: 0,
+        judge_tokens: 0,
+        judge_model: null,
+        month,
+        day: "2026-09-19",
+        platform_day: "2026-09-19",
+        started_at: null,
+        ended_at: null,
+        created_at: nowIso(),
+        nearby: [],
+      };
       T.lead_searches.push(search);
       T.lead_rounds.push(round);
       w.scheduleOnce("lead_round_start", clock.ms, { round_id: round.id });
@@ -81,9 +181,22 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const round = roundOf(p_round_id);
       if (!round) throw new Error("Round not found.");
       if (round.state !== "waiting_on_owner") return { error: "state", state: round.state };
-      if (p_answer === "stop") { round.answered = "stop"; end(round, "stopped"); return { round_id: p_round_id, state: "ended" }; }
-      if (p_answer === "include" && p_plan) { round.plan = p_plan; round.plan_version = p_plan.version; T.lead_searches.find((s) => s.id === round.search_id).plan = p_plan; }
-      Object.assign(round, { state: "running", answered: p_answer, waiting_since: null, target: Math.max(round.target, (p_plan ?? round.plan).count) });
+      if (p_answer === "stop") {
+        round.answered = "stop";
+        end(round, "stopped");
+        return { round_id: p_round_id, state: "ended" };
+      }
+      if (p_answer === "include" && p_plan) {
+        round.plan = p_plan;
+        round.plan_version = p_plan.version;
+        T.lead_searches.find((s) => s.id === round.search_id).plan = p_plan;
+      }
+      Object.assign(round, {
+        state: "running",
+        answered: p_answer,
+        waiting_since: null,
+        target: Math.max(round.target, (p_plan ?? round.plan).count),
+      });
       w.scheduleOnce("lead_round_start", clock.ms, { round_id: round.id, resume: true });
       return { round_id: p_round_id, state: "running" };
     },
@@ -93,9 +206,17 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       for (const round of T.lead_rounds.filter((r) => r.search_id === p_search_id && r.state !== "ended")) {
         rounds += 1;
         let liveRuns = 0;
-        for (const run of T.lead_runs.filter((r) => r.round_id === round.id && r.purpose === "discover" && ["claimed", "starting", "running", "unknown"].includes(r.state))) {
+        for (const run of T.lead_runs.filter(
+          (r) =>
+            r.round_id === round.id &&
+            r.purpose === "discover" &&
+            ["claimed", "starting", "running", "unknown"].includes(r.state),
+        )) {
           run.lease_gen += 1;
-          if (run.state === "running") { w.scheduleOnce("lead_collect", clock.ms, { run_id: run.id, seq: "stop" }); liveRuns += 1; }
+          if (run.state === "running") {
+            w.scheduleOnce("lead_collect", clock.ms, { run_id: run.id, seq: "stop" });
+            liveRuns += 1;
+          }
           runs += 1;
         }
         round.ending_pending = "stopped";
@@ -112,7 +233,12 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
     lead_run_record_start: ({ p_run_id, p_owner, p_apify_run_id, p_dataset_id, p_cap_usd }) => {
       const run = runOf(p_run_id);
       if (!run || run.claimed_by !== p_owner || run.state !== "starting") return false;
-      Object.assign(run, { apify_run_id: p_apify_run_id, dataset_id: p_dataset_id, cap_usd: p_cap_usd, state: "running" });
+      Object.assign(run, {
+        apify_run_id: p_apify_run_id,
+        dataset_id: p_dataset_id,
+        cap_usd: p_cap_usd,
+        state: "running",
+      });
       return true;
     },
     lead_run_mark_unknown: ({ p_run_id, p_owner }) => {
@@ -124,7 +250,12 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
     lead_run_reconcile: ({ p_run_id, p_apify_run_id, p_dataset_id, p_state }) => {
       const run = runOf(p_run_id);
       if (!run || run.state !== "unknown") return false;
-      Object.assign(run, { apify_run_id: p_apify_run_id ?? null, dataset_id: p_dataset_id ?? null, state: p_state, finished_at: FINAL.has(p_state) ? nowIso() : null });
+      Object.assign(run, {
+        apify_run_id: p_apify_run_id ?? null,
+        dataset_id: p_dataset_id ?? null,
+        state: p_state,
+        finished_at: FINAL.has(p_state) ? nowIso() : null,
+      });
       return true;
     },
     lead_run_lease: ({ p_run_id, p_owner, p_seconds }) => {
@@ -158,39 +289,114 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const judgments = Array.isArray(page.judgment) ? page.judgment : page.judgment ? [page.judgment] : [];
       for (const j of judgments) {
         if (T.lead_judgments.some((x) => x.op_id === j.op_id)) continue;
-        T.lead_judgments.push({ id: uuid(), tenant_id: run.tenant_id, round_id: round.id, batch: j.batch ?? 0, op_id: j.op_id, request_hash: j.request_hash, answer: j.answer, model: j.model, tokens: j.tokens ?? 0, created_at: nowIso() });
+        T.lead_judgments.push({
+          id: uuid(),
+          tenant_id: run.tenant_id,
+          round_id: round.id,
+          batch: j.batch ?? 0,
+          op_id: j.op_id,
+          request_hash: j.request_hash,
+          answer: j.answer,
+          model: j.model,
+          tokens: j.tokens ?? 0,
+          created_at: nowIso(),
+        });
         round.judge_tokens += j.tokens ?? 0;
         round.judge_model = j.model ?? round.judge_model;
       }
       for (const x of page.places) {
         if (!x.place.place_id) continue;
-        if (suppressedValues.has(`place:${x.place.place_id}`) || (x.place.phone_e164 && suppressedValues.has(`phone:${x.place.phone_e164}`)) || (x.place.email && suppressedValues.has(`email:${x.place.email}`))) continue;
+        if (
+          suppressedValues.has(`place:${x.place.place_id}`) ||
+          (x.place.phone_e164 && suppressedValues.has(`phone:${x.place.phone_e164}`)) ||
+          (x.place.email && suppressedValues.has(`email:${x.place.email}`))
+        )
+          continue;
         let lead = null;
         if (x.duplicate_of_place_id) {
-          lead = T.leads.find((l) => l.tenant_id === run.tenant_id && !l.blanked_at && !l.erased_at && (l.place_id === x.duplicate_of_place_id || T.lead_places.some((p) => p.lead_id === l.id && p.place_id === x.duplicate_of_place_id))) ?? null;
-          if (lead && !T.lead_places.some((p) => p.place_id === x.place.place_id)) T.lead_places.push({ id: uuid(), lead_id: lead.id, tenant_id: run.tenant_id, place_id: x.place.place_id, title: x.place.business_name, street: x.place.street, found_at: nowIso() });
+          lead =
+            T.leads.find(
+              (l) =>
+                l.tenant_id === run.tenant_id &&
+                !l.blanked_at &&
+                !l.erased_at &&
+                (l.place_id === x.duplicate_of_place_id ||
+                  T.lead_places.some((p) => p.lead_id === l.id && p.place_id === x.duplicate_of_place_id)),
+            ) ?? null;
+          if (lead && !T.lead_places.some((p) => p.place_id === x.place.place_id))
+            T.lead_places.push({
+              id: uuid(),
+              lead_id: lead.id,
+              tenant_id: run.tenant_id,
+              place_id: x.place.place_id,
+              title: x.place.business_name,
+              street: x.place.street,
+              found_at: nowIso(),
+            });
         }
         if (!lead) {
           lead = T.leads.find((l) => l.tenant_id === run.tenant_id && l.place_id === x.place.place_id) ?? null;
           if (!lead) {
-            lead = { id: uuid(), tenant_id: run.tenant_id, ...x.place, phone_wrong: false, email_checked_at: null, stage: "ready", closed_reason: null, last_outcome: null, last_note: null, contacted_at: null, exported_at: null, contact_id: null, converted_at: null, found_at: nowIso(), erased_at: null, blanked_at: null };
+            lead = {
+              id: uuid(),
+              tenant_id: run.tenant_id,
+              ...x.place,
+              phone_wrong: false,
+              email_checked_at: null,
+              stage: "ready",
+              closed_reason: null,
+              last_outcome: null,
+              last_note: null,
+              contacted_at: null,
+              exported_at: null,
+              contact_id: null,
+              converted_at: null,
+              found_at: nowIso(),
+              erased_at: null,
+              blanked_at: null,
+            };
             T.leads.push(lead);
           }
         }
         if (T.lead_search_members.some((m) => m.search_id === search.id && m.lead_id === lead.id)) continue;
         const cls = x.member.class ?? "review";
-        const member = { id: uuid(), search_id: search.id, lead_id: lead.id, round_id: round.id, tenant_id: run.tenant_id, judgment: { ...(x.member.judgment ?? {}), shares: x.shares ?? [] }, class: cls, excluded_by: x.member.excluded_by ?? null, fit: x.member.fit ?? null, reason: (x.member.reason ?? "").slice(0, 120), distance_m: x.member.distance_m ?? null, counted: false, counted_month: null, kept_at: null, kept_by: null, blanked_at: null, version: 1, created_at: nowIso() };
+        const member = {
+          id: uuid(),
+          search_id: search.id,
+          lead_id: lead.id,
+          round_id: round.id,
+          tenant_id: run.tenant_id,
+          judgment: { ...(x.member.judgment ?? {}), shares: x.shares ?? [] },
+          class: cls,
+          excluded_by: x.member.excluded_by ?? null,
+          fit: x.member.fit ?? null,
+          reason: (x.member.reason ?? "").slice(0, 120),
+          distance_m: x.member.distance_m ?? null,
+          counted: false,
+          counted_month: null,
+          kept_at: null,
+          kept_by: null,
+          blanked_at: null,
+          version: 1,
+          created_at: nowIso(),
+        };
         T.lead_search_members.push(member);
         if (cls === "qualified") {
           qualified += 1;
-          if (room > 0) { member.counted = true; member.counted_month = month; room -= 1; counted += 1; }
+          if (room > 0) {
+            member.counted = true;
+            member.counted_month = month;
+            room -= 1;
+            counted += 1;
+          }
         } else if (cls === "review") review += 1;
         else excluded += 1;
       }
       round.allowance_used += counted;
       const usage = Number(page.usage_usd);
       if (Number.isFinite(usage) && usage > run.usage_usd) {
-        if (round.state !== "ended") round.cost_usd = Math.round((round.cost_usd + usage - run.usage_usd) * 10_000) / 10_000; // an ended round is final (00145)
+        if (round.state !== "ended")
+          round.cost_usd = Math.round((round.cost_usd + usage - run.usage_usd) * 10_000) / 10_000; // an ended round is final (00145)
         run.usage_usd = usage;
       }
       run.read_offset = p_to_offset;
@@ -200,16 +406,30 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
         if (FINAL.has(page.run_state)) run.finished_at = run.finished_at ?? nowIso();
       }
       if (page.next && typeof page.next === "object") {
-        if (page.next.kind === "lead_check") w.scheduleOnce("lead_check", clock.ms + (page.next.run_after_seconds ?? 0) * 1000, { round_id: round.id, batch: page.next.batch ?? 1 });
-        else w.scheduleOnce("lead_collect", clock.ms + (page.next.run_after_seconds ?? 0) * 1000, { run_id: run.id, seq: page.next.seq ?? `p${p_to_offset}` });
+        if (page.next.kind === "lead_check")
+          w.scheduleOnce("lead_check", clock.ms + (page.next.run_after_seconds ?? 0) * 1000, {
+            round_id: round.id,
+            batch: page.next.batch ?? 1,
+          });
+        else
+          w.scheduleOnce("lead_collect", clock.ms + (page.next.run_after_seconds ?? 0) * 1000, {
+            run_id: run.id,
+            seq: page.next.seq ?? `p${p_to_offset}`,
+          });
       }
       const r = page.round ?? {};
       if (r.target != null) round.target = Math.max(round.target, r.target);
       if (r.ending_pending != null) round.ending_pending = r.ending_pending;
       if (Array.isArray(r.nearby)) round.nearby = r.nearby;
-      if (r.question && typeof r.question === "object") { round.question = r.question; round.waiting_since = nowIso(); }
+      if (r.question && typeof r.question === "object") {
+        round.question = r.question;
+        round.waiting_since = nowIso();
+      }
       if (r.ending != null) end(round, r.ending);
-      else if (r.state != null && r.state !== round.state) { round.state = r.state; round.started_at = round.started_at ?? nowIso(); }
+      else if (r.state != null && r.state !== round.state) {
+        round.state = r.state;
+        round.started_at = round.started_at ?? nowIso();
+      }
       return { ok: true, counted, qualified, review, excluded, round_state: round.state };
     },
     lead_check_commit: ({ p_round_id, p_run_id, p_results, p_usage_usd, p_last }) => {
@@ -221,18 +441,36 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       let counted = 0;
       for (const r of p_results ?? []) {
         const lead = T.leads.find((l) => l.id === r.lead_id && l.tenant_id === round.tenant_id);
-        if (lead && ["ok", "catch_all", "unknown", "invalid"].includes(r.email_state)) Object.assign(lead, { email_state: r.email_state, email_checked_at: r.checked_at ?? nowIso() });
+        if (lead && ["ok", "catch_all", "unknown", "invalid"].includes(r.email_state))
+          Object.assign(lead, { email_state: r.email_state, email_checked_at: r.checked_at ?? nowIso() });
       }
       for (const m of membersOf(round)) {
         const lead = T.leads.find((l) => l.id === m.lead_id);
         const reasons = Array.isArray(m.judgment?.reasons) ? m.judgment.reasons : null;
-        if (m.class !== "review" || m.blanked_at || lead?.email_state !== "ok" || !reasons || !reasons.length || reasons.some((x) => !String(x).startsWith("email:"))) continue;
+        if (
+          m.class !== "review" ||
+          m.blanked_at ||
+          lead?.email_state !== "ok" ||
+          !reasons ||
+          !reasons.length ||
+          reasons.some((x) => !String(x).startsWith("email:"))
+        )
+          continue;
         // Past the room the member is Qualified and uncounted, and no counter moves.
         // After the round ended (Check again, 00145) the member counts through the month, as Keep does; here the month is derived from counted members.
         const counts = round.state === "ended" || room > 0;
         if (counts && round.state === "ended") later += 1;
-        else if (counts) { room -= 1; counted += 1; }
-        Object.assign(m, { class: "qualified", counted: counts, counted_month: counts ? month : m.counted_month, version: m.version + 1, judgment: { ...m.judgment, reasons: [] } });
+        else if (counts) {
+          room -= 1;
+          counted += 1;
+        }
+        Object.assign(m, {
+          class: "qualified",
+          counted: counts,
+          counted_month: counts ? month : m.counted_month,
+          version: m.version + 1,
+          judgment: { ...m.judgment, reasons: [] },
+        });
         newly += 1;
       }
       round.allowance_used += counted;
@@ -240,11 +478,16 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const checkRun = p_run_id ? runOf(p_run_id) : null;
       const total = Number(p_usage_usd ?? 0);
       if (checkRun && checkRun.round_id === p_round_id && total > checkRun.usage_usd) {
-        if (round.state !== "ended") round.cost_usd = Math.round((round.cost_usd + total - checkRun.usage_usd) * 10_000) / 10_000; // an ended round is final (00145)
+        if (round.state !== "ended")
+          round.cost_usd = Math.round((round.cost_usd + total - checkRun.usage_usd) * 10_000) / 10_000; // an ended round is final (00145)
         checkRun.usage_usd = total;
       }
       let ended = false;
-      if (p_last) ended = end(round, round.ending_pending ?? (round.allowance_used >= targetOf(round) ? "target_reached" : "searched_everything"));
+      if (p_last)
+        ended = end(
+          round,
+          round.ending_pending ?? (round.allowance_used >= targetOf(round) ? "target_reached" : "searched_everything"),
+        );
       return { ok: true, qualified: newly, counted: counted + later, ended };
     },
     lead_round_end: ({ p_round_id, p_ending }) => {
@@ -262,8 +505,28 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
     const realInsert = b.insert;
     b.insert = (values) => {
       const rows = Array.isArray(values) ? values : [values];
-      const dup = rows.find((v) => v.kind === "lead_collect" && T.jobs.some((j) => j.kind === "lead_collect" && live(j) && j.payload?.run_id === v.payload?.run_id && j.payload?.seq === v.payload?.seq));
-      if (dup) return { then: (resolve) => resolve({ data: null, error: { code: "23505", message: "duplicate key value violates unique constraint \"jobs_lead_collect_once\"" } }) };
+      const dup = rows.find(
+        (v) =>
+          v.kind === "lead_collect" &&
+          T.jobs.some(
+            (j) =>
+              j.kind === "lead_collect" &&
+              live(j) &&
+              j.payload?.run_id === v.payload?.run_id &&
+              j.payload?.seq === v.payload?.seq,
+          ),
+      );
+      if (dup)
+        return {
+          then: (resolve) =>
+            resolve({
+              data: null,
+              error: {
+                code: "23505",
+                message: 'duplicate key value violates unique constraint "jobs_lead_collect_once"',
+              },
+            }),
+        };
       return realInsert(rows.map((v) => ({ state: "scheduled", attempts: 0, ...v })));
     };
     return b;
@@ -278,15 +541,23 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
   apify.startRun = async (actor, input, opts) => {
     const out = await realStart(actor, input, opts);
     const ds = apify.state.datasets;
-    if (actor.includes("email-verifier")) ds[out.datasetId] = (input.emails ?? []).map((e) => checkerItem(e, w.checkerAnswers?.[e] ?? "valid", w.checkerAnswers?.[e] === "risky"));
+    if (actor.includes("email-verifier"))
+      ds[out.datasetId] = (input.emails ?? []).map((e) =>
+        checkerItem(e, w.checkerAnswers?.[e] ?? "valid", w.checkerAnswers?.[e] === "risky"),
+      );
     else {
       discoverStarts += 1;
       const term = input.searchStringsArray[0];
       const probe = probeItems();
       const main = mainItems();
-      ds[out.datasetId] = discoverStarts <= plan.terms.length
-        ? (term === plan.terms[0] ? probe.slice(0, 13) : probe.slice(13))
-        : (term === plan.terms[0] ? main.slice(0, 20) : main.slice(20));
+      ds[out.datasetId] =
+        discoverStarts <= plan.terms.length
+          ? term === plan.terms[0]
+            ? probe.slice(0, 13)
+            : probe.slice(13)
+          : term === plan.terms[0]
+            ? main.slice(0, 20)
+            : main.slice(20);
     }
     return out;
   };
@@ -297,9 +568,25 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
   w.judge = fakeJudge();
   /** The wires the edge would bind (lead-wires.ts), over the fakes. */
   // The home pages this world serves, by origin (D6): what markPlaces reads a lead's own mark from.
-  w.wires = { apify, judge: w.judge, webhookBase: "https://edge.example", webhookToken, fetchText: async (url) => w.pages[url] ?? null };
+  w.wires = {
+    apify,
+    judge: w.judge,
+    webhookBase: "https://edge.example",
+    webhookToken,
+    fetchText: async (url) => w.pages[url] ?? null,
+  };
   w.ports = (owner, over = {}) => ({
-    db: over.db, apify, judge: w.judge, now: clock.now, webhookBase: "https://edge.example", webhookToken, fetchText: async (url) => w.pages[url] ?? null, schedule: (kind, payload, secs) => w.scheduleOnce(kind, clock.ms + secs * 1000, payload).then(() => undefined), deadline: clock.ms + 45_000, owner, ...over,
+    db: over.db,
+    apify,
+    judge: w.judge,
+    now: clock.now,
+    webhookBase: "https://edge.example",
+    webhookToken,
+    fetchText: async (url) => w.pages[url] ?? null,
+    schedule: (kind, payload, secs) => w.scheduleOnce(kind, clock.ms + secs * 1000, payload).then(() => undefined),
+    deadline: clock.ms + 45_000,
+    owner,
+    ...over,
   });
 
   /* ------------------------------------------------------------ the rows */
@@ -313,7 +600,14 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
 
 /** The JobContext the tick would build for one job, over the world: the fake database and the world's wires. */
 export function ctxFor(w, leads) {
-  return () => ({ db: w.db, wire: {}, alert: async () => {}, schedule: async () => {}, deadline: Date.now() + 45_000, ...(leads ? { leads } : {}) });
+  return () => ({
+    db: w.db,
+    wire: {},
+    alert: async () => {},
+    schedule: async () => {},
+    deadline: Date.now() + 45_000,
+    ...(leads ? { leads } : {}),
+  });
 }
 
 /**
@@ -326,9 +620,14 @@ export async function drain(w, dispatchJob, ctxOf, { max = 300, finishAfterPolls
   const polls = new Map();
   let ran = 0;
   for (;;) {
-    const due = w.T.jobs.filter((j) => j.state === "scheduled").sort((a, b) => (a.due_at < b.due_at ? -1 : a.due_at > b.due_at ? 1 : 0))[0];
+    const due = w.T.jobs
+      .filter((j) => j.state === "scheduled")
+      .sort((a, b) => (a.due_at < b.due_at ? -1 : a.due_at > b.due_at ? 1 : 0))[0];
     if (!due) return ran;
-    if (++ran > max) throw new Error(`drain: more than ${max} jobs; the last: ${JSON.stringify(w.T.jobs.slice(-5).map((j) => [j.kind, j.payload, j.state]))}`);
+    if (++ran > max)
+      throw new Error(
+        `drain: more than ${max} jobs; the last: ${JSON.stringify(w.T.jobs.slice(-5).map((j) => [j.kind, j.payload, j.state]))}`,
+      );
     if (Date.parse(due.due_at) > w.clock.ms) w.clock.ms = Date.parse(due.due_at);
     due.state = "fired";
     due.attempts += 1;

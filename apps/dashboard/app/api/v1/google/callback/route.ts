@@ -24,7 +24,8 @@ export const GET = read({
   handle: async ({ ctx, req }) => {
     const url = new URL(req.url);
     const origin = url.origin;
-    const back = (outcome: string, why?: string) => new Response(null, { status: 302, headers: { location: afterGoogle(origin, outcome, why) } });
+    const back = (outcome: string, why?: string) =>
+      new Response(null, { status: 302, headers: { location: afterGoogle(origin, outcome, why) } });
 
     const refused = url.searchParams.get("error");
     if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
@@ -50,7 +51,14 @@ export const GET = read({
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : `edge_${a.status}`;
-      console.error("google_connect_failed", JSON.stringify({ tenant: tenantId, reason, detail: typeof b.detail === "string" ? b.detail.slice(0, 200) : null }));
+      console.error(
+        "google_connect_failed",
+        JSON.stringify({
+          tenant: tenantId,
+          reason,
+          detail: typeof b.detail === "string" ? b.detail.slice(0, 200) : null,
+        }),
+      );
       return back("error", reason);
     }
     return back(b.pending === true ? "choose" : "connected");

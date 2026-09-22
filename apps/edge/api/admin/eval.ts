@@ -29,7 +29,11 @@ const MAX_CASES = 6;
 const MAX_CHARS = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-interface EvalCase { id: string; text: string; history?: Array<{ role: "user" | "assistant"; content: string }> }
+interface EvalCase {
+  id: string;
+  text: string;
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
+}
 
 /**
  * The model as a port, as on the steer door. Production passes nothing and
@@ -40,7 +44,9 @@ interface EvalCase { id: string; text: string; history?: Array<{ role: "user" | 
  * hand a brain in, and the last two call POST the way Vercel calls it and
  * watch the real brain reach the model.
  */
-export interface BrainPort { generateReply?: typeof generateReply }
+export interface BrainPort {
+  generateReply?: typeof generateReply;
+}
 
 export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
@@ -49,7 +55,11 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   if (!env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
 
   let body: { tenant_id?: string; cases?: EvalCase[] } = {};
-  try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* below */
+  }
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -62,7 +72,12 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     if (!c || typeof c.id !== "string" || typeof c.text !== "string" || !c.text.trim() || c.text.length > MAX_CHARS) {
       return json(400, { ok: false, error: `each case needs an id and a text of 1-${MAX_CHARS} chars` });
     }
-    if (c.history && (!Array.isArray(c.history) || c.history.length > 12 || c.history.some((h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string"))) {
+    if (
+      c.history &&
+      (!Array.isArray(c.history) ||
+        c.history.length > 12 ||
+        c.history.some((h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string"))
+    ) {
       return json(400, { ok: false, error: "history is up to 12 turns of { role, content }" });
     }
   }
@@ -81,7 +96,13 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   if (error) return json(500, { ok: false, error: "channel_read_failed" });
   if (!ch) return json(404, { ok: false, error: "no_whatsapp_channel" });
   const routed: RoutedChannel = {
-    channelId: ch.id, tenantId: ch.tenant_id, kind: ch.kind, externalId: ch.external_id, numberE164: ch.number_e164, credentialsRef: ch.credentials_ref, config: ch.config,
+    channelId: ch.id,
+    tenantId: ch.tenant_id,
+    kind: ch.kind,
+    externalId: ch.external_id,
+    numberE164: ch.number_e164,
+    credentialsRef: ch.credentials_ref,
+    config: ch.config,
   };
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return json(409, { ok: false, error: rt.configBroken ? "config_broken" : "no_persona" });
@@ -96,13 +117,32 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     const t0 = Date.now();
     try {
       const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote);
-      results.push({ id: c.id, ok: true, text: r.text, escalate: r.escalate, reason: r.reason ?? null, meta: r.meta ?? null, usage: r.usage ?? null, ms: Date.now() - t0 });
+      results.push({
+        id: c.id,
+        ok: true,
+        text: r.text,
+        escalate: r.escalate,
+        reason: r.reason ?? null,
+        meta: r.meta ?? null,
+        usage: r.usage ?? null,
+        ms: Date.now() - t0,
+      });
     } catch (e) {
-      results.push({ id: c.id, ok: false, error: String(e instanceof Error ? e.message : e).slice(0, 200), ms: Date.now() - t0 });
+      results.push({
+        id: c.id,
+        ok: false,
+        error: String(e instanceof Error ? e.message : e).slice(0, 200),
+        ms: Date.now() - t0,
+      });
     }
   }
   // The texts are the model's and stay out of the log; the count and the
   // time are what a search needs.
-  L.info("admin_eval", { tenant: tenantId, cases: cases.length, ms: Date.now() - started, prompt_chars: system.length });
+  L.info("admin_eval", {
+    tenant: tenantId,
+    cases: cases.length,
+    ms: Date.now() - started,
+    prompt_chars: system.length,
+  });
   return json(200, { ok: true, prompt_chars: system.length, timezone: rt.timezone, results });
 }

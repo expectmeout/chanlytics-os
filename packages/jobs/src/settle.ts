@@ -94,7 +94,11 @@ function idFrom(payload: unknown, key: string): string | null {
  * must never cost a customer that. A job carrying no mailbox_id is not one
  * this can speak for.
  */
-async function noteMailboxTrouble(db: Db, tenantId: string, mailboxId: string | null): Promise<{ mailbox?: "marked" | "gone" | "failed" }> {
+async function noteMailboxTrouble(
+  db: Db,
+  tenantId: string,
+  mailboxId: string | null,
+): Promise<{ mailbox?: "marked" | "gone" | "failed" }> {
   if (!mailboxId) return {};
   // The rows are COUNTED. An update that matched nothing comes back without an
   // error -- a mailbox deleted since the webhook, or one that is not this
@@ -127,13 +131,18 @@ function resumesOf(payload: unknown): number {
  * on any broadcast bigger than the cap — on the one screen where those two
  * numbers are the whole point.
  */
-async function howFar(db: Db, tenantId: string, broadcastId: string): Promise<{ reached: number; remaining: number; error?: string }> {
-  const of = (state: string) => db
-    .from("broadcast_recipients")
-    .select("contact_id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("broadcast_id", broadcastId)
-    .eq("state", state);
+async function howFar(
+  db: Db,
+  tenantId: string,
+  broadcastId: string,
+): Promise<{ reached: number; remaining: number; error?: string }> {
+  const of = (state: string) =>
+    db
+      .from("broadcast_recipients")
+      .select("contact_id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("broadcast_id", broadcastId)
+      .eq("state", state);
   const [sent, queued] = await Promise.all([of("sent"), of("queued")]);
   const error = sent.error?.message ?? queued.error?.message;
   return { reached: sent.count ?? 0, remaining: queued.count ?? 0, ...(error ? { error } : {}) };
@@ -145,7 +154,11 @@ async function howFar(db: Db, tenantId: string, broadcastId: string): Promise<{ 
  * reason beside it reads the same as a template Meta rejected.
  */
 async function failBroadcast(
-  db: Db, job: TerminalJob, broadcastId: string, why: string, far: { reached: number; remaining: number },
+  db: Db,
+  job: TerminalJob,
+  broadcastId: string,
+  why: string,
+  far: { reached: number; remaining: number },
 ): Promise<Settled[]> {
   const { data, error } = await db
     .from("broadcasts")
@@ -186,10 +199,24 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
     // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5).
     const row = (data?.[0] ?? null) as { conversation_id?: string | null; sender?: string | null } | null;
-    const flagged = !error && row?.conversation_id
-      ? await upsertEscalation(db, job.tenant_id, row.conversation_id, "send_failed", `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${certain ? NEVER_SENT : MAY_HAVE_SENT}.`)
-      : null;
-    return [{ what: "message", changed: !!data?.length, ...(flagged ? { flagged } : {}), ...(error ? { error: error.message } : {}) }];
+    const flagged =
+      !error && row?.conversation_id
+        ? await upsertEscalation(
+            db,
+            job.tenant_id,
+            row.conversation_id,
+            "send_failed",
+            `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${certain ? NEVER_SENT : MAY_HAVE_SENT}.`,
+          )
+        : null;
+    return [
+      {
+        what: "message",
+        changed: !!data?.length,
+        ...(flagged ? { flagged } : {}),
+        ...(error ? { error: error.message } : {}),
+      },
+    ];
   }
 
   if (job.kind === "email_ingest") {
@@ -278,13 +305,22 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
 
     const resumes = resumesOf(job.payload);
-    if (resumes >= MAX_RESUMES) return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, { reached, remaining });
+    if (resumes >= MAX_RESUMES)
+      return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, {
+        reached,
+        remaining,
+      });
     try {
       // The count rides the payload: nothing else survives the death of the run.
       // broadcastSend's own scheduleNext writes a payload without it, so a run
       // that got as far as its next batch resets the count, and this bounds only
       // the runs that made no progress at all.
-      await scheduleJob(db, { tenantId: job.tenant_id, kind: "broadcast_send", dueAt: new Date(), payload: { broadcast_id: broadcastId, resumes: resumes + 1 } });
+      await scheduleJob(db, {
+        tenantId: job.tenant_id,
+        kind: "broadcast_send",
+        dueAt: new Date(),
+        payload: { broadcast_id: broadcastId, resumes: resumes + 1 },
+      });
       return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
     } catch (e) {
       return failBroadcast(db, job, broadcastId, e instanceof Error ? e.message : String(e), { reached, remaining });
@@ -304,31 +340,41 @@ export function saySettled(results: Settled[]): string | null {
   const lines: string[] = [];
   for (const r of results) {
     if (r.error) {
-      lines.push(r.what === "message"
-        ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.`
-        : r.what === "email"
-          ? `The email it was taking in could not be flagged for a person (${r.error}), so look for it in the Inbox.`
-          : `The broadcast could not be updated (${r.error}), so it may still show as sending.`);
+      lines.push(
+        r.what === "message"
+          ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.`
+          : r.what === "email"
+            ? `The email it was taking in could not be flagged for a person (${r.error}), so look for it in the Inbox.`
+            : `The broadcast could not be updated (${r.error}), so it may still show as sending.`,
+      );
     } else if (r.resumed) {
       // Whether this settlement handed it on or found a run already coming, the
       // owner's picture is the same: it is still going. What it does NOT say is
       // "nobody is sent it twice" — a run killed between the wire accepting a
       // message and the row recording it leaves no row for the next run to read.
-      lines.push(`The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`);
+      lines.push(
+        `The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`,
+      );
     } else if (r.changed && r.notResumed) {
-      lines.push(`The broadcast could not be handed to a fresh run (${r.notResumed}), so it has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
+      lines.push(
+        `The broadcast could not be handed to a fresh run (${r.notResumed}), so it has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`,
+      );
     } else if (r.changed && r.what === "email") {
       lines.push("The email it was taking in is in the Inbox and flagged for a person, so nobody has to find it.");
     } else if (r.what === "email") {
       // Nothing was stored, so there is no thread this could be held against:
       // the mailbox is the only place in the product it can be said at all.
-      lines.push(r.mailbox === "marked"
-        ? "The email it was taking in was never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in."
-        : "The email it was taking in was never stored, so there is nothing to flag for a person.");
+      lines.push(
+        r.mailbox === "marked"
+          ? "The email it was taking in was never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in."
+          : "The email it was taking in was never stored, so there is nothing to flag for a person.",
+      );
     } else if (r.changed) {
-      lines.push(r.what === "message"
-        ? "The message has been marked failed, so it is no longer shown as on its way."
-        : `The broadcast has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
+      lines.push(
+        r.what === "message"
+          ? "The message has been marked failed, so it is no longer shown as on its way."
+          : `The broadcast has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`,
+      );
     }
     // changed:false with no error means the row had already moved on by itself.
     // There is nothing to tell anyone about work that completed.

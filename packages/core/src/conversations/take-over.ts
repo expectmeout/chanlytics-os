@@ -1,7 +1,10 @@
 import { AppError } from "@chanlytics/contracts";
 import type { Thread, ThreadPorts } from "./ports";
 
-export type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "claim" | "takeControl" | "withdrawDrafts" | "record" | "now">;
+export type TakeOverPorts = Pick<
+  ThreadPorts,
+  "pauseMs" | "claim" | "takeControl" | "withdrawDrafts" | "record" | "now"
+>;
 
 /**
  * The longest a person's hold lasts without being renewed.
@@ -13,10 +16,18 @@ export type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "claim" | "takeControl
  * window is the ceiling, and a day is the ceiling on that.
  */
 export const PERSON_CONTROL_MAX_S = 24 * 60 * 60;
-export interface TakeOverResult { state: "needs_human"; paused_until: string; decision_id: string; withdrawn_drafts: number }
+export interface TakeOverResult {
+  state: "needs_human";
+  paused_until: string;
+  decision_id: string;
+  withdrawn_drafts: number;
+}
 
 /** Take over: pause the receptionist, claim the thread. The open escalation stays open (§4). */
-export async function takeOver(ports: TakeOverPorts, cmd: { conv: Pick<Thread, "id" | "tenant_id" | "phone_e164">; userId: string }): Promise<TakeOverResult> {
+export async function takeOver(
+  ports: TakeOverPorts,
+  cmd: { conv: Pick<Thread, "id" | "tenant_id" | "phone_e164">; userId: string },
+): Promise<TakeOverResult> {
   const { conv } = cmd;
   const untilMs = ports.now() + (await ports.pauseMs(conv.tenant_id));
   const paused_until = new Date(untilMs).toISOString();
@@ -31,7 +42,12 @@ export async function takeOver(ports: TakeOverPorts, cmd: { conv: Pick<Thread, "
   }
   // Who is speaking now, before the drafts are withdrawn: between the claim and
   // the withdrawal a draft can still reach the wire, and the wire asks this.
-  await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((untilMs - ports.now()) / 1000))));
+  await ports.takeControl(
+    conv.tenant_id,
+    conv.id,
+    cmd.userId,
+    Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((untilMs - ports.now()) / 1000))),
+  );
   // A held reply must not land after a person has taken the thread — the case
   // the veto window exists to prevent.
   const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);

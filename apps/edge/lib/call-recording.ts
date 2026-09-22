@@ -32,7 +32,9 @@ export const WEBHOOK_COPY_TIMEOUT_MS = 6_000;
 export const SWEEP_COPY_TIMEOUT_MS = 20_000;
 
 const REC_EXT: Record<string, string> = {
-  "audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/mpeg": "mp3",
   "audio/mp4": "m4a",
 };
 
@@ -96,9 +98,15 @@ export async function purgeExpiredRecordings(
     .order("started_at", { ascending: true })
     .limit(limit);
   if (error) return { candidates: 0, purged: 0, error: error.message };
-  const rows = (data ?? []) as { id: string; tenant_id: string; recording: { storage_path?: string; mime?: string | null } | null }[];
+  const rows = (data ?? []) as {
+    id: string;
+    tenant_id: string;
+    recording: { storage_path?: string; mime?: string | null } | null;
+  }[];
   if (!rows.length) return { candidates: 0, purged: 0, error: null };
-  const paths = rows.map((r) => r.recording?.storage_path).filter((p): p is string => typeof p === "string" && p.length > 0);
+  const paths = rows
+    .map((r) => r.recording?.storage_path)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
   if (paths.length) {
     const r = await ports.remove(paths);
     if (r.error) return { candidates: rows.length, purged: 0, error: r.error };

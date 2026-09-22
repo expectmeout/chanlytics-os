@@ -18,7 +18,22 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiOptions, ApiResult, Params, RouteKey } from "../client/api";
-import { FALLBACK_DEFAULTS, INSTRUCTIONS_MAX, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, fallbackMessages, hoursLines, inboxTemplates, instructionsDraft, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn, unknownDetails } from "@chanlytics/contracts";
+import {
+  FALLBACK_DEFAULTS,
+  INSTRUCTIONS_MAX,
+  MAX_CLOSURES,
+  MAX_INTERVALS_PER_DAY,
+  fallbackMessages,
+  hoursLines,
+  inboxTemplates,
+  instructionsDraft,
+  inviteState,
+  lastChangedWords,
+  newReceptionistDefaults,
+  refusalOf,
+  tomorrowAtIn,
+  unknownDetails,
+} from "@chanlytics/contracts";
 import { workspaceZone } from "./zone";
 import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -33,7 +48,10 @@ interface RealThread {
 type VerbResult = ApiResult<unknown>;
 
 /** A refusal the courier makes before asking: nothing was sent, and it reads as any other refusal does. */
-const local = (message: string): VerbResult => ({ ok: false, ...refusalOf({ code: "client", status: 0, message, write: true }) });
+const local = (message: string): VerbResult => ({
+  ok: false,
+  ...refusalOf({ code: "client", status: 0, message, write: true }),
+});
 
 async function refresh(): Promise<void> {
   // Today carries the "needs you" count — leaving it out means snoozing from
@@ -64,8 +82,7 @@ async function refresh(): Promise<void> {
  */
 
 export type InboxVerb =
-  | "take-over" | "hand-back" | "snooze" | "wake" | "archive" | "resolve"
-  | "reply" | "reply-template";
+  "take-over" | "hand-back" | "snooze" | "wake" | "archive" | "resolve" | "reply" | "reply-template";
 
 // One verb per thread at a time: no double-click double-send, no two claims.
 const inFlight = new Set<string>();
@@ -206,7 +223,11 @@ async function runVerb(
     case "reply":
       // `emailTo` is the operator's yes to where an email reply goes, when the server asked (Refusal.confirmEmailTo).
       result = await api()("POST conversations/[id]/reply", {
-        params: { id }, body: { text: payload?.text ?? "", ...(payload?.emailTo ? { email_to: payload.emailTo } : {}) }, idempotencyKey: sendKey, refresh, onAccepted,
+        params: { id },
+        body: { text: payload?.text ?? "", ...(payload?.emailTo ? { email_to: payload.emailTo } : {}) },
+        idempotencyKey: sendKey,
+        refresh,
+        onAccepted,
       });
       break;
     case "reply-template":
@@ -214,7 +235,13 @@ async function runVerb(
       // reject: "we do not know of an approved template" is a clearer thing to
       // say than "Template not found or not approved".
       result = tpl
-        ? await api()("POST conversations/[id]/reply", { params: { id }, body: { template: tpl }, idempotencyKey: sendKey, refresh, onAccepted })
+        ? await api()("POST conversations/[id]/reply", {
+            params: { id },
+            body: { template: tpl },
+            idempotencyKey: sendKey,
+            refresh,
+            onAccepted,
+          })
         : local("This workspace has no approved template yet, so nothing can be sent outside the 24-hour window.");
       break;
     default:
@@ -444,7 +471,8 @@ export async function setReportRange(days: number): Promise<boolean> {
  * A link the browser follows rather than a request it makes: a download, a photo. A download of ONE view names
  * it in the query (Leads' export of a search), which is typed as that route's own input.
  */
-const href = <K extends RouteKey>(key: K, params?: Params<K>, query?: ApiOptions<K>["query"]) => api().url(key, { params, query });
+const href = <K extends RouteKey>(key: K, params?: Params<K>, query?: ApiOptions<K>["query"]) =>
+  api().url(key, { params, query });
 
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
@@ -542,9 +570,13 @@ interface LastChangedWindow {
 export function lastChangedFor(w: LastChangedWindow, nowMs: number): string {
   const s = w.__SETTINGS;
   if (!s) return "";
-  const who = s.updatedBy ? (w.__TEAM ?? []).find((m) => m.userId === s.updatedBy) ?? null : null;
+  const who = s.updatedBy ? ((w.__TEAM ?? []).find((m) => m.userId === s.updatedBy) ?? null) : null;
   const name = who
-    ? (w.__identity ? w.__identity.member({ email: who.email, display_name: who.displayName || null }).name : who.displayName || who.email || "a member")
-    : s.updatedBy ? "someone no longer on the team" : null;
+    ? w.__identity
+      ? w.__identity.member({ email: who.email, display_name: who.displayName || null }).name
+      : who.displayName || who.email || "a member"
+    : s.updatedBy
+      ? "someone no longer on the team"
+      : null;
   return lastChangedWords(s.updatedAt, name, nowMs);
 }

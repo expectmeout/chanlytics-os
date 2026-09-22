@@ -101,7 +101,8 @@ export const ASK_FINISH_JSON_SCHEMA = {
     },
     followups: {
       type: "array",
-      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
+      description:
+        "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
       items: { type: "string" },
     },
     navigate: {
@@ -133,7 +134,10 @@ export function cleanAnswer(raw: string): string {
   let s = raw.replace(/^\s*<answer>\s*/i, "");
   const cut = s.search(TAG_CUT);
   if (cut >= 0) s = s.slice(0, cut);
-  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
+  return s
+    .replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "")
+    .replace(/\s+$/g, "")
+    .trim();
 }
 
 /** Citations the model wrote into the wrong field, when the answer carried them as JSON. */
@@ -146,15 +150,31 @@ export function recoverCitations(raw: string): AskCitation[] {
   let end = -1;
   for (let i = start; i < raw.length; i++) {
     if (raw[i] === "[") depth++;
-    else if (raw[i] === "]") { depth--; if (depth === 0) { end = i; break; } }
+    else if (raw[i] === "]") {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
   }
   if (end < 0) return [];
   try {
     const arr = JSON.parse(raw.slice(start, end + 1)) as unknown;
     if (!Array.isArray(arr)) return [];
     return arr
-      .filter((c): c is AskCitation => !!c && typeof c === "object" && typeof (c as AskCitation).id === "string" && typeof (c as AskCitation).label === "string")
-      .map((c) => ({ kind: (ASK_CITATION_KINDS as readonly string[]).includes(String(c.kind)) ? (c.kind as AskCitationKind) : "page", id: c.id.slice(0, 200), label: c.label.slice(0, 80) }))
+      .filter(
+        (c): c is AskCitation =>
+          !!c &&
+          typeof c === "object" &&
+          typeof (c as AskCitation).id === "string" &&
+          typeof (c as AskCitation).label === "string",
+      )
+      .map((c) => ({
+        kind: (ASK_CITATION_KINDS as readonly string[]).includes(String(c.kind)) ? (c.kind as AskCitationKind) : "page",
+        id: c.id.slice(0, 200),
+        label: c.label.slice(0, 80),
+      }))
       .slice(0, ASK_CAPS.citations);
   } catch {
     return [];
@@ -162,7 +182,10 @@ export function recoverCitations(raw: string): AskCitation[] {
 }
 
 export const AskFinishSchema = z.object({
-  answer: z.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
+  answer: z
+    .string()
+    .catch("")
+    .transform((s) => clip(1500)(cleanAnswer(s))),
   citations: z
     .array(
       z.object({
@@ -176,11 +199,28 @@ export const AskFinishSchema = z.object({
   followups: z
     .array(z.string())
     .catch([])
-    .transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
+    .transform((a) =>
+      a
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, ASK_CAPS.followups)
+        .map((s) => s.slice(0, 90)),
+    ),
   navigate: z
     .object({ to: z.string().catch(""), label: z.string().catch(""), now: z.boolean().catch(false) })
     .catch({ to: "", label: "", now: false })
-    .transform((n) => (n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null)),
+    .transform((n) =>
+      n.to.trim()
+        ? {
+            to: n.to
+              .trim()
+              .replace(/^#?\/+/, "")
+              .slice(0, 200),
+            label: n.label.trim().slice(0, 60) || "Open",
+            now: n.now === true,
+          }
+        : null,
+    ),
   language: z.enum(ASK_LANGUAGES).catch("other"),
 });
 export type AskFinish = z.infer<typeof AskFinishSchema>;
@@ -195,10 +235,16 @@ export function parseAskFinish(raw: unknown): { ok: true; value: AskFinish } | {
     }
   }
   const r = AskFinishSchema.safeParse(json);
-  if (!r.success) return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
+  if (!r.success)
+    return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
   if (!r.data.answer) return { ok: false, error: "empty answer" };
   // Citations that leaked into the answer field are still citations.
-  if (!r.data.citations.length && json && typeof json === "object" && typeof (json as { answer?: unknown }).answer === "string") {
+  if (
+    !r.data.citations.length &&
+    json &&
+    typeof json === "object" &&
+    typeof (json as { answer?: unknown }).answer === "string"
+  ) {
     const leaked = recoverCitations((json as { answer: string }).answer);
     if (leaked.length) return { ok: true, value: { ...r.data, citations: leaked } };
   }
@@ -216,11 +262,31 @@ export function emptyReadSet(): AskReadSet {
 
 /** The pages a citation or a navigate target may point at without a read. */
 export const ASK_PAGE_ROUTES = [
-  "today", "inbox", "clients", "clients/leads", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports",
-  "admin/setup", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile",
+  "today",
+  "inbox",
+  "clients",
+  "clients/leads",
+  "segments",
+  "conversations",
+  "live",
+  "calendar",
+  "outbound",
+  "broadcasts",
+  "messages",
+  "reports",
+  "admin/setup",
+  "admin/workspace",
+  "admin/team",
+  "admin/autonomy",
+  "admin/notifications",
+  "admin/integrations",
+  "admin/billing",
+  "admin/activity",
+  "admin/profile",
 ] as const;
 
-const PAGE_PREFIX = /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
+const PAGE_PREFIX =
+  /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
 
 /**
  * Drop every citation that names a row the tools did not return this turn.
@@ -248,11 +314,16 @@ export function groundCitations(citations: AskCitation[], read: AskReadSet): { k
 /** Where a citation opens. The same routes the pages use for the same rows. */
 export function citationRoute(c: AskCitation): string {
   switch (c.kind) {
-    case "thread": return `inbox/th-${c.id}`;
-    case "conversation": return `conversations/${c.id}`;
-    case "call": return `conversations/cv-${c.id}`;
-    case "person": return `clients/${c.id}`;
-    default: return c.id;
+    case "thread":
+      return `inbox/th-${c.id}`;
+    case "conversation":
+      return `conversations/${c.id}`;
+    case "call":
+      return `conversations/cv-${c.id}`;
+    case "person":
+      return `clients/${c.id}`;
+    default:
+      return c.id;
   }
 }
 
@@ -376,7 +447,18 @@ export type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 export interface AskProposal {
   id: string;
-  kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search";
+  kind:
+    | "reply"
+    | "steer"
+    | "thread_verb"
+    | "person_mode"
+    | "policy"
+    | "settings"
+    | "whisper"
+    | "invite"
+    | "broadcast"
+    | "playbook"
+    | "lead_search";
   /** The lowest role that may commit it; the route re-checks on Approve. */
   needs: "operator" | "owner";
   title: string;
@@ -426,7 +508,13 @@ export const ASK_UNDO_MS = 10 * 60_000;
  * version loaded. Everything else reverses cleanly for a while, then not.
  * An undo used to be offered forever, and to survive reopening a thread days later.
  */
-export function askUndoOpen(kind: string, undo: Record<string, unknown> | null | undefined, atMs: number, nowMs: number, settingsVersion: number | null): boolean {
+export function askUndoOpen(
+  kind: string,
+  undo: Record<string, unknown> | null | undefined,
+  atMs: number,
+  nowMs: number,
+  settingsVersion: number | null,
+): boolean {
   if (!undo) return false;
   if (kind === "reply") {
     const until = typeof undo.cancelable_until === "string" ? Date.parse(undo.cancelable_until) : NaN;
@@ -483,17 +571,23 @@ export interface AskScope {
 /** The scope a route implies, when it names a row. */
 export function scopeFromRoute(page: string, param: string | null | undefined, label?: string | null): AskScope | null {
   if (!param) return null;
-  if (page === "inbox" && param.startsWith("th-")) return { kind: "thread", id: param.slice(3), label: label || "this thread" };
-  if (page === "conversations" && param.startsWith("cv-")) return { kind: "call", id: param.slice(3), label: label || "this call" };
-  if (page === "conversations" && /^[0-9a-f-]{36}$/.test(param)) return { kind: "conversation", id: param, label: label || "this conversation" };
-  if (page === "clients" && /^[0-9a-f-]{36}$/.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  if (page === "inbox" && param.startsWith("th-"))
+    return { kind: "thread", id: param.slice(3), label: label || "this thread" };
+  if (page === "conversations" && param.startsWith("cv-"))
+    return { kind: "call", id: param.slice(3), label: label || "this call" };
+  if (page === "conversations" && /^[0-9a-f-]{36}$/.test(param))
+    return { kind: "conversation", id: param, label: label || "this conversation" };
+  if (page === "clients" && /^[0-9a-f-]{36}$/.test(param))
+    return { kind: "person", id: param, label: label || "this person" };
   return null;
 }
 
 /* ------------------------------------------------------------- language */
 
-const ES_HINT = /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
-const EN_HINT = /\b(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)\b/i;
+const ES_HINT =
+  /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
+const EN_HINT =
+  /\b(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)\b/i;
 
 /** A light guess at the language of a question; the model settles it. */
 export function detectLanguage(text: string): AskLanguage {
@@ -538,7 +632,13 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
   { label: "Playbooks", to: "outbound", kind: "page", sub: "campaigns that run on their own" },
   { label: "Broadcasts", to: "broadcasts", kind: "page", sub: "one message to the people who said yes" },
-  { label: "Templates", to: "messages", kind: "page", sub: "the wording the receptionist and the campaigns send", also: ["messages", "wording"] },
+  {
+    label: "Templates",
+    to: "messages",
+    kind: "page",
+    sub: "the wording the receptionist and the campaigns send",
+    also: ["messages", "wording"],
+  },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
   { label: "Setup", to: "admin/setup", kind: "page", sub: "what is left to set up" },
@@ -550,7 +650,12 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
   // What the receptionist knows lives in Business details; the Memory pane says so and points here.
-  { label: "Receptionist memory", to: "admin/workspace", kind: "page", sub: "hours, services and notes, in Business details" },
+  {
+    label: "Receptionist memory",
+    to: "admin/workspace",
+    kind: "page",
+    sub: "hours, services and notes, in Business details",
+  },
 ];
 
 /**
@@ -698,13 +803,30 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
   if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
   switch (input.surface) {
-    case "today": add(t.brief, "ask", "sparkle"); add(t.who, "ask", "users"); break;
-    case "inbox": add(t.who, "ask", "users"); add(t.rules, "ask", "shield"); break;
-    case "people": add(t.who, "ask", "users"); break;
-    case "reports": add(t.week, "ask", "trending-up"); break;
-    case "settings": add(t.rules, "ask", "shield"); add(t.hours, "ask", "clock"); break;
-    case "live": case "conversations": add(t.calls, "ask", "phone", input.missedToday > 0); break;
-    default: break;
+    case "today":
+      add(t.brief, "ask", "sparkle");
+      add(t.who, "ask", "users");
+      break;
+    case "inbox":
+      add(t.who, "ask", "users");
+      add(t.rules, "ask", "shield");
+      break;
+    case "people":
+      add(t.who, "ask", "users");
+      break;
+    case "reports":
+      add(t.week, "ask", "trending-up");
+      break;
+    case "settings":
+      add(t.rules, "ask", "shield");
+      add(t.hours, "ask", "clock");
+      break;
+    case "live":
+    case "conversations":
+      add(t.calls, "ask", "phone", input.missedToday > 0);
+      break;
+    default:
+      break;
   }
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
@@ -756,18 +878,31 @@ export type FastPath =
   | { kind: "openings"; day: string | null; service: string }
   | null;
 
-const NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
-const CALLS_RE = /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
-const OPEN_RE = /\b(what('s| is) open|what('s| is) free|openings?|availab|free (slot|slots|time)|any (slots?|room|space|time)|qu[eé] (hay|tengo) (libre|disponible)|disponibilidad|disponibles?|huecos?|espacios? libres?|cu[aá]ndo (hay|tienen) (libre|espacio))\b/i;
+const NEEDS_RE =
+  /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
+const CALLS_RE =
+  /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
+const OPEN_RE =
+  /\b(what('s| is) open|what('s| is) free|openings?|availab|free (slot|slots|time)|any (slots?|room|space|time)|qu[eé] (hay|tengo) (libre|disponible)|disponibilidad|disponibles?|huecos?|espacios? libres?|cu[aá]ndo (hay|tienen) (libre|espacio))\b/i;
 
 const DAY_WORDS: Array<[RegExp, string]> = [
-  [/\b(mon|monday|lunes)\b/i, "mon"], [/\b(tue|tues|tuesday|martes)\b/i, "tue"], [/\b(wed|wednesday|mi[eé]rcoles)\b/i, "wed"],
-  [/\b(thu|thur|thursday|jueves)\b/i, "thu"], [/\b(fri|friday|viernes)\b/i, "fri"], [/\b(sat|saturday|s[aá]bado)\b/i, "sat"], [/\b(sun|sunday|domingo)\b/i, "sun"],
+  [/\b(mon|monday|lunes)\b/i, "mon"],
+  [/\b(tue|tues|tuesday|martes)\b/i, "tue"],
+  [/\b(wed|wednesday|mi[eé]rcoles)\b/i, "wed"],
+  [/\b(thu|thur|thursday|jueves)\b/i, "thu"],
+  [/\b(fri|friday|viernes)\b/i, "fri"],
+  [/\b(sat|saturday|s[aá]bado)\b/i, "sat"],
+  [/\b(sun|sunday|domingo)\b/i, "sun"],
 ];
 
 function dayKey(atMs: number, tz: string | null | undefined): string {
   try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: tz || undefined, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(atMs));
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz || undefined,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(atMs));
   } catch {
     return new Date(atMs).toISOString().slice(0, 10);
   }
@@ -779,7 +914,11 @@ export function dayFromQuestion(q: string, now: number, tz?: string | null): str
   // days a year the clock moves (availability dayPlusInZone). A zone we
   // cannot use falls back the way dayKey does.
   if (/\b(tomorrow|mañana)\b/i.test(q)) {
-    try { if (tz) return dayPlusInZone(tz, now, 1).key; } catch { /* an unusable zone falls through */ }
+    try {
+      if (tz) return dayPlusInZone(tz, now, 1).key;
+    } catch {
+      /* an unusable zone falls through */
+    }
     return dayKey(now + 86_400_000, tz);
   }
   if (/\b(today|hoy)\b/i.test(q)) return dayKey(now, tz);
@@ -802,7 +941,9 @@ export function fastPath(question: string, ctx: FastContext): FastPath {
     if (!rows.length) {
       return {
         kind: "needs",
-        answer: es ? "Nadie te espera ahora mismo. La recepcionista está respondiendo sola." : "Nobody is waiting on you right now. The receptionist is answering on its own.",
+        answer: es
+          ? "Nadie te espera ahora mismo. La recepcionista está respondiendo sola."
+          : "Nobody is waiting on you right now. The receptionist is answering on its own.",
         links: [{ label: es ? "Abrir Inbox" : "Open Inbox", to: "inbox" }],
       };
     }
@@ -819,15 +960,23 @@ export function fastPath(question: string, ctx: FastContext): FastPath {
     const live = ctx.calls.filter((c) => c.live);
     if (!missed.length) {
       const answer = live.length
-        ? es ? `Ninguna llamada perdida hoy. Hay ${live.length === 1 ? "una llamada" : `${live.length} llamadas`} en curso.` : `No missed calls today. ${live.length === 1 ? "One call is" : `${live.length} calls are`} on the line now.`
-        : es ? "Ninguna llamada perdida hoy." : "No missed calls today.";
+        ? es
+          ? `Ninguna llamada perdida hoy. Hay ${live.length === 1 ? "una llamada" : `${live.length} llamadas`} en curso.`
+          : `No missed calls today. ${live.length === 1 ? "One call is" : `${live.length} calls are`} on the line now.`
+        : es
+          ? "Ninguna llamada perdida hoy."
+          : "No missed calls today.";
       return { kind: "calls", answer, links: [{ label: es ? "Ver llamadas" : "See calls", to: "live" }] };
     }
     const names = missed.slice(0, 4).map((c) => c.who);
     const answer = es
       ? `${missed.length === 1 ? "Una llamada perdida" : `${missed.length} llamadas perdidas`} hoy: ${names.join(", ")}.`
       : `${missed.length === 1 ? "One missed call" : `${missed.length} missed calls`} today: ${names.join(", ")}.`;
-    return { kind: "calls", answer, links: missed.slice(0, 4).map((c) => ({ label: c.who, to: `conversations/cv-${c.callId}` })) };
+    return {
+      kind: "calls",
+      answer,
+      links: missed.slice(0, 4).map((c) => ({ label: c.who, to: `conversations/cv-${c.callId}` })),
+    };
   }
   if (OPEN_RE.test(q)) {
     return { kind: "openings", day: dayFromQuestion(q, ctx.now, ctx.timezone), service: q };
@@ -850,10 +999,33 @@ export type AskSettingsChange =
   | { op: "add_service"; name: string; duration_min?: number };
 
 export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("add_closure"), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z.string().max(200).optional() }),
-  z.object({ op: z.literal("set_hours"), day: z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z.object({
+    op: z.literal("add_closure"),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    note: z.string().max(200).optional(),
+  }),
+  z.object({
+    op: z.literal("set_hours"),
+    day: z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .nullable(),
+    close: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .nullable(),
+  }),
   z.object({ op: z.literal("add_note"), title: z.string().min(1).max(80), text: z.string().min(1).max(1200) }),
-  z.object({ op: z.literal("add_service"), name: z.string().min(1).max(80), duration_min: z.number().int().min(1).max(1440).optional() }),
+  z.object({
+    op: z.literal("add_service"),
+    name: z.string().min(1).max(80),
+    duration_min: z.number().int().min(1).max(1440).optional(),
+  }),
 ]);
 
 type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unknown> } & Record<string, unknown>;
@@ -864,13 +1036,18 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
   switch (change.op) {
     case "add_closure": {
       const closures = [...((profile.closures as unknown[]) ?? [])];
-      closures.push({ date: change.date, ...(change.until ? { until: change.until } : {}), ...(change.note ? { note: change.note } : {}) });
+      closures.push({
+        date: change.date,
+        ...(change.until ? { until: change.until } : {}),
+        ...(change.note ? { note: change.note } : {}),
+      });
       profile.closures = closures;
       break;
     }
     case "set_hours": {
       const hours = { ...((profile.hours as Record<string, unknown>) ?? {}) };
-      hours[change.day] = change.open && change.close ? { open: change.open, close: change.close } : { open: null, close: null };
+      hours[change.day] =
+        change.open && change.close ? { open: change.open, close: change.close } : { open: null, close: null };
       profile.hours = hours;
       break;
     }
@@ -894,10 +1071,16 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
 /** One line for a card: what the change does, in the person's words. */
 export function describeSettingsChange(change: AskSettingsChange): string {
   switch (change.op) {
-    case "add_closure": return change.until ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}` : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
-    case "set_hours": return change.open && change.close ? `${change.day}: ${change.open}–${change.close}` : `${change.day}: closed`;
-    case "add_note": return `Note for the receptionist: “${change.title}”`;
-    case "add_service": return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
+    case "add_closure":
+      return change.until
+        ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}`
+        : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
+    case "set_hours":
+      return change.open && change.close ? `${change.day}: ${change.open}–${change.close}` : `${change.day}: closed`;
+    case "add_note":
+      return `Note for the receptionist: “${change.title}”`;
+    case "add_service":
+      return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
   }
 }
 
@@ -905,7 +1088,12 @@ export function describeSettingsChange(change: AskSettingsChange): string {
 
 /** Two questions are the same thread when they differ only in case, spacing and punctuation. */
 export function sameQuestion(a: string, b: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
   const x = norm(a);
   return x.length > 0 && x === norm(b);
 }
@@ -941,7 +1129,13 @@ const FOLLOWUP_ECHO: Array<[RegExp, RegExp]> = [
  * offers to open. "Show this caller's profile" beside an Open the profile
  * button is the same thing twice.
  */
-export function followupsToShow(followups: string[], citations: Array<{ to: string }>, nav: { to: string } | null): string[] {
+export function followupsToShow(
+  followups: string[],
+  citations: Array<{ to: string }>,
+  nav: { to: string } | null,
+): string[] {
   const places = [...citations.map((c) => c.to), ...(nav && nav.to ? [nav.to] : [])];
-  return followups.filter((f) => !FOLLOWUP_ECHO.some(([words, route]) => words.test(f) && places.some((p) => route.test(p)))).slice(0, ASK_CAPS.followups);
+  return followups
+    .filter((f) => !FOLLOWUP_ECHO.some(([words, route]) => words.test(f) && places.some((p) => route.test(p))))
+    .slice(0, ASK_CAPS.followups);
 }

@@ -19,15 +19,34 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/packages/db.js";
-import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode, type BillingStatus } from "../../lib/packages/contracts.js";
+import {
+  formatPhoneDisplay,
+  whyCannotSpend,
+  lineRetryRefusal,
+  type BillingMode,
+  type BillingStatus,
+} from "../../lib/packages/contracts.js";
 import { isAreaCode, isE164, LINE_COSTS } from "../../lib/packages/channels.js";
 import { lineProviderFromEnv, lineForClient, releaseRoutingRows, rowToLine } from "../../lib/lines.js";
-import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
+import {
+  registerLine,
+  syncRegistration,
+  unfileMockRegistration,
+  resubmitRejectedCampaign,
+  replaceRejectedCampaign,
+  campaignFactsFor,
+} from "../../lib/a2p.js";
 import { scheduleJob } from "../../lib/packages/jobs.js";
 import { claimLineForResume, retryRequestedBy } from "../../lib/line-resume.js";
 import {
-  businessTypeOf, companyTypeOf, industryOf, businessRecordProblems, businessRecordForPath,
-  registrationPathOf, REGISTRATION_PATHS, type RegistrationPath,
+  businessTypeOf,
+  companyTypeOf,
+  industryOf,
+  businessRecordProblems,
+  businessRecordForPath,
+  registrationPathOf,
+  REGISTRATION_PATHS,
+  type RegistrationPath,
 } from "../../lib/packages/contracts.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -80,7 +99,11 @@ export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/lines");
   if (!auth.ok) return auth.response;
   let body: Body = {};
-  try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* validated below */
+  }
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -90,14 +113,25 @@ export async function POST(request: Request): Promise<Response> {
   if (op === "status") {
     return json(200, { ok: true, ready: !!choice, provider: choice?.name ?? null, costs: LINE_COSTS });
   }
-  if (!choice) return json(503, { ok: false, error: "no_line_provider", hint: "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN, or LINES_DRY_RUN=1 outside production" });
+  if (!choice)
+    return json(503, {
+      ok: false,
+      error: "no_line_provider",
+      hint: "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN, or LINES_DRY_RUN=1 outside production",
+    });
 
   if (op === "search") {
     const areaCode = areaCodeOf(body.area_code);
     if (!isAreaCode(areaCode)) return json(400, { ok: false, error: "area_code must be three digits, like 305" });
     try {
       const numbers = await choice.provider.searchLocal(choice.master, { areaCode, limit: 8 });
-      return json(200, { ok: true, provider: choice.name, area_code: areaCode, cost_month_usd: LINE_COSTS.local_number_month_usd, numbers });
+      return json(200, {
+        ok: true,
+        provider: choice.name,
+        area_code: areaCode,
+        cost_month_usd: LINE_COSTS.local_number_month_usd,
+        numbers,
+      });
     } catch (e) {
       return json(502, { ok: false, error: e instanceof Error ? e.message : String(e) });
     }
@@ -112,7 +146,11 @@ export async function POST(request: Request): Promise<Response> {
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   if (!UUID.test(tenantId)) return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });
   let tenant: { id: string; name: string; slug: string } | null;
-  try { tenant = await tenantOf(db, tenantId); } catch (e) { return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) }); }
+  try {
+    tenant = await tenantOf(db, tenantId);
+  } catch (e) {
+    return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) });
+  }
   if (!tenant) return json(404, { ok: false, error: "no such workspace" });
 
   // THE SAME RULE, ON THIS SIDE OF THE WIRE.
@@ -157,7 +195,16 @@ export async function POST(request: Request): Promise<Response> {
     if (failed) return json(409, { ok: false, error: "line_failed_retry", line: lineForClient(failed) });
     const ins = await db
       .from("lines")
-      .insert({ tenant_id: tenantId, e164: number, kind: "chanlytics", provider: choice.name, area_code: areaCode, voice_state: "provisioning", step: "subaccount", state_since: new Date().toISOString() })
+      .insert({
+        tenant_id: tenantId,
+        e164: number,
+        kind: "chanlytics",
+        provider: choice.name,
+        area_code: areaCode,
+        voice_state: "provisioning",
+        step: "subaccount",
+        state_since: new Date().toISOString(),
+      })
       .select("*")
       .single();
     if (ins.error) return json(503, { ok: false, error: ins.error.message });
@@ -165,7 +212,12 @@ export async function POST(request: Request): Promise<Response> {
     // by the heartbeat if a worker dies, tried up to the cap. The page repaints
     // from the row through realtime as each step lands its receipt.
     try {
-      await scheduleJob(db, { tenantId, kind: "line_provision", dueAt: new Date(), payload: { line_id: ins.data.id, by: "owner" } });
+      await scheduleJob(db, {
+        tenantId,
+        kind: "line_provision",
+        dueAt: new Date(),
+        payload: { line_id: ins.data.id, by: "owner" },
+      });
     } catch (e) {
       return json(503, { ok: false, error: e instanceof Error ? e.message : String(e), line: lineForClient(ins.data) });
     }
@@ -202,10 +254,19 @@ export async function POST(request: Request): Promise<Response> {
         return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) });
       }
       if (!taken) {
-        return json(409, { ok: false, error: "somebody restarted this line a moment ago — it is setting up now, and this page updates by itself", line: lineForClient(row.data) });
+        return json(409, {
+          ok: false,
+          error: "somebody restarted this line a moment ago — it is setting up now, and this page updates by itself",
+          line: lineForClient(row.data),
+        });
       }
       try {
-        await scheduleJob(db, { tenantId, kind: "line_provision", dueAt: new Date(), payload: { line_id: lineId, by } });
+        await scheduleJob(db, {
+          tenantId,
+          kind: "line_provision",
+          dueAt: new Date(),
+          payload: { line_id: lineId, by },
+        });
       } catch (e) {
         // The take stands; the lines sweep resumes it once it is past the deadline.
         return json(503, { ok: false, error: e instanceof Error ? e.message : String(e), line: lineForClient(taken) });
@@ -219,7 +280,10 @@ export async function POST(request: Request): Promise<Response> {
     const released: Record<string, unknown> = {};
     try {
       const creds = await db.rpc("get_line_credentials", { p_line_id: line.id });
-      const token = creds.data && typeof creds.data === "object" && !Array.isArray(creds.data) ? (creds.data as { auth_token?: string }).auth_token : undefined;
+      const token =
+        creds.data && typeof creds.data === "object" && !Array.isArray(creds.data)
+          ? (creds.data as { auth_token?: string }).auth_token
+          : undefined;
       if (line.subaccount_sid && token) {
         const acct = { sid: line.subaccount_sid, token };
         // A NUMBER WE MAY OWN WITHOUT KNOWING. The row's `number_sid` is written
@@ -228,23 +292,35 @@ export async function POST(request: Request): Promise<Response> {
         // it and delete the row, so we paid for it every month with nothing left
         // pointing at it. `number_drift()` compares `lines` to `tenant_channels`
         // and never asks the provider, so nothing would ever have noticed.
-        const sid = line.number_sid ?? (line.e164 ? (await choice.provider.ownedNumber(acct, line.e164))?.sid ?? null : null);
+        const sid =
+          line.number_sid ?? (line.e164 ? ((await choice.provider.ownedNumber(acct, line.e164))?.sid ?? null) : null);
         if (sid) {
           await choice.provider.releaseNumber(acct, sid);
           released.number = sid;
           if (!line.number_sid) released.number_found_by_lookup = true;
         }
-        if (line.trunk_sid) { await choice.provider.deleteTrunk(acct, line.trunk_sid); released.trunk = line.trunk_sid; }
+        if (line.trunk_sid) {
+          await choice.provider.deleteTrunk(acct, line.trunk_sid);
+          released.trunk = line.trunk_sid;
+        }
       }
     } catch (e) {
-      return json(502, { ok: false, error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`, released });
+      return json(502, {
+        ok: false,
+        error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`,
+        released,
+      });
     }
     const rows = await releaseRoutingRows(db, tenantId, line);
     Object.assign(released, rows.released);
     if (!rows.ok) return json(503, { ok: false, error: rows.error, released });
     const del = await db.from("lines").delete().eq("id", line.id);
     if (del.error) return json(503, { ok: false, error: del.error.message, released });
-    await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, { e164: line.e164, provider: choice.name, ...released }).catch(() => {});
+    await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, {
+      e164: line.e164,
+      provider: choice.name,
+      ...released,
+    }).catch(() => {});
     return json(200, { ok: true, released });
   }
 
@@ -269,7 +345,7 @@ export async function POST(request: Request): Promise<Response> {
     const asked = typeof body.path === "string" ? body.path : "";
     const path: RegistrationPath = (REGISTRATION_PATHS as readonly string[]).includes(asked)
       ? (asked as RegistrationPath)
-      : registrationPathOf({ ein: str("ein") }) ?? "standard";
+      : (registrationPathOf({ ein: str("ein") }) ?? "standard");
 
     const draft = {
       tenant_id: tenantId,
@@ -310,8 +386,19 @@ export async function POST(request: Request): Promise<Response> {
 
     const up = await db.from("business_records").upsert(row, { onConflict: "tenant_id" }).select("*").single();
     if (up.error) return json(503, { ok: false, error: up.error.message });
-    await emitEvent(db, tenantId, "business.recorded", "setup", "tenant", tenantId, { legal_name: row.legal_name, path }).catch(() => {});
-    return json(200, { ok: true, record: { legal_name: up.data.legal_name, path: registrationPathOf(up.data), sole_proprietor: !up.data.ein, updated_at: up.data.updated_at } });
+    await emitEvent(db, tenantId, "business.recorded", "setup", "tenant", tenantId, {
+      legal_name: row.legal_name,
+      path,
+    }).catch(() => {});
+    return json(200, {
+      ok: true,
+      record: {
+        legal_name: up.data.legal_name,
+        path: registrationPathOf(up.data),
+        sole_proprietor: !up.data.ein,
+        updated_at: up.data.updated_at,
+      },
+    });
   }
 
   if (op === "register" || op === "registration-status") {
@@ -332,14 +419,21 @@ export async function POST(request: Request): Promise<Response> {
         if (rec.data && fresh.data) {
           const origin = dashboardOrigin();
           const filed = await registerLine(db, {
-            line: fresh.data, record: rec.data, workspaceName: tenant.name,
+            line: fresh.data,
+            record: rec.data,
+            workspaceName: tenant.name,
             optInUrl: `${origin}/yes/${tenant.slug}`,
             hostedUrl: `${origin}/b/${tenant.slug}`,
             privacyUrl: `${origin}/privacy`,
             termsUrl: `${origin}/terms`,
             mock: fresh.data.reg_mock,
           });
-          return json(200, { ...r, campaign_filed: filed.ok, campaign_sid: filed.state.campaignSid, ...(filed.ok ? {} : { step: filed.step, error: filed.error }) });
+          return json(200, {
+            ...r,
+            campaign_filed: filed.ok,
+            campaign_sid: filed.state.campaignSid,
+            ...(filed.ok ? {} : { step: filed.step, error: filed.error }),
+          });
         }
       }
       return json(r.ok ? 200 : 502, r);
@@ -370,7 +464,10 @@ export async function POST(request: Request): Promise<Response> {
     const rec = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
     if (rec.error) return json(503, { ok: false, error: rec.error.message });
     if (!rec.data) {
-      await db.from("lines").update({ sms_state: "needs_record", state_since: new Date().toISOString() }).eq("id", lineId);
+      await db
+        .from("lines")
+        .update({ sms_state: "needs_record", state_since: new Date().toISOString() })
+        .eq("id", lineId);
       return json(409, { ok: false, error: "no_business_record", hint: "op 'record' first" });
     }
     const origin = dashboardOrigin();
@@ -382,7 +479,12 @@ export async function POST(request: Request): Promise<Response> {
     // to the carriers -- a first filing and a resubmitted one. It used to sit
     // below, on the first-filing path only, which is a fair summary of the whole
     // defect this change is about.
-    const saysYes = await db.from("tenant_channels").select("kind").eq("tenant_id", tenantId).eq("status", "active").in("kind", ["whatsapp", "sms"]);
+    const saysYes = await db
+      .from("tenant_channels")
+      .select("kind")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active")
+      .in("kind", ["whatsapp", "sms"]);
     const filingCheck = {
       record: rec.data,
       workspaceName: tenant.name,
@@ -407,7 +509,12 @@ export async function POST(request: Request): Promise<Response> {
       // carriers actually refused.
       const rejected = row.data.sms_state === "rejected";
       if (!row.data.reg_mock && !rejected) {
-        return json(409, { ok: false, error: "already_registered", brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid });
+        return json(409, {
+          ok: false,
+          error: "already_registered",
+          brand_sid: row.data.brand_sid,
+          campaign_sid: row.data.campaign_sid,
+        });
       }
       if (rejected && !refile) {
         return json(409, {
@@ -415,7 +522,8 @@ export async function POST(request: Request): Promise<Response> {
           error: "campaign_rejected",
           hint: "the carriers sent this campaign back; correct what they named, then send refile: true to resubmit it (an edit, so no second vetting fee) -- or refile: true with replace: true to delete it and file a new one, when what they named cannot be edited (a second vetting fee)",
           reason: row.data.last_error,
-          brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
+          brand_sid: row.data.brand_sid,
+          campaign_sid: row.data.campaign_sid,
         });
       }
       if (!refile) {
@@ -423,7 +531,8 @@ export async function POST(request: Request): Promise<Response> {
           ok: false,
           error: "mock_registration",
           hint: "this line is registered against Twilio's test registry, which routes nothing; send refile: true to file a real one",
-          brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
+          brand_sid: row.data.brand_sid,
+          campaign_sid: row.data.campaign_sid,
         });
       }
       if (rejected && !replace) {
@@ -456,7 +565,12 @@ export async function POST(request: Request): Promise<Response> {
         }
         if (!again.ok || !again.row) return json(502, { ok: false, error: again.error ?? "resubmit_failed" });
         const after = await db.from("lines").select("*").eq("id", lineId).single();
-        return json(200, { ok: true, resubmitted: true, smsState: again.row.sms_state, line: after.data ? lineForClient(after.data) : null });
+        return json(200, {
+          ok: true,
+          resubmitted: true,
+          smsState: again.row.sms_state,
+          line: after.data ? lineForClient(after.data) : null,
+        });
       }
       // What comes off before the new filing: the refused campaign, for a
       // replacement support asked for by name; or the rehearsal, for a real
@@ -465,8 +579,10 @@ export async function POST(request: Request): Promise<Response> {
       const off = rejected
         ? await replaceRejectedCampaign(db, row.data, filingCheck)
         : await unfileMockRegistration(db, row.data, filingCheck);
-      if (off.problems?.length) return json(409, { ok: false, error: off.error ?? "record_incomplete", problems: off.problems });
-      if (!off.ok || !off.row) return json(503, { ok: false, error: off.error ?? (rejected ? "replace_failed" : "unfile_failed") });
+      if (off.problems?.length)
+        return json(409, { ok: false, error: off.error ?? "record_incomplete", problems: off.problems });
+      if (!off.ok || !off.row)
+        return json(503, { ok: false, error: off.error ?? (rejected ? "replace_failed" : "unfile_failed") });
       row.data = off.row;
     }
     // A mock registration is Twilio's free test registry; the real one costs
@@ -492,5 +608,8 @@ export async function POST(request: Request): Promise<Response> {
     return json(status, { ...result, mock, line: after.data ? lineForClient(after.data) : null });
   }
 
-  return json(400, { ok: false, error: "op must be status, search, buy, retry, release, record, register or registration-status" });
+  return json(400, {
+    ok: false,
+    error: "op must be status, search, buy, retry, release, record, register or registration-status",
+  });
 }

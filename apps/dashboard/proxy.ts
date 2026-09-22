@@ -28,7 +28,20 @@ import { writeAuthCookies } from "@/server/auth-cookies";
 // written on. Note it is deliberately absent from the signed-in redirect
 // below: bouncing a signed-in person off this page would break its own second
 // half, one step after the code signed them in.
-const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/auth/callback", "/api/version", "/manifest.webmanifest", "/signup", "/api/v1/signup", "/api/v1/calendar/filler.ics", "/reset-password", "/privacy", "/terms", "/data-deletion"]);
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/auth/signout",
+  "/auth/callback",
+  "/api/version",
+  "/manifest.webmanifest",
+  "/signup",
+  "/api/v1/signup",
+  "/api/v1/calendar/filler.ics",
+  "/reset-password",
+  "/privacy",
+  "/terms",
+  "/data-deletion",
+]);
 
 /**
  * The public PREFIXES. Both carry a workspace's slug, so neither can be an exact

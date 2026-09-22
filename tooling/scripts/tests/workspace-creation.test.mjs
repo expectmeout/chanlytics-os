@@ -129,7 +129,10 @@ test("the create screen waits for the fetch before claiming there is nothing", (
 
 test("a created workspace becomes the active one", () => {
   // Otherwise the owner creates a workspace and stays looking at nothing.
-  assert.ok(boot.includes("switchWorkspace(w.id, w.slug)"), "by its slug: a new workspace is not in __WORKSPACES yet, and an id address boots the app twice");
+  assert.ok(
+    boot.includes("switchWorkspace(w.id, w.slug)"),
+    "by its slug: a new workspace is not in __WORKSPACES yet, and an id address boots the app twice",
+  );
 });
 
 test("the form defaults the timezone to the browser's, and says what it decides", () => {

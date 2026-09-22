@@ -6,9 +6,35 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseTenantConfig, type JobKind, type JobNews } from "@chanlytics/contracts";
-import { classifyReceived, emailPlainText, isEmailRequest, messageIdsIn, type ReceivedEmail } from "@chanlytics/channels";
-import { deliver, ingestEmail, provisionLine, type EmailIngestPorts, type IncomingEmail, sendBroadcastBatch, sendQueued, templatePurpose, type SendQueuedCommand, type Wire } from "@chanlytics/core";
-import { ingestInboundEmail, mailboxById, markProcessed, resolveOutboundTarget, sentEmailWithMessageId, stampMailboxReceived, type Database, type Json } from "@chanlytics/db";
+import {
+  classifyReceived,
+  emailPlainText,
+  isEmailRequest,
+  messageIdsIn,
+  type ReceivedEmail,
+} from "@chanlytics/channels";
+import {
+  deliver,
+  ingestEmail,
+  provisionLine,
+  type EmailIngestPorts,
+  type IncomingEmail,
+  sendBroadcastBatch,
+  sendQueued,
+  templatePurpose,
+  type SendQueuedCommand,
+  type Wire,
+} from "@chanlytics/core";
+import {
+  ingestInboundEmail,
+  mailboxById,
+  markProcessed,
+  resolveOutboundTarget,
+  sentEmailWithMessageId,
+  stampMailboxReceived,
+  type Database,
+  type Json,
+} from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 
 export interface JobContext {
@@ -36,7 +62,10 @@ export interface JobContext {
    * one; a job of this kind in a runtime without it fails loudly rather than
    * guessing.
    */
-  provisionLine?: (lineId: string, by: "owner" | "support" | "sweep") => Promise<{ ok: boolean; step?: string; error?: string; did?: string }>;
+  provisionLine?: (
+    lineId: string,
+    by: "owner" | "support" | "sweep",
+  ) => Promise<{ ok: boolean; step?: string; error?: string; did?: string }>;
   /**
    * Email's intake, as the edge holds it. INJECTED like the one above: the
    * provider's key and the deployment's mail domain live on the edge, and so
@@ -115,8 +144,17 @@ function must<T>(what: string, r: { data: T; error: { message: string } | null }
  * of them, so counting by reading the rows silently undercounts exactly the
  * broadcasts big enough for the number to matter.
  */
-async function countRecipients(db: SupabaseClient<Database>, tenantId: string, broadcastId: string, state?: string): Promise<number> {
-  let q = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+async function countRecipients(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  broadcastId: string,
+  state?: string,
+): Promise<number> {
+  let q = db
+    .from("broadcast_recipients")
+    .select("contact_id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("broadcast_id", broadcastId);
   if (state) q = q.eq("state", state);
   const { count, error } = await q;
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
@@ -131,17 +169,29 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       // so a read that failed and a message that is gone stay separable; the
       // verb turns the error into the job's loud failure.
       queued: async (id) => {
-        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender, meta").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        const { data, error } = await ctx.db
+          .from("messages")
+          .select("id, status, body, template_name, channel, sender, meta")
+          .eq("id", id)
+          .eq("tenant_id", job.tenant_id)
+          .maybeSingle();
         if (error) throw new Error(error.message);
         if (!data) return null;
         // The request an email was queued with (core reply.ts). meta is JSON, so its shape is checked, not assumed:
         // a row without a sendable one reaches the wire with none and fails there by name.
         const request = (data.meta as { email?: { request?: unknown } } | null)?.email?.request;
-        return { status: data.status, body: data.body, channel: data.channel, sender: data.sender, email: isEmailRequest(request) ? request : null };
+        return {
+          status: data.status,
+          body: data.body,
+          channel: data.channel,
+          sender: data.sender,
+          email: isEmailRequest(request) ? request : null,
+        };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
-      escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
+      escalate: (conversationId, reason, details) =>
+        upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
       alert: ctx.alert,
       ...(ctx.page ? { page: ctx.page } : {}),
     },
@@ -159,21 +209,45 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await sendBroadcastBatch(
     {
       broadcast: async (id) => {
-        const { data, error } = await db.from("broadcasts").select("id, state, name, template_name, template_language, params, recipient_count, playbook_id, audience").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        const { data, error } = await db
+          .from("broadcasts")
+          .select("id, state, name, template_name, template_language, params, recipient_count, playbook_id, audience")
+          .eq("id", id)
+          .eq("tenant_id", job.tenant_id)
+          .maybeSingle();
         if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
         return data;
       },
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
       // is not a workspace that is paying.
       workspacePaused: async () => {
-        const row = must("broadcast_send: cannot read the workspace's status", await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle());
+        const row = must(
+          "broadcast_send: cannot read the workspace's status",
+          await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle(),
+        );
         return row?.status === "paused";
       },
       fail: async (id, failure) => {
-        must("broadcast_send: cannot mark the broadcast failed", await db.from("broadcasts").update({ state: "failed", failure, finished_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id));
+        must(
+          "broadcast_send: cannot mark the broadcast failed",
+          await db
+            .from("broadcasts")
+            .update({ state: "failed", failure, finished_at: new Date().toISOString() })
+            .eq("id", id)
+            .eq("tenant_id", job.tenant_id),
+        );
       },
       startSending: async (id) => {
-        const rows = must("broadcast_send: cannot start the broadcast", await db.from("broadcasts").update({ state: "sending", started_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled").select("id"));
+        const rows = must(
+          "broadcast_send: cannot start the broadcast",
+          await db
+            .from("broadcasts")
+            .update({ state: "sending", started_at: new Date().toISOString() })
+            .eq("id", id)
+            .eq("tenant_id", job.tenant_id)
+            .eq("state", "scheduled")
+            .select("id"),
+        );
         return !!rows && rows.length > 0;
       },
       // `category` is Meta's verdict on what kind of message this is, and it
@@ -182,7 +256,17 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       // emails the owner that WhatsApp rejected it, which would be a lie about
       // their Meta account told over a statement timeout.
       template: async (name, language) => {
-        return must(`broadcast_send: cannot read template ${name}`, await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle());
+        return must(
+          `broadcast_send: cannot read template ${name}`,
+          await db
+            .from("templates")
+            .select("meta_status, body_preview, category")
+            .eq("tenant_id", job.tenant_id)
+            .eq("channel", "whatsapp")
+            .eq("name", name)
+            .eq("language", language)
+            .maybeSingle(),
+        );
       },
       // An empty business name is not a fallback: it resolves to an empty slot,
       // and the verb marks everyone in the batch permanently "missing_value".
@@ -198,37 +282,52 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         return { businessName, bookingLink: parsedCfg?.brain?.booking_link ?? null };
       },
       batch: async (id, limit) => {
-        const { data, error } = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("state", "queued").limit(limit);
+        const { data, error } = await db
+          .from("broadcast_recipients")
+          .select("contact_id, facts")
+          .eq("tenant_id", job.tenant_id)
+          .eq("broadcast_id", id)
+          .eq("state", "queued")
+          .limit(limit);
         if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
         return data ?? [];
       },
       // The batch's people in one read, not one read per person.
       contacts: async (ids) => {
-        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").in("id", ids).eq("tenant_id", job.tenant_id);
+        const { data, error } = await db
+          .from("contacts")
+          .select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name")
+          .in("id", ids)
+          .eq("tenant_id", job.tenant_id);
         if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
         return new Map((data ?? []).map((c) => [c.id, c]));
       },
       // create: false — a broadcast never opens a contact. touch: false — the
       // door below still has to refuse some of these people, and a thread they
       // were not messaged in has nothing new in it.
-      target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false, touch: false }),
+      target: (phoneE164) =>
+        resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false, touch: false }),
       // The messages a dying run left these people: written by deliver after the
       // wire accepted them, with this broadcast's id in their meta, read once for
       // the batch. It is the one check standing between a resumed run and a
       // second WhatsApp template to the same person, so a read that FAILED must
       // never come back as "no, they have not been messaged".
       alreadySent: async (id, contactIds) => {
-        const rows = must("broadcast_send: cannot check what the batch was already sent", await db
-          .from("messages")
-          .select("id, contact_id, created_at")
-          .eq("tenant_id", job.tenant_id)
-          .in("contact_id", contactIds)
-          .filter("meta->>broadcast_id", "eq", id)
-          .in("status", ["sent", "delivered", "read"]));
+        const rows = must(
+          "broadcast_send: cannot check what the batch was already sent",
+          await db
+            .from("messages")
+            .select("id, contact_id, created_at")
+            .eq("tenant_id", job.tenant_id)
+            .in("contact_id", contactIds)
+            .filter("meta->>broadcast_id", "eq", id)
+            .in("status", ["sent", "delivered", "read"]),
+        );
         // created_at is written by the same statement that records the send, so
         // it is when the message left, which is what the recipient's row wants.
         const prior = new Map<string, { id: string; sentAt: string | null }>();
-        for (const m of rows ?? []) if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
+        for (const m of rows ?? [])
+          if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
         return prior;
       },
       // `sent_at` comes from the patch when the caller knows it — a resumed run
@@ -236,7 +335,15 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       // and stamping "now" instead would reorder the broadcast's own page.
       mark: async (id, contactId, patch) => {
         const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
-        must("broadcast_send: cannot record how this person's send went", await db.from("broadcast_recipients").update({ ...patch, sent_at: sentAt }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId));
+        must(
+          "broadcast_send: cannot record how this person's send went",
+          await db
+            .from("broadcast_recipients")
+            .update({ ...patch, sent_at: sentAt })
+            .eq("tenant_id", job.tenant_id)
+            .eq("broadcast_id", id)
+            .eq("contact_id", contactId),
+        );
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
@@ -244,7 +351,10 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       // cancel reads, so a failed read here would abandon a half-sent broadcast
       // with nothing scheduled, nothing failed and nobody told.
       state: async (id) => {
-        const row = must("broadcast_send: cannot read whether the broadcast is still wanted", await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle());
+        const row = must(
+          "broadcast_send: cannot read whether the broadcast is still wanted",
+          await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle(),
+        );
         return row?.state ?? null;
       },
       scheduleNext: async (id, dueAt) => {
@@ -260,8 +370,26 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         return { sent, held: all - sent };
       },
       finish: async (id, tally) => {
-        must("broadcast_send: cannot close the broadcast", await db.from("broadcasts").update({ state: "sent", finished_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "sending"));
-        must("broadcast_send: cannot record the broadcast's tally", await db.from("events").insert({ tenant_id: job.tenant_id, kind: "broadcast.sent", category: "message", subject_type: "broadcast", subject_id: id, data: tally }));
+        must(
+          "broadcast_send: cannot close the broadcast",
+          await db
+            .from("broadcasts")
+            .update({ state: "sent", finished_at: new Date().toISOString() })
+            .eq("id", id)
+            .eq("tenant_id", job.tenant_id)
+            .eq("state", "sending"),
+        );
+        must(
+          "broadcast_send: cannot record the broadcast's tally",
+          await db.from("events").insert({
+            tenant_id: job.tenant_id,
+            kind: "broadcast.sent",
+            category: "message",
+            subject_type: "broadcast",
+            subject_id: id,
+            data: tally,
+          }),
+        );
       },
       alert: ctx.alert,
       now: Date.now,
@@ -281,7 +409,11 @@ async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
  */
 export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
   return {
-    id: e.id, from: e.from, to: e.to, cc: e.cc, subject: e.subject,
+    id: e.id,
+    from: e.from,
+    to: e.to,
+    cc: e.cc,
+    subject: e.subject,
     text: emailPlainText(e),
     messageId: e.messageId,
     inReplyTo: messageIdsIn(e.headers["in-reply-to"])[0] ?? null,
@@ -302,13 +434,19 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       mailbox: async (id) => {
         const m = await mailboxById(db, id);
         // The job's own tenant, not the payload's word for it: a mailbox that is not this workspace's is not found.
-        return m && m.tenant_id === job.tenant_id ? { id: m.id, tenant_id: m.tenant_id, address: `${m.local_part}@${email.domain}` } : null;
+        return m && m.tenant_id === job.tenant_id
+          ? { id: m.id, tenant_id: m.tenant_id, address: `${m.local_part}@${email.domain}` }
+          : null;
       },
-      fetch: async (receivedId) => { const e = await email.fetch(receivedId); return e ? incomingEmailOf(e) : null; },
+      fetch: async (receivedId) => {
+        const e = await email.fetch(receivedId);
+        return e ? incomingEmailOf(e) : null;
+      },
       erasedBefore: email.erasedBefore,
       ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
       record: (p) => ingestInboundEmail(db, p),
-      escalate: (tenantId, conversationId, reason, details) => upsertEscalation(db, tenantId, conversationId, reason, details),
+      escalate: (tenantId, conversationId, reason, details) =>
+        upsertEscalation(db, tenantId, conversationId, reason, details),
       tell: email.tell,
       markProcessed: (tenantId, messageId) => markProcessed(db, tenantId, messageId),
       received: (mailboxId, at) => stampMailboxReceived(db, mailboxId, at),

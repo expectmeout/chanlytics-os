@@ -12,7 +12,14 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { createHmac } from "node:crypto";
-import { apifyClient, leadJudge, LEAD_JUDGE_DEFAULT_MODEL, type ApifyClient, type LeadJudge, type LeadJudgeClient } from "./packages/channels.js";
+import {
+  apifyClient,
+  leadJudge,
+  LEAD_JUDGE_DEFAULT_MODEL,
+  type ApifyClient,
+  type LeadJudge,
+  type LeadJudgeClient,
+} from "./packages/channels.js";
 import { JUDGE_TIMEOUT_MS } from "./packages/core.js";
 import { env } from "./env.js";
 
@@ -53,7 +60,8 @@ export function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBA
 // No retry of the SDK's own: a second try doubles the window the runner's
 // JUDGE_MARGIN_MS guards, and a slow answer is the ledger's retry to make, not
 // the client's inside a job that is about to be killed.
-const realJudgeClient = (): LeadJudgeClient => new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 0 }) as unknown as LeadJudgeClient;
+const realJudgeClient = (): LeadJudgeClient =>
+  new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 0 }) as unknown as LeadJudgeClient;
 let judgeClientFor: () => LeadJudgeClient = realJudgeClient;
 /** Tests hand in their own; null restores the real one. */
 export function setLeadJudgeClient(f: (() => LeadJudgeClient) | null): void {
@@ -86,7 +94,10 @@ async function pageText(fetchImpl: typeof fetch, url: string, timeoutMs: number)
     const res = await fetchImpl(url, {
       signal: stop,
       redirect: "follow",
-      headers: { accept: "text/html,application/xhtml+xml", "user-agent": "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)" },
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)",
+      },
     });
     if (!res.ok) return null;
     if (!(res.headers.get("content-type") ?? "").toLowerCase().includes("html")) return null;

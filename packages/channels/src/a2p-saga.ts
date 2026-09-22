@@ -8,13 +8,39 @@
  * Pure of the network and of the database: the edge supplies both.
  */
 import {
-  A2P_POLICIES, EMPTY_A2P_STATE, brandTypeFor, nextA2PStep,
-  addressRequest, assignRequest, a2pProfileEndUserRequest, a2pProfileRequest, brandRequest, businessEndUserRequest,
-  starterProfileRequest, starterEndUserRequest, starterAttributes, soleProprietorProfileRequest, soleProprietorEndUserRequest,
-  campaignRequest, customerProfileRequest, evaluateRequest, evaluateTrustProductRequest, representativeEndUserRequest,
-  submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, trustProductAssignRequest,
-  businessAttributes, representativeAttributes, updateEndUserRequest, isBrandNotReady,
-  type A2PRequest, type A2PState, type A2PStep, type BusinessRecord, type CampaignFacts,
+  A2P_POLICIES,
+  EMPTY_A2P_STATE,
+  brandTypeFor,
+  nextA2PStep,
+  addressRequest,
+  assignRequest,
+  a2pProfileEndUserRequest,
+  a2pProfileRequest,
+  brandRequest,
+  businessEndUserRequest,
+  starterProfileRequest,
+  starterEndUserRequest,
+  starterAttributes,
+  soleProprietorProfileRequest,
+  soleProprietorEndUserRequest,
+  campaignRequest,
+  customerProfileRequest,
+  evaluateRequest,
+  evaluateTrustProductRequest,
+  representativeEndUserRequest,
+  submitProfileRequest,
+  submitTrustProductRequest,
+  supportingDocumentRequest,
+  trustProductAssignRequest,
+  businessAttributes,
+  representativeAttributes,
+  updateEndUserRequest,
+  isBrandNotReady,
+  type A2PRequest,
+  type A2PState,
+  type A2PStep,
+  type BusinessRecord,
+  type CampaignFacts,
 } from "./a2p";
 
 export interface A2PAnswer {
@@ -95,7 +121,11 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
         case "profile":
           await save({
             profileSid: await need(
-              (soleProp ? starterProfileRequest : customerProfileRequest)({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }),
+              (soleProp ? starterProfileRequest : customerProfileRequest)({
+                friendlyName: p.workspace.name,
+                email: p.email,
+                statusCallback: p.statusCallback,
+              }),
               "creating the customer's profile",
             ),
           });
@@ -126,7 +156,10 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
           await save({ addressSid: await need(addressRequest(p.accountSid, p.record), "recording the address") });
           break;
         case "document": {
-          const id = await need(supportingDocumentRequest({ legalName: p.record.legalName, addressSid: state.addressSid! }), "attaching the address");
+          const id = await need(
+            supportingDocumentRequest({ legalName: p.record.legalName, addressSid: state.addressSid! }),
+            "attaching the address",
+          );
           const a = await p.send(assignRequest(state.profileSid!, id));
           if (!ok(a)) throw new Error(refusal(a, "attaching the address document"));
           await save({ documentSid: id });
@@ -145,15 +178,26 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
           // there is one thing to refresh rather than two.
           const refresh = soleProp
             ? ([[state.businessSid!, starterAttributes(p.record)]] as const)
-            : ([[state.businessSid!, businessAttributes(p.record)], [state.representativeSid!, representativeAttributes(p.record)]] as const);
+            : ([
+                [state.businessSid!, businessAttributes(p.record)],
+                [state.representativeSid!, representativeAttributes(p.record)],
+              ] as const);
           for (const [sid, a] of refresh) {
             const up = await p.send(updateEndUserRequest(sid, a));
             if (!ok(up)) throw new Error(refusal(up, "refreshing the business on record"));
           }
-          const ev = await p.send(evaluateRequest(state.profileSid!, soleProp ? A2P_POLICIES.starterCustomerProfile : A2P_POLICIES.secondaryCustomerProfile));
+          const ev = await p.send(
+            evaluateRequest(
+              state.profileSid!,
+              soleProp ? A2P_POLICIES.starterCustomerProfile : A2P_POLICIES.secondaryCustomerProfile,
+            ),
+          );
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
           if (!ok(ev)) throw new Error(refusal(ev, "checking the profile"));
-          if (status !== "compliant") throw new Error(`the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`);
+          if (status !== "compliant")
+            throw new Error(
+              `the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`,
+            );
           const sub = await p.send(submitProfileRequest(state.profileSid!));
           if (!ok(sub)) throw new Error(refusal(sub, "submitting the profile"));
           await save({ profileSubmitted: true });
@@ -166,7 +210,11 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
           // the whole point -- it is where the carriers send the code the
           // owner has to reply to.
           const bundle = await need(
-            (soleProp ? soleProprietorProfileRequest : a2pProfileRequest)({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }),
+            (soleProp ? soleProprietorProfileRequest : a2pProfileRequest)({
+              friendlyName: p.workspace.name,
+              email: p.email,
+              statusCallback: p.statusCallback,
+            }),
             "creating the messaging profile",
           );
           const endUser = await need(
@@ -189,7 +237,13 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
         case "brand":
           await save({
             brandSid: await need(
-              brandRequest({ customerProfileBundleSid: state.profileSid!, a2pProfileBundleSid: state.a2pProfileSid!, brandType: brandTypeFor(p.record), mock: p.mock, skipVetting: p.skipVetting }),
+              brandRequest({
+                customerProfileBundleSid: state.profileSid!,
+                a2pProfileBundleSid: state.a2pProfileSid!,
+                brandType: brandTypeFor(p.record),
+                mock: p.mock,
+                skipVetting: p.skipVetting,
+              }),
               "registering the brand",
             ),
           });
@@ -197,7 +251,12 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
         case "campaign":
           await save({
             campaignSid: await need(
-              campaignRequest({ ...p.campaign, brandSid: state.brandSid!, messagingServiceSid: p.messagingServiceSid, useCase: p.useCase }),
+              campaignRequest({
+                ...p.campaign,
+                brandSid: state.brandSid!,
+                messagingServiceSid: p.messagingServiceSid,
+                useCase: p.useCase,
+              }),
               "registering the campaign",
             ),
           });
@@ -207,6 +266,12 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
     return { ok: true, state };
   } catch (e) {
     const error = (e instanceof Error ? e.message : String(e)).slice(0, 500);
-    return { ok: false, step: (step ?? nextA2PStep(state) ?? "profile") as A2PStep, error, pending: isBrandNotReady(error), state };
+    return {
+      ok: false,
+      step: (step ?? nextA2PStep(state) ?? "profile") as A2PStep,
+      error,
+      pending: isBrandNotReady(error),
+      state,
+    };
   }
 }

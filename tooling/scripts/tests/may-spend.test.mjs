@@ -21,10 +21,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  maySpend, whyCannotSpend, receptionistOn,
-  BILLING_STATUSES, BILLING_MODES,
-} from "@chanlytics/contracts";
+import { maySpend, whyCannotSpend, receptionistOn, BILLING_STATUSES, BILLING_MODES } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
 test("the whole matrix: two modes by nine statuses, stated rather than inferred", () => {
@@ -33,9 +30,15 @@ test("the whole matrix: two modes by nine statuses, stated rather than inferred"
   // from the code under test.
   const SPEND = {
     stripe: {
-      none: false, incomplete: false, incomplete_expired: false,
-      trialing: true, active: true, past_due: false,
-      canceled: false, unpaid: false, paused: false,
+      none: false,
+      incomplete: false,
+      incomplete_expired: false,
+      trialing: true,
+      active: true,
+      past_due: false,
+      canceled: false,
+      unpaid: false,
+      paused: false,
     },
     // Every workspace that predates Stripe. Invoiced by hand, never asked for
     // a card, so the question does not apply — the same carve-out
@@ -61,7 +64,10 @@ test("answering is generous where spending is strict, and the gap is the point",
     assert.equal(receptionistOn(status), true, `${status}: still answers`);
     assert.equal(maySpend("stripe", status), false, `${status}: does not spend`);
   }
-  assert.equal(whyCannotSpend("stripe", "past_due"), "Your last payment did not go through. Update the card in Billing, then try again.");
+  assert.equal(
+    whyCannotSpend("stripe", "past_due"),
+    "Your last payment did not go through. Update the card in Billing, then try again.",
+  );
   // And where they agree, they agree for the same reason.
   for (const status of ["trialing", "active"]) {
     assert.equal(receptionistOn(status), true);
@@ -112,7 +118,10 @@ test("both money routes carry the second door", () => {
 
   const guard = readCode("apps/dashboard/src/server/with-route.ts");
   assert.ok(guard.includes("export async function requireSpend("));
-  assert.ok(guard.includes('throw new AppError("payment_required"'), "402, not 403: the fix is a card, not a different account");
+  assert.ok(
+    guard.includes('throw new AppError("payment_required"'),
+    "402, not 403: the fix is a card, not a different account",
+  );
   assert.ok(guard.includes('if (!data) throw new AppError("payment_required"'), "no billing row is not permission");
 });
 
@@ -127,18 +136,34 @@ test("payment_required is its own code, mapped to 402", () => {
 test("Setup does not offer a button the server will refuse", async () => {
   const { setupSteps } = await import("@chanlytics/contracts");
   const base = {
-    business: { name: "Northside Movers", hours: true, services: 3, bookingLink: true, address: true, handoff: null, broken: false },
+    business: {
+      name: "Northside Movers",
+      hours: true,
+      services: 3,
+      bookingLink: true,
+      address: true,
+      handoff: null,
+      broken: false,
+    },
     channels: {
       whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
       voice: { present: false, active: false, number: null, lastInboundAt: null },
     },
     templates: { approved: 0, pending: 0, startersApproved: 0 },
-    calendar: { state: "none" }, team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-    consent: { yes: 0 }, requests: { line: null }, later: [],
+    calendar: { state: "none" },
+    team: { members: 1, invitesOpen: 0, alertEmails: 1 },
+    consent: { yes: 0 },
+    requests: { line: null },
+    later: [],
     lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
   };
   const bill = (status, mode = "stripe") => ({
-    ready: true, mode, status, trial_end: null, current_period_end: null, trial_days: 14,
+    ready: true,
+    mode,
+    status,
+    trial_end: null,
+    current_period_end: null,
+    trial_days: 14,
   });
   const lineRow = (vm) => vm.rows.find((r) => r.id === "line");
 
@@ -147,7 +172,10 @@ test("Setup does not offer a button the server will refuse", async () => {
   const unpaid = lineRow(setupSteps({ ...base, billing: bill("none") }, Date.now()));
   assert.equal(unpaid.verb.to, "admin/billing");
   assert.match(unpaid.sentence, /Add a card/);
-  assert.ok(unpaid.details.some((d) => /Nothing is charged until your trial ends/.test(d)), "and the reassurance travels with it");
+  assert.ok(
+    unpaid.details.some((d) => /Nothing is charged until your trial ends/.test(d)),
+    "and the reassurance travels with it",
+  );
 
   // On trial with a card: unchanged.
   const paying = lineRow(setupSteps({ ...base, billing: bill("trialing") }, Date.now()));

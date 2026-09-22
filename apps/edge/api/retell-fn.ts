@@ -32,8 +32,24 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/reply-posture.js";
-import { emitEvent, resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode, templatesFor } from "../lib/packages/db.js";
-import { bookingTemplate, inboxSlots, normalizePhone, policyAskClass, purposeOfTemplate, renderTemplate, resolveFacts, resolveParams } from "../lib/packages/contracts.js";
+import {
+  emitEvent,
+  resolveChannel,
+  resolveOutboundTarget,
+  countSentToday,
+  personReplyMode,
+  templatesFor,
+} from "../lib/packages/db.js";
+import {
+  bookingTemplate,
+  inboxSlots,
+  normalizePhone,
+  policyAskClass,
+  purposeOfTemplate,
+  renderTemplate,
+  resolveFacts,
+  resolveParams,
+} from "../lib/packages/contracts.js";
 import { deliver, whatsappSender } from "../lib/packages/core.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/outbound-gate.js";
 import { env } from "../lib/env.js";
@@ -90,7 +106,11 @@ export async function POST(request: Request): Promise<Response> {
     call?: { call_id?: string; from_number?: string; agent_id?: string };
     args?: { phone_number?: string };
   } = {};
-  try { body = JSON.parse(raw); } catch { /* fall through with empty body */ }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    /* fall through with empty body */
+  }
   const call = body.call || {};
   const args = body.args || {};
 
@@ -116,7 +136,10 @@ export async function POST(request: Request): Promise<Response> {
     // normalizePhone already rejects anything that cannot be a phone number,
     // which is a better test than a hand-written length check.
     L.info("retell_fn_no_number");
-    return json(200, { result: "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call." });
+    return json(200, {
+      result:
+        "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call.",
+    });
   }
 
   const db = pg();
@@ -159,7 +182,8 @@ export async function POST(request: Request): Promise<Response> {
     if (!contact) {
       L.info("retell_fn_refused_third_party", { tenant: routed.tenantId });
       return json(200, {
-        result: "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.",
+        result:
+          "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.",
       });
     }
 
@@ -242,7 +266,12 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (!gate.allowed) {
-      L.info("retell_fn_refused", { tenant: routed.tenantId, reason: gate.refusal, mode: replyMode, person_mode: personMode });
+      L.info("retell_fn_refused", {
+        tenant: routed.tenantId,
+        reason: gate.refusal,
+        mode: replyMode,
+        person_mode: personMode,
+      });
       // A refusal a person can find afterwards. Every other refusal in the
       // product lands somewhere durable -- the door writes message.send_blocked,
       // a broadcast marks its recipient, a failed send flags the thread -- and
@@ -250,7 +279,10 @@ export async function POST(request: Request): Promise<Response> {
       // no answer. The door's own kind, naming the thread rather than a message,
       // because the gate refused before any row existed to name.
       await emitEvent(db, routed.tenantId, "message.send_blocked", "message", "conversation", contact.conversationId, {
-        reason: gate.refusal, source: VOICE_SEND_SOURCE, channel: "whatsapp", call_id: call.call_id ?? null,
+        reason: gate.refusal,
+        source: VOICE_SEND_SOURCE,
+        channel: "whatsapp",
+        call_id: call.call_id ?? null,
       });
       // The caller is on the line, so the agent is told what to SAY — never
       // that a colleague is mid-thread with them, or what our policy is.
@@ -299,10 +331,15 @@ export async function POST(request: Request): Promise<Response> {
       // compiler cannot know that, and if one ever did, "it could not be sent" is
       // the true thing to say on a call.
       const script: OutboundRefusal =
-        out.reason === "erased" ? "opted_out"
-        : out.reason === "superseded_by_human" ? "human_has_it"
-        : out.reason === "email_marketing_disabled" || out.reason === "email_suppressed" || out.reason === "recipient_changed" ? "policy_hold"
-        : out.reason;
+        out.reason === "erased"
+          ? "opted_out"
+          : out.reason === "superseded_by_human"
+            ? "human_has_it"
+            : out.reason === "email_marketing_disabled" ||
+                out.reason === "email_suppressed" ||
+                out.reason === "recipient_changed"
+              ? "policy_hold"
+              : out.reason;
       return json(200, { result: refusalScript(script, publishedNumber) });
     }
     if (out.outcome === "failed") {

@@ -12,7 +12,19 @@
 
 /** Addresses a mail system or a person expects to mean something else; "r" is the reply route (r+<token>@). 00126's list. */
 export const MAILBOX_RESERVED: ReadonlySet<string> = new Set([
-  "r", "postmaster", "abuse", "mailer-daemon", "noreply", "no-reply", "admin", "administrator", "support", "security", "billing", "hello", "hi",
+  "r",
+  "postmaster",
+  "abuse",
+  "mailer-daemon",
+  "noreply",
+  "no-reply",
+  "admin",
+  "administrator",
+  "support",
+  "security",
+  "billing",
+  "hello",
+  "hi",
 ]);
 
 export const MAILBOX_LOCAL_PART_MAX = 40;
@@ -49,9 +61,14 @@ export function whyNotAFromName(typed: string): string | null {
  */
 export function suggestLocalPart(businessName: string | null | undefined): string | null {
   const s = (businessName ?? "")
-    .normalize("NFKD").replace(/\p{M}+/gu, "")
-    .toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "").slice(0, MAILBOX_LOCAL_PART_MAX).replace(/-+$/g, "");
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, MAILBOX_LOCAL_PART_MAX)
+    .replace(/-+$/g, "");
   return s && whyNotALocalPart(s) === null ? s : null;
 }
 
@@ -80,6 +97,7 @@ export interface EmailSetupDto {
 }
 
 /** What Setup and Connections both say while the receptionist does not answer email: one sentence, so the two pages cannot drift apart. */
-export const EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: every email waits for you in the Inbox.";
+export const EMAIL_NOT_ANSWERED_SENTENCE =
+  "The receptionist does not answer email yet: every email waits for you in the Inbox.";
 /** The one thing the product cannot see, said where the owner sets email up (the plan's §9). */
 export const EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";

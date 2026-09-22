@@ -47,9 +47,14 @@ process.env.WHATSAPP_PHONE_ID = "109990000000002";
 process.env.WHATSAPP_ACCESS_TOKEN = "the-environments-own-whatsapp-token";
 Object.assign(process.env, MAIL);
 for (const k of [
-  "ANTHROPIC_API_KEY", "WHATSAPP_TEST_ALLOWLIST",
-  "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "LINES_DRY_RUN", "VERCEL_ENV",
-]) delete process.env[k];
+  "ANTHROPIC_API_KEY",
+  "WHATSAPP_TEST_ALLOWLIST",
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "LINES_DRY_RUN",
+  "VERCEL_ENV",
+])
+  delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -75,10 +80,17 @@ const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   requests.push({ url: u, init });
-  const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-  return u.startsWith(TWILIO) ? json(201, { sid: `SM${String(requests.length).padStart(32, "0")}`, status: "accepted" }) : json(200, {});
+  const json = (status, body) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  return u.startsWith(TWILIO)
+    ? json(201, { sid: `SM${String(requests.length).padStart(32, "0")}`, status: "accepted" })
+    : json(200, {});
 };
-after(() => { globalThis.fetch = realFetch; setPg(null); setInboundPorts(null); });
+after(() => {
+  globalThis.fetch = realFetch;
+  setPg(null);
+  setInboundPorts(null);
+});
 
 /** What left after `mark`: the mail Resend was asked to send, and the texts Twilio was asked to send. */
 function leftSince(mark) {
@@ -86,11 +98,13 @@ function leftSince(mark) {
   return {
     calls,
     mail: calls.filter((c) => c.url.startsWith(RESEND)).map((c) => JSON.parse(c.init.body)),
-    texts: calls.filter((c) => c.url.startsWith(TWILIO)).map((c) => ({
-      url: c.url,
-      authorization: c.init.headers.Authorization,
-      form: Object.fromEntries(new URLSearchParams(c.init.body)),
-    })),
+    texts: calls
+      .filter((c) => c.url.startsWith(TWILIO))
+      .map((c) => ({
+        url: c.url,
+        authorization: c.init.headers.Authorization,
+        form: Object.fromEntries(new URLSearchParams(c.init.body)),
+      })),
   };
 }
 
@@ -108,10 +122,21 @@ const EMPTY_TWIML = `<?xml version="1.0" encoding="UTF-8"?><Response></Response>
  */
 const event = () => ({ waitUntil: () => {} });
 const post = (body, headers = {}, url = DOOR) =>
-  hook.POST(new Request(url, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", ...headers }, body }), event());
+  hook.POST(
+    new Request(url, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", ...headers },
+      body,
+    }),
+    event(),
+  );
 /** A text as Twilio posts it: the fields as a form, signed over the URL and every field with `token` (null signs nothing). */
 const text = async (fields, token, { url = DOOR, signedUrl = url } = {}) =>
-  post(new URLSearchParams(fields).toString(), token ? { "x-twilio-signature": await twilioSignature(token, signedUrl, fields) } : {}, url);
+  post(
+    new URLSearchParams(fields).toString(),
+    token ? { "x-twilio-signature": await twilioSignature(token, signedUrl, fields) } : {},
+    url,
+  );
 /** What Twilio hears: the status, the type and the body. */
 const heard = async (res) => [res.status, res.headers.get("content-type"), await res.text()];
 const twiml = (status) => [status, "text/xml", EMPTY_TWIML];
@@ -123,8 +148,12 @@ async function listening(fn) {
   for (const stream of ["log", "warn", "error"]) {
     console[stream] = (...args) => {
       let line = null;
-      try { line = JSON.parse(args[0]); } catch {}
-      lines.push(line && typeof line === "object" && line.event ? { stream, ...line } : { stream, event: String(args[0]), args });
+      try {
+        line = JSON.parse(args[0]);
+      } catch {}
+      lines.push(
+        line && typeof line === "object" && line.event ? { stream, ...line } : { stream, event: String(args[0]), args },
+      );
     };
   }
   try {
@@ -137,11 +166,15 @@ async function listening(fn) {
 /* ------------------------------------------------------------- the world */
 
 const GREETING = "Thanks for texting Harbor Nails. A person will be with you shortly.";
-const NOTIFICATIONS = () => ({ escalation_emails: ["owner@riverside.example"], from: "Riverside Studio <hello@platform.test>" });
+const NOTIFICATIONS = () => ({
+  escalation_emails: ["owner@riverside.example"],
+  from: "Riverside Studio <hello@platform.test>",
+});
 const BRAIN = () => ({
   business_name: "Harbor Nails",
   booking_link: "https://booking.example/riverside",
-  system_prompt: "You are the assistant for Harbor Nails, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
+  system_prompt:
+    "You are the assistant for Harbor Nails, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
   fallbacks: {
     greeting: GREETING,
     error: "Thanks for writing to Harbor Nails! A member of the team will reply here soon.",
@@ -164,15 +197,42 @@ function world() {
   const SUB = `AC${pad(i, 32)}`;
   const SERVICE = `MG${pad(i, 32)}`;
   const TOKEN = `subaccount-token-${i}`;
-  const line = { id: `eeeeeeee-0000-4000-8000-${pad(i, 12)}`, tenant_id: T, e164: LINE, provider: "twilio", subaccount_sid: SUB, messaging_service_sid: SERVICE, sms_state: "active", voice_state: "active" };
-  const channel = { id: `sms-ch-${i}`, tenant_id: T, kind: "sms", external_id: LINE, number_e164: LINE, credentials_ref: null, config: {}, status: "active" };
+  const line = {
+    id: `eeeeeeee-0000-4000-8000-${pad(i, 12)}`,
+    tenant_id: T,
+    e164: LINE,
+    provider: "twilio",
+    subaccount_sid: SUB,
+    messaging_service_sid: SERVICE,
+    sms_state: "active",
+    voice_state: "active",
+  };
+  const channel = {
+    id: `sms-ch-${i}`,
+    tenant_id: T,
+    kind: "sms",
+    external_id: LINE,
+    number_e164: LINE,
+    credentials_ref: null,
+    config: {},
+    status: "active",
+  };
   const tables = { lines: [line], tenant_channels: [channel] };
   const vault = { [line.id]: { auth_token: TOKEN } };
   const mark = requests.length;
   let people = 0;
   let texts = 0;
   return {
-    i, T, LINE, SUB, SERVICE, TOKEN, line, channel, tables, vault,
+    i,
+    T,
+    LINE,
+    SUB,
+    SERVICE,
+    TOKEN,
+    line,
+    channel,
+    tables,
+    vault,
     open: (faults = {}) => {
       const db = fakeDb(tables, faults, { get_line_credentials: ({ p_line_id }) => vault[p_line_id] ?? {} });
       setPg(db);
@@ -182,8 +242,14 @@ function world() {
     customer: () => `+1646555${pad(i * 10 + ++people, 4)}`,
     /** One inbound text's fields, as Twilio posts them to this line. */
     form: (from, over = {}) => ({
-      MessageSid: `SM${pad(i * 100 + ++texts, 32)}`, AccountSid: SUB, MessagingServiceSid: SERVICE,
-      From: from, To: LINE, Body: SAID, NumMedia: "0", ...over,
+      MessageSid: `SM${pad(i * 100 + ++texts, 32)}`,
+      AccountSid: SUB,
+      MessagingServiceSid: SERVICE,
+      From: from,
+      To: LINE,
+      Body: SAID,
+      NumMedia: "0",
+      ...over,
     }),
     /** Everything that left the process since this world was made. */
     left: () => leftSince(mark),
@@ -202,7 +268,16 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], repliedBefore: 
  * `ingest` and `escalate` run inside those steps, so a case can make either throw.
  */
 function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} } = {}) {
-  const seen = { runtimes: [], ingested: [], sent: [], escalations: [], alerts: [], whatsappWires: [], allowlistSkips: 0, processed: 0 };
+  const seen = {
+    runtimes: [],
+    ingested: [],
+    sent: [],
+    escalations: [],
+    alerts: [],
+    whatsappWires: [],
+    allowlistSkips: 0,
+    processed: 0,
+  };
   setInboundPorts({
     db: pg,
     runtime: async (_db, routed) => {
@@ -230,7 +305,17 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
       ingest: async (_db, tenantId, n, channel) => {
         seen.ingested.push({ tenantId, channel, body: n.body });
         ingest(n);
-        return tenantId ? { message_id: "m-in", conversation_id: "conv-1", contact_id: "k-1", is_new: true, consent: "unknown", dnc: false, paused_until: null } : null;
+        return tenantId
+          ? {
+              message_id: "m-in",
+              conversation_id: "conv-1",
+              contact_id: "k-1",
+              is_new: true,
+              consent: "unknown",
+              dnc: false,
+              paused_until: null,
+            }
+          : null;
       },
       sink: (_db, tenantId, _ing, _rt, channel, wires) => ({
         on: true,
@@ -241,8 +326,12 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
             ? { outcome: "sent", messageId: "m-out", externalId: r.wamid }
             : { outcome: "failed", reason: "provider", status: r.status, errorBody: null, messageId: null };
         },
-        processed: async () => { seen.processed += 1; },
-        allowlistSkip: async () => { seen.allowlistSkips += 1; },
+        processed: async () => {
+          seen.processed += 1;
+        },
+        allowlistSkip: async () => {
+          seen.allowlistSkips += 1;
+        },
         unreachableSender: async () => {},
         vetoFallback: async () => {},
         pause: async () => {},
@@ -262,9 +351,13 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
     page: async () => "sent",
     sender: (cfg) => {
       seen.whatsappWires.push(cfg);
-      return async () => { throw new Error("a text must not be answered on WhatsApp"); };
+      return async () => {
+        throw new Error("a text must not be answered on WhatsApp");
+      };
     },
-    brain: async () => { throw new Error("the model must not be reached in this test"); },
+    brain: async () => {
+      throw new Error("the model must not be reached in this test");
+    },
     env: { allowlist, modelKey: undefined },
   });
   return seen;
@@ -312,28 +405,76 @@ test("a signature that does not hold is a 403 that pages nobody, and only the UR
       [() => text(fields, null), "no signature at all"],
       [() => text(fields, "another-subaccounts-token"), "another subaccount's token"],
       [() => text(fields, MASTER.token), "the platform's own master token: a line is proven by its own"],
-      [() => text(fields, w.TOKEN, { signedUrl: `${DOOR}?attempt=2` }), "signed for another URL: Twilio signs the one it called"],
-      [async () => post(new URLSearchParams({ ...fields, Body: "Are you open Sunday?" }).toString(), { "x-twilio-signature": await twilioSignature(w.TOKEN, DOOR, fields) }), "a field changed after signing"],
+      [
+        () => text(fields, w.TOKEN, { signedUrl: `${DOOR}?attempt=2` }),
+        "signed for another URL: Twilio signs the one it called",
+      ],
+      [
+        async () =>
+          post(new URLSearchParams({ ...fields, Body: "Are you open Sunday?" }).toString(), {
+            "x-twilio-signature": await twilioSignature(w.TOKEN, DOOR, fields),
+          }),
+        "a field changed after signing",
+      ],
     ]) {
       assert.deepEqual(await heard(await knock()), twiml(403), why);
     }
-    assert.deepEqual(log.said("sms_bad_signature").map((l) => l.stream), ["warn", "warn", "warn", "warn", "warn"], "a warning each: this is what a probe of a public URL looks like");
+    assert.deepEqual(
+      log.said("sms_bad_signature").map((l) => l.stream),
+      ["warn", "warn", "warn", "warn", "warn"],
+      "a warning each: this is what a probe of a public URL looks like",
+    );
     assert.deepEqual(w.left().mail, [], "and nobody is paged for one");
     assert.deepEqual([seen.runtimes, seen.ingested], [[], []]);
     assert.ok(!db.seen.some((q) => q.table === "tenant_channels"), "nothing is routed for a text that is not proven");
 
     // The same fields, signed the way Twilio signs them: the refusals above were the signature's doing.
     assert.deepEqual(await heard(await text(fields, w.TOKEN)), twiml(200));
-    assert.deepEqual(seen.ingested.map((x) => x.tenantId), [w.T]);
+    assert.deepEqual(
+      seen.ingested.map((x) => x.tenantId),
+      [w.T],
+    );
   });
 });
 
 test("every other refusal is heard as its own status in an empty TwiML, said at its own level, and told to the platform naming the number, once a window", async () => {
   for (const c of [
-    { why: "a line whose token is not in the vault", status: 503, level: "error", log: "sms_line_without_account", alert: "the line has no subaccount or no token in the vault", arrange: (w) => { w.vault[w.line.id] = {}; } },
-    { why: "a line that could not be read", status: 503, level: "error", log: "sms_line_unreadable", alert: "the line or its token could not be read", faults: { "lines.select": { message: "connection reset" } } },
-    { why: "an sms channel row switched off: an answer, so Twilio stops asking", status: 200, level: "error", log: "sms_unroutable", alert: "the sms channel row is missing or not active", arrange: (w) => { w.channel.status = "disabled"; } },
-    { why: "an sms channel row that could not be read: ours to retry", status: 503, level: "error", log: "sms_routing_lookup_failed", alert: "the sms channel row could not be read", faults: { "tenant_channels.select": { message: "canceling statement due to statement timeout" } } },
+    {
+      why: "a line whose token is not in the vault",
+      status: 503,
+      level: "error",
+      log: "sms_line_without_account",
+      alert: "the line has no subaccount or no token in the vault",
+      arrange: (w) => {
+        w.vault[w.line.id] = {};
+      },
+    },
+    {
+      why: "a line that could not be read",
+      status: 503,
+      level: "error",
+      log: "sms_line_unreadable",
+      alert: "the line or its token could not be read",
+      faults: { "lines.select": { message: "connection reset" } },
+    },
+    {
+      why: "an sms channel row switched off: an answer, so Twilio stops asking",
+      status: 200,
+      level: "error",
+      log: "sms_unroutable",
+      alert: "the sms channel row is missing or not active",
+      arrange: (w) => {
+        w.channel.status = "disabled";
+      },
+    },
+    {
+      why: "an sms channel row that could not be read: ours to retry",
+      status: 503,
+      level: "error",
+      log: "sms_routing_lookup_failed",
+      alert: "the sms channel row could not be read",
+      faults: { "tenant_channels.select": { message: "canceling statement due to statement timeout" } },
+    },
   ]) {
     const w = world();
     c.arrange?.(w);
@@ -343,19 +484,33 @@ test("every other refusal is heard as its own status in an empty TwiML, said at 
     const fields = w.form(from);
     await listening(async (log) => {
       assert.deepEqual(await heard(await text(fields, w.TOKEN)), twiml(c.status), c.why);
-      assert.deepEqual(log.said(c.log).map((l) => [l.stream, l.sid, l.from_tail, l.to_tail]), [[c.level, fields.MessageSid, from.slice(-4), w.LINE.slice(-4)]], `${c.why}: said at ${c.level}, with tails`);
+      assert.deepEqual(
+        log.said(c.log).map((l) => [l.stream, l.sid, l.from_tail, l.to_tail]),
+        [[c.level, fields.MessageSid, from.slice(-4), w.LINE.slice(-4)]],
+        `${c.why}: said at ${c.level}, with tails`,
+      );
 
       const mail = w.left().mail;
       assert.equal(mail.length, 1, `${c.why}: the platform is told`);
       assert.equal(mail[0].subject, "A text arrived on a line the platform could not handle");
       assert.deepEqual([mail[0].from, mail[0].to], [MAIL.LEAD_FROM, [MAIL.LEAD_TO]], "the platform's own mailbox");
-      assert.ok(mail[0].text.startsWith(`1 text(s) just arrived for ${w.LINE} and could not be handled. Reason: ${c.alert}.`), mail[0].text);
-      assert.ok(!mail[0].text.includes(from.slice(2)) && !mail[0].text.includes(SAID), "the line's number and a reason: never who wrote, or what they said");
+      assert.ok(
+        mail[0].text.startsWith(`1 text(s) just arrived for ${w.LINE} and could not be handled. Reason: ${c.alert}.`),
+        mail[0].text,
+      );
+      assert.ok(
+        !mail[0].text.includes(from.slice(2)) && !mail[0].text.includes(SAID),
+        "the line's number and a reason: never who wrote, or what they said",
+      );
 
       // Another text inside the window: heard the same, and the platform is not told again.
       assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN)), twiml(c.status), `${c.why}, again`);
       assert.equal(w.left().mail.length, 1, `${c.why}: one note a window`);
-      assert.deepEqual([seen.runtimes, seen.ingested, w.left().texts], [[], [], []], "no receptionist ran, and nothing was answered");
+      assert.deepEqual(
+        [seen.runtimes, seen.ingested, w.left().texts],
+        [[], [], []],
+        "no receptionist ran, and nothing was answered",
+      );
     });
   }
 });
@@ -369,7 +524,12 @@ test("a number no line carries is a 404, told to the platform once for the whole
     assert.deepEqual(await heard(await text(a.form(a.customer()), a.TOKEN)), twiml(404));
     const mail = a.left().mail;
     assert.equal(mail.length, 1);
-    assert.ok(mail[0].text.startsWith(`1 text(s) just arrived for ${a.LINE} and could not be handled. Reason: no line row carries this number.`), `the note names the number: ${mail[0].text}`);
+    assert.ok(
+      mail[0].text.startsWith(
+        `1 text(s) just arrived for ${a.LINE} and could not be handled. Reason: no line row carries this number.`,
+      ),
+      `the note names the number: ${mail[0].text}`,
+    );
 
     // A POST loop that writes a different To each time is the same alert, already sent.
     const b = world();
@@ -377,7 +537,14 @@ test("a number no line carries is a 404, told to the platform once for the whole
     b.open();
     assert.deepEqual(await heard(await text(b.form(b.customer()), b.TOKEN)), twiml(404));
     assert.equal(a.left().mail.length, 1, "one note for the class, not one per number");
-    assert.deepEqual(log.said("sms_unknown_line").map((l) => [l.stream, l.to_tail]), [["warn", a.LINE.slice(-4)], ["warn", b.LINE.slice(-4)]], "and each is still said");
+    assert.deepEqual(
+      log.said("sms_unknown_line").map((l) => [l.stream, l.to_tail]),
+      [
+        ["warn", a.LINE.slice(-4)],
+        ["warn", b.LINE.slice(-4)],
+      ],
+      "and each is still said",
+    );
     assert.deepEqual([seen.ingested, a.left().texts], [[], []]);
   });
 });
@@ -392,18 +559,52 @@ test("a text on a line the carriers have not approved reaches the receptionist h
   const from = w.customer();
   const fields = w.form(from);
   await listening(async (log) => {
-    assert.deepEqual(await heard(await text(fields, w.TOKEN)), twiml(200), "acknowledged: the text is kept, so Twilio need not send it again");
+    assert.deepEqual(
+      await heard(await text(fields, w.TOKEN)),
+      twiml(200),
+      "acknowledged: the text is kept, so Twilio need not send it again",
+    );
 
-    assert.deepEqual(seen.runtimes, [{ channelId: w.channel.id, tenantId: w.T, kind: "sms", externalId: w.LINE, numberE164: w.LINE, credentialsRef: null, config: {} }], "the workspace's runtime, for the sms channel its number routes to");
-    assert.deepEqual(seen.ingested, [{ tenantId: w.T, channel: "sms", body: SAID }], "kept under that workspace, as a text");
-    assert.deepEqual(seen.escalations, [{ reason: SMS_HELD_REASON, details: SMS_HELD_DETAILS }], "held for a person, with the hold's own reason");
-    assert.deepEqual(seen.alerts.map((a) => [a.thread, a.reason, a.channel]), [[from.slice(1), "carriers", "sms"]], "and the owner is told a TEXT is waiting");
+    assert.deepEqual(
+      seen.runtimes,
+      [
+        {
+          channelId: w.channel.id,
+          tenantId: w.T,
+          kind: "sms",
+          externalId: w.LINE,
+          numberE164: w.LINE,
+          credentialsRef: null,
+          config: {},
+        },
+      ],
+      "the workspace's runtime, for the sms channel its number routes to",
+    );
+    assert.deepEqual(
+      seen.ingested,
+      [{ tenantId: w.T, channel: "sms", body: SAID }],
+      "kept under that workspace, as a text",
+    );
+    assert.deepEqual(
+      seen.escalations,
+      [{ reason: SMS_HELD_REASON, details: SMS_HELD_DETAILS }],
+      "held for a person, with the hold's own reason",
+    );
+    assert.deepEqual(
+      seen.alerts.map((a) => [a.thread, a.reason, a.channel]),
+      [[from.slice(1), "carriers", "sms"]],
+      "and the owner is told a TEXT is waiting",
+    );
     assert.deepEqual([seen.sent, w.left().texts], [[], []], "nothing answered, and nothing left on the line");
     assert.equal(seen.processed, 1);
 
     const [line] = log.said("sms_inbound");
     assert.deepEqual([line.stream, line.held, line.opt, line.media], ["log", true, null, 0]);
-    assert.deepEqual([line.sid, line.from_tail, line.to_tail], [fields.MessageSid, from.slice(-4), w.LINE.slice(-4)], "a sid and two tails");
+    assert.deepEqual(
+      [line.sid, line.from_tail, line.to_tail],
+      [fields.MessageSid, from.slice(-4), w.LINE.slice(-4)],
+      "a sid and two tails",
+    );
     assert.ok(!JSON.stringify(line).includes(from.slice(2)), "never the number");
   });
 });
@@ -414,15 +615,38 @@ test("a text on an approved line is answered on that line: the subaccount's own 
   const seen = receptionist();
   const from = w.customer();
   await listening(async (log) => {
-    assert.deepEqual(await heard(await text(w.form(from), w.TOKEN)), twiml(200), "Twilio hears nothing from here: the answer goes out as its own message");
+    assert.deepEqual(
+      await heard(await text(w.form(from), w.TOKEN)),
+      twiml(200),
+      "Twilio hears nothing from here: the answer goes out as its own message",
+    );
 
-    assert.deepEqual(w.left().texts, [{
-      url: `${TWILIO}/Accounts/${w.SUB}/Messages.json`,
-      authorization: `Basic ${Buffer.from(`${w.SUB}:${w.TOKEN}`).toString("base64")}`,
-      form: { MessagingServiceSid: w.SERVICE, To: from, Body: `${GREETING}\n${SMS_FOOTER}`, StatusCallback: "https://chanlytics-messaging.vercel.app/api/sms-status" },
-    }], "one text, on this workspace's own line and account, never the platform's master");
-    assert.deepEqual(seen.sent.map((s) => [s.tenantId, s.channel, s.to]), [[w.T, "sms", from.slice(1)]], "the answer went through the workspace's sms wire");
-    assert.deepEqual(seen.escalations.map((e) => e.reason), ["brain_error"], "and with no model it is the greeting, handed to a person as everywhere else");
+    assert.deepEqual(
+      w.left().texts,
+      [
+        {
+          url: `${TWILIO}/Accounts/${w.SUB}/Messages.json`,
+          authorization: `Basic ${Buffer.from(`${w.SUB}:${w.TOKEN}`).toString("base64")}`,
+          form: {
+            MessagingServiceSid: w.SERVICE,
+            To: from,
+            Body: `${GREETING}\n${SMS_FOOTER}`,
+            StatusCallback: "https://chanlytics-messaging.vercel.app/api/sms-status",
+          },
+        },
+      ],
+      "one text, on this workspace's own line and account, never the platform's master",
+    );
+    assert.deepEqual(
+      seen.sent.map((s) => [s.tenantId, s.channel, s.to]),
+      [[w.T, "sms", from.slice(1)]],
+      "the answer went through the workspace's sms wire",
+    );
+    assert.deepEqual(
+      seen.escalations.map((e) => e.reason),
+      ["brain_error"],
+      "and with no model it is the greeting, handed to a person as everywhere else",
+    );
     assert.equal(log.said("sms_inbound")[0].held, false);
     assert.deepEqual(w.left().mail, [], "nobody is paged for a text that was answered");
   });
@@ -441,8 +665,15 @@ test("a text is never gated by the pilot allowlist or answered as the environmen
     assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN)), twiml(200));
     assert.equal(seen.allowlistSkips, 0, "no allowlist skip is recorded for a text");
     assert.equal(w.left().texts.length, 1, "and the customer is answered");
-    assert.deepEqual(seen.whatsappWires, [null], "the environment's WhatsApp pair is set, and is not this message's wire");
-    assert.ok(seen.alerts.length > 0 && seen.alerts.every((a) => a.envDefault === false), "and the owner's note is not addressed as the environment's own workspace");
+    assert.deepEqual(
+      seen.whatsappWires,
+      [null],
+      "the environment's WhatsApp pair is set, and is not this message's wire",
+    );
+    assert.ok(
+      seen.alerts.length > 0 && seen.alerts.every((a) => a.envDefault === false),
+      "and the owner's note is not addressed as the environment's own workspace",
+    );
   });
 });
 
@@ -451,27 +682,59 @@ test("a text is never gated by the pilot allowlist or answered as the environmen
 test("after the receptionist throws, only a text the database did not keep is refused: 503 and the platform told; anything later is acknowledged, said, and pages nobody", async () => {
   const w = world();
   w.open();
-  const refused = receptionist({ ingest: () => { throw new IngestFailed("connection reset by peer"); } });
+  const refused = receptionist({
+    ingest: () => {
+      throw new IngestFailed("connection reset by peer");
+    },
+  });
   await listening(async (log) => {
-    assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN)), twiml(503), "refused, so Twilio's own log carries it");
+    assert.deepEqual(
+      await heard(await text(w.form(w.customer()), w.TOKEN)),
+      twiml(503),
+      "refused, so Twilio's own log carries it",
+    );
     const mail = w.left().mail;
     assert.equal(mail.length, 1);
     assert.equal(mail[0].subject, "A text arrived on a line the platform could not handle");
-    assert.ok(mail[0].text.startsWith(`1 text(s) just arrived for ${w.LINE} and could not be handled. Reason: the text could not be recorded.`), mail[0].text);
-    assert.deepEqual(refused.alerts.map((a) => [a.reason, a.channel]), [["message not recorded", "sms"]], "and a copy of the words went to the workspace");
+    assert.ok(
+      mail[0].text.startsWith(
+        `1 text(s) just arrived for ${w.LINE} and could not be handled. Reason: the text could not be recorded.`,
+      ),
+      mail[0].text,
+    );
+    assert.deepEqual(
+      refused.alerts.map((a) => [a.reason, a.channel]),
+      [["message not recorded", "sms"]],
+      "and a copy of the words went to the workspace",
+    );
     assert.deepEqual(w.left().texts, [], "nothing is said to a customer whose words were not kept");
-    assert.deepEqual(log.said("sms_inbound_failed").map((l) => [l.stream, l.error]), [["error", "connection reset by peer"]]);
+    assert.deepEqual(
+      log.said("sms_inbound_failed").map((l) => [l.stream, l.error]),
+      [["error", "connection reset by peer"]],
+    );
   });
 
   // The words were kept and answered; the handoff after the answer threw. A
   // redelivery would only answer the same text twice.
   const v = world();
   v.open();
-  receptionist({ escalate: () => { throw new TypeError("cannot read properties of undefined (reading 'id')"); } });
+  receptionist({
+    escalate: () => {
+      throw new TypeError("cannot read properties of undefined (reading 'id')");
+    },
+  });
   await listening(async (log) => {
-    assert.deepEqual(await heard(await text(v.form(v.customer()), v.TOKEN)), twiml(200), "acknowledged, so Twilio does not ask again");
+    assert.deepEqual(
+      await heard(await text(v.form(v.customer()), v.TOKEN)),
+      twiml(200),
+      "acknowledged, so Twilio does not ask again",
+    );
     assert.equal(v.left().texts.length, 1, "the customer was answered once");
     assert.deepEqual(v.left().mail, [], "and nobody is paged");
-    assert.deepEqual(log.said("sms_inbound_failed").map((l) => [l.stream, l.error]), [["error", "cannot read properties of undefined (reading 'id')"]], "but it is said");
+    assert.deepEqual(
+      log.said("sms_inbound_failed").map((l) => [l.stream, l.error]),
+      [["error", "cannot read properties of undefined (reading 'id')"]],
+      "but it is said",
+    );
   });
 });

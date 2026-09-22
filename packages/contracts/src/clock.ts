@@ -52,7 +52,15 @@ function formatsFor(tz: string): ZoneFormats {
     time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
     date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
     dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
-    parts: new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
+    parts: new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
   };
   FORMATS.set(tz, made);
   return made;
@@ -75,7 +83,12 @@ function wall(atMs: number, tz: string): Wall {
   if (hit) return hit;
   const p: Record<string, string> = {};
   for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
-  const made: Wall = { key: `${p.year}-${p.month}-${p.day}`, year: Number(p.year), hh: Number(p.hour) % 24, mm: Number(p.minute) };
+  const made: Wall = {
+    key: `${p.year}-${p.month}-${p.day}`,
+    year: Number(p.year),
+    hh: Number(p.hour) % 24,
+    mm: Number(p.minute),
+  };
   if (WALLS.size >= WALLS_MAX) WALLS.clear();
   WALLS.set(id, made);
   return made;
@@ -87,7 +100,9 @@ function wall(atMs: number, tz: string): Wall {
  * model reading a time does not also load the configuration schema.
  */
 function shiftDay(key: string, days: number): string {
-  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + days)).toISOString().slice(0, 10);
+  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + days))
+    .toISOString()
+    .slice(0, 10);
 }
 
 /** The business's day at an instant: "2026-09-06". */
@@ -103,7 +118,9 @@ export function clockTime(atMs: number, tz: string): string {
 /** "Sep 6" by the business's calendar, with the year when that is not this year there. */
 export function clockDate(atMs: number, tz: string, nowMs: number): string {
   const f = formatsFor(tz);
-  return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
+  return wall(atMs, tz).year === wall(nowMs, tz).year
+    ? f.date.format(new Date(atMs))
+    : f.dateYear.format(new Date(atMs));
 }
 
 /** "Sep 6, 2026" by the business's calendar: a record that always says its year. */
@@ -144,7 +161,14 @@ export function clockDayLabel(atMs: number, tz: string, nowMs: number): string {
 
 /** The instant of a wall-clock time on a business day ("2026-09-07", 10:00), clock changes included. */
 export function wallClockAt(tz: string, dayKey: string, hh: number, mm: number): number {
-  return localToUtcMs(formatsFor(tz).zone, Number(dayKey.slice(0, 4)), Number(dayKey.slice(5, 7)), Number(dayKey.slice(8, 10)), hh, mm);
+  return localToUtcMs(
+    formatsFor(tz).zone,
+    Number(dayKey.slice(0, 4)),
+    Number(dayKey.slice(5, 7)),
+    Number(dayKey.slice(8, 10)),
+    hh,
+    mm,
+  );
 }
 
 /** Tomorrow at a wall-clock time, by the business's day and clock: a snooze target. */

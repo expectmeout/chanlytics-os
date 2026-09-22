@@ -33,7 +33,10 @@ test.describe("the opt-in page", () => {
     }
   });
 
-  test("the live workspace's page is public, shows the ways to say yes and the carriers' wording", async ({ page, request }) => {
+  test("the live workspace's page is public, shows the ways to say yes and the carriers' wording", async ({
+    page,
+    request,
+  }) => {
     test.skip(!HAVE_SESSION, WHY_SKIPPED);
     // The slug comes from the signed-in session; the page is then opened without one.
     await signIn(page);
@@ -75,11 +78,15 @@ test.describe("the opt-in page", () => {
       expect(box!.height).toBeGreaterThan(100);
     }
     // The page never scrolls sideways on a phone.
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test("the desk sign opens with no session and prints on one sheet, with the code and the words it owes", async ({ page }) => {
+  test("the desk sign opens with no session and prints on one sheet, with the code and the words it owes", async ({
+    page,
+  }) => {
     test.skip(!HAVE_SESSION, WHY_SKIPPED);
     await signIn(page);
     const ws = await (await page.request.get("/api/v1/workspaces")).json();

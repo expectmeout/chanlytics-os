@@ -62,9 +62,7 @@ test("the tests import dist, so dist must not be older than src", () => {
 });
 
 test("contracts really does resolve to dist — if that ever changes, so must this file", () => {
-  const pkg = JSON.parse(
-    fs.readFileSync(path.join(ROOT, "packages", "contracts", "package.json"), "utf8"),
-  );
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages", "contracts", "package.json"), "utf8"));
   assert.match(
     pkg.main ?? "",
     /dist/,

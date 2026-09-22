@@ -24,10 +24,11 @@ const ZONE = "America/New_York";
 
 /* ------------------------------ classification ----------------------------- */
 
-const wa = (body) => normalizeInbound(
-  { from: "13475550101", id: "wamid.1", type: "text", text: { body } },
-  { contacts: [{ wa_id: "13475550101", profile: { name: "Dana" } }] },
-);
+const wa = (body) =>
+  normalizeInbound(
+    { from: "13475550101", id: "wamid.1", type: "text", text: { body } },
+    { contacts: [{ wa_id: "13475550101", profile: { name: "Dana" } }] },
+  );
 
 test("the opt-out words are recognised, in both languages", () => {
   for (const w of ["STOP", "stop", " Stop ", "stop.", "BAJA", "unsubscribe", "alto"]) {
@@ -38,7 +39,14 @@ test("the opt-out words are recognised, in both languages", () => {
 test("an ordinary message is not an opt-out", () => {
   // The pattern is anchored for a reason: "stop by at 4?" is a booking, and
   // silencing that customer forever would be the worse failure.
-  for (const w of ["can you stop by at 4?", "please stop the appointment reminders for now", "nonstop", "the end of the month", "cancel my 3pm", "weekend"]) {
+  for (const w of [
+    "can you stop by at 4?",
+    "please stop the appointment reminders for now",
+    "nonstop",
+    "the end of the month",
+    "cancel my 3pm",
+    "weekend",
+  ]) {
     assert.equal(wa(w).optOut, false, `"${w}" must NOT opt out`);
   }
 });
@@ -99,10 +107,19 @@ const conv = (contact) => ({
   last_wa_inbound_at: new Date().toISOString(),
   last_message_at: new Date().toISOString(),
   contact: { id: "k1", display_name: "Dana", wa_profile_name: null, phone_e164: "+13475550101", ...contact },
-  messages: [{
-    id: "m1", direction: "inbound", sender: "customer", type: "text", body: "stop",
-    media: null, meta: null, status: "received", created_at: new Date().toISOString(),
-  }],
+  messages: [
+    {
+      id: "m1",
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "stop",
+      media: null,
+      meta: null,
+      status: "received",
+      created_at: new Date().toISOString(),
+    },
+  ],
 });
 
 test("either column alone blocks — consent and dnc are independent", () => {
@@ -183,15 +200,15 @@ test("the patterns are anchored and case-insensitive", () => {
   test("a late message is answered or escalated, never dropped in silence", () => {
     // Meta redelivers for days, so any outage longer than the guard turned its
     // whole backlog into customers who wrote and were never answered.
-    assert.ok(readCode("apps/edge/lib/whatsapp/steps.ts").includes("STALE_REPLY_MS"), "there must be a horizon past which a person answers");
+    assert.ok(
+      readCode("apps/edge/lib/whatsapp/steps.ts").includes("STALE_REPLY_MS"),
+      "there must be a horizon past which a person answers",
+    );
     const at = edgeSrc.indexOf('age === "stale"');
     assert.ok(at > -1);
     const branch = edgeSrc.slice(at, at + 700);
     assert.ok(branch.includes('sink.escalate("stale"'), "escalate rather than return quietly");
     assert.ok(branch.includes("tell("), "and tell somebody");
-    assert.ok(
-      !/wa_skip_stale/.test(edgeSrc),
-      "the silent drop must be gone, not merely bypassed",
-    );
+    assert.ok(!/wa_skip_stale/.test(edgeSrc), "the silent drop must be gone, not merely bypassed");
   });
 }

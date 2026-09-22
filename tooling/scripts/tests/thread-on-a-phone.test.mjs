@@ -20,35 +20,92 @@ const NOW = new Date("2026-09-14T14:00:00Z");
 const at = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 
 const msg = (over = {}) => ({
-  id: "m1", direction: "inbound", sender: "customer", type: "text",
-  body: "Do you have Friday?", media: null, meta: null, status: "received",
-  channel: "whatsapp", created_at: at(60), channel_ts: at(60), ...over,
+  id: "m1",
+  direction: "inbound",
+  sender: "customer",
+  type: "text",
+  body: "Do you have Friday?",
+  media: null,
+  meta: null,
+  status: "received",
+  channel: "whatsapp",
+  created_at: at(60),
+  channel_ts: at(60),
+  ...over,
 });
-const ours = (over = {}) => msg({ id: "m2", direction: "outbound", sender: "ai", body: "Yes, 3pm works.", status: "read", created_at: at(59), channel_ts: at(59), ...over });
+const ours = (over = {}) =>
+  msg({
+    id: "m2",
+    direction: "outbound",
+    sender: "ai",
+    body: "Yes, 3pm works.",
+    status: "read",
+    created_at: at(59),
+    channel_ts: at(59),
+    ...over,
+  });
 const conv = (messages, over = {}) => ({
-  id: "c1", state: "open", paused_until: null, snooze_until: null, assignee_user_id: null, assignee_is_me: false,
-  last_wa_inbound_at: at(60), last_message_at: at(59),
-  contact: { id: "k1", display_name: "Rosa Díaz", wa_profile_name: null, phone_e164: "+13475550101", consent: "opted_in", dnc: false },
-  messages, ...over,
+  id: "c1",
+  state: "open",
+  paused_until: null,
+  snooze_until: null,
+  assignee_user_id: null,
+  assignee_is_me: false,
+  last_wa_inbound_at: at(60),
+  last_message_at: at(59),
+  contact: {
+    id: "k1",
+    display_name: "Rosa Díaz",
+    wa_profile_name: null,
+    phone_e164: "+13475550101",
+    consent: "opted_in",
+    dnc: false,
+  },
+  messages,
+  ...over,
 });
 
 /* -------------------------------- a browser -------------------------------- */
 
 globalThis.window = {
-  location: { pathname: "/w/melanys", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/melanys",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
-  CHANLY: { nav() {}, R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` }, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
+  CHANLY: {
+    nav() {},
+    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
+    IX_NOW: "12:04",
+    CONF: { SAFE: 0.8, MED: 0.5 },
+  },
   __surfaceState: () => "live",
   __DEMO_MODE: false,
   __href: (_route, p) => `/api/v1/messages/${p.id}/media?workspace=melanys`,
   gate: () => ({}),
-  addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
-  setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent() {
+    return true;
+  },
+  setTimeout: () => 1,
+  clearTimeout() {},
+  setInterval: () => 1,
+  clearInterval() {},
 };
-globalThis.document = { body: { appendChild() {} }, addEventListener() {}, removeEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }) };
+globalThis.document = {
+  body: { appendChild() {} },
+  addEventListener() {},
+  removeEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
+};
 
 let cells = [];
 let seq = 0;
@@ -61,16 +118,55 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
   useMemo: (fn) => fn(),
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatePill", "MoreMenu", "EmptyState", "PolicyChip", "TlMedia", "FailedRead", "Confirm", "usePPToast", "useHotkey"]) globalThis[k] = globalThis.window[k];
+for (const k of [
+  "StatePill",
+  "MoreMenu",
+  "EmptyState",
+  "PolicyChip",
+  "TlMedia",
+  "FailedRead",
+  "Confirm",
+  "usePPToast",
+  "useHotkey",
+])
+  globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
 globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
@@ -78,12 +174,21 @@ const { InboxThread } = globalThis.window;
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const all = (tree, pred) => { const hits = []; walk(tree, (n) => { if (pred(n)) hits.push(n); }); return hits; };
+const all = (tree, pred) => {
+  const hits = [];
+  walk(tree, (n) => {
+    if (pred(n)) hits.push(n);
+  });
+  return hits;
+};
 const one = (tree, pred) => all(tree, pred)[0];
 const byClass = (c) => (n) => typeof n.props?.className === "string" && n.props.className.split(" ").includes(c);
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
@@ -94,13 +199,20 @@ const textOf = (n) => {
   return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
 };
 const draw = (dto, escalation = null) => {
-  cells = []; seq = 0;
-  return InboxThread({ thread: toInboxThreadVM(dto, escalation, ZONE, NOW), channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" } });
+  cells = [];
+  seq = 0;
+  return InboxThread({
+    thread: toInboxThreadVM(dto, escalation, ZONE, NOW),
+    channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" },
+  });
 };
 // Draw again with the cells kept, so a disclosure that was toggled is drawn open.
 const redraw = (dto, escalation = null) => {
   seq = 0;
-  return InboxThread({ thread: toInboxThreadVM(dto, escalation, ZONE, NOW), channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" } });
+  return InboxThread({
+    thread: toInboxThreadVM(dto, escalation, ZONE, NOW),
+    channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" },
+  });
 };
 
 /* ---------------------------------- a link ---------------------------------- */
@@ -151,7 +263,12 @@ test("a WhatsApp message that reads like a quote is not one", () => {
 // The shape the wire actually stores, which replyWhy() reads: an intent, a confidence, the facts
 // it leaned on and the reason. (Written as { reply_why: … } the first time, this test passed
 // without ever finding the button.)
-const WHY_META = { intent: "booking", confidence: 0.91, facts_used: ["Hours", "Price list"], reason: "She asked for a time we had open." };
+const WHY_META = {
+  intent: "booking",
+  confidence: 0.91,
+  facts_used: ["Hours", "Price list"],
+  reason: "She asked for a time we had open.",
+};
 
 test("why it said that is a button a thumb can open, not a title only a mouse can hover", () => {
   const dto = conv([msg(), ours({ meta: WHY_META })]);

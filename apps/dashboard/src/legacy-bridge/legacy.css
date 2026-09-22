@@ -63,7 +63,7 @@ html.legacy-on #root {
    operator can tell at a glance what is still theirs to change. */
 .tl-msg.held .tl-msg-bubble {
   border-style: dashed;
-  opacity: .82;
+  opacity: 0.82;
 }
 .tl-held-tag {
   margin-left: 6px;
@@ -71,8 +71,7 @@ html.legacy-on #root {
   border-radius: 3px;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: .02em;
-  background: var(--warn-bg, rgba(180,120,20,.12));
+  letter-spacing: 0.02em;
+  background: var(--warn-bg, rgba(180, 120, 20, 0.12));
   color: var(--warn, #9a5b00);
 }
-

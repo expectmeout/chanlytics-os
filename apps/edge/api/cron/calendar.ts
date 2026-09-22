@@ -52,18 +52,39 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const { data: tenant } = await db.from("tenants").select("timezone").eq("id", row.tenant_id).maybeSingle();
       const tz = tenant?.timezone || "America/New_York";
-      const items = await feedItemsFor(row.tenant_id, url, tz, now, cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? 14);
-      if (!items) { out.failed += 1; continue; }
-      const people = peopleFromItems(items, (cfg?.brain?.profile?.services ?? []).map((s) => s.name), now.getTime());
+      const items = await feedItemsFor(
+        row.tenant_id,
+        url,
+        tz,
+        now,
+        cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? 14,
+      );
+      if (!items) {
+        out.failed += 1;
+        continue;
+      }
+      const people = peopleFromItems(
+        items,
+        (cfg?.brain?.profile?.services ?? []).map((s) => s.name),
+        now.getTime(),
+      );
       const r = await addPeopleFromCalendar(db, row.tenant_id, people);
-      out.seen += r.seen; out.added += r.added; out.named += r.named;
+      out.seen += r.seen;
+      out.added += r.added;
+      out.named += r.named;
       // Stamped only on SUCCESS. A failure leaves the row due, so the next tick
       // retries it instead of skipping a workspace for an hour because its feed
       // was briefly unreachable.
       await markCalendarChecked(db, row.tenant_id, now);
       if (r.added || r.named) L.info("calendar_people_added", { tenant_id: row.tenant_id, ...r });
       // A row on the bell, not an email: people arriving is good news, not an alarm.
-      if (r.added) await recordNotification(row.tenant_id, { kind: "calendar_people", title: `${r.added} ${r.added === 1 ? "person" : "people"} added from your calendar`, body: `${r.added === 1 ? "An appointment" : "Appointments"} on your calendar carried a phone number nobody in People had. ${r.added === 1 ? "They are" : "They are all"} in People now, with consent unknown.`, route: "clients" });
+      if (r.added)
+        await recordNotification(row.tenant_id, {
+          kind: "calendar_people",
+          title: `${r.added} ${r.added === 1 ? "person" : "people"} added from your calendar`,
+          body: `${r.added === 1 ? "An appointment" : "Appointments"} on your calendar carried a phone number nobody in People had. ${r.added === 1 ? "They are" : "They are all"} in People now, with consent unknown.`,
+          route: "clients",
+        });
     } catch (e) {
       out.failed += 1;
       L.error("calendar_sweep_failed", { tenant_id: row.tenant_id, error: e instanceof Error ? e.message : String(e) });

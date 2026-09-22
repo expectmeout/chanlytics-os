@@ -31,10 +31,7 @@ test("the destructive order is collect, then calls, then messages, then the casc
   // both call FKs are ON DELETE SET NULL, so the row survives holding
   // from_e164, from_raw, the verbatim transcript and the recording path.
   assert.ok(sql.includes("delete from calls"), "calls must be deleted explicitly");
-  assert.ok(
-    sql.indexOf("delete from calls") < sql.indexOf("delete from messages"),
-    "calls before messages",
-  );
+  assert.ok(sql.indexOf("delete from calls") < sql.indexOf("delete from messages"), "calls before messages");
   assert.ok(
     sql.indexOf("delete from messages") < sql.indexOf("delete from conversations"),
     "messages before the conversation that cascades",
@@ -54,7 +51,9 @@ test("the RPC is a definer that decides the caller for itself", () => {
   assert.match(statements, /security definer/);
   assert.match(statements, /set search_path = public/);
   assert.ok(
-    statements.includes("revoke execute on function public.erase_contact(uuid, jsonb) from public, anon, authenticated;"),
+    statements.includes(
+      "revoke execute on function public.erase_contact(uuid, jsonb) from public, anon, authenticated;",
+    ),
     "revoked from every client role first",
   );
   // auth.uid() INSIDE the body — never a parameter a caller could forge.
@@ -94,7 +93,5 @@ test("a second erasure of the same contact is a no-op, not a second destruction"
 
 test("the merge-pointer cleanup is scoped to the tenant", () => {
   // Inside a SECURITY DEFINER, an unscoped predicate reaches every tenant.
-  assert.ok(
-    statements.includes("where tenant_id = v_tenant and merged_into_contact_id = p_contact_id"),
-  );
+  assert.ok(statements.includes("where tenant_id = v_tenant and merged_into_contact_id = p_contact_id"));
 });

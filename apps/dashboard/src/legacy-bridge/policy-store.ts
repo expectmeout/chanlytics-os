@@ -54,15 +54,47 @@ export interface UiRowMeta {
 }
 
 // label, note and chip are the one set of words (contracts POLICY_CLASS_WORDS); the rest is this pane's.
-const W = (cls: PolicyClass) => ({ label: POLICY_CLASS_WORDS[cls].name, note: POLICY_CLASS_WORDS[cls].note, chip: POLICY_CLASS_WORDS[cls].short });
+const W = (cls: PolicyClass) => ({
+  label: POLICY_CLASS_WORDS[cls].name,
+  note: POLICY_CLASS_WORDS[cls].note,
+  chip: POLICY_CLASS_WORDS[cls].short,
+});
 
 export const UI_ROWS: readonly UiRowMeta[] = [
   { id: "reply", cls: "reply", ...W("reply") },
-  { id: "faq", cls: "faq", ...W("faq"), modes: ["Auto", "Ask"], hints: { Auto: "answers from your business profile — never a price", Ask: "tells them a person will get back with the details, and lands the thread in Needs you" } },
-  { id: "book", cls: "booking", ...W("booking"), modes: ["Auto", "Ask"], hints: { Auto: "sends your booking link when they want to book, move or cancel", Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you" } },
+  {
+    id: "faq",
+    cls: "faq",
+    ...W("faq"),
+    modes: ["Auto", "Ask"],
+    hints: {
+      Auto: "answers from your business profile — never a price",
+      Ask: "tells them a person will get back with the details, and lands the thread in Needs you",
+    },
+  },
+  {
+    id: "book",
+    cls: "booking",
+    ...W("booking"),
+    modes: ["Auto", "Ask"],
+    hints: {
+      Auto: "sends your booking link when they want to book, move or cancel",
+      Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you",
+    },
+  },
   { id: "reengage", cls: "reengage", ...W("reengage") },
   { id: "campaign", cls: "campaign", ...W("campaign") },
-  { id: "reviews", cls: "reviews", ...W("reviews"), modes: ["Auto", "Ask", "Never"], hints: { Auto: "answers each new review on Google within the hour, in the business's name — never about money", Ask: "writes a draft when you open a reply on Reports; you send it", Never: "writes nothing; you reply in your own words" } },
+  {
+    id: "reviews",
+    cls: "reviews",
+    ...W("reviews"),
+    modes: ["Auto", "Ask", "Never"],
+    hints: {
+      Auto: "answers each new review on Google within the hour, in the business's name — never about money",
+      Ask: "writes a draft when you open a reply on Reports; you send it",
+      Never: "writes nothing; you reply in your own words",
+    },
+  },
   { id: "money", cls: "money", ...W("money"), locked: true },
 ];
 
@@ -89,7 +121,7 @@ const LABELS: Record<string, UiMode> = { auto: "Auto", veto: "Veto", ask: "Ask",
 const EMPTY: PoliciesSurface = { rows: [], role: null };
 
 export function modeLabel(dbMode: string | null | undefined): UiMode | null {
-  return dbMode ? LABELS[dbMode] ?? null : null;
+  return dbMode ? (LABELS[dbMode] ?? null) : null;
 }
 
 export function dbMode(label: string | null | undefined): string | null {
@@ -135,7 +167,7 @@ export function installPolicyStore(win: PolicyWindow = window as unknown as Poli
   const surface = (): PoliciesSurface | null | undefined => win.__POLICIES;
   const store = {
     get MODES(): readonly string[] {
-      return surface() === undefined ? seed?.MODES ?? UI_MODES : UI_MODES;
+      return surface() === undefined ? (seed?.MODES ?? UI_MODES) : UI_MODES;
     },
     // Contracts' words in every session, the mockup's included: what a mode does
     // is the same fact whether the rows behind it are real or seeded.

@@ -22,18 +22,28 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/playbooks-run");
   if (!auth.ok) return auth.response;
-  const body = (await request.json().catch(() => null)) as { tenant_id?: unknown; playbook_id?: unknown; user_id?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    tenant_id?: unknown;
+    playbook_id?: unknown;
+    user_id?: unknown;
+  } | null;
   const ws = workspaceFor(auth, body?.tenant_id);
   if (!ws.ok) return ws.response;
   if (body) body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
   const playbookId = typeof body?.playbook_id === "string" ? body.playbook_id : "";
   const userId = typeof body?.user_id === "string" ? body.user_id : "";
-  if (!UUID.test(tenantId) || !UUID.test(playbookId) || !UUID.test(userId)) return json(400, { ok: false, error: "bad_request" });
+  if (!UUID.test(tenantId) || !UUID.test(playbookId) || !UUID.test(userId))
+    return json(400, { ok: false, error: "bad_request" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_db" });
 
-  const { data: p, error } = await db.from("playbooks").select("*").eq("id", playbookId).eq("tenant_id", tenantId).maybeSingle();
+  const { data: p, error } = await db
+    .from("playbooks")
+    .select("*")
+    .eq("id", playbookId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (error) return json(500, { ok: false, error: "read_failed", detail: error.message });
   if (!p) return json(404, { ok: false, error: "not_found" });
 

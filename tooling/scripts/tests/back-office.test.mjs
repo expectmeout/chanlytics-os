@@ -26,14 +26,37 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  platformRows, platformSummary, platformNumber, textingWords,
-  PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, PLATFORM_NEW_DAYS, setupSteps,
-  platformLineActions, platformActionWarning, EVENT_KINDS,
-  platformHealthOf, platformHealthWords, platformQueue, QUEUE_SENDS_NOTHING,
-  activityWords, clockTime, clockDateYear, clockDayLabel, zoneDayKey,
+  platformRows,
+  platformSummary,
+  platformNumber,
+  textingWords,
+  PLATFORM_VERDICTS,
+  PLATFORM_QUIET_DAYS,
+  PLATFORM_NEW_DAYS,
+  setupSteps,
+  platformLineActions,
+  platformActionWarning,
+  EVENT_KINDS,
+  platformHealthOf,
+  platformHealthWords,
+  platformQueue,
+  QUEUE_SENDS_NOTHING,
+  activityWords,
+  clockTime,
+  clockDateYear,
+  clockDayLabel,
+  zoneDayKey,
 } from "@chanlytics/contracts";
 
-const clock = (sweep, healthy, detail = null) => ({ sweep, healthy, detail, last_request_at: null, status_code: null, scheduled: true, alerted_at: null });
+const clock = (sweep, healthy, detail = null) => ({
+  sweep,
+  healthy,
+  detail,
+  last_request_at: null,
+  status_code: null,
+  scheduled: true,
+  alerted_at: null,
+});
 
 test("the platform's own health: every clock running AND nothing waiting, or it is not healthy", () => {
   const now = new Date("2026-09-12T12:00:00.000Z");
@@ -46,7 +69,11 @@ test("the platform's own health: every clock running AND nothing waiting, or it 
   assert.equal(platformHealthWords(well), "Every clock is running and nothing is waiting.");
 
   // A clock that stopped, with the reason the function gave.
-  const stopped = platformHealthOf([clock("calendar", false, "no successful run in 3 hours"), clock("lines", true)], 0, now);
+  const stopped = platformHealthOf(
+    [clock("calendar", false, "no successful run in 3 hours"), clock("lines", true)],
+    0,
+    now,
+  );
   assert.equal(stopped.ok, false);
   assert.deepEqual(stopped.unhealthy, [{ sweep: "calendar", detail: "no successful run in 3 hours" }]);
   assert.match(platformHealthWords(stopped), /1 clock not running/);
@@ -59,7 +86,10 @@ test("the platform's own health: every clock running AND nothing waiting, or it 
   assert.equal(platformHealthWords(platformHealthOf(all, 1, now)), "1 job late");
 
   // Both at once reads as both.
-  assert.match(platformHealthWords(platformHealthOf([clock("calendar", false)], 5, now)), /1 clock not running · 5 jobs late/);
+  assert.match(
+    platformHealthWords(platformHealthOf([clock("calendar", false)], 5, now)),
+    /1 clock not running · 5 jobs late/,
+  );
 });
 
 test("a backlog that could not be READ is never mistaken for a backlog of zero", () => {
@@ -86,13 +116,28 @@ const ago = (d) => new Date(NOW - d * DAY).toISOString();
 /** A workspace that is entirely fine, so every case below differs by one fact. */
 const live = (over = {}) => ({
   tenant_id: "11111111-1111-1111-1111-111111111111",
-  slug: "harbor-moving", name: "Harbor Moving", status: "active",
-  timezone: "America/New_York", created_at: ago(90), members: 2,
-  billing_mode: "stripe", billing_status: "active", trial_end: null, current_period_end: ago(-20),
-  line_e164: "+19296566623", line_kind: "chanlytics", voice_state: "answering", sms_state: "active",
-  reg_step: null, reg_mock: false, reg_sole_prop: false, line_error: null,
-  whatsapp_number: "+19177724072", whatsapp_active: true,
-  voice_number: "+19296566623", voice_active: true,
+  slug: "harbor-moving",
+  name: "Harbor Moving",
+  status: "active",
+  timezone: "America/New_York",
+  created_at: ago(90),
+  members: 2,
+  billing_mode: "stripe",
+  billing_status: "active",
+  trial_end: null,
+  current_period_end: ago(-20),
+  line_e164: "+19296566623",
+  line_kind: "chanlytics",
+  voice_state: "answering",
+  sms_state: "active",
+  reg_step: null,
+  reg_mock: false,
+  reg_sole_prop: false,
+  line_error: null,
+  whatsapp_number: "+19177724072",
+  whatsapp_active: true,
+  voice_number: "+19296566623",
+  voice_active: true,
   last_inbound_at: ago(1),
   ...over,
 });
@@ -100,7 +145,15 @@ const only = (over) => platformRows([live(over)], NOW)[0];
 
 /** A workspace's Setup facts, as /api/v1/setup assembles them. Enough for setupSteps to draw a real page. */
 const SETUP_FIXTURE = {
-  business: { name: "Harbor Moving", hours: true, services: 3, bookingLink: true, address: true, handoff: "+16465550123", broken: false },
+  business: {
+    name: "Harbor Moving",
+    hours: true,
+    services: 3,
+    bookingLink: true,
+    address: true,
+    handoff: "+16465550123",
+    broken: false,
+  },
   conflicts: [],
   channels: {
     whatsapp: { present: true, active: true, number: "+19177724072", quality: "GREEN", lastInboundAt: ago(1) },
@@ -112,18 +165,43 @@ const SETUP_FIXTURE = {
   consent: { yes: 12 },
   requests: { line: null },
   lines: {
-    rows: [{
-      id: "l1", e164: "+19296566623", kind: "chanlytics", provider: "twilio", area_code: 929,
-      voice_state: "answering", sms_state: "rejected", reg_step: "brand", reg_mock: false, reg_sole_prop: false,
-      whatsapp_state: "none", port_state: "none", forwarding_state: "none",
-      step: null, last_error: "the carriers refused it", state_since: ago(3), created_at: ago(80),
-    }],
-    ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 },
+    rows: [
+      {
+        id: "l1",
+        e164: "+19296566623",
+        kind: "chanlytics",
+        provider: "twilio",
+        area_code: 929,
+        voice_state: "answering",
+        sms_state: "rejected",
+        reg_step: "brand",
+        reg_mock: false,
+        reg_sole_prop: false,
+        whatsapp_state: "none",
+        port_state: "none",
+        forwarding_state: "none",
+        step: null,
+        last_error: "the carriers refused it",
+        state_since: ago(3),
+        created_at: ago(80),
+      },
+    ],
+    ready: true,
+    provider: "twilio",
+    costs: { local_number_month_usd: 1.15 },
   },
   google: { ready: true, places: true, listing: null, connected: false },
-  billing: { ready: true, mode: "stripe", status: "active", trial_end: null, current_period_end: ago(-20), trial_days: 14, cancel_at: null, cancel_at_period_end: false },
+  billing: {
+    ready: true,
+    mode: "stripe",
+    status: "active",
+    trial_end: null,
+    current_period_end: ago(-20),
+    trial_days: 14,
+    cancel_at: null,
+    cancel_at_period_end: false,
+  },
 };
-
 
 test("a workspace that is fine says so, and says it last", () => {
   const r = only({});
@@ -186,7 +264,11 @@ test("nothing answering is 'new' for a day and 'stalled' after", () => {
   const stalled = only({ ...off, created_at: ago(9), members: 1 });
   assert.equal(stalled.verdict, "stalled");
   assert.match(stalled.sentence, /nothing answers yet/);
-  assert.match(stalled.sentence, /one person in the workspace/, "a workspace of one that never started is a different call");
+  assert.match(
+    stalled.sentence,
+    /one person in the workspace/,
+    "a workspace of one that never started is a different call",
+  );
   assert.equal(PLATFORM_NEW_DAYS, 1);
   // Getting a number is not stalled: it is us, in progress.
   assert.equal(only({ ...off, voice_state: "provisioning", created_at: ago(9) }).facts.answering, "Getting a number");
@@ -204,7 +286,10 @@ test("the states whose next move is the owner's say the words the owner is being
   // Plus the carriers' reason where there is one. Setup leaves it out -- the
   // owner has it on their own row -- but the reason IS the support question, and
   // the live Chanlytics campaign came back with two of them.
-  const refused = only({ sms_state: "rejected", line_error: "invalid campaign description (30886 · USE_CASE_DESCRIPTION)" });
+  const refused = only({
+    sms_state: "rejected",
+    line_error: "invalid campaign description (30886 · USE_CASE_DESCRIPTION)",
+  });
   assert.match(refused.sentence, /refused the texting registration\. — invalid campaign description \(30886/);
 });
 
@@ -233,28 +318,40 @@ test("a paused workspace and a test workspace are not problems to solve", () => 
 });
 
 test("the page sorts itself: needs-a-person first, then by name", () => {
-  const rows = platformRows([
-    live({ tenant_id: "a", name: "All Good" }),
-    live({ tenant_id: "b", name: "Broken Co", voice_state: "failed", line_error: "boom" }),
-    live({ tenant_id: "c", name: "Zed Quiet", last_inbound_at: ago(40) }),
-    live({ tenant_id: "d", name: "Smoke", status: "test" }),
-    live({ tenant_id: "e", name: "Card Failed", billing_status: "past_due" }),
-    live({ tenant_id: "f", name: "Also Quiet", last_inbound_at: ago(40) }),
-  ], NOW);
-  assert.deepEqual(rows.map((r) => r.name), ["Broken Co", "Card Failed", "Also Quiet", "Zed Quiet", "All Good", "Smoke"]);
+  const rows = platformRows(
+    [
+      live({ tenant_id: "a", name: "All Good" }),
+      live({ tenant_id: "b", name: "Broken Co", voice_state: "failed", line_error: "boom" }),
+      live({ tenant_id: "c", name: "Zed Quiet", last_inbound_at: ago(40) }),
+      live({ tenant_id: "d", name: "Smoke", status: "test" }),
+      live({ tenant_id: "e", name: "Card Failed", billing_status: "past_due" }),
+      live({ tenant_id: "f", name: "Also Quiet", last_inbound_at: ago(40) }),
+    ],
+    NOW,
+  );
+  assert.deepEqual(
+    rows.map((r) => r.name),
+    ["Broken Co", "Card Failed", "Also Quiet", "Zed Quiet", "All Good", "Smoke"],
+  );
   // Two workspaces in the same verdict are ordered by name, so the page does
   // not reshuffle under somebody reading it.
-  assert.deepEqual(rows.filter((r) => r.verdict === "quiet").map((r) => r.name), ["Also Quiet", "Zed Quiet"]);
+  assert.deepEqual(
+    rows.filter((r) => r.verdict === "quiet").map((r) => r.name),
+    ["Also Quiet", "Zed Quiet"],
+  );
 });
 
 test("the one line at the top counts customers, not test workspaces", () => {
-  const rows = platformRows([
-    live({ tenant_id: "a", name: "A" }),
-    live({ tenant_id: "b", name: "B", voice_state: "failed" }),
-    live({ tenant_id: "c", name: "C", reg_mock: true }),
-    live({ tenant_id: "d", name: "D", billing_status: "unpaid" }),
-    live({ tenant_id: "e", name: "E", status: "test" }),
-  ], NOW);
+  const rows = platformRows(
+    [
+      live({ tenant_id: "a", name: "A" }),
+      live({ tenant_id: "b", name: "B", voice_state: "failed" }),
+      live({ tenant_id: "c", name: "C", reg_mock: true }),
+      live({ tenant_id: "d", name: "D", billing_status: "unpaid" }),
+      live({ tenant_id: "e", name: "E", status: "test" }),
+    ],
+    NOW,
+  );
   const s = platformSummary(rows);
   assert.equal(s.total, 4, "the test workspace is not a customer");
   assert.equal(s.live, 1);
@@ -272,10 +369,17 @@ test("the four facts are words, so the page renders and never decides", () => {
   assert.equal(only({ whatsapp_active: false }).facts.answering, "phone");
   assert.equal(only({ voice_active: false, whatsapp_active: false }).facts.answering, "Nothing yet");
   assert.equal(r.facts.texting, "On");
-  assert.equal(only({ reg_sole_prop: true }).facts.texting, "On (sole proprietor)", "the capped registration is named where support can see it");
+  assert.equal(
+    only({ reg_sole_prop: true }).facts.texting,
+    "On (sole proprietor)",
+    "the capped registration is named where support can see it",
+  );
   assert.equal(only({ line_e164: null, sms_state: "none" }).facts.texting, "No line");
   assert.equal(only({ sms_state: "needs_record" }).facts.texting, "needs record", "a state, in words, never the enum");
-  assert.equal(only({ billing_status: "trialing", trial_end: "2026-09-30T00:00:00Z" }).facts.paying, "Trial to 2026-09-30");
+  assert.equal(
+    only({ billing_status: "trialing", trial_end: "2026-09-30T00:00:00Z" }).facts.paying,
+    "Trial to 2026-09-30",
+  );
   // Numbers are read aloud on support calls, so they are grouped, and a
   // workspace with no number renders a dash rather than "null".
   assert.equal(platformNumber("+19296566623"), "+1 (929) 656-6623");
@@ -305,7 +409,10 @@ test("one door: the check is the first statement, and the inner join is not reac
   // The guard, and its position. `raise` before `return query` is the whole
   // authorization model; a route that forgot would get 42501 from Postgres.
   const door = two.slice(two.lastIndexOf("create or replace function public.platform_overview()"));
-  assert.ok(door.indexOf("if not public.is_platform_admin() then") < door.indexOf("return query"), "the check precedes the read");
+  assert.ok(
+    door.indexOf("if not public.is_platform_admin() then") < door.indexOf("return query"),
+    "the check precedes the read",
+  );
   assert.match(door, /raise exception 'Not a Chanlytics platform admin\.' using errcode = '42501'/);
   assert.match(door, /grant\s+execute on function public\.platform_overview\(\) to authenticated/);
 
@@ -318,7 +425,11 @@ test("one door: the check is the first statement, and the inner join is not reac
   // service_role, which answered 200 with every workspace in it.
   assert.match(three, /revoke execute on function public\.platform_overview_rows\(\) from public;/);
   assert.match(three, /from pg_roles/, "the revoke asks Postgres which roles exist rather than trusting a list");
-  assert.match(three, /raise exception '00093: platform_overview_rows\(\) is still granted to/, "a grant that comes back fails the deploy");
+  assert.match(
+    three,
+    /raise exception '00093: platform_overview_rows\(\) is still granted to/,
+    "a grant that comes back fails the deploy",
+  );
 });
 
 test("every route under /api/v1/platform asks the database who is calling", () => {
@@ -354,7 +465,10 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     // the handle it needs.
     const imported = /import\s*\{([^}]+)\}\s*from\s*"@\/server\/platform"/.exec(src);
     assert.ok(imported, `${path.basename(path.dirname(file))}: nothing imported from @/server/platform`);
-    const helpers = imported[1].split(",").map((x) => x.trim()).filter((x) => x && x !== "backOffice");
+    const helpers = imported[1]
+      .split(",")
+      .map((x) => x.trim())
+      .filter((x) => x && x !== "backOffice");
     assert.ok(helpers.length > 0, `${path.basename(path.dirname(file))}: only the guard is imported`);
     for (const fn of helpers) {
       const i = src.indexOf(`${fn}(`, guard === -1 ? 0 : 0);
@@ -362,14 +476,20 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     }
     // No workspace scoping: this surface is about workspaces the caller is not
     // in, so memberContext would be a category error rather than a safeguard.
-    assert.ok(!src.includes("memberContext("), `${path.basename(path.dirname(file))}: platform routes are not workspace-scoped`);
+    assert.ok(
+      !src.includes("memberContext("),
+      `${path.basename(path.dirname(file))}: platform routes are not workspace-scoped`,
+    );
   }
 });
 
 test("the guard asks the database, and answers 404 rather than 403", () => {
   const src = readCode("apps/dashboard/src/server/platform.ts");
   assert.match(src, /ctx\.supabase\.rpc\("is_platform_admin"\)/, "the answer comes from Postgres, not from an env var");
-  assert.ok(!/process\.env\.[A-Z_]*ADMIN|PLATFORM_ADMIN|ALLOWLIST/.test(src), "no second answer that can disagree with the first");
+  assert.ok(
+    !/process\.env\.[A-Z_]*ADMIN|PLATFORM_ADMIN|ALLOWLIST/.test(src),
+    "no second answer that can disagree with the first",
+  );
   // A customer who guesses the URL learns nothing about whether there is a
   // back office behind it.
   assert.match(src, /AppError\("not_found", "No such page\.", 404\)/);
@@ -387,19 +507,34 @@ test("support sees the customer's own Setup, from the customer's own function", 
   // the assembly was lifted out of the route rather than copied.
   const assembly = readCode("apps/dashboard/src/server/setup.ts");
   assert.match(assembly, /export async function setupDtoFor\(/);
-  assert.match(assembly, /supabase: SupabaseClient<Database>/, "the client is an argument, so either caller may pass its own");
+  assert.match(
+    assembly,
+    /supabase: SupabaseClient<Database>/,
+    "the client is an argument, so either caller may pass its own",
+  );
 
   const own = readCode("apps/dashboard/app/api/v1/setup/route.ts");
-  assert.match(own, /setupDtoFor\(ctx\.supabase, member\.tenantId, \{ kind: "member" \}\)/, "the customer reads their own on the session client");
-  assert.ok(!own.includes("getTenantConfig"), "REGRESSION: the assembly is back inside the route, where a second copy can grow");
+  assert.match(
+    own,
+    /setupDtoFor\(ctx\.supabase, member\.tenantId, \{ kind: "member" \}\)/,
+    "the customer reads their own on the session client",
+  );
+  assert.ok(
+    !own.includes("getTenantConfig"),
+    "REGRESSION: the assembly is back inside the route, where a second copy can grow",
+  );
 
   const office = readCode("apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts");
-  assert.match(office, /setupDtoFor\(office\.db, id, \{ kind: "back_office" \}\)/, "and support reads theirs through the same function");
+  assert.match(
+    office,
+    /setupDtoFor\(office\.db, id, \{ kind: "back_office" \}\)/,
+    "and support reads theirs through the same function",
+  );
   // The viewer is a TYPE, not a role string. "owner" was a lie the type system
   // could not catch, and it 500'd every detail read on team_roster.
   assert.ok(!/setupDtoFor\([^)]*"owner"/.test(office), "REGRESSION: the back office claiming to be an owner");
   assert.match(office, /platformEvents\(office, id\)/, "with the trail emitEvent has been writing all along");
-  assert.ok(!office.includes("supabase.from(\"tenant_config\")"), "no second assembly");
+  assert.ok(!office.includes('supabase.from("tenant_config")'), "no second assembly");
 });
 
 test("the nav's one bit rides on the payload the seam already fetches", () => {
@@ -438,14 +573,60 @@ const workspaceTables = () => ({
   messages: [{ tenant_id: TENANT, direction: "inbound", channel: "whatsapp", channel_ts: ago(1), created_at: ago(1) }],
   calls: [{ tenant_id: TENANT, direction: "inbound", started_at: ago(2) }],
   templates: [{ tenant_id: TENANT, name: "visit_reminder", meta_status: "approved", hidden_at: null }],
-  memberships: [{ id: "m1", tenant_id: TENANT }, { id: "m2", tenant_id: TENANT }],
-  invitations: [{ id: "i1", tenant_id: TENANT, email: "new@example.com", role: "operator", created_at: ago(1), expires_at: ago(-6), accepted_at: null, revoked_at: null }],
+  memberships: [
+    { id: "m1", tenant_id: TENANT },
+    { id: "m2", tenant_id: TENANT },
+  ],
+  invitations: [
+    {
+      id: "i1",
+      tenant_id: TENANT,
+      email: "new@example.com",
+      role: "operator",
+      created_at: ago(1),
+      expires_at: ago(-6),
+      accepted_at: null,
+      revoked_at: null,
+    },
+  ],
   contacts: [{ id: "c1", tenant_id: TENANT, consent: "opted_in", erased_at: null }],
   notifications: [],
-  lines: [{ id: "l1", tenant_id: TENANT, e164: "+19296566623", kind: "chanlytics", provider: "twilio", area_code: 929, voice_state: "answering", sms_state: "active", reg_step: null, reg_mock: false, reg_sole_prop: false, whatsapp_state: "none", port_state: "none", forwarding_state: "none", step: null, last_error: null, state_since: ago(3), created_at: ago(80), facts: {} }],
+  lines: [
+    {
+      id: "l1",
+      tenant_id: TENANT,
+      e164: "+19296566623",
+      kind: "chanlytics",
+      provider: "twilio",
+      area_code: 929,
+      voice_state: "answering",
+      sms_state: "active",
+      reg_step: null,
+      reg_mock: false,
+      reg_sole_prop: false,
+      whatsapp_state: "none",
+      port_state: "none",
+      forwarding_state: "none",
+      step: null,
+      last_error: null,
+      state_since: ago(3),
+      created_at: ago(80),
+      facts: {},
+    },
+  ],
   google_listings: [],
   google_connections: [],
-  billing_accounts: [{ tenant_id: TENANT, mode: "direct", status: "none", trial_end: null, current_period_end: null, cancel_at: null, cancel_at_period_end: false }],
+  billing_accounts: [
+    {
+      tenant_id: TENANT,
+      mode: "direct",
+      status: "none",
+      trial_end: null,
+      current_period_end: null,
+      cancel_at: null,
+      cancel_at_period_end: false,
+    },
+  ],
 });
 
 test("the back office's Setup read touches no function that asks who is signed in", async () => {
@@ -486,9 +667,25 @@ test("a workspace reading its own Setup still gets the roster, on its own client
   // The other half of the union: with a session, team_roster is exactly right —
   // it is the door that lets an owner see who is in their workspace.
   let asked = null;
-  const db = fakeDb(workspaceTables(), {}, {
-    team_roster: (args) => { asked = args; return [{ membership_id: "m1", member_user_id: "u1", email: "owner@example.com", role: "owner", joined_at: ago(90), display_name: "Ada" }]; },
-  });
+  const db = fakeDb(
+    workspaceTables(),
+    {},
+    {
+      team_roster: (args) => {
+        asked = args;
+        return [
+          {
+            membership_id: "m1",
+            member_user_id: "u1",
+            email: "owner@example.com",
+            role: "owner",
+            joined_at: ago(90),
+            display_name: "Ada",
+          },
+        ];
+      },
+    },
+  );
   const setup = await setupDtoFor(db, TENANT, { kind: "member" });
   assert.deepEqual(asked, { p_tenant_id: TENANT }, "the member path calls the roster RPC");
   assert.equal(setup.team.members, 1);
@@ -498,16 +695,49 @@ test("a workspace reading its own Setup still gets the roster, on its own client
 test("REGRESSION (S14): Setup reads what was asked for per thing, from the events -- a port read as a line, and the edge's line-is-ready bell read as a request", async () => {
   const db = fakeDb({
     ...workspaceTables(),
-    notifications: [{ tenant_id: TENANT, kind: "number", title: "Your phone line is ready", body: "x", route: "admin/setup", subject_type: "setup", subject_id: "c1", created_at: ago(1) }],
+    notifications: [
+      {
+        tenant_id: TENANT,
+        kind: "number",
+        title: "Your phone line is ready",
+        body: "x",
+        route: "admin/setup",
+        subject_type: "setup",
+        subject_id: "c1",
+        created_at: ago(1),
+      },
+    ],
     events: [
-      { tenant_id: TENANT, kind: "setup.requested", category: "setup", data: { what: "port", by: "u1" }, created_at: "2026-09-07T13:00:00Z" },
-      { tenant_id: TENANT, kind: "setup.requested", category: "setup", data: { what: "port", by: "u1" }, created_at: "2026-09-06T13:00:00Z" },
-      { tenant_id: TENANT, kind: "setup.requested", category: "setup", data: { what: "repair", by: "u1" }, created_at: "2026-09-07T14:00:00Z" },
+      {
+        tenant_id: TENANT,
+        kind: "setup.requested",
+        category: "setup",
+        data: { what: "port", by: "u1" },
+        created_at: "2026-09-07T13:00:00Z",
+      },
+      {
+        tenant_id: TENANT,
+        kind: "setup.requested",
+        category: "setup",
+        data: { what: "port", by: "u1" },
+        created_at: "2026-09-06T13:00:00Z",
+      },
+      {
+        tenant_id: TENANT,
+        kind: "setup.requested",
+        category: "setup",
+        data: { what: "repair", by: "u1" },
+        created_at: "2026-09-07T14:00:00Z",
+      },
       { tenant_id: TENANT, kind: "policy.changed", category: "system", data: {}, created_at: "2026-09-07T15:00:00Z" },
     ],
   });
   const setup = await setupDtoFor(db, TENANT, { kind: "back_office" });
-  assert.deepEqual(setup.requests, { line: null, port: "2026-09-07T13:00:00Z", repair: "2026-09-07T14:00:00Z" }, "REGRESSION: the newest setup bell of any kind read as a line request");
+  assert.deepEqual(
+    setup.requests,
+    { line: null, port: "2026-09-07T13:00:00Z", repair: "2026-09-07T14:00:00Z" },
+    "REGRESSION: the newest setup bell of any kind read as a line request",
+  );
 });
 
 test("the service-role client cannot be obtained without passing the check", () => {
@@ -515,7 +745,10 @@ test("the service-role client cannot be obtained without passing the check", () 
   // the guard — and relied on a test walking ONE directory to prove nothing else
   // imported it. A grep cannot see the route that has not been written yet.
   const src = readCode("apps/dashboard/src/server/platform.ts");
-  assert.ok(!/export function platformDb|export async function platformDb/.test(src), "REGRESSION: a service-role client handed to any importer");
+  assert.ok(
+    !/export function platformDb|export async function platformDb/.test(src),
+    "REGRESSION: a service-role client handed to any importer",
+  );
   assert.match(src, /function serviceDb\(\)/, "the client is module-private");
   assert.ok(!/export .*serviceDb/.test(src));
   // The only way to a client is a handle only the check can make, and the brand
@@ -524,7 +757,11 @@ test("the service-role client cannot be obtained without passing the check", () 
   assert.match(src, /export async function backOffice\(ctx: RouteContext\): Promise<BackOffice>/);
   assert.match(src, /if \(!\(await admitted\(ctx\)\)\) throw new AppError\("not_found", "No such page\.", 404\);/);
   // Every cross-tenant read takes the handle rather than reaching for a client.
-  for (const fn of ["platformOverview(office: BackOffice)", "platformTenant(office: BackOffice", "platformEvents(office: BackOffice"]) {
+  for (const fn of [
+    "platformOverview(office: BackOffice)",
+    "platformTenant(office: BackOffice",
+    "platformEvents(office: BackOffice",
+  ]) {
     assert.ok(src.includes(`export async function ${fn}`), fn);
   }
   // A database that cannot answer is not a "no". Telling a real admin "No such
@@ -545,10 +782,23 @@ test("the service-role client cannot be obtained without passing the check", () 
  * -------------------------------------------------------------------------- */
 
 const line = (over = {}) => ({
-  id: "l1", e164: "+19296566623", kind: "chanlytics", provider: "twilio", area_code: 929,
-  voice_state: "answering", sms_state: "active", reg_step: null, reg_mock: false, reg_sole_prop: false,
-  whatsapp_state: "none", port_state: "none", forwarding_state: "none",
-  step: null, last_error: null, state_since: ago(1), created_at: ago(80),
+  id: "l1",
+  e164: "+19296566623",
+  kind: "chanlytics",
+  provider: "twilio",
+  area_code: 929,
+  voice_state: "answering",
+  sms_state: "active",
+  reg_step: null,
+  reg_mock: false,
+  reg_sole_prop: false,
+  whatsapp_state: "none",
+  port_state: "none",
+  forwarding_state: "none",
+  step: null,
+  last_error: null,
+  state_since: ago(1),
+  created_at: ago(80),
   ...over,
 });
 
@@ -559,11 +809,23 @@ test("an action that would be refused is not offered", () => {
   const healthy = platformLineActions(line()).map((a) => a.action);
   assert.deepEqual(healthy, ["release"], "a working line can only be given back");
 
-  assert.deepEqual(platformLineActions(line({ voice_state: "failed" })).map((a) => a.action), ["retry", "release"]);
-  assert.deepEqual(platformLineActions(line({ sms_state: "rejected" })).map((a) => a.action), ["refile", "replace", "release"]);
-  assert.deepEqual(platformLineActions(line({ reg_mock: true, sms_state: "approved" })).map((a) => a.action), ["refile", "release"]);
+  assert.deepEqual(
+    platformLineActions(line({ voice_state: "failed" })).map((a) => a.action),
+    ["retry", "release"],
+  );
+  assert.deepEqual(
+    platformLineActions(line({ sms_state: "rejected" })).map((a) => a.action),
+    ["refile", "replace", "release"],
+  );
+  assert.deepEqual(
+    platformLineActions(line({ reg_mock: true, sms_state: "approved" })).map((a) => a.action),
+    ["refile", "release"],
+  );
   // Nothing to give back when there is no number.
-  assert.deepEqual(platformLineActions(line({ e164: null })).map((a) => a.action), []);
+  assert.deepEqual(
+    platformLineActions(line({ e164: null })).map((a) => a.action),
+    [],
+  );
 });
 
 test("refile is two actions wearing one name, and the difference is money", () => {
@@ -599,10 +861,18 @@ test("refile is two actions wearing one name, and the difference is money", () =
 });
 
 test("every action says what it spends, or says that it spends nothing", () => {
-  for (const l of [line({ voice_state: "failed" }), line({ sms_state: "rejected" }), line({ reg_mock: true }), line()]) {
+  for (const l of [
+    line({ voice_state: "failed" }),
+    line({ sms_state: "rejected" }),
+    line({ reg_mock: true }),
+    line(),
+  ]) {
     for (const a of platformLineActions(l)) {
       assert.ok(a.label && a.sentence, a.action);
-      assert.ok(platformActionWarning(a).length > 10, `${a.action}: a confirmation that says nothing is not a confirmation`);
+      assert.ok(
+        platformActionWarning(a).length > 10,
+        `${a.action}: a confirmation that says nothing is not a confirmation`,
+      );
     }
   }
   // Giving a number back is permanent and stops a charge rather than making one.
@@ -622,27 +892,43 @@ test("three named operations, and no way to send a fourth", () => {
   // ones nobody reviewed for this surface.
   const here = path.dirname(fileURLToPath(import.meta.url));
   const dir = path.join(here, "../../../apps/dashboard/app/api/v1/platform/lines");
-  const routes = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  const routes = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .sort();
   assert.deepEqual(routes, ["refile", "release", "replace", "retry"]);
 
   for (const action of routes) {
     const src = fs.readFileSync(path.join(dir, action, "route.ts"), "utf8");
     // Its own operation, named in its own file, not taken from the request.
-    assert.ok(src.includes(`platformLineAct(office, ctx, "${action}", tenantId, lineId)`), `${action}: the action is a literal`);
+    assert.ok(
+      src.includes(`platformLineAct(office, ctx, "${action}", tenantId, lineId)`),
+      `${action}: the action is a literal`,
+    );
     assert.ok(!/body\.(op|action)/.test(src), `${action}: the caller must not choose the operation`);
     assert.ok(src.includes("scope: platform,"), `${action}: no admin check`);
     assert.ok(src.indexOf("scope: platform,") < src.indexOf("platformLineAct("), `${action}: the check runs first`);
     assert.ok(src.includes('rate: "platform_line_'), `${action}: rate-limited`);
-    assert.ok(src.includes('requireUuid(body.tenant_id, "workspace")') && src.includes('requireUuid(body.line_id, "line")'), `${action}: both ids are checked`);
+    assert.ok(
+      src.includes('requireUuid(body.tenant_id, "workspace")') && src.includes('requireUuid(body.line_id, "line")'),
+      `${action}: both ids are checked`,
+    );
     assert.ok(!src.includes("memberContext("), `${action}: this surface is about workspaces the caller is not in`);
   }
 
   // And the edge operation each one maps to is a written-out list rather than a
   // parameter somebody can widen by accident.
   const server = readCode("apps/dashboard/src/server/platform.ts");
-  assert.match(server, /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => Record<string, unknown>>/);
+  assert.match(
+    server,
+    /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => Record<string, unknown>>/,
+  );
   assert.match(server, /refile: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true \}\)/);
-  assert.match(server, /replace: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true, replace: true \}\)/);
+  assert.match(
+    server,
+    /replace: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true, replace: true \}\)/,
+  );
   assert.ok(!/op: (body|action|op)\b/.test(server), "the op is never taken from the caller");
 });
 
@@ -655,8 +941,16 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   const audit = fn.indexOf('kind: "platform.acted"');
   const act = fn.indexOf("await edgeLines(");
   assert.ok(audit !== -1 && act !== -1 && audit < act, "recorded first, then done");
-  assert.match(fn, /if \(auditErr\) throw new AppError\("internal", .*503\);/, "and refused when it cannot be recorded");
-  assert.match(fn, /by: ctx\.userId, by_email: ctx\.email \?\? null/, "who, by id and by the address they signed in with");
+  assert.match(
+    fn,
+    /if \(auditErr\) throw new AppError\("internal", .*503\);/,
+    "and refused when it cannot be recorded",
+  );
+  assert.match(
+    fn,
+    /by: ctx\.userId, by_email: ctx\.email \?\? null/,
+    "who, by id and by the address they signed in with",
+  );
   assert.ok(fn.includes('subject_type: "line"') && fn.includes("subject_id: lineId"), "the line it was done to");
   assert.ok(EVENT_KINDS.includes("platform.acted"), "the kind is in the closed set the rest of the product uses");
 });
@@ -666,9 +960,14 @@ test("the page reads the cost out; it does not decide it", () => {
   assert.ok(page.includes("const actions = P.actions(line);"), "which actions, from the contract");
   assert.ok(page.includes("{P.warning(arm)}"), "and what each costs, from the contract");
   assert.ok(!/\$\d/.test(page), "no money figure lives in the page");
-  assert.ok(!/reg_mock === true \?|sms_state === "rejected" \?/.test(page), "and no judgement about which refile this is");
+  assert.ok(
+    !/reg_mock === true \?|sms_state === "rejected" \?/.test(page),
+    "and no judgement about which refile this is",
+  );
   // Arm-then-confirm: a cross-tenant write is never one click.
-  assert.ok(page.includes('data-testid={`platform-act-${a.action}`}') && page.includes('testid={`platform-${arm.action}`}'));
+  assert.ok(
+    page.includes("data-testid={`platform-act-${a.action}`}") && page.includes("testid={`platform-${arm.action}`}"),
+  );
   assert.ok(page.includes("P.act(a.action, tenantId, line.id)"), "the action is a name, not a request body");
   // After one lands, both reads are stale.
   assert.ok(page.includes("onChanged={() => { setDetail(null); load(); setReload((n) => n + 1); }}"));
@@ -681,7 +980,10 @@ test("the back office is read on demand, not published to every browser", () => 
   const bridge = readCode("apps/dashboard/src/legacy-bridge/platform.ts");
   assert.match(bridge, /export function installPlatform/);
   assert.ok(!bridge.includes("SurfaceOverride"), "not a surface");
-  assert.ok(bridge.includes("rows: platformRows") && bridge.includes("steps: setupSteps"), "the judgement and the customer's rows both come from contracts");
+  assert.ok(
+    bridge.includes("rows: platformRows") && bridge.includes("steps: setupSteps"),
+    "the judgement and the customer's rows both come from contracts",
+  );
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installPlatform();"));
   // Classified as a real PANE of Settings -- without that line the shell's
   // honesty gate fell through to the page's "demo" and a platform admin who
@@ -719,7 +1021,11 @@ const ATTN = () => null;
 globalThis.window.AttnRow = ATTN;
 // A line's act is confirmed through the shared Confirm (data-bits.jsx): pure,
 // so the walker below expands it like any other nested component.
-globalThis.document ??= { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.document ??= {
+  body: {},
+  addEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+};
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.Confirm = globalThis.window.Confirm;
@@ -730,7 +1036,10 @@ const Pane = globalThis.window.PanePlatform;
 
 /** Whether a dependency array differs from the one an effect or memo last saw. Undefined deps mean "every render", as in React. */
 const changed = (before, after) =>
-  before === undefined || after === undefined || before.length !== after.length || after.some((d, i) => !Object.is(d, before[i]));
+  before === undefined ||
+  after === undefined ||
+  before.length !== after.length ||
+  after.some((d, i) => !Object.is(d, before[i]));
 
 function mount(Component, props = {}) {
   const cells = [];
@@ -760,11 +1069,22 @@ function mount(Component, props = {}) {
     useState: (init) => {
       const k = seq++;
       if (!(k in cells)) cells[k] = { value: typeof init === "function" ? init() : init };
-      return [cells[k].value, (v) => { cells[k] = { value: typeof v === "function" ? v(cells[k].value) : v }; }];
+      return [
+        cells[k].value,
+        (v) => {
+          cells[k] = { value: typeof v === "function" ? v(cells[k].value) : v };
+        },
+      ];
     },
-    useEffect: (fn, deps) => { pending.push({ fn, deps, key: seq++ }); },
+    useEffect: (fn, deps) => {
+      pending.push({ fn, deps, key: seq++ });
+    },
   });
-  const draw = () => { seq = 0; pending = []; return Component(props); };
+  const draw = () => {
+    seq = 0;
+    pending = [];
+    return Component(props);
+  };
   let tree = draw();
   /**
    * Run the effects whose deps changed, then redraw, until nothing changes --
@@ -787,12 +1107,29 @@ function mount(Component, props = {}) {
     throw new Error("the page never settled: an effect keeps re-firing");
   };
   return {
-    get tree() { return tree; },
+    get tree() {
+      return tree;
+    },
     settle,
-    async act(node) { node.props.onClick(); tree = draw(); await new Promise((r) => setImmediate(r)); tree = draw(); await settle(); },
+    async act(node) {
+      node.props.onClick();
+      tree = draw();
+      await new Promise((r) => setImmediate(r));
+      tree = draw();
+      await settle();
+    },
     /** Press a handler the pane handed to a child component -- an attention row's cta, say. */
-    async press(fn) { fn(); tree = draw(); await new Promise((r) => setImmediate(r)); tree = draw(); await settle(); },
-    type(node, value) { node.props.onChange({ target: { value } }); tree = draw(); },
+    async press(fn) {
+      fn();
+      tree = draw();
+      await new Promise((r) => setImmediate(r));
+      tree = draw();
+      await settle();
+    },
+    type(node, value) {
+      node.props.onChange({ target: { value } });
+      tree = draw();
+    },
   };
 }
 
@@ -812,18 +1149,39 @@ const walk = (n, fn) => {
   if (typeof n.type === "function" && n.type !== ATTN) walk(n.type(n.props), fn);
   for (const k of n.props?.children ?? []) walk(k, fn);
 };
-const byId = (root, id) => { let hit = null; walk(root, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
+const byId = (root, id) => {
+  let hit = null;
+  walk(root, (n) => {
+    if (!hit && n.props?.["data-testid"] === id) hit = n;
+  });
+  return hit;
+};
 /** Every attention row the pane drew, in order, as the props it handed the shared component. */
-const attnRows = (root) => { const out = []; walk(root, (n) => { if (n.type === ATTN) out.push(n); }); return out; };
+const attnRows = (root) => {
+  const out = [];
+  walk(root, (n) => {
+    if (n.type === ATTN) out.push(n);
+  });
+  return out;
+};
 /** Everything a reader would see, expanding nested components the same way walk does. */
 const textOf = (n) => {
   const out = [];
   const rec = (x) => {
     if (x == null || x === false || x === true) return;
-    if (typeof x === "string" || typeof x === "number") { out.push(String(x)); return; }
-    if (Array.isArray(x)) { x.forEach(rec); return; }
+    if (typeof x === "string" || typeof x === "number") {
+      out.push(String(x));
+      return;
+    }
+    if (Array.isArray(x)) {
+      x.forEach(rec);
+      return;
+    }
     if (typeof x !== "object") return;
-    if (typeof x.type === "function" && x.type !== ATTN) { rec(x.type(x.props)); return; }
+    if (typeof x.type === "function" && x.type !== ATTN) {
+      rec(x.type(x.props));
+      return;
+    }
     rec(x.props?.children);
   };
   rec(n);
@@ -833,8 +1191,14 @@ const textOf = (n) => {
 /** The window API, network stubbed, every judgement the real contract's. */
 function api(tenants, detail = null, calls = []) {
   return {
-    list: async () => { calls.push("list"); return { ok: true, tenants, message: "" }; },
-    one: async (id) => { calls.push(`one:${id}`); return { ok: !!detail, detail, message: detail ? "" : "No such page." }; },
+    list: async () => {
+      calls.push("list");
+      return { ok: true, tenants, message: "" };
+    },
+    one: async (id) => {
+      calls.push(`one:${id}`);
+      return { ok: !!detail, detail, message: detail ? "" : "No such page." };
+    },
     // The bridge reads the real clock; these fixtures are written against NOW,
     // so the stand-in reads NOW too. It used the real one, and "heard 1d ago"
     // became "2d ago" the morning after it was written.
@@ -849,19 +1213,36 @@ function api(tenants, detail = null, calls = []) {
     words: activityWords,
     // A zone the page is GIVEN, not the one it is in: the same contracts
     // functions the bridge hands over.
-    clock: { time: clockTime, dateYear: clockDateYear, dayLabel: (ms, tz) => clockDayLabel(ms, tz, NOW), dayKey: zoneDayKey },
-    act: async (action, tenantId, lineId) => { calls.push(`act:${action}:${tenantId}:${lineId}`); return { ok: true, message: "Done." }; },
+    clock: {
+      time: clockTime,
+      dateYear: clockDateYear,
+      dayLabel: (ms, tz) => clockDayLabel(ms, tz, NOW),
+      dayKey: zoneDayKey,
+    },
+    act: async (action, tenantId, lineId) => {
+      calls.push(`act:${action}:${tenantId}:${lineId}`);
+      return { ok: true, message: "Done." };
+    },
     // The queue, as the bridge hands it over: the contract's own view model,
     // read at the fixtures' NOW rather than at this machine's.
     queue: (q) => platformQueue(q, NOW),
-    markInvited: async (id) => { calls.push(`invited:${id}`); return { ok: true, message: "Marked. They are off the list." }; },
+    markInvited: async (id) => {
+      calls.push(`invited:${id}`);
+      return { ok: true, message: "Marked. They are off the list." };
+    },
   };
 }
 
 test("the list is the contract's judgement, in the row grammar the rest of the app uses", async () => {
   globalThis.window.__platform = api([
     live({ tenant_id: "a", slug: "all-good", name: "All Good" }),
-    live({ tenant_id: "b", slug: "broken-co", name: "Broken Co", voice_state: "failed", line_error: "Twilio refused the number: 21422" }),
+    live({
+      tenant_id: "b",
+      slug: "broken-co",
+      name: "Broken Co",
+      voice_state: "failed",
+      line_error: "Twilio refused the number: 21422",
+    }),
     live({ tenant_id: "c", slug: "smoke", name: "Smoke", status: "test" }),
   ]);
   const page = mount(Pane);
@@ -871,8 +1252,14 @@ test("the list is the contract's judgement, in the row grammar the rest of the a
   // One attention row per workspace, in the contract's order: the broken one
   // first, whatever it is called.
   const rows = attnRows(page.tree);
-  assert.deepEqual(rows.map((r) => r.props.name), ["Broken Co", "All Good", "Smoke"]);
-  assert.deepEqual(rows.map((r) => r.props.testid), ["platform-row-broken-co", "platform-row-all-good", "platform-row-smoke"]);
+  assert.deepEqual(
+    rows.map((r) => r.props.name),
+    ["Broken Co", "All Good", "Smoke"],
+  );
+  assert.deepEqual(
+    rows.map((r) => r.props.testid),
+    ["platform-row-broken-co", "platform-row-all-good", "platform-row-smoke"],
+  );
   // The sentence is the verdict's, unchanged -- the provider's own words reach
   // the screen rather than a category.
   assert.match(rows[0].props.sentence, /Twilio refused the number: 21422/);
@@ -907,7 +1294,12 @@ test("REGRESSION (S10): a list that cannot be read says so with a Retry, and nev
   const harbor = live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" });
   globalThis.window.__platform = {
     ...api([harbor], null, calls),
-    list: async () => { calls.push("list"); return fail ? { ok: false, tenants: [], message: "The platform could not be read." } : { ok: true, tenants: [harbor], message: "" }; },
+    list: async () => {
+      calls.push("list");
+      return fail
+        ? { ok: false, tenants: [], message: "The platform could not be read." }
+        : { ok: true, tenants: [harbor], message: "" };
+    },
   };
   const page = mount(Pane);
   await page.settle();
@@ -924,7 +1316,11 @@ test("REGRESSION (S10): a list that cannot be read says so with a Retry, and nev
 
 test("REGRESSION (S10): a workspace that cannot be read says so with its Retry, instead of reading for ever", async () => {
   const calls = [];
-  globalThis.window.__platform = api([live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })], null, calls);
+  globalThis.window.__platform = api(
+    [live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })],
+    null,
+    calls,
+  );
   const page = mount(Pane);
   await page.settle();
   await page.press(attnRows(page.tree)[0].props.cta.onClick);
@@ -936,7 +1332,12 @@ test("REGRESSION (S10): a workspace that cannot be read says so with its Retry, 
 });
 
 test("REGRESSION (S10): a read that throws is a failed read, not a page reading for ever", async () => {
-  globalThis.window.__platform = { ...api([]), list: async () => { throw new Error("socket hang up"); } };
+  globalThis.window.__platform = {
+    ...api([]),
+    list: async () => {
+      throw new Error("socket hang up");
+    },
+  };
   const page = mount(Pane);
   await page.settle();
   assert.ok(!/Reading every workspace/.test(textOf(page.tree)), "REGRESSION: a thrown read left the page reading");
@@ -952,9 +1353,16 @@ test("finding a workspace by name or slug, because that is what a support call s
   await page.settle();
   assert.equal(attnRows(page.tree).length, 2);
   page.type(byId(page.tree, "platform-find"), "melany");
-  assert.deepEqual(attnRows(page.tree).map((r) => r.props.name), ["Melany's Beauty Salon"]);
+  assert.deepEqual(
+    attnRows(page.tree).map((r) => r.props.name),
+    ["Melany's Beauty Salon"],
+  );
   page.type(byId(page.tree, "platform-find"), "harbor-mov");
-  assert.deepEqual(attnRows(page.tree).map((r) => r.props.name), ["Harbor Moving"], "the slug matches too");
+  assert.deepEqual(
+    attnRows(page.tree).map((r) => r.props.name),
+    ["Harbor Moving"],
+    "the slug matches too",
+  );
   page.type(byId(page.tree, "platform-find"), "zzz");
   assert.equal(attnRows(page.tree).length, 0);
   assert.match(textOf(page.tree), /Nothing matches/);
@@ -963,14 +1371,25 @@ test("finding a workspace by name or slug, because that is what a support call s
 test("opening one shows the customer's own Setup rows, and no buttons that would act on ours", async () => {
   const calls = [];
   const detail = {
-    tenant: { id: "a", slug: "harbor-moving", name: "Harbor Moving", status: "active", timezone: "America/New_York", created_at: ago(90) },
+    tenant: {
+      id: "a",
+      slug: "harbor-moving",
+      name: "Harbor Moving",
+      status: "active",
+      timezone: "America/New_York",
+      created_at: ago(90),
+    },
     setup: SETUP_FIXTURE,
     events: [
       { kind: "line.provisioned", category: "setup", subject_type: "line", created_at: ago(2), data: {} },
       { kind: "business.recorded", category: "setup", subject_type: "tenant", created_at: ago(1), data: {} },
     ],
   };
-  globalThis.window.__platform = api([live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })], detail, calls);
+  globalThis.window.__platform = api(
+    [live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })],
+    detail,
+    calls,
+  );
   const page = mount(Pane);
   await page.settle();
   await page.press(attnRows(page.tree)[0].props.cta.onClick);
@@ -981,8 +1400,13 @@ test("opening one shows the customer's own Setup rows, and no buttons that would
   // their workspace. Compared against the function directly, so a second
   // rendering cannot creep in.
   const want = setupSteps({ ...SETUP_FIXTURE, later: [] });
-  const shown = attnRows(page.tree).map((r) => r.props.testid).filter((t) => String(t).startsWith("platform-setup-"));
-  assert.deepEqual(shown, want.rows.map((r) => `platform-setup-${r.id}`));
+  const shown = attnRows(page.tree)
+    .map((r) => r.props.testid)
+    .filter((t) => String(t).startsWith("platform-setup-"));
+  assert.deepEqual(
+    shown,
+    want.rows.map((r) => `platform-setup-${r.id}`),
+  );
   assert.ok(want.rows.length >= 5, "a real set of rows, not an empty one");
 
   // Read-only: not one of those rows offers a verb. Setup's buttons act on the
@@ -1014,7 +1438,12 @@ test("acting on a line is never one click, and says the cost before it is", asyn
 
   let reloaded = 0;
   const row = mount(globalThis.window.PlatformLine, {
-    line: rejected, tenantId: "a", onDone: () => { reloaded += 1; }, flash: () => {},
+    line: rejected,
+    tenantId: "a",
+    onDone: () => {
+      reloaded += 1;
+    },
+    flash: () => {},
   });
 
   // The buttons the contract offers for THIS line, and no others.
@@ -1051,7 +1480,15 @@ test("a rehearsal offers a different action, at a price, and says it cannot be u
 
 test("the pane decides nothing: every verdict, word and row comes from the contract", () => {
   const src = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
-  for (const call of ["P.rows(tenants)", "P.summary(rows)", "P.verdicts[r.verdict]", "P.steps({ ...detail.setup, later: [] })", "P.number(line.e164)", "P.actions(line)", "P.warning(arm)"]) {
+  for (const call of [
+    "P.rows(tenants)",
+    "P.summary(rows)",
+    "P.verdicts[r.verdict]",
+    "P.steps({ ...detail.setup, later: [] })",
+    "P.number(line.e164)",
+    "P.actions(line)",
+    "P.warning(arm)",
+  ]) {
     assert.ok(src.includes(call), `the page reads ${call} rather than deciding`);
   }
   // No thresholds, no state lists, no sorting of its own.
@@ -1124,7 +1561,11 @@ test("the back office does not tell the reader it changes nothing, in the file t
   const page = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
   assert.ok(!/Read-only — nothing here changes a workspace/.test(page), "REGRESSION: the page claims to be read-only");
   assert.ok(!/Read-only: actions come later/.test(page), "REGRESSION: a comment describing the opposite of the file");
-  assert.match(page, /This list changes nothing; open a workspace and its lines can be/, "it says which half is read-only");
+  assert.match(
+    page,
+    /This list changes nothing; open a workspace and its lines can be/,
+    "it says which half is read-only",
+  );
   assert.match(page, /each one asks twice, and each is recorded against you/);
   // And those two claims are true: arm-then-confirm, and the ledger row goes in
   // before the action runs.
@@ -1134,7 +1575,6 @@ test("the back office does not tell the reader it changes nothing, in the file t
   const edge = server.indexOf("await edgeLines(EDGE_OP[action]");
   assert.ok(audit !== -1 && edge !== -1 && audit < edge, "attribution is written before the action, not after it");
 });
-
 
 /* -------------------------------------------------------------------------- *
  * The people who are not workspaces yet.
@@ -1147,8 +1587,12 @@ test("the back office does not tell the reader it changes nothing, in the file t
  * -------------------------------------------------------------------------- */
 
 const waiting = (over = {}) => ({
-  id: "w1", email: "ana@example.com", business: "Melany's Beauty Salon",
-  source: "https://chanlytics.com/pricing?utm_source=x", created_at: ago(3), ...over,
+  id: "w1",
+  email: "ana@example.com",
+  business: "Melany's Beauty Salon",
+  source: "https://chanlytics.com/pricing?utm_source=x",
+  created_at: ago(3),
+  ...over,
 });
 
 test("the queue says how many and how long, and an unreadable queue is not an empty one", () => {
@@ -1177,11 +1621,24 @@ test("a row says who they are and where they came from, and never the query stri
   assert.equal(row.waited, "asked 3d ago");
 
   // Whichever half they gave, and nothing when they gave neither.
-  assert.equal(platformQueue({ waiting: [waiting({ business: null })], total: 1 }, NOW).rows[0].detail, "from chanlytics.com/pricing");
-  assert.equal(platformQueue({ waiting: [waiting({ source: null })], total: 1 }, NOW).rows[0].detail, "Melany's Beauty Salon");
-  assert.equal(platformQueue({ waiting: [waiting({ business: "  ", source: "" })], total: 1 }, NOW).rows[0].detail, null);
+  assert.equal(
+    platformQueue({ waiting: [waiting({ business: null })], total: 1 }, NOW).rows[0].detail,
+    "from chanlytics.com/pricing",
+  );
+  assert.equal(
+    platformQueue({ waiting: [waiting({ source: null })], total: 1 }, NOW).rows[0].detail,
+    "Melany's Beauty Salon",
+  );
+  assert.equal(
+    platformQueue({ waiting: [waiting({ business: "  ", source: "" })], total: 1 }, NOW).rows[0].detail,
+    null,
+  );
   // A referer that is not a URL is still shown, bounded, rather than dropped.
-  assert.equal(platformQueue({ waiting: [waiting({ business: null, source: "an email signature" })], total: 1 }, NOW).rows[0].detail, "from an email signature");
+  assert.equal(
+    platformQueue({ waiting: [waiting({ business: null, source: "an email signature" })], total: 1 }, NOW).rows[0]
+      .detail,
+    "from an email signature",
+  );
 });
 
 test("the only action says what it does not do", () => {
@@ -1200,7 +1657,11 @@ test("the queue is read through the one door, still-waiting only, oldest first",
     { id: "w1", email: "ana@example.com", business: "Salon", source: null, created_at: ago(3), invited_at: null },
   ];
   const q = await platformWaitlist({ db: fakeDb({ waitlist: rows }) });
-  assert.deepEqual(q.waiting.map((r) => r.email), ["ana@example.com", "bea@example.com"], "invited is out of the queue; oldest first");
+  assert.deepEqual(
+    q.waiting.map((r) => r.email),
+    ["ana@example.com", "bea@example.com"],
+    "invited is out of the queue; oldest first",
+  );
   assert.equal(q.total, 2);
   // What the read SELECTS -- and so what reaches a browser -- is proved in
   // waitlist.db.test.mjs: this double hands back whole rows whatever is asked
@@ -1208,12 +1669,28 @@ test("the queue is read through the one door, still-waiting only, oldest first",
 });
 
 test("a queue that could not be read answers null, not empty, and does not throw", async () => {
-  const q = await platformWaitlist({ db: fakeDb({ waitlist: [] }, { "waitlist.select": { message: "permission denied" } }) });
-  assert.deepEqual(q, { waiting: null, total: null }, "the back office is opened when things are wrong; this must not take the page with it");
+  const q = await platformWaitlist({
+    db: fakeDb({ waitlist: [] }, { "waitlist.select": { message: "permission denied" } }),
+  });
+  assert.deepEqual(
+    q,
+    { waiting: null, total: null },
+    "the back office is opened when things are wrong; this must not take the page with it",
+  );
 });
 
 test("marking somebody invited is conditional on them still waiting, and records who", async () => {
-  const rows = [{ id: "w1", email: "ana@example.com", business: null, source: null, created_at: ago(3), invited_at: null, invited_by: null }];
+  const rows = [
+    {
+      id: "w1",
+      email: "ana@example.com",
+      business: null,
+      source: null,
+      created_at: ago(3),
+      invited_at: null,
+      invited_by: null,
+    },
+  ];
   const office = { db: fakeDb({ waitlist: rows }) };
   const ctx = { userId: "u-admin", email: "ruben@rjcapital.io" };
 
@@ -1237,7 +1714,13 @@ test("the page draws who is waiting, and says the product sends nothing", async 
       ok: true,
       tenants: [live({ tenant_id: "a", slug: "all-good", name: "All Good" })],
       health: null,
-      queue: { waiting: [waiting(), waiting({ id: "w2", email: "bea@example.com", business: null, source: null, created_at: ago(1) })], total: 2 },
+      queue: {
+        waiting: [
+          waiting(),
+          waiting({ id: "w2", email: "bea@example.com", business: null, source: null, created_at: ago(1) }),
+        ],
+        total: 2,
+      },
       message: "",
     }),
   };
@@ -1247,11 +1730,17 @@ test("the page draws who is waiting, and says the product sends nothing", async 
   assert.match(textOf(byId(page.tree, "platform-queue-words")), /2 waiting, the first since 3d ago/);
   assert.match(textOf(byId(page.tree, "platform-queue-note")), /sends no invitations/i);
   const rows = [];
-  walk(page.tree, (n) => { if (n.props?.["data-testid"] === "platform-queue-row") rows.push(n); });
+  walk(page.tree, (n) => {
+    if (n.props?.["data-testid"] === "platform-queue-row") rows.push(n);
+  });
   assert.equal(rows.length, 2);
   assert.match(textOf(rows[0]), /ana@example\.com/);
   assert.match(textOf(rows[0]), /Melany's Beauty Salon · from chanlytics\.com\/pricing · asked 3d ago/);
-  assert.match(textOf(rows[1]), /bea@example\.com asked 1d ago/, "the halves they did not give leave no separator hanging");
+  assert.match(
+    textOf(rows[1]),
+    /bea@example\.com asked 1d ago/,
+    "the halves they did not give leave no separator hanging",
+  );
   assert.doesNotMatch(textOf(rows[1]), / · /, "nor an empty one");
 });
 
@@ -1265,12 +1754,21 @@ test("marking somebody invited is never one click, and says what it does not do"
   const said = [];
   const [row] = platformQueue({ waiting: [waiting()], total: 1 }, NOW).rows;
   const view = mount(globalThis.window.PlatformWaitingRow, {
-    row, P: globalThis.window.__platform, onDone: () => { reloaded += 1; }, flash: (t) => said.push(t),
+    row,
+    P: globalThis.window.__platform,
+    onDone: () => {
+      reloaded += 1;
+    },
+    flash: (t) => said.push(t),
   });
 
   assert.match(textOf(view.tree), /ana@example\.com/);
   await view.press(byId(view.tree, "platform-queue-mark").props.onClick);
-  assert.deepEqual(calls.filter((c) => c.startsWith("invited:")), [], "arming is not doing");
+  assert.deepEqual(
+    calls.filter((c) => c.startsWith("invited:")),
+    [],
+    "arming is not doing",
+  );
 
   const confirm = byId(view.tree, "platform-queue-invited-confirm");
   assert.ok(confirm, "it asks");
@@ -1278,7 +1776,10 @@ test("marking somebody invited is never one click, and says what it does not do"
   assert.equal(byId(view.tree, "platform-queue-mark"), null, "the button is gone while the question stands");
 
   await view.press(byId(view.tree, "platform-queue-invited-yes").props.onClick);
-  assert.deepEqual(calls.filter((c) => c.startsWith("invited:")), ["invited:w1"]);
+  assert.deepEqual(
+    calls.filter((c) => c.startsWith("invited:")),
+    ["invited:w1"],
+  );
   assert.equal(reloaded, 1, "the queue on screen is a row out of date, so the page reads again");
   assert.equal(said.length, 1, "and the person who pressed it is told what happened");
 });
@@ -1290,7 +1791,9 @@ test("a mark that did not go through is said, and changes nothing on the page", 
   const view = mount(globalThis.window.PlatformWaitingRow, {
     row,
     P: { markInvited: async () => ({ ok: false, message: "That could not be recorded, so it was not done." }) },
-    onDone: () => { reloaded += 1; },
+    onDone: () => {
+      reloaded += 1;
+    },
     flash: (t) => said.push(t),
   });
   await view.press(byId(view.tree, "platform-queue-mark").props.onClick);
@@ -1303,7 +1806,13 @@ test("a mark that did not go through is said, and changes nothing on the page", 
 test("a queue that could not be read says so on the page, and never draws an empty list", async () => {
   globalThis.window.__platform = {
     ...api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })]),
-    list: async () => ({ ok: true, tenants: [live({ tenant_id: "a", slug: "all-good", name: "All Good" })], health: null, queue: { waiting: null, total: null }, message: "" }),
+    list: async () => ({
+      ok: true,
+      tenants: [live({ tenant_id: "a", slug: "all-good", name: "All Good" })],
+      health: null,
+      queue: { waiting: null, total: null },
+      message: "",
+    }),
   };
   const page = mount(Pane);
   await page.settle();

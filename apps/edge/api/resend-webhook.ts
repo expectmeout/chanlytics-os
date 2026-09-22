@@ -52,7 +52,11 @@ export async function POST(request: Request): Promise<Response> {
   try {
     verdict = await planResendEvent({
       rawBody,
-      headers: { id: request.headers.get("svix-id"), timestamp: request.headers.get("svix-timestamp"), signature: request.headers.get("svix-signature") },
+      headers: {
+        id: request.headers.get("svix-id"),
+        timestamp: request.headers.get("svix-timestamp"),
+        signature: request.headers.get("svix-signature"),
+      },
       secret: env.RESEND_WEBHOOK_SECRET,
       domain,
       db,
@@ -75,7 +79,12 @@ export async function POST(request: Request): Promise<Response> {
       const outcome = await applyEmailReceipt(db, r, new Date().toISOString());
       L.info("email_receipt", { type: r.type, tenant: r.tenantId, message: r.messageId, outcome });
     } catch (e) {
-      L.error("email_receipt_not_applied", { type: r.type, tenant: r.tenantId, message: r.messageId, error: errField(e) });
+      L.error("email_receipt_not_applied", {
+        type: r.type,
+        tenant: r.tenantId,
+        message: r.messageId,
+        error: errField(e),
+      });
       return json(503, { ok: false, error: "database_unavailable" });
     }
     return json(200, { ok: true });
@@ -83,7 +92,10 @@ export async function POST(request: Request): Promise<Response> {
 
   if (verdict.unroutable > 0 && Date.now() - lastUnroutableRow >= UNROUTABLE_ROW_MS) {
     lastUnroutableRow = Date.now();
-    await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null, { channel: "email", addresses: verdict.unroutable } as Json).catch(() => {});
+    await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null, {
+      channel: "email",
+      addresses: verdict.unroutable,
+    } as Json).catch(() => {});
   }
   if (verdict.kind === "ignore") {
     L.info(verdict.log);
@@ -93,7 +105,12 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const now = new Date();
     for (const job of verdict.jobs) {
-      const outcome = await scheduleJobOnce(db, { tenantId: job.tenantId, kind: "email_ingest", dueAt: now, payload: { mailbox_id: job.mailboxId, received_id: verdict.receivedId } });
+      const outcome = await scheduleJobOnce(db, {
+        tenantId: job.tenantId,
+        kind: "email_ingest",
+        dueAt: now,
+        payload: { mailbox_id: job.mailboxId, received_id: verdict.receivedId },
+      });
       L.info("email_received", { tenant: job.tenantId, mailbox: job.mailboxId, outcome });
     }
   } catch (e) {

@@ -2706,7 +2706,7 @@ declare const PROVISIONING_DEADLINE_MS: number;
  */
 declare function lineStuckProvisioning(l: Pick<LineDto, "voice_state" | "state_since"> | null | undefined, nowMs: number): boolean;
 
-declare function lineRetryRefusal(l: Pick<LineDto, "voice_state" | "state_since"> & Partial<Pick<LineDto, "last_error">> | null | undefined, nowMs: number): string | null;
+declare function lineRetryRefusal(l: (Pick<LineDto, "voice_state" | "state_since"> & Partial<Pick<LineDto, "last_error">>) | null | undefined, nowMs: number): string | null;
 /** The saga's step, in the owner's words — the row, the bell and the platform email say the same thing. */
 declare const LINE_STEP_WORDS: Record<string, string>;
 interface SetupInputs extends SetupDto {

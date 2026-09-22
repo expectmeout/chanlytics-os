@@ -23,11 +23,24 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  PROVISIONING_DEADLINE_MS, lineStuckProvisioning, lineRetryRefusal, setupSteps, platformLineActions, channelFor, toChannelVM,
+  PROVISIONING_DEADLINE_MS,
+  lineStuckProvisioning,
+  lineRetryRefusal,
+  setupSteps,
+  platformLineActions,
+  channelFor,
+  toChannelVM,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb, fakeLog } from "./_fake-db.mjs";
-import { claimLineForResume, sweepStuckLines, retryRequestedBy, automaticResumesOf, countAutomaticResume, MAX_AUTOMATIC_RESUMES } from "../../../apps/edge/lib/line-resume.ts";
+import {
+  claimLineForResume,
+  sweepStuckLines,
+  retryRequestedBy,
+  automaticResumesOf,
+  countAutomaticResume,
+  MAX_AUTOMATIC_RESUMES,
+} from "../../../apps/edge/lib/line-resume.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const NOW = 1_800_000_000_000;
@@ -35,11 +48,19 @@ const ago = (ms) => new Date(NOW - ms).toISOString();
 
 const line = (over = {}) => ({
   id: "11111111-1111-4111-8111-111111111111",
-  e164: "+13055550100", kind: "chanlytics", provider: "twilio", area_code: 305,
-  voice_state: "provisioning", sms_state: "none", whatsapp_state: "none",
-  port_state: "none", forwarding_state: "none",
-  step: "trunk", last_error: null,
-  state_since: ago(30 * 60_000), created_at: ago(30 * 60_000),
+  e164: "+13055550100",
+  kind: "chanlytics",
+  provider: "twilio",
+  area_code: 305,
+  voice_state: "provisioning",
+  sms_state: "none",
+  whatsapp_state: "none",
+  port_state: "none",
+  forwarding_state: "none",
+  step: "trunk",
+  last_error: null,
+  state_since: ago(30 * 60_000),
+  created_at: ago(30 * 60_000),
   ...over,
 });
 
@@ -53,8 +74,16 @@ test("the deadline is one number, and it does not fire on a saga that is still r
   assert.ok(PROVISIONING_DEADLINE_MS <= 10 * 60_000, "and not so long that a customer is left guessing");
 
   assert.equal(lineStuckProvisioning(line({ state_since: ago(10_000) }), NOW), false, "ten seconds in");
-  assert.equal(lineStuckProvisioning(line({ state_since: ago(PROVISIONING_DEADLINE_MS - 1_000) }), NOW), false, "just inside");
-  assert.equal(lineStuckProvisioning(line({ state_since: ago(PROVISIONING_DEADLINE_MS + 1_000) }), NOW), true, "just past");
+  assert.equal(
+    lineStuckProvisioning(line({ state_since: ago(PROVISIONING_DEADLINE_MS - 1_000) }), NOW),
+    false,
+    "just inside",
+  );
+  assert.equal(
+    lineStuckProvisioning(line({ state_since: ago(PROVISIONING_DEADLINE_MS + 1_000) }), NOW),
+    true,
+    "just past",
+  );
 
   // Only this state. A line that answers is not stuck, and a failed one already has
   // its own words and its own button.
@@ -102,12 +131,21 @@ test("THE OWNER: past the deadline the row stops saying 'a minute or two' and of
   // this row first shows.
   assert.doesNotMatch(r.sentence, /A person at Chanlytics has it/, "REGRESSION: a claim nothing had made true");
   assert.ok(!r.details.some((d) => /We have been told/.test(d)), "REGRESSION: 'we have been told' before anybody was");
-  assert.ok(r.details.some((d) => /Chanlytics is told when it is/.test(d)), "and it says when somebody will be");
+  assert.ok(
+    r.details.some((d) => /Chanlytics is told when it is/.test(d)),
+    "and it says when somebody will be",
+  );
   assert.ok(!/minute or two/.test(r.details.join(" ")), "REGRESSION: 'usually a minute or two', half an hour in");
   assert.equal(r.verb.label, "Retry");
   assert.match(r.verb.to, /^verb:retry-line:/, "the same verb the failed branch has always had");
-  assert.ok(r.details.some((d) => /buys nothing twice/.test(d)), "and it says why pressing it is safe");
-  assert.ok(r.details.some((d) => /retried automatically/.test(d)), "and that nobody has to be watching");
+  assert.ok(
+    r.details.some((d) => /buys nothing twice/.test(d)),
+    "and it says why pressing it is safe",
+  );
+  assert.ok(
+    r.details.some((d) => /retried automatically/.test(d)),
+    "and that nobody has to be watching",
+  );
 });
 
 test("SUPPORT: the back office offers the same retry, which it offered for nothing before", () => {
@@ -119,7 +157,10 @@ test("SUPPORT: the back office offers the same retry, which it offered for nothi
   assert.match(retry.sentence, /reads its own receipts/, "and says why it is safe");
 
   // Before the deadline it is not offered: the saga may still be running.
-  assert.equal(platformLineActions(line({ state_since: ago(60_000) }), NOW).some((a) => a.action === "retry"), false);
+  assert.equal(
+    platformLineActions(line({ state_since: ago(60_000) }), NOW).some((a) => a.action === "retry"),
+    false,
+  );
   // A failed line keeps the action it always had.
   assert.ok(platformLineActions(line({ voice_state: "failed" }), NOW).some((a) => a.action === "retry"));
   // And release is still offered, because it is still the answer for a number a
@@ -136,7 +177,11 @@ test("the retry rule accepts a line the wall killed, and refuses one that is sti
   // assertions added in a single day. The rule now returns a value, so it has a
   // seam, so it can simply be called.
   assert.equal(lineRetryRefusal(line({ voice_state: "failed" }), NOW), null, "a failed line has always been retryable");
-  assert.equal(lineRetryRefusal(line({ state_since: ago(30 * 60_000) }), NOW), null, "and now so is one the wall killed");
+  assert.equal(
+    lineRetryRefusal(line({ state_since: ago(30 * 60_000) }), NOW),
+    null,
+    "and now so is one the wall killed",
+  );
 
   // Still running: refused, but with something a person can act on. "Not failed"
   // is true of this and useless to it.
@@ -170,7 +215,10 @@ test("the sweep's schedule and its 60 seconds", () => {
 
   // Registered, scheduled, and watched from its first tick.
   const m = readRaw("supabase/migrations/00097_a_line_stops_being_stuck.sql");
-  assert.match(m, /check \(sweep in \('calls', 'deadman', 'health', 'jobs', 'registration', 'calendar', 'google', 'playbooks', 'lines'\)\)/);
+  assert.match(
+    m,
+    /check \(sweep in \('calls', 'deadman', 'health', 'jobs', 'registration', 'calendar', 'google', 'playbooks', 'lines'\)\)/,
+  );
   assert.match(m, /values \('lines', now\(\)\)/, "the deploy grace row, or the first health run mails a false alarm");
   assert.match(m, /select public\.request_sweep\('lines', '\/api\/cron\/lines'\)/);
   assert.match(m, /cron\.schedule\('lines-sweep', '8,23,38,53 \* \* \* \*'/);
@@ -199,9 +247,16 @@ function deps({ resume = async () => ({ ok: true }) } = {}) {
   return {
     calls,
     deps: {
-      resume: async (tenant, row) => { calls.resume.push({ tenant, row }); return resume(tenant, row); },
-      alert: async (subject, body) => { calls.alert.push({ subject, body }); },
-      reportFailed: async (tenant, row, error) => { calls.failed.push({ tenant, row, error }); },
+      resume: async (tenant, row) => {
+        calls.resume.push({ tenant, row });
+        return resume(tenant, row);
+      },
+      alert: async (subject, body) => {
+        calls.alert.push({ subject, body });
+      },
+      reportFailed: async (tenant, row, error) => {
+        calls.failed.push({ tenant, row, error });
+      },
       now: () => NOW,
       log: fakeLog(),
     },
@@ -223,7 +278,11 @@ test("taking a line is exclusive: two callers, one line, exactly one of them win
     assert.ok(first, `${start.voice_state}: the first caller takes it`);
     assert.equal(first.voice_state, "provisioning", "and the take is visible on the row");
     assert.equal(first.state_since, new Date(NOW).toISOString(), "with a clock that restarts now");
-    assert.equal(second, null, `${start.voice_state}: the second caller's filters match nothing, so it learns somebody has it`);
+    assert.equal(
+      second,
+      null,
+      `${start.voice_state}: the second caller's filters match nothing, so it learns somebody has it`,
+    );
   }
   // A saga that is genuinely still running is never taken from underneath itself.
   const running = dbRow({ state_since: ago(60_000) });
@@ -249,7 +308,11 @@ test("who pressed Retry is who the platform is told pressed it", () => {
   // their own Setup page reached the platform mailbox as "started by support".
   assert.equal(retryRequestedBy("owner"), "owner");
   for (const raw of ["support", undefined, null, "", "sweep", "OWNER"]) {
-    assert.equal(retryRequestedBy(raw), "support", `${JSON.stringify(raw)} came from somebody holding the diagnostic key`);
+    assert.equal(
+      retryRequestedBy(raw),
+      "support",
+      `${JSON.stringify(raw)} came from somebody holding the diagnostic key`,
+    );
   }
 });
 
@@ -279,7 +342,11 @@ test("later tries go to the ledger, not the mailbox", async () => {
   const { calls, deps: d } = deps();
   const out = await sweepStuckLines(fakeDb({ lines, tenants: [{ ...TENANT }] }), d, 2);
   assert.equal(out.resumed, 1);
-  assert.equal(calls.alert.length, 0, "the platform heard at the first try, and hears again only if it is handed a person");
+  assert.equal(
+    calls.alert.length,
+    0,
+    "the platform heard at the first try, and hears again only if it is handed a person",
+  );
   assert.equal(automaticResumesOf(lines[0]), 2);
 });
 
@@ -328,7 +395,11 @@ test("a workspace that cannot be read leaves its line untouched for the next tic
 
 test("a resume that dies outside its own error handling is counted, and the line stays taken", async () => {
   const lines = [dbRow()];
-  const { deps: d } = deps({ resume: async () => { throw new Error("socket hang up"); } });
+  const { deps: d } = deps({
+    resume: async () => {
+      throw new Error("socket hang up");
+    },
+  });
   const out = await sweepStuckLines(fakeDb({ lines, tenants: [{ ...TENANT }] }), d, 2);
   assert.equal(out.failed, 1);
   assert.equal(automaticResumesOf(lines[0]), 1, "the try counts, so a line that always dies still reaches the ceiling");
@@ -351,7 +422,9 @@ test("THE LOST RECEIPT: a number bought without its SID saved is found, not boug
   // paid for it monthly, `release` skipped it, `number_drift()` never asked the
   // provider, and a retry could never succeed because a carrier will not sell you a
   // number you already hold. This walks exactly that.
-  const { dryProvider } = await import(pathToFileURL(path.join(here, "../../../packages/channels/src/lines-dry.ts")).href);
+  const { dryProvider } = await import(
+    pathToFileURL(path.join(here, "../../../packages/channels/src/lines-dry.ts")).href
+  );
   const provider = dryProvider();
   const acct = { sid: "ACsub", token: "t" };
 
@@ -418,15 +491,32 @@ test("a released line leaves a disabled route beside the active one, and the pic
   assert.equal(channelFor(off, "voice").number_e164, "+1305555CCCC");
 
   // The SAME rule on the view-model shape, where the fact is spelled `on`.
-  const vm = (o) => toChannelVM({ id: o.id, kind: "voice", number_e164: o.n, status: o.status, created_at: o.at, last_inbound_at: null }, new Date(NOW));
-  const vms = [vm({ id: "a", n: "+13055550100", status: "disabled", at: ago(9 * 86_400_000) }), vm({ id: "b", n: "+13055550111", status: "active", at: ago(86_400_000) })];
+  const vm = (o) =>
+    toChannelVM(
+      { id: o.id, kind: "voice", number_e164: o.n, status: o.status, created_at: o.at, last_inbound_at: null },
+      new Date(NOW),
+    );
+  const vms = [
+    vm({ id: "a", n: "+13055550100", status: "disabled", at: ago(9 * 86_400_000) }),
+    vm({ id: "b", n: "+13055550111", status: "active", at: ago(86_400_000) }),
+  ];
   assert.equal(channelFor(vms, "voice").id, "b");
   assert.equal(channelFor([...vms].reverse(), "voice").id, "b");
 
   // Both page readers use it, rather than one of them getting it right.
-  assert.match(readCode("apps/dashboard/src/server/setup.ts"), /const byKind = \(kind: string\) => channelFor\(channels\.data \?\? \[\], kind\);/);
-  assert.match(readCode("apps/dashboard/src/server/setup.ts"), /select\("kind, status, number_e164, config, created_at"\)/, "or the tie-break has nothing to read");
-  assert.match(readCode("packages/contracts/src/connections.ts"), /const channel = \(kind: string\) => channelFor\(i\.channels, kind\);/);
+  assert.match(
+    readCode("apps/dashboard/src/server/setup.ts"),
+    /const byKind = \(kind: string\) => channelFor\(channels\.data \?\? \[\], kind\);/,
+  );
+  assert.match(
+    readCode("apps/dashboard/src/server/setup.ts"),
+    /select\("kind, status, number_e164, config, created_at"\)/,
+    "or the tie-break has nothing to read",
+  );
+  assert.match(
+    readCode("packages/contracts/src/connections.ts"),
+    /const channel = \(kind: string\) => channelFor\(i\.channels, kind\);/,
+  );
 });
 
 test("a failure at the vault is named as one: no Retry on the row, the refusal says why, the capability says why", async () => {
@@ -435,9 +525,16 @@ test("a failure at the vault is named as one: no Retry on the row, the refusal s
   assert.equal(lineCredentialFailure("the subaccount's token is missing from the vault"), true);
   assert.equal(lineCredentialFailure("Twilio 21422: number not available"), false);
   assert.equal(lineCredentialFailure(null), false);
-  const wall = line({ voice_state: "failed", last_error: "keeping the line's credentials: permission denied for schema vault" });
+  const wall = line({
+    voice_state: "failed",
+    last_error: "keeping the line's credentials: permission denied for schema vault",
+  });
   assert.match(lineRetryRefusal(wall, NOW), /a retry cannot help until a person at Chanlytics restores them/);
-  assert.equal(lineRetryRefusal(line({ voice_state: "failed", last_error: "Twilio 21422" }), NOW), null, "a carrier failure is still the owner's to retry");
+  assert.equal(
+    lineRetryRefusal(line({ voice_state: "failed", last_error: "Twilio 21422" }), NOW),
+    null,
+    "a carrier failure is still the owner's to retry",
+  );
 });
 
 test("counting a try is one function, because two callers resume a line and only one of them used to count", async () => {
@@ -455,6 +552,9 @@ test("counting a try is one function, because two callers resume a line and only
 
   // A try nobody could write is a try that must not run: the caller is told
   // rather than thrown at, and leaves the line for the next tick.
-  const stuck = await countAutomaticResume(fakeDb({ lines: [line()] }, { "lines.update": { message: "row is locked" } }), line());
+  const stuck = await countAutomaticResume(
+    fakeDb({ lines: [line()] }, { "lines.update": { message: "row is locked" } }),
+    line(),
+  );
   assert.deepEqual(stuck, { ok: false, error: "row is locked" });
 });

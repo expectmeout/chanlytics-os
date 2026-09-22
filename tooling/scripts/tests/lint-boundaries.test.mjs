@@ -27,15 +27,28 @@ const IMPORTS = "@typescript-eslint/no-restricted-imports";
 
 test("browser code may not import the server or the rule packages, but may take their types", async () => {
   const at = "apps/dashboard/src/legacy-bridge/probe.ts";
-  assert.deepEqual(await rulesFiredOn(at, 'import { route } from "../server/route";\nexport const x = route;\n'), [IMPORTS]);
-  assert.deepEqual(await rulesFiredOn(at, 'import { route } from "@/server/route";\nexport const x = route;\n'), [IMPORTS]);
-  assert.deepEqual(await rulesFiredOn(at, 'import { deliver } from "@chanlytics/core";\nexport const x = deliver;\n'), [IMPORTS]);
-  assert.deepEqual(await rulesFiredOn(at, 'import type { InputOf } from "../server/route";\nexport type Y = InputOf<"a">;\n'), []);
+  assert.deepEqual(await rulesFiredOn(at, 'import { route } from "../server/route";\nexport const x = route;\n'), [
+    IMPORTS,
+  ]);
+  assert.deepEqual(await rulesFiredOn(at, 'import { route } from "@/server/route";\nexport const x = route;\n'), [
+    IMPORTS,
+  ]);
+  assert.deepEqual(await rulesFiredOn(at, 'import { deliver } from "@chanlytics/core";\nexport const x = deliver;\n'), [
+    IMPORTS,
+  ]);
+  assert.deepEqual(
+    await rulesFiredOn(at, 'import type { InputOf } from "../server/route";\nexport type Y = InputOf<"a">;\n'),
+    [],
+  );
   assert.deepEqual(await rulesFiredOn(at, 'import { api } from "../client/api";\nexport const x = api;\n'), []);
 });
 
 test("the typed client and the sign-in screens are held to the same boundary", async () => {
-  for (const at of ["apps/dashboard/src/client/probe.ts", "apps/dashboard/src/auth/probe.tsx", "apps/dashboard/src/yes/probe.tsx"]) {
+  for (const at of [
+    "apps/dashboard/src/client/probe.ts",
+    "apps/dashboard/src/auth/probe.tsx",
+    "apps/dashboard/src/yes/probe.tsx",
+  ]) {
     assert.deepEqual(
       await rulesFiredOn(at, 'import { route } from "@/server/route";\nexport const x = route;\n'),
       [IMPORTS],
@@ -46,17 +59,34 @@ test("the typed client and the sign-in screens are held to the same boundary", a
 
 test("server code may not import the shell, the bridge or the browser client", async () => {
   for (const at of ["apps/dashboard/src/server/probe.ts", "apps/dashboard/app/api/v1/probe/route.ts"]) {
-    assert.deepEqual(await rulesFiredOn(at, 'import { run } from "@/legacy-bridge/surface-runner";\nexport const x = run;\n'), [IMPORTS], at);
-    assert.deepEqual(await rulesFiredOn(at, 'import { api } from "@/client/api";\nexport const x = api;\n'), [IMPORTS], at);
-    assert.deepEqual(await rulesFiredOn(at, 'import { deliver } from "@chanlytics/core";\nexport const x = deliver;\n'), [], at);
+    assert.deepEqual(
+      await rulesFiredOn(at, 'import { run } from "@/legacy-bridge/surface-runner";\nexport const x = run;\n'),
+      [IMPORTS],
+      at,
+    );
+    assert.deepEqual(
+      await rulesFiredOn(at, 'import { api } from "@/client/api";\nexport const x = api;\n'),
+      [IMPORTS],
+      at,
+    );
+    assert.deepEqual(
+      await rulesFiredOn(at, 'import { deliver } from "@chanlytics/core";\nexport const x = deliver;\n'),
+      [],
+      at,
+    );
   }
 });
 
 test("the edge may not import the dashboard or a UI framework", async () => {
   const at = "apps/edge/lib/probe.ts";
   assert.deepEqual(await rulesFiredOn(at, 'import React from "react";\nexport const x = React;\n'), [IMPORTS]);
-  assert.deepEqual(await rulesFiredOn(at, 'import { cookies } from "next/headers";\nexport const x = cookies;\n'), [IMPORTS]);
-  assert.deepEqual(await rulesFiredOn(at, 'import { deliver } from "@chanlytics/core";\nexport const x = deliver;\n'), []);
+  assert.deepEqual(await rulesFiredOn(at, 'import { cookies } from "next/headers";\nexport const x = cookies;\n'), [
+    IMPORTS,
+  ]);
+  assert.deepEqual(
+    await rulesFiredOn(at, 'import { deliver } from "@chanlytics/core";\nexport const x = deliver;\n'),
+    [],
+  );
 });
 
 test("the edge reads the environment through env.ts and logs through log.ts, nowhere else", async () => {

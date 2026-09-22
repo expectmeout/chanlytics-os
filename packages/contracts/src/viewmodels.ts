@@ -108,12 +108,18 @@ export interface ConversationMessageVM {
  */
 export function messageStatusLabel(status: string | undefined): string | undefined {
   switch (status) {
-    case "queued": return "Sending…";
-    case "failed": return "Didn't send";
-    case "canceled": return "Canceled before sending";
-    case "read": return "Read";
-    case "delivered": return "Delivered";
-    default: return undefined;
+    case "queued":
+      return "Sending…";
+    case "failed":
+      return "Didn't send";
+    case "canceled":
+      return "Canceled before sending";
+    case "read":
+      return "Read";
+    case "delivered":
+      return "Delivered";
+    default:
+      return undefined;
   }
 }
 
@@ -178,7 +184,8 @@ const AGENTS = {
 export function agentFor(channel: "whatsapp" | "sms" | "email" | "phone"): { glyph: string; name: string } {
   return AGENTS[channel] ?? AGENTS.whatsapp;
 }
-const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/; // trade-word: the older notes said "salon"; the newer say "business"
+const CALL_NOTE_PREFIX =
+  /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/; // trade-word: the older notes said "salon"; the newer say "business"
 
 /**
  * A time in a thread or a call, by the business's clock (clock.ts). The two
@@ -225,13 +232,17 @@ const THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text"
  * names none: the owner replies in the wrong place, or does not recognise the
  * thread they are being asked about.
  */
-export function threadChannelOf(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "whatsapp" | "sms" | "email" | "phone" {
+export function threadChannelOf(
+  messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>,
+): "whatsapp" | "sms" | "email" | "phone" {
   const written = [...messages].reverse().find((m) => m.type !== "call_summary");
   return written ? writtenChannelOf(written.channel) : "phone";
 }
 
 /** The same question, in the words a row shows. */
-export function threadChannelWords(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "WhatsApp" | "Text" | "Email" | "Phone" {
+export function threadChannelWords(
+  messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>,
+): "WhatsApp" | "Text" | "Email" | "Phone" {
   return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
 }
 
@@ -249,11 +260,14 @@ function emailSubjectOf(m: MessageDto): string | null {
  * line under the words, and only when something was left out.
  */
 export function emailLeftOutOf(meta: unknown): string | null {
-  const email = (meta as { email?: { attachments?: unknown; more_attachments?: unknown; truncated?: unknown } } | null)?.email;
+  const email = (meta as { email?: { attachments?: unknown; more_attachments?: unknown; truncated?: unknown } } | null)
+    ?.email;
   if (!email) return null;
   const files = Array.isArray(email.attachments) ? email.attachments : [];
   const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
-  const names = files.map((f) => (f as { filename?: unknown } | null)?.filename).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+  const names = files
+    .map((f) => (f as { filename?: unknown } | null)?.filename)
+    .filter((n): n is string => typeof n === "string" && n.trim().length > 0);
   const total = files.length + unnamed;
   const said: string[] = [];
   if (total) {
@@ -274,7 +288,10 @@ export function isIdentifierName(name: string): boolean {
 }
 
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
-export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" | "Text" | "Email" = "WhatsApp"): string {
+export function contactMeta(
+  dto: ConversationDto,
+  channel: "WhatsApp" | "Phone" | "Text" | "Email" = "WhatsApp",
+): string {
   // The identifier under the name: the number, else the address. When it IS
   // the name, the line says so instead of repeating it.
   const id = formatPhoneDisplay(dto.contact.phone_e164) ?? dto.contact.email ?? null;
@@ -285,7 +302,10 @@ export function initialsOf(name: string): string {
   const digits = name.replace(/[^\d]/g, "");
   // phone-like display: last two digits distinguish contacts (never a "+1" avatar)
   if (digits.length >= 7 && /^[+\d\s()-]+$/.test(name)) return digits.slice(-2);
-  const parts = name.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/);
+  const parts = name
+    .replace(/[^\p{L}\p{N} ]/gu, "")
+    .trim()
+    .split(/\s+/);
   if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
   const p = parts[0] || "?";
   return p.slice(0, 2).toUpperCase();
@@ -321,7 +341,11 @@ export interface MediaVM {
 }
 
 const MEDIA_LABEL: Record<MediaVM["kind"], string> = {
-  image: "Photo", audio: "Voice note", video: "Video", document: "Document", other: "Attachment",
+  image: "Photo",
+  audio: "Voice note",
+  video: "Video",
+  document: "Document",
+  other: "Attachment",
 };
 
 /** What kind of thing an attachment is: from its mime, else from WhatsApp's own word for it. */
@@ -332,11 +356,17 @@ export function mediaKind(mime: string | null | undefined, raw?: string | null):
   if (t.startsWith("video/")) return "video";
   if (t.startsWith("application/") || t.startsWith("text/")) return "document";
   switch (raw) {
-    case "image": case "sticker": return "image";
-    case "audio": return "audio";
-    case "video": return "video";
-    case "document": return "document";
-    default: return "other";
+    case "image":
+    case "sticker":
+      return "image";
+    case "audio":
+      return "audio";
+    case "video":
+      return "video";
+    case "document":
+      return "document";
+    default:
+      return "other";
   }
 }
 
@@ -467,18 +497,23 @@ const ESCALATION_SUMMARIES: Record<string, string> = {
   non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
   send_failed: "The reply never reached them — as far as the customer knows, nobody answered.",
   policy_block: "Your reply setting holds every message for a person. Nothing was sent — answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up — that someone is you.",
+  policy_ask:
+    "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up — that someone is you.",
   person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent — answer them yourself.",
   rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent — they're waiting in silence.",
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
   manual: "Flagged by hand for a human.",
   opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
+  stale:
+    "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
   callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
+  paused:
+    "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
+  carriers:
+    "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review:
+    "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
 };
 
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
@@ -584,7 +619,7 @@ export interface InboxThreadVM {
   escalatedAtMs?: number;
   unread: boolean;
   pinned: false;
-  value?: number;      // omitted: no revenue model on real threads (v1.1)
+  value?: number; // omitted: no revenue model on real threads (v1.1)
   tags: string[];
   confidence?: number; // omitted: the mockup renders a verdict word from this
   priority: "P2";
@@ -654,13 +689,16 @@ export function threadStanding(
   // for you", while the person who had asked for a human was still waiting.
   // Snooze now leaves the escalation open and hides the thread by STATE, so
   // "come back to this later" means the request comes back too.
-  const v = standingOf({
-    state: dto.state,
-    paused_until: dto.paused_until,
-    assignee_user_id: dto.assignee_user_id,
-    assignee_is_me: dto.assignee_is_me,
-    open_escalation: !!escalation,
-  }, now.getTime());
+  const v = standingOf(
+    {
+      state: dto.state,
+      paused_until: dto.paused_until,
+      assignee_user_id: dto.assignee_user_id,
+      assignee_is_me: dto.assignee_is_me,
+      open_escalation: !!escalation,
+    },
+    now.getTime(),
+  );
   const state: InboxThreadVM["state"] = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
@@ -681,7 +719,10 @@ export function toInboxThreadVM(
   // Cancelling withdraws every queued AI row on the thread anyway.
   let draftMsg: MessageDto | null = null;
   for (let i = dto.messages.length - 1; i >= 0; i--) {
-    if (isHeldDraft(dto.messages[i])) { draftMsg = dto.messages[i]; break; }
+    if (isHeldDraft(dto.messages[i])) {
+      draftMsg = dto.messages[i];
+      break;
+    }
   }
   const heldDraft = draftMsg
     ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) }
@@ -706,8 +747,13 @@ export function toInboxThreadVM(
   const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? chatChannel : "phone";
   // Every wire the thread's written words travelled, the one a reply goes out on first: with more than one, each
   // bubble says its own (the page names a bubble's channel only when a thread has several).
-  const written = [...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel)))];
-  const channels = [...(hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : []), ...(hasCalls ? ["phone"] : [])];
+  const written = [
+    ...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel))),
+  ];
+  const channels = [
+    ...(hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : []),
+    ...(hasCalls ? ["phone"] : []),
+  ];
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
@@ -735,15 +781,20 @@ export function toInboxThreadVM(
       // signed "by WhatsApp Receptionist", crediting the wrong assistant with
       // work it did not do. The bubble already knows its own channel.
       ...(m.sender !== "customer"
-        ? (() => { const a = agentFor(onPhone ? "phone" : writtenChannelOf(m.channel)); return { agentName: a.name, agentGlyph: a.glyph }; })()
+        ? (() => {
+            const a = agentFor(onPhone ? "phone" : writtenChannelOf(m.channel));
+            return { agentName: a.name, agentGlyph: a.glyph };
+          })()
         : {}),
       ...(m.sender === "human" ? { byYou: true } : {}),
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
       ...(m.sender === "human" && messageAuthor(m) ? { byWords: (messageAuthor(m) as MessageAuthor).words } : {}),
       ...(m.meta?.source === "broadcast"
-        ? { via: m.meta.playbook_name
-            ? { kind: "playbook" as const, name: String(m.meta.playbook_name) }
-            : { kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") } }
+        ? {
+            via: m.meta.playbook_name
+              ? { kind: "playbook" as const, name: String(m.meta.playbook_name) }
+              : { kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") },
+          }
         : {}),
       ...(m.sender !== "customer" && m.status
         ? {
@@ -787,7 +838,9 @@ export function toInboxThreadVM(
   const ask: InboxThreadVM["ask"] = !escalation
     ? null
     : escalation.reason === "callback"
-      ? (escalation.details?.trim() ? { kind: "call" as const, label: "From the call", text: escalation.details.trim(), quoted: false } : null)
+      ? escalation.details?.trim()
+        ? { kind: "call" as const, label: "From the call", text: escalation.details.trim(), quoted: false }
+        : null
       : lastInbound
         ? lastInbound.type === "text"
           ? { kind: "wrote" as const, label: "They wrote", text: messageWords(lastInbound), quoted: true }
@@ -849,14 +902,16 @@ export function toInboxThreadVM(
     summary: claimedByOther
       ? "A teammate is answering this. The receptionist stays quiet until they hand it back."
       : escalation
-      // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
-      // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
-      ? (escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`)
-      : takenOver
-        ? "You're answering this one. The receptionist stays quiet until you hand it back."
-        : lastWord
-          ? lastWord.text
-          : "The receptionist answered this on its own. Nothing is owed.",
+        ? // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
+          // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
+          escalation.reason === "callback" && escalation.details?.trim()
+          ? escalation.details.trim()
+          : (ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`)
+        : takenOver
+          ? "You're answering this one. The receptionist stays quiet until you hand it back."
+          : lastWord
+            ? lastWord.text
+            : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
@@ -892,7 +947,10 @@ export function messageAuthor(m: MessageDto): MessageAuthor | null {
   if (m.meta?.source === "broadcast") {
     return m.meta.playbook_name
       ? { kind: "playbook", words: `the ${String(m.meta.playbook_name)} playbook` }
-      : { kind: "broadcast", words: m.meta.broadcast_name ? `a broadcast (${String(m.meta.broadcast_name)})` : "a broadcast" };
+      : {
+          kind: "broadcast",
+          words: m.meta.broadcast_name ? `a broadcast (${String(m.meta.broadcast_name)})` : "a broadcast",
+        };
   }
   return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
 }
@@ -927,14 +985,23 @@ function lastWordOf(dto: ConversationDto): NonNullable<InboxThreadVM["lastWord"]
   const last = at >= 0 ? chat[at] : null;
   const failedBy = failed ? (messageAuthor(failed)?.words ?? "us") : null;
   if (!last) {
-    if (failedBy) return { text: `Nothing has reached them — the message from ${failedBy} didn't send.`, tone: "danger", short: "Didn't send" };
+    if (failedBy)
+      return {
+        text: `Nothing has reached them — the message from ${failedBy} didn't send.`,
+        tone: "danger",
+        short: "Didn't send",
+      };
     return dto.messages.some((m) => m.type === "call_summary")
       ? { text: "The phone receptionist handled their call — no one asked for you.", tone: "ok", short: null }
       : { text: "No messages yet.", tone: "plain", short: null };
   }
   if (last.direction === "inbound") {
     return failedBy
-      ? { text: `They wrote last, and the reply from ${failedBy} didn't send — as far as they know, nobody answered.`, tone: "danger", short: "Didn't send" }
+      ? {
+          text: `They wrote last, and the reply from ${failedBy} didn't send — as far as they know, nobody answered.`,
+          tone: "danger",
+          short: "Didn't send",
+        }
       : { text: "They wrote last — no reply yet.", tone: "plain", short: null };
   }
   const said = lastWordLine(false, last, messageAuthor(last));
@@ -1043,7 +1110,6 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
   };
 }
 
-
 /* ---- Calls (Slice 3): a call row answers "is my AI saying the right things
    on the phone", while the thread answers "am I on the hook to reply". A call
    row therefore carries NO decision affordance — only a link back to the
@@ -1077,7 +1143,13 @@ export interface CallDto {
   caller_name?: string | null;
   /** Turns. `start`/`end` (seconds) are the turn's first and last word; `words` is
    *  the raw provider shape and is stripped by the list route (F15). */
-  transcript_object: Array<{ role?: string; content?: string; start?: number; end?: number; words?: Array<{ start?: number; end?: number }> }> | null;
+  transcript_object: Array<{
+    role?: string;
+    content?: string;
+    start?: number;
+    end?: number;
+    words?: Array<{ start?: number; end?: number }>;
+  }> | null;
   /** storage_path and provider_url are stripped server-side — audio is only
    *  reachable through the signed-URL route. */
   recording: { fetch_state?: string; mime?: string | null; bytes?: number } | null;
@@ -1169,7 +1241,13 @@ export interface CallVM {
   summary: { headline: string; bullets: string[] };
   /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
    *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
-  transcript: Array<{ t: string; speaker: "agent" | "client" | "whisper"; text: string; start: number | null; end: number | null }>;
+  transcript: Array<{
+    t: string;
+    speaker: "agent" | "client" | "whisper";
+    text: string;
+    start: number | null;
+    end: number | null;
+  }>;
   /** The call's length in seconds: the player's track before the audio says its own. */
   durationSec: number | null;
   recordingState: "ready" | "pending" | "failed" | "purged" | "none";
@@ -1235,7 +1313,9 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const bullets: string[] = [
     `${dto.direction === "inbound" ? "Inbound" : "Outbound"} · ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`,
   ];
-  const ending = dto.disconnection_reason ? (DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ")) : null;
+  const ending = dto.disconnection_reason
+    ? (DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " "))
+    : null;
   if (ending) bullets.push(`Ended: ${ending}`);
   if (dto.sentiment) {
     bullets.push(`Caller sentiment: ${dto.sentiment} — the voice provider's own read`);
@@ -1248,17 +1328,26 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   // (retention.ts); the row keeps the transcript. Said so, rather than left to
   // read as "still processing" for ever.
   const recState: CallVM["recordingState"] =
-    dto.recording?.fetch_state === "stored" ? "ready" :
-    dto.recording?.fetch_state === "failed" ? "failed" :
-    dto.recording?.fetch_state === "purged" ? "purged" :
-    dto.recording ? "pending" : "none";
+    dto.recording?.fetch_state === "stored"
+      ? "ready"
+      : dto.recording?.fetch_state === "failed"
+        ? "failed"
+        : dto.recording?.fetch_state === "purged"
+          ? "purged"
+          : dto.recording
+            ? "pending"
+            : "none";
   if (!missed) {
     bullets.push(
-      recState === "ready" ? "Recording saved" :
-      recState === "pending" ? "Recording still processing" :
-      recState === "failed" ? "Recording couldn't be saved from the voice provider" :
-      recState === "purged" ? RECORDING_PURGED_WORDS :
-      "No recording for this call",
+      recState === "ready"
+        ? "Recording saved"
+        : recState === "pending"
+          ? "Recording still processing"
+          : recState === "failed"
+            ? "Recording couldn't be saved from the voice provider"
+            : recState === "purged"
+              ? RECORDING_PURGED_WORDS
+              : "No recording for this call",
     );
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
@@ -1268,12 +1357,16 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   // begins. A whisper -- an injected turn, the owner's own words to the receptionist -- is not a sound in the recording,
   // so it has no moment.
   const turns = dto.transcript_object ?? [];
-  const given = turns.map((turn) => (turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null));
+  const given = turns.map((turn) => (turn.role === "injected" ? null : (turn.start ?? turn.words?.[0]?.start ?? null)));
   const starts = given.map((s, i) => {
     if (s != null || turns[i].role === "injected") return s;
-    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
+    const before =
+      given
+        .slice(0, i)
+        .reverse()
+        .find((x) => x != null) ?? null;
     const after = given.slice(i + 1).find((x) => x != null) ?? null;
-    return before != null && after != null ? (before + after) / 2 : before ?? after;
+    return before != null && after != null ? (before + after) / 2 : (before ?? after);
   });
   const transcript = turns.map((turn, i) => {
     // An injected turn is a whisper: the owner's own words, shown as theirs.
@@ -1282,8 +1375,8 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     }
     const own = given[i];
     const start = starts[i];
-    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
-    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
+    const next = start == null ? null : (starts.slice(i + 1).find((x) => x != null && x > start) ?? null);
+    const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
     return {
       t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "—",
       speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
@@ -1309,7 +1402,15 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     at: shortTime(dto.started_at, tz, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...(dur ? { duration: dur } : {}),
-    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
+    outcome: live
+      ? "live"
+      : missed
+        ? "missed"
+        : abandonedCall(dto)
+          ? "abandoned"
+          : callOutcomeOf(dto.outcome) === "callback_needed"
+            ? "callback"
+            : "handled",
     ...(live ? { live: true } : {}),
     snippet: withheld
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`
@@ -1326,6 +1427,8 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     missed,
     // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
     about: missed ? null : wanted || firstSentence || null,
-    facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? undefined : RECORDING_NOTE[recState]].filter((f): f is string => !!f),
+    facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? undefined : RECORDING_NOTE[recState]].filter(
+      (f): f is string => !!f,
+    ),
   };
 }

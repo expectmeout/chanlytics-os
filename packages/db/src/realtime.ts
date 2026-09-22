@@ -23,17 +23,17 @@ export interface SubscribeOptions {
 /** Tables whose changes must repaint the live surfaces (Blueprint §5). */
 const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   { table: "messages", event: "INSERT" },
-  { table: "conversations", event: "*" },   // the pause and snooze clocks, other tabs
-  { table: "escalations", event: "*" },     // opened by the edge, resolved elsewhere
-  { table: "calls", event: "*" },           // a call starting, each live turn, its end, its analysis
+  { table: "conversations", event: "*" }, // the pause and snooze clocks, other tabs
+  { table: "escalations", event: "*" }, // opened by the edge, resolved elsewhere
+  { table: "calls", event: "*" }, // a call starting, each live turn, its end, its analysis
   { table: "notifications", event: "INSERT" }, // an alert the edge kept: the bell repaints
-  { table: "lines", event: "*" },           // a line's saga step, its failure, its answer: Setup repaints
+  { table: "lines", event: "*" }, // a line's saga step, its failure, its answer: Setup repaints
   { table: "google_listings", event: "*" }, // the listing linked, read, or removed: Setup and Reports repaint
   { table: "google_reviews", event: "INSERT" }, // a review seen for the first time
   { table: "billing_accounts", event: "*" }, // Stripe's answer, applied by the webhook: Billing and Setup repaint
-  { table: "tenant_channels", event: "*" },  // a channel connected, switched off, or written by a line's saga: Setup and Connections repaint (00117)
+  { table: "tenant_channels", event: "*" }, // a channel connected, switched off, or written by a line's saga: Setup and Connections repaint (00117)
   { table: "capability_activations", event: "*" }, // the owner's act, in another tab: Setup repaints (00108)
-  { table: "business_records", event: "*" },  // the record the carriers read, saved on Connections: Setup repaints (00075)
+  { table: "business_records", event: "*" }, // the record the carriers read, saved on Connections: Setup repaints (00075)
   { table: "google_connections", event: "*" }, // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
   { table: "leads", event: "*" },
@@ -72,14 +72,18 @@ export function subscribeMessagesInserts(
         },
         // The event too: a surface may want a call STARTING and ENDING and
         // not the transcript turn every few seconds in between.
-        (payload) => onInsert((payload.new ?? payload.old ?? {}) as { conversation_id: string; tenant_id: string }, w.table, payload.eventType),
+        (payload) =>
+          onInsert(
+            (payload.new ?? payload.old ?? {}) as { conversation_id: string; tenant_id: string },
+            w.table,
+            payload.eventType,
+          ),
       );
     }
-    channel = channel
-      .subscribe((status) => {
-        if (opts.onStatus) opts.onStatus(status);
-        else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
-      });
+    channel = channel.subscribe((status) => {
+      if (opts.onStatus) opts.onStatus(status);
+      else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
+    });
   })();
 
   return () => {

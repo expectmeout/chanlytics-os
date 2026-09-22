@@ -72,17 +72,28 @@ export async function POST(request: Request): Promise<Response> {
   // wires the real provider in.
   let result;
   try {
-    result = await sweepStuckLines(db, {
-      // The saga runs on the ledger (00109); this sweep only detects and takes.
-      resume: async (tenant, row) => {
-        await scheduleJob(db, { tenantId: tenant.id, kind: "line_provision", dueAt: new Date(), payload: { line_id: row.id, by: "sweep" } });
-        return { ok: true };
+    result = await sweepStuckLines(
+      db,
+      {
+        // The saga runs on the ledger (00109); this sweep only detects and takes.
+        resume: async (tenant, row) => {
+          await scheduleJob(db, {
+            tenantId: tenant.id,
+            kind: "line_provision",
+            dueAt: new Date(),
+            payload: { line_id: row.id, by: "sweep" },
+          });
+          return { ok: true };
+        },
+        alert: (subject, body) =>
+          notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
+        reportFailed: (tenant, row, error) =>
+          reportLineFailed(db, choice.name, tenant, row, row.step ?? "setting up", error, "sweep"),
+        now: () => Date.now(),
+        log: L,
       },
-      alert: (subject, body) => notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
-      reportFailed: (tenant, row, error) => reportLineFailed(db, choice.name, tenant, row, row.step ?? "setting up", error, "sweep"),
-      now: () => Date.now(),
-      log: L,
-    }, MAX_PER_TICK);
+      MAX_PER_TICK,
+    );
   } catch (e) {
     return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) });
   }

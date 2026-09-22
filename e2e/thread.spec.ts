@@ -36,7 +36,13 @@ const ONLY_HERE =
   `conversation with ${ROBIN.name}; tooling/scripts/e2e-workspace.mjs --apply makes both`;
 
 interface ThreadRead {
-  conversation: { id: string; state: string; paused_until: string | null; assignee_user_id: string | null; assignee_is_me?: boolean };
+  conversation: {
+    id: string;
+    state: string;
+    paused_until: string | null;
+    assignee_user_id: string | null;
+    assignee_is_me?: boolean;
+  };
   messages: Array<{ id: string; sender: string; status: string | null }>;
 }
 interface EscalationRead {
@@ -98,7 +104,6 @@ async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"
   return pane;
 }
 
-
 /**
  * The thread as the seed left it, whatever a run did: a reply still inside its
  * grace window called back, one the job already holds allowed to land, every
@@ -107,10 +112,14 @@ async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"
 async function putItBack(page: Page, ws: string, id: string): Promise<void> {
   for (const m of (await readThread(page, id)).messages) {
     // A 409 means the job has it already; the wait below lets it land.
-    if (m.sender === "human" && m.status === "queued") await page.request.post(scoped(`/api/v1/messages/${m.id}/cancel-send`, ws), fromTheApp);
+    if (m.sender === "human" && m.status === "queued")
+      await page.request.post(scoped(`/api/v1/messages/${m.id}/cancel-send`, ws), fromTheApp);
   }
   await expect
-    .poll(async () => (await readThread(page, id)).messages.filter((m) => m.status === "queued").length, { timeout: 60_000, intervals: [2_000] })
+    .poll(async () => (await readThread(page, id)).messages.filter((m) => m.status === "queued").length, {
+      timeout: 60_000,
+      intervals: [2_000],
+    })
     .toBe(0);
   for (const e of await openEscalations(page)) {
     const res = await page.request.post(scoped(`/api/v1/escalations/${e.id}/resolve`, ws), fromTheApp);
@@ -144,7 +153,9 @@ test.describe("The thread, in the nightly's own workspace", () => {
     }
   });
 
-  test("a reply the number cannot carry fails in the page's words, its escalation is resolved, and the thread is taken over and handed back", async ({ page }) => {
+  test("a reply the number cannot carry fails in the page's words, its escalation is resolved, and the thread is taken over and handed back", async ({
+    page,
+  }) => {
     test.setTimeout(240_000);
     const seeded = await theSeededThread(page);
     expect(seeded, ONLY_HERE).not.toBeNull();
@@ -183,13 +194,21 @@ test.describe("The thread, in the nightly's own workspace", () => {
 
     await test.step("the number has no credentials: the send fails, and the thread says so in its own words", async () => {
       await expect
-        .poll(async () => (await readThread(page, id)).messages.find((m) => m.id === messageId)?.status, { timeout: 90_000, intervals: [3_000] })
+        .poll(async () => (await readThread(page, id)).messages.find((m) => m.id === messageId)?.status, {
+          timeout: 90_000,
+          intervals: [3_000],
+        })
         .toBe("failed");
       await expect
-        .poll(async () => (await openEscalations(page)).filter((e) => e.conversation_id === id).map((e) => e.reason), { timeout: 30_000, intervals: [2_000] })
+        .poll(async () => (await openEscalations(page)).filter((e) => e.conversation_id === id).map((e) => e.reason), {
+          timeout: 30_000,
+          intervals: [2_000],
+        })
         .toEqual(["send_failed"]);
       const [opened] = (await openEscalations(page)).filter((e) => e.conversation_id === id);
-      expect(opened.details, "the cause in words, not an HTTP status").toContain("the WhatsApp number is not connected");
+      expect(opened.details, "the cause in words, not an HTTP status").toContain(
+        "the WhatsApp number is not connected",
+      );
       escalationId = opened.id;
 
       await freshLoad(page, "#/inbox");
@@ -202,7 +221,12 @@ test.describe("The thread, in the nightly's own workspace", () => {
     });
 
     await test.step("the decision fits the screen: the banner's words keep their width, every control stays on the pane, the Inbox ends where the screen does, and the thread opens at its newest entry, at 1280, on a short window, at 1024 and on a phone", async () => {
-      for (const size of [{ width: 1280, height: 800 }, { width: 1280, height: 480 }, { width: 1024, height: 768 }, { width: 375, height: 812 }]) {
+      for (const size of [
+        { width: 1280, height: 800 },
+        { width: 1280, height: 480 },
+        { width: 1024, height: 768 },
+        { width: 375, height: 812 },
+      ]) {
         await page.setViewportSize(size);
         await freshLoad(page, `#/inbox/th-${id}`);
         const pane = page.locator(".ix-thread-pane");
@@ -213,7 +237,9 @@ test.describe("The thread, in the nightly's own workspace", () => {
         const fit = await pane.evaluate((el) => {
           const edge = el.getBoundingClientRect();
           const words = el.querySelector(".ix-take-body")?.getBoundingClientRect();
-          const inside = [...el.querySelectorAll(".ix-take .btn, .ix-owned .cl-bucket-link, .ix-th-actions .btn")].every((b) => {
+          const inside = [
+            ...el.querySelectorAll(".ix-take .btn, .ix-owned .cl-bucket-link, .ix-th-actions .btn"),
+          ].every((b) => {
             const r = b.getBoundingClientRect();
             return r.width === 0 || (r.left >= edge.left - 1 && r.right <= edge.right + 1);
           });
@@ -233,12 +259,18 @@ test.describe("The thread, in the nightly's own workspace", () => {
         expect(fit, `at ${size.width}x${size.height}`).toEqual({ words: true, inside: true, name: true, height: true });
         // The thread opens at its newest entry: it opened at the oldest, and on a phone the words to answer were two
         // scrolls down.
-        await expect.poll(() => pane.evaluate((el) => {
-          const scroller = el.querySelector(".ix-th-scroll")?.getBoundingClientRect();
-          const all = el.querySelectorAll(".ix-timeline > *");
-          const last = all.length ? all[all.length - 1].getBoundingClientRect() : null;
-          return !scroller || !last || (last.bottom <= scroller.bottom + 1 && last.bottom > scroller.top);
-        }), { message: `the newest entry on screen at ${size.width}x${size.height}` }).toBe(true);
+        await expect
+          .poll(
+            () =>
+              pane.evaluate((el) => {
+                const scroller = el.querySelector(".ix-th-scroll")?.getBoundingClientRect();
+                const all = el.querySelectorAll(".ix-timeline > *");
+                const last = all.length ? all[all.length - 1].getBoundingClientRect() : null;
+                return !scroller || !last || (last.bottom <= scroller.bottom + 1 && last.bottom > scroller.top);
+              }),
+            { message: `the newest entry on screen at ${size.width}x${size.height}` },
+          )
+          .toBe(true);
       }
       await page.setViewportSize({ width: 1280, height: 720 });
     });
@@ -251,7 +283,10 @@ test.describe("The thread, in the nightly's own workspace", () => {
       // Inbox lists it under Needs you as an escalated thread, Today's queue does not repeat it. What Today
       // must never be quiet about is the failure itself: the recap's warning line, with the door to the thread.
       await expect(queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name })).toHaveCount(0);
-      const failed = page.getByTestId("today-recap").locator(".brief-beat").filter({ hasText: /failed to deliver/ });
+      const failed = page
+        .getByTestId("today-recap")
+        .locator(".brief-beat")
+        .filter({ hasText: /failed to deliver/ });
       await expect(failed).toHaveCount(1);
       await expect(failed).toContainText("the customer got no answer");
       await expect(failed.getByRole("button", { name: /See the thread/ })).toBeVisible();

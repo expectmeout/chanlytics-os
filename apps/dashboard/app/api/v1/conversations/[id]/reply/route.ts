@@ -57,5 +57,10 @@ export const POST = write({
   rate: "reply",
   input: ReplyBody,
   handle: ({ ctx, req, row: conv, input }) =>
-    replyToConversation(replyPorts(ctx), { conv, userId: ctx.userId, body: input, idempotencyKey: req.headers.get("idempotency-key") }),
+    replyToConversation(replyPorts(ctx), {
+      conv,
+      userId: ctx.userId,
+      body: input,
+      idempotencyKey: req.headers.get("idempotency-key"),
+    }),
 });

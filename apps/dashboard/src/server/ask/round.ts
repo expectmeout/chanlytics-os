@@ -27,7 +27,11 @@ export interface RoundResult {
 }
 
 /** `stream` is the gateway unless a test hands in its own events, so the gathering runs without a model. */
-export async function runRound(call: GatewayCall, onAnswer: (delta: string) => void, stream: typeof streamModel = streamModel): Promise<RoundResult> {
+export async function runRound(
+  call: GatewayCall,
+  onAnswer: (delta: string) => void,
+  stream: typeof streamModel = streamModel,
+): Promise<RoundResult> {
   const blocks = new Map<number, RoundBlock>();
   let stopReason: string | null = null;
   let streamError: string | null = null;
@@ -36,7 +40,13 @@ export async function runRound(call: GatewayCall, onAnswer: (delta: string) => v
   for await (const ev of stream(call)) {
     switch (ev.type) {
       case "block_start":
-        blocks.set(ev.index, { type: ev.block.type, id: ev.block.type === "tool_use" ? ev.block.id : "", name: ev.block.type === "tool_use" ? ev.block.name : "", text: "", json: "" });
+        blocks.set(ev.index, {
+          type: ev.block.type,
+          id: ev.block.type === "tool_use" ? ev.block.id : "",
+          name: ev.block.type === "tool_use" ? ev.block.name : "",
+          text: "",
+          json: "",
+        });
         if (ev.block.type === "tool_use" && ev.block.name === "finish") finishIndex = ev.index;
         break;
       case "text": {
@@ -57,14 +67,23 @@ export async function runRound(call: GatewayCall, onAnswer: (delta: string) => v
         }
         break;
       }
-      case "stop": stopReason = ev.stopReason; break;
-      case "error": streamError = ev.message; break;
-      default: break;
+      case "stop":
+        stopReason = ev.stopReason;
+        break;
+      case "error":
+        streamError = ev.message;
+        break;
+      default:
+        break;
     }
   }
   return { blocks: [...blocks.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b), stopReason, streamError };
 }
 
 export function parseInput(json: string): Record<string, unknown> {
-  try { return json ? (JSON.parse(json) as Record<string, unknown>) : {}; } catch { return {}; }
+  try {
+    return json ? (JSON.parse(json) as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
 }

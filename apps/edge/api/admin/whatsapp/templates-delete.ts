@@ -64,10 +64,16 @@ export async function POST(request: Request): Promise<Response> {
   const gone = row.meta_id
     ? await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id)
     : ({ ok: false, status: 404, error: "not synced: no template id on file, so Meta was not asked" } as const);
-  if (!row.meta_id) L.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
+  if (!row.meta_id)
+    L.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
   // Not found at Meta is a delete that already happened.
   if (!gone.ok && gone.status !== 404 && !/does not exist|not found|Unsupported get request/i.test(gone.error)) {
-    L.error("wa_template_delete_failed", { tenant_id: tenantId, name: row.name, status: gone.status, error: gone.error.slice(0, 300) });
+    L.error("wa_template_delete_failed", {
+      tenant_id: tenantId,
+      name: row.name,
+      status: gone.status,
+      error: gone.error.slice(0, 300),
+    });
     return json(502, { ok: false, error: "meta_refused", detail: gone.error });
   }
   const { error } = await db.from("templates").delete().eq("id", row.id);

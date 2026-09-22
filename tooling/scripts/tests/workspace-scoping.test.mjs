@@ -67,7 +67,10 @@ test("every list endpoint filters by tenant, not by RLS alone", () => {
   const unscoped = [];
   for (const f of ["conversations/route.ts", "calls/route.ts", "escalations/route.ts"]) {
     const src = fs.readFileSync(path.join(API, f), "utf8");
-    if (!(src.includes("memberContext") || src.includes("scope: workspace")) || !/\.eq\("tenant_id", tenantId\)/.test(src)) {
+    if (
+      !(src.includes("memberContext") || src.includes("scope: workspace")) ||
+      !/\.eq\("tenant_id", tenantId\)/.test(src)
+    ) {
       unscoped.push(f);
     }
   }
@@ -82,8 +85,15 @@ test("a request refuses to act on a workspace nobody named, read or write", () =
   // surface answered. Since plan 3.4 the resolver refuses before it picks:
   // one rule, in memberContext, for every route, read or write.
   const fn = withRoute.slice(withRoute.indexOf("export async function memberContext"));
-  assert.match(fn, /if \(!wanted && rows\.length > 1 && !opts\.defaultAllowed\) throw new AppError\("choose_workspace", AMBIGUOUS\);/, "the resolver must refuse an unnamed workspace");
-  assert.ok(fn.indexOf("!opts.defaultAllowed") < fn.indexOf("const m = wanted"), "the refusal must come BEFORE the pick, or the default leaks");
+  assert.match(
+    fn,
+    /if \(!wanted && rows\.length > 1 && !opts\.defaultAllowed\) throw new AppError\("choose_workspace", AMBIGUOUS\);/,
+    "the resolver must refuse an unnamed workspace",
+  );
+  assert.ok(
+    fn.indexOf("!opts.defaultAllowed") < fn.indexOf("const m = wanted"),
+    "the refusal must come BEFORE the pick, or the default leaks",
+  );
 });
 
 test("only /workspaces may take the default: answering where am I is its job", () => {
@@ -97,7 +107,10 @@ test("only /workspaces may take the default: answering where am I is its job", (
 test("the workspace is appended at the fetch chokepoint", () => {
   // Not at the call sites. Three overrides fetch five endpoints between them,
   // and a sixth added later must not have to remember this.
-  assert.ok(!surfaceData.includes("fetch("), "the seam owns no fetch: the client appends the workspace at its one chokepoint (typed-client.test.mjs)");
+  assert.ok(
+    !surfaceData.includes("fetch("),
+    "the seam owns no fetch: the client appends the workspace at its one chokepoint (typed-client.test.mjs)",
+  );
   assert.ok(surfaceData.includes('read("GET '), "every read goes through the typed client");
 });
 
@@ -107,7 +120,10 @@ test("a caller that names its own workspace is not overridden", async () => {
   const { createApi } = await importSrc("apps/dashboard/src/client/api.ts");
   const sent = [];
   const api = createApi({
-    fetch: async (url) => { sent.push(url); return new Response(JSON.stringify({ ok: true, data: {} }), { status: 200 }); },
+    fetch: async (url) => {
+      sent.push(url);
+      return new Response(JSON.stringify({ ok: true, data: {} }), { status: 200 });
+    },
     workspace: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     onSignedOut: () => {},
     refresh: async () => {},
@@ -122,7 +138,11 @@ test("the server has the last word on which workspace is active", () => {
   // or the page renders one workspace's data under another's name.
   assert.match(surfaceData, /data\.activeWorkspaceId/);
   assert.match(surfaceData, /rememberWorkspace\(slug\)/, "the server's word is what the home returns to");
-  assert.match(surfaceData, /window\.location\.replace\(workspaceHref\(slug, window\.location\.hash\)\)/, "and what the address says");
+  assert.match(
+    surfaceData,
+    /window\.location\.replace\(workspaceHref\(slug, window\.location\.hash\)\)/,
+    "and what the address says",
+  );
 });
 
 test("switching workspace clears the cache before it reloads", () => {
@@ -144,25 +164,47 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
   const store = () => {
     const m = new Map();
     return {
-      getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k),
-      key: (i) => [...m.keys()][i] ?? null, get length() { return m.size; },
+      getItem: (k) => (m.has(k) ? m.get(k) : null),
+      setItem: (k, v) => m.set(k, String(v)),
+      removeItem: (k) => m.delete(k),
+      key: (i) => [...m.keys()][i] ?? null,
+      get length() {
+        return m.size;
+      },
     };
   };
-  const saved = { window: globalThis.window, localStorage: globalThis.localStorage, sessionStorage: globalThis.sessionStorage };
+  const saved = {
+    window: globalThis.window,
+    localStorage: globalThis.localStorage,
+    sessionStorage: globalThis.sessionStorage,
+  };
   const assigned = [];
   globalThis.localStorage = store();
   globalThis.sessionStorage = store();
   globalThis.window = {
     location: { pathname: "/w/harbor-moving", hash: "#/today", assign: (u) => assigned.push(u) },
-    localStorage: globalThis.localStorage, sessionStorage: globalThis.sessionStorage,
+    localStorage: globalThis.localStorage,
+    sessionStorage: globalThis.sessionStorage,
     __WORKSPACES: [{ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", slug: "harbor-moving" }],
-    addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() {
+      return true;
+    },
   };
   try {
     const { switchWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
     switchWorkspace("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "glow-studio");
-    assert.deepEqual(assigned, ["/w/glow-studio"], "one navigation, to the address the workspaces read would otherwise have corrected it to");
-    assert.equal(globalThis.localStorage.getItem("chanlytics.workspace"), "glow-studio", "and the home returns to the slug, not the id");
+    assert.deepEqual(
+      assigned,
+      ["/w/glow-studio"],
+      "one navigation, to the address the workspaces read would otherwise have corrected it to",
+    );
+    assert.equal(
+      globalThis.localStorage.getItem("chanlytics.workspace"),
+      "glow-studio",
+      "and the home returns to the slug, not the id",
+    );
   } finally {
     Object.assign(globalThis, saved);
   }
@@ -207,7 +249,11 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     // "Something went wrong" — a typo in a URL reading as a server fault.
     assert.match(guards, /export function requireUuid/);
     assert.match(guards, /"not_found"/);
-    for (const what of ["conversation", "contact", "message", "call", "list", "broadcast", "template", "playbook"]) assert.ok(verbsSrc.includes('requireUuid(id, "' + what + '")'), what + ": checked once at the chokepoint, its loader");
+    for (const what of ["conversation", "contact", "message", "call", "list", "broadcast", "template", "playbook"])
+      assert.ok(
+        verbsSrc.includes('requireUuid(id, "' + what + '")'),
+        what + ": checked once at the chokepoint, its loader",
+      );
   });
 
   test("the reply body is validated at the door", () => {
@@ -228,6 +274,9 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     // a workspace with no facts, so an operator session could still choose the
     // link that lands on the customer's phone. The verb reads the facts alone.
     assert.ok(replySrc.includes("await ports.templateFacts(conv.tenant_id)"));
-    assert.ok(!replySrc.includes("body.template.params"), "the browser's params are never read (core-reply.test.mjs runs it)");
+    assert.ok(
+      !replySrc.includes("body.template.params"),
+      "the browser's params are never read (core-reply.test.mjs runs it)",
+    );
   });
 }

@@ -14,7 +14,13 @@
  * file is the order they happen in.
  */
 import { isThreadUnknown, type ThreadState } from "../thread.js";
-import { normalizeInbound, withCarrierConsent, type CarrierConsent, type WaChangeValue, type WaRawMessage } from "../packages/channels.js";
+import {
+  normalizeInbound,
+  withCarrierConsent,
+  type CarrierConsent,
+  type WaChangeValue,
+  type WaRawMessage,
+} from "../packages/channels.js";
 import { shortCode, optInConfirmation, phoneTail } from "../packages/contracts.js";
 import { describeLead, type IngestResult } from "../packages/db.js";
 import type { Json, RoutedChannel } from "../packages/db.js";
@@ -29,8 +35,17 @@ import type { NotifyTarget } from "../notify.js";
 import { IngestFailed } from "./persist.js";
 import { realPorts, type InboundPorts } from "./ports.js";
 import type { Wire } from "../packages/core.js";
-import { MAX_REPLIES_PER_DAY, PAUSE_MS, ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, noModelPlan, NO_MODEL_PAGE } from "./steps.js";
-
+import {
+  MAX_REPLIES_PER_DAY,
+  PAUSE_MS,
+  ageVerdict,
+  threadVerdict,
+  holdPlan,
+  layerTwo,
+  holdCopy,
+  noModelPlan,
+  NO_MODEL_PAGE,
+} from "./steps.js";
 
 /**
  * A channel other than WhatsApp riding the same road. It says how a reply
@@ -47,7 +62,6 @@ export interface InboundCarrier {
   /** What the carrier itself decided about the text: its STOP or START outranks our reading of the words. */
   consent?: CarrierConsent | null;
 }
-
 
 export async function handleInbound(
   m: WaRawMessage,
@@ -91,7 +105,7 @@ export async function handleInbound(
   const notifyTarget: NotifyTarget = { tenantId, notifications: notif, isEnvDefault };
   const replyLimits = rt?.policy["reply"]?.limits ?? {};
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
-  const pauseMs = (replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1000 : PAUSE_MS);
+  const pauseMs = replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1000 : PAUSE_MS;
   // The number the handoff email states. It reads the same limit the pause
   // does, so the email and Settings never disagree about it.
   const pauseHours = Math.round(pauseMs / 3600000);
@@ -107,7 +121,13 @@ export async function handleInbound(
       if (e instanceof IngestFailed) {
         // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
         try {
-          await ports.alertStaff(from, n.body ?? `[${m.type} message]`, "(NOT recorded: the database did not accept the message; the provider will retry)", "message not recorded", { target: notifyTarget, channel, who: n.profileName ?? null });
+          await ports.alertStaff(
+            from,
+            n.body ?? `[${m.type} message]`,
+            "(NOT recorded: the database did not accept the message; the provider will retry)",
+            "message not recorded",
+            { target: notifyTarget, channel, who: n.profileName ?? null },
+          );
         } catch (alertErr) {
           L.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
         }
@@ -193,7 +213,8 @@ export async function handleInbound(
   const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
   const firstReply = thread.replies.length === 0 && !repliedBefore;
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
-  const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: "system") => sink.deliver(from, wire(text), meta, purpose, kind);
+  const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: "system") =>
+    sink.deliver(from, wire(text), meta, purpose, kind);
   /**
    * The owner's handoff email. Every fact about the conversation other than
    * the words is fixed for this whole invocation, and it was retyped at each
@@ -257,7 +278,11 @@ export async function handleInbound(
         "state_unavailable",
         "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
       ),
-      tell(n.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable"),
+      tell(
+        n.body ?? `[${m.type}]`,
+        "(no reply sent — the receptionist could not read the thread state)",
+        "state unavailable",
+      ),
       sink.processed(),
     ]);
     return;
@@ -296,7 +321,10 @@ export async function handleInbound(
       // piles up — but a customer leaving is a business event the owner should
       // see once, not a log line.
       post.push(
-        sink.escalate("opt_out", "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."),
+        sink.escalate(
+          "opt_out",
+          "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START.",
+        ),
         tell(n.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out"),
       );
     }
@@ -317,7 +345,11 @@ export async function handleInbound(
   if (carrier?.held) {
     await Promise.all([
       sink.escalate(carrier.held.reason, carrier.held.details),
-      tell(n.body ?? `[${m.type}]`, "(no reply sent — the carriers have not approved this line for texting yet)", "carriers"),
+      tell(
+        n.body ?? `[${m.type}]`,
+        "(no reply sent — the carriers have not approved this line for texting yet)",
+        "carriers",
+      ),
       sink.processed(),
     ]);
     L.info("sms_held_for_carriers");
@@ -365,8 +397,14 @@ export async function handleInbound(
   // with a 15s timeout, a storage upload and a base64 of the whole buffer,
   // paid in full and then thrown away by a workspace at its reply cap, over
   // its token budget, or paused for billing.
-  const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type)
-    && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
+  const maySee =
+    n.type === "media" &&
+    !!n.media &&
+    !!rt?.features?.vision &&
+    isVisionMime(n.media.mime_type) &&
+    !!brainCfg &&
+    (replyMode === "auto" || replyMode === "veto") &&
+    Date.now() > thread.pausedUntil;
 
   /**
    * Say the unreadable thing: a voice note, a sticker, a photo nobody may look
@@ -398,8 +436,8 @@ export async function handleInbound(
     // until tomorrow, and the one person who could fix it had been told the
     // opposite. Every other send in this file branches on this.
     const acked = mayAck
-      // A courtesy, not an answer: marked so it does not spend the daily cap.
-      ? (await send(fallbacks!.non_text, { ack: true })).outcome === "sent"
+      ? // A courtesy, not an answer: marked so it does not spend the daily cap.
+        (await send(fallbacks!.non_text, { ack: true })).outcome === "sent"
       : false;
     const pausedUntil = acked ? Date.now() + pauseMs : 0;
     const why = acked
@@ -442,7 +480,7 @@ export async function handleInbound(
   // For a photo the receptionist looks at, the words on record are the
   // caption, or the fact of the photo; what the MODEL is told is built beside
   // the image, in vision.ts, and never lands in an alert or the memory.
-  const bodyText: string = maySee ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");
+  const bodyText: string = maySee ? n.media?.caption?.trim() || "[photo]" : (n.body ?? "");
 
   // Late, but somebody is still waiting.
   //
@@ -461,7 +499,10 @@ export async function handleInbound(
   const { ageMs, verdict: age } = ageVerdict(m.timestamp);
   if (age === "stale") {
     await Promise.all([
-      sink.escalate("stale", `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`),
+      sink.escalate(
+        "stale",
+        `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`,
+      ),
       tell(n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message"),
       sink.processed(),
     ]);
@@ -506,12 +547,20 @@ export async function handleInbound(
       // told nothing, with a log line as the only trace.
       const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
       await Promise.all([
-        sink.escalate("send_failed", `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`),
+        sink.escalate(
+          "send_failed",
+          `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`,
+        ),
         tell(bodyText, `(the confirmation of their yes was not delivered — ${why})`, "opt-in not confirmed"),
       ]);
     }
     await sink.processed();
-    L.info("wa_opt_in_confirmed", { purpose, channel, sent: confirmed.outcome === "sent", why: confirmed.outcome === "sent" ? null : confirmed.reason });
+    L.info("wa_opt_in_confirmed", {
+      purpose,
+      channel,
+      sent: confirmed.outcome === "sent",
+      why: confirmed.outcome === "sent" ? null : confirmed.reason,
+    });
     return;
   }
 
@@ -529,7 +578,10 @@ export async function handleInbound(
     // emitter anywhere in the repo. At the shipped default of 20/day this
     // fires on a busy thread, not only when someone lowers the limit.
     await Promise.all([
-      sink.escalate("rate_cap", `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`),
+      sink.escalate(
+        "rate_cap",
+        `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`,
+      ),
       tell(bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap"),
       sink.processed(),
     ]);
@@ -547,7 +599,10 @@ export async function handleInbound(
     if (used >= tokenCap) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
       await Promise.all([
-        sink.escalate("budget", `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`),
+        sink.escalate(
+          "budget",
+          `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
+        ),
         tell(bodyText, "(no reply sent — the day's model budget is used up)", "budget"),
         sink.processed(),
       ]);
@@ -566,7 +621,10 @@ export async function handleInbound(
     // taking one conversation over from a workspace-wide billing stop.
     L.info("wa_skip_workspace_paused");
     await Promise.all([
-      sink.escalate("paused", "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself."),
+      sink.escalate(
+        "paused",
+        "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
+      ),
       tell(bodyText, "(no reply sent — the workspace is paused until billing resumes)", "paused"),
       sink.processed(),
     ]);
@@ -585,14 +643,25 @@ export async function handleInbound(
     // not "held by policy". It also alerts ONCE per open hold rather than
     // once per message — the owner asked to handle this person themselves,
     // and a thread already in their Inbox does not need a second email.
-    const hold = holdCopy({ brainCfg, personMode, replyMode, configBroken: !!rt?.configBroken, loadFailed: !!rt?.loadFailed });
+    const hold = holdCopy({
+      brainCfg,
+      personMode,
+      replyMode,
+      configBroken: !!rt?.configBroken,
+      loadFailed: !!rt?.loadFailed,
+    });
     const outcome = await sink.escalate(hold.reason, hold.details);
     const alertNeeded = !hold.personHold || outcome !== "refreshed";
-    await Promise.all([
-      ...(alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : []),
-      sink.processed(),
-    ]);
-    L.info("wa_held_by_policy", { mode: replyMode, person_mode: personMode, persona: !!brainCfg, config_broken: !!rt?.configBroken, load_failed: !!rt?.loadFailed, escalation: outcome ?? "n/a", alerted: alertNeeded });
+    await Promise.all([...(alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : []), sink.processed()]);
+    L.info("wa_held_by_policy", {
+      mode: replyMode,
+      person_mode: personMode,
+      persona: !!brainCfg,
+      config_broken: !!rt?.configBroken,
+      load_failed: !!rt?.loadFailed,
+      escalation: outcome ?? "n/a",
+      alerted: alertNeeded,
+    });
     return;
   }
 
@@ -674,16 +743,27 @@ export async function handleInbound(
         `${describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
         photo ?? undefined,
       );
-      replyText = r.text; escalate = r.escalate; usage = r.usage; brainMeta = r.meta;
+      replyText = r.text;
+      escalate = r.escalate;
+      usage = r.usage;
+      brainMeta = r.meta;
       brainMs = Date.now() - tBrain;
       if (r.reason) escalationReason = r.reason;
       // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
       // only defense (steps.ts/layerTwo). A price in the draft blocks the send
       // outright; under "ask", a booking or a service/pricing question is a
       // person's to answer whatever the model made of the prompt.
-      const two = layerTwo({ replyText, escalate, escalationReason, brainCfg, policy: rt?.policy, intent: brainMeta?.intent ?? null });
+      const two = layerTwo({
+        replyText,
+        escalate,
+        escalationReason,
+        brainCfg,
+        policy: rt?.policy,
+        intent: brainMeta?.intent ?? null,
+      });
       if (two.priceBlocked) L.warn("policy_block_price");
-      if (two.askClass) L.info("wa_policy_ask", { class: two.askClass, intent: brainMeta?.intent ?? null, complied: two.complied });
+      if (two.askClass)
+        L.info("wa_policy_ask", { class: two.askClass, intent: brainMeta?.intent ?? null, complied: two.complied });
       replyText = two.replyText;
       escalate = two.escalate;
       escalationReason = two.escalationReason;
@@ -745,10 +825,23 @@ export async function handleInbound(
   // (steps.ts/holdPlan; limits.min_confidence, 0 or absent is off).
   const plan = holdPlan(replyMode, replyLimits, brainMeta);
   const { delayMs, heldForConfidence } = plan;
-  if (heldForConfidence) L.info("wa_held_low_confidence", { confidence: brainMeta?.confidence, min: plan.minConfidence, delay_ms: delayMs });
-  const queued = delayMs > 0
-    ? await ports.persist.queueReply(db, tenantId, ing, from, wire(replyText), delayMs, L, plan.source, brainMeta, channel)
-    : false;
+  if (heldForConfidence)
+    L.info("wa_held_low_confidence", { confidence: brainMeta?.confidence, min: plan.minConfidence, delay_ms: delayMs });
+  const queued =
+    delayMs > 0
+      ? await ports.persist.queueReply(
+          db,
+          tenantId,
+          ing,
+          from,
+          wire(replyText),
+          delayMs,
+          L,
+          plan.source,
+          brainMeta,
+          channel,
+        )
+      : false;
   // The quality signal on this reply's usage event: how sure, how fast,
   // whether it waited, whether it handed off. The diagnostics read the day
   // back from these; a Reports tile can, later.
@@ -791,8 +884,20 @@ export async function handleInbound(
     const post: Promise<unknown>[] = [];
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality, escalate: true }));
     post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-    post.push(sink.escalate("policy_block", `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent — "${bodyText}"`));
-    post.push(tell(bodyText, replyText, "held for low confidence; the hold could not be scheduled, so nothing was sent", pauseHours));
+    post.push(
+      sink.escalate(
+        "policy_block",
+        `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent — "${bodyText}"`,
+      ),
+    );
+    post.push(
+      tell(
+        bodyText,
+        replyText,
+        "held for low confidence; the hold could not be scheduled, so nothing was sent",
+        pauseHours,
+      ),
+    );
     await Promise.all(post);
     await sink.processed();
     L.warn("wa_hold_unscheduled_kept", { confidence: brainMeta?.confidence, min: plan.minConfidence });
@@ -805,8 +910,19 @@ export async function handleInbound(
       // An escalating draft still pauses and alerts — a human should be looking
       // at this one before the timer runs out, not after. The pause withdraws
       // the thread's older drafts; this one, the holding message, is kept.
-      post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : undefined));
-      post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
+      post.push(
+        sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : undefined),
+      );
+      post.push(
+        sink.escalate(
+          escalationReason,
+          fallback
+            ? fallback.escalationDetails(bodyText)
+            : brainMeta?.reason
+              ? `${brainMeta.reason} — "${bodyText}"`
+              : bodyText,
+        ),
+      );
       post.push(tell(bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
     }
     await Promise.all(post);
@@ -815,7 +931,10 @@ export async function handleInbound(
     return;
   }
 
-  const sent = await send(replyText, fallback ? (fallback.meta as Record<string, Json>) : (brainMeta as unknown as Record<string, Json> | undefined));
+  const sent = await send(
+    replyText,
+    fallback ? (fallback.meta as Record<string, Json>) : (brainMeta as unknown as Record<string, Json> | undefined),
+  );
   const tSent = Date.now();
   if (sent.outcome === "sent") {
     // The door recorded the row; what is left is the usage and the handoff.
@@ -823,7 +942,16 @@ export async function handleInbound(
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
+      post.push(
+        sink.escalate(
+          escalationReason,
+          fallback
+            ? fallback.escalationDetails(bodyText)
+            : brainMeta?.reason
+              ? `${brainMeta.reason} — "${bodyText}"`
+              : bodyText,
+        ),
+      );
       post.push(tell(bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", pauseHours));
     }
     await Promise.all(post);
@@ -840,14 +968,18 @@ export async function handleInbound(
     // The door wrote the failed row and its event; the people are told here.
     await Promise.all([
       tell(bodyText, "(send failed — the customer received no reply)", "wa_send_failed"),
-      sink.escalate("send_failed", sent.reason === "wire_unreadable"
-        ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer."
-        : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
+      sink.escalate(
+        "send_failed",
+        sent.reason === "wire_unreadable"
+          ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer."
+          : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`,
+      ),
     ]);
   }
   L.info("wa_replied", {
-    escalate, sent: sent.outcome === "sent",
-    ingest_ms: ingestMs, post_ms: Date.now() - tSent,
+    escalate,
+    sent: sent.outcome === "sent",
+    ingest_ms: ingestMs,
+    post_ms: Date.now() - tSent,
   });
 }
-

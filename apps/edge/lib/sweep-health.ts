@@ -63,15 +63,18 @@ export function chooseSweepAlerts(
 
 /** What each sweep failing COSTS, in the terms the owner cares about. */
 const CONSEQUENCE: Record<string, string> = {
-  deadman: "a customer handed to a human is no longer flagged when nobody picks it up; a message the handler never finished with, and a queued reply with no job, are no longer found",
-  calls: "a call whose 'ended' webhook was lost stays 'ongoing' forever, and metrics count it; recordings still at the provider are not copied, a call with no analysis gets no line in its thread, and call audio is kept past the ninety days the privacy page states",
+  deadman:
+    "a customer handed to a human is no longer flagged when nobody picks it up; a message the handler never finished with, and a queued reply with no job, are no longer found",
+  calls:
+    "a call whose 'ended' webhook was lost stays 'ongoing' forever, and metrics count it; recordings still at the provider are not copied, a call with no analysis gets no line in its thread, and call audio is kept past the ninety days the privacy page states",
   health: "this check itself is not running, so nothing else on this list can be trusted",
   jobs: "no queued reply, broadcast batch or erasure runs; replies wait as 'Sending…' until it is back",
   lines: "a phone line whose set-up was cut off stays 'setting up' until somebody presses Retry",
   // The clocks 00107 registered: two row clocks and six SQL jobs that never leave the database.
   pauses: "a thread a person took stays paused past its window; the receptionist never gets it back",
   snoozes: "a snoozed thread never wakes",
-  partitions: "next month's events land in the catch-all partition, and that month's own partition can no longer be created until they are moved",
+  partitions:
+    "next month's events land in the catch-all partition, and that month's own partition can no longer be created until they are moved",
   purge_events: "the events stream grows without bound",
   purge_ask: "Ask transcripts are kept past their retention",
   purge_notifications: "notifications are kept past their retention",
@@ -87,8 +90,9 @@ const CONSEQUENCE: Record<string, string> = {
  */
 export function describeSweepTrouble(rows: SweepHealthRow[]): string {
   const lines = rows.map(
-    (r) => `  ${r.sweep} — ${r.detail ?? "failing, with no detail recorded"}\n` +
-           `      while this is broken: ${CONSEQUENCE[r.sweep] ?? "a scheduled sweep is not running"}`,
+    (r) =>
+      `  ${r.sweep} — ${r.detail ?? "failing, with no detail recorded"}\n` +
+      `      while this is broken: ${CONSEQUENCE[r.sweep] ?? "a scheduled sweep is not running"}`,
   );
   return (
     `These background clocks are not running as they should.\n\n` +

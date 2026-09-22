@@ -15,7 +15,16 @@
  */
 import { z } from "zod";
 
-export const BRAIN_INTENTS = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"] as const;
+export const BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other",
+] as const;
 export type BrainIntent = (typeof BRAIN_INTENTS)[number];
 
 export const INTENT_LABELS: Record<BrainIntent, string> = {
@@ -41,7 +50,8 @@ export const BRAIN_OUTPUT_JSON_SCHEMA = {
   properties: {
     reply: {
       type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here.",
+      description:
+        "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here.",
     },
     intent: {
       type: "string",
@@ -50,11 +60,13 @@ export const BRAIN_OUTPUT_JSON_SCHEMA = {
     },
     escalate: {
       type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so.",
+      description:
+        "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so.",
     },
     reason: {
       type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies.",
+      description:
+        "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies.",
     },
     confidence: {
       type: "number",
@@ -63,7 +75,8 @@ export const BRAIN_OUTPUT_JSON_SCHEMA = {
     facts_used: {
       type: "array",
       items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none.",
+      description:
+        "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none.",
     },
     language: {
       type: "string",
@@ -80,7 +93,10 @@ export const BrainOutputSchema = z.object({
   reply: z.string(),
   intent: z.enum(BRAIN_INTENTS).catch("other"),
   escalate: z.boolean().catch(false),
-  reason: z.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  reason: z
+    .string()
+    .catch("")
+    .transform((s) => s.trim().slice(0, 300)),
   confidence: z
     .number()
     .catch(0)
@@ -88,7 +104,13 @@ export const BrainOutputSchema = z.object({
   facts_used: z
     .array(z.string())
     .catch([])
-    .transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+    .transform((a) =>
+      a
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 5)
+        .map((s) => s.slice(0, 80)),
+    ),
   language: z.enum(BRAIN_LANGUAGES).catch("other"),
 });
 export type BrainOutput = z.infer<typeof BrainOutputSchema>;
@@ -107,7 +129,8 @@ export function parseBrainOutput(raw: string): { ok: true; value: BrainOutput } 
     return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
   }
   const r = BrainOutputSchema.safeParse(json);
-  if (!r.success) return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
+  if (!r.success)
+    return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
   if (!r.data.reply.trim()) return { ok: false, error: "empty reply" };
   return { ok: true, value: r.data };
 }
@@ -154,10 +177,17 @@ export interface ReplyWhyVM {
 /** From a message row's meta; null when the row carries no reasoning. */
 export function replyWhy(meta: Record<string, unknown> | null | undefined): ReplyWhyVM | null {
   if (!meta || typeof meta !== "object") return null;
-  const intent = (BRAIN_INTENTS as readonly string[]).includes(String(meta.intent)) ? (meta.intent as BrainIntent) : null;
-  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
+  const intent = (BRAIN_INTENTS as readonly string[]).includes(String(meta.intent))
+    ? (meta.intent as BrainIntent)
+    : null;
+  const conf =
+    typeof meta.confidence === "number" && Number.isFinite(meta.confidence)
+      ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100)
+      : null;
   if (intent === null && conf === null) return null;
-  const facts = Array.isArray(meta.facts_used) ? (meta.facts_used as unknown[]).filter((f): f is string => typeof f === "string" && !!f.trim()) : [];
+  const facts = Array.isArray(meta.facts_used)
+    ? (meta.facts_used as unknown[]).filter((f): f is string => typeof f === "string" && !!f.trim())
+    : [];
   const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
   const source = typeof meta.source === "string" ? meta.source : null;
   const heldFor = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;

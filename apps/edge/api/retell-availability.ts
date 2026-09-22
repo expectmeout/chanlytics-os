@@ -16,7 +16,16 @@ import { pg } from "../lib/pg.js";
 import { resolveChannel } from "../lib/packages/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsData } from "../lib/availability.js";
-import { describeOpenings, filterOpenings, offerFor, offerLead, policyAskClass, type ConsultRules, type ServiceLike, type ServiceOffer } from "../lib/packages/contracts.js";
+import {
+  describeOpenings,
+  filterOpenings,
+  offerFor,
+  offerLead,
+  policyAskClass,
+  type ConsultRules,
+  type ServiceLike,
+  type ServiceOffer,
+} from "../lib/packages/contracts.js";
 import { env } from "../lib/env.js";
 import { logger } from "../lib/log.js";
 
@@ -70,7 +79,11 @@ export async function POST(request: Request): Promise<Response> {
     return json(401, { ok: false, error: "bad_secret" });
   }
   let body: { call?: { call_id?: string; agent_id?: string }; args?: { day?: unknown; service?: unknown } } = {};
-  try { body = JSON.parse(raw); } catch { /* fall through with empty body */ }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    /* fall through with empty body */
+  }
   const call = body.call ?? {};
   const args = body.args ?? {};
   const L = logger({ call_id: call.call_id, agent_id: call.agent_id });
@@ -96,6 +109,12 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, { result: CANNOT_SEE });
   }
   const answer = availabilityAnswer(data, rt.brain?.profile, args);
-  L.info("retell_availability", { tenant: routed.tenantId, day: answer.day, service: answer.offer?.service.name ?? null, consultation: answer.offer?.consultation ?? false, days: answer.days });
+  L.info("retell_availability", {
+    tenant: routed.tenantId,
+    day: answer.day,
+    service: answer.offer?.service.name ?? null,
+    consultation: answer.offer?.consultation ?? false,
+    days: answer.days,
+  });
   return json(200, { result: answer.result });
 }

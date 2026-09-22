@@ -16,8 +16,12 @@ const WRITES = new Set(["deliver", "escalate", "alert", "page", "provision"]);
 function fakes(over = {}) {
   const log = [];
   const answers = {
-    queued: { status: "queued", body: "See you at 3", channel: "whatsapp", sender: "human" }, purposeOf: "conversational",
-    deliver: { outcome: "sent", messageId: "m1", externalId: "wamid.1" }, escalate: "opened", alert: undefined, page: undefined,
+    queued: { status: "queued", body: "See you at 3", channel: "whatsapp", sender: "human" },
+    purposeOf: "conversational",
+    deliver: { outcome: "sent", messageId: "m1", externalId: "wamid.1" },
+    escalate: "opened",
+    alert: undefined,
+    page: undefined,
     provision: { ok: true },
     ...over,
   };
@@ -32,13 +36,28 @@ function fakes(over = {}) {
   }
   return { ports, log, ops: () => log.map((l) => l[0]) };
 }
-const send = (payload = {}) => ({ tenantId: "t1", payload: { message_id: "m1", conversation_id: "c1", to_phone: "+13475550101", body: "See you at 3", ...payload } });
+const send = (payload = {}) => ({
+  tenantId: "t1",
+  payload: { message_id: "m1", conversation_id: "c1", to_phone: "+13475550101", body: "See you at 3", ...payload },
+});
 
 test("a queued row goes through the door with the row's own sender, the template's purpose, never proactive; a gone or handled row is a no-op", async () => {
   const { ports, log } = fakes();
   await core.sendQueued(ports, send());
   assert.equal(log.length, 1);
-  assert.deepEqual(log[0][1], { tenantId: "t1", conversationId: "c1", contactId: null, to: "+13475550101", channel: "whatsapp", sender: "human", purpose: "conversational", proactive: false, body: "See you at 3", template: undefined, messageId: "m1" });
+  assert.deepEqual(log[0][1], {
+    tenantId: "t1",
+    conversationId: "c1",
+    contactId: null,
+    to: "+13475550101",
+    channel: "whatsapp",
+    sender: "human",
+    purpose: "conversational",
+    proactive: false,
+    body: "See you at 3",
+    template: undefined,
+    messageId: "m1",
+  });
   const ai = fakes({ queued: { status: "queued", body: "Hi!", channel: "whatsapp", sender: "ai" } });
   await core.sendQueued(ai.ports, send({ body: undefined }));
   assert.equal(ai.log[0][1].sender, "ai", "the door is handed the row's sender, never a constant");
@@ -58,7 +77,10 @@ test("a read that failed is not a message that is gone: the job fails loudly, an
 });
 
 test("a template send asks which yes it needs, and a channel the row names travels on that wire", async () => {
-  const { ports, log } = fakes({ purposeOf: "marketing", queued: { status: "queued", body: null, channel: "sms", sender: "human" } });
+  const { ports, log } = fakes({
+    purposeOf: "marketing",
+    queued: { status: "queued", body: null, channel: "sms", sender: "human" },
+  });
   const tpl = { name: "month_offer", language: "en_US", params: [] };
   await core.sendQueued(ports, send({ template: tpl, body: undefined }));
   assert.equal(log[0][1].purpose, "marketing");
@@ -68,34 +90,73 @@ test("a template send asks which yes it needs, and a channel the row names trave
 });
 
 test("a wire that could not carry it flags the thread and tells the owner; a provider's 401 or 403 pages the platform as well; a refusal does neither", async () => {
-  const failed = fakes({ deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "boom", messageId: "m1" } });
+  const failed = fakes({
+    deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "boom", messageId: "m1" },
+  });
   await core.sendQueued(failed.ports, send());
   assert.deepEqual(failed.ops(), ["deliver", "escalate", "alert"]);
-  assert.deepEqual(failed.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (HTTP 500)."]);
+  assert.deepEqual(failed.log[1], [
+    "escalate",
+    "c1",
+    "send_failed",
+    "Dashboard reply could not be delivered (HTTP 500).",
+  ]);
   assert.match(failed.log[2][1].subject, /Reply delivery failed: \+13475550101/);
   assert.match(failed.log[2][1].body, /HTTP 500/);
   // A reply that could not be delivered is a thread that needs a person, and its button opens THAT thread; the job itself finished.
-  assert.deepEqual([failed.log[2][1].kind, failed.log[2][1].route, failed.log[2][1].about], ["handoff", "inbox/th-c1", { type: "conversation", id: "c1" }]);
-  const creds = fakes({ deliver: { outcome: "failed", reason: "provider", status: 401, errorBody: "bad token", messageId: "m1" } });
+  assert.deepEqual(
+    [failed.log[2][1].kind, failed.log[2][1].route, failed.log[2][1].about],
+    ["handoff", "inbox/th-c1", { type: "conversation", id: "c1" }],
+  );
+  const creds = fakes({
+    deliver: { outcome: "failed", reason: "provider", status: 401, errorBody: "bad token", messageId: "m1" },
+  });
   await core.sendQueued(creds.ports, send());
   assert.deepEqual(creds.ops(), ["deliver", "page", "escalate", "alert"]);
   assert.equal(creds.log[1][1], "provider_auth:whatsapp");
   assert.match(creds.log[1][3], /Credentials, not content/);
-  const noPager = fakes({ deliver: { outcome: "failed", reason: "provider", status: 403, errorBody: "", messageId: "m1" }, page: ABSENT });
+  const noPager = fakes({
+    deliver: { outcome: "failed", reason: "provider", status: 403, errorBody: "", messageId: "m1" },
+    page: ABSENT,
+  });
   await core.sendQueued(noPager.ports, send());
   assert.deepEqual(noPager.ops(), ["deliver", "escalate", "alert"], "a runtime without a pager still flags and tells");
-  const noWire = fakes({ deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" } });
+  const noWire = fakes({
+    deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" },
+  });
   await core.sendQueued(noWire.ports, send());
-  assert.deepEqual(noWire.ops(), ["deliver", "escalate", "alert"], "no credentials is the thread's problem to show, not the pager's");
-  assert.deepEqual(noWire.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the WhatsApp number is not connected)."], "and it is shown as what it is, never as an HTTP status");
+  assert.deepEqual(
+    noWire.ops(),
+    ["deliver", "escalate", "alert"],
+    "no credentials is the thread's problem to show, not the pager's",
+  );
+  assert.deepEqual(
+    noWire.log[1],
+    ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the WhatsApp number is not connected)."],
+    "and it is shown as what it is, never as an HTTP status",
+  );
   assert.match(noWire.log[2][1].body, /the WhatsApp number is not connected/);
-  const noLine = fakes({ queued: { status: "queued", body: "See you at 3", channel: "sms", sender: "human" }, deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" } });
+  const noLine = fakes({
+    queued: { status: "queued", body: "See you at 3", channel: "sms", sender: "human" },
+    deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" },
+  });
   await core.sendQueued(noLine.ports, send());
-  assert.deepEqual(noLine.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the texting line is not connected)."], "a text is told as a text: its line, never a WhatsApp number it was not sent on");
+  assert.deepEqual(
+    noLine.log[1],
+    ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the texting line is not connected)."],
+    "a text is told as a text: its line, never a WhatsApp number it was not sent on",
+  );
   assert.match(noLine.log[2][1].body, /the texting line is not connected/);
-  const draft = fakes({ queued: { status: "queued", body: "Hi!", channel: "whatsapp", sender: "ai" }, deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "x", messageId: "m1" } });
+  const draft = fakes({
+    queued: { status: "queued", body: "Hi!", channel: "whatsapp", sender: "ai" },
+    deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "x", messageId: "m1" },
+  });
   await core.sendQueued(draft.ports, send());
-  assert.equal(draft.log[1][3], "The receptionist's reply could not be delivered (HTTP 500).", "a draft the receptionist queued is not 'a dashboard reply'");
+  assert.equal(
+    draft.log[1][3],
+    "The receptionist's reply could not be delivered (HTTP 500).",
+    "a draft the receptionist queued is not 'a dashboard reply'",
+  );
   const refused = fakes({ deliver: { outcome: "refused", reason: "opted_out", messageId: "m1" } });
   await core.sendQueued(refused.ports, send());
   assert.deepEqual(refused.ops(), ["deliver"], "the row says why; nobody is paged or flagged for a refusal");
@@ -104,25 +165,61 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
 test("an email's queued row leaves as the request it was frozen with, to the address its job names; a job that names none fails loudly rather than guessing", async () => {
   const request = { to: ["ana@example.com"], subject: "Re: Quote", idempotency_key: "m1" };
   const row = { status: "queued", body: "We can do Saturday.", channel: "email", sender: "human", email: request };
-  const byEmail = (payload = {}) => ({ tenantId: "t1", payload: { message_id: "m1", conversation_id: "c1", to_email: "ana@example.com", body: "We can do Saturday.", ...payload } });
+  const byEmail = (payload = {}) => ({
+    tenantId: "t1",
+    payload: {
+      message_id: "m1",
+      conversation_id: "c1",
+      to_email: "ana@example.com",
+      body: "We can do Saturday.",
+      ...payload,
+    },
+  });
   const { ports, log } = fakes({ queued: row });
   await core.sendQueued(ports, byEmail());
-  assert.deepEqual(log[0][1], { tenantId: "t1", conversationId: "c1", contactId: null, to: "ana@example.com", channel: "email", sender: "human", purpose: "conversational", proactive: false, body: "We can do Saturday.", template: undefined, email: request, messageId: "m1" });
+  assert.deepEqual(log[0][1], {
+    tenantId: "t1",
+    conversationId: "c1",
+    contactId: null,
+    to: "ana@example.com",
+    channel: "email",
+    sender: "human",
+    purpose: "conversational",
+    proactive: false,
+    body: "We can do Saturday.",
+    template: undefined,
+    email: request,
+    messageId: "m1",
+  });
 
   // A number on an email's job is not an address, and an address on a text's job is not a number.
   const crossed = fakes({ queued: row });
-  await assert.rejects(core.sendQueued(crossed.ports, byEmail({ to_email: undefined, to_phone: "+13475550101" })), /goes out by email and the job names no address/);
+  await assert.rejects(
+    core.sendQueued(crossed.ports, byEmail({ to_email: undefined, to_phone: "+13475550101" })),
+    /goes out by email and the job names no address/,
+  );
   const texted = fakes();
   await assert.rejects(core.sendQueued(texted.ports, byEmail()), /goes out by whatsapp and the job names no number/);
   assert.deepEqual([...crossed.ops(), ...texted.ops()], [], "nothing reached the door");
 
   // A row with no sendable request still goes to the door, which fails it by name; the owner reads words, not "HTTP 0".
-  const bare = fakes({ queued: { ...row, email: null }, deliver: { outcome: "failed", reason: "provider", status: 0, errorBody: "no_frozen_request", messageId: "m1" } });
+  const bare = fakes({
+    queued: { ...row, email: null },
+    deliver: { outcome: "failed", reason: "provider", status: 0, errorBody: "no_frozen_request", messageId: "m1" },
+  });
   await core.sendQueued(bare.ports, byEmail());
   assert.equal("email" in bare.log[0][1], false);
-  assert.deepEqual(bare.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (it never reached the provider)."]);
+  assert.deepEqual(bare.log[1], [
+    "escalate",
+    "c1",
+    "send_failed",
+    "Dashboard reply could not be delivered (it never reached the provider).",
+  ]);
   assert.match(bare.log[2][1].subject, /Reply delivery failed: ana@example\.com/);
-  const unset = fakes({ queued: row, deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" } });
+  const unset = fakes({
+    queued: row,
+    deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" },
+  });
   await core.sendQueued(unset.ports, byEmail());
   assert.equal(unset.log[1][3], "Dashboard reply could not be delivered (the email channel is not connected).");
 });
@@ -135,6 +232,14 @@ test("the provisioning: the saga is the edge's; a runtime without it fails loudl
   await core.provisionLine(who.ports, { payload: { line_id: "l1", by: "nobody" } });
   assert.deepEqual(who.log[0], ["provision", "l1", "owner"], "an unknown actor is the owner");
   await assert.rejects(core.provisionLine(fakes().ports, { payload: {} }), /line_id is required/);
-  await assert.rejects(core.provisionLine(fakes({ provision: ABSENT }).ports, { payload: { line_id: "l1" } }), /holds no line provider/);
-  await assert.rejects(core.provisionLine(fakes({ provision: { ok: false, step: "buy", error: "no numbers" } }).ports, { payload: { line_id: "l1" } }), /stopped at buy: no numbers/);
+  await assert.rejects(
+    core.provisionLine(fakes({ provision: ABSENT }).ports, { payload: { line_id: "l1" } }),
+    /holds no line provider/,
+  );
+  await assert.rejects(
+    core.provisionLine(fakes({ provision: { ok: false, step: "buy", error: "no numbers" } }).ports, {
+      payload: { line_id: "l1" },
+    }),
+    /stopped at buy: no numbers/,
+  );
 });

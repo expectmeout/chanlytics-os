@@ -13,11 +13,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const skip = !URL_ || !KEY
-  ? "no database in env"
-  : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
-    ? "refusing a database that is not on this machine"
-    : false;
+const skip =
+  !URL_ || !KEY
+    ? "no database in env"
+    : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+      ? "refusing a database that is not on this machine"
+      : false;
 
 let db;
 let tenantId;
@@ -33,7 +34,13 @@ const isoDow = (d) => ((d.getUTCDay() + 6) % 7) + 1;
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  tenantId = ok(await db.from("tenants").insert({ slug: `report-v3-${Date.now()}`, name: "Report v3", timezone: "UTC" }).select("id").single()).id;
+  tenantId = ok(
+    await db
+      .from("tenants")
+      .insert({ slug: `report-v3-${Date.now()}`, name: "Report v3", timezone: "UTC" })
+      .select("id")
+      .single(),
+  ).id;
 });
 
 after(async () => {
@@ -42,8 +49,20 @@ after(async () => {
 });
 
 test("v3 says where, when and how fast, and every older field is as it was", { skip }, async () => {
-  const contact = ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: "+15550139001", display_name: "Where When" }).select("id").single());
-  const conv = ok(await db.from("conversations").insert({ tenant_id: tenantId, contact_id: contact.id, state: "open", last_message_at: ago(1).toISOString() }).select("id").single());
+  const contact = ok(
+    await db
+      .from("contacts")
+      .insert({ tenant_id: tenantId, phone_e164: "+15550139001", display_name: "Where When" })
+      .select("id")
+      .single(),
+  );
+  const conv = ok(
+    await db
+      .from("conversations")
+      .insert({ tenant_id: tenantId, contact_id: contact.id, state: "open", last_message_at: ago(1).toISOString() })
+      .select("id")
+      .single(),
+  );
   const base = { tenant_id: tenantId, conversation_id: conv.id, contact_id: contact.id, type: "text", meta: {} };
   const asks = [
     { channel: "whatsapp", at: ago(180), replyAfter: 30 },
@@ -53,19 +72,59 @@ test("v3 says where, when and how fast, and every older field is as it was", { s
   ];
   const rows = [];
   for (const a of asks) {
-    rows.push({ ...base, channel: a.channel, direction: "inbound", sender: "customer", status: "received", body: "hi", created_at: a.at.toISOString() });
+    rows.push({
+      ...base,
+      channel: a.channel,
+      direction: "inbound",
+      sender: "customer",
+      status: "received",
+      body: "hi",
+      created_at: a.at.toISOString(),
+    });
     if (a.replyAfter != null) {
-      rows.push({ ...base, channel: a.channel, direction: "outbound", sender: "ai", status: "sent", body: "hello", created_at: new Date(a.at.getTime() + a.replyAfter * 1000).toISOString() });
+      rows.push({
+        ...base,
+        channel: a.channel,
+        direction: "outbound",
+        sender: "ai",
+        status: "sent",
+        body: "hello",
+        created_at: new Date(a.at.getTime() + a.replyAfter * 1000).toISOString(),
+      });
     }
   }
   // Excluded everywhere in this function: an imported message.
-  rows.push({ ...base, channel: "whatsapp", direction: "inbound", sender: "customer", status: "received", body: "old", created_at: ago(90).toISOString(), meta: { backfill: "true" } });
+  rows.push({
+    ...base,
+    channel: "whatsapp",
+    direction: "inbound",
+    sender: "customer",
+    status: "received",
+    body: "old",
+    created_at: ago(90).toISOString(),
+    meta: { backfill: "true" },
+  });
   ok(await db.from("messages").insert(rows));
   const callAt = ago(45);
-  ok(await db.from("calls").insert([
-    { tenant_id: tenantId, retell_call_id: `v3-${Date.now()}-a`, contact_id: contact.id, status: "ended", started_at: callAt.toISOString(), duration_ms: 60_000 },
-    { tenant_id: tenantId, retell_call_id: `v3-${Date.now()}-b`, contact_id: contact.id, status: "not_connected", started_at: ago(40).toISOString() },
-  ]));
+  ok(
+    await db.from("calls").insert([
+      {
+        tenant_id: tenantId,
+        retell_call_id: `v3-${Date.now()}-a`,
+        contact_id: contact.id,
+        status: "ended",
+        started_at: callAt.toISOString(),
+        duration_ms: 60_000,
+      },
+      {
+        tenant_id: tenantId,
+        retell_call_id: `v3-${Date.now()}-b`,
+        contact_id: contact.id,
+        status: "not_connected",
+        started_at: ago(40).toISOString(),
+      },
+    ]),
+  );
 
   const r = ok(await db.rpc("report_series", { p_tenant_id: tenantId, p_days: 7 }));
 
@@ -92,5 +151,8 @@ test("v3 says where, when and how fast, and every older field is as it was", { s
   const sum = (k) => r.series.reduce((s, d) => s + Number(d[k]), 0);
   assert.equal(sum("messages_in"), 4);
   assert.equal(sum("calls"), 1);
-  assert.deepEqual([...r.reply_seconds].sort((a, b) => a - b), [30, 90]);
+  assert.deepEqual(
+    [...r.reply_seconds].sort((a, b) => a - b),
+    [30, 90],
+  );
 });

@@ -28,7 +28,11 @@ export const POST = write({
     const r = await syncTemplates(member.tenantId);
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The sync did not complete (${r.reason}).`;
-      throw new AppError(r.reason === "no_channel" || r.reason === "no_waba" ? "conflict" : "upstream_meta", said, r.reason === "no_channel" || r.reason === "no_waba" ? 409 : 502);
+      throw new AppError(
+        r.reason === "no_channel" || r.reason === "no_waba" ? "conflict" : "upstream_meta",
+        said,
+        r.reason === "no_channel" || r.reason === "no_waba" ? 409 : 502,
+      );
     }
     return { ok: true, seen: r.seen, approved: r.approved, marketing: r.marketing, synced_at: r.syncedAt };
   },

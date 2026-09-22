@@ -95,7 +95,8 @@ export function planLeadSweep(rows: { runs: SweepRunRow[]; rounds: SweepRoundRow
     if (rd.state === "ended") continue;
     if (rd.state === "waiting_on_owner") {
       // A question is waiting on a person, not stuck: it keeps its own day.
-      if (rd.waiting_since && Date.parse(rd.waiting_since) < now - QUESTION_WAIT_MS) out.push({ kind: "end_question", roundId: rd.id, tenantId: rd.tenant_id });
+      if (rd.waiting_since && Date.parse(rd.waiting_since) < now - QUESTION_WAIT_MS)
+        out.push({ kind: "end_question", roundId: rd.id, tenantId: rd.tenant_id });
       continue;
     }
     if (!working.has(rd.id) && Date.parse(rd.created_at) < now - ROUND_STUCK_MS) {

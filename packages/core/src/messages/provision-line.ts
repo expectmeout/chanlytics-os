@@ -8,7 +8,10 @@ import type { ProvisionLinePorts } from "./ports";
  * nothing. A saga that stopped fails the job with the step it stopped at, so
  * the next try resumes there.
  */
-export async function provisionLine(ports: ProvisionLinePorts, cmd: { payload: Record<string, unknown> }): Promise<void> {
+export async function provisionLine(
+  ports: ProvisionLinePorts,
+  cmd: { payload: Record<string, unknown> },
+): Promise<void> {
   const lineId = typeof cmd.payload.line_id === "string" ? cmd.payload.line_id : "";
   const by = cmd.payload.by === "sweep" || cmd.payload.by === "support" ? cmd.payload.by : "owner";
   if (!lineId) throw new Error("line_provision: payload.line_id is required");

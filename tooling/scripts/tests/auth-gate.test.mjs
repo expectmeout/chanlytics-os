@@ -82,11 +82,22 @@ test("one address: the deploy alias redirects, and a preview never does", () => 
   // host — so a person who started on the alias came back to a host they had
   // no session on, and Connect Google simply failed.
   assert.match(middleware, /const canonical = process\.env\.CANONICAL_HOST;/);
-  assert.match(middleware, /process\.env\.VERCEL_ENV !== "production"/, "a preview is also a vercel.app host and must answer as itself");
+  assert.match(
+    middleware,
+    /process\.env\.VERCEL_ENV !== "production"/,
+    "a preview is also a vercel.app host and must answer as itself",
+  );
   assert.match(middleware, /!host\.endsWith\("\.vercel\.app"\)/, "only the alias is moved, never a custom domain");
-  assert.match(middleware, /NextResponse\.redirect\(url, 308\)/, "permanent, so it is cached and so search engines follow it");
+  assert.match(
+    middleware,
+    /NextResponse\.redirect\(url, 308\)/,
+    "permanent, so it is cached and so search engines follow it",
+  );
   const before = middleware.indexOf("const moved = canonicalRedirect(request);");
-  assert.ok(before > 0 && before < middleware.indexOf("PUBLIC_PATHS.has(path)"), "before the auth gate: the redirect is not a place to leak whether a path exists");
+  assert.ok(
+    before > 0 && before < middleware.indexOf("PUBLIC_PATHS.has(path)"),
+    "before the auth gate: the redirect is not a place to leak whether a path exists",
+  );
 });
 
 test("two public PREFIXES, and only a workspace's own two pages live under them", () => {
@@ -122,15 +133,31 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   ]) {
     const at = path.join(ROOT, "apps/dashboard/app", dir);
     assert.deepEqual(fs.readdirSync(at), ["[slug]"], `nothing but ${what} may live under its public prefix`);
-    assert.deepEqual(fs.readdirSync(path.join(at, "[slug]")).sort(), beneath, `and ${what} are pages, not routes that take input`);
+    assert.deepEqual(
+      fs.readdirSync(path.join(at, "[slug]")).sort(),
+      beneath,
+      `and ${what} are pages, not routes that take input`,
+    );
   }
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/form")), ["page.tsx"], "the paper form is a page, not a route that takes input");
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/sign")), ["page.tsx"], "the desk sign is a page, not a route that takes input");
+  assert.deepEqual(
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/form")),
+    ["page.tsx"],
+    "the paper form is a page, not a route that takes input",
+  );
+  assert.deepEqual(
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/sign")),
+    ["page.tsx"],
+    "the desk sign is a page, not a route that takes input",
+  );
   // `/b/<slug>/terms` joined when the campaign's terms URL became the business's
   // own: the reviewers' guide lists eight things a program's terms must carry,
   // and Chanlytics' /terms -- a software agreement for workspace owners --
   // carries none of them. A page like its neighbour: read by slug, no input.
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/terms")), ["page.tsx"], "the terms are a page, not a route that takes input");
+  assert.deepEqual(
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/terms")),
+    ["page.tsx"],
+    "the terms are a page, not a route that takes input",
+  );
 });
 
 test("only these twelve paths are reachable without a session", () => {
@@ -158,8 +185,25 @@ test("only these twelve paths are reachable without a session", () => {
   // filler's people points its calendar address at this feed, and the calendar
   // reader fetches it from the server with no session, the way it fetches any
   // feed. It is generated from the clock, names nobody real, and reads nothing.
-  assert.deepEqual(paths, ["/api/v1/calendar/filler.ics", "/api/v1/signup", "/api/version", "/auth/callback", "/auth/signout", "/data-deletion", "/login", "/manifest.webmanifest", "/privacy", "/reset-password", "/signup", "/terms"]);
-  assert.match(middleware, /path === "\/login" \|\| path === "\/signup"/, "and the two doors a signed-in person is sent away from stay those two");
+  assert.deepEqual(paths, [
+    "/api/v1/calendar/filler.ics",
+    "/api/v1/signup",
+    "/api/version",
+    "/auth/callback",
+    "/auth/signout",
+    "/data-deletion",
+    "/login",
+    "/manifest.webmanifest",
+    "/privacy",
+    "/reset-password",
+    "/signup",
+    "/terms",
+  ]);
+  assert.match(
+    middleware,
+    /path === "\/login" \|\| path === "\/signup"/,
+    "and the two doors a signed-in person is sent away from stay those two",
+  );
 });
 
 test("the three legal pages are static, read nothing, and point at each other", () => {
@@ -178,7 +222,10 @@ test("the three legal pages are static, read nothing, and point at each other", 
   const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
   assert.ok(privacy.includes('href="/data-deletion"'), "the policy names the deletion page");
   const deletion = readRaw("apps/dashboard/app/data-deletion/page.tsx");
-  assert.ok(deletion.includes('href="/privacy"') && deletion.includes('href="/terms"'), "the deletion page names the other two");
+  assert.ok(
+    deletion.includes('href="/privacy"') && deletion.includes('href="/terms"'),
+    "the deletion page names the other two",
+  );
   // The one promise a reviewer reads it for, and the one an end customer needs.
   assert.ok(/within 30 days/.test(deletion), "it says how long deletion takes");
   assert.ok(deletion.includes("<b>STOP</b>"), "and how to stop messages without deleting anything");
@@ -187,7 +234,11 @@ test("the three legal pages are static, read nothing, and point at each other", 
 test("the session is VERIFIED, never read from the cookie", () => {
   // getSession() decodes the cookie without asking the auth server whether it is
   // still valid — a revoked or forged session passes.
-  for (const [name, src] of [["middleware", middleware], ["withRoute", withRoute], ["(os) layout", osLayout]]) {
+  for (const [name, src] of [
+    ["middleware", middleware],
+    ["withRoute", withRoute],
+    ["(os) layout", osLayout],
+  ]) {
     assert.ok(!/getSession\(/.test(src), `${name} must not use getSession()`);
     assert.match(src, /getUser\(/, `${name} must verify with getUser()`);
   }
@@ -271,10 +322,7 @@ test("same-origin evidence must be POSITIVE, and every mutation demands it", () 
   // Both callers still make the check, and there is only one implementation.
   assert.match(signout, /isSameOrigin\(request\)/);
   assert.match(signout, /status:\s*403/);
-  assert.ok(
-    !/function isSameOrigin/.test(signout),
-    "one implementation, imported — not a second copy that can drift",
-  );
+  assert.ok(!/function isSameOrigin/.test(signout), "one implementation, imported — not a second copy that can drift");
 
   const wrapper = read("apps/dashboard/src/server/with-route.ts");
   assert.match(wrapper, /isSameOrigin\(req\)/, "every mutating route inherits it");

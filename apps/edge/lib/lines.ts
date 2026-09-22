@@ -54,13 +54,15 @@ export function lineProviderFromEnv(): LineProviderChoice | null {
   const token = env.TWILIO_AUTH_TOKEN;
   const name = chooseLineProvider({ sid, token, dryRun: env.LINES_DRY_RUN, vercelEnv: env.VERCEL_ENV });
   if (name === "twilio" && sid && token) return { name, provider: twilioProvider(), master: { sid, token } };
-  if (name === "dry") return { name, provider: dryProvider(Date.now() % 100000), master: { sid: "ACdryrun", token: "dry" } };
+  if (name === "dry")
+    return { name, provider: dryProvider(Date.now() % 100000), master: { sid: "ACdryrun", token: "dry" } };
   return null;
 }
 
 type Row = Database["public"]["Tables"]["lines"]["Row"];
 
-const facts = (j: Json): Record<string, unknown> => (j && typeof j === "object" && !Array.isArray(j) ? (j as Record<string, unknown>) : {});
+const facts = (j: Json): Record<string, unknown> =>
+  j && typeof j === "object" && !Array.isArray(j) ? (j as Record<string, unknown>) : {};
 
 /** The row as the saga reads it. */
 export function rowToLine(r: Row): LineRow {
@@ -140,7 +142,8 @@ export function linePorts(
     store: {
       async save(patch) {
         const row: Partial<Row> = {};
-        for (const [k, v] of Object.entries(patch)) (row as Record<string, unknown>)[k] = k === "facts" ? (v as Json) : v;
+        for (const [k, v] of Object.entries(patch))
+          (row as Record<string, unknown>)[k] = k === "facts" ? (v as Json) : v;
         const { error } = await db.from("lines").update(row).eq("id", line.id);
         if (error) throw new Error(`saving the line: ${error.message}`);
       },
@@ -166,7 +169,12 @@ export function linePorts(
           external_id: agentId,
           number_e164: e164,
           status: "active",
-          config: { provider: "twilio-sip", line_id: lineId, provisioned_at: new Date().toISOString(), provisioned_by: "lines" },
+          config: {
+            provider: "twilio-sip",
+            line_id: lineId,
+            provisioned_at: new Date().toISOString(),
+            provisioned_by: "lines",
+          },
         });
       },
     },
@@ -180,7 +188,13 @@ export function linePorts(
           external_id: e164,
           number_e164: e164,
           status: "active",
-          config: { provider: "twilio", line_id: lineId, messaging_service_sid: serviceSid, provisioned_at: new Date().toISOString(), provisioned_by: "lines" },
+          config: {
+            provider: "twilio",
+            line_id: lineId,
+            messaging_service_sid: serviceSid,
+            provisioned_at: new Date().toISOString(),
+            provisioned_by: "lines",
+          },
         });
       },
     },
@@ -221,7 +235,12 @@ async function ensureRoutingRow(
   // refused. Filtering it out instead would fall through to the insert and
   // fail on the constraint, which says "duplicate key" to an owner who has
   // just been told their number is being set up.
-  const have = await db.from("tenant_channels").select("id, tenant_id, status").eq("kind", kind).eq("external_id", externalId).maybeSingle();
+  const have = await db
+    .from("tenant_channels")
+    .select("id, tenant_id, status")
+    .eq("kind", kind)
+    .eq("external_id", externalId)
+    .maybeSingle();
   if (have.error) throw new Error(`reading the ${kind} row: ${have.error.message}`);
   if (have.data) {
     const mine = have.data.tenant_id === tenantId;
@@ -229,7 +248,9 @@ async function ensureRoutingRow(
     // only thing that must never be taken: taking it is what put a new
     // workspace's texts into the previous renter's Inbox.
     if (!mine && have.data.status === "active") {
-      throw new Error(`the ${kind} routing row for ${externalId} belongs to another workspace; it must be released there before this line can use it`);
+      throw new Error(
+        `the ${kind} routing row for ${externalId} belongs to another workspace; it must be released there before this line can use it`,
+      );
     }
     // Everything else is claimable, and a DISABLED row of another workspace
     // must be: release disables rather than deletes (calls keep their history)
@@ -251,7 +272,10 @@ async function ensureRoutingRow(
         .select("id")
         .maybeSingle();
       if (take.error) throw new Error(`taking the ${kind} row: ${take.error.message}`);
-      if (!take.data) throw new Error(`the ${kind} routing row for ${externalId} was claimed by another workspace while this line was being set up`);
+      if (!take.data)
+        throw new Error(
+          `the ${kind} routing row for ${externalId} was claimed by another workspace while this line was being set up`,
+        );
     }
     return { channelId: have.data.id, created: false };
   }
@@ -291,7 +315,9 @@ export async function releaseRoutingRows(
   db: SupabaseClient<Database>,
   tenantId: string,
   line: { id: string; facts: Record<string, unknown> },
-): Promise<{ ok: true; released: Record<string, string> } | { ok: false; released: Record<string, string>; error: string }> {
+): Promise<
+  { ok: true; released: Record<string, string> } | { ok: false; released: Record<string, string>; error: string }
+> {
   // Carried, not discarded, so a failure halfway still reports what DID
   // happen: a 503 that says only "the provider gave the number back" leaves an
   // operator unaware that the workspace's voice row is already switched off
@@ -306,7 +332,14 @@ export async function releaseRoutingRows(
     // becomes the number this workspace publishes. The oldest, which is the
     // same line `ensureVoiceAgent`, `line_forwarding_set` and `businessPageFor`
     // all settle on when a workspace has more than one.
-    const shared = await db.from("lines").select("id, e164").eq("tenant_id", tenantId).neq("id", line.id).filter(`facts->>${key}`, "eq", id).order("created_at").limit(1);
+    const shared = await db
+      .from("lines")
+      .select("id, e164")
+      .eq("tenant_id", tenantId)
+      .neq("id", line.id)
+      .filter(`facts->>${key}`, "eq", id)
+      .order("created_at")
+      .limit(1);
     if (shared.error) return stop(`reading the workspace's other lines: ${shared.error.message}`);
     const holder = shared.data?.[0];
     if (holder) {
@@ -315,15 +348,25 @@ export async function releaseRoutingRows(
       // the receptionist's own facts publish as the workspace's number, so a
       // kept row still carrying the RELEASED number advertises a number that
       // has gone back to the carrier.
-      const row = await db.from("tenant_channels").select("config").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+      const row = await db
+        .from("tenant_channels")
+        .select("config")
+        .eq("id", id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
       if (row.error) return stop(`reading the routing row: ${row.error.message}`);
-      const cfg = row.data?.config && typeof row.data.config === "object" && !Array.isArray(row.data.config) ? (row.data.config as Record<string, unknown>) : {};
+      const cfg =
+        row.data?.config && typeof row.data.config === "object" && !Array.isArray(row.data.config)
+          ? (row.data.config as Record<string, unknown>)
+          : {};
       // `lines.e164` is nullable -- a line killed before its purchase answered
       // has none -- and writing that null would erase the number the row
       // publishes while reporting the keep as a success. A holder with no
       // number of its own leaves the row's number alone; the line_id still
       // moves, so the row names something that exists.
-      const patch: Database["public"]["Tables"]["tenant_channels"]["Update"] = { config: { ...cfg, line_id: holder.id } as Json };
+      const patch: Database["public"]["Tables"]["tenant_channels"]["Update"] = {
+        config: { ...cfg, line_id: holder.id } as Json,
+      };
       if (holder.e164) patch.number_e164 = holder.e164;
       const moved = await db.from("tenant_channels").update(patch).eq("id", id).eq("tenant_id", tenantId);
       if (moved.error) return stop(`repointing the routing row: ${moved.error.message}`);

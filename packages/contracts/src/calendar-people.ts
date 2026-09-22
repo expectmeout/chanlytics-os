@@ -71,7 +71,8 @@ function phoneFrom(raw: string): string | null {
   const digits = s.replace(/\D/g, "");
   if (digits.length < 10 || digits.length > 15) return null;
   const bare = /^\+?\d+$/.test(s);
-  if (bare && !s.startsWith("+") && !(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return null;
+  if (bare && !s.startsWith("+") && !(digits.length === 10 || (digits.length === 11 && digits.startsWith("1"))))
+    return null;
   return normalizePhone(s.startsWith("+") ? `+${digits}` : digits);
 }
 
@@ -124,16 +125,25 @@ export function calendarOwnerOf(url: string | null | undefined): string | null {
   const m = /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\//i.exec(url ?? "");
   if (!m) return null;
   let id: string;
-  try { id = decodeURIComponent(m[1]).trim().toLowerCase(); } catch { return null; }
+  try {
+    id = decodeURIComponent(m[1]).trim().toLowerCase();
+  } catch {
+    return null;
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || /@(group|import)\.calendar\.google\.com$/.test(id)) return null;
   return id;
 }
 
 /** The business's own addresses, from the config every calendar reader already has: where it is alerted, and whose calendar it reads. */
-export function ownAddressesOf(cfg: {
-  notifications?: { escalation_emails?: readonly string[] | null } | null;
-  calendar?: { ical_url?: string | null } | null;
-} | null | undefined): OwnAddresses {
+export function ownAddressesOf(
+  cfg:
+    | {
+        notifications?: { escalation_emails?: readonly string[] | null } | null;
+        calendar?: { ical_url?: string | null } | null;
+      }
+    | null
+    | undefined,
+): OwnAddresses {
   const out = new Set<string>();
   for (const e of cfg?.notifications?.escalation_emails ?? []) {
     const a = String(e).trim().toLowerCase();
@@ -164,7 +174,10 @@ function isOwn(own: OwnAddresses, p: Pick<PersonLike, "email">): boolean {
  * appointment a customer organised themselves, which stays unmatched --
  * matching nobody is the safe way to be wrong; attaching the owner is not.
  */
-export function extractContacts(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">, own: OwnAddresses): EventContacts {
+export function extractContacts(
+  item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">,
+  own: OwnAddresses,
+): EventContacts {
   const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
   const organizer = item.organizer?.toLowerCase() || null;
   const emails = new Set<string>();
@@ -220,7 +233,11 @@ export function personInText(text: string, people: PersonLike[]): PersonLike | n
 const labelOf = (p: PersonLike): string => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
 
 /** Who the appointment is for: a phone in the event first, then an address, then a whole name in its title, guests or description. */
-export function matchPerson(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">, everyone: PersonLike[], own: OwnAddresses): PersonMatch | null {
+export function matchPerson(
+  item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">,
+  everyone: PersonLike[],
+  own: OwnAddresses,
+): PersonMatch | null {
   const c = extractContacts(item, own);
   // Not a candidate at all: named or not, the business's own person is never
   // who an appointment is for, so it cannot be labelled "with" them either.
@@ -305,7 +322,14 @@ export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
   const take = (it: FeedItem, via: MatchVia) => {
     if (seen.has(it)) return;
     seen.add(it);
-    out.push({ id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via });
+    out.push({
+      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
+      start: it.start,
+      end: it.end,
+      title: it.title || "Busy",
+      allDay: it.allDay,
+      via,
+    });
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
@@ -323,9 +347,17 @@ export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): V
   const take = (it: FeedItem, via: MatchVia) => {
     if (seen.has(it)) return;
     seen.add(it);
-    const v: Visit = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via };
-    if (it.end >= nowMs) { if (!next || v.start < next.start) next = v; }
-    else if (!last || v.end > last.end) last = v;
+    const v: Visit = {
+      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
+      start: it.start,
+      end: it.end,
+      title: it.title || "Busy",
+      allDay: it.allDay,
+      via,
+    };
+    if (it.end >= nowMs) {
+      if (!next || v.start < next.start) next = v;
+    } else if (!last || v.end > last.end) last = v;
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
@@ -349,11 +381,16 @@ export function visitDay(start: number | string, tz: string, nowMs: number): str
   const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
   if (key === today) return "Today";
   if (key === tomorrow) return "Tomorrow";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(new Date(ms(start)));
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
+    new Date(ms(start)),
+  );
 }
 
 /** "2:00 – 5:00 PM", or "all day". */
-export function visitTime(v: { start: number | string; end: number | string; allDay?: boolean; all_day?: boolean }, tz: string): string {
+export function visitTime(
+  v: { start: number | string; end: number | string; allDay?: boolean; all_day?: boolean },
+  tz: string,
+): string {
   if (v.allDay || v.all_day) return "all day";
   const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   const a = f.format(new Date(ms(v.start)));
@@ -371,10 +408,16 @@ export function visitDateKey(start: number | string, tz: string): string {
 /** "2:00 PM" — the start alone, for a reminder's sentence. */
 export function visitStartTime(v: { start: number | string; allDay?: boolean; all_day?: boolean }, tz: string): string {
   if (v.allDay || v.all_day) return "all day";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
+    new Date(ms(v.start)),
+  );
 }
 
-export function visitLine(v: { start: number | string; end: number | string; allDay?: boolean; all_day?: boolean }, tz: string, nowMs: number): string {
+export function visitLine(
+  v: { start: number | string; end: number | string; allDay?: boolean; all_day?: boolean },
+  tz: string,
+  nowMs: number,
+): string {
   return `${visitDay(v.start, tz, nowMs)} · ${visitTime(v, tz)}`;
 }
 
@@ -388,11 +431,15 @@ export function describeVisits(visits: Visits, tz: string, nowMs: number): strin
   const out: string[] = [];
   if (visits.next) {
     const n = visits.next;
-    out.push(`Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.`);
+    out.push(
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.`,
+    );
   }
   if (visits.last) {
     const l = visits.last;
-    out.push(`Their last visit on the calendar: ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`);
+    out.push(
+      `Their last visit on the calendar: ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`,
+    );
   }
   return out.length ? out.join(" ") : null;
 }
@@ -403,7 +450,11 @@ export function describeVisits(visits: Visits, tz: string, nowMs: number): strin
 export function feedSourceLabel(url: string | null | undefined): string {
   if (!url) return "your calendar";
   let host = "";
-  try { host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase(); } catch { return "your calendar"; }
+  try {
+    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
+  } catch {
+    return "your calendar";
+  }
   if (host.includes("google")) return "Google Calendar";
   if (host.includes("icloud")) return "Apple Calendar";
   if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
@@ -421,7 +472,7 @@ export function eventText(raw: string | null | undefined, max = 1500): string | 
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -455,7 +506,16 @@ export interface PersonVisitsDto {
 }
 
 export function toVisitDto(v: Visit | null): VisitDto | null {
-  return v ? { id: v.id, start: new Date(v.start).toISOString(), end: new Date(v.end).toISOString(), title: v.title, all_day: v.allDay, via: v.via } : null;
+  return v
+    ? {
+        id: v.id,
+        start: new Date(v.start).toISOString(),
+        end: new Date(v.end).toISOString(),
+        title: v.title,
+        all_day: v.allDay,
+        via: v.via,
+      }
+    : null;
 }
 
 /* ------------------------------------------------------------ the name */
@@ -471,7 +531,10 @@ const CAPITAL = /^\p{Lu}/u;
  * of letters and not a service the workspace lists. Shown in the button
  * before anything is added, so a wrong guess is seen, not saved unread.
  */
-export function guessName(item: Pick<FeedItem, "title" | "attendees" | "organizer">, services: string[] = []): string | null {
+export function guessName(
+  item: Pick<FeedItem, "title" | "attendees" | "organizer">,
+  services: string[] = [],
+): string | null {
   const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
   // The organiser is not the customer, so "Add … to People" never offers the
   // owner's own name -- which their CN puts on every event they organise.
@@ -482,7 +545,10 @@ export function guessName(item: Pick<FeedItem, "title" | "attendees" | "organize
     .find((n) => n && !n.includes("@"));
   if (guest) return guest.slice(0, 80);
   const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
-  const parts = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
+  const parts = title
+    .split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
   for (const part of parts) {
     if (svc.has(part.toLowerCase())) continue;
     const words = part.split(/\s+/);
@@ -513,7 +579,12 @@ export interface CalendarPerson {
  * person once. A name is taken from the appointment that keys the row; a
  * later appointment with a name fills in for one without.
  */
-export function peopleFromItems(items: FeedItem[], services: string[], nowMs: number, window: { backDays?: number; aheadDays?: number } = {}): CalendarPerson[] {
+export function peopleFromItems(
+  items: FeedItem[],
+  services: string[],
+  nowMs: number,
+  window: { backDays?: number; aheadDays?: number } = {},
+): CalendarPerson[] {
   const from = nowMs - (window.backDays ?? 30) * 86_400_000;
   const to = nowMs + (window.aheadDays ?? 90) * 86_400_000;
   const byPhone = new Map<string, CalendarPerson>();
@@ -534,7 +605,10 @@ export function peopleFromItems(items: FeedItem[], services: string[], nowMs: nu
     for (const phone of phones) {
       const row: CalendarPerson = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
       const have = byPhone.get(phone);
-      if (!have) { byPhone.set(phone, row); continue; }
+      if (!have) {
+        byPhone.set(phone, row);
+        continue;
+      }
       if (better(row, have)) byPhone.set(phone, { ...row, name: row.name ?? have.name });
       else if (!have.name && row.name) byPhone.set(phone, { ...have, name: row.name });
     }
@@ -605,9 +679,45 @@ export function bookedAfterAsk(visits: Visits | null | undefined, askedMs: numbe
 }
 
 export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {
-  if (!dto || dto.calendar === "none") return { present: false, calendar: "none", headline: "—", sub: "Connect your calendar under Settings › Business to see who booked.", words: "", pct: null, asked: 0, booked: 0, unbooked: 0, rest: "" };
-  if (dto.calendar === "unavailable") return { present: false, calendar: "unavailable", headline: "—", sub: "Your calendar could not be read.", words: "", pct: null, asked: dto.asked, booked: 0, unbooked: 0, rest: "" };
-  if (dto.asked === 0) return { present: true, calendar: "ok", headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, words: "", pct: null, asked: 0, booked: 0, unbooked: 0, rest: "" };
+  if (!dto || dto.calendar === "none")
+    return {
+      present: false,
+      calendar: "none",
+      headline: "—",
+      sub: "Connect your calendar under Settings › Business to see who booked.",
+      words: "",
+      pct: null,
+      asked: 0,
+      booked: 0,
+      unbooked: 0,
+      rest: "",
+    };
+  if (dto.calendar === "unavailable")
+    return {
+      present: false,
+      calendar: "unavailable",
+      headline: "—",
+      sub: "Your calendar could not be read.",
+      words: "",
+      pct: null,
+      asked: dto.asked,
+      booked: 0,
+      unbooked: 0,
+      rest: "",
+    };
+  if (dto.asked === 0)
+    return {
+      present: true,
+      calendar: "ok",
+      headline: "Nobody asked",
+      sub: `nobody wrote or called in the last ${dto.days} days`,
+      words: "",
+      pct: null,
+      asked: 0,
+      booked: 0,
+      unbooked: 0,
+      rest: "",
+    };
   const pct = Math.round((dto.booked / dto.asked) * 100);
   const words = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
   const unbooked = dto.asked - dto.booked;
@@ -623,8 +733,9 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
     unbooked,
     // The other side of the same share, said once: who is still waiting to be
     // given a time. It is the half an owner can do something about.
-    rest: unbooked === 0
-      ? `Everyone who asked in the last ${dto.days} days has an appointment.`
-      : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`,
+    rest:
+      unbooked === 0
+        ? `Everyone who asked in the last ${dto.days} days has an appointment.`
+        : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`,
   };
 }

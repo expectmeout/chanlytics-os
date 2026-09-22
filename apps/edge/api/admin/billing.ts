@@ -16,7 +16,17 @@
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { billingReadiness, checkoutFor, invoicesFor, portalFor, priceForClient, resumeFor, stripeLivemode, syncFor, trialDays } from "../../lib/billing.js";
+import {
+  billingReadiness,
+  checkoutFor,
+  invoicesFor,
+  portalFor,
+  priceForClient,
+  resumeFor,
+  stripeLivemode,
+  syncFor,
+  trialDays,
+} from "../../lib/billing.js";
 import { logger } from "../../lib/log.js";
 
 interface Body {
@@ -29,7 +39,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const config = { maxDuration: 30 };
 
-const STATUS_OF: Record<string, number> = { not_ready: 503, no_account: 404, direct: 409, already_subscribed: 409, no_customer: 409, no_subscription: 409, not_paused: 409, stripe_refused: 502 };
+const STATUS_OF: Record<string, number> = {
+  not_ready: 503,
+  no_account: 404,
+  direct: 409,
+  already_subscribed: 409,
+  no_customer: 409,
+  no_subscription: 409,
+  not_paused: 409,
+  stripe_refused: 502,
+};
 
 /** The slug a tenant read answered with, or null when the read did not. */
 const slugOf = (r: { data: { slug?: string | null } | null }): string | null => r.data?.slug ?? null;
@@ -38,7 +57,11 @@ export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/billing");
   if (!auth.ok) return auth.response;
   let body: Body = {};
-  try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* validated below */
+  }
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -46,7 +69,14 @@ export async function POST(request: Request): Promise<Response> {
 
   if (op === "status") {
     const ready = billingReadiness();
-    return json(200, { ok: true, ready: ready.ready, livemode: stripeLivemode(), doors: ready, price: ready.ready ? await priceForClient() : null, trial_days: trialDays() });
+    return json(200, {
+      ok: true,
+      ready: ready.ready,
+      livemode: stripeLivemode(),
+      doors: ready,
+      price: ready.ready ? await priceForClient() : null,
+      trial_days: trialDays(),
+    });
   }
 
   const db = pg();
@@ -61,26 +91,33 @@ export async function POST(request: Request): Promise<Response> {
     if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
     const email = typeof body.email === "string" && body.email.includes("@") ? body.email.trim().slice(0, 254) : null;
     const r = await checkoutFor(db, tenantId, tenant.data.name, email, tenant.data.slug ?? null);
-    L.info(r.ok ? "billing_checkout_opened" : "billing_checkout_refused", r.ok ? {} : { error: r.error, detail: r.detail?.slice(0, 200) });
-    return json(r.ok ? 200 : STATUS_OF[r.error] ?? 500, r);
+    L.info(
+      r.ok ? "billing_checkout_opened" : "billing_checkout_refused",
+      r.ok ? {} : { error: r.error, detail: r.detail?.slice(0, 200) },
+    );
+    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
   }
   if (op === "portal") {
-    const r = await portalFor(db, tenantId, slugOf(await db.from("tenants").select("slug").eq("id", tenantId).maybeSingle()));
-    return json(r.ok ? 200 : STATUS_OF[r.error] ?? 500, r);
+    const r = await portalFor(
+      db,
+      tenantId,
+      slugOf(await db.from("tenants").select("slug").eq("id", tenantId).maybeSingle()),
+    );
+    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
   }
   if (op === "invoices") {
     const r = await invoicesFor(db, tenantId);
-    return json(r.ok ? 200 : STATUS_OF[r.error] ?? 500, r);
+    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
   }
   if (op === "sync") {
     const r = await syncFor(db, tenantId);
     L.info(r.ok ? "billing_synced" : "billing_sync_refused", r.ok ? { status: r.status } : { error: r.error });
-    return json(r.ok ? 200 : STATUS_OF[r.error] ?? 500, r);
+    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
   }
   if (op === "resume") {
     const r = await resumeFor(db, tenantId);
     L.info(r.ok ? "billing_resumed" : "billing_resume_refused", r.ok ? { status: r.status } : { error: r.error });
-    return json(r.ok ? 200 : STATUS_OF[r.error] ?? 500, r);
+    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
   }
   return json(400, { ok: false, error: "op must be status, checkout, portal, invoices, sync or resume" });
 }

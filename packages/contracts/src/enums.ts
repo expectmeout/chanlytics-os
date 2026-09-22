@@ -94,8 +94,12 @@ export type JobState = (typeof JOB_STATES)[number];
  * kinds; the edge's WABA_FIELDS is a Set of it.
  */
 export const WABA_FIELDS = [
-  "phone_number_quality_update", "account_update", "message_template_status_update",
-  "account_review_update", "message_template_quality_update", "template_category_update",
+  "phone_number_quality_update",
+  "account_update",
+  "message_template_status_update",
+  "account_review_update",
+  "message_template_quality_update",
+  "template_category_update",
 ] as const;
 export type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
 
@@ -218,7 +222,8 @@ export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
  * never applied to a WhatsApp message. Whole-message only: "stop by at 4?" is
  * a booking on either channel.
  */
-export const SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
+export const SMS_OPT_OUT_PATTERN =
+  /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
 
 /**
  * Customer texts that mean opt back IN — the way out of an opt-out.
@@ -278,7 +283,10 @@ export function optInPurposeOf(text: string): "conversational" | "marketing" | n
 export const OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" } as const;
 
 /** WhatsApp opened on the workspace's number with the phrase ready to send; null without a usable number. */
-export function optInLink(numberE164: string | null | undefined, phrase: string = OFFERS_OPT_IN_PHRASES.en): string | null {
+export function optInLink(
+  numberE164: string | null | undefined,
+  phrase: string = OFFERS_OPT_IN_PHRASES.en,
+): string | null {
   const digits = String(numberE164 ?? "").replace(/\D/g, "");
   if (digits.length < 8) return null;
   return `https://wa.me/${digits}?text=${encodeURIComponent(phrase)}`;
@@ -287,8 +295,17 @@ export function optInLink(numberE164: string | null | undefined, phrase: string 
 /* ---- Slice 2: Inbox ---- */
 
 export const ESCALATION_REASONS = [
-  "human_token", "non_text", "refusal", "rate_cap", "policy_block",
-  "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable",
+  "human_token",
+  "non_text",
+  "refusal",
+  "rate_cap",
+  "policy_block",
+  "send_failed",
+  "deadman",
+  "brain_error",
+  "manual",
+  "opt_out",
+  "state_unavailable",
   /** Delivered so late that an automated reply would arrive out of nowhere. */
   "stale",
   /** The owner set the receptionist to Ask or Never for THIS person; the
@@ -314,8 +331,19 @@ export const ESCALATION_STATES = ["open", "resolved"] as const;
 export type EscalationState = (typeof ESCALATION_STATES)[number];
 
 export const DECISION_VERBS = [
-  "approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back",
-  "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent",
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
   /**
    * What one member can do to another.
    *
@@ -328,7 +356,10 @@ export const DECISION_VERBS = [
    * database rejects a verb this list allows, and a verb the database allows
    * but this omits cannot be written by any typed caller.
    */
-  "invite", "revoke_invite", "change_role", "remove_member",
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
   /**
    * The only irreversible verb. privacy.html promises deletion on verified
    * request; this is the record that it happened, on subject_type 'contact',
@@ -385,8 +416,20 @@ export const DECISION_VERBS = [
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
 export const DECISION_SUBJECTS = [
-  "conversation", "escalation", "draft", "lead", "message", "agent",
-  "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review",
+  "conversation",
+  "escalation",
+  "draft",
+  "lead",
+  "message",
+  "agent",
+  "membership",
+  "invitation",
+  "contact",
+  "call",
+  "channel",
+  "broadcast",
+  "playbook",
+  "review",
   /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
   "workspace",
 ] as const;

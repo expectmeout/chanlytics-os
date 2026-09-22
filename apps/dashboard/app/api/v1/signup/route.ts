@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
-import { AppError, SIGNUP_WORDS, SignupSchema, err, isUsablePassword, ok, passwordProblem, signupPosture } from "@chanlytics/contracts";
+import {
+  AppError,
+  SIGNUP_WORDS,
+  SignupSchema,
+  err,
+  isUsablePassword,
+  ok,
+  passwordProblem,
+  signupPosture,
+} from "@chanlytics/contracts";
 import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/signup";
@@ -37,10 +46,9 @@ export async function GET(): Promise<Response> {
   // one field it needs; the two booleans stay so a client deployed before this
   // keeps working, which matters because the page and the API ship separately.
   const posture = signupPosture(process.env.SIGNUP_CODE);
-  return NextResponse.json(
-    ok({ posture, open: posture !== "waitlist", code_required: posture === "invite" }),
-    { headers: PRIVATE },
-  );
+  return NextResponse.json(ok({ posture, open: posture !== "waitlist", code_required: posture === "invite" }), {
+    headers: PRIVATE,
+  });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -88,7 +96,15 @@ export async function POST(req: Request): Promise<Response> {
     // proved password is handed over explicitly rather than passing `input`
     // and asserting. No cast, and the compiler keeps the guarantee.
     const out = await signUp({ ...input, password: input.password });
-    console.log(JSON.stringify({ level: "info", event: "signup", created: out.created, code_unsent: out.codeUnsent, ms: Date.now() - started }));
+    console.log(
+      JSON.stringify({
+        level: "info",
+        event: "signup",
+        created: out.created,
+        code_unsent: out.codeUnsent,
+        ms: Date.now() - started,
+      }),
+    );
     // THE CODE IS THE ONLY WAY IN, so a send WE could not make is worth saying.
     // The usual answer stays deliberately opaque -- whether an address is already
     // registered is not a stranger's to learn from this form -- but "we are over
@@ -106,6 +122,9 @@ export async function POST(req: Request): Promise<Response> {
   } catch (e) {
     if (e instanceof AppError) return NextResponse.json(err(e.code, e.message), { status: e.status, headers: PRIVATE });
     console.error("signup_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
-    return NextResponse.json(err("internal", "Could not start your sign-up just now. Try again in a moment."), { status: 500, headers: PRIVATE });
+    return NextResponse.json(err("internal", "Could not start your sign-up just now. Try again in a moment."), {
+      status: 500,
+      headers: PRIVATE,
+    });
   }
 }

@@ -14,13 +14,24 @@ import type Stripe from "stripe";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { logger } from "../lib/log.js";
-import { applySubscription, forgetCustomer, forgetEvent, keepEvent, notePayment, noteTrialEnding, stripe, subscriptionFacts, tenantOf } from "../lib/billing.js";
+import {
+  applySubscription,
+  forgetCustomer,
+  forgetEvent,
+  keepEvent,
+  notePayment,
+  noteTrialEnding,
+  stripe,
+  subscriptionFacts,
+  tenantOf,
+} from "../lib/billing.js";
 import { receptionistOn } from "../lib/packages/contracts.js";
 import { env } from "../lib/env.js";
 
 export const config = { maxDuration: 30 };
 
-const idOf = (x: string | { id: string } | null | undefined): string | null => (typeof x === "string" ? x : x?.id ?? null);
+const idOf = (x: string | { id: string } | null | undefined): string | null =>
+  typeof x === "string" ? x : (x?.id ?? null);
 
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ hook: "stripe" });
@@ -59,7 +70,10 @@ export async function POST(request: Request): Promise<Response> {
         const sub = event.data.object;
         const row = await tenantOf(db, sub.metadata, idOf(sub.customer));
         if (!(await keep(row?.tenant_id ?? null))) return json(200, { ok: true, duplicate: true });
-        if (!row) { L.warn("stripe_event_unrouted", { type: event.type, subscription: sub.id }); return json(200, { ok: true, unrouted: true }); }
+        if (!row) {
+          L.warn("stripe_event_unrouted", { type: event.type, subscription: sub.id });
+          return json(200, { ok: true, unrouted: true });
+        }
         // Not the subscription this workspace is on. Stripe retries for days
         // and does not promise order, so a late word about a subscription the
         // workspace has already left — cancelled, then replaced through
@@ -69,7 +83,11 @@ export async function POST(request: Request): Promise<Response> {
         // again. A reading that would keep the receptionist ON is a genuine
         // replacement and is applied; a dead one about a subscription we no
         // longer hold can never be right.
-        if (row.stripe_subscription_id && row.stripe_subscription_id !== sub.id && !receptionistOn(subscriptionFacts(sub).status)) {
+        if (
+          row.stripe_subscription_id &&
+          row.stripe_subscription_id !== sub.id &&
+          !receptionistOn(subscriptionFacts(sub).status)
+        ) {
           // The row is the reason to skip, so the row has to be worth trusting,
           // and it is not always: applySubscription writes under a compare-and-
           // set and DOES NOT WRITE when it loses (billing_apply_raced), which
@@ -84,10 +102,19 @@ export async function POST(request: Request): Promise<Response> {
           const current = await s.subscriptions.retrieve(row.stripe_subscription_id).catch(() => null);
           const rowStillLive = current !== null && receptionistOn(subscriptionFacts(current).status);
           if (rowStillLive) {
-            L.warn("stripe_event_superseded", { type: event.type, subscription: sub.id, current: row.stripe_subscription_id });
+            L.warn("stripe_event_superseded", {
+              type: event.type,
+              subscription: sub.id,
+              current: row.stripe_subscription_id,
+            });
             return json(200, { ok: true, superseded: true });
           }
-          L.warn("stripe_event_stale_row", { type: event.type, subscription: sub.id, named_by_row: row.stripe_subscription_id, row_status: current ? subscriptionFacts(current).status : "gone" });
+          L.warn("stripe_event_stale_row", {
+            type: event.type,
+            subscription: sub.id,
+            named_by_row: row.stripe_subscription_id,
+            row_status: current ? subscriptionFacts(current).status : "gone",
+          });
         }
         // The event's copy has no expanded card; the row keeps the card from
         // the last full read (sync) when this one has none. A read that fails
@@ -101,7 +128,10 @@ export async function POST(request: Request): Promise<Response> {
         const subId = idOf(session.subscription);
         const row = await tenantOf(db, session.metadata, idOf(session.customer));
         if (!(await keep(row?.tenant_id ?? null))) return json(200, { ok: true, duplicate: true });
-        if (!row || !subId) { L.warn("stripe_checkout_unrouted", { session: session.id }); return json(200, { ok: true, unrouted: true }); }
+        if (!row || !subId) {
+          L.warn("stripe_checkout_unrouted", { session: session.id });
+          return json(200, { ok: true, unrouted: true });
+        }
         const sub = await s.subscriptions.retrieve(subId, { expand: ["default_payment_method"] });
         const r = await applySubscription(db, row, sub, event.type);
         return json(200, { ok: true, status: r.status });
@@ -110,7 +140,12 @@ export async function POST(request: Request): Promise<Response> {
         const sub = event.data.object;
         const row = await tenantOf(db, sub.metadata, idOf(sub.customer));
         if (!(await keep(row?.tenant_id ?? null))) return json(200, { ok: true, duplicate: true });
-        if (row) await noteTrialEnding(db, row, typeof sub.trial_end === "number" ? new Date(sub.trial_end * 1000).toISOString() : null);
+        if (row)
+          await noteTrialEnding(
+            db,
+            row,
+            typeof sub.trial_end === "number" ? new Date(sub.trial_end * 1000).toISOString() : null,
+          );
         return json(200, { ok: true });
       }
       case "invoice.payment_failed":

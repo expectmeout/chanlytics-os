@@ -50,15 +50,27 @@ export async function POST(request: Request): Promise<Response> {
     L.error("sms_status_line_unreadable", { error: e instanceof Error ? e.message : String(e) });
     return empty(503);
   }
-  if (!line) { L.warn("sms_status_unknown_line"); return empty(404); }
-  if (!acct) { L.error("sms_status_line_without_account"); return empty(503); }
+  if (!line) {
+    L.warn("sms_status_unknown_line");
+    return empty(404);
+  }
+  if (!acct) {
+    L.error("sms_status_line_without_account");
+    return empty(503);
+  }
   if (line.provider !== "dry") {
     const ok = await verifyTwilioSignature(acct.token, request.url, form, request.headers.get("x-twilio-signature"));
-    if (!ok) { L.warn("sms_status_bad_signature"); return empty(403); }
+    if (!ok) {
+      L.warn("sms_status_bad_signature");
+      return empty(403);
+    }
   }
 
   const rowStatus = smsStatusToRow(s.status);
-  if (!rowStatus) { L.info("sms_status_interim"); return empty(200); }
+  if (!rowStatus) {
+    L.info("sms_status_interim");
+    return empty(200);
+  }
   try {
     await recordStatusByExternalId(
       db,

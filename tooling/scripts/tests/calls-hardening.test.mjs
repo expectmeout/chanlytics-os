@@ -38,7 +38,7 @@ test("the post-call email and memory note happen once: a claim on the row", () =
   assert.ok(sql.includes("add column if not exists notified_at timestamptz"));
   const claim = readCode("packages/db/src/repositories/calls.ts");
   assert.ok(claim.includes('.is("notified_at", null)'));
-  assert.ok(claim.includes(".select(\"id\")"), "the claim counts rows — RLS is silent on a forbidden UPDATE");
+  assert.ok(claim.includes('.select("id")'), "the claim counts rows — RLS is silent on a forbidden UPDATE");
 });
 
 test("usage is metered once under concurrency, and the audit copy keeps its analysis", () => {
@@ -75,11 +75,16 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.equal(subscribesToRealtime({}), false);
   assert.equal(subscribesToRealtime(live), true);
   const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  assert.ok(runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> })'));
+  assert.ok(
+    runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> })'),
+  );
   const seam = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(seam.includes('refreshOnTables: ["calls"]'), "Live listens to calls alone");
   const rt = readCode("packages/db/src/realtime.ts");
-  assert.ok(rt.includes(", w.table, payload.eventType)"), "the subscription hands the table and the event to the callback");
+  assert.ok(
+    rt.includes(", w.table, payload.eventType)"),
+    "the subscription hands the table and the event to the callback",
+  );
 });
 
 test("the trigger wakes the edge for calls that have simply run too long", () => {
@@ -100,12 +105,29 @@ test("Live says only what is true about a silent 'ongoing' row", () => {
   const NOW = new Date("2026-09-04T18:14:00.000Z");
   const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
   const base = {
-    id: "p", retell_call_id: "r-p", direction: "inbound", call_type: "phone_call",
-    from_e164: "+17865550181", from_raw: "+17865550181", to_e164: null,
-    started_at: ago(3_600_000), ended_at: null, updated_at: ago(20 * 60_000), duration_ms: null,
-    disconnection_reason: null, sentiment: null, call_successful: null, in_voicemail: null,
-    summary: null, transcript_object: null, recording: null,
-    conversation_id: null, contact_id: null, message_id: null, contact: null, status: "ongoing",
+    id: "p",
+    retell_call_id: "r-p",
+    direction: "inbound",
+    call_type: "phone_call",
+    from_e164: "+17865550181",
+    from_raw: "+17865550181",
+    to_e164: null,
+    started_at: ago(3_600_000),
+    ended_at: null,
+    updated_at: ago(20 * 60_000),
+    duration_ms: null,
+    disconnection_reason: null,
+    sentiment: null,
+    call_successful: null,
+    in_voicemail: null,
+    summary: null,
+    transcript_object: null,
+    recording: null,
+    conversation_id: null,
+    contact_id: null,
+    message_id: null,
+    contact: null,
+    status: "ongoing",
   };
   const phantom = toLiveCallVM(base, ZONE, NOW);
   assert.equal(phantom.live, false);

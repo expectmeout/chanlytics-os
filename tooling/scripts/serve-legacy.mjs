@@ -51,8 +51,16 @@ const CONTRACTS = path.join(REPO, "packages/contracts/dist/index.js");
  * request, and again when the sample or the contracts dist changes.
  */
 const SAMPLES = {
-  "/data/reports-sample.js": { entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/reports-sample.ts"), globalName: "__RS", footer: "window.__reportsSample = __RS.reportsSample;" },
-  "/data/today-sample.js": { entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/today-sample.ts"), globalName: "__TS", footer: "window.__todaySample = __TS.todaySample; __TS.installTodaySample(window);" },
+  "/data/reports-sample.js": {
+    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/reports-sample.ts"),
+    globalName: "__RS",
+    footer: "window.__reportsSample = __RS.reportsSample;",
+  },
+  "/data/today-sample.js": {
+    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/today-sample.ts"),
+    globalName: "__TS",
+    footer: "window.__todaySample = __TS.todaySample; __TS.installTodaySample(window);",
+  },
 };
 const built = new Map();
 
@@ -117,5 +125,8 @@ function serve(port, root) {
 
 // Run as a server; imported (a test reads reportsSampleBundle), nothing listens.
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  serve(Number(process.argv[2] || 3210), path.resolve(process.argv[3] || path.join(HERE, "../../apps/dashboard/src/legacy")));
+  serve(
+    Number(process.argv[2] || 3210),
+    path.resolve(process.argv[3] || path.join(HERE, "../../apps/dashboard/src/legacy")),
+  );
 }

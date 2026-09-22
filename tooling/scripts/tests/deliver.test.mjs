@@ -15,23 +15,54 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { deliver, deliverSafely, templatePurpose, whatsappSender } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
+const { deliver, deliverSafely, templatePurpose, whatsappSender } = await import(
+  pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href
+);
 
 const T = "t1";
 const NOW = Date.parse("2026-09-10T10:00:00.000Z");
-const person = (over = {}) => ({ consent: "opted_in", dnc: false, marketing_consent: "opted_out", erased_at: null, ...over });
-const thread = (over = {}) => ({ id: "c1", tenant_id: T, paused_until: null, contacts: person(), tenants: { status: "active" }, ...over });
+const person = (over = {}) => ({
+  consent: "opted_in",
+  dnc: false,
+  marketing_consent: "opted_out",
+  erased_at: null,
+  ...over,
+});
+const thread = (over = {}) => ({
+  id: "c1",
+  tenant_id: T,
+  paused_until: null,
+  contacts: person(),
+  tenants: { status: "active" },
+  ...over,
+});
 const tables = (over = {}) => ({ conversations: [thread()], messages: [], events: [], ...over });
 
 /** A wire that says yes and remembers what it was handed. */
 function wireOf(result = { ok: true, wamid: "wamid.1", status: 200 }) {
   const calls = [];
-  return { calls, wire: { whatsapp: async (to, p) => { calls.push({ to, p }); return result; } } };
+  return {
+    calls,
+    wire: {
+      whatsapp: async (to, p) => {
+        calls.push({ to, p });
+        return result;
+      },
+    },
+  };
 }
 const ports = (t, w, over = {}) => ({ db: fakeDb(t), wire: w.wire, now: () => NOW, ...over });
 const words = (over = {}) => ({
-  tenantId: T, conversationId: "c1", contactId: "k1", to: "+13475550101", channel: "whatsapp",
-  sender: "human", purpose: "conversational", proactive: false, body: "See you at 3", ...over,
+  tenantId: T,
+  conversationId: "c1",
+  contactId: "k1",
+  to: "+13475550101",
+  channel: "whatsapp",
+  sender: "human",
+  purpose: "conversational",
+  proactive: false,
+  body: "See you at 3",
+  ...over,
 });
 const kinds = (t) => t.events.map((e) => e.kind);
 
@@ -111,16 +142,24 @@ test("a paused workspace holds the machine, never the person; a held thread hold
     const w = wireOf();
     const out = await deliver(ports(t, w), words({ sender }));
     const label = `${sender} on ${JSON.stringify({ status: row.tenants?.status, paused_until: row.paused_until })}`;
-    if (expected) { assert.equal(out.outcome, "refused", label); assert.equal(out.reason, expected, label); }
-    else assert.equal(out.outcome, "sent", label);
+    if (expected) {
+      assert.equal(out.outcome, "refused", label);
+      assert.equal(out.reason, expected, label);
+    } else assert.equal(out.outcome, "sent", label);
   }
 });
 
 test("a person who asked to be erased is refused from the moment they asked, not only once the erasure finished", async () => {
-  const asked = tables({ conversations: [thread({ contacts: person({ erasing_since: "2026-09-10T09:00:00.000Z" }) })] });
+  const asked = tables({
+    conversations: [thread({ contacts: person({ erasing_since: "2026-09-10T09:00:00.000Z" }) })],
+  });
   const w = wireOf();
   const out = await deliver(ports(asked, w), words({ sender: "human" }));
-  assert.deepEqual([out.outcome, out.reason], ["refused", "erased"], "the block is written before anything is destroyed; a person's own reply meets it too");
+  assert.deepEqual(
+    [out.outcome, out.reason],
+    ["refused", "erased"],
+    "the block is written before anything is destroyed; a person's own reply meets it too",
+  );
   assert.equal(w.calls.length, 0);
 });
 
@@ -129,23 +168,47 @@ test("a thread a person holds refuses the receptionist's draft, and only the dra
   // read assignee_user_id, which nothing ever clears -- so a thread taken over
   // one Tuesday refused every draft after it for the life of the workspace.
   const held = () => thread({ control_kind: "person", control_until: "2026-09-10T11:00:00.000Z" });
-  const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9.", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
+  const draft = {
+    id: "m1",
+    tenant_id: T,
+    conversation_id: "c1",
+    status: "queued",
+    body: "We open at 9.",
+    sender: "ai",
+    direction: "outbound",
+    created_at: "2026-09-10T09:59:00.000Z",
+  };
   const t = tables({ conversations: [held()], messages: [{ ...draft }] });
   const w = wireOf();
   const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1" }));
-  assert.deepEqual([out.outcome, out.reason], ["refused", "human_has_it"], "the draft the withdrawal missed is refused here");
+  assert.deepEqual(
+    [out.outcome, out.reason],
+    ["refused", "human_has_it"],
+    "the draft the withdrawal missed is refused here",
+  );
   assert.equal(t.messages[0].status, "canceled", "and retired in place");
   assert.equal(w.calls.length, 0, "nothing reached the wire");
   // The person's own reply on the thread they hold goes; so does a system
   // message, owed whoever holds it.
-  assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "human" }))).outcome, "sent");
-  assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "system", kind: "system" }))).outcome, "sent", "an opt-in confirmation is owed the moment the yes was given, whoever holds the thread");
+  assert.equal(
+    (await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "human" }))).outcome,
+    "sent",
+  );
+  assert.equal(
+    (await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "system", kind: "system" })))
+      .outcome,
+    "sent",
+    "an opt-in confirmation is owed the moment the yes was given, whoever holds the thread",
+  );
   // The receptionist answering NOW is held too, and that is the half of this
   // rule that keeps two of our own agents off one person: while a call holds
   // the thread, a message arriving on WhatsApp is stored and answered by
   // nobody, instead of being answered over the call the customer is on.
   assert.deepEqual(
-    await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "ai" })).then((r) => [r.outcome, r.reason]),
+    await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "ai" })).then((r) => [
+      r.outcome,
+      r.reason,
+    ]),
     ["refused", "human_has_it"],
   );
 });
@@ -157,15 +220,36 @@ test("a hold that has run out holds nothing: the fact expires, which is what the
   // the receptionist's drafts for ever, and the workspace's veto window quietly
   // stopped working on it. A hold carries its own expiry instead.
   const lapsed = () => thread({ control_kind: "person", control_until: "2026-09-10T09:59:59.000Z" });
-  const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9.", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:00:00.000Z" };
+  const draft = {
+    id: "m1",
+    tenant_id: T,
+    conversation_id: "c1",
+    status: "queued",
+    body: "We open at 9.",
+    sender: "ai",
+    direction: "outbound",
+    created_at: "2026-09-10T09:00:00.000Z",
+  };
   const t = tables({ conversations: [lapsed()], messages: [{ ...draft }] });
   const w = wireOf();
   assert.equal((await deliver(ports(t, w), words({ sender: "ai", messageId: "m1" }))).outcome, "sent");
-  assert.equal((await deliver(ports(tables({ conversations: [lapsed()] }), wireOf()), words({ sender: "ai" }))).outcome, "sent");
+  assert.equal(
+    (await deliver(ports(tables({ conversations: [lapsed()] }), wireOf()), words({ sender: "ai" }))).outcome,
+    "sent",
+  );
 });
 
 test("a queued row is finalized in place: sent with its id, or canceled with its reason and an event that says why", async () => {
-  const queued = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "See you at 3", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
+  const queued = {
+    id: "m1",
+    tenant_id: T,
+    conversation_id: "c1",
+    status: "queued",
+    body: "See you at 3",
+    sender: "human",
+    direction: "outbound",
+    created_at: "2026-09-10T09:59:00.000Z",
+  };
   const sentT = tables({ messages: [{ ...queued }] });
   const w = wireOf();
   const sent = await deliver(ports(sentT, w), words({ messageId: "m1" }));
@@ -177,18 +261,48 @@ test("a queued row is finalized in place: sent with its id, or canceled with its
   assert.deepEqual(kinds(sentT), ["message.sent"]);
   assert.equal(sentT.events[0].subject_id, "m1");
 
-  const heldT = tables({ messages: [{ ...queued }], conversations: [thread({ contacts: person({ consent: "opted_out" }) })] });
+  const heldT = tables({
+    messages: [{ ...queued }],
+    conversations: [thread({ contacts: person({ consent: "opted_out" }) })],
+  });
   const refused = await deliver(ports(heldT, wireOf()), words({ messageId: "m1" }));
   assert.equal(refused.outcome, "refused");
   assert.equal(heldT.messages[0].status, "canceled");
   assert.deepEqual(heldT.messages[0].error, { reason: "opted_out" });
-  assert.deepEqual(heldT.events.map((e) => [e.kind, e.data]), [["message.send_blocked", { reason: "opted_out", purpose: "conversational", consent: "opted_out", dnc: false, marketing_consent: "opted_out" }]]);
+  assert.deepEqual(
+    heldT.events.map((e) => [e.kind, e.data]),
+    [
+      [
+        "message.send_blocked",
+        {
+          reason: "opted_out",
+          purpose: "conversational",
+          consent: "opted_out",
+          dnc: false,
+          marketing_consent: "opted_out",
+        },
+      ],
+    ],
+  );
 });
 
 test("a cancel that wins the row after the words left is the signal, never overwritten", async () => {
   // The row was canceled between the send and the write: the text is gone,
   // the row stays canceled, and an event says the two raced.
-  const t = tables({ messages: [{ id: "m1", tenant_id: T, conversation_id: "c1", status: "canceled", body: "x", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" }] });
+  const t = tables({
+    messages: [
+      {
+        id: "m1",
+        tenant_id: T,
+        conversation_id: "c1",
+        status: "canceled",
+        body: "x",
+        sender: "human",
+        direction: "outbound",
+        created_at: "2026-09-10T09:59:00.000Z",
+      },
+    ],
+  });
   const out = await deliver(ports(t, wireOf()), words({ messageId: "m1" }));
   assert.equal(out.outcome, "sent");
   assert.equal(t.messages[0].status, "canceled");
@@ -196,10 +310,30 @@ test("a cancel that wins the row after the words left is the signal, never overw
 });
 
 test("the receptionist's draft is retired when a person answered after it was written", async () => {
-  const t = tables({ messages: [
-    { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9!", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" },
-    { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "9am, see you", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:30.000Z" },
-  ] });
+  const t = tables({
+    messages: [
+      {
+        id: "m1",
+        tenant_id: T,
+        conversation_id: "c1",
+        status: "queued",
+        body: "We open at 9!",
+        sender: "ai",
+        direction: "outbound",
+        created_at: "2026-09-10T09:59:00.000Z",
+      },
+      {
+        id: "m2",
+        tenant_id: T,
+        conversation_id: "c1",
+        status: "sent",
+        body: "9am, see you",
+        sender: "human",
+        direction: "outbound",
+        created_at: "2026-09-10T09:59:30.000Z",
+      },
+    ],
+  });
   const w = wireOf();
   const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1" }));
   assert.equal(out.outcome, "refused");
@@ -211,9 +345,23 @@ test("the receptionist's draft is retired when a person answered after it was wr
 
 test("no wire, no credentials, a provider that says no: each is OURS, a failed row, and an event with the status", async () => {
   // No such channel in this runtime.
-  const none = tables({ messages: [{ id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "x", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" }] });
+  const none = tables({
+    messages: [
+      {
+        id: "m1",
+        tenant_id: T,
+        conversation_id: "c1",
+        status: "queued",
+        body: "x",
+        sender: "human",
+        direction: "outbound",
+        created_at: "2026-09-10T09:59:00.000Z",
+      },
+    ],
+  });
   const a = await deliver({ db: fakeDb(none), wire: {}, now: () => NOW }, words({ channel: "sms", messageId: "m1" }));
-  assert.equal(a.outcome, "failed"); assert.equal(a.reason, "no_sender_for_channel");
+  assert.equal(a.outcome, "failed");
+  assert.equal(a.reason, "no_sender_for_channel");
   assert.equal(none.messages[0].status, "failed");
   assert.deepEqual(none.messages[0].error, { http_status: 0, body: "no_sender_for_channel" });
   assert.deepEqual(kinds(none), ["message.send_failed"]);
@@ -221,18 +369,41 @@ test("no wire, no credentials, a provider that says no: each is OURS, a failed r
   // The channel exists; this workspace holds nothing for it.
   const bare = tables();
   const b = await deliver({ db: fakeDb(bare), wire: { whatsapp: null }, now: () => NOW }, words());
-  assert.equal(b.outcome, "failed"); assert.equal(b.reason, "no_credentials"); assert.equal(b.status, 503);
+  assert.equal(b.outcome, "failed");
+  assert.equal(b.reason, "no_credentials");
+  assert.equal(b.status, 503);
   assert.equal(bare.messages.length, 1, "recorded as a failed row rather than dropped");
   assert.equal(bare.messages[0].status, "failed");
   assert.deepEqual(bare.messages[0].meta, { http_status: 503, body: "no_credentials" });
-  assert.deepEqual(kinds(bare), ["message.send_failed"], "words that never left are said to have failed, never to have gone out");
+  assert.deepEqual(
+    kinds(bare),
+    ["message.send_failed"],
+    "words that never left are said to have failed, never to have gone out",
+  );
 
   // The provider refused.
   const said = tables();
-  const c = await deliver(ports(said, wireOf({ ok: false, wamid: null, status: 400, errorBody: "(#131030) Recipient phone number not in allowed list" })), words({ meta: { source: "voice" } }));
-  assert.equal(c.outcome, "failed"); assert.equal(c.reason, "provider"); assert.equal(c.status, 400);
+  const c = await deliver(
+    ports(
+      said,
+      wireOf({
+        ok: false,
+        wamid: null,
+        status: 400,
+        errorBody: "(#131030) Recipient phone number not in allowed list",
+      }),
+    ),
+    words({ meta: { source: "voice" } }),
+  );
+  assert.equal(c.outcome, "failed");
+  assert.equal(c.reason, "provider");
+  assert.equal(c.status, 400);
   assert.equal(said.messages[0].status, "failed");
-  assert.deepEqual(said.messages[0].meta, { source: "voice", http_status: 400, body: "(#131030) Recipient phone number not in allowed list" });
+  assert.deepEqual(said.messages[0].meta, {
+    source: "voice",
+    http_status: 400,
+    body: "(#131030) Recipient phone number not in allowed list",
+  });
   assert.equal(c.messageId, said.messages[0].id);
   assert.deepEqual(kinds(said), ["message.send_failed"], "a refusal the provider gave is a failure, not a send");
 });
@@ -245,8 +416,14 @@ test("a draft is not a send: recorded as queued it writes no message.sent, and t
   const { recordOutbound } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
   const t = tables();
   const id = await recordOutbound(fakeDb(t), {
-    tenantId: T, conversationId: "c1", contactId: "k1", sender: "ai", type: "text",
-    body: "We open at 9", externalId: null, status: "queued",
+    tenantId: T,
+    conversationId: "c1",
+    contactId: "k1",
+    sender: "ai",
+    type: "text",
+    body: "We open at 9",
+    externalId: null,
+    status: "queued",
   });
   assert.equal(t.messages.find((m) => m.id === id)?.status, "queued");
   assert.deepEqual(kinds(t), [], "a draft awaiting its veto window has not gone out");
@@ -258,35 +435,62 @@ test("a draft is not a send: recorded as queued it writes no message.sent, and t
 
 test("a wire that cannot be read is not a yes: the door throws, and nothing is sent", async () => {
   const w = wireOf();
-  await assert.rejects(deliver({ db: fakeDb(tables(), { "conversations.select": { message: "connection reset" } }), wire: w.wire }, words()), /cannot read the wire/);
+  await assert.rejects(
+    deliver(
+      { db: fakeDb(tables(), { "conversations.select": { message: "connection reset" } }), wire: w.wire },
+      words(),
+    ),
+    /cannot read the wire/,
+  );
   await assert.rejects(deliver(ports(tables({ conversations: [] }), w), words()), /no conversation c1/);
   assert.equal(w.calls.length, 0);
 });
 
 test("which yes a queued template needs: Meta's category, failing closed, and a read that fails throws", async () => {
-  const t = { templates: [
-    { tenant_id: T, channel: "whatsapp", name: "month_offer", language: "en_US", category: "marketing" },
-    { tenant_id: T, channel: "whatsapp", name: "visit_reminder", language: "en_US", category: "utility" },
-  ] };
+  const t = {
+    templates: [
+      { tenant_id: T, channel: "whatsapp", name: "month_offer", language: "en_US", category: "marketing" },
+      { tenant_id: T, channel: "whatsapp", name: "visit_reminder", language: "en_US", category: "utility" },
+    ],
+  };
   assert.equal(await templatePurpose(fakeDb(t), T, undefined), "conversational");
   assert.equal(await templatePurpose(fakeDb(t), T, { name: "visit_reminder", language: "en_US" }), "conversational");
   assert.equal(await templatePurpose(fakeDb(t), T, { name: "month_offer", language: "en_US" }), "marketing");
-  assert.equal(await templatePurpose(fakeDb(t), T, { name: "seeded_by_hand", language: "en_US" }), "marketing", "unknown to us is marketing until Meta says otherwise");
-  await assert.rejects(templatePurpose(fakeDb(t, { "templates.select": { message: "reset" } }), T, { name: "month_offer", language: "en_US" }), /cannot read template month_offer/);
+  assert.equal(
+    await templatePurpose(fakeDb(t), T, { name: "seeded_by_hand", language: "en_US" }),
+    "marketing",
+    "unknown to us is marketing until Meta says otherwise",
+  );
+  await assert.rejects(
+    templatePurpose(fakeDb(t, { "templates.select": { message: "reset" } }), T, {
+      name: "month_offer",
+      language: "en_US",
+    }),
+    /cannot read template month_offer/,
+  );
 });
 
 test("WhatsApp's wire comes from credentials alone, and hands Graph bare digits", async () => {
   assert.equal(whatsappSender(null), null, "no credentials, no wire");
   const seen = [];
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => { seen.push({ url: String(url), body: JSON.parse(init.body) }); return new Response(JSON.stringify({ messages: [{ id: "wamid.9" }] }), { status: 200, headers: { "content-type": "application/json" } }); };
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url: String(url), body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ messages: [{ id: "wamid.9" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
   try {
     const send = whatsappSender({ phoneId: "p1", accessToken: "tok" });
     const r = await send("+13475550101", { body: "hi" });
-    assert.equal(r.ok, true); assert.equal(r.wamid, "wamid.9");
+    assert.equal(r.ok, true);
+    assert.equal(r.wamid, "wamid.9");
     assert.equal(seen[0].body.to, "13475550101");
     assert.ok(seen[0].url.includes("/p1/messages"));
-  } finally { globalThis.fetch = realFetch; }
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 
 test("a broadcast is a person's words but an automated send: it respects the thread's pause and the workspace's pause", async () => {
@@ -296,7 +500,15 @@ test("a broadcast is a person's words but an automated send: it respects the thr
   ]) {
     const t = tables({ conversations: [row] });
     const w = wireOf();
-    const out = await deliver(ports(t, w), words({ sender: "human", proactive: true, purpose: "conversational", template: { name: "visit_reminder", language: "en_US", params: [] } }));
+    const out = await deliver(
+      ports(t, w),
+      words({
+        sender: "human",
+        proactive: true,
+        purpose: "conversational",
+        template: { name: "visit_reminder", language: "en_US", params: [] },
+      }),
+    );
     assert.equal(out.outcome, "refused", JSON.stringify(row));
     assert.equal(out.reason, expected);
     assert.equal(w.calls.length, 0);
@@ -305,7 +517,16 @@ test("a broadcast is a person's words but an automated send: it respects the thr
 
 test("the receptionist's own escalation pauses the thread and queues its holding message: the queued draft still goes, unless a person spoke since", async () => {
   const paused = thread({ paused_until: new Date(NOW + 24 * 3600_000).toISOString() });
-  const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "I've passed this to the team.", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
+  const draft = {
+    id: "m1",
+    tenant_id: T,
+    conversation_id: "c1",
+    status: "queued",
+    body: "I've passed this to the team.",
+    sender: "ai",
+    direction: "outbound",
+    created_at: "2026-09-10T09:59:00.000Z",
+  };
   {
     const t = tables({ conversations: [paused], messages: [draft] });
     const w = wireOf();
@@ -314,7 +535,16 @@ test("the receptionist's own escalation pauses the thread and queues its holding
     assert.equal(t.messages[0].status, "sent");
   }
   {
-    const owner = { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "Hi, Melany here", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:30.000Z" };
+    const owner = {
+      id: "m2",
+      tenant_id: T,
+      conversation_id: "c1",
+      status: "sent",
+      body: "Hi, Melany here",
+      sender: "human",
+      direction: "outbound",
+      created_at: "2026-09-10T09:59:30.000Z",
+    };
     const t = tables({ conversations: [paused], messages: [draft, owner] });
     const w = wireOf();
     const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1", body: draft.body }));
@@ -330,7 +560,11 @@ test("what a send IS decides what holds it, never who wrote it: a system message
     const t = tables({ conversations: [held] });
     const w = wireOf();
     const out = await deliver(ports(t, w), words({ sender: "ai", kind: "system" }));
-    assert.equal(out.outcome, "sent", "an opt-in confirmation is owed the moment the yes was given, whoever holds the thread");
+    assert.equal(
+      out.outcome,
+      "sent",
+      "an opt-in confirmation is owed the moment the yes was given, whoever holds the thread",
+    );
     assert.equal(t.messages[0].sender, "ai", "and the row still says who wrote the words");
   }
   {
@@ -346,8 +580,27 @@ test("what a send IS decides what holds it, never who wrote it: a system message
     assert.equal(out.reason, "paused", "a paused workspace sends nothing but a person's own words");
   }
   {
-    const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "Hi", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
-    const run = { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "An offer", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:30.000Z", meta: { source: "broadcast", broadcast_id: "b1" } };
+    const draft = {
+      id: "m1",
+      tenant_id: T,
+      conversation_id: "c1",
+      status: "queued",
+      body: "Hi",
+      sender: "ai",
+      direction: "outbound",
+      created_at: "2026-09-10T09:59:00.000Z",
+    };
+    const run = {
+      id: "m2",
+      tenant_id: T,
+      conversation_id: "c1",
+      status: "sent",
+      body: "An offer",
+      sender: "human",
+      direction: "outbound",
+      created_at: "2026-09-10T09:59:30.000Z",
+      meta: { source: "broadcast", broadcast_id: "b1" },
+    };
     const t = tables({ messages: [draft, run] });
     const w = wireOf();
     const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1", body: "Hi" }));
@@ -372,16 +625,36 @@ const { emailSender } = await import(pathToFileURL(path.join(ROOT, "packages/cor
 const { buildEmailRequest } = await import(pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href);
 
 const ADDRESS = "ana@example.com";
-const frozen = (over = {}) => buildEmailRequest({
-  identity: { fromName: "Best Movers", fromAddress: "bestmovers@mail.chanlytics.com", replyTo: "r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com" },
-  to: ADDRESS, parent: { messageId: "m0", rfcMessageId: "<q1@customer.example>", references: [], subject: "Quote for Saturday" },
-  body: "We can do Saturday at 9.", signature: null, actor: "human", messageId: "m1", tenantId: T, ...over,
-});
-const emailed = (over = {}) => words({ to: ADDRESS, channel: "email", email: frozen(), body: "We can do Saturday at 9.", ...over });
+const frozen = (over = {}) =>
+  buildEmailRequest({
+    identity: {
+      fromName: "Best Movers",
+      fromAddress: "bestmovers@mail.chanlytics.com",
+      replyTo: "r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com",
+    },
+    to: ADDRESS,
+    parent: { messageId: "m0", rfcMessageId: "<q1@customer.example>", references: [], subject: "Quote for Saturday" },
+    body: "We can do Saturday at 9.",
+    signature: null,
+    actor: "human",
+    messageId: "m1",
+    tenantId: T,
+    ...over,
+  });
+const emailed = (over = {}) =>
+  words({ to: ADDRESS, channel: "email", email: frozen(), body: "We can do Saturday at 9.", ...over });
 const onEmail = (over = {}) => person({ email: ADDRESS, email_suppressed_at: null, ...over });
 const emailWire = (result = { ok: true, wamid: "re_1", status: 200 }) => {
   const calls = [];
-  return { calls, wire: { email: async (to, p) => { calls.push({ to, p }); return result; } } };
+  return {
+    calls,
+    wire: {
+      email: async (to, p) => {
+        calls.push({ to, p });
+        return result;
+      },
+    },
+  };
 };
 
 test("an email leaves as the request that was frozen for it: the wire is handed those bytes, and the row says email", async () => {
@@ -420,29 +693,55 @@ test("email's three refusals, each a fact about the person or the product, asked
 
 test("email's wire is one workspace's: it sends the frozen request and nothing it assembled, and only as the mailbox it was bound to", async () => {
   // The mailbox the fixture's identity comes from, with a rotated-out reply route still routing.
-  const AS = { address: "bestmovers@mail.chanlytics.com", replyRoutes: ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com", "r+zyxwvutsrqponmlkjihgfedc@mail.chanlytics.com"] };
+  const AS = {
+    address: "bestmovers@mail.chanlytics.com",
+    replyRoutes: ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com", "r+zyxwvutsrqponmlkjihgfedc@mail.chanlytics.com"],
+  };
   assert.equal(emailSender(null, AS), null, "no provider key: the channel exists and this runtime cannot send on it");
   assert.equal(emailSender({ apiKey: "test-key" }, null), null, "no mailbox: this workspace has no email line");
   const send = emailSender({ apiKey: "test-key" }, AS);
   const real = globalThis.fetch;
   const posted = [];
-  globalThis.fetch = async (url, init) => { posted.push({ url, init }); return new Response(JSON.stringify({ id: "re_9" }), { status: 200 }); };
+  globalThis.fetch = async (url, init) => {
+    posted.push({ url, init });
+    return new Response(JSON.stringify({ id: "re_9" }), { status: 200 });
+  };
   const refused = (errorBody) => ({ ok: false, wamid: null, status: 0, errorBody });
   try {
     assert.deepEqual(await send(ADDRESS, { body: "hi" }), refused("no_frozen_request"));
-    assert.deepEqual(await send("someone.else@example.com", { body: "hi", email: frozen() }), refused("request_names_another_recipient"));
+    assert.deepEqual(
+      await send("someone.else@example.com", { body: "hi", email: frozen() }),
+      refused("request_names_another_recipient"),
+    );
     // The provider key is every workspace's. What stops one business's row leaving as another is this.
     const another = { fromName: "Best Movers", fromAddress: "melanys@mail.chanlytics.com", replyTo: AS.replyRoutes[0] };
-    assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen({ identity: another }) }), refused("request_leaves_as_another_sender"));
-    const elsewhere = { fromName: "Best Movers", fromAddress: AS.address, replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com" };
-    assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen({ identity: elsewhere }) }), refused("request_leaves_as_another_sender"), "answers would route to somebody else");
+    assert.deepEqual(
+      await send(ADDRESS, { body: "hi", email: frozen({ identity: another }) }),
+      refused("request_leaves_as_another_sender"),
+    );
+    const elsewhere = {
+      fromName: "Best Movers",
+      fromAddress: AS.address,
+      replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com",
+    };
+    assert.deepEqual(
+      await send(ADDRESS, { body: "hi", email: frozen({ identity: elsewhere }) }),
+      refused("request_leaves_as_another_sender"),
+      "answers would route to somebody else",
+    );
     assert.equal(posted.length, 0, "none of them reached the provider");
 
     assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen() }), { ok: true, wamid: "re_9", status: 200 });
     const rotated = { fromName: "Best Movers", fromAddress: AS.address, replyTo: AS.replyRoutes[1] };
-    assert.equal((await send(ADDRESS, { body: "hi", email: frozen({ identity: rotated }) })).ok, true, "a request frozen before a rotation still leaves");
+    assert.equal(
+      (await send(ADDRESS, { body: "hi", email: frozen({ identity: rotated }) })).ok,
+      true,
+      "a request frozen before a rotation still leaves",
+    );
     assert.equal(posted.length, 2);
-  } finally { globalThis.fetch = real; }
+  } finally {
+    globalThis.fetch = real;
+  }
 });
 
 test("a workspace with no email wire bound fails as ours, like any channel this runtime does not have", async () => {

@@ -14,12 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readCode } from "./_source.mjs";
-import {
-  replyDelayMs,
-  REPLY_DELAY_DEFAULT_MS,
-  REPLY_DELAY_MIN_MS,
-  REPLY_DELAY_MAX_MS,
-} from "@chanlytics/contracts";
+import { replyDelayMs, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MIN_MS, REPLY_DELAY_MAX_MS } from "@chanlytics/contracts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
@@ -91,7 +86,10 @@ test("a queued draft falls back to sending when it cannot be scheduled", () => {
 test("EVERY path where a human takes control withdraws the draft", () => {
   // Otherwise the customer receives both the override and the words it was
   // meant to replace.
-  for (const [name, src, withdraw] of [["reply", reply, /ports\.withdrawDrafts\(/], ["the adapter", takeOver, /withdrawDrafts: \(tenantId, id\) => cancelPendingAiReply\(/]]) {
+  for (const [name, src, withdraw] of [
+    ["reply", reply, /ports\.withdrawDrafts\(/],
+    ["the adapter", takeOver, /withdrawDrafts: \(tenantId, id\) => cancelPendingAiReply\(/],
+  ]) {
     assert.match(src, withdraw, `${name} must withdraw a held draft`);
   }
 });
@@ -150,17 +148,18 @@ test("a veto draft that could not be scheduled is retired, not left pending", ()
   const rollback = body.slice(body.indexOf("} catch"));
   assert.ok(rollback.includes('status: "canceled"'), "a draft that could not be scheduled must be canceled");
   assert.ok(rollback.includes("scheduling_failed"), "and the row must say why");
-  assert.ok(
-    rollback.includes('.eq("status", "queued")'),
-    "only retire a row that has not already been sent",
-  );
+  assert.ok(rollback.includes('.eq("status", "queued")'), "only retire a row that has not already been sent");
 });
 
 test("a delayed bot reply is not recorded as a human's", () => {
   // The queue used to carry only human replies. Stamping every send 'human'
   // would make the metrics report the bot's words as a person's.
   const handlers = read("packages/core/src/messages/send.ts");
-  assert.match(handlers, /sender: \(msg\.sender \?\? "human"\)/, "the door is handed the row's sender, never a constant");
+  assert.match(
+    handlers,
+    /sender: \(msg\.sender \?\? "human"\)/,
+    "the door is handed the row's sender, never a constant",
+  );
 });
 
 test("a configured veto window that did not happen is RECORDED, not just logged", () => {

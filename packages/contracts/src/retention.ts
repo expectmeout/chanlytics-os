@@ -38,9 +38,13 @@ export const RATE_HITS_RETENTION_HOURS = 2;
  * record, and the reports read them.
  */
 export const EVENT_EVIDENCE_KINDS = [
-  "webhook.auth", "webhook.delivery",
-  "ingest.allowlist_skip", "ingest.unreachable_sender", "ingest.unroutable",
-  "usage.llm_tokens", "usage.ask_tokens",
+  "webhook.auth",
+  "webhook.delivery",
+  "ingest.allowlist_skip",
+  "ingest.unreachable_sender",
+  "ingest.unroutable",
+  "usage.llm_tokens",
+  "usage.ask_tokens",
 ] as const;
 
 /** The retention, as the privacy page states it: one paragraph, from the numbers above. */

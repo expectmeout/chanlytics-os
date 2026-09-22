@@ -46,17 +46,21 @@ const runtime = (over = {}) => ({ tenantId: "t2", waCreds: null, envNumber: fals
 
 test("a tenant with vault credentials sends on them, whatever the environment holds", () =>
   withEnv(ENV, () => {
-    assert.deepEqual(
-      waCfgFor(runtime({ waCreds: { phoneId: "222000", accessToken: "vault-token" } })),
-      { phoneId: "222000", accessToken: "vault-token" },
-    );
+    assert.deepEqual(waCfgFor(runtime({ waCreds: { phoneId: "222000", accessToken: "vault-token" } })), {
+      phoneId: "222000",
+      accessToken: "vault-token",
+    });
   }));
 
 test("no credentials is null -- never the environment's pair", () =>
   withEnv(ENV, () => {
     assert.equal(waCfgFor(runtime()), null, "a second business with nothing in the vault");
     assert.equal(waCfgFor(null), null, "an unknown tenant");
-    assert.equal(waCfgFor(runtime({ loadFailed: true })), null, "a runtime that could not load, for a business that is not the pilot");
+    assert.equal(
+      waCfgFor(runtime({ loadFailed: true })),
+      null,
+      "a runtime that could not load, for a business that is not the pilot",
+    );
   }));
 
 test("the environment pair belongs to the environment's own number, and to a message that arrived on it", () =>
@@ -76,25 +80,41 @@ test("an environment with no pair has nothing to hand even the pilot line", () =
 /* ------------------ by tenant id: the job runner's question ---------------- */
 
 const channel = (over = {}) => ({
-  id: "ch1", tenant_id: "t2", kind: "whatsapp", status: "active", credentials_ref: "wa-creds-t2", external_id: "222000", ...over,
+  id: "ch1",
+  tenant_id: "t2",
+  kind: "whatsapp",
+  status: "active",
+  credentials_ref: "wa-creds-t2",
+  external_id: "222000",
+  ...over,
 });
 
 test("a vault reference is read through the vault door", () =>
   withEnv(ENV, async () => {
-    const db = fakeDb({ tenant_channels: [channel()] }, {}, {
-      get_channel_credentials: ({ p_channel_id }) => {
-        assert.equal(p_channel_id, "ch1");
-        return { access_token: "vault-token", phone_id: "222000" };
+    const db = fakeDb(
+      { tenant_channels: [channel()] },
+      {},
+      {
+        get_channel_credentials: ({ p_channel_id }) => {
+          assert.equal(p_channel_id, "ch1");
+          return { access_token: "vault-token", phone_id: "222000" };
+        },
       },
-    });
+    );
     assert.deepEqual(await waCredentialsForTenant(db, "t2"), { phoneId: "222000", accessToken: "vault-token" });
   }));
 
 test("a vault that does not answer is a refusal, not the environment's pair", () =>
   withEnv(ENV, async () => {
-    const db = fakeDb({ tenant_channels: [channel()] }, {}, {
-      get_channel_credentials: () => { throw new Error("vault unavailable"); },
-    });
+    const db = fakeDb(
+      { tenant_channels: [channel()] },
+      {},
+      {
+        get_channel_credentials: () => {
+          throw new Error("vault unavailable");
+        },
+      },
+    );
     assert.equal(await waCredentialsForTenant(db, "t2"), null);
   }));
 
@@ -109,22 +129,51 @@ test("a channel with no reference gets the environment pair only when it IS the 
 test("no active WhatsApp channel, or a channel that cannot be read, is a refusal", () =>
   withEnv(ENV, async () => {
     assert.equal(await waCredentialsForTenant(fakeDb({ tenant_channels: [] }), "t2"), null);
-    assert.equal(await waCredentialsForTenant(fakeDb({ tenant_channels: [channel({ status: "disabled" })] }), "t2"), null);
-    const broken = fakeDb({ tenant_channels: [channel()] }, { "tenant_channels.select": { message: "connection reset" } });
-    assert.equal(await waCredentialsForTenant(broken, "t2"), null, "\"we could not check\" is not \"send on the pilot's token\"");
+    assert.equal(
+      await waCredentialsForTenant(fakeDb({ tenant_channels: [channel({ status: "disabled" })] }), "t2"),
+      null,
+    );
+    const broken = fakeDb(
+      { tenant_channels: [channel()] },
+      { "tenant_channels.select": { message: "connection reset" } },
+    );
+    assert.equal(
+      await waCredentialsForTenant(broken, "t2"),
+      null,
+      '"we could not check" is not "send on the pilot\'s token"',
+    );
   }));
 
 /* ---- who a tenant known only by id is addressed as ---- */
 
 const cfgRow = (notifications) => ({ tenant_id: "t2", config: { notifications } });
-const waRow = (over = {}) => ({ id: "ch1", tenant_id: "t2", kind: "whatsapp", external_id: "111000", status: "active", ...over });
+const waRow = (over = {}) => ({
+  id: "ch1",
+  tenant_id: "t2",
+  kind: "whatsapp",
+  external_id: "111000",
+  status: "active",
+  ...over,
+});
 
 test("the workspace's own recipients are read, and its own number decides whether it is the environment's", () =>
   withEnv(ENV, async () => {
-    const db = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] });
-    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: true });
-    const other = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["bo@example.com"] })], tenant_channels: [waRow({ external_id: "999000" })] });
-    assert.deepEqual(await loadTenantNotifications(other, "t2"), { notifications: { escalation_emails: ["bo@example.com"] }, isEnvDefault: false });
+    const db = fakeDb({
+      tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })],
+      tenant_channels: [waRow()],
+    });
+    assert.deepEqual(await loadTenantNotifications(db, "t2"), {
+      notifications: { escalation_emails: ["ada@example.com"] },
+      isEnvDefault: true,
+    });
+    const other = fakeDb({
+      tenant_config: [cfgRow({ escalation_emails: ["bo@example.com"] })],
+      tenant_channels: [waRow({ external_id: "999000" })],
+    });
+    assert.deepEqual(await loadTenantNotifications(other, "t2"), {
+      notifications: { escalation_emails: ["bo@example.com"] },
+      isEnvDefault: false,
+    });
   }));
 
 test("a second WhatsApp row does not cost a workspace its own alerts", () =>
@@ -140,7 +189,11 @@ test("a second WhatsApp row does not cost a workspace its own alerts", () =>
       tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })],
       tenant_channels: [waRow({ id: "old", status: "disabled", external_id: "222000" }), waRow()],
     });
-    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: true }, "the ACTIVE row answers, as it does for every other reader in this file");
+    assert.deepEqual(
+      await loadTenantNotifications(db, "t2"),
+      { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: true },
+      "the ACTIVE row answers, as it does for every other reader in this file",
+    );
   }));
 
 test("a channel read that fails costs only the env-default question, never the recipients", () =>
@@ -150,12 +203,22 @@ test("a channel read that fails costs only the env-default question, never the r
     // on a channel error would withhold the customer's words from a workspace
     // whose recipients were read perfectly well, which is the outcome this
     // function's error path exists to avoid.
-    const db = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] }, { "tenant_channels.select": { message: "statement timeout" } });
-    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: false }, "addressed as itself; only isEnvDefault falls back");
+    const db = fakeDb(
+      { tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] },
+      { "tenant_channels.select": { message: "statement timeout" } },
+    );
+    assert.deepEqual(
+      await loadTenantNotifications(db, "t2"),
+      { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: false },
+      "addressed as itself; only isEnvDefault falls back",
+    );
   }));
 
 test("recipients that cannot be read ARE said as unknown, so notify withholds rather than guesses", () =>
   withEnv(ENV, async () => {
-    const db = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] }, { "tenant_config.select": { message: "statement timeout" } });
+    const db = fakeDb(
+      { tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] },
+      { "tenant_config.select": { message: "statement timeout" } },
+    );
     assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: null, isEnvDefault: false });
   }));

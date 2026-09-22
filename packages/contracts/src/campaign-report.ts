@@ -222,10 +222,15 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     },
     lines: {
       // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
-      funnel: tot.optIns || tot.optOuts
-        ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.`
-        : "Nobody said yes to messages or asked to stop.",
-      sent: sends ? (sends === 1 ? "From one broadcast or playbook run." : `From ${sends} broadcast and playbook runs.`) : null,
+      funnel:
+        tot.optIns || tot.optOuts
+          ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.`
+          : "Nobody said yes to messages or asked to stop.",
+      sent: sends
+        ? sends === 1
+          ? "From one broadcast or playbook run."
+          : `From ${sends} broadcast and playbook runs.`
+        : null,
     },
   };
 }

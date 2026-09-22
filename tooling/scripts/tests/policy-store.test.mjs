@@ -39,10 +39,25 @@ test("every class offered is one the runtime consults, and each offers only the 
   // The rows used to carry an enforced flag, back when the receptionist read
   // one class. Every class has an enforcer now, so the flag and the pane text
   // that hung on it are gone: the list itself is the claim.
-  assert.deepEqual(UI_ROWS.map((r) => r.id).sort(), ["book", "campaign", "faq", "money", "reengage", "reply", "reviews"], "reply by the handlers; booking and faq in both prompts and after generation; reengage and campaign by the playbooks sweep; reviews by the profile sync and the draft route; money is locked in the database");
-  assert.ok(UI_ROWS.every((r) => !("enforced" in r)), "no row is stored-but-unenforced, so no row says so");
-  assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Ask", "Never"], "answered, drafted for a person, or left alone — no countdown to hold");
-  assert.deepEqual(UI_ROWS.find((r) => r.id === "book").modes, ["Auto", "Ask"], "no never for a salon that takes bookings, no draft to hold for review");
+  assert.deepEqual(
+    UI_ROWS.map((r) => r.id).sort(),
+    ["book", "campaign", "faq", "money", "reengage", "reply", "reviews"],
+    "reply by the handlers; booking and faq in both prompts and after generation; reengage and campaign by the playbooks sweep; reviews by the profile sync and the draft route; money is locked in the database",
+  );
+  assert.ok(
+    UI_ROWS.every((r) => !("enforced" in r)),
+    "no row is stored-but-unenforced, so no row says so",
+  );
+  assert.deepEqual(
+    UI_ROWS.find((r) => r.id === "reviews").modes,
+    ["Auto", "Ask", "Never"],
+    "answered, drafted for a person, or left alone — no countdown to hold",
+  );
+  assert.deepEqual(
+    UI_ROWS.find((r) => r.id === "book").modes,
+    ["Auto", "Ask"],
+    "no never for a salon that takes bookings, no draft to hold for review",
+  );
   assert.deepEqual(UI_ROWS.find((r) => r.id === "faq").modes, ["Auto", "Ask"]);
   assert.equal(UI_ROWS.find((r) => r.id === "money").locked, true);
   assert.equal(UI_ROWS.find((r) => r.id === "book").cls, "booking", "the mockup says 'book', the table says 'booking'");
@@ -56,13 +71,28 @@ test("uiRows maps stored rows onto the mockup's ids, never invents a mode, and k
   assert.equal(by.book.mode, "Auto");
   assert.equal(by.faq.mode, null, "no row, no mode — the pane shows nothing rather than a default");
   assert.equal(by.money.mode, "Never");
-  assert.equal(uiRows({ role: null, rows: [{ class: "money", mode: "auto" }] }).find((r) => r.id === "money").mode, "Never", "a corrupted money row still reads Never");
+  assert.equal(
+    uiRows({ role: null, rows: [{ class: "money", mode: "auto" }] }).find((r) => r.id === "money").mode,
+    "Never",
+    "a corrupted money row still reads Never",
+  );
 });
 
 test("the installed store answers from real rows, and writes only through the courier for an enforced class", async () => {
   const calls = [];
-  const seed = { MODES: ["Auto", "Veto", "Ask", "Never"], ROWS: [{ id: "reply", def: "Auto" }], modeOf: () => "SEED", set: () => calls.push("seed-set") };
-  const win = { POLICY: seed, __POLICIES: REAL, __setPolicy: async (cls, mode) => { calls.push([cls, mode]); } };
+  const seed = {
+    MODES: ["Auto", "Veto", "Ask", "Never"],
+    ROWS: [{ id: "reply", def: "Auto" }],
+    modeOf: () => "SEED",
+    set: () => calls.push("seed-set"),
+  };
+  const win = {
+    POLICY: seed,
+    __POLICIES: REAL,
+    __setPolicy: async (cls, mode) => {
+      calls.push([cls, mode]);
+    },
+  };
   installPolicyStore(win);
   const S = win.POLICY;
   assert.equal(S.real(), true);
@@ -78,12 +108,20 @@ test("the installed store answers from real rows, and writes only through the co
   S.set("book", "Never"); // a mode booking cannot honour: no write, the pane shows a dash there
   S.set("reply", "Maybe"); // not a mode
   await Promise.resolve();
-  assert.deepEqual(calls, [["reply", "ask"], ["booking", "ask"]]);
+  assert.deepEqual(calls, [
+    ["reply", "ask"],
+    ["booking", "ask"],
+  ]);
 });
 
 test("without real rows the store is the seeded one, untouched", () => {
   const calls = [];
-  const seed = { MODES: ["Auto", "Veto", "Ask", "Never"], ROWS: [{ id: "reply", def: "Auto" }], modeOf: (id) => `seed:${id}`, set: (id, m) => calls.push([id, m]) };
+  const seed = {
+    MODES: ["Auto", "Veto", "Ask", "Never"],
+    ROWS: [{ id: "reply", def: "Auto" }],
+    modeOf: (id) => `seed:${id}`,
+    set: (id, m) => calls.push([id, m]),
+  };
   const win = { POLICY: seed };
   installPolicyStore(win);
   assert.equal(win.POLICY.real(), false);

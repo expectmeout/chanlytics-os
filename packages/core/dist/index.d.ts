@@ -508,8 +508,8 @@ interface SendQueuedPorts {
         status: string;
         body: string | null;
         channel: string | null;
-        sender: string | null; /** The frozen request, on an email's row. */
-        email?: Delivery["email"] | null;
+        sender: string | null;
+        /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
     } | null>;
     /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
     purposeOf(template: {
@@ -748,9 +748,9 @@ interface EmailIngestPorts {
         processed: boolean;
     }>;
     /**
-    * Flag the thread for a person: a new hold, one that now means something else,
-    * a refresh of the same one, or a write that did not land.
-    */
+     * Flag the thread for a person: a new hold, one that now means something else,
+     * a refresh of the same one, or a write that did not land.
+     */
     escalate(tenantId: string, conversationId: string, reason: "email_review", details: string): Promise<"opened" | "changed" | "refreshed" | "failed">;
     /** Tell the workspace's people, once per hold: the bell, and the mail their alerts go to. Never throws. */
     tell(tenantId: string, note: {

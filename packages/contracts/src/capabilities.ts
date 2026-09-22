@@ -49,7 +49,9 @@ export interface CapabilityStatus {
   words: string;
 }
 
-export type CapabilityInputs = Pick<SetupDto, "channels" | "business" | "templates" | "lines"> & { activations?: ActivationRecord[] };
+export type CapabilityInputs = Pick<SetupDto, "channels" | "business" | "templates" | "lines"> & {
+  activations?: ActivationRecord[];
+};
 
 function activationOf(i: CapabilityInputs, kind: CapabilityKind): CapabilityStatus["activated"] {
   const r = (i.activations ?? []).find((a) => a.capability === kind && !a.deactivated_at);
@@ -58,7 +60,10 @@ function activationOf(i: CapabilityInputs, kind: CapabilityKind): CapabilityStat
 
 const factsMissing = (i: CapabilityInputs): CapabilityBlocker | null =>
   !i.business.name || !i.business.hours
-    ? { code: "no_business_facts", words: "The receptionist has no facts to answer with yet: the business name and hours first." }
+    ? {
+        code: "no_business_facts",
+        words: "The receptionist has no facts to answer with yet: the business name and hours first.",
+      }
     : null;
 
 export function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowMs = Date.now()): CapabilityStatus {
@@ -76,9 +81,16 @@ export function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowM
     } else if (own && own.voice_state === "provisioning") {
       blockers.push({ code: "line_provisioning", words: "Your line is being set up; it answers the moment it is." });
     } else if (own && own.voice_state === "failed" && lineCredentialFailure(own.last_error)) {
-      blockers.push({ code: "line_failed", words: "Setting up your line stopped at the vault that keeps its credentials; a person at Chanlytics has it, and a retry cannot help until they restore them." });
+      blockers.push({
+        code: "line_failed",
+        words:
+          "Setting up your line stopped at the vault that keeps its credentials; a person at Chanlytics has it, and a retry cannot help until they restore them.",
+      });
     } else if (own && own.voice_state === "failed") {
-      blockers.push({ code: "line_failed", words: "Setting up your line stopped; a person at Chanlytics has it, and Retry is on the row." });
+      blockers.push({
+        code: "line_failed",
+        words: "Setting up your line stopped; a person at Chanlytics has it, and Retry is on the row.",
+      });
     } else {
       blockers.push({ code: "no_line", words: "No line yet: get a number, or keep the one you have." });
     }
@@ -87,7 +99,8 @@ export function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowM
     const w = i.channels.whatsapp;
     if (w.present && w.active) {
       const t = i.templates;
-      if (t.approved === 0 && t.pending > 0) blockers.push({ code: "meta_waiting", words: "Your first messages are with Meta for approval." });
+      if (t.approved === 0 && t.pending > 0)
+        blockers.push({ code: "meta_waiting", words: "Your first messages are with Meta for approval." });
       const f = factsMissing(i);
       if (f) blockers.push(f);
     } else if (w.present) {
@@ -98,7 +111,11 @@ export function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowM
     if (w.lastInboundAt) tested = { at: w.lastInboundAt, what: "a message was answered" };
   } else {
     const line = i.lines?.rows.find((l) => l.sms_state === "active" && !l.reg_mock) ?? null;
-    if (!line) blockers.push({ code: "texting_not_sold", words: "Texting is not part of what is sold yet: it arrives with a line the carriers have approved." });
+    if (!line)
+      blockers.push({
+        code: "texting_not_sold",
+        words: "Texting is not part of what is sold yet: it arrives with a line the carriers have approved.",
+      });
   }
 
   const ready = blockers.length === 0;

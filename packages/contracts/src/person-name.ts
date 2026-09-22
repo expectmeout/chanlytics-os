@@ -28,11 +28,5 @@ export interface NameableContact {
  * whose only identifier is an address.
  */
 export function personName(c: NameableContact | null | undefined): string {
-  return (
-    c?.display_name ||
-    c?.wa_profile_name ||
-    formatPhoneDisplay(c?.phone_e164) ||
-    c?.email ||
-    "Unknown"
-  );
+  return c?.display_name || c?.wa_profile_name || formatPhoneDisplay(c?.phone_e164) || c?.email || "Unknown";
 }

@@ -47,7 +47,7 @@ if (!url || !key) {
 
 const arg = (name) => {
   const i = process.argv.indexOf(name);
-  return i === -1 ? null : process.argv[i + 1] ?? null;
+  return i === -1 ? null : (process.argv[i + 1] ?? null);
 };
 const tenantId = arg("--tenant");
 const expectName = arg("--expect-name");
@@ -68,14 +68,53 @@ if (!tenantId || !expectName) {
  * by backing that up. They are listed in the test's expected set all the same.
  */
 const TABLES = [
-  "ask_messages", "ask_threads", "billing_accounts", "billing_events", "broadcast_recipients",
-  "broadcasts", "business_records", "calls", "capability_activations", "contact_identities", "contacts", "conversations",
-  "decisions", "escalations", "events", "google_connections", "google_listing_days",
-  "google_listings", "google_reviews", "idempotency_keys", "invitations", "jobs",
-  "lead_counters", "lead_judgments", "lead_operations", "lead_places", "lead_preferences", "lead_rounds", "lead_runs",
-  "lead_search_members", "lead_searches", "lead_suggestions", "lead_suppressions", "leads", "lines",
-  "mailboxes", "memberships", "messages", "notification_reads", "notifications", "playbooks", "policies",
-  "segment_members", "segments", "templates", "tenant_channels", "tenant_config",
+  "ask_messages",
+  "ask_threads",
+  "billing_accounts",
+  "billing_events",
+  "broadcast_recipients",
+  "broadcasts",
+  "business_records",
+  "calls",
+  "capability_activations",
+  "contact_identities",
+  "contacts",
+  "conversations",
+  "decisions",
+  "escalations",
+  "events",
+  "google_connections",
+  "google_listing_days",
+  "google_listings",
+  "google_reviews",
+  "idempotency_keys",
+  "invitations",
+  "jobs",
+  "lead_counters",
+  "lead_judgments",
+  "lead_operations",
+  "lead_places",
+  "lead_preferences",
+  "lead_rounds",
+  "lead_runs",
+  "lead_search_members",
+  "lead_searches",
+  "lead_suggestions",
+  "lead_suppressions",
+  "leads",
+  "lines",
+  "mailboxes",
+  "memberships",
+  "messages",
+  "notification_reads",
+  "notifications",
+  "playbooks",
+  "policies",
+  "segment_members",
+  "segments",
+  "templates",
+  "tenant_channels",
+  "tenant_config",
 ];
 
 /** Survives the delete with a null tenant_id, deliberately. */
@@ -85,8 +124,14 @@ const db = createClient(url, key, { auth: { persistSession: false } });
 
 // ------------------------------------------------------------------ 1. who
 const { data: tenant, error: tErr } = await db
-  .from("tenants").select("id, name, slug, created_at").eq("id", tenantId).maybeSingle();
-if (tErr) { console.error("tenant lookup failed:", tErr.message); process.exit(1); }
+  .from("tenants")
+  .select("id, name, slug, created_at")
+  .eq("id", tenantId)
+  .maybeSingle();
+if (tErr) {
+  console.error("tenant lookup failed:", tErr.message);
+  process.exit(1);
+}
 
 // Idempotent: a second run against an already-deleted workspace is a no-op,
 // not an error, so re-running after a half-finished attempt is safe.
@@ -95,10 +140,14 @@ if (!tenant) {
   process.exit(0);
 }
 if (tenant.name !== expectName) {
-  console.error(`REFUSING: --expect-name is ${JSON.stringify(expectName)} but the tenant is named ${JSON.stringify(tenant.name)}.`);
+  console.error(
+    `REFUSING: --expect-name is ${JSON.stringify(expectName)} but the tenant is named ${JSON.stringify(tenant.name)}.`,
+  );
   process.exit(1);
 }
-console.log(`tenant ${tenant.id}\n  name    ${tenant.name}\n  slug    ${tenant.slug}\n  created ${tenant.created_at}\n`);
+console.log(
+  `tenant ${tenant.id}\n  name    ${tenant.name}\n  slug    ${tenant.slug}\n  created ${tenant.created_at}\n`,
+);
 
 // -------------------------------------------------------- 2. read and back up
 const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "backups");
@@ -130,7 +179,9 @@ writeFileSync(backupPath, lines.length ? lines.join("\n") + "\n" : "");
 console.log(`backup: ${total} rows across ${tally.length} tables -> ${backupPath}`);
 if (!total) console.log("  (the workspace is empty)");
 for (const [table, n] of tally) {
-  console.log(`  ${table.padEnd(22)} ${String(n).padStart(6)}${KEPT.has(table) ? "   kept, tenant_id set to null" : ""}`);
+  console.log(
+    `  ${table.padEnd(22)} ${String(n).padStart(6)}${KEPT.has(table) ? "   kept, tenant_id set to null" : ""}`,
+  );
 }
 
 /**
@@ -141,26 +192,31 @@ const orphans = [];
 for (const line of byTable.get("lines") ?? []) {
   orphans.push(
     `the phone line ${line.e164 ?? "(no number)"} — Twilio subaccount ${line.subaccount_sid ?? "—"}, ` +
-    `number ${line.number_sid ?? "—"}${line.trunk_sid ? `, trunk ${line.trunk_sid}` : ""}` +
-    `${line.messaging_service_sid ? `, messaging service ${line.messaging_service_sid}` : ""}` +
-    `${line.brand_sid ? `, and a registered A2P brand` : ""}` +
-    ` — plus its line-creds Vault secret. Release the number and close the subaccount first, or move the line to another workspace.` +
-    (line.voice_state === "answering" ? "\n      IT IS ANSWERING CALLS RIGHT NOW." : ""),
+      `number ${line.number_sid ?? "—"}${line.trunk_sid ? `, trunk ${line.trunk_sid}` : ""}` +
+      `${line.messaging_service_sid ? `, messaging service ${line.messaging_service_sid}` : ""}` +
+      `${line.brand_sid ? `, and a registered A2P brand` : ""}` +
+      ` — plus its line-creds Vault secret. Release the number and close the subaccount first, or move the line to another workspace.` +
+      (line.voice_state === "answering" ? "\n      IT IS ANSWERING CALLS RIGHT NOW." : ""),
   );
 }
 for (const b of byTable.get("billing_accounts") ?? []) {
   if (b.stripe_subscription_id || b.stripe_customer_id) {
     orphans.push(
       `a Stripe ${b.status === "trialing" ? "trial" : b.status} — customer ${b.stripe_customer_id ?? "—"}` +
-      `${b.stripe_subscription_id ? `, subscription ${b.stripe_subscription_id}` : ""}. Cancel it in Stripe first.`,
+        `${b.stripe_subscription_id ? `, subscription ${b.stripe_subscription_id}` : ""}. Cancel it in Stripe first.`,
     );
   }
 }
 for (const g of byTable.get("google_connections") ?? []) {
-  orphans.push(`a Google Business Profile grant for ${g.google_email ?? "an account"}, and its google-creds Vault secret. Disconnect it in the product first, which hands the grant back to Google.`);
+  orphans.push(
+    `a Google Business Profile grant for ${g.google_email ?? "an account"}, and its google-creds Vault secret. Disconnect it in the product first, which hands the grant back to Google.`,
+  );
 }
 for (const c of byTable.get("tenant_channels") ?? []) {
-  if (c.status === "active") orphans.push(`an active channel binding ${c.external_id ?? "(no id)"} at its provider, and its channel-credentials Vault secret.`);
+  if (c.status === "active")
+    orphans.push(
+      `an active channel binding ${c.external_id ?? "(no id)"} at its provider, and its channel-credentials Vault secret.`,
+    );
 }
 
 if (orphans.length) {
@@ -176,29 +232,40 @@ if (!apply) {
 if (orphans.length && !orphansOk) {
   console.error(
     `\nREFUSING: this workspace still holds ${orphans.length} thing${orphans.length === 1 ? "" : "s"} ` +
-    `the delete cannot reach, listed above. Release them first, or pass --orphans-ok to strand them deliberately.`,
+      `the delete cannot reach, listed above. Release them first, or pass --orphans-ok to strand them deliberately.`,
   );
   process.exit(1);
 }
 if (orphans.length) {
-  console.log(`\n--orphans-ok: stranding ${orphans.length} provider-side thing${orphans.length === 1 ? "" : "s"} on purpose.`);
+  console.log(
+    `\n--orphans-ok: stranding ${orphans.length} provider-side thing${orphans.length === 1 ? "" : "s"} on purpose.`,
+  );
 }
 
 // ------------------------------------------------------------------ 3. apply
 // events first: no foreign key, so the cascade cannot reach it and the rows
 // would be left pointing at a tenant that no longer exists.
 const { error: eErr } = await db.from("events").delete().eq("tenant_id", tenantId);
-if (eErr) { console.error("events delete failed:", eErr.message); process.exit(1); }
+if (eErr) {
+  console.error("events delete failed:", eErr.message);
+  process.exit(1);
+}
 
-const { data: gone, error: dErr } = await db
-  .from("tenants").delete().eq("id", tenantId).select("id");
-if (dErr) { console.error("tenant delete failed:", dErr.message); process.exit(1); }
+const { data: gone, error: dErr } = await db.from("tenants").delete().eq("id", tenantId).select("id");
+if (dErr) {
+  console.error("tenant delete failed:", dErr.message);
+  process.exit(1);
+}
 if (!gone || gone.length !== 1) {
   console.error(`REFUSING TO REPORT SUCCESS: expected 1 tenant row deleted, got ${gone?.length ?? 0}.`);
   process.exit(1);
 }
 
 const { data: still } = await db.from("tenants").select("id").eq("id", tenantId).maybeSingle();
-console.log(`\ndeleted ${JSON.stringify(tenant.name)} (${tenantId}); ${still ? "STILL PRESENT — investigate" : "gone"}.`);
+console.log(
+  `\ndeleted ${JSON.stringify(tenant.name)} (${tenantId}); ${still ? "STILL PRESENT — investigate" : "gone"}.`,
+);
 console.log(`the backup is at ${backupPath}`);
-console.log("note: a Stripe test-mode customer this workspace pointed at is untouched; remove it in Stripe if you want it gone.");
+console.log(
+  "note: a Stripe test-mode customer this workspace pointed at is untouched; remove it in Stripe if you want it gone.",
+);

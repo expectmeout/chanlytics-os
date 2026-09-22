@@ -72,8 +72,24 @@ export const GET = read({
     };
     const now = new Date();
     const text = transcriptText({ contact }, messages, { business: name, tz: timezone, exportedAt: now });
-    console.log(JSON.stringify({ level: "info", event: "export.transcript", user: userId, tenant: member.tenantId, conversation: id, messages: messages.length }));
-    await recordDecision(ctx, member.tenantId, "conversation", id, "export", { what: "conversation", messages: messages.length });
-    return attachment(`conversation-${safeName(personLabel(contact))}-${dateTag(now, timezone)}.txt`, text, "text/plain");
+    console.log(
+      JSON.stringify({
+        level: "info",
+        event: "export.transcript",
+        user: userId,
+        tenant: member.tenantId,
+        conversation: id,
+        messages: messages.length,
+      }),
+    );
+    await recordDecision(ctx, member.tenantId, "conversation", id, "export", {
+      what: "conversation",
+      messages: messages.length,
+    });
+    return attachment(
+      `conversation-${safeName(personLabel(contact))}-${dateTag(now, timezone)}.txt`,
+      text,
+      "text/plain",
+    );
   },
 });

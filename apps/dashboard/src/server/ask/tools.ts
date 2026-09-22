@@ -51,7 +51,14 @@ import {
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
-import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "../dto";
+import {
+  CALL_COLUMNS,
+  CONVERSATION_COLUMNS,
+  MESSAGE_COLUMNS,
+  groupMessages,
+  toCallDto,
+  toConversationDto,
+} from "../dto";
 import { listPeople } from "../people";
 import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
@@ -80,84 +87,108 @@ export interface ToolDef {
   strict?: boolean;
 }
 
-const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
+const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
+  type: "object",
+  properties,
+  required,
+  additionalProperties: false,
+});
 
 export const READ_TOOLS: ToolDef[] = [
   {
     name: "get_today",
-    description: "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: the workspace snapshot's held_drafts and list_threads filter=held have them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
+    description:
+      "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: the workspace snapshot's held_drafts and list_threads filter=held have them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
     input_schema: obj({}),
   },
   {
     name: "list_threads",
-    description: "Threads from the Inbox on every wire — WhatsApp, text or email, whichever the customer last wrote on, named per row in `channel` — each with its last three messages (who wrote, what). filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first). Call get_thread only when more of one conversation is needed.",
-    input_schema: obj({ filter: { type: "string", enum: ["needs_you", "held", "waiting", "snoozed", "recent"] } }, ["filter"]),
+    description:
+      "Threads from the Inbox on every wire — WhatsApp, text or email, whichever the customer last wrote on, named per row in `channel` — each with its last three messages (who wrote, what). filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first). Call get_thread only when more of one conversation is needed.",
+    input_schema: obj({ filter: { type: "string", enum: ["needs_you", "held", "waiting", "snoozed", "recent"] } }, [
+      "filter",
+    ]),
   },
   {
     name: "get_thread",
-    description: "One conversation, on whichever wire it runs — WhatsApp, text or email, named in `channel`: the person, its state, the last messages with who wrote them, and why the receptionist answered or held as it did. Use the conversation id from list_threads, get_today or search_people. more=true returns the longer history.",
+    description:
+      "One conversation, on whichever wire it runs — WhatsApp, text or email, named in `channel`: the person, its state, the last messages with who wrote them, and why the receptionist answered or held as it did. Use the conversation id from list_threads, get_today or search_people. more=true returns the longer history.",
     input_schema: obj({ conversation_id: { type: "string" }, more: { type: "boolean" } }, ["conversation_id"]),
   },
   {
     name: "search_people",
-    description: "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out.",
+    description:
+      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out.",
     input_schema: obj({ query: { type: "string" }, list: { type: "string" } }, ["query"]),
   },
   {
     name: "get_person",
-    description: "One person's profile: right now, facts, their conversations and calls, and their timeline. Use a contact id from search_people or get_thread.",
+    description:
+      "One person's profile: right now, facts, their conversations and calls, and their timeline. Use a contact id from search_people or get_thread.",
     input_schema: obj({ contact_id: { type: "string" } }, ["contact_id"]),
   },
   {
     name: "list_calls",
-    description: "Phone calls. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), recent (newest first).",
-    input_schema: obj({ filter: { type: "string", enum: ["missed", "abandoned", "today", "live", "recent"] } }, ["filter"]),
+    description:
+      "Phone calls. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), recent (newest first).",
+    input_schema: obj({ filter: { type: "string", enum: ["missed", "abandoned", "today", "live", "recent"] } }, [
+      "filter",
+    ]),
   },
   {
     name: "get_call",
-    description: "One phone call: who, when, how it ended, the summary and the transcript (capped). Use the call id from list_calls or get_person.",
+    description:
+      "One phone call: who, when, how it ended, the summary and the transcript (capped). Use the call id from list_calls or get_person.",
     input_schema: obj({ call_id: { type: "string" } }, ["call_id"]),
   },
   {
     name: "get_report",
-    description: "The Reports page for 7, 30 or 90 days: answered by the receptionist vs by a person, reply time, calls, new people, escalation reasons, and the change against the previous period.",
+    description:
+      "The Reports page for 7, 30 or 90 days: answered by the receptionist vs by a person, reply time, calls, new people, escalation reasons, and the change against the previous period.",
     input_schema: obj({ days: { type: "integer", enum: [7, 30, 90] } }, ["days"]),
   },
   {
     name: "get_settings",
-    description: "The workspace's settings as the receptionist runs on them: hours, closures, services, notes, guardrails, booking rules, the reply policy and its dials, which channels are connected, notifications.",
+    description:
+      "The workspace's settings as the receptionist runs on them: hours, closures, services, notes, guardrails, booking rules, the reply policy and its dials, which channels are connected, notifications.",
     input_schema: obj({}),
   },
   {
     name: "get_openings",
-    description: "Open times from the connected calendar against the business hours, closures and booking rules. day: a weekday (mon..sun) or a date (YYYY-MM-DD), or empty for the next days. service: the service name to size the slot, or empty.",
+    description:
+      "Open times from the connected calendar against the business hours, closures and booking rules. day: a weekday (mon..sun) or a date (YYYY-MM-DD), or empty for the next days. service: the service name to size the slot, or empty.",
     input_schema: obj({ day: { type: "string" }, service: { type: "string" } }, ["day", "service"]),
   },
   {
     name: "list_audiences",
-    description: "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with FOUR counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
+    description:
+      "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with FOUR counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
     input_schema: obj({}, []),
   },
   {
     name: "list_playbooks",
-    description: "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus every trigger with who its moment names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Read this to say what is running, and before proposing a playbook.",
+    description:
+      "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus every trigger with who its moment names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Read this to say what is running, and before proposing a playbook.",
     input_schema: obj({}, []),
   },
   {
     name: "get_calendar",
-    description: "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (the calendar's own words, with the person in People when the title names one), whether the business is closed, and the windows the receptionist would offer. day: today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for today. days: how many from there, at most 14. Nothing is booked from here.",
+    description:
+      "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (the calendar's own words, with the person in People when the title names one), whether the business is closed, and the windows the receptionist would offer. day: today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for today. days: how many from there, at most 14. Nothing is booked from here.",
     input_schema: obj({ day: { type: "string" }, days: { type: "number" } }, ["day"]),
   },
   {
     name: "list_lead_searches",
-    description: "The workspace's lead searches, newest first: what was asked in the owner's words and when, its state or ending in words, and how many qualified, need review and were counted. Read this before proposing a search, so a plan is not repeated.",
+    description:
+      "The workspace's lead searches, newest first: what was asked in the owner's words and when, its state or ending in words, and how many qualified, need review and were counted. Read this before proposing a search, so a plan is not repeated.",
     input_schema: obj({}),
   },
 ];
 
 export const FINISH_TOOL: ToolDef = {
   name: "finish",
-  description: "Your answer to the person. Call it exactly once, after the reads you needed. The answer is plain text in their language; citations name only ids the tools returned this turn.",
+  description:
+    "Your answer to the person. Call it exactly once, after the reads you needed. The answer is plain text in their language; citations name only ids the tools returned this turn.",
   input_schema: ASK_FINISH_JSON_SCHEMA as unknown as Record<string, unknown>,
   strict: true,
 };
@@ -205,28 +236,52 @@ function json(v: unknown): string {
 
 /* ------------------------------------------------------------ loaders */
 
-interface EscRow extends EscalationDto { conversation_id: string }
+interface EscRow extends EscalationDto {
+  conversation_id: string;
+}
 
 /** The newest conversations with their messages: enough for the Inbox's rows, not the whole history. */
 const CONVERSATIONS = 40;
 const MESSAGES = 600;
 
-function loadConversations(t: ToolContext, limit = CONVERSATIONS): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
+function loadConversations(
+  t: ToolContext,
+  limit = CONVERSATIONS,
+): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
   return memoised(t, `conversations:${limit}`, () => loadConversationsNow(t, limit));
 }
 
-async function loadConversationsNow(t: ToolContext, limit: number): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
+async function loadConversationsNow(
+  t: ToolContext,
+  limit: number,
+): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
   const { supabase, userId } = t.ctx;
   const [c, e] = await Promise.all([
-    supabase.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", t.tenantId).order("last_message_at", { ascending: false, nullsFirst: false }).limit(limit),
-    supabase.from("escalations").select("id, reason, details, state, created_at, conversation_id").eq("tenant_id", t.tenantId).eq("state", "open").order("created_at", { ascending: false }).limit(100),
+    supabase
+      .from("conversations")
+      .select(CONVERSATION_COLUMNS)
+      .eq("tenant_id", t.tenantId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(limit),
+    supabase
+      .from("escalations")
+      .select("id, reason, details, state, created_at, conversation_id")
+      .eq("tenant_id", t.tenantId)
+      .eq("state", "open")
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
   if (c.error) throw new Error(c.error.message);
   if (e.error) throw new Error(e.error.message);
   const ids = (c.data ?? []).map((x) => x.id);
   let byConv = new Map<string, MessageDto[]>();
   if (ids.length) {
-    const m = await supabase.from("messages").select(MESSAGE_COLUMNS).in("conversation_id", ids).order("created_at", { ascending: false }).limit(MESSAGES);
+    const m = await supabase
+      .from("messages")
+      .select(MESSAGE_COLUMNS)
+      .in("conversation_id", ids)
+      .order("created_at", { ascending: false })
+      .limit(MESSAGES);
     if (m.error) throw new Error(m.error.message);
     byConv = groupMessages(m.data ?? []);
   }
@@ -238,7 +293,12 @@ async function loadConversationsNow(t: ToolContext, limit: number): Promise<{ co
 
 function loadCalls(t: ToolContext, limit = 40): Promise<CallDto[]> {
   return memoised(t, `calls:${limit}`, async () => {
-    const { data, error } = await t.ctx.supabase.from("calls").select(CALL_COLUMNS).eq("tenant_id", t.tenantId).order("started_at", { ascending: false, nullsFirst: false }).limit(limit);
+    const { data, error } = await t.ctx.supabase
+      .from("calls")
+      .select(CALL_COLUMNS)
+      .eq("tenant_id", t.tenantId)
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .limit(limit);
     if (error) throw new Error(error.message);
     return (data ?? []).map(toCallDto);
   });
@@ -247,7 +307,9 @@ function loadCalls(t: ToolContext, limit = 40): Promise<CallDto[]> {
 function dayKey(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
   try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+    return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+      new Date(iso),
+    );
   } catch {
     return null;
   }
@@ -273,9 +335,24 @@ async function getToday(t: ToolContext): Promise<unknown> {
   for (const r of vm.windowClosing?.rows ?? []) t.read.thread.add(r.id.replace(/^wc-/, ""));
   for (const c of calls) t.read.call.add(c.id);
   return {
-    standing: { headline: vm.standing.headline, detail: vm.standing.detail, tone: vm.standing.tone, chips: vm.standing.chips.map((c) => c.text) },
+    standing: {
+      headline: vm.standing.headline,
+      detail: vm.standing.detail,
+      tone: vm.standing.tone,
+      chips: vm.standing.chips.map((c) => c.text),
+    },
     needs_you: vm.needsYou
-      ? { count: vm.needsYou.count, rows: vm.needsYou.rows.slice(0, ASK_CAPS.needsRows).map((r) => ({ conversation_id: r.conversationId, route: `inbox/th-${r.conversationId}`, who: r.who, reason: r.reason, waited: r.waited, quote: r.quote })) }
+      ? {
+          count: vm.needsYou.count,
+          rows: vm.needsYou.rows.slice(0, ASK_CAPS.needsRows).map((r) => ({
+            conversation_id: r.conversationId,
+            route: `inbox/th-${r.conversationId}`,
+            who: r.who,
+            reason: r.reason,
+            waited: r.waited,
+            quote: r.quote,
+          })),
+        }
       : null,
     // NOT drafts, and not nearly. Every row here is a thread where the CUSTOMER
     // spoke last and nobody has written back (today.ts closingConvs), with
@@ -294,10 +371,31 @@ async function getToday(t: ToolContext): Promise<unknown> {
           })),
         }
       : null,
-    recap: vm.recap ? { sentences: vm.recap.sentences.map((s) => s.text), facts: vm.recap.facts.map((f) => `${f.label}: ${f.value}`) } : null,
-    calls: vm.calls ? { line: vm.calls.line, rows: vm.calls.rows.slice(0, 5).map((r) => ({ call_id: r.id.replace(/^cv-/, ""), route: `conversations/${r.id}`, who: r.who, at: r.at, duration: r.duration, note: r.note })) } : null,
+    recap: vm.recap
+      ? { sentences: vm.recap.sentences.map((s) => s.text), facts: vm.recap.facts.map((f) => `${f.label}: ${f.value}`) }
+      : null,
+    calls: vm.calls
+      ? {
+          line: vm.calls.line,
+          rows: vm.calls.rows.slice(0, 5).map((r) => ({
+            call_id: r.id.replace(/^cv-/, ""),
+            route: `conversations/${r.id}`,
+            who: r.who,
+            at: r.at,
+            duration: r.duration,
+            note: r.note,
+          })),
+        }
+      : null,
     quiet: vm.quiet ? { headline: vm.quiet.headline, sub: vm.quiet.sub } : null,
-    period: { messages_in: metrics.period.messages_in, answered_by_receptionist: metrics.period.answered_by_ai, answered_by_you: metrics.period.answered_by_you, unanswered: metrics.period.unanswered_in_window, calls: metrics.period.calls, new_people: metrics.period.new_contacts },
+    period: {
+      messages_in: metrics.period.messages_in,
+      answered_by_receptionist: metrics.period.answered_by_ai,
+      answered_by_you: metrics.period.answered_by_you,
+      unanswered: metrics.period.unanswered_in_window,
+      calls: metrics.period.calls,
+      new_people: metrics.period.new_contacts,
+    },
   };
 }
 
@@ -308,11 +406,16 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
   const vms = convs.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
   const matching = vms.filter((v) => {
     switch (filter) {
-      case "needs_you": return v.needsYou;
-      case "held": return !!v.veto || !!v.heldDraft;
-      case "waiting": return v.takenOver;
-      case "snoozed": return v.state === "snoozed";
-      default: return true;
+      case "needs_you":
+        return v.needsYou;
+      case "held":
+        return !!v.veto || !!v.heldDraft;
+      case "waiting":
+        return v.takenOver;
+      case "snoozed":
+        return v.state === "snoozed";
+      default:
+        return true;
     }
   });
   // Counted BEFORE the cap, like search_people's `matches` a few functions
@@ -326,13 +429,28 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
       conversation_id: v.conversationId,
       route: `inbox/th-${v.conversationId}`,
       who: v.who,
-      state: v.needsYou ? "needs you" : v.takenOver ? "waiting on you" : v.state === "snoozed" ? "snoozed" : v.optedOut ? "opted out" : "answering",
-      held_draft: v.veto ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null } : v.heldDraft ? { message_id: v.heldDraft.messageId, text: v.heldDraft.body.slice(0, 200) } : null,
+      state: v.needsYou
+        ? "needs you"
+        : v.takenOver
+          ? "waiting on you"
+          : v.state === "snoozed"
+            ? "snoozed"
+            : v.optedOut
+              ? "opted out"
+              : "answering",
+      held_draft: v.veto
+        ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null }
+        : v.heldDraft
+          ? { message_id: v.heldDraft.messageId, text: v.heldDraft.body.slice(0, 200) }
+          : null,
       last_message: v.preview.slice(0, 160),
       recent: v.timeline
         .filter((x): x is Extract<typeof x, { type: "msg" }> => x.type === "msg")
         .slice(-3)
-        .map((x) => ({ from: x.from === "client" ? "customer" : x.byYou ? "you" : "receptionist", text: x.body.slice(0, 140) })),
+        .map((x) => ({
+          from: x.from === "client" ? "customer" : x.byYou ? "you" : "receptionist",
+          text: x.body.slice(0, 140),
+        })),
       last_at: v.lastAtFull,
       waiting_min: v.waitingMin ?? null,
       window_open: v.windowOpen,
@@ -358,14 +476,38 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
   if (!conv) return { error: "no such conversation in this workspace" };
   const cap = more ? ASK_CAPS.messagesMore : ASK_CAPS.messages;
   const [{ data: msgs, error: merr }, { data: esc }] = await Promise.all([
-    supabase.from("messages").select(MESSAGE_COLUMNS).eq("conversation_id", id).order("created_at", { ascending: false }).limit(cap),
-    supabase.from("escalations").select("id, reason, details, state, created_at, conversation_id").eq("conversation_id", id).eq("state", "open").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase
+      .from("messages")
+      .select(MESSAGE_COLUMNS)
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .limit(cap),
+    supabase
+      .from("escalations")
+      .select("id, reason, details, state, created_at, conversation_id")
+      .eq("conversation_id", id)
+      .eq("state", "open")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (merr) throw new Error(merr.message);
-  const dto = toConversationDto(conv, [...(msgs ?? [])].reverse().map((m) => ({
-    id: m.id, direction: m.direction as MessageDto["direction"], sender: m.sender as MessageDto["sender"], type: m.type, body: m.body,
-    media: null, meta: m.meta as MessageDto["meta"], status: m.status, created_at: m.created_at, channel_ts: m.channel_ts,
-  })), t.ctx.userId);
+  const dto = toConversationDto(
+    conv,
+    [...(msgs ?? [])].reverse().map((m) => ({
+      id: m.id,
+      direction: m.direction as MessageDto["direction"],
+      sender: m.sender as MessageDto["sender"],
+      type: m.type,
+      body: m.body,
+      media: null,
+      meta: m.meta as MessageDto["meta"],
+      status: m.status,
+      created_at: m.created_at,
+      channel_ts: m.channel_ts,
+    })),
+    t.ctx.userId,
+  );
   const vm = toInboxThreadVM(dto, (esc as EscalationDto | null) ?? null, t.timezone, t.now);
   t.read.thread.add(id);
   t.read.conversation.add(id);
@@ -377,10 +519,32 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
     contact_route: dto.contact.id ? `clients/${dto.contact.id}` : null,
     who: vm.who,
     channel: vm.replyVia,
-    state: vm.needsYou ? "needs you" : vm.takenOver ? "waiting on you" : vm.state === "snoozed" ? "snoozed" : vm.optedOut ? "opted out" : "answering",
-    escalation: esc ? { id: (esc as EscalationDto).id, reason: ESCALATION_REASON_LABELS[(esc as EscalationDto).reason] ?? (esc as EscalationDto).reason, details: (esc as EscalationDto).details } : null,
+    state: vm.needsYou
+      ? "needs you"
+      : vm.takenOver
+        ? "waiting on you"
+        : vm.state === "snoozed"
+          ? "snoozed"
+          : vm.optedOut
+            ? "opted out"
+            : "answering",
+    escalation: esc
+      ? {
+          id: (esc as EscalationDto).id,
+          reason: ESCALATION_REASON_LABELS[(esc as EscalationDto).reason] ?? (esc as EscalationDto).reason,
+          details: (esc as EscalationDto).details,
+        }
+      : null,
     window_open: vm.windowOpen,
-    held_draft: vm.veto ? { message_id: vm.veto.messageId, text: vm.veto.draft, why: vm.veto.why ? { summary: vm.veto.why.summary, reason: vm.veto.why.reason, facts: vm.veto.why.facts } : null } : null,
+    held_draft: vm.veto
+      ? {
+          message_id: vm.veto.messageId,
+          text: vm.veto.draft,
+          why: vm.veto.why
+            ? { summary: vm.veto.why.summary, reason: vm.veto.why.reason, facts: vm.veto.why.facts }
+            : null,
+        }
+      : null,
     messages: dto.messages.slice(-cap).map((m) => {
       const why = replyWhy(m.meta as Record<string, unknown> | null);
       return {
@@ -405,15 +569,23 @@ function personLine(r: PersonRowDto, tz: string, nowMs: number) {
     name: personName(r),
     state: PERSON_STATE_LABELS[stateKey as keyof typeof PERSON_STATE_LABELS] ?? stateKey,
     // The moment, not the time since it: handed the gap, ago read it as a moment in January 1970.
-    last_contact: r.last_message_at ? ago(Date.parse(r.last_message_at), tz, nowMs) : r.last_call_at ? ago(Date.parse(r.last_call_at), tz, nowMs) : "never",
+    last_contact: r.last_message_at
+      ? ago(Date.parse(r.last_message_at), tz, nowMs)
+      : r.last_call_at
+        ? ago(Date.parse(r.last_call_at), tz, nowMs)
+        : "never",
     last_message: r.last_inbound_text ? r.last_inbound_text.slice(0, 120) : null,
     conversation_id: r.latest_conversation_id,
     channels: r.channels ?? [],
     consent: r.consent,
     receptionist_mode: r.effective_reply_mode ?? null,
     calls: r.call_count ?? 0,
-    next_visit: r.visits?.next ? `${visitLine(r.visits.next, r.visits.timezone, nowMs)} · ${r.visits.next.title}` : null,
-    last_visit: r.visits?.last ? `${visitLine(r.visits.last, r.visits.timezone, nowMs)} · ${r.visits.last.title}` : null,
+    next_visit: r.visits?.next
+      ? `${visitLine(r.visits.next, r.visits.timezone, nowMs)} · ${r.visits.next.title}`
+      : null,
+    last_visit: r.visits?.last
+      ? `${visitLine(r.visits.last, r.visits.timezone, nowMs)} · ${r.visits.last.title}`
+      : null,
   };
 }
 
@@ -425,7 +597,8 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   // With their appointments, so "who asked but never booked?" and "who is
   // booked this week?" are answered from the calendar, not guessed.
   const { people: rows, calendar } = await withVisits(t.ctx, t.tenantId, await listPeople(t.ctx, t.tenantId), t.now);
-  if (list?.needsCalendar && calendar.state !== "ok") return { error: "that list needs the calendar connected under Settings › Business", people: [] };
+  if (list?.needsCalendar && calendar.state !== "ok")
+    return { error: "that list needs the calendar connected under Settings › Business", people: [] };
   const digits = q.replace(/\D/g, "");
   const hits = rows.filter((r) => {
     if (list && !list.test(toPersonRowVM(r, t.timezone, t.now))) return false;
@@ -435,13 +608,22 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     if (digits.length >= 4 && (r.phone_e164 ?? "").replace(/\D/g, "").includes(digits)) return true;
     return false;
   });
-  hits.sort((a, b) => (Date.parse(b.last_message_at ?? b.last_call_at ?? "") || 0) - (Date.parse(a.last_message_at ?? a.last_call_at ?? "") || 0));
+  hits.sort(
+    (a, b) =>
+      (Date.parse(b.last_message_at ?? b.last_call_at ?? "") || 0) -
+      (Date.parse(a.last_message_at ?? a.last_call_at ?? "") || 0),
+  );
   const picked = hits.slice(0, ASK_CAPS.people);
   for (const r of picked) {
     t.read.person.add(r.id);
     if (r.latest_conversation_id) t.read.thread.add(r.latest_conversation_id);
   }
-  return { query: q, list: list?.id ?? null, matches: hits.length, people: picked.map((r) => personLine(r, t.timezone, t.now.getTime())) };
+  return {
+    query: q,
+    list: list?.id ?? null,
+    matches: hits.length,
+    people: picked.map((r) => personLine(r, t.timezone, t.now.getTime())),
+  };
 }
 
 async function getPerson(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
@@ -453,10 +635,35 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
   const row = (rows ?? [])[0] as PersonRowDto | undefined;
   if (!row) return { error: "no such person in this workspace" };
   const [convs, calls, personPol, wsPol] = await Promise.all([
-    sb.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", t.tenantId).eq("contact_id", id).order("last_message_at", { ascending: false, nullsFirst: false }).limit(20),
-    sb.from("calls").select(CALL_COLUMNS).eq("tenant_id", t.tenantId).eq("contact_id", id).order("started_at", { ascending: false, nullsFirst: false }).limit(50),
-    sb.from("policies").select("mode").eq("tenant_id", t.tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", id).maybeSingle(),
-    sb.from("policies").select("mode").eq("tenant_id", t.tenantId).eq("class", "reply").is("subject_type", null).maybeSingle(),
+    sb
+      .from("conversations")
+      .select(CONVERSATION_COLUMNS)
+      .eq("tenant_id", t.tenantId)
+      .eq("contact_id", id)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(20),
+    sb
+      .from("calls")
+      .select(CALL_COLUMNS)
+      .eq("tenant_id", t.tenantId)
+      .eq("contact_id", id)
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .limit(50),
+    sb
+      .from("policies")
+      .select("mode")
+      .eq("tenant_id", t.tenantId)
+      .eq("class", "reply")
+      .eq("subject_type", "contact")
+      .eq("subject_id", id)
+      .maybeSingle(),
+    sb
+      .from("policies")
+      .select("mode")
+      .eq("tenant_id", t.tenantId)
+      .eq("class", "reply")
+      .is("subject_type", null)
+      .maybeSingle(),
   ]);
   if (convs.error) throw new Error(convs.error.message);
   if (calls.error) throw new Error(calls.error.message);
@@ -466,9 +673,25 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
   let decisions: PersonDecisionDto[] = [];
   if (convIds.length) {
     const [msgs, escs, decs] = await Promise.all([
-      sb.from("messages").select(MESSAGE_COLUMNS).in("conversation_id", convIds).order("created_at", { ascending: false }).limit(400),
-      sb.from("escalations").select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id").in("conversation_id", convIds).order("created_at", { ascending: false }).limit(50),
-      sb.from("decisions").select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload").eq("subject_type", "conversation").in("subject_id", convIds).order("created_at", { ascending: false }).limit(100),
+      sb
+        .from("messages")
+        .select(MESSAGE_COLUMNS)
+        .in("conversation_id", convIds)
+        .order("created_at", { ascending: false })
+        .limit(400),
+      sb
+        .from("escalations")
+        .select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
+        .in("conversation_id", convIds)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      sb
+        .from("decisions")
+        .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload")
+        .eq("subject_type", "conversation")
+        .in("subject_id", convIds)
+        .order("created_at", { ascending: false })
+        .limit(100),
     ]);
     byConv = groupMessages(msgs.data ?? []);
     escalations = escs.data ?? [];
@@ -486,7 +709,10 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
   };
   const vm = toPersonVM(detail, t.timezone, t.now);
   t.read.person.add(id);
-  for (const c of detail.conversations) { t.read.thread.add(c.id); t.read.conversation.add(c.id); }
+  for (const c of detail.conversations) {
+    t.read.thread.add(c.id);
+    t.read.conversation.add(c.id);
+  }
   for (const c of detail.calls) t.read.call.add(c.id);
   return {
     contact_id: id,
@@ -499,9 +725,15 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     receptionist_mode: vm.receptionistMode,
     last_exchange: vm.lastExchange,
     open_conversation_id: vm.openThread ? vm.openThread.replace(/^th-/, "") : null,
-    conversations: detail.conversations.slice(0, 5).map((c) => ({ conversation_id: c.id, route: `inbox/th-${c.id}`, state: c.state, last_at: c.last_message_at })),
-    calls: detail.calls.slice(0, 5).map((c) => ({ call_id: c.id, route: `conversations/cv-${c.id}`, at: c.started_at, status: c.status })),
-    timeline: vm.timeline.slice(0, 20).map((i) => ({ day: i.day, time: i.time, kind: i.kind, who: i.who, text: i.text.slice(0, 240) })),
+    conversations: detail.conversations
+      .slice(0, 5)
+      .map((c) => ({ conversation_id: c.id, route: `inbox/th-${c.id}`, state: c.state, last_at: c.last_message_at })),
+    calls: detail.calls
+      .slice(0, 5)
+      .map((c) => ({ call_id: c.id, route: `conversations/cv-${c.id}`, at: c.started_at, status: c.status })),
+    timeline: vm.timeline
+      .slice(0, 20)
+      .map((i) => ({ day: i.day, time: i.time, kind: i.kind, who: i.who, text: i.text.slice(0, 240) })),
   };
 }
 
@@ -512,16 +744,23 @@ async function listCalls(t: ToolContext, input: Record<string, unknown>): Promis
   const today = dayKey(t.now.toISOString(), timezone);
   const vms = calls.map((c) => toCallVM(c, timezone, t.now));
   const abandoned = new Set(calls.filter(abandonedCall).map((c) => c.id));
-  const picked = vms.filter((v, i) => {
-    const c = calls[i];
-    switch (filter) {
-      case "missed": return v.outcome === "missed" && dayKey(c.started_at, timezone) === today;
-      case "abandoned": return abandoned.has(c.id) && dayKey(c.started_at, timezone) === today;
-      case "today": return dayKey(c.started_at, timezone) === today;
-      case "live": return v.outcome === "live";
-      default: return true;
-    }
-  }).slice(0, ASK_CAPS.calls);
+  const picked = vms
+    .filter((v, i) => {
+      const c = calls[i];
+      switch (filter) {
+        case "missed":
+          return v.outcome === "missed" && dayKey(c.started_at, timezone) === today;
+        case "abandoned":
+          return abandoned.has(c.id) && dayKey(c.started_at, timezone) === today;
+        case "today":
+          return dayKey(c.started_at, timezone) === today;
+        case "live":
+          return v.outcome === "live";
+        default:
+          return true;
+      }
+    })
+    .slice(0, ASK_CAPS.calls);
   for (const v of picked) t.read.call.add(v.callId);
   return {
     filter,
@@ -559,7 +798,9 @@ async function getCall(t: ToolContext, input: Record<string, unknown>): Promise<
     summary: v.summary,
     recording: v.recordingState,
     contact_id: v.clientId,
-    transcript: v.transcript.slice(0, ASK_CAPS.transcript).map((x) => `${x.speaker === "client" ? "caller" : x.speaker}: ${x.text}`),
+    transcript: v.transcript
+      .slice(0, ASK_CAPS.transcript)
+      .map((x) => `${x.speaker === "client" ? "caller" : x.speaker}: ${x.text}`),
     transcript_turns: v.transcript.length,
   };
 }
@@ -581,7 +822,9 @@ async function getReport(t: ToolContext, input: Record<string, unknown>): Promis
     calls: { total: vm.calls.total, minutes: vm.calls.minutes, voicemail: vm.calls.voicemail },
     new_people: vm.people.total,
     escalation_reasons: vm.reasons.slice(0, 5).map((r) => `${r.label}: ${r.value}`),
-    by_day: vm.answered.points.slice(-14).map((p) => ({ day: p.short, in: p.in, receptionist: p.ai, you: p.you, unanswered: p.none })),
+    by_day: vm.answered.points
+      .slice(-14)
+      .map((p) => ({ day: p.short, in: p.in, receptionist: p.ai, you: p.you, unanswered: p.none })),
   };
 }
 
@@ -608,7 +851,12 @@ async function getSettings(t: ToolContext): Promise<unknown> {
     escalate_when: cfg?.brain?.profile?.escalate_when ?? [],
     calendar_connected: facts.hasCalendar,
     vision: facts.visionOn,
-    notifications: cfg?.notifications ? { escalation_emails: t.role === "owner" ? cfg.notifications.escalation_emails : cfg.notifications.escalation_emails.length } : null,
+    notifications: cfg?.notifications
+      ? {
+          escalation_emails:
+            t.role === "owner" ? cfg.notifications.escalation_emails : cfg.notifications.escalation_emails.length,
+        }
+      : null,
     policies: policies.map((p) => ({ class: p.class, mode: p.mode, limits: p.limits })),
     channels: (channels.data ?? []).map((c) => ({ kind: c.kind, status: c.status, number: c.number_e164 })),
     config_version: cfgRow.data?.version ?? null,
@@ -616,10 +864,14 @@ async function getSettings(t: ToolContext): Promise<unknown> {
 }
 
 async function getOpenings(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
-  const r = await openingsFor(t.ctx, t.tenantId, { day: str(input.day, 20) || null, service: str(input.service, 80) || null }, t.now);
+  const r = await openingsFor(
+    t.ctx,
+    t.tenantId,
+    { day: str(input.day, 20) || null, service: str(input.service, 80) || null },
+    t.now,
+  );
   return { state: r.state, text: r.text, days: r.days, service: r.service?.name ?? null };
 }
-
 
 /* ----------------------------------------------------------- dispatch */
 
@@ -644,7 +896,13 @@ export function toolLabel(name: string): string {
   return LABELS[name] ?? `Running ${name}`;
 }
 
-export function newToolContext(ctx: RouteContext, tenantId: string, role: ToolContext["role"], timezone: string, now = new Date()): ToolContext {
+export function newToolContext(
+  ctx: RouteContext,
+  tenantId: string,
+  role: ToolContext["role"],
+  timezone: string,
+  now = new Date(),
+): ToolContext {
   return { ctx, tenantId, role, timezone, read: emptyReadSet(), now, memo: new Map() };
 }
 
@@ -659,8 +917,21 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     memoised(t, "people_rows", () => listPeople(t.ctx, t.tenantId)),
     t.ctx.supabase.from("segments").select("id, name").eq("tenant_id", t.tenantId).order("name"),
     t.ctx.supabase.from("segment_members").select("segment_id, contact_id").eq("tenant_id", t.tenantId),
-    t.ctx.supabase.from("templates").select("id, name, language, category, variables, body_preview").eq("tenant_id", t.tenantId).eq("channel", "whatsapp").eq("meta_status", "approved").order("name"),
-    t.ctx.supabase.from("tenant_channels").select("number_e164, config").eq("tenant_id", t.tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
+    t.ctx.supabase
+      .from("templates")
+      .select("id, name, language, category, variables, body_preview")
+      .eq("tenant_id", t.tenantId)
+      .eq("channel", "whatsapp")
+      .eq("meta_status", "approved")
+      .order("name"),
+    t.ctx.supabase
+      .from("tenant_channels")
+      .select("number_e164, config")
+      .eq("tenant_id", t.tenantId)
+      .eq("kind", "whatsapp")
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle(),
   ]);
   const rows = people.map((r) => toPersonRowVM(r, t.timezone, t.now));
   const byList = new Map<string, Set<string>>();
@@ -689,21 +960,47 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   };
   const audiences = [
     { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
-    ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "offers_ok" && l.id !== "opted_out").map((l) => ({ kind: "list", audience_id: l.id, label: l.label, ...sizes("list", l.id, null) })),
-    ...(segs.data ?? []).map((s) => ({ kind: "saved", audience_id: s.id, label: s.name, ...sizes("saved", null, byList.get(s.id) ?? new Set<string>()) })),
+    ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "offers_ok" && l.id !== "opted_out").map((l) => ({
+      kind: "list",
+      audience_id: l.id,
+      label: l.label,
+      ...sizes("list", l.id, null),
+    })),
+    ...(segs.data ?? []).map((s) => ({
+      kind: "saved",
+      audience_id: s.id,
+      label: s.name,
+      ...sizes("saved", null, byList.get(s.id) ?? new Set<string>()),
+    })),
   ];
-  const cfg = (ch.data?.config && typeof ch.data.config === "object" && !Array.isArray(ch.data.config) ? ch.data.config : {}) as Record<string, unknown>;
+  const cfg = (
+    ch.data?.config && typeof ch.data.config === "object" && !Array.isArray(ch.data.config) ? ch.data.config : {}
+  ) as Record<string, unknown>;
   const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
   const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
   return {
     route: "broadcasts",
     audiences,
     templates: (tpls.data ?? []).map((x) => ({
-      template_id: x.id, name: x.name, language: x.language, category: x.category,
-      values: Array.isArray(x.variables) ? (x.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({ position: v.position, label: v.label, example: v.example ?? null })) : [],
+      template_id: x.id,
+      name: x.name,
+      language: x.language,
+      category: x.category,
+      values: Array.isArray(x.variables)
+        ? (x.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
+            position: v.position,
+            label: v.label,
+            example: v.example ?? null,
+          }))
+        : [],
       body: x.body_preview,
     })),
-    number: { present: !!ch.data, health: health.label, can_send: health.canSend, limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay },
+    number: {
+      present: !!ch.data,
+      health: health.label,
+      can_send: health.canSend,
+      limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay,
+    },
     note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. Pick the template first, then quote its can_be_sent count as who the broadcast reaches -- never a larger count. When that is 0 and its said_yes is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have.`,
   };
 }
@@ -739,7 +1036,17 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   // playbook. `said_yes_now` was the reach, so a moment whose yes had no number
   // to send to read as nobody's yes.
   const moment = (trigger: string) => {
-    const drawn = playbookRunReach(vm, { trigger: trigger as (typeof PLAYBOOK_TRIGGERS)[number]["id"], cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime());
+    const drawn = playbookRunReach(
+      vm,
+      {
+        trigger: trigger as (typeof PLAYBOOK_TRIGGERS)[number]["id"],
+        cap_per_run: 100_000,
+        gap_days: 0,
+        cadence_days: 0,
+      },
+      untouched,
+      t.now.getTime(),
+    );
     return { said_yes_now: drawn.saidYes, can_be_sent_now: drawn.reach.will };
   };
   return {
@@ -761,7 +1068,9 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       runs: p.totals.runs,
       sent: p.totals.sent,
       replied: p.totals.replied,
-      waiting: p.totals.waiting ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count } : null,
+      waiting: p.totals.waiting
+        ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count }
+        : null,
     })),
     triggers: PLAYBOOK_TRIGGERS.map((x) => ({
       trigger: x.id,
@@ -788,7 +1097,13 @@ async function getCalendar(t: ToolContext, input: Record<string, unknown>): Prom
   else if (askedKey) from = askedKey;
   else if (asked.slice(0, 3) in WEEKDAY_KEYS) {
     const want = WEEKDAY_KEYS[asked.slice(0, 3)];
-    for (let i = 0; i < 7; i++) { const k = shiftKey(todayKey, i); if (new Date(`${k}T12:00:00Z`).getUTCDay() === want) { from = k; break; } }
+    for (let i = 0; i < 7; i++) {
+      const k = shiftKey(todayKey, i);
+      if (new Date(`${k}T12:00:00Z`).getUTCDay() === want) {
+        from = k;
+        break;
+      }
+    }
   }
   const days = Math.min(14, Math.max(1, Math.round(Number(input.days)) || 1));
   const vm = toCalendarVM(await calendarWeek(t.ctx, t.tenantId, { from, days }, t.now), t.now);
@@ -800,7 +1115,11 @@ async function getCalendar(t: ToolContext, input: Record<string, unknown>): Prom
       day: d.key,
       label: d.long,
       closed: d.closed.yes ? (d.closed.note ? `closed · ${d.closed.note}` : "closed") : null,
-      taken: [...d.allDay, ...d.blocks].map((b) => ({ time: b.time, title: b.title, person: b.person ? { contact_id: b.person.id, name: b.person.name } : null })),
+      taken: [...d.allDay, ...d.blocks].map((b) => ({
+        time: b.time,
+        title: b.title,
+        person: b.person ? { contact_id: b.person.id, name: b.person.name } : null,
+      })),
       open: d.windows.map((w) => w.label),
     })),
     note: "Taken is the owner's own calendar; open is what the receptionist would offer a caller. Nothing is booked from here — the booking link does that.",
@@ -833,8 +1152,8 @@ async function listLeadSearches(t: ToolContext): Promise<unknown> {
       name: cut(r.name),
       asked: cut(r.asked),
       asked_on: r.created_at.slice(0, 10),
-      state: r.state ? ROUND_WORDS[r.state] ?? r.state : "not started",
-      ending: r.ending ? LEAD_ENDING_WORDS[r.ending as LeadRoundEnding] ?? null : null,
+      state: r.state ? (ROUND_WORDS[r.state] ?? r.state) : "not started",
+      ending: r.ending ? (LEAD_ENDING_WORDS[r.ending as LeadRoundEnding] ?? null) : null,
       qualified: r.qualified,
       review: r.review,
       counted: r.counted,
@@ -848,27 +1167,63 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
   try {
     let out: unknown;
     switch (run.name) {
-      case "get_today": out = await getToday(t); break;
-      case "list_threads": out = await listThreads(t, run.input); break;
-      case "get_thread": out = await getThread(t, run.input); break;
-      case "search_people": out = await searchPeople(t, run.input); break;
-      case "get_person": out = await getPerson(t, run.input); break;
-      case "list_calls": out = await listCalls(t, run.input); break;
-      case "get_call": out = await getCall(t, run.input); break;
-      case "get_report": out = await getReport(t, run.input); break;
-      case "get_settings": out = await getSettings(t); break;
-      case "get_openings": out = await getOpenings(t, run.input); break;
-      case "list_audiences": out = await listAudiences(t); break;
-      case "list_playbooks": out = await listPlaybooksTool(t); break;
-      case "get_calendar": out = await getCalendar(t, run.input); break;
-      case "list_lead_searches": out = await listLeadSearches(t); break;
-      default: return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
+      case "get_today":
+        out = await getToday(t);
+        break;
+      case "list_threads":
+        out = await listThreads(t, run.input);
+        break;
+      case "get_thread":
+        out = await getThread(t, run.input);
+        break;
+      case "search_people":
+        out = await searchPeople(t, run.input);
+        break;
+      case "get_person":
+        out = await getPerson(t, run.input);
+        break;
+      case "list_calls":
+        out = await listCalls(t, run.input);
+        break;
+      case "get_call":
+        out = await getCall(t, run.input);
+        break;
+      case "get_report":
+        out = await getReport(t, run.input);
+        break;
+      case "get_settings":
+        out = await getSettings(t);
+        break;
+      case "get_openings":
+        out = await getOpenings(t, run.input);
+        break;
+      case "list_audiences":
+        out = await listAudiences(t);
+        break;
+      case "list_playbooks":
+        out = await listPlaybooksTool(t);
+        break;
+      case "get_calendar":
+        out = await getCalendar(t, run.input);
+        break;
+      case "list_lead_searches":
+        out = await listLeadSearches(t);
+        break;
+      default:
+        return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
     }
-    const isError = !!(out && typeof out === "object" && "error" in (out as Record<string, unknown>) && Object.keys(out as object).length <= 2);
+    const isError = !!(
+      out &&
+      typeof out === "object" &&
+      "error" in (out as Record<string, unknown>) &&
+      Object.keys(out as object).length <= 2
+    );
     return { result: json(out), isError, label };
   } catch (e) {
-    console.error("ask_tool_failed", JSON.stringify({ tool: run.name, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "ask_tool_failed",
+      JSON.stringify({ tool: run.name, error: e instanceof Error ? e.message : String(e) }),
+    );
     return { result: json({ error: "that read failed; say so and answer with what you have" }), isError: true, label };
   }
 }
-

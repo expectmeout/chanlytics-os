@@ -11,7 +11,10 @@ import { SIGNUP_WORDS, SignupSchema } from "@chanlytics/contracts";
  */
 export type WaitlistJoin = { ok: true; sentence: string } | { ok: false; message: string };
 
-export async function joinWaitlistFrom(win: Pick<Window, "fetch">, input: { name: string; email: string }): Promise<WaitlistJoin> {
+export async function joinWaitlistFrom(
+  win: Pick<Window, "fetch">,
+  input: { name: string; email: string },
+): Promise<WaitlistJoin> {
   // The list's own rule, said before anything is sent, in the words the route would answer with.
   const parsed = SignupSchema.safeParse({ name: input.name, email: input.email });
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? SIGNUP_WORDS.waitlistNotJoined };
@@ -26,7 +29,11 @@ export async function joinWaitlistFrom(win: Pick<Window, "fetch">, input: { name
   } catch {
     return { ok: false, message: SIGNUP_WORDS.unreachable };
   }
-  const answer = (await res.json().catch(() => null)) as { ok?: boolean; data?: { waitlisted?: boolean }; error?: { message?: string } } | null;
+  const answer = (await res.json().catch(() => null)) as {
+    ok?: boolean;
+    data?: { waitlisted?: boolean };
+    error?: { message?: string };
+  } | null;
   if (!res.ok || !answer?.ok) return { ok: false, message: answer?.error?.message ?? SIGNUP_WORDS.unreachable };
   // Only the list's own answer is a yes: a sign-up that was not put on the list did not join it.
   if (!answer.data?.waitlisted) return { ok: false, message: SIGNUP_WORDS.waitlistNotJoined };

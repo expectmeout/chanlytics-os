@@ -31,18 +31,29 @@ export const iso = (ms) => new Date(ms).toISOString();
 
 /* ------------------------------------------------------------- the knock */
 
-export const hmac = (body, key, ms) => crypto.createHmac("sha256", key).update(body + String(ms)).digest("hex");
+export const hmac = (body, key, ms) =>
+  crypto
+    .createHmac("sha256", key)
+    .update(body + String(ms))
+    .digest("hex");
 /** Retell's header: `v=<ms>,d=<hex>` over rawBody + ms, keyed by the badged key. */
-export const sign = (body, { key = process.env.RETELL_WEBHOOK_KEY, ms = Date.now() } = {}) => `v=${ms},d=${hmac(body, key, ms)}`;
+export const sign = (body, { key = process.env.RETELL_WEBHOOK_KEY, ms = Date.now() } = {}) =>
+  `v=${ms},d=${hmac(body, key, ms)}`;
 
 /** Set (or with undefined, unset) variables for one call, and put them back. */
 export async function withEnv(patch, fn) {
   const saved = Object.fromEntries(Object.keys(patch).map((k) => [k, process.env[k]]));
-  for (const [k, v] of Object.entries(patch)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
   try {
     return await fn();
   } finally {
-    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 }
 
@@ -71,8 +82,9 @@ export function wire() {
   };
   globalThis.fetch = async (url, init) => {
     const u = String(url);
-    calls.push({ url: u, init, budgetMs: init?.signal ? budgets.get(init.signal) ?? null : null });
-    if (u.includes("cdn.retell.test")) return new Response(new Uint8Array([82, 73, 70, 70]), { status: 200, headers: { "content-type": "audio/wav" } });
+    calls.push({ url: u, init, budgetMs: init?.signal ? (budgets.get(init.signal) ?? null) : null });
+    if (u.includes("cdn.retell.test"))
+      return new Response(new Uint8Array([82, 73, 70, 70]), { status: 200, headers: { "content-type": "audio/wav" } });
     return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
   };
   const to = (part) => calls.filter((c) => c.url.includes(part));
@@ -81,7 +93,10 @@ export function wire() {
     to,
     /** What Resend was asked to send, in order. */
     mail: () => to("api.resend.com").map((c) => JSON.parse(c.init.body)),
-    restore: () => { globalThis.fetch = real; AbortSignal.timeout = realTimeout; },
+    restore: () => {
+      globalThis.fetch = real;
+      AbortSignal.timeout = realTimeout;
+    },
   };
 }
 
@@ -111,7 +126,13 @@ function ingestCallRpc(tables) {
       }
       conversation = tables.conversations.find((c) => c.tenant_id === a.p_tenant_id && c.contact_id === contact.id);
       if (!conversation) {
-        conversation = { id: crypto.randomUUID(), tenant_id: a.p_tenant_id, contact_id: contact.id, state: "open", paused_until: null };
+        conversation = {
+          id: crypto.randomUUID(),
+          tenant_id: a.p_tenant_id,
+          contact_id: contact.id,
+          state: "open",
+          paused_until: null,
+        };
         tables.conversations.push(conversation);
       }
     }
@@ -123,8 +144,16 @@ function ingestCallRpc(tables) {
       contact_id: contact?.id ?? prior?.contact_id ?? null,
       conversation_id: conversation?.id ?? prior?.conversation_id ?? null,
     };
-    if (prior && rank(a.p_status) < rank(prior.status)) return { call_id: prior.id, is_new: false, skipped: true, ...known };
-    const row = prior ?? { id: crypto.randomUUID(), tenant_id: a.p_tenant_id, retell_call_id: a.p_retell_call_id, notified_at: null, message_id: null, recording: null };
+    if (prior && rank(a.p_status) < rank(prior.status))
+      return { call_id: prior.id, is_new: false, skipped: true, ...known };
+    const row = prior ?? {
+      id: crypto.randomUUID(),
+      tenant_id: a.p_tenant_id,
+      retell_call_id: a.p_retell_call_id,
+      notified_at: null,
+      message_id: null,
+      recording: null,
+    };
     Object.assign(row, {
       agent_id: a.p_agent_id ?? row.agent_id ?? null,
       status: a.p_status,
@@ -151,7 +180,10 @@ let seq = 0;
 export const kind = (tables, k) => tables.events.filter((e) => e.kind === k);
 export const ingests = (db) => db.seen.filter((q) => q.rpc === "ingest_call");
 /** What Postgres says to a second insert under a unique index. */
-export const DUPLICATE = (index) => ({ message: `duplicate key value violates unique constraint "${index}"`, code: "23505" });
+export const DUPLICATE = (index) => ({
+  message: `duplicate key value violates unique constraint "${index}"`,
+  code: "23505",
+});
 
 /**
  * Import the handler under the environment the caller has set, and hand back
@@ -185,41 +217,98 @@ export async function openDoor() {
     const AGENT = `agent_${i}_${crypto.randomBytes(4).toString("hex")}`;
     const tables = {
       tenants: [{ id: T, name: "Harbor Moving", timezone: "America/New_York", status: "active" }],
-      tenant_channels: [{ id: `ch_${i}`, tenant_id: T, kind: "voice", external_id: AGENT, status: "active", number_e164: LINE, credentials_ref: null, config: {} }],
-      tenant_config: [], policies: [], google_listings: [], lines: [],
-      calls: [], contacts: [], conversations: [], messages: [], escalations: [], events: [], notifications: [],
+      tenant_channels: [
+        {
+          id: `ch_${i}`,
+          tenant_id: T,
+          kind: "voice",
+          external_id: AGENT,
+          status: "active",
+          number_e164: LINE,
+          credentials_ref: null,
+          config: {},
+        },
+      ],
+      tenant_config: [],
+      policies: [],
+      google_listings: [],
+      lines: [],
+      calls: [],
+      contacts: [],
+      conversations: [],
+      messages: [],
+      escalations: [],
+      events: [],
+      notifications: [],
     };
     const uploads = [];
     /** The database for the next knock: the same tables, with faults and rpc overrides for this delivery. */
     const open = (faults = {}, rpcs = {}) => {
-      const db = fakeDb(tables, faults, { ingest_call: ingestCallRpc(tables), runtime_stamp: () => `stamp-${i}`, get_channel_credentials: () => null, ...rpcs });
+      const db = fakeDb(tables, faults, {
+        ingest_call: ingestCallRpc(tables),
+        runtime_stamp: () => `stamp-${i}`,
+        get_channel_credentials: () => null,
+        ...rpcs,
+      });
       // The private bucket. The double models tables; the recording copy also
       // needs storage.from("media").upload, so the bucket is a list here.
       db.storage = {
         from: (bucket) => ({
-          upload: async (p, bytes, opts) => { uploads.push({ bucket, path: p, bytes: bytes.byteLength, ...opts }); return { data: { path: p }, error: null }; },
+          upload: async (p, bytes, opts) => {
+            uploads.push({ bucket, path: p, bytes: bytes.byteLength, ...opts });
+            return { data: { path: p }, error: null };
+          },
         }),
       };
       setPg(db);
       return db;
     };
     return {
-      T, AGENT, tables, uploads, open,
+      T,
+      AGENT,
+      tables,
+      uploads,
+      open,
       callId: (tag) => `call_${i}_${tag}`,
       /** The provider's call object, as the live account shapes it. */
-      call: (id, over = {}) => ({ call_id: id, agent_id: AGENT, call_type: "phone_call", direction: "inbound", from_number: CALLER, to_number: LINE, ...over }),
+      call: (id, over = {}) => ({
+        call_id: id,
+        agent_id: AGENT,
+        call_type: "phone_call",
+        direction: "inbound",
+        from_number: CALLER,
+        to_number: LINE,
+        ...over,
+      }),
       /** A finished call with its analysis: two minutes, Rosa, a quote. */
       analysed: (id, over = {}) => ({
-        call_id: id, agent_id: AGENT, call_type: "phone_call", direction: "inbound", from_number: CALLER, to_number: LINE,
-        call_status: "ended", start_timestamp: NOW - 130_000, end_timestamp: NOW - 5_000, duration_ms: 125_000, disconnection_reason: "user_hangup",
+        call_id: id,
+        agent_id: AGENT,
+        call_type: "phone_call",
+        direction: "inbound",
+        from_number: CALLER,
+        to_number: LINE,
+        call_status: "ended",
+        start_timestamp: NOW - 130_000,
+        end_timestamp: NOW - 5_000,
+        duration_ms: 125_000,
+        disconnection_reason: "user_hangup",
         transcript: "Agent: Thank you for calling Harbor Moving!\nUser: I need a quote for a move on Tuesday.",
         transcript_object: [
           { role: "agent", content: "Thank you for calling Harbor Moving!" },
           { role: "user", content: "I need a quote for a move on Tuesday." },
         ],
         call_analysis: {
-          call_summary: "Rosa asked for a moving quote for Tuesday.", user_sentiment: "Positive", call_successful: true, in_voicemail: false,
-          custom_analysis_data: { caller_name: "Rosa", caller_wanted: "a quote for a move on Tuesday", outcome: "answered", follow_up: "" },
+          call_summary: "Rosa asked for a moving quote for Tuesday.",
+          user_sentiment: "Positive",
+          call_successful: true,
+          in_voicemail: false,
+          custom_analysis_data: {
+            caller_name: "Rosa",
+            caller_wanted: "a quote for a move on Tuesday",
+            outcome: "answered",
+            follow_up: "",
+          },
         },
         recording_url: `https://cdn.retell.test/recording/${id}.wav`,
         ...over,

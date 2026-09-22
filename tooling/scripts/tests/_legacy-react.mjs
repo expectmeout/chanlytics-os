@@ -18,7 +18,11 @@ import { csvCell } from "@chanlytics/contracts";
 const listeners = {};
 const storage = () => {
   const m = new Map();
-  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
 };
 const cells = { list: [], seq: 0, ids: 0 };
 
@@ -27,25 +31,56 @@ export function installLegacyReact(extra = {}) {
   Object.assign(globalThis, {
     localStorage: storage(),
     sessionStorage: storage(),
-    location: { pathname: "/w/studio", hash: "#/reports", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+    location: {
+      pathname: "/w/studio",
+      hash: "#/reports",
+      origin: "https://app.chanlytics.com",
+      assign() {},
+      replace() {},
+      reload() {},
+    },
     history: { replaceState() {} },
     innerHeight: 800,
-    addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-    removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-    dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+    addEventListener: (type, fn) => {
+      (listeners[type] ||= new Set()).add(fn);
+    },
+    removeEventListener: (type, fn) => {
+      listeners[type]?.delete(fn);
+    },
+    dispatchEvent: (ev) => {
+      for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+      return true;
+    },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
     Icon: "Icon",
     __csvCell: csvCell,
     ...extra,
   });
   globalThis.document = {
-    body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
-    createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} }, click() {}, remove() {} }),
+    body: { appendChild() {} },
+    activeElement: null,
+    addEventListener() {},
+    removeEventListener() {},
+    getElementById: () => null,
+    createElement: () => ({
+      setAttribute() {},
+      style: {},
+      classList: { add() {}, remove() {} },
+      click() {},
+      remove() {},
+    }),
   };
   const effect = (fn, deps) => {
     const k = cells.seq++;
     const prev = cells.list[k];
-    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (
+      prev &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     cells.list[k] = { deps, cleanup: undefined, effect: true };
     cells.list[k].cleanup = fn();
@@ -61,12 +96,22 @@ export function installLegacyReact(extra = {}) {
     useState: (init) => {
       const k = cells.seq++;
       if (!(k in cells.list)) cells.list[k] = typeof init === "function" ? init() : init;
-      return [cells.list[k], (v) => { cells.list[k] = typeof v === "function" ? v(cells.list[k]) : v; }];
+      return [
+        cells.list[k],
+        (v) => {
+          cells.list[k] = typeof v === "function" ? v(cells.list[k]) : v;
+        },
+      ];
     },
     useReducer: (red, init) => {
       const k = cells.seq++;
       if (!(k in cells.list)) cells.list[k] = init;
-      return [cells.list[k], (a) => { cells.list[k] = red(cells.list[k], a); }];
+      return [
+        cells.list[k],
+        (a) => {
+          cells.list[k] = red(cells.list[k], a);
+        },
+      ];
     },
     useRef: (init) => {
       const k = cells.seq++;
@@ -126,7 +171,10 @@ export function remount(draw) {
 
 export const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
@@ -135,7 +183,12 @@ export const walk = (n, fn) => {
 export const all = (tree, pred) => {
   const out = [];
   const seen = new Set();
-  walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } });
+  walk(tree, (n) => {
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  });
   return out;
 };
 export const find = (tree, pred) => all(tree, pred)[0] ?? null;
@@ -147,6 +200,9 @@ export const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return textOf(n.props?.children);
 };
-export const classes = (n) => String(n?.props?.className || "").split(/\s+/).filter(Boolean);
+export const classes = (n) =>
+  String(n?.props?.className || "")
+    .split(/\s+/)
+    .filter(Boolean);
 export const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 export const settle = () => new Promise((r) => setImmediate(r));

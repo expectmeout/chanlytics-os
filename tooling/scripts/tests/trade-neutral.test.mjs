@@ -29,10 +29,22 @@ const SCOPE = [
 ];
 /** Files that may keep a trade's words, and why. */
 const ALLOWED = new Map([
-  ["apps/dashboard/src/legacy/pages/calendar.jsx", "the seeded calendar of the design mockup; a real workspace renders calendar-real.jsx"],
-  ["apps/dashboard/src/legacy/pages/broadcasts.jsx", "the seeded Broadcasts of the mockup; a real workspace renders broadcasts-real.jsx"],
-  ["apps/dashboard/src/legacy/pages/segments.jsx", "the seeded Segments of the mockup; a real workspace's lists are a view of People (clients-a.jsx)"],
-  ["apps/dashboard/src/legacy/pages/content-cal.jsx", "the seeded content calendar; a real workspace sees the in-design card"],
+  [
+    "apps/dashboard/src/legacy/pages/calendar.jsx",
+    "the seeded calendar of the design mockup; a real workspace renders calendar-real.jsx",
+  ],
+  [
+    "apps/dashboard/src/legacy/pages/broadcasts.jsx",
+    "the seeded Broadcasts of the mockup; a real workspace renders broadcasts-real.jsx",
+  ],
+  [
+    "apps/dashboard/src/legacy/pages/segments.jsx",
+    "the seeded Segments of the mockup; a real workspace's lists are a view of People (clients-a.jsx)",
+  ],
+  [
+    "apps/dashboard/src/legacy/pages/content-cal.jsx",
+    "the seeded content calendar; a real workspace sees the in-design card",
+  ],
   ["apps/dashboard/src/legacy/pages/agent-studio.jsx", "the seeded Studio; a real workspace sees the in-design card"],
 ]);
 const BANNED = /\b(salons?|stylists?|balayage|therapists?|chair rental|haircuts?|keratin|blowouts?|lash(?:es)?)\b/i;
@@ -41,8 +53,9 @@ const EXT = new Set([".ts", ".tsx", ".jsx", ".js"]);
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
-    if (statSync(p).isDirectory()) { if (name !== "node_modules" && name !== "dist") yield* walk(p); }
-    else if ([...EXT].some((e) => name.endsWith(e)) && !name.endsWith(".d.ts") && !name.includes(".test.")) yield p;
+    if (statSync(p).isDirectory()) {
+      if (name !== "node_modules" && name !== "dist") yield* walk(p);
+    } else if ([...EXT].some((e) => name.endsWith(e)) && !name.endsWith(".d.ts") && !name.includes(".test.")) yield p;
   }
 }
 
@@ -63,7 +76,11 @@ export function readerLines(src) {
       const start = line.indexOf("/*");
       if (start === -1) break;
       const end = line.indexOf("*/", start + 2);
-      if (end === -1) { line = line.slice(0, start); inBlock = true; break; }
+      if (end === -1) {
+        line = line.slice(0, start);
+        inBlock = true;
+        break;
+      }
       line = line.slice(0, start) + line.slice(end + 2);
     }
     if (/trade-word:/.test(raw)) return;
@@ -91,6 +108,12 @@ test("no salon words reach a customer of another trade", () => {
 });
 
 test("the scanner reads what a reader reads", () => {
-  const lines = readerLines(`// a stylist in a comment\nconst a = c.therapist; /* salon */ const b = "salon"; // trade-word: kept on purpose\nconst c = "haircut";\n/* stylist\n balayage */\nconst d = 1;`);
-  assert.deepEqual(lines.map((l) => l.text.trim()), ['const c = "haircut";', "const d = 1;"], "a comment is not copy, an exempted line is skipped whole, a member access is not a word");
+  const lines = readerLines(
+    `// a stylist in a comment\nconst a = c.therapist; /* salon */ const b = "salon"; // trade-word: kept on purpose\nconst c = "haircut";\n/* stylist\n balayage */\nconst d = 1;`,
+  );
+  assert.deepEqual(
+    lines.map((l) => l.text.trim()),
+    ['const c = "haircut";', "const d = 1;"],
+    "a comment is not copy, an exempted line is skipped whole, a member access is not a word",
+  );
 });

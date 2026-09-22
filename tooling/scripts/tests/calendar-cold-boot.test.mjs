@@ -11,20 +11,51 @@ import { windowFor } from "@chanlytics/contracts";
 
 const asked = [];
 globalThis.window = {
-  location: { pathname: "/w/harbor", hash: "#/calendar/2026-12-01", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
+  location: {
+    pathname: "/w/harbor",
+    hash: "#/calendar/2026-12-01",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+  },
   __WORKSPACES: [{ id: "t1", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
   addEventListener() {},
   removeEventListener() {},
-  dispatchEvent() { return true; },
+  dispatchEvent() {
+    return true;
+  },
   fetch: async (url) => {
     const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
     asked.push(q.from);
     const days = Array.from({ length: Number(q.days) }, () => ({ key: q.from, items: [], windows: [] }));
-    return new Response(JSON.stringify({ ok: true, data: { calendar: { timezone: "America/New_York", from: q.from, days, feed: { present: false, state: "none" }, hours: [], closures: [], rules: {}, services: [], booking_link: null, next_opening: null } } }), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        data: {
+          calendar: {
+            timezone: "America/New_York",
+            from: q.from,
+            days,
+            feed: { present: false, state: "none" },
+            hours: [],
+            closures: [],
+            rules: {},
+            services: [],
+            booking_link: null,
+            next_opening: null,
+          },
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
   },
 };
-globalThis.CustomEvent = class CustomEvent { constructor(type) { this.type = type; } };
+globalThis.CustomEvent = class CustomEvent {
+  constructor(type) {
+    this.type = type;
+  }
+};
 const { calendarOverride, getCalendarSpan } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
 
 test("a refresh on a day reads the weeks around that day, not today's first", async () => {

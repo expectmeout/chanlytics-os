@@ -17,7 +17,10 @@ export const PUT = write({
     if (!cleaned.ok) throw new AppError("validation", cleaned.reason, 400);
     const { data, error } = await ctx.supabase.rpc("profile_set", { p_display_name: cleaned.name });
     if (error) throw new AppError("validation", error.message, 400);
-    const saved = data && typeof data === "object" && !Array.isArray(data) ? (data as { display_name?: string }).display_name : cleaned.name;
+    const saved =
+      data && typeof data === "object" && !Array.isArray(data)
+        ? (data as { display_name?: string }).display_name
+        : cleaned.name;
     return { display_name: saved ?? cleaned.name };
   },
 });

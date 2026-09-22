@@ -24,8 +24,18 @@ import { pageOperator } from "../../lib/page-operator.js";
 import { provisionLineJob } from "../../lib/line-provision-job.js";
 import { leadPipeline } from "../../lib/lead-pipeline.js";
 import {
-  runTick, claimNext, completeJob, failJob, deferJob, settleJob, dispatchJob, scheduleJob,
-  CLAIM_FOR_MS, YIELD_AT_MS, LEAD_YIELD_AT_MS, LEASE_SECONDS,
+  runTick,
+  claimNext,
+  completeJob,
+  failJob,
+  deferJob,
+  settleJob,
+  dispatchJob,
+  scheduleJob,
+  CLAIM_FOR_MS,
+  YIELD_AT_MS,
+  LEAD_YIELD_AT_MS,
+  LEASE_SECONDS,
 } from "../../lib/packages/jobs.js";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */
@@ -73,7 +83,9 @@ export async function POST(request: Request): Promise<Response> {
           const leads = leadPipeline();
           const wire = {
             whatsapp: whatsappSender(await waCredentialsForTenant(db, job.tenant_id)),
-            sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body) : null,
+            sms: line
+              ? (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body)
+              : null,
             ...(email !== undefined ? { email } : {}),
           };
           return dispatchJob(
@@ -92,7 +104,12 @@ export async function POST(request: Request): Promise<Response> {
               },
               deadline,
             },
-            { id: job.id, tenant_id: job.tenant_id, kind: job.kind, payload: (job.payload ?? {}) as Record<string, unknown> },
+            {
+              id: job.id,
+              tenant_id: job.tenant_id,
+              kind: job.kind,
+              payload: (job.payload ?? {}) as Record<string, unknown>,
+            },
           );
         },
         complete: (job) => completeJob(db, job),
@@ -103,7 +120,12 @@ export async function POST(request: Request): Promise<Response> {
         log: L,
         now: Date.now,
       },
-      { claimForMs: CLAIM_FOR_MS, yieldAtMs: YIELD_AT_MS, yieldAtFor: (kind) => (kind.startsWith("lead_") ? LEAD_YIELD_AT_MS : undefined), leaseSeconds: LEASE_SECONDS },
+      {
+        claimForMs: CLAIM_FOR_MS,
+        yieldAtMs: YIELD_AT_MS,
+        yieldAtFor: (kind) => (kind.startsWith("lead_") ? LEAD_YIELD_AT_MS : undefined),
+        leaseSeconds: LEASE_SECONDS,
+      },
     );
     L.info("jobs_tick", { ...counts });
     // Many failures in one heartbeat are also the platform's condition: one page
@@ -111,7 +133,12 @@ export async function POST(request: Request): Promise<Response> {
     // alerted its own workspace's owner (packages/jobs/src/tick.ts); the page is
     // in addition to those, not instead of them.
     if (counts.failed + counts.gaveUp >= MASS_FAILURE_PAGE) {
-      await pageOperator({ db }, "jobs_mass_failure", `${counts.failed + counts.gaveUp} jobs failed in one heartbeat`, massFailureBody(counts));
+      await pageOperator(
+        { db },
+        "jobs_mass_failure",
+        `${counts.failed + counts.gaveUp} jobs failed in one heartbeat`,
+        massFailureBody(counts),
+      );
     }
     return json(200, { ok: true, ...counts });
   } catch (e) {

@@ -19,24 +19,52 @@ const ZONE = "America/New_York";
 
 const listeners = {};
 globalThis.window = {
-  location: { pathname: "/w/melanys", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/melanys",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
-  CHANLY: { nav: (to) => went.push(to), R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` }, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
+  CHANLY: {
+    nav: (to) => went.push(to),
+    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
+    IX_NOW: "12:04",
+    CONF: { SAFE: 0.8, MED: 0.5 },
+  },
   __surfaceState: () => "live",
   __DEMO_MODE: false,
   canDo: () => true,
   gate: () => ({}),
-  addEventListener(name, fn) { (listeners[name] = listeners[name] || []).push(fn); },
-  removeEventListener(name, fn) { listeners[name] = (listeners[name] || []).filter((f) => f !== fn); },
-  dispatchEvent() { return true; },
-  setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
+  addEventListener(name, fn) {
+    (listeners[name] = listeners[name] || []).push(fn);
+  },
+  removeEventListener(name, fn) {
+    listeners[name] = (listeners[name] || []).filter((f) => f !== fn);
+  },
+  dispatchEvent() {
+    return true;
+  },
+  setTimeout: () => 1,
+  clearTimeout() {},
+  setInterval: () => 1,
+  clearInterval() {},
 };
-globalThis.document = { body: { appendChild() {} }, addEventListener() {}, removeEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }) };
+globalThis.document = {
+  body: { appendChild() {} },
+  addEventListener() {},
+  removeEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
+};
 const went = [];
-const fire = (name) => { for (const fn of listeners[name] ?? []) fn(); };
+const fire = (name) => {
+  for (const fn of listeners[name] ?? []) fn();
+};
 
 let cells = [];
 let seq = 0;
@@ -49,16 +77,55 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
   useMemo: (fn) => fn(),
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatePill", "MoreMenu", "EmptyState", "PolicyChip", "TlMedia", "FailedRead", "Confirm", "usePPToast", "useHotkey"]) globalThis[k] = globalThis.window[k];
+for (const k of [
+  "StatePill",
+  "MoreMenu",
+  "EmptyState",
+  "PolicyChip",
+  "TlMedia",
+  "FailedRead",
+  "Confirm",
+  "usePPToast",
+  "useHotkey",
+])
+  globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
 globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
@@ -73,38 +140,87 @@ const { ThreadPane } = globalThis.window;
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const find = (tree, pred) => { let hit; walk(tree, (n) => { if (hit === undefined && pred(n)) hit = n; }); return hit; };
+const find = (tree, pred) => {
+  let hit;
+  walk(tree, (n) => {
+    if (hit === undefined && pred(n)) hit = n;
+  });
+  return hit;
+};
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
 
 // A real thread as the Inbox's read hands it over (toInboxThreadVM's shape, the fields the pane reads).
-const rosa = { id: "th-rosa", real: true, who: "Rosa Díaz", conversationId: "c1", state: "escalated", needsYou: true, takenOver: false, claimedByOther: false, archived: false, tags: [], whoMeta: "", lastAtMs: 1000, timeline: [], primaryChannel: "whatsapp" };
-const store = (...threads) => { globalThis.window.INBOX_DATA = { THREADS: threads, CHANNEL_LABELS: { whatsapp: "WhatsApp" } }; };
+const rosa = {
+  id: "th-rosa",
+  real: true,
+  who: "Rosa Díaz",
+  conversationId: "c1",
+  state: "escalated",
+  needsYou: true,
+  takenOver: false,
+  claimedByOther: false,
+  archived: false,
+  tags: [],
+  whoMeta: "",
+  lastAtMs: 1000,
+  timeline: [],
+  primaryChannel: "whatsapp",
+};
+const store = (...threads) => {
+  globalThis.window.INBOX_DATA = { THREADS: threads, CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+};
 // The pane drawn alone, by the id a Conversations row carries; what it hands InboxThread is caught.
 const drawn = [];
-const catchPane = () => { drawn.length = 0; globalThis.InboxThread = (p) => { drawn.push(p); return null; }; };
-const releasePane = () => { globalThis.InboxThread = RealInboxThread; };
-const pane = (props = {}) => { seq = 0; return ThreadPane({ threadId: "th-rosa", ...props }); };
-const fresh = () => { cells = []; for (const k of Object.keys(listeners)) delete listeners[k]; };
+const catchPane = () => {
+  drawn.length = 0;
+  globalThis.InboxThread = (p) => {
+    drawn.push(p);
+    return null;
+  };
+};
+const releasePane = () => {
+  globalThis.InboxThread = RealInboxThread;
+};
+const pane = (props = {}) => {
+  seq = 0;
+  return ThreadPane({ threadId: "th-rosa", ...props });
+};
+const fresh = () => {
+  cells = [];
+  for (const k of Object.keys(listeners)) delete listeners[k];
+};
 
 /* --------------------------------- the pane --------------------------------- */
 
 test("given the id a Conversations row carries, the pane draws InboxThread for that thread", () => {
-  fresh(); catchPane(); store(rosa);
+  fresh();
+  catchPane();
+  store(rosa);
   try {
     pane();
     assert.equal(drawn.at(-1).thread.id, "th-rosa");
-  } finally { releasePane(); }
+  } finally {
+    releasePane();
+  }
 });
 
 test("its verbs reach the server with that thread -- the same verbs, from wherever it is open", async () => {
-  fresh(); catchPane(); store(rosa);
+  fresh();
+  catchPane();
+  store(rosa);
   const calls = [];
-  globalThis.window.__inboxVerb = async (t, verb) => { calls.push([t.id, verb]); return { ok: true, data: {} }; };
+  globalThis.window.__inboxVerb = async (t, verb) => {
+    calls.push([t.id, verb]);
+    return { ok: true, data: {} };
+  };
   try {
     pane();
     const p = drawn.at(-1);
@@ -112,22 +228,36 @@ test("its verbs reach the server with that thread -- the same verbs, from wherev
     p.onSnooze("th-rosa");
     p.onArchive("th-rosa");
     const sent = await p.onSend("th-rosa", "See you Friday!");
-    assert.deepEqual(calls, [["th-rosa", "take-over"], ["th-rosa", "snooze"], ["th-rosa", "archive"], ["th-rosa", "reply"]]);
+    assert.deepEqual(calls, [
+      ["th-rosa", "take-over"],
+      ["th-rosa", "snooze"],
+      ["th-rosa", "archive"],
+      ["th-rosa", "reply"],
+    ]);
     assert.equal(sent, true, "the reply box is told the server took it");
-  } finally { delete globalThis.window.__inboxVerb; releasePane(); }
+  } finally {
+    delete globalThis.window.__inboxVerb;
+    releasePane();
+  }
 });
 
 test("before the Inbox's read lands, the pane says it is opening -- and opens nobody else's conversation", () => {
-  fresh(); catchPane(); store();
+  fresh();
+  catchPane();
+  store();
   try {
     const tree = pane();
     assert.ok(find(tree, byTestId("tp-opening")), "it says the conversation is on its way");
     assert.equal(drawn.length, 0, "and draws no thread in its place");
-  } finally { releasePane(); }
+  } finally {
+    releasePane();
+  }
 });
 
 test("a re-read that moves the thread says so on the pane; your own act does not, its toast has", async () => {
-  fresh(); catchPane(); store(rosa);
+  fresh();
+  catchPane();
+  store(rosa);
   try {
     pane();
     // A teammate handed Rosa back: the next read has her in Handled.
@@ -137,7 +267,9 @@ test("a re-read that moves the thread says so on the pane; your own act does not
     assert.equal(drawn.at(-1).notice, "Moved to Handled", "the pane says what happened while you read");
 
     // Your own archive: its re-read lands inside the verb, the way client/api.ts refreshes after a write.
-    fresh(); drawn.length = 0; store(rosa);
+    fresh();
+    drawn.length = 0;
+    store(rosa);
     pane();
     globalThis.window.__inboxVerb = async () => {
       store({ ...rosa, state: "done", needsYou: false, archived: true });
@@ -148,7 +280,10 @@ test("a re-read that moves the thread says so on the pane; your own act does not
     await new Promise((r) => setTimeout(r, 0));
     pane();
     assert.equal(drawn.at(-1).notice, null, "REGRESSION: the pane announced your own act to you");
-  } finally { delete globalThis.window.__inboxVerb; releasePane(); }
+  } finally {
+    delete globalThis.window.__inboxVerb;
+    releasePane();
+  }
 });
 
 test("a snooze, an archive or a take-over is said the moment the server takes it -- not after the Inbox, the threads and Today are read again", async () => {
@@ -162,17 +297,32 @@ test("a snooze, an archive or a take-over is said the moment the server takes it
   const asked = [];
   globalThis.window.__inboxVerb = async (_t, name, _payload, opts = {}) => {
     asked.push([name, typeof opts.onAccepted]);
-    if (opts.onAccepted) opts.onAccepted();   // the door answered 2xx
-    await new Promise((r) => { reread = r; }); // the surfaces are read again, behind
+    if (opts.onAccepted) opts.onAccepted(); // the door answered 2xx
+    await new Promise((r) => {
+      reread = r;
+    }); // the surfaces are read again, behind
     return { ok: true, data: { message_id: name === "reply" ? "m-1" : undefined } };
   };
   try {
-    for (const [name, words] of [["snooze", "snoozed until tomorrow 10:00"], ["archive", "archived"], ["take-over", "you have it"], ["hand-back", "handed back"], ["wake", "awake"]]) {
+    for (const [name, words] of [
+      ["snooze", "snoozed until tomorrow 10:00"],
+      ["archive", "archived"],
+      ["take-over", "you have it"],
+      ["hand-back", "handed back"],
+      ["wake", "awake"],
+    ]) {
       said.length = 0;
       const done = verb(rosa, name, {}, words);
       await new Promise((r) => setTimeout(r, 0));
       assert.equal(said.length, 1, `${name}: said at acceptance, before the re-read landed`);
-      assert.match(String(said[0].msg.props.children.join ? said[0].msg.props.children.map((c) => (typeof c === "string" ? c : "")).join("") : ""), new RegExp(words.split(" ")[0]));
+      assert.match(
+        String(
+          said[0].msg.props.children.join
+            ? said[0].msg.props.children.map((c) => (typeof c === "string" ? c : "")).join("")
+            : "",
+        ),
+        new RegExp(words.split(" ")[0]),
+      );
       assert.ok(globalThis.window.__threadOwnVerbs.n > 0, "and still your own act while its re-read is out");
       reread();
       assert.equal(await done, true);
@@ -187,18 +337,29 @@ test("a snooze, an archive or a take-over is said the moment the server takes it
     await sending;
     assert.equal(said.length, 1);
     assert.deepEqual(asked.at(-1), ["reply", "undefined"]);
-  } finally { delete globalThis.window.__inboxVerb; }
+  } finally {
+    delete globalThis.window.__inboxVerb;
+  }
 });
 
 test("a refused act says the refusal once, and never that it happened", async () => {
   const { threadVerbs } = globalThis.window;
   const said = [];
   const { verb } = threadVerbs((m) => said.push(m));
-  globalThis.window.__inboxVerb = async () => ({ ok: false, code: "conflict", message: "A teammate has this conversation now." });
+  globalThis.window.__inboxVerb = async () => ({
+    ok: false,
+    code: "conflict",
+    message: "A teammate has this conversation now.",
+  });
   try {
     assert.equal(await verb(rosa, "take-over", undefined, "you have it"), false);
-    assert.deepEqual(said.map((m) => m.tone), ["danger"]);
-  } finally { delete globalThis.window.__inboxVerb; }
+    assert.deepEqual(
+      said.map((m) => m.tone),
+      ["danger"],
+    );
+  } finally {
+    delete globalThis.window.__inboxVerb;
+  }
 });
 
 /* ---------------------------- a draft counting down ---------------------------- */
@@ -210,7 +371,10 @@ test("a draft's Hold and your first keystroke both withdraw it on the server; a 
   const { hold } = threadVerbs((m) => said.push(m));
   globalThis.window.VW_STORE = { state: {} };
   const asked = [];
-  globalThis.window.__cancelSend = async (id) => { asked.push(id); return { ok: true }; };
+  globalThis.window.__cancelSend = async (id) => {
+    asked.push(id);
+    return { ok: true };
+  };
   const draft = (messageId) => ({ ...rosa, veto: { messageId, endsAtMs: Date.now() + 20_000, draft: "See you at 3" } });
   const a = draft("m-hold");
   const b = draft("m-type");
@@ -229,7 +393,11 @@ test("a draft's Hold and your first keystroke both withdraw it on the server; a 
     hold(late, "hold");
     assert.ok(ixHeld(globalThis.window.VW_STORE.state, late), "the countdown stops at once");
     await new Promise((r) => setTimeout(r, 0));
-    assert.equal(ixHeld(globalThis.window.VW_STORE.state, late), false, "REGRESSION: the UI claimed a hold that never happened");
+    assert.equal(
+      ixHeld(globalThis.window.VW_STORE.state, late),
+      false,
+      "REGRESSION: the UI claimed a hold that never happened",
+    );
     assert.equal(said.at(-1).tone, "danger", "and says the server's refusal");
   } finally {
     delete globalThis.window.__cancelSend;
@@ -242,25 +410,75 @@ const NOW = new Date("2026-09-14T14:00:00Z");
 const at = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 // A conversation as GET conversations returns it, made a thread by the Inbox's own view model.
 const convo = (over = {}) => ({
-  id: "c1", state: "open", paused_until: null, snooze_until: null, assignee_user_id: null, assignee_is_me: false,
-  last_wa_inbound_at: at(60), last_message_at: at(59),
-  contact: { id: "k1", display_name: "Rosa Díaz", wa_profile_name: null, phone_e164: "+13475550101", consent: "opted_in", dnc: false },
+  id: "c1",
+  state: "open",
+  paused_until: null,
+  snooze_until: null,
+  assignee_user_id: null,
+  assignee_is_me: false,
+  last_wa_inbound_at: at(60),
+  last_message_at: at(59),
+  contact: {
+    id: "k1",
+    display_name: "Rosa Díaz",
+    wa_profile_name: null,
+    phone_e164: "+13475550101",
+    consent: "opted_in",
+    dnc: false,
+  },
   messages: [
-    { id: "m1", direction: "inbound", sender: "customer", type: "text", body: "Do you have Friday?", media: null, meta: null, status: "received", channel: "whatsapp", created_at: at(60), channel_ts: at(60) },
-    { id: "m2", direction: "outbound", sender: "ai", type: "text", body: "Yes, 3pm works.", media: null, meta: null, status: "read", channel: "whatsapp", created_at: at(59), channel_ts: at(59) },
+    {
+      id: "m1",
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "Do you have Friday?",
+      media: null,
+      meta: null,
+      status: "received",
+      channel: "whatsapp",
+      created_at: at(60),
+      channel_ts: at(60),
+    },
+    {
+      id: "m2",
+      direction: "outbound",
+      sender: "ai",
+      type: "text",
+      body: "Yes, 3pm works.",
+      media: null,
+      meta: null,
+      status: "read",
+      channel: "whatsapp",
+      created_at: at(59),
+      channel_ts: at(59),
+    },
   ],
   ...over,
 });
 
 test("Export is in the thread's menu, from the conversation's own route -- in whichever tab the thread is open", () => {
-  fresh(); releasePane();
+  fresh();
+  releasePane();
   const vm = toInboxThreadVM(convo(), null, ZONE, NOW);
   globalThis.window.INBOX_DATA = { THREADS: [vm], CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
   globalThis.window.__href = (route, p) => `${route}|${p.id}`;
   const anchors = [];
   const realCreate = globalThis.document.createElement;
   globalThis.document.createElement = (tag) => {
-    const a = { tag, href: null, download: null, clicked: 0, click() { this.clicked += 1; }, remove() {}, setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } };
+    const a = {
+      tag,
+      href: null,
+      download: null,
+      clicked: 0,
+      click() {
+        this.clicked += 1;
+      },
+      remove() {},
+      setAttribute() {},
+      style: {},
+      classList: { add() {}, remove() {}, contains: () => false },
+    };
     anchors.push(a);
     return a;
   };
@@ -293,38 +511,88 @@ const textOf = (n) => {
 };
 // Conversations lists a row; the Inbox's read holds the same conversation as a thread -- one GET conversations page.
 const listed = (rows, threads = []) => {
-  globalThis.window.CONVERSATIONS_DATA = { CONVERSATIONS: rows, CV_CHANNELS: [{ id: "all", label: "All" }], CALLS_READ: true };
+  globalThis.window.CONVERSATIONS_DATA = {
+    CONVERSATIONS: rows,
+    CV_CHANNELS: [{ id: "all", label: "All" }],
+    CALLS_READ: true,
+  };
   globalThis.window.INBOX_DATA = { THREADS: threads, CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
 };
-const conversations = (props = {}) => { seq = 0; return ConversationsPage({ channel: "all", initialId: null, ...props }); };
+const conversations = (props = {}) => {
+  seq = 0;
+  return ConversationsPage({ channel: "all", initialId: null, ...props });
+};
 // A call as the calls route returns it: a call record, with no recording stored yet.
 const call = {
-  id: "k7", retell_call_id: "r-k7", direction: "inbound", call_type: "phone_call", status: "ended",
-  from_e164: "+19175550106", from_raw: null, to_e164: "+13083368109",
-  started_at: at(30), ended_at: at(27), duration_ms: 190_000,
-  disconnection_reason: "agent_hangup", sentiment: "Positive", call_successful: true, in_voicemail: false,
-  summary: "The caller asked about a bridal trial.", transcript_object: null, recording: null,
-  conversation_id: null, contact_id: "c7", message_id: null,
+  id: "k7",
+  retell_call_id: "r-k7",
+  direction: "inbound",
+  call_type: "phone_call",
+  status: "ended",
+  from_e164: "+19175550106",
+  from_raw: null,
+  to_e164: "+13083368109",
+  started_at: at(30),
+  ended_at: at(27),
+  duration_ms: 190_000,
+  disconnection_reason: "agent_hangup",
+  sentiment: "Positive",
+  call_successful: true,
+  in_voicemail: false,
+  summary: "The caller asked about a bridal trial.",
+  transcript_object: null,
+  recording: null,
+  conversation_id: null,
+  contact_id: "c7",
+  message_id: null,
   contact: { display_name: "Emily Chen", wa_profile_name: null, phone_e164: "+19175550106" },
-  wanted: "Wants to book a bridal trial", outcome: null, follow_up: null, caller_name: "Emily",
+  wanted: "Wants to book a bridal trial",
+  outcome: null,
+  follow_up: null,
+  caller_name: "Emily",
 };
 
 test("a conversation row opens the one thread: the pane beside the list is the Inbox's thread, not a second viewer", () => {
-  fresh(); releasePane();
+  fresh();
+  releasePane();
   listed([toConversationVM(convo(), ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
   const tree = conversations();
   const thread = find(tree, (n) => n.type === globalThis.InboxThread);
   assert.ok(thread, "REGRESSION: Conversations drew its own viewer for a chat");
   assert.equal(thread.props.thread.id, "th-c1", "the row's own thread");
   assert.equal(typeof thread.props.onSend, "function", "with the reply box's verb -- the thread can be answered here");
-  assert.equal(find(tree, (n) => n.type === "button" && textOf(n).includes("View thread in Inbox")), undefined, "REGRESSION: a door to a second screen for the same conversation");
-  assert.equal(find(tree, (n) => n.props?.className === "cv-summary"), undefined, "REGRESSION: the card that repeated the latest message");
+  assert.equal(
+    find(tree, (n) => n.type === "button" && textOf(n).includes("View thread in Inbox")),
+    undefined,
+    "REGRESSION: a door to a second screen for the same conversation",
+  );
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cv-summary"),
+    undefined,
+    "REGRESSION: the card that repeated the latest message",
+  );
 });
 
 test("a call opens its thread, at the call -- not a viewer of its own", () => {
-  fresh(); releasePane();
-  const note = { id: "e7", direction: "inbound", sender: "system", type: "call_summary", body: "Inbound call · 3 min — Wants to book a bridal trial", media: null, meta: {}, status: "received", channel: "voice", created_at: at(30), channel_ts: at(30) };
-  listed([toCallVM({ ...call, conversation_id: "c7", message_id: "e7" }, ZONE, NOW)], [toInboxThreadVM(convo({ id: "c7", messages: [...convo().messages, note] }), null, ZONE, NOW)]);
+  fresh();
+  releasePane();
+  const note = {
+    id: "e7",
+    direction: "inbound",
+    sender: "system",
+    type: "call_summary",
+    body: "Inbound call · 3 min — Wants to book a bridal trial",
+    media: null,
+    meta: {},
+    status: "received",
+    channel: "voice",
+    created_at: at(30),
+    channel_ts: at(30),
+  };
+  listed(
+    [toCallVM({ ...call, conversation_id: "c7", message_id: "e7" }, ZONE, NOW)],
+    [toInboxThreadVM(convo({ id: "c7", messages: [...convo().messages, note] }), null, ZONE, NOW)],
+  );
   const tree = conversations();
   const pane = find(tree, (n) => n.type === ThreadPane);
   assert.ok(pane, "REGRESSION: a call opened a viewer of its own");
@@ -332,32 +600,57 @@ test("a call opens its thread, at the call -- not a viewer of its own", () => {
   const card = find(tree, byTestId("tl-call"));
   assert.equal(card.props["data-mid"], "e7", "the pane finds the card by the note's id");
   assert.ok(card.props.className.split(" ").includes("focus"), "and the card it opened at says so");
-  assert.equal(find(tree, (n) => n.props?.className === "cv-viewer"), undefined);
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cv-viewer"),
+    undefined,
+  );
 });
 
 test("a call no thread holds opens alone, in the thread's own frame: its header, its card, and a menu of only what acts", () => {
-  fresh(); releasePane();
+  fresh();
+  releasePane();
   listed([toCallVM(call, ZONE, NOW)]);
   const alone = find(conversations(), byTestId("cv-call-pane"));
-  assert.ok(alone && alone.props.className.split(" ").includes("ix-thread-pane"), "the thread's frame, which a phone gives the screen as it gives a thread");
+  assert.ok(
+    alone && alone.props.className.split(" ").includes("ix-thread-pane"),
+    "the thread's frame, which a phone gives the screen as it gives a thread",
+  );
   assert.equal(textOf(find(alone, (n) => n.props?.className === "ix-th-meta")), "Phone");
   assert.match(textOf(find(alone, byTestId("tl-call"))), /Wants to book a bridal trial/);
   assert.ok(find(alone, byTestId("ix-back")), "and the phone's Back");
   const menu = find(alone, (n) => n.type === globalThis.MoreMenu);
-  assert.deepEqual(menu.props.items.map((it) => it.label), ["Open profile"], "REGRESSION: the call header's Export and Assign did nothing outside a demo");
+  assert.deepEqual(
+    menu.props.items.map((it) => it.label),
+    ["Open profile"],
+    "REGRESSION: the call header's Export and Assign did nothing outside a demo",
+  );
   // Its thread is older than the page the Inbox read, so holds no note of it: the call still opens, alone.
-  listed([toCallVM({ ...call, conversation_id: "c-old", message_id: "e-old" }, ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
-  assert.ok(find(conversations(), byTestId("cv-call-pane")), "REGRESSION: 'Opening this conversation…' for a thread that was never going to be read");
+  listed(
+    [toCallVM({ ...call, conversation_id: "c-old", message_id: "e-old" }, ZONE, NOW)],
+    [toInboxThreadVM(convo(), null, ZONE, NOW)],
+  );
+  assert.ok(
+    find(conversations(), byTestId("cv-call-pane")),
+    "REGRESSION: 'Opening this conversation…' for a thread that was never going to be read",
+  );
 });
 
 test("a call still going is a line that says so, its clock running from its start, and it opens Live", () => {
-  fresh(); releasePane();
+  fresh();
+  releasePane();
   const realNow = Date.now;
   Date.now = () => NOW.getTime();
   try {
     listed([{ ...toCallVM(call, ZONE, NOW), live: true, outcome: "live", ts: NOW.getTime() - 83_000 }]);
     const live = find(conversations(), byTestId("cv-call-live"));
-    const part = (cls) => textOf(find(live, (n) => String(n.props?.className || "").split(" ").includes(cls)));
+    const part = (cls) =>
+      textOf(
+        find(live, (n) =>
+          String(n.props?.className || "")
+            .split(" ")
+            .includes(cls),
+        ),
+      );
     assert.deepEqual([part("tl-call-kind"), part("tl-call-length")], ["On the phone now", "1:23"]);
     find(live, (n) => n.type === "button" && textOf(n).includes("Open Live")).props.onClick();
     assert.equal(went.at(-1), "live");
@@ -367,11 +660,16 @@ test("a call still going is a line that says so, its clock running from its star
 });
 
 test("a link to a conversation not in view says so where it would have opened, and opens nobody else's", () => {
-  fresh(); releasePane();
+  fresh();
+  releasePane();
   listed([toConversationVM(convo(), ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
   const tree = conversations({ initialId: "c-gone" });
   const missing = find(tree, byTestId("cv-missing-thread"));
   assert.ok(missing, "the reading pane says the conversation isn't here");
   assert.match(textOf(missing), /isn't among the newest shown here/);
-  assert.equal(find(tree, (n) => n.type === globalThis.InboxThread), undefined, "REGRESSION: another customer's reply box opened in its place");
+  assert.equal(
+    find(tree, (n) => n.type === globalThis.InboxThread),
+    undefined,
+    "REGRESSION: another customer's reply box opened in its place",
+  );
 });

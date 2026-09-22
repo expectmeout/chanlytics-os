@@ -71,8 +71,7 @@ export interface PlatformTenantDto {
  *   test           not a customer
  */
 export type PlatformVerdict =
-  | "broken" | "billing" | "rehearsal" | "stalled" | "waiting_owner"
-  | "quiet" | "new" | "live" | "paused" | "test";
+  "broken" | "billing" | "rehearsal" | "stalled" | "waiting_owner" | "quiet" | "new" | "live" | "paused" | "test";
 
 export interface PlatformVerdictWords {
   label: string;
@@ -83,16 +82,16 @@ export interface PlatformVerdictWords {
 }
 
 export const PLATFORM_VERDICTS: Record<PlatformVerdict, PlatformVerdictWords> = {
-  broken:        { label: "Broken",        tone: "danger", rank: 100 },
-  billing:       { label: "Billing",       tone: "danger", rank: 90 },
-  rehearsal:     { label: "Rehearsal",     tone: "warn",   rank: 80 },
-  stalled:       { label: "Stalled",       tone: "warn",   rank: 70 },
-  waiting_owner: { label: "Waiting on them", tone: "info",   rank: 60 },
-  quiet:         { label: "Quiet",         tone: "warn",   rank: 40 },
-  new:           { label: "New",           tone: "info",   rank: 20 },
-  live:          { label: "Live",          tone: "ok",     rank: 10 },
-  paused:        { label: "Paused",        tone: "plain",  rank: 5 },
-  test:          { label: "Test",          tone: "plain",  rank: 0 },
+  broken: { label: "Broken", tone: "danger", rank: 100 },
+  billing: { label: "Billing", tone: "danger", rank: 90 },
+  rehearsal: { label: "Rehearsal", tone: "warn", rank: 80 },
+  stalled: { label: "Stalled", tone: "warn", rank: 70 },
+  waiting_owner: { label: "Waiting on them", tone: "info", rank: 60 },
+  quiet: { label: "Quiet", tone: "warn", rank: 40 },
+  new: { label: "New", tone: "info", rank: 20 },
+  live: { label: "Live", tone: "ok", rank: 10 },
+  paused: { label: "Paused", tone: "plain", rank: 5 },
+  test: { label: "Test", tone: "plain", rank: 0 },
 };
 
 export interface PlatformRowVM {
@@ -226,7 +225,11 @@ function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: numb
       // one. Setup's version deliberately leaves the reason out -- the owner has
       // it on their texting row -- but the reason is the entire content of a
       // support question, so here it travels with the state.
-      const words = textingWords({ sms_state: r.sms_state ?? "none", reg_mock: r.reg_mock ?? false, reg_sole_prop: r.reg_sole_prop ?? false }).sentence;
+      const words = textingWords({
+        sms_state: r.sms_state ?? "none",
+        reg_mock: r.reg_mock ?? false,
+        reg_sole_prop: r.reg_sole_prop ?? false,
+      }).sentence;
       return r.line_error ? `${words} — ${r.line_error}` : words;
     }
     case "quiet":
@@ -254,23 +257,32 @@ function factsFor(r: PlatformTenantDto, nowMs: number): PlatformRowVM["facts"] {
   const mode = (r.billing_mode ?? null) as BillingMode | null;
   const status = (r.billing_status ?? null) as BillingStatus | null;
   const paying =
-    mode === null ? "No arrangement"
-    : mode === "direct" ? "Invoiced"
-    : status === "trialing" && r.trial_end ? `Trial to ${r.trial_end.slice(0, 10)}`
-    : status ?? "unknown";
+    mode === null
+      ? "No arrangement"
+      : mode === "direct"
+        ? "Invoiced"
+        : status === "trialing" && r.trial_end
+          ? `Trial to ${r.trial_end.slice(0, 10)}`
+          : (status ?? "unknown");
 
   const on = [r.voice_active ? "phone" : null, r.whatsapp_active ? "WhatsApp" : null].filter(Boolean);
-  const answering =
-    on.length ? on.join(" + ")
-    : r.voice_state === "provisioning" ? "Getting a number"
-    : r.voice_state === "failed" ? "Line failed"
-    : "Nothing yet";
+  const answering = on.length
+    ? on.join(" + ")
+    : r.voice_state === "provisioning"
+      ? "Getting a number"
+      : r.voice_state === "failed"
+        ? "Line failed"
+        : "Nothing yet";
 
-  const texting =
-    !r.line_e164 ? "No line"
-    : r.sms_state === "active" ? (r.reg_sole_prop ? "On (sole proprietor)" : "On")
-    : r.reg_mock ? "Rehearsal"
-    : (r.sms_state ?? "none").replace(/_/g, " ");
+  const texting = !r.line_e164
+    ? "No line"
+    : r.sms_state === "active"
+      ? r.reg_sole_prop
+        ? "On (sole proprietor)"
+        : "On"
+      : r.reg_mock
+        ? "Rehearsal"
+        : (r.sms_state ?? "none").replace(/_/g, " ");
 
   const at_ = at(r.last_inbound_at);
   return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
@@ -306,10 +318,18 @@ export function platformRows(rows: readonly PlatformTenantDto[], nowMs = Date.no
 }
 
 /** The one line at the top: what the whole platform looks like right now. */
-export function platformSummary(rows: readonly PlatformRowVM[]): { total: number; needsUs: number; needsThem: number; live: number; sentence: string } {
+export function platformSummary(rows: readonly PlatformRowVM[]): {
+  total: number;
+  needsUs: number;
+  needsThem: number;
+  live: number;
+  sentence: string;
+} {
   const customers = rows.filter((r) => r.verdict !== "test");
   const needsUs = customers.filter((r) => r.verdict === "broken" || r.verdict === "rehearsal").length;
-  const needsThem = customers.filter((r) => r.verdict === "billing" || r.verdict === "waiting_owner" || r.verdict === "stalled").length;
+  const needsThem = customers.filter(
+    (r) => r.verdict === "billing" || r.verdict === "waiting_owner" || r.verdict === "stalled",
+  ).length;
   const live = customers.filter((r) => r.verdict === "live").length;
   const parts: string[] = [`${customers.length} workspace${customers.length === 1 ? "" : "s"}`, `${live} live`];
   if (needsUs) parts.push(`${needsUs} on us`);
@@ -386,7 +406,8 @@ export function platformLineActions(
     out.push({
       action: "retry",
       label: "Retry setting up",
-      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded. The saga reads its own receipts, so nothing is bought twice.",
+      sentence:
+        "Resumes the line where it stopped, without repeating the steps that succeeded. The saga reads its own receipts, so nothing is bought twice.",
       // A saga that failed BEFORE the number was bought buys one when it
       // resumes, so this can spend even though it usually does not.
       cost: `If it stopped before the number was bought, this buys one — ${NUMBER_MONTHLY}.`,
@@ -403,7 +424,8 @@ export function platformLineActions(
       // that anyone had, so a rejection could be answered with the fault that
       // caused it. Both senders now run the same pre-flight, so the honest
       // sentence is that this REFUSES rather than repeats.
-      sentence: "Resubmits the campaign to the carriers, free — the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
+      sentence:
+        "Resubmits the campaign to the carriers, free — the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
       cost: null,
       permanent: false,
     });
@@ -415,7 +437,8 @@ export function platformLineActions(
     out.push({
       action: "replace",
       label: "File a new campaign",
-      sentence: "Deletes the refused campaign and files a new one from today's facts, under the same approved brand: the remedy when what the carriers named cannot be edited (the opt-in confirmation and its keywords never can be). It refuses, with the reason, if the record or the workspace's name still would not pass review.",
+      sentence:
+        "Deletes the refused campaign and files a new one from today's facts, under the same approved brand: the remedy when what the carriers named cannot be edited (the opt-in confirmation and its keywords never can be). It refuses, with the reason, if the record or the workspace's name still would not pass review.",
       cost: `${CAMPAIGN_VETTING}, charged to Chanlytics.`,
       permanent: true,
     });
@@ -423,7 +446,8 @@ export function platformLineActions(
     out.push({
       action: "refile",
       label: "File it for real",
-      sentence: "Takes the rehearsal off and files a real registration with the carriers. The rehearsal delivers nothing and expires thirty days after it was filed.",
+      sentence:
+        "Takes the rehearsal off and files a real registration with the carriers. The rehearsal delivers nothing and expires thirty days after it was filed.",
       cost: `${REAL_FILING}, charged to Chanlytics.`,
       permanent: true,
     });
@@ -433,7 +457,8 @@ export function platformLineActions(
     out.push({
       action: "release",
       label: "Give the number back",
-      sentence: "Releases the number, drops the trunk and forgets the line. Calls keep their history; the routing row is switched off, never deleted.",
+      sentence:
+        "Releases the number, drops the trunk and forgets the line. Calls keep their history; the routing row is switched off, never deleted.",
       cost: `Stops the ${NUMBER_MONTHLY} this number costs.`,
       permanent: true,
     });
@@ -505,7 +530,9 @@ export function platformHealthOf(
 export function platformHealthWords(h: PlatformHealth): string {
   if (h.backlog === null) return "The platform's health could not be read just now.";
   const late = h.backlog > 0 ? `${h.backlog} job${h.backlog === 1 ? "" : "s"} late` : null;
-  const clocks = h.unhealthy.length ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running` : null;
+  const clocks = h.unhealthy.length
+    ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running`
+    : null;
   if (!late && !clocks) return "Every clock is running and nothing is waiting.";
   return [clocks, late].filter(Boolean).join(" · ");
 }
@@ -607,8 +634,9 @@ export function platformQueue(q: PlatformQueue, nowMs = Date.now()): PlatformQue
   }));
   const total = q.total ?? rows.length;
   const oldest = q.waiting[0];
-  const sentence = total === 0
-    ? "Nobody is waiting."
-    : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` · showing the first ${rows.length}` : ""}.`;
+  const sentence =
+    total === 0
+      ? "Nobody is waiting."
+      : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` · showing the first ${rows.length}` : ""}.`;
   return { rows, sentence, unreadable: false, note };
 }

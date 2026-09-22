@@ -34,16 +34,29 @@ export async function POST(request: Request): Promise<Response> {
   let rounds: SweepRoundRow[];
   try {
     const [live, leased, jobs, waiting] = await Promise.all([
-      db.from("lead_runs").select("id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at").in("state", ["claimed", "starting", "running", "unknown"]),
-      db.from("lead_runs").select("id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at").not("lease_owner", "is", null),
+      db
+        .from("lead_runs")
+        .select(
+          "id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at",
+        )
+        .in("state", ["claimed", "starting", "running", "unknown"]),
+      db
+        .from("lead_runs")
+        .select(
+          "id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at",
+        )
+        .not("lease_owner", "is", null),
       db.from("jobs").select("payload").eq("kind", "lead_collect").in("state", ["scheduled", "fired"]),
       // Every round that has not ended, not only one waiting: a round whose start job died sits in 'queued' with no run, and only the sweep ends it (00140's trigger_leads_sweep).
       db.from("lead_rounds").select("id, tenant_id, state, waiting_since, created_at").neq("state", "ended"),
     ]);
     for (const r of [live, leased, jobs, waiting]) if (r.error) throw new Error(r.error.message);
-    const scheduled = new Set((jobs.data ?? []).map((j) => String((j.payload as { run_id?: unknown } | null)?.run_id ?? "")));
+    const scheduled = new Set(
+      (jobs.data ?? []).map((j) => String((j.payload as { run_id?: unknown } | null)?.run_id ?? "")),
+    );
     const byId = new Map<string, SweepRunRow>();
-    for (const r of [...(live.data ?? []), ...(leased.data ?? [])]) byId.set(r.id, { ...r, collect_scheduled: scheduled.has(r.id) });
+    for (const r of [...(live.data ?? []), ...(leased.data ?? [])])
+      byId.set(r.id, { ...r, collect_scheduled: scheduled.has(r.id) });
     runs = [...byId.values()];
     rounds = waiting.data ?? [];
   } catch (e) {
@@ -53,14 +66,35 @@ export async function POST(request: Request): Promise<Response> {
 
   const actions = planLeadSweep({ runs, rounds }, now);
   const wires = leadWires();
-  const counts = { collected: 0, aborted: 0, reconciled: 0, marked_unknown: 0, released: 0, questions_ended: 0, rounds_ended: 0, failed: 0, source: wires ? "on" : "off" };
+  const counts = {
+    collected: 0,
+    aborted: 0,
+    reconciled: 0,
+    marked_unknown: 0,
+    released: 0,
+    questions_ended: 0,
+    rounds_ended: 0,
+    failed: 0,
+    source: wires ? "on" : "off",
+  };
   const ledger = leadDb(db);
   const ports: LeadPorts | null = wires
     ? {
-        db: ledger, apify: wires.apify, judge: wires.judge, now: () => new Date(), webhookBase: wires.webhookBase, webhookToken: wires.webhookToken,
+        db: ledger,
+        apify: wires.apify,
+        judge: wires.judge,
+        now: () => new Date(),
+        webhookBase: wires.webhookBase,
+        webhookToken: wires.webhookToken,
         schedule: async (kind, payload, runAfterSeconds) => {
           const row = runs.find((r) => r.id === (payload as { run_id?: string }).run_id);
-          if (row) await scheduleJobOnce(db, { tenantId: row.tenant_id, kind, dueAt: new Date(Date.now() + runAfterSeconds * 1000), payload: payload as unknown as Json });
+          if (row)
+            await scheduleJobOnce(db, {
+              tenantId: row.tenant_id,
+              kind,
+              dueAt: new Date(Date.now() + runAfterSeconds * 1000),
+              payload: payload as unknown as Json,
+            });
         },
         deadline: now + 50_000,
       }
@@ -71,12 +105,22 @@ export async function POST(request: Request): Promise<Response> {
     try {
       switch (a.kind) {
         case "collect":
-          await scheduleJobOnce(db, { tenantId: a.tenantId, kind: "lead_collect", dueAt: new Date(), payload: { run_id: a.runId, seq: a.seq } });
+          await scheduleJobOnce(db, {
+            tenantId: a.tenantId,
+            kind: "lead_collect",
+            dueAt: new Date(),
+            payload: { run_id: a.runId, seq: a.seq },
+          });
           counts.collected += 1;
           break;
         case "abort":
           if (wires) await wires.apify.abortRun(a.apifyRunId);
-          await scheduleJobOnce(db, { tenantId: a.tenantId, kind: "lead_collect", dueAt: new Date(), payload: { run_id: a.runId, seq: a.seq } });
+          await scheduleJobOnce(db, {
+            tenantId: a.tenantId,
+            kind: "lead_collect",
+            dueAt: new Date(),
+            payload: { run_id: a.runId, seq: a.seq },
+          });
           counts.aborted += 1;
           break;
         case "mark_unknown": {

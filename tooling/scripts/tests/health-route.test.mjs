@@ -13,9 +13,18 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const { judgeHealth, GET } = await import(pathToFileURL(path.join(ROOT, "apps/edge/api/health.ts")).href);
 
 const db = (rows, backlog, healthError = null, backlogError = null) => ({
-  rpc: async (name) => (name === "sweep_health" ? { data: rows, error: healthError } : { data: backlog, error: backlogError }),
+  rpc: async (name) =>
+    name === "sweep_health" ? { data: rows, error: healthError } : { data: backlog, error: backlogError },
 });
-const row = (sweep, healthy) => ({ sweep, healthy, detail: healthy ? null : "the cron job is disabled (secret-ish detail)", last_request_at: null, status_code: null, scheduled: true, alerted_at: null });
+const row = (sweep, healthy) => ({
+  sweep,
+  healthy,
+  detail: healthy ? null : "the cron job is disabled (secret-ish detail)",
+  last_request_at: null,
+  status_code: null,
+  scheduled: true,
+  alerted_at: null,
+});
 const NOW = new Date("2026-09-11T12:00:00.000Z");
 
 test("every clock healthy and nothing waiting is 200", async () => {
@@ -69,7 +78,8 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
   globalThis.fetch = async (url) => {
     const u = String(url);
     calls.push(u);
-    const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    const json = (body) =>
+      new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     if (u.endsWith("/rest/v1/rpc/sweep_health")) return json([row("jobs", true), row("partitions", false)]);
     if (u.endsWith("/rest/v1/rpc/jobs_backlog")) return json(0);
     throw new Error(`the health door asked the database something it never did before: ${u}`);

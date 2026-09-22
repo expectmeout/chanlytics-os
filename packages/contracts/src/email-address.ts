@@ -39,7 +39,8 @@ export function whyNotAnEmail(raw: string | null | undefined): string | null {
   if (normalizeEmail(raw)) return null;
   const s = String(raw ?? "").trim();
   if (!s) return "An email address is needed.";
-  if (/[<>]/.test(s) || /\s/.test(s)) return "Only the address itself, like name@example.com, with no name or spaces around it.";
+  if (/[<>]/.test(s) || /\s/.test(s))
+    return "Only the address itself, like name@example.com, with no name or spaces around it.";
   const at = s.split("@").length - 1;
   if (at === 0) return "That is missing the @.";
   if (at > 1) return "An address has one @.";

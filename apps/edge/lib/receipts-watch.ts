@@ -53,14 +53,19 @@ export async function whatsappWithoutReceipts(db: SupabaseClient<Database>, nowM
     const quietSince = new Date(nowMs - NO_RECEIPT_AFTER_MS).toISOString();
     const watchedSince = new Date(nowMs - NO_RECEIPT_AFTER_MS - WATCHED_FOR_MS).toISOString();
     const accepted = () =>
-      db.from("messages")
+      db
+        .from("messages")
         .select("tenant_id, created_at, status_updated_at")
         .eq("channel", "whatsapp")
         .eq("direction", "outbound")
         .eq("status", "sent")
         .not("external_id", "is", null);
     const [direct, queued] = await Promise.all([
-      accepted().is("status_updated_at", null).lt("created_at", quietSince).gte("created_at", watchedSince).limit(READ_LIMIT),
+      accepted()
+        .is("status_updated_at", null)
+        .lt("created_at", quietSince)
+        .gte("created_at", watchedSince)
+        .limit(READ_LIMIT),
       accepted().lt("status_updated_at", quietSince).gte("status_updated_at", watchedSince).limit(READ_LIMIT),
     ]);
     const unread = direct.error ?? queued.error;
@@ -82,7 +87,8 @@ export async function whatsappWithoutReceipts(db: SupabaseClient<Database>, nowM
     const silent: SilentWorkspace[] = [];
     let error: string | null = null;
     for (const w of byTenant.values()) {
-      const { data: heard, error: heardErr } = await db.from("messages")
+      const { data: heard, error: heardErr } = await db
+        .from("messages")
         .select("id")
         .eq("tenant_id", w.tenantId)
         .eq("channel", "whatsapp")
@@ -111,7 +117,10 @@ export function describeSilentReceipts(silent: SilentWorkspace[], nowMs: number)
   const total = silent.reduce((n, w) => n + w.count, 0);
   const lines = silent.map((w) => {
     const hours = Math.floor((nowMs - Date.parse(w.lastSentAt)) / 3600_000);
-    const when = w.count === 1 ? `sent ${minute(w.firstSentAt)}` : `sent between ${minute(w.firstSentAt)} and ${minute(w.lastSentAt)}`;
+    const when =
+      w.count === 1
+        ? `sent ${minute(w.firstSentAt)}`
+        : `sent between ${minute(w.firstSentAt)} and ${minute(w.lastSentAt)}`;
     return `  workspace ${w.tenantId}: ${w.count} ${w.count === 1 ? "message" : "messages"}, ${when}, the latest ${hours} hours ago`;
   });
   return {

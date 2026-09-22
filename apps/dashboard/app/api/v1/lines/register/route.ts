@@ -44,14 +44,22 @@ export const POST = write({
     const a = await edgeLines({ op: "register", tenant_id: member.tenantId, line_id: input.line_id }, 60_000);
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", "That line does not exist.", 404);
-    if (a.status === 503 && b.error === "preview") throw new AppError("conflict", "Registering only works on the production dashboard.", 409);
+    if (a.status === 503 && b.error === "preview")
+      throw new AppError("conflict", "Registering only works on the production dashboard.", 409);
     // The edge asks the billing question again on its own side, and it now asks
     // it of the FILING rather than of a flag, so a 402 can reach here where it
     // could not before. It carries the sentence whyCannotSpend wrote; reporting
     // it as "the carriers did not answer" would be about nothing that happened.
-    if (a.status === 402) throw new AppError("payment_required", typeof b.detail === "string" ? b.detail : "Billing needs attention before this can be filed.", 402);
-    if (a.status === 409 && b.error === "no_business_record") throw new AppError("conflict", "Fill in your business on record first — the carriers ask who you are.", 409);
-    if (a.status === 409 && b.error === "already_registered") throw new AppError("conflict", "This line is already registered with the carriers.", 409);
+    if (a.status === 402)
+      throw new AppError(
+        "payment_required",
+        typeof b.detail === "string" ? b.detail : "Billing needs attention before this can be filed.",
+        402,
+      );
+    if (a.status === 409 && b.error === "no_business_record")
+      throw new AppError("conflict", "Fill in your business on record first — the carriers ask who you are.", 409);
+    if (a.status === 409 && b.error === "already_registered")
+      throw new AppError("conflict", "This line is already registered with the carriers.", 409);
     // A rehearsal filing, which this route deliberately cannot replace: making it
     // real charges the workspace, so it is an operator's call with the record in
     // front of them, not the outcome of an owner pressing resubmit. Without this
@@ -67,14 +75,20 @@ export const POST = write({
     // cannot work.
     if (a.status === 409 && b.error === "campaign_rejected") {
       const said = typeof b.reason === "string" && b.reason.trim() ? ` They said: ${b.reason.trim()}` : "";
-      throw new AppError("conflict", `The carriers sent this registration back.${said} Chanlytics resubmits it once the business on record answers what they named — correct it here and we take it from there.`, 409);
+      throw new AppError(
+        "conflict",
+        `The carriers sent this registration back.${said} Chanlytics resubmits it once the business on record answers what they named — correct it here and we take it from there.`,
+        409,
+      );
     }
     // The pre-flight refused, and it has SENTENCES: what is wrong and what to do,
     // in the owner's words. They used to be dropped — the edge stored them on the
     // row and returned a token, this route passed the token through, and the bridge
     // printed `record_incomplete` at the person who had just pressed the button.
     if (a.status === 409 && (b.error === "record_incomplete" || b.error === "sole_proprietor_incomplete")) {
-      const problems = Array.isArray(b.problems) ? b.problems.filter((x: unknown): x is string => typeof x === "string" && !!x.trim()) : [];
+      const problems = Array.isArray(b.problems)
+        ? b.problems.filter((x: unknown): x is string => typeof x === "string" && !!x.trim())
+        : [];
       throw new AppError(
         "conflict",
         problems.length
@@ -83,7 +97,8 @@ export const POST = write({
         409,
       );
     }
-    if (a.status !== 200 && a.status !== 502) throw new AppError("internal", "The carriers did not answer. Try again in a moment.", 502);
+    if (a.status !== 200 && a.status !== 502)
+      throw new AppError("internal", "The carriers did not answer. Try again in a moment.", 502);
     return {
       ok: b.ok === true,
       pending: b.pending === true,

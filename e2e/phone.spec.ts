@@ -36,7 +36,9 @@ test.describe("Phone shell on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the ✦ in the tab bar opens Ask as a sheet and hides while the sheet is open, and the top bar says neither Ask nor the theme again", async ({ page }) => {
+  test("the ✦ in the tab bar opens Ask as a sheet and hides while the sheet is open, and the top bar says neither Ask nor the theme again", async ({
+    page,
+  }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     const fab = page.getByTestId("phone-ask");
@@ -44,8 +46,14 @@ test.describe("Phone shell on a real workspace", () => {
     // In the tab bar's own row, clear of the tabs: it floated 126px up, over the page.
     const bar = await page.getByTestId("phone-tabs").boundingBox();
     const at = await fab.boundingBox();
-    expect(bar && at && at.y >= bar.y, `the ✦ at ${JSON.stringify(at)} sits in the tab bar at ${JSON.stringify(bar)}`).toBe(true);
-    const rightmost = await page.getByTestId("phone-tabs").getByRole("button").evaluateAll((els) => Math.max(...els.map((el) => el.getBoundingClientRect().right)));
+    expect(
+      bar && at && at.y >= bar.y,
+      `the ✦ at ${JSON.stringify(at)} sits in the tab bar at ${JSON.stringify(bar)}`,
+    ).toBe(true);
+    const rightmost = await page
+      .getByTestId("phone-tabs")
+      .getByRole("button")
+      .evaluateAll((els) => Math.max(...els.map((el) => el.getBoundingClientRect().right)));
     expect(rightmost, "no tab runs under it").toBeLessThanOrEqual((at?.x ?? 0) + 1);
     await expect(page.getByTestId("tb-ask")).toBeHidden();
     await expect(page.locator(".tb-theme")).toBeHidden();
@@ -122,7 +130,9 @@ test.describe("Phone shell on a real workspace", () => {
    * first screen, then the send. Links too, since the ledger's "Print a desk
    * sign" and "Download QR" are links drawn as buttons.
    */
-  test("Campaigns: every control on Broadcasts is inside the screen, and the page opens on the work", async ({ page }) => {
+  test("Campaigns: every control on Broadcasts is inside the screen, and the page opens on the work", async ({
+    page,
+  }) => {
     await page.goto("/#/broadcasts");
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("broadcasts-real");
@@ -132,10 +142,15 @@ test.describe("Phone shell on a real workspace", () => {
       for (const el of await screen.getByRole("button").or(screen.getByRole("link")).all()) {
         const box = await el.boundingBox();
         if (!box) continue;
-        expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(width + 1);
+        expect(
+          box.x + box.width,
+          `${(await el.textContent())?.trim()} runs off a ${width}px screen`,
+        ).toBeLessThanOrEqual(width + 1);
       }
       // Nothing scrolls sideways: the row wraps rather than being clipped.
-      const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
       expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
     };
     // The work first: New broadcast whole on the first screen, and not the
@@ -163,7 +178,9 @@ test.describe("Phone shell on a real workspace", () => {
     test.skip((await head.count()) === 0, "no call on this workspace yet: no panel head to measure");
     const width = page.viewportSize()?.width ?? 390;
     const titles = await page.locator(".lm-head-titles").first().boundingBox();
-    expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(true);
+    expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(
+      true,
+    );
     for (const fact of await page.locator(".lm-head-meta > *").all()) {
       const box = await fact.boundingBox();
       if (!box || box.height < 4) continue; // the separator dots
@@ -172,7 +189,9 @@ test.describe("Phone shell on a real workspace", () => {
     for (const el of await page.locator(".lm-head-actions").getByRole("button").all()) {
       const box = await el.boundingBox();
       if (!box) continue;
-      expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(width + 1);
+      expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(
+        width + 1,
+      );
     }
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
@@ -199,21 +218,33 @@ test.describe("Phone shell on a real workspace", () => {
    * card 119 to 168px tall with the face squeezed to an oval and the state 36px tall, and Add a person opened a form
    * 479px wide on a 375px screen.
    */
-  test("People is one bar, one line and the rows: a face is round, a state one line, nothing past the edge", async ({ page }) => {
+  test("People is one bar, one line and the rows: a face is round, a state one line, nothing past the edge", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("people-phone-bar");
     await expect(bar).toBeVisible();
-    for (const id of ["people-phone-lists", "people-phone-search-open"]) await expect(bar.getByTestId(id)).toBeInViewport({ ratio: 1 });
+    for (const id of ["people-phone-lists", "people-phone-search-open"])
+      await expect(bar.getByTestId(id)).toBeInViewport({ ratio: 1 });
     await expect(page.locator(".cl-controls")).toHaveCount(0);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "nothing past the edge").toBe(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      "nothing past the edge",
+    ).toBe(0);
     const row = page.locator(".pl-table tbody tr.pl-card-row").first();
     test.skip((await row.count()) === 0, "nobody on this workspace");
     await expect(row).toBeInViewport({ ratio: 1 });
-    expect((await row.boundingBox())!.y, "the first person is on the first screen, under one bar and one line").toBeLessThan(240);
+    expect(
+      (await row.boundingBox())!.y,
+      "the first person is on the first screen, under one bar and one line",
+    ).toBeLessThan(240);
     const face = (await row.locator(".pl-card-face").boundingBox())!;
     expect(Math.abs(face.width - face.height), "a face is round").toBeLessThanOrEqual(1);
-    expect((await row.locator(".pl-card > .pill").boundingBox())!.height, "a state is a pill, not a 36px button").toBeLessThanOrEqual(22);
+    expect(
+      (await row.locator(".pl-card > .pill").boundingBox())!.height,
+      "a state is a pill, not a 36px button",
+    ).toBeLessThanOrEqual(22);
     // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
     await bar.getByTestId("people-phone-search-open").click();
     const field = page.getByTestId("people-phone-search");

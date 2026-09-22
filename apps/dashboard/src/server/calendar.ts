@@ -90,9 +90,11 @@ interface ParsedRead {
 
 async function parsedFeedFor(tenantId: string, url: string, tz: string, now: Date, fresh = false): Promise<ParsedRead> {
   const feed = await loadFeed(tenantId, url, { fresh });
-  if (!feed.text) return { parsed: null, at: null, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
+  if (!feed.text)
+    return { parsed: null, at: null, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
   const hit = parsedFeeds.get(tenantId);
-  if (hit && hit.text === feed.text && hit.tz === tz) return { parsed: hit.parsed, at: feed.at, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
+  if (hit && hit.text === feed.text && hit.tz === tz)
+    return { parsed: hit.parsed, at: feed.at, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
   const parsed = parseIcs(feed.text, tz, { horizon: seasonHorizon(now) });
   parsedFeeds.set(tenantId, { text: feed.text, tz, parsed });
   return { parsed, at: feed.at, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
@@ -120,7 +122,10 @@ function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfig | nul
   if (r.ok) return { cfg: r.config, lostCalendar: false };
   const named = (raw as { calendar?: { ical_url?: unknown } } | null)?.calendar?.ical_url;
   const lostCalendar = typeof named === "string" && named.trim() !== "";
-  console.error("tenant_config_unreadable", JSON.stringify({ tenant: tenantId, lostCalendar, issues: r.issues.slice(0, 8) }));
+  console.error(
+    "tenant_config_unreadable",
+    JSON.stringify({ tenant: tenantId, lostCalendar, issues: r.issues.slice(0, 8) }),
+  );
   return { cfg: null, lostCalendar };
 }
 
@@ -129,7 +134,17 @@ function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfig | nul
  * booking link, which a row may offer. `lostCalendar` is true when the settings would not parse AND they name
  * a calendar, which is why a null url is not always "no calendar" (see readSettings).
  */
-async function calendarOf(ctx: RouteContext, tenantId: string): Promise<{ url: string | null; lostCalendar: boolean; timezone: string; source: string; bookingLink: string | null; own: OwnAddresses }> {
+async function calendarOf(
+  ctx: RouteContext,
+  tenantId: string,
+): Promise<{
+  url: string | null;
+  lostCalendar: boolean;
+  timezone: string;
+  source: string;
+  bookingLink: string | null;
+  own: OwnAddresses;
+}> {
   const [{ timezone }, { data: row, error }] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
     ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
@@ -154,7 +169,10 @@ export function spanFor(from: string | null, days: number, tz: string, now: Date
 }
 
 /** People as the matcher wants them: a human-given name (never a phone made words), the E.164, the address (00125), and the thread a link is texted into when they have one. */
-export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> & Partial<Pick<PersonRowDto, "email" | "has_chat" | "latest_conversation_id" | "latest_wa_inbound_at">>): PersonLike {
+export function personLike(
+  p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> &
+    Partial<Pick<PersonRowDto, "email" | "has_chat" | "latest_conversation_id" | "latest_wa_inbound_at">>,
+): PersonLike {
   return {
     id: p.id,
     name: p.display_name || p.wa_profile_name || "",
@@ -167,7 +185,15 @@ export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_pro
   };
 }
 
-export function itemsToDays(items: FeedItem[], from: string, days: number, tz: string, people: PersonLike[], own: OwnAddresses, services: string[] = []): { days: Array<Pick<CalendarDayDto, "key" | "items">>; dropped: number } {
+export function itemsToDays(
+  items: FeedItem[],
+  from: string,
+  days: number,
+  tz: string,
+  people: PersonLike[],
+  own: OwnAddresses,
+  services: string[] = [],
+): { days: Array<Pick<CalendarDayDto, "key" | "items">>; dropped: number } {
   const out: Array<Pick<CalendarDayDto, "key" | "items">> = [];
   let dropped = 0;
   for (let i = 0; i < days; i++) {
@@ -176,23 +202,21 @@ export function itemsToDays(items: FeedItem[], from: string, days: number, tz: s
     const dayEnd = zoneMidnight(tz, shiftKey(key, 1));
     const inDay = items.filter((it) => it.end > dayStart && it.start < dayEnd);
     if (inDay.length > MAX_ITEMS_PER_DAY) dropped += inDay.length - MAX_ITEMS_PER_DAY;
-    const rows: CalendarItemDto[] = inDay
-      .slice(0, MAX_ITEMS_PER_DAY)
-      .map((it, n) => {
-        const c = extractContacts(it, own);
-        return {
-          id: `${it.uid ?? "ev"}:${it.start}:${n}`,
-          start: new Date(it.start).toISOString(),
-          end: new Date(it.end).toISOString(),
-          title: it.title,
-          all_day: it.allDay,
-          person: matchPerson(it, people, own),
-          description: eventText(it.description),
-          location: it.location,
-          contacts: { phones: c.phones, emails: c.emails },
-          guess: guessName(it, services),
-        };
-      });
+    const rows: CalendarItemDto[] = inDay.slice(0, MAX_ITEMS_PER_DAY).map((it, n) => {
+      const c = extractContacts(it, own);
+      return {
+        id: `${it.uid ?? "ev"}:${it.start}:${n}`,
+        start: new Date(it.start).toISOString(),
+        end: new Date(it.end).toISOString(),
+        title: it.title,
+        all_day: it.allDay,
+        person: matchPerson(it, people, own),
+        description: eventText(it.description),
+        location: it.location,
+        contacts: { phones: c.phones, emails: c.emails },
+        guess: guessName(it, services),
+      };
+    });
     out.push({ key, items: rows });
   }
   return { days: out, dropped };
@@ -204,9 +228,18 @@ export function itemsToDays(items: FeedItem[], from: string, days: number, tz: s
  * `canAct` says; a viewer's read changes nothing. Capped per read: the
  * hourly sweep on the edge takes the rest. Never fatal to the board.
  */
-async function addPeopleSeen(ctx: Pick<RouteContext, "supabase">, tenantId: string, items: FeedItem[], services: string[], people: PersonLike[], now: Date): Promise<PersonLike[]> {
+async function addPeopleSeen(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  items: FeedItem[],
+  services: string[],
+  people: PersonLike[],
+  now: Date,
+): Promise<PersonLike[]> {
   const have = new Set(people.map((p) => p.phone).filter(Boolean));
-  const rows = peopleFromItems(items, services, now.getTime()).filter((r) => !have.has(r.phone)).slice(0, 40);
+  const rows = peopleFromItems(items, services, now.getTime())
+    .filter((r) => !have.has(r.phone))
+    .slice(0, 40);
   const added: PersonLike[] = [];
   // Counted, then said once. Logging per row turned one bad number into forty
   // identical lines and still never said how many people it had cost.
@@ -215,7 +248,13 @@ async function addPeopleSeen(ctx: Pick<RouteContext, "supabase">, tenantId: stri
   for (const r of rows) {
     // The door records the `contact.added` event itself (members cannot
     // insert events), with the appointment that named them.
-    const { data, error } = await ctx.supabase.rpc("create_person", { p_tenant_id: tenantId, p_phone_e164: r.phone, p_display_name: r.name ?? "", p_source: "calendar", p_title: r.title });
+    const { data, error } = await ctx.supabase.rpc("create_person", {
+      p_tenant_id: tenantId,
+      p_phone_e164: r.phone,
+      p_display_name: r.name ?? "",
+      p_source: "calendar",
+      p_title: r.title,
+    });
     if (error) {
       // One bad number is one person, not everyone behind them. See
       // afterPersonRefused: 22023 is the door refusing THIS row, anything
@@ -225,7 +264,10 @@ async function addPeopleSeen(ctx: Pick<RouteContext, "supabase">, tenantId: stri
         firstRefusal ??= error.message;
         continue;
       }
-      console.error("calendar_person_add_failed", JSON.stringify({ tenant: tenantId, code: error.code, error: error.message }));
+      console.error(
+        "calendar_person_add_failed",
+        JSON.stringify({ tenant: tenantId, code: error.code, error: error.message }),
+      );
       break;
     }
     const out = data as { contact_id: string; existed: boolean };
@@ -234,7 +276,10 @@ async function addPeopleSeen(ctx: Pick<RouteContext, "supabase">, tenantId: stri
     added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone, email: null });
   }
   if (refused) {
-    console.error("calendar_people_refused", JSON.stringify({ tenant: tenantId, refused, of: rows.length, added: added.length, first: firstRefusal }));
+    console.error(
+      "calendar_people_refused",
+      JSON.stringify({ tenant: tenantId, refused, of: rows.length, added: added.length, first: firstRefusal }),
+    );
   }
   return added;
 }
@@ -244,10 +289,20 @@ async function addPeopleSeen(ctx: Pick<RouteContext, "supabase">, tenantId: stri
  * assembly calls this for a workspace that is not the caller's own -- the back
  * office reading somebody else's -- and there is no request behind that.
  */
-export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId: string, by: { from: string | null; days: number }, now = new Date(), opts: { canAct?: boolean; fresh?: boolean } = {}): Promise<CalendarWeekDto> {
+export async function calendarWeek(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  by: { from: string | null; days: number },
+  now = new Date(),
+  opts: { canAct?: boolean; fresh?: boolean } = {},
+): Promise<CalendarWeekDto> {
   const { timezone } = await tenantFacts(ctx.supabase, tenantId);
   const span = spanFor(by.from, by.days, timezone, now);
-  const { data: row, error } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+  const { data: row, error } = await ctx.supabase
+    .from("tenant_config")
+    .select("config")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   const { cfg, lostCalendar } = readSettings(tenantId, row?.config ?? null);
   const url = cfg?.calendar?.ical_url ?? null;
@@ -261,7 +316,21 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
     timezone,
     from: span.from,
     to,
-    feed: { present: !!url || lostCalendar, source: feedSourceLabel(url), state: url || lostCalendar ? "unavailable" : "none", read_at: null, checked_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0, reason: lostCalendar ? "settings" : null, status: null, problem: lostCalendar ? feedProblemWords("settings") : null, stale: false, dropped: 0 },
+    feed: {
+      present: !!url || lostCalendar,
+      source: feedSourceLabel(url),
+      state: url || lostCalendar ? "unavailable" : "none",
+      read_at: null,
+      checked_at: null,
+      events: 0,
+      recurring_expanded: 0,
+      skipped_recurring: 0,
+      reason: lostCalendar ? "settings" : null,
+      status: null,
+      problem: lostCalendar ? feedProblemWords("settings") : null,
+      stale: false,
+      dropped: 0,
+    },
     hours,
     closures,
     rules,
@@ -287,20 +356,52 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now, !!opts.fresh);
   } catch (e) {
-    console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "calendar_parse_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   // Nothing readable, ever: the board says why, in the words the preview uses.
-  if (!feed.parsed) return { ...base, feed: { ...base.feed, checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(), reason: feed.reason, status: feed.status, problem: feedProblemWords(feed.reason, feed.status) } };
+  if (!feed.parsed)
+    return {
+      ...base,
+      feed: {
+        ...base.feed,
+        checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
+        reason: feed.reason,
+        status: feed.status,
+        problem: feedProblemWords(feed.reason, feed.status),
+      },
+    };
   const parsed = feed.parsed;
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
   const people = (await listPeople(ctx, tenantId).catch(() => [])).map(personLike);
   // The people this feed names are put in People here, so the board an
   // owner is looking at already links to them; the hourly sweep does the
   // same for everyone else, and for a feed nobody opens.
-  if (opts.canAct) people.push(...await addPeopleSeen(ctx, tenantId, parsed.items, serviceNames, people, now).catch((e: unknown) => { console.error("calendar_people_seen_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) })); return []; }));
-  const { days, dropped } = itemsToDays(parsed.items, span.from, span.days, timezone, people, ownAddressesOf(cfg), serviceNames);
-  const openings = profile ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now }) : [];
+  if (opts.canAct)
+    people.push(
+      ...(await addPeopleSeen(ctx, tenantId, parsed.items, serviceNames, people, now).catch((e: unknown) => {
+        console.error(
+          "calendar_people_seen_failed",
+          JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+        );
+        return [];
+      })),
+    );
+  const { days, dropped } = itemsToDays(
+    parsed.items,
+    span.from,
+    span.days,
+    timezone,
+    people,
+    ownAddressesOf(cfg),
+    serviceNames,
+  );
+  const openings = profile
+    ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now })
+    : [];
   const windowsOf = new Map(openings.map((o) => [o.key, o.windows]));
   // The receptionist's next open time from now, whatever span the page asked for: the first of every time it would
   // offer. The page worked it out from the span it had loaded, so a board on December had none to name (C1).
@@ -309,8 +410,28 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
     ...base,
     next_opening: first ? { start: new Date(first.start).toISOString(), end: new Date(first.end).toISOString() } : null,
     // A reason beside "ok" means the latest try failed and this is the last good read, said so on the chip.
-    feed: { present: true, source: feedSourceLabel(url), state: "ok", read_at: feed.at === null ? null : new Date(feed.at).toISOString(), checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(), events: parsed.events, recurring_expanded: parsed.recurringExpanded, skipped_recurring: parsed.skippedRecurring, reason: feed.reason, status: feed.status, problem: feedProblemWords(feed.reason, feed.status), stale: feed.reason !== null, dropped },
-    days: days.map((d) => ({ ...d, windows: (windowsOf.get(d.key) ?? []).map((w) => ({ start: new Date(w.start).toISOString(), end: new Date(w.end).toISOString() })) })),
+    feed: {
+      present: true,
+      source: feedSourceLabel(url),
+      state: "ok",
+      read_at: feed.at === null ? null : new Date(feed.at).toISOString(),
+      checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
+      events: parsed.events,
+      recurring_expanded: parsed.recurringExpanded,
+      skipped_recurring: parsed.skippedRecurring,
+      reason: feed.reason,
+      status: feed.status,
+      problem: feedProblemWords(feed.reason, feed.status),
+      stale: feed.reason !== null,
+      dropped,
+    },
+    days: days.map((d) => ({
+      ...d,
+      windows: (windowsOf.get(d.key) ?? []).map((w) => ({
+        start: new Date(w.start).toISOString(),
+        end: new Date(w.end).toISOString(),
+      })),
+    })),
   };
 }
 
@@ -328,26 +449,57 @@ export interface FeedPreview {
 /** The address rule and the words are contracts' (feed-url.ts): the same ones the save, the board and Setup use. */
 export async function previewFeed(url: string, tz: string, now = new Date()): Promise<FeedPreview> {
   const safe = feedUrlOk(url);
-  if (!safe) throw new AppError("validation", feedProblemWords("address") ?? "Not an address the receptionist may read.");
+  if (!safe)
+    throw new AppError("validation", feedProblemWords("address") ?? "Not an address the receptionist may read.");
   let text: string;
   try {
-    const res = await fetch(safe, { signal: AbortSignal.timeout(8_000), headers: { accept: "text/calendar, */*" }, redirect: "follow" });
-    if (!res.ok) throw new AppError("upstream_meta", feedProblemWords("http", res.status) ?? "The calendar answered with an error.", 502);
+    const res = await fetch(safe, {
+      signal: AbortSignal.timeout(8_000),
+      headers: { accept: "text/calendar, */*" },
+      redirect: "follow",
+    });
+    if (!res.ok)
+      throw new AppError(
+        "upstream_meta",
+        feedProblemWords("http", res.status) ?? "The calendar answered with an error.",
+        502,
+      );
     text = await res.text();
   } catch (e) {
     if (e instanceof AppError) throw e;
     throw new AppError("upstream_meta", feedProblemWords("unreachable") ?? "The calendar could not be reached.", 502);
   }
-  if (text.length > FEED_MAX_BYTES) throw new AppError("validation", feedProblemWords("too_large") ?? "That feed is too large to read.");
-  if (!/BEGIN:VCALENDAR/i.test(text)) throw new AppError("validation", feedProblemWords("not_ical") ?? "That address is not an iCal feed.");
+  if (text.length > FEED_MAX_BYTES)
+    throw new AppError("validation", feedProblemWords("too_large") ?? "That feed is too large to read.");
+  if (!/BEGIN:VCALENDAR/i.test(text))
+    throw new AppError("validation", feedProblemWords("not_ical") ?? "That address is not an iCal feed.");
   const parsed = parseIcs(text, tz, { horizon: previewHorizon(now) });
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const f = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
   const next = parsed.items
     .filter((it) => it.end >= now.getTime())
     .sort((a, b) => a.start - b.start)
     .slice(0, 3)
-    .map((it) => ({ start: f.format(new Date(it.start)), end: new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(it.end)), title: it.title || "Busy" }));
-  return { ok: true, events: parsed.events, recurring_expanded: parsed.recurringExpanded, skipped_recurring: parsed.skippedRecurring, next };
+    .map((it) => ({
+      start: f.format(new Date(it.start)),
+      end: new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
+        new Date(it.end),
+      ),
+      title: it.title || "Busy",
+    }));
+  return {
+    ok: true,
+    events: parsed.events,
+    recurring_expanded: parsed.recurringExpanded,
+    skipped_recurring: parsed.skippedRecurring,
+    next,
+  };
 }
 
 /* ---- One person's appointments, for their profile ---- */
@@ -359,7 +511,12 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
  * days back and sixty ahead: a last visit worth naming, and a next one
  * booked past the receptionist's own offering window.
  */
-export async function personVisits(ctx: RouteContext, tenantId: string, person: PersonLike, now = new Date()): Promise<PersonVisitsDto | null> {
+export async function personVisits(
+  ctx: RouteContext,
+  tenantId: string,
+  person: PersonLike,
+  now = new Date(),
+): Promise<PersonVisitsDto | null> {
   const { url, lostCalendar, timezone, source, own } = await calendarOf(ctx, tenantId);
   // No calendar: nothing to say about this person's visits. A calendar the settings hid: say that, not nothing.
   if (!url) return lostCalendar ? { timezone, source, state: "unavailable", next: null, last: null } : null;
@@ -367,14 +524,19 @@ export async function personVisits(ctx: RouteContext, tenantId: string, person: 
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now);
   } catch (e) {
-    console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "calendar_parse_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   if (!feed.parsed) return { timezone, source, state: "unavailable", next: null, last: null };
   const index = indexFeed(feed.parsed.items, own);
   const v = visitsIn(index, person, now.getTime());
   // The timeline wants them all; a season either side is what the parse holds.
-  const all = allVisitsIn(index, person).map((x) => toVisitDto(x) as VisitDto).slice(-60);
+  const all = allVisitsIn(index, person)
+    .map((x) => toVisitDto(x) as VisitDto)
+    .slice(-60);
   return { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last), all };
 }
 
@@ -392,15 +554,24 @@ export interface PeopleVisits {
  * feed indexed once — the number first, the whole name second — so a list
  * of hundreds costs one read of the calendar, not hundreds.
  */
-export async function peopleVisits(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], now = new Date()): Promise<PeopleVisits> {
+export async function peopleVisits(
+  ctx: RouteContext,
+  tenantId: string,
+  rows: PersonRowDto[],
+  now = new Date(),
+): Promise<PeopleVisits> {
   const { url, lostCalendar, timezone, source, bookingLink, own } = await calendarOf(ctx, tenantId);
   const visits = new Map<string, PersonVisitsDto>();
-  if (!url) return { calendar: { state: lostCalendar ? "unavailable" : "none", source, timezone }, visits, bookingLink };
+  if (!url)
+    return { calendar: { state: lostCalendar ? "unavailable" : "none", source, timezone }, visits, bookingLink };
   let feed: ParsedRead;
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now);
   } catch (e) {
-    console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "calendar_parse_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   if (!feed.parsed) return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink };
@@ -414,14 +585,41 @@ export async function peopleVisits(ctx: RouteContext, tenantId: string, rows: Pe
 }
 
 /** The rows with their appointments attached, the way the People list and the assistant read them. */
-export async function withVisits(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], now = new Date()): Promise<{ people: PersonRowDto[]; calendar: PeopleVisits["calendar"]; booking_link: string | null }> {
+export async function withVisits(
+  ctx: RouteContext,
+  tenantId: string,
+  rows: PersonRowDto[],
+  now = new Date(),
+): Promise<{ people: PersonRowDto[]; calendar: PeopleVisits["calendar"]; booking_link: string | null }> {
   const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
-    console.error("people_visits_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "people_visits_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     return null;
   });
-  if (!pv) return { people: rows.map((r) => ({ ...r, visits: null })), calendar: { state: "none", source: "your calendar", timezone: "UTC" }, booking_link: null };
+  if (!pv)
+    return {
+      people: rows.map((r) => ({ ...r, visits: null })),
+      calendar: { state: "none", source: "your calendar", timezone: "UTC" },
+      booking_link: null,
+    };
   return {
-    people: rows.map((r) => ({ ...r, visits: pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : pv.calendar.state === "unavailable" ? { timezone: pv.calendar.timezone, source: pv.calendar.source, state: "unavailable", next: null, last: null } : null })),
+    people: rows.map((r) => ({
+      ...r,
+      visits:
+        pv.calendar.state === "ok"
+          ? (pv.visits.get(r.id) ?? null)
+          : pv.calendar.state === "unavailable"
+            ? {
+                timezone: pv.calendar.timezone,
+                source: pv.calendar.source,
+                state: "unavailable",
+                next: null,
+                last: null,
+              }
+            : null,
+    })),
     calendar: pv.calendar,
     booking_link: pv.bookingLink,
   };
@@ -432,7 +630,13 @@ export async function withVisits(ctx: RouteContext, tenantId: string, rows: Pers
  * many have an appointment on the calendar — upcoming, or held since they
  * reached out. The one conversion line Reports carries.
  */
-export async function bookingReport(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], days: number, now = new Date()): Promise<BookingReportDto> {
+export async function bookingReport(
+  ctx: RouteContext,
+  tenantId: string,
+  rows: PersonRowDto[],
+  days: number,
+  now = new Date(),
+): Promise<BookingReportDto> {
   const pv = await peopleVisits(ctx, tenantId, rows, now);
   const nowMs = now.getTime();
   const since = nowMs - days * 86_400_000;
@@ -440,13 +644,29 @@ export async function bookingReport(ctx: RouteContext, tenantId: string, rows: P
   let booked = 0;
   for (const r of rows) {
     // Their message, or the call they placed — never a call the owner made.
-    const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null].map((x) => (x ? Date.parse(x) : NaN)).filter((x) => Number.isFinite(x));
+    const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null]
+      .map((x) => (x ? Date.parse(x) : NaN))
+      .filter((x) => Number.isFinite(x));
     if (!cands.length) continue;
     const askedMs = Math.max(...cands);
     if (askedMs < since) continue;
     asked += 1;
     const v = pv.visits.get(r.id);
-    if (v && bookedAfterAsk({ next: v.next ? { ...v.next, start: Date.parse(v.next.start), end: Date.parse(v.next.end), allDay: v.next.all_day } : null, last: v.last ? { ...v.last, start: Date.parse(v.last.start), end: Date.parse(v.last.end), allDay: v.last.all_day } : null }, askedMs)) booked += 1;
+    if (
+      v &&
+      bookedAfterAsk(
+        {
+          next: v.next
+            ? { ...v.next, start: Date.parse(v.next.start), end: Date.parse(v.next.end), allDay: v.next.all_day }
+            : null,
+          last: v.last
+            ? { ...v.last, start: Date.parse(v.last.start), end: Date.parse(v.last.end), allDay: v.last.all_day }
+            : null,
+        },
+        askedMs,
+      )
+    )
+      booked += 1;
   }
   return { calendar: pv.calendar.state, days, asked, booked };
 }

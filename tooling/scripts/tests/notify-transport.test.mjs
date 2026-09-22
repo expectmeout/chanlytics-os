@@ -16,19 +16,32 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { post, notify, recordNotification, platformTo, reachesTenant } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/notify.ts")).href);
+const { post, notify, recordNotification, platformTo, reachesTenant } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/notify.ts")).href
+);
 
 /** console.error, kept instead of printed. */
 function capture() {
   const lines = [];
   const real = console.error;
   console.error = (...a) => lines.push(a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" "));
-  return { lines, restore: () => { console.error = real; } };
+  return {
+    lines,
+    restore: () => {
+      console.error = real;
+    },
+  };
 }
 
 /** The logger writes one JSON object per line; find the line for an event. */
 function lineFor(lines, event) {
-  return lines.find((l) => { try { return JSON.parse(l).event === event; } catch { return false; } });
+  return lines.find((l) => {
+    try {
+      return JSON.parse(l).event === event;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** The wire: records every request and answers as told. */
@@ -36,25 +49,45 @@ function wire(answer) {
   const calls = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    calls.push({ url: String(url), method: init?.method, headers: init?.headers, body: JSON.parse(init?.body ?? "null"), signal: init?.signal });
+    calls.push({
+      url: String(url),
+      method: init?.method,
+      headers: init?.headers,
+      body: JSON.parse(init?.body ?? "null"),
+      signal: init?.signal,
+    });
     if (answer instanceof Error) throw answer;
     return answer();
   };
-  return { calls, restore: () => { globalThis.fetch = real; } };
+  return {
+    calls,
+    restore: () => {
+      globalThis.fetch = real;
+    },
+  };
 }
 
 /** Set (or with undefined, unset) variables for one call, and put them back. */
 async function withEnv(patch, fn) {
   const saved = Object.fromEntries(Object.keys(patch).map((k) => [k, process.env[k]]));
-  for (const [k, v] of Object.entries(patch)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
   try {
     return await fn();
   } finally {
-    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 }
 
-const ok = (body = { id: "em_1" }, status = 200) => () => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const ok =
+  (body = { id: "em_1" }, status = 200) =>
+  () =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 test("without a key nothing is sent, and the log says so without the customer's number", async () => {
   const log = capture();
@@ -85,8 +118,16 @@ test("a 200 from Resend is a delivery: one POST with the key as a bearer, from/t
     assert.equal(c.method, "POST");
     assert.equal(c.headers.Authorization, "Bearer re_test");
     assert.equal(c.headers["Content-Type"], "application/json");
-    assert.deepEqual(c.body, { from: "Chanlytics <noreply@chanlytics.com>", to: ["a@x", "b@y"], subject: "Subject", text: "Text" });
-    assert.ok(c.signal instanceof AbortSignal, "a request that hangs is abandoned, not awaited to the end of the invocation");
+    assert.deepEqual(c.body, {
+      from: "Chanlytics <noreply@chanlytics.com>",
+      to: ["a@x", "b@y"],
+      subject: "Subject",
+      text: "Text",
+    });
+    assert.ok(
+      c.signal instanceof AbortSignal,
+      "a request that hangs is abandoned, not awaited to the end of the invocation",
+    );
   } finally {
     w.restore();
   }
@@ -98,7 +139,11 @@ test("a refusal (401, 422, 500) is NOT a delivery: false, with the status and th
     const w = wire(ok({ statusCode: status, message: "API key is invalid" }, status));
     try {
       await withEnv({ RESEND_API_KEY: "re_dead" }, async () => {
-        assert.equal(await post("a@x", ["b@y"], "Reminder for +19175550100 tomorrow", "…"), false, `a ${status} must not read as sent`);
+        assert.equal(
+          await post("a@x", ["b@y"], "Reminder for +19175550100 tomorrow", "…"),
+          false,
+          `a ${status} must not read as sent`,
+        );
       });
       const line = lineFor(log.lines, "notify_rejected");
       assert.ok(line, `${status} is logged`);
@@ -145,7 +190,13 @@ const PLATFORM_ENV = { LEAD_TO: "ops@platform.test, second@platform.test", LEAD_
 
 function transport(result = true) {
   const sent = [];
-  return { sent, send: async (from, to, subject, text) => { sent.push({ from, to, subject, text }); return result; } };
+  return {
+    sent,
+    send: async (from, to, subject, text) => {
+      sent.push({ from, to, subject, text });
+      return result;
+    },
+  };
 }
 const inserts = (db) => db.seen.filter((q) => q.table === "notifications" && q.op === "insert");
 
@@ -160,9 +211,16 @@ test("a tenant with its own mailbox: the row is kept BEFORE the mail leaves, and
   const out = await withEnv(PLATFORM_ENV, () =>
     notify(
       { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
-      { kind: "handoff", route: "inbox/th-c1", about: { type: "conversation", id: "c1" }, subject: "WhatsApp handoff needed: +19175550100", body: "The customer wrote: I need a person" },
+      {
+        kind: "handoff",
+        route: "inbox/th-c1",
+        about: { type: "conversation", id: "c1" },
+        subject: "WhatsApp handoff needed: +19175550100",
+        body: "The customer wrote: I need a person",
+      },
       { db, send },
-    ));
+    ),
+  );
   assert.equal(out, true);
   assert.equal(rows.length, 1);
   const row = rows[0];
@@ -173,13 +231,24 @@ test("a tenant with its own mailbox: the row is kept BEFORE the mail leaves, and
   assert.equal(row.route, "inbox/th-c1");
   assert.equal(row.subject_type, "conversation");
   assert.equal(row.subject_id, "c1");
-  assert.deepEqual(t.sent, [{ from: "Salon <hi@salon.example>", to: ["owner@salon.example"], subject: "WhatsApp handoff needed: +19175550100", text: "The customer wrote: I need a person" }]);
+  assert.deepEqual(t.sent, [
+    {
+      from: "Salon <hi@salon.example>",
+      to: ["owner@salon.example"],
+      subject: "WhatsApp handoff needed: +19175550100",
+      text: "The customer wrote: I need a person",
+    },
+  ]);
 });
 
 test("a kind the table does not know is kept as an alert; a title and a body past the columns' room are cut, not refused", async () => {
   const rows = [];
   const db = fakeDb({ notifications: rows });
-  await notify({ tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false }, { kind: "bogus", subject: "x".repeat(250), body: "y".repeat(5000) }, { db, send: transport().send });
+  await notify(
+    { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+    { kind: "bogus", subject: "x".repeat(250), body: "y".repeat(5000) },
+    { db, send: transport().send },
+  );
   const row = rows[0];
   assert.equal(row.kind, "alert");
   assert.equal(row.title.length, 200);
@@ -190,14 +259,34 @@ test("a kind the table does not know is kept as an alert; a title and a body pas
 
 test("reaching the workspace is a different question from sending: the redacted note sends, and reaches nobody in it", async () => {
   await withEnv(PLATFORM_ENV, async () => {
-    assert.equal(reachesTenant({ tenantId: TENANT, notifications: { escalation_emails: ["owner@salon.test"] }, isEnvDefault: false }), true, "its own people");
-    assert.equal(reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: true }), true, "the designated workspace's mailbox IS the platform's");
+    assert.equal(
+      reachesTenant({
+        tenantId: TENANT,
+        notifications: { escalation_emails: ["owner@salon.test"] },
+        isEnvDefault: false,
+      }),
+      true,
+      "its own people",
+    );
+    assert.equal(
+      reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: true }),
+      true,
+      "the designated workspace's mailbox IS the platform's",
+    );
     // Sends fine, tells the owner nothing. A caller that spends a once-only
     // guard on `notify`'s true here marks a waiting customer as handled.
-    assert.equal(reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: false }), false, "the redacted note is not the workspace being told");
+    assert.equal(
+      reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: false }),
+      false,
+      "the redacted note is not the workspace being told",
+    );
   });
   await withEnv({ LEAD_TO: "", LEAD_FROM: "" }, async () => {
-    assert.equal(reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: false }), false, "nowhere to send is not reaching anyone either");
+    assert.equal(
+      reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: false }),
+      false,
+      "nowhere to send is not reaching anyone either",
+    );
   });
 });
 
@@ -211,22 +300,39 @@ test("ANOTHER tenant with no mailbox: the row is theirs, the platform gets the r
     out = await withEnv(PLATFORM_ENV, () =>
       notify(
         { tenantId: TENANT, notifications: null, isEnvDefault: false },
-        { kind: "job_failed", subject: "A reminder to +19175550100 did not send", body: "Customer +19175550100 wrote: my appointment", redactedBody: "A background job failed for a workspace (kind: outbound_send)." },
+        {
+          kind: "job_failed",
+          subject: "A reminder to +19175550100 did not send",
+          body: "Customer +19175550100 wrote: my appointment",
+          redactedBody: "A background job failed for a workspace (kind: outbound_send).",
+        },
         { db, send: t.send },
-      ));
+      ),
+    );
   } finally {
     log.restore();
   }
   assert.equal(out, true);
   assert.equal(rows.length, 1, "the workspace still owns its alert on its bell");
-  assert.equal(rows[0].body, "Customer +19175550100 wrote: my appointment", "the row is the tenant's own, under its RLS");
+  assert.equal(
+    rows[0].body,
+    "Customer +19175550100 wrote: my appointment",
+    "the row is the tenant's own, under its RLS",
+  );
   assert.equal(t.sent.length, 1);
   const m = t.sent[0];
   assert.deepEqual(m.to, ["ops@platform.test", "second@platform.test"], "every platform address");
   assert.equal(m.from, "Pager <pager@platform.test>");
   assert.equal(m.subject, "A workspace needs notification settings");
-  assert.ok(m.text.includes("A background job failed for a workspace (kind: outbound_send).") && m.text.includes(`Workspace: ${TENANT}`) && m.text.includes("Set them in Settings."));
-  assert.ok(!m.text.includes("9175550100") && !m.text.includes("my appointment"), "a stranger's mailbox never sees the customer");
+  assert.ok(
+    m.text.includes("A background job failed for a workspace (kind: outbound_send).") &&
+      m.text.includes(`Workspace: ${TENANT}`) &&
+      m.text.includes("Set them in Settings."),
+  );
+  assert.ok(
+    !m.text.includes("9175550100") && !m.text.includes("my appointment"),
+    "a stranger's mailbox never sees the customer",
+  );
   const said = lineFor(log.lines, "notify_tenant_unaddressable");
   assert.ok(said && said.includes("[number]") && !said.includes("9175550100"));
 });
@@ -239,7 +345,12 @@ test("unaddressable and nothing safe to say: the row is kept, nothing is sent, f
   let out;
   try {
     out = await withEnv(PLATFORM_ENV, () =>
-      notify({ tenantId: TENANT, notifications: null, isEnvDefault: false }, { subject: "Handoff", body: "words" }, { db, send: t.send }));
+      notify(
+        { tenantId: TENANT, notifications: null, isEnvDefault: false },
+        { subject: "Handoff", body: "words" },
+        { db, send: t.send },
+      ),
+    );
   } finally {
     log.restore();
   }
@@ -256,7 +367,12 @@ test("no platform pair and no mailbox: nowhere to send, said in the log, the row
   let out;
   try {
     out = await withEnv({ LEAD_TO: undefined, LEAD_FROM: undefined }, () =>
-      notify({ tenantId: TENANT, notifications: null, isEnvDefault: true }, { subject: "Deadman: +19175550100", body: "…" }, { db, send: t.send }));
+      notify(
+        { tenantId: TENANT, notifications: null, isEnvDefault: true },
+        { subject: "Deadman: +19175550100", body: "…" },
+        { db, send: t.send },
+      ),
+    );
   } finally {
     log.restore();
   }
@@ -272,7 +388,12 @@ test("a platform notice (no tenant) keeps no row -- there is no bell for the pla
   const db = fakeDb({ notifications: rows });
   const t = transport();
   const out = await withEnv(PLATFORM_ENV, () =>
-    notify({ tenantId: null, notifications: null, isEnvDefault: true }, { subject: "A background sweep is not running: deadman", body: "the edge answered 401" }, { db, send: t.send }));
+    notify(
+      { tenantId: null, notifications: null, isEnvDefault: true },
+      { subject: "A background sweep is not running: deadman", body: "the edge answered 401" },
+      { db, send: t.send },
+    ),
+  );
   assert.equal(out, true);
   assert.equal(rows.length, 0);
   assert.equal(inserts(db).length, 0, "not even attempted");
@@ -281,12 +402,19 @@ test("a platform notice (no tenant) keeps no row -- there is no bell for the pla
 });
 
 test("losing the row never loses the mail: an insert the database refuses is logged and the mail still goes; no database keeps no row and still sends", async () => {
-  const refusing = fakeDb({ notifications: [] }, { "notifications.insert": { message: "relation notifications is read only" } });
+  const refusing = fakeDb(
+    { notifications: [] },
+    { "notifications.insert": { message: "relation notifications is read only" } },
+  );
   const t = transport();
   const log = capture();
   let out;
   try {
-    out = await notify({ tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false }, { subject: "Handoff", body: "words" }, { db: refusing, send: t.send });
+    out = await notify(
+      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { subject: "Handoff", body: "words" },
+      { db: refusing, send: t.send },
+    );
   } finally {
     log.restore();
   }
@@ -296,14 +424,25 @@ test("losing the row never loses the mail: an insert the database refuses is log
   assert.ok(said && said.includes("read only"));
 
   const t2 = transport();
-  assert.equal(await notify({ tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false }, { subject: "Handoff", body: "words" }, { db: null, send: t2.send }), true);
+  assert.equal(
+    await notify(
+      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { subject: "Handoff", body: "words" },
+      { db: null, send: t2.send },
+    ),
+    true,
+  );
   assert.equal(t2.sent.length, 1);
 });
 
 test("the transport's verdict is the door's: a refused mail is false even though the row was kept", async () => {
   const rows = [];
   const db = fakeDb({ notifications: rows });
-  const out = await notify({ tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false }, { subject: "Handoff", body: "words" }, { db, send: transport(false).send });
+  const out = await notify(
+    { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+    { subject: "Handoff", body: "words" },
+    { db, send: transport(false).send },
+  );
   assert.equal(out, false);
   assert.equal(rows.length, 1);
 });
@@ -311,7 +450,11 @@ test("the transport's verdict is the door's: a refused mail is false even though
 test("recordNotification on its own: a row with the given store, none without a tenant", async () => {
   const rows = [];
   const db = fakeDb({ notifications: rows });
-  await recordNotification(TENANT, { kind: "billing", title: "Your trial ends in three days", body: "…", route: "admin/billing" }, db);
+  await recordNotification(
+    TENANT,
+    { kind: "billing", title: "Your trial ends in three days", body: "…", route: "admin/billing" },
+    db,
+  );
   await recordNotification(null, { kind: "billing", title: "nobody's", body: "…" }, db);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].route, "admin/billing");
@@ -327,9 +470,19 @@ test("every kind the table accepts is kept as itself -- a new kind is not turned
   for (const kind of SERVER_NOTIFICATION_KINDS) {
     await recordNotification(TENANT, { kind, title: `a ${kind}`, body: "…" }, db);
   }
-  assert.deepEqual(rows.map((r) => r.kind), [...SERVER_NOTIFICATION_KINDS], "REGRESSION: a kind the table accepts was stored as 'alert'");
-  assert.ok(SERVER_NOTIFICATION_KINDS.includes("template_ready") && SERVER_NOTIFICATION_KINDS.includes("template_blocked"), "the two template kinds are among them");
-  assert.ok(SERVER_NOTIFICATION_KINDS.includes("broadcast_sent") && SERVER_NOTIFICATION_KINDS.includes("broadcast_stopped"), "and the two broadcast kinds (00141); the database in memory has no CHECK, so the replay proves the table");
+  assert.deepEqual(
+    rows.map((r) => r.kind),
+    [...SERVER_NOTIFICATION_KINDS],
+    "REGRESSION: a kind the table accepts was stored as 'alert'",
+  );
+  assert.ok(
+    SERVER_NOTIFICATION_KINDS.includes("template_ready") && SERVER_NOTIFICATION_KINDS.includes("template_blocked"),
+    "the two template kinds are among them",
+  );
+  assert.ok(
+    SERVER_NOTIFICATION_KINDS.includes("broadcast_sent") && SERVER_NOTIFICATION_KINDS.includes("broadcast_stopped"),
+    "and the two broadcast kinds (00141); the database in memory has no CHECK, so the replay proves the table",
+  );
 });
 
 test("REGRESSION: a job's alert is kept as what the job said it is -- a completed broadcast was kept as job_failed", async () => {
@@ -341,13 +494,25 @@ test("REGRESSION: a job's alert is kept as what the job said it is -- a complete
   const log = capture();
   try {
     await withEnv(PLATFORM_ENV, () =>
-      alertFor(null, { tenant_id: TENANT, kind: "broadcast_send" }, { db: fakeDb({ notifications: rows }), send: t.send })({
-        kind: "broadcast_sent", route: "broadcasts", about: { type: "broadcast", id: "b1" },
-        subject: "Broadcast “Spring offer” sent", body: "38 people got it. Replies land in the Inbox.",
-      }));
+      alertFor(
+        null,
+        { tenant_id: TENANT, kind: "broadcast_send" },
+        { db: fakeDb({ notifications: rows }), send: t.send },
+      )({
+        kind: "broadcast_sent",
+        route: "broadcasts",
+        about: { type: "broadcast", id: "b1" },
+        subject: "Broadcast “Spring offer” sent",
+        body: "38 people got it. Replies land in the Inbox.",
+      }),
+    );
   } finally {
     log.restore();
   }
-  assert.deepEqual([rows[0].kind, rows[0].route, rows[0].subject_type, rows[0].subject_id], ["broadcast_sent", "broadcasts", "broadcast", "b1"], "REGRESSION: a completed broadcast was kept as job_failed, pointing at the Inbox");
+  assert.deepEqual(
+    [rows[0].kind, rows[0].route, rows[0].subject_type, rows[0].subject_id],
+    ["broadcast_sent", "broadcasts", "broadcast", "b1"],
+    "REGRESSION: a completed broadcast was kept as job_failed, pointing at the Inbox",
+  );
   assert.equal(rows[0].title, "Broadcast “Spring offer” sent");
 });

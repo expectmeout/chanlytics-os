@@ -197,7 +197,12 @@ export async function failJob(db: Db, job: { id: string; attempts: number }, rea
  * (retryWait): its lease is put off and why is kept on the row. The same
  * compare-and-swap as the exits, so false means this run no longer holds it.
  */
-export async function deferJob(db: Db, job: { id: string; attempts: number }, untilIso: string, reason: string): Promise<boolean> {
+export async function deferJob(
+  db: Db,
+  job: { id: string; attempts: number },
+  untilIso: string,
+  reason: string,
+): Promise<boolean> {
   const { data, error } = await db
     .from("jobs")
     .update({ lease_until: untilIso, last_error: reason.slice(0, 500) })

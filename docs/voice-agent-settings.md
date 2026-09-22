@@ -26,10 +26,10 @@ into Retell.
 Retell splits one "agent" across **two objects with two endpoints**, and the
 split is not where you would guess:
 
-| What a tenant wants to change | Lives on | Endpoint |
-|---|---|---|
-| What it says, first line, knowledge | **Retell LLM** | `PATCH /update-retell-llm/{llm_id}` |
-| Voice, speed, interruption, voicemail, silence timeout | **Agent** | `PATCH /update-agent/{agent_id}` |
+| What a tenant wants to change                          | Lives on       | Endpoint                            |
+| ------------------------------------------------------ | -------------- | ----------------------------------- |
+| What it says, first line, knowledge                    | **Retell LLM** | `PATCH /update-retell-llm/{llm_id}` |
+| Voice, speed, interruption, voicemail, silence timeout | **Agent**      | `PATCH /update-agent/{agent_id}`    |
 
 So "edit my greeting" and "make it less interrupt-y" are two different API
 calls against two different ids. Any settings page that pretends otherwise will
@@ -63,7 +63,7 @@ number — real onboarding work, and Retell's per-agent limits become ours.
 **B. One shared agent, per-tenant `default_dynamic_variables`.** The LLM's
 prompt is written once with placeholders; business name, hours, booking link and
 transfer number are injected per call. Onboarding is a row, not an API call.
-Cost: a tenant cannot meaningfully change *how it talks*, only the facts it
+Cost: a tenant cannot meaningfully change _how it talks_, only the facts it
 talks about — and one bad prompt edit would affect everyone.
 
 **Recommendation: A, with B's mechanism inside it.** Per-tenant agents for
@@ -99,7 +99,7 @@ evaluate and will turn until the agent is worse.
 - `general_tools`, `mcps`, `states` — these are the product, not settings
 
 **Never round-trip the whole prompt.** Store the tenant's editable fields in
-`tenant_config` as structured data and *compose* `general_prompt` from a
+`tenant_config` as structured data and _compose_ `general_prompt` from a
 template we own. A free-text prompt box hands tenants the ability to remove the
 guardrails — the price policy, the "never confirm a booking yourself" rule, the
 bot-disclosure line — and we would have no way to tell that they had.

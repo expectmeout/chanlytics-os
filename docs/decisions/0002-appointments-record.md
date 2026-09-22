@@ -8,11 +8,11 @@ the code disagree, the code wins.
 
 ### There is no appointments table, by decision
 
-The README says it plainly: *"It does not book... there is no appointments
-table here, and nothing in the product can create, move or cancel one."*
+The README says it plainly: _"It does not book... there is no appointments
+table here, and nothing in the product can create, move or cancel one."_
 `CalendarConfigSchema` (`packages/contracts/src/config.ts:578-585`) enforces it
-in the schema: the only field is `ical_url`, *"never credentials to write with.
-Nothing is ever booked from here."*
+in the schema: the only field is `ical_url`, _"never credentials to write with.
+Nothing is ever booked from here."_
 
 ### The calendar is read from the owner's feed, at read time
 
@@ -24,7 +24,7 @@ and their next and last visit, through
 `packages/contracts/src/calendar-people.ts` (630 lines); the hourly sweep
 through `apps/edge/api/cron/calendar.ts` (82 lines); the receptionist through
 `openingsFor` and `visitsFor` (`apps/edge/lib/availability.ts:144`, `:163`).
-`calendar.ts:78` caches the *parse* while the text is the same and `loadFeed`
+`calendar.ts:78` caches the _parse_ while the text is the same and `loadFeed`
 caches the text for a few minutes, but nothing is stored: every page load, run
 and message that mentions a time re-derives it from the same file.
 
@@ -58,15 +58,16 @@ Two of the six triggers are visit triggers
 day)` (`:123`); and `visited`, class `reengage`, eligible when
 `r.lastVisitDate === localDate(r.calendarTz, now − 1 day) && !r.booked`
 (`:124`). Both are day-keyed by the calendar's own clock, never by hours.
-`runPlaybook` refuses a visit run with no readable calendar — *"A visit
-playbook without a calendar has nothing to read: off, and the run says so"*
+`runPlaybook` refuses a visit run with no readable calendar — _"A visit
+playbook without a calendar has nothing to read: off, and the run says so"_
 (`packages/core/src/campaigns/run-playbook.ts:62-63`). Its context carries
 `calendar: "ok" | "unavailable" | "none"` and a `visits` map
 (`packages/core/src/campaigns/ports.ts:77-80`), built from the feed in
 `apps/edge/lib/playbooks.ts:176-191`; `visitFactsFor`
 (`contracts/playbooks.ts:305-310`) then freezes each person's visit time and
-service onto their recipient row *"so the send fills the slots without reading
-the calendar again"* (`run-playbook.ts:83-85`).
+service onto their recipient row _"so the send fills the slots without reading
+the calendar again"_ (`run-playbook.ts:83-85`).
+
 ### `booking_link` is required, and read in four places
 
 `BrainConfigSchema` requires it: `booking_link: z.string().url().max(500)`
@@ -81,8 +82,8 @@ workspace does not have (`:1495-1497`); the voice tool `send_booking_link`
 `brain.booking_link.replace(...)` **with no guard**
 (`apps/edge/api/retell-fn.ts:270`); and `layerTwo`
 (`apps/edge/lib/whatsapp/steps.ts:103`), which already guards on `!!`. Yet
-Setup **already says what absence means** — *"No booking link — the
-receptionist answers, but cannot send one"* (`setup.ts:456`).
+Setup **already says what absence means** — _"No booking link — the
+receptionist answers, but cannot send one"_ (`setup.ts:456`).
 
 ### The uniform floor a new table must meet
 
@@ -96,11 +97,11 @@ create, unique indexes, a `moddatetime` trigger, RLS on, one `..._member_select
 ... to authenticated` keyed on `memberships`, a `comment on table`, `alter
 publication supabase_realtime add table`.
 `tooling/scripts/tests/tenancy.db.test.mjs:15-17` enumerates tenant tables from
-PostgREST's own schema, so *"a tenant table nobody added a proof for fails here
-by name"*. `00106_a_state_machine_keeps_its_edges.sql` is the guard-trigger
+PostgREST's own schema, so _"a tenant table nobody added a proof for fails here
+by name"_. `00106_a_state_machine_keeps_its_edges.sql` is the guard-trigger
 pattern: a `BEFORE UPDATE` trigger that raises on a move the machine does not
-permit, a same-state update always allowed *"because refreshing a row's details
-is not a move"* (`:9-10`).
+permit, a same-state update always allowed _"because refreshing a row's details
+is not a move"_ (`:9-10`).
 
 ## Decision
 
@@ -114,7 +115,7 @@ through a `route()`-declared write.
 
 The receptionist is not a source. Its charter is unchanged: it reads the
 calendar, offers the open times, sends the link, never confirms a slot.
-`check_availability` keeps its sentence — *"Never confirm a slot yourself"*
+`check_availability` keeps its sentence — _"Never confirm a slot yourself"_
 (`voice-shell.ts:163`) — and no verb writes a row on the model's word.
 
 **The status set comes from the code's own words.** The feed speaks in `next`
@@ -122,13 +123,13 @@ and `last` visits; the ICS parser drops `STATUS:CANCELLED`
 (`contracts/availability.ts:409-411`); a booking tool says tentative or
 confirmed. None of them says whether somebody turned up. So:
 
-| Status | Who writes it | Meaning |
-|---|---|---|
-| `proposed` | booking tool, person | a hold that is not yet a booking (ICS `TENTATIVE`) |
-| `booked` | all three | on the calendar, ahead (ICS `CONFIRMED`, or nothing said) |
-| `kept` | person, or a sweep | it happened |
-| `missed` | person | it did not |
-| `cancelled` | booking tool, person | withdrawn before it happened |
+| Status      | Who writes it        | Meaning                                                   |
+| ----------- | -------------------- | --------------------------------------------------------- |
+| `proposed`  | booking tool, person | a hold that is not yet a booking (ICS `TENTATIVE`)        |
+| `booked`    | all three            | on the calendar, ahead (ICS `CONFIRMED`, or nothing said) |
+| `kept`      | person, or a sweep   | it happened                                               |
+| `missed`    | person               | it did not                                                |
+| `cancelled` | booking tool, person | withdrawn before it happened                              |
 
 `kept` is the one a sweep may infer, and only from time: an end that has passed
 with nobody saying otherwise. Nothing infers `missed` — a calendar cannot know
@@ -225,14 +226,23 @@ export interface AppointmentPorts {
   /** Moved, only FROM the status given: zero rows means somebody moved it first. */
   moveStatus(id: string, from: AppointmentStatus, to: AppointmentStatus): Promise<boolean>;
   /** The person this event names, by the match calendar-people.ts already makes. */
-  contactFor(tenantId: string, who: { phone: string | null; email: string | null; name: string | null }): Promise<string | null>;
-  record: ThreadPorts["record"];   // the decisions ledger
+  contactFor(
+    tenantId: string,
+    who: { phone: string | null; email: string | null; name: string | null },
+  ): Promise<string | null>;
+  record: ThreadPorts["record"]; // the decisions ledger
   now(): number;
 }
 
-export async function syncFeedAppointments(ports: AppointmentPorts, cmd: {
-  tenantId: string; tz: string; items: FeedItem[]; window: { fromIso: string; toIso: string };
-}): Promise<{ added: number; updated: number; vanished: number }>;
+export async function syncFeedAppointments(
+  ports: AppointmentPorts,
+  cmd: {
+    tenantId: string;
+    tz: string;
+    items: FeedItem[];
+    window: { fromIso: string; toIso: string };
+  },
+): Promise<{ added: number; updated: number; vanished: number }>;
 ```
 
 ## Steps
@@ -242,13 +252,13 @@ must be correct whichever goes first.
 
 **1 · The table, written by nothing.** The migration, the guard trigger, the
 RLS policy, the revokes, the `tenancy.db.test.mjs` fixture. No reader, no
-writer. *Both orders:* a table neither app has heard of.
+writer. _Both orders:_ a table neither app has heard of.
 
 **2 · The feed sync fills it.** `apps/edge/api/cron/calendar.ts` already
 fetches and parses every workspace's feed each hour and walks every item
 (`:55-58`). Add `syncFeedAppointments` beside `addPeopleFromCalendar`, over the
 same `FeedItem[]`, matching a contact the way `calendar-people.ts` does. Still
-no reader; *both orders:* the dashboard does not know the table exists.
+no reader; _both orders:_ the dashboard does not know the table exists.
 
 **3 · Backfill.** A `tooling/scripts` writer at the house bar — dry run by
 default, a JSONL backup first, idempotent, `--apply` to mean it — running the
@@ -261,20 +271,20 @@ than that; Reports must say so rather than showing a short history as a real one
 (`apps/dashboard/src/server/calendar.ts:435`) counts rows instead of parsing;
 `bookedAfterAsk` (`calendar-people.ts:601`) keeps its rule over the stored row;
 `BookingReportDto` (`:569-574`) does not change, so neither the view model nor
-the page does. *Both orders:* the edge does not read Reports, and an older
+the page does. _Both orders:_ the edge does not read Reports, and an older
 dashboard still parses the feed for the same answer.
 
 **5 · Playbooks read the table.** `apps/edge/lib/playbooks.ts:176-191` builds
 its `visits` map from rows; `eligibleForPlaybook`'s two visit branches
 (`contracts/playbooks.ts:123-124`) are untouched; `ctx.calendar !== "ok"`
 becomes "this feed has not synced since its last due time", a fact the sweep
-already stamps (`markCalendarChecked`, `cron/calendar.ts:63`). *Both orders:*
+already stamps (`markCalendarChecked`, `cron/calendar.ts:63`). _Both orders:_
 the dashboard does not run playbooks.
 
 **6 · `booking_link` becomes optional.** Add `.optional()` at `config.ts:431`,
 make `:1110` conditional, guard `retell-fn.ts:270`, add the call-back sentence
-to the prompt and to the Setup row (`setup.ts:456`). *Both orders is the whole
-question here:* the schema is not `.strict()` at the top level but each
+to the prompt and to the Setup row (`setup.ts:456`). _Both orders is the whole
+question here:_ the schema is not `.strict()` at the top level but each
 **section** is (`config.ts:556-571`), so a config omitting `booking_link` is
 rejected by an older edge and the receptionist goes silent on a live line.
 Therefore **the edge deploys first, alone**, and the dashboard's save rules

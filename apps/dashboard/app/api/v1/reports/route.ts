@@ -40,7 +40,13 @@ export const GET = read({
     // truncated denominator would disagree with all of them.
     const booking = await everyone(ctx, tenantId)
       .then((rows) => bookingReport(ctx, tenantId, rows, days))
-      .catch((e: unknown) => { console.error("booking_report_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) })); return null; });
+      .catch((e: unknown) => {
+        console.error(
+          "booking_report_failed",
+          JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+        );
+        return null;
+      });
     return { report, booking };
   },
 });

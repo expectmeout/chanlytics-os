@@ -12,13 +12,28 @@ import { importSrc } from "./_source.mjs";
 
 const win = {
   __ACTIVE_WORKSPACE: undefined,
-  location: { pathname: "/", search: "", hash: "", reload() { win.reloads += 1; }, assign(url) { win.assigned = url; }, replace(url) { win.replaced = url; } },
+  location: {
+    pathname: "/",
+    search: "",
+    hash: "",
+    reload() {
+      win.reloads += 1;
+    },
+    assign(url) {
+      win.assigned = url;
+    },
+    replace(url) {
+      win.replaced = url;
+    },
+  },
   reloads: 0,
   assigned: null,
   replaced: null,
   addEventListener() {},
   removeEventListener() {},
-  dispatchEvent() { return true; },
+  dispatchEvent() {
+    return true;
+  },
 };
 globalThis.window = win;
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
@@ -27,7 +42,9 @@ const { getActiveWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge
 const { read } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
-const settle = async (n) => { for (let i = 0; i < n; i += 1) await tick(); };
+const settle = async (n) => {
+  for (let i = 0; i < n; i += 1) await tick();
+};
 
 /** The page at `pathname`; the workspace surface answers after two ticks; the others record what the page named when they asked. */
 function world({ pathname }) {
@@ -38,12 +55,19 @@ function world({ pathname }) {
     key: "workspace",
     apply: async () => {
       log.push(["workspace:asked", getActiveWorkspace()]);
-      await tick(); await tick();
+      await tick();
+      await tick();
       win.__ACTIVE_WORKSPACE = "id-a";
       log.push(["workspace:answered", "id-a"]);
     },
   };
-  const other = (key) => ({ key, debounceMs: 1, apply: async () => { log.push([key, getActiveWorkspace()]); } });
+  const other = (key) => ({
+    key,
+    debounceMs: 1,
+    apply: async () => {
+      log.push([key, getActiveWorkspace()]);
+    },
+  });
   return { log, overrides: [workspace, other("inbox"), other("people")] };
 }
 
@@ -52,8 +76,22 @@ test("off a workspace page, the workspace surface asks first and the others ask 
   const stop = startSurfaces(overrides);
   await settle(12);
   stop();
-  assert.deepEqual(log.slice(0, 2), [["workspace:asked", null], ["workspace:answered", "id-a"]], "one request before every other");
-  assert.deepEqual(log.slice(2).map((l) => l[0]).sort(), ["inbox", "people"], "then the rest");
+  assert.deepEqual(
+    log.slice(0, 2),
+    [
+      ["workspace:asked", null],
+      ["workspace:answered", "id-a"],
+    ],
+    "one request before every other",
+  );
+  assert.deepEqual(
+    log
+      .slice(2)
+      .map((l) => l[0])
+      .sort(),
+    ["inbox", "people"],
+    "then the rest",
+  );
 });
 
 test("on a workspace page, every surface fires at once with the address's workspace on each, and nothing asks twice", async () => {
@@ -61,8 +99,18 @@ test("on a workspace page, every surface fires at once with the address's worksp
   const stop = startSurfaces(overrides);
   await settle(12);
   stop();
-  assert.deepEqual(log.map((l) => l[0]).slice(0, 3).sort(), ["inbox", "people", "workspace:asked"], "all three asked before the workspace surface answered");
-  assert.ok(log.filter((l) => l[0] === "inbox" || l[0] === "people").every((l) => l[1] === "acme"), "each carried the workspace the address names");
+  assert.deepEqual(
+    log
+      .map((l) => l[0])
+      .slice(0, 3)
+      .sort(),
+    ["inbox", "people", "workspace:asked"],
+    "all three asked before the workspace surface answered",
+  );
+  assert.ok(
+    log.filter((l) => l[0] === "inbox" || l[0] === "people").every((l) => l[1] === "acme"),
+    "each carried the workspace the address names",
+  );
   assert.equal(log.filter((l) => l[0] === "inbox").length, 1);
   assert.equal(win.reloads + (win.assigned ? 1 : 0) + (win.replaced ? 1 : 0), 0, "a boot never navigates");
 });
@@ -82,7 +130,8 @@ function crowd(keys, { hash = "" } = {}) {
       order.push(key);
       live += 1;
       peak = Math.max(peak, live);
-      await tick(); await tick();
+      await tick();
+      await tick();
       live -= 1;
     },
   }));
@@ -90,7 +139,18 @@ function crowd(keys, { hash = "" } = {}) {
 }
 
 test("boot runs in lanes rather than all at once: twenty-three requests in one millisecond is what made a cold load take 7.8s", async () => {
-  const keys = ["today", "inbox", "people", "calendar", "reports", "settings", "broadcasts", "playbooks", "conversations", "notifications"];
+  const keys = [
+    "today",
+    "inbox",
+    "people",
+    "calendar",
+    "reports",
+    "settings",
+    "broadcasts",
+    "playbooks",
+    "conversations",
+    "notifications",
+  ];
   const { overrides, peak } = crowd(keys);
   const stop = startSurfaces(overrides);
   await settle(60);
@@ -126,40 +186,93 @@ test("the boot holds every answer until its last surface is in: two surfaces rea
   win.location.hash = "";
   win.__ACTIVE_WORKSPACE = "id-a";
   const sent = [];
-  win.fetch = async (url) => { sent.push(url); await tick(); return new Response(JSON.stringify({ ok: true, data: { templates: [] } }), { status: 200 }); };
+  win.fetch = async (url) => {
+    sent.push(url);
+    await tick();
+    return new Response(JSON.stringify({ ok: true, data: { templates: [] } }), { status: 200 });
+  };
   let firstIn = () => {};
-  const first = new Promise((r) => { firstIn = r; });
+  const first = new Promise((r) => {
+    firstIn = r;
+  });
   const overrides = [
-    { key: "inbox", apply: async () => { await read("GET templates"); firstIn(); } },
-    { key: "people", apply: async () => { await first; await tick(); await read("GET templates"); } },
+    {
+      key: "inbox",
+      apply: async () => {
+        await read("GET templates");
+        firstIn();
+      },
+    },
+    {
+      key: "people",
+      apply: async () => {
+        await first;
+        await tick();
+        await read("GET templates");
+      },
+    },
   ];
   const stop = startSurfaces(overrides);
   await settle(20);
   const asked = () => sent.filter((u) => u.startsWith("/api/v1/templates")).length;
   assert.equal(asked(), 1, "the second surface read the answer the first had just been given");
   await read("GET templates");
-  assert.equal(asked(), 2, "once the boot is in, a read asks the server: what follows is the live feed's and a write's to refresh");
+  assert.equal(
+    asked(),
+    2,
+    "once the boot is in, a read asks the server: what follows is the live feed's and a write's to refresh",
+  );
   stop();
 });
 
 /** A document that becomes visible when the test says, with its listeners by type. */
 function returnable() {
   const on = {};
-  const doc = { visibilityState: "hidden", addEventListener: (t, f) => { (on[t] ||= []).push(f); }, removeEventListener: (t, f) => { on[t] = (on[t] || []).filter((g) => g !== f); } };
-  const back = () => { doc.visibilityState = "visible"; for (const f of on.visibilitychange || []) f(); };
+  const doc = {
+    visibilityState: "hidden",
+    addEventListener: (t, f) => {
+      (on[t] ||= []).push(f);
+    },
+    removeEventListener: (t, f) => {
+      on[t] = (on[t] || []).filter((g) => g !== f);
+    },
+  };
+  const back = () => {
+    doc.visibilityState = "visible";
+    for (const f of on.visibilitychange || []) f();
+  };
   return { doc, back };
 }
 
 test("a return to the tab reads the surface on screen first and the rest behind it in lanes, never every surface at once", async () => {
   // Every surface was scheduled at once on a return -- twenty surfaces, thirty reads in one burst, the page's own
   // among them and no sooner than a stranger's: the burst the boot's lanes exist to prevent.
-  const keys = ["today", "inbox", "people", "calendar", "reports", "settings", "broadcasts", "playbooks", "conversations", "notifications"];
+  const keys = [
+    "today",
+    "inbox",
+    "people",
+    "calendar",
+    "reports",
+    "settings",
+    "broadcasts",
+    "playbooks",
+    "conversations",
+    "notifications",
+  ];
   const { doc, back } = returnable();
   globalThis.document = doc;
   const { order, overrides } = crowd(keys, { hash: "#/reports" });
   let live = 0;
   let peak = 0;
-  const measured = overrides.map((o) => ({ ...o, apply: async () => { live += 1; peak = Math.max(peak, live); await o.apply(); live -= 1; } }));
+  const measured = overrides.map((o) => ({
+    ...o,
+    apply: async () => {
+      live += 1;
+      peak = Math.max(peak, live);
+      await o.apply();
+      live -= 1;
+    },
+  }));
   const stop = startSurfaces(measured);
   try {
     await settle(60);

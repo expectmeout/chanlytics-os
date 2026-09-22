@@ -50,7 +50,11 @@ export async function POST(request: Request): Promise<Response> {
   const apiKey = env.RETELL_API_KEY;
   if (!apiKey) return json(503, { ok: false, error: "no_provider_key" });
   let body: Body = {};
-  try { body = JSON.parse(await request.text()); } catch { /* dry run over every agent */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* dry run over every agent */
+  }
   const apply = body.apply === true;
   const publish = body.publish === true;
 
@@ -61,7 +65,11 @@ export async function POST(request: Request): Promise<Response> {
   } else {
     const db = pg();
     if (!db) return json(503, { ok: false, error: "no_database" });
-    const { data, error } = await db.from("tenant_channels").select("external_id").eq("kind", "voice").eq("status", "active");
+    const { data, error } = await db
+      .from("tenant_channels")
+      .select("external_id")
+      .eq("kind", "voice")
+      .eq("status", "active");
     if (error) return json(503, { ok: false, error: error.message });
     agentIds = (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
   }
@@ -70,7 +78,10 @@ export async function POST(request: Request): Promise<Response> {
   const agents: Record<string, unknown>[] = [];
   for (const agentId of agentIds) {
     const before = await getAgentRaw(cfg, agentId);
-    if (!before) { agents.push({ agent_id: agentId, error: "unreadable" }); continue; }
+    if (!before) {
+      agents.push({ agent_id: agentId, error: "unreadable" });
+      continue;
+    }
     const plan = planAgentSettings(before as unknown as LiveAgentSettings);
     const out: Record<string, unknown> = {
       agent_id: agentId,
@@ -86,23 +97,44 @@ export async function POST(request: Request): Promise<Response> {
       let working = typeof before.version === "number" ? before.version : null;
       if (before.is_published === true && working !== null) {
         const draft = await createAgentVersion(cfg, agentId, working);
-        if (!draft.ok) { agents.push({ ...out, error: { step: "create_version", status: draft.status, body: draft.body } }); continue; }
+        if (!draft.ok) {
+          agents.push({ ...out, error: { step: "create_version", status: draft.status, body: draft.body } });
+          continue;
+        }
         working = typeof draft.body?.version === "number" ? (draft.body.version as number) : working;
         out.draft_version = working;
       }
       const patched = await updateAgent(cfg, agentId, plan.agentPatch);
-      if (!patched.ok) { agents.push({ ...out, error: { step: "update", status: patched.status, body: patched.body } }); continue; }
+      if (!patched.ok) {
+        agents.push({ ...out, error: { step: "update", status: patched.status, body: patched.body } });
+        continue;
+      }
       out.applied = true;
       if (publish && working !== null && working !== before.version) {
         const pub = await publishAgentVersion(cfg, agentId, working, "converged from the edge");
-        if (!pub.ok) { agents.push({ ...out, error: { step: "publish", status: pub.status, body: pub.body } }); continue; }
+        if (!pub.ok) {
+          agents.push({ ...out, error: { step: "publish", status: pub.status, body: pub.body } });
+          continue;
+        }
         out.published_version = working;
       } else if (working !== null && working !== before.version) {
         out.note = `v${working} is a draft: a pinned line stays on v${before.version} until it is published`;
       }
       const after = await getAgentRaw(cfg, agentId);
-      out.after = after ? { version: after.version ?? null, is_published: after.is_published ?? null, drift: planAgentSettings(after as unknown as LiveAgentSettings).drift } : null;
-      L.info("voice_converge", { agent_id: agentId, from: before.version ?? null, working, published: out.published_version ?? null, keys: out.patch_keys });
+      out.after = after
+        ? {
+            version: after.version ?? null,
+            is_published: after.is_published ?? null,
+            drift: planAgentSettings(after as unknown as LiveAgentSettings).drift,
+          }
+        : null;
+      L.info("voice_converge", {
+        agent_id: agentId,
+        from: before.version ?? null,
+        working,
+        published: out.published_version ?? null,
+        keys: out.patch_keys,
+      });
     }
     agents.push(out);
   }

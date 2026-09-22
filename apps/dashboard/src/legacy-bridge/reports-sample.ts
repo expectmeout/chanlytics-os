@@ -59,7 +59,10 @@ const back = (today: string, n: number): string => {
 const weekday = (day: string): number => (new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7;
 
 /** A day of trade: busy late morning and after work, quiet at lunch, a few messages at night. */
-const HOUR_WEIGHTS = [0.08, 0.04, 0.02, 0.02, 0.02, 0.05, 0.12, 0.35, 0.8, 1.3, 1.75, 1.9, 1.35, 1.1, 1.15, 1.3, 1.55, 1.8, 1.6, 1.1, 0.75, 0.5, 0.3, 0.15];
+const HOUR_WEIGHTS = [
+  0.08, 0.04, 0.02, 0.02, 0.02, 0.05, 0.12, 0.35, 0.8, 1.3, 1.75, 1.9, 1.35, 1.1, 1.15, 1.3, 1.55, 1.8, 1.6, 1.1, 0.75,
+  0.5, 0.3, 0.15,
+];
 const HOUR_TOTAL = HOUR_WEIGHTS.reduce((a, b) => a + b, 0);
 const hourOf = (r: number): number => {
   let s = 0;
@@ -155,7 +158,10 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
     instagram: 0,
   });
   const hours = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
-  for (const d of cur) d.hours.forEach((v, h) => { hours[weekday(d.report.day)][h] += v; });
+  for (const d of cur)
+    d.hours.forEach((v, h) => {
+      hours[weekday(d.report.day)][h] += v;
+    });
   return {
     timezone: ZONE,
     days: n,
@@ -181,15 +187,49 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
   const at = (hoursAgo: number) => new Date(Date.parse(`${today}T15:00:00Z`) - hoursAgo * 3_600_000).toISOString();
   // Three sources share the period's sends: half the win-back playbook, three tenths a one-off offer, the rest a
   // quiet-month nudge. Each count splits the same way, so the parts add up to the whole.
-  const part = (f: number) => ({ sent: Math.round(t.sent * f), delivered: Math.round(t.delivered * f), read: Math.round(t.read * f), replied: Math.round(t.replied * f) });
+  const part = (f: number) => ({
+    sent: Math.round(t.sent * f),
+    delivered: Math.round(t.delivered * f),
+    read: Math.round(t.read * f),
+    replied: Math.round(t.replied * f),
+  });
   const a = part(0.5);
   const b = part(0.3);
-  const c = { sent: t.sent - a.sent - b.sent, delivered: t.delivered - a.delivered - b.delivered, read: t.read - a.read - b.read, replied: t.replied - a.replied - b.replied };
+  const c = {
+    sent: t.sent - a.sent - b.sent,
+    delivered: t.delivered - a.delivered - b.delivered,
+    read: t.read - a.read - b.read,
+    replied: t.replied - a.replied - b.replied,
+  };
   const sources: CampaignReportDto["sources"] = t.sent
     ? [
-        { id: "sample-winback", kind: "playbook", name: "Win-back", template_name: "winback_offer", runs: Math.max(1, Math.ceil(runs / 2)), ...a, last_at: at(30) },
-        { id: "sample-offer", kind: "broadcast", name: "Loyalty offer", template_name: "quick_note", runs: 1, ...b, last_at: at(90) },
-        { id: "sample-quiet", kind: "playbook", name: "Quiet for a month", template_name: "quiet_nudge", runs: Math.max(1, Math.floor(runs / 2)), ...c, last_at: at(200) },
+        {
+          id: "sample-winback",
+          kind: "playbook",
+          name: "Win-back",
+          template_name: "winback_offer",
+          runs: Math.max(1, Math.ceil(runs / 2)),
+          ...a,
+          last_at: at(30),
+        },
+        {
+          id: "sample-offer",
+          kind: "broadcast",
+          name: "Loyalty offer",
+          template_name: "quick_note",
+          runs: 1,
+          ...b,
+          last_at: at(90),
+        },
+        {
+          id: "sample-quiet",
+          kind: "playbook",
+          name: "Quiet for a month",
+          template_name: "quiet_nudge",
+          runs: Math.max(1, Math.floor(runs / 2)),
+          ...c,
+          last_at: at(200),
+        },
       ]
     : [];
   return { timezone: ZONE, days: n, span_days: 2 * n, today, series: span.map((d) => d.campaign), sources };
@@ -201,7 +241,9 @@ function bookingDto(all: readonly SampleDay[], n: number): BookingReportDto {
 }
 
 const todayIn = (zone: string): string =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(),
+  );
 
 const kept = new Map<string, ReportsSurface>();
 
@@ -214,7 +256,14 @@ export function reportsSample(days: number, today: string = todayIn(ZONE)): Repo
   const all = business(today);
   const vm = toReportVM(reportDto(all, n, today));
   const campaigns = toCampaignReportVM(campaignDto(all, n, today));
-  const surface: ReportsSurface = { vm, campaigns, booking: toBookingReportVM(bookingDto(all, n)), facts: reportFacts(vm, campaigns), days: n, fetchedAt: 0 };
+  const surface: ReportsSurface = {
+    vm,
+    campaigns,
+    booking: toBookingReportVM(bookingDto(all, n)),
+    facts: reportFacts(vm, campaigns),
+    days: n,
+    fetchedAt: 0,
+  };
   kept.set(key, surface);
   return surface;
 }

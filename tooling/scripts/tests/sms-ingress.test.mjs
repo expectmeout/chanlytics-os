@@ -39,26 +39,54 @@ let seq = 0;
 const freshNumber = () => `+1305555${1000 + ++seq}`;
 
 const lineRow = (to, over = {}) => ({
-  id: "l1", tenant_id: T, e164: to, provider: "dry",
-  subaccount_sid: "AC1", messaging_service_sid: "MG1",
-  sms_state: "active", voice_state: "active", ...over,
+  id: "l1",
+  tenant_id: T,
+  e164: to,
+  provider: "dry",
+  subaccount_sid: "AC1",
+  messaging_service_sid: "MG1",
+  sms_state: "active",
+  voice_state: "active",
+  ...over,
 });
 const channelRow = (to, over = {}) => ({
-  id: "c1", tenant_id: T, kind: "sms", external_id: to, number_e164: to,
-  credentials_ref: null, config: {}, status: "active", ...over,
+  id: "c1",
+  tenant_id: T,
+  kind: "sms",
+  external_id: to,
+  number_e164: to,
+  credentials_ref: null,
+  config: {},
+  status: "active",
+  ...over,
 });
 const form = (to, over = {}) => ({
-  MessageSid: "SM0001", AccountSid: "AC1", From: "+16465550123", To: to,
-  Body: "Are you open Saturday?", NumMedia: "0", MessagingServiceSid: "MG1", ...over,
+  MessageSid: "SM0001",
+  AccountSid: "AC1",
+  From: "+16465550123",
+  To: to,
+  Body: "Are you open Saturday?",
+  NumMedia: "0",
+  MessagingServiceSid: "MG1",
+  ...over,
 });
 const inboundOf = (f) => ({
-  messageSid: f.MessageSid, from: f.From, to: f.To, body: f.Body ?? "",
-  numMedia: Number(f.NumMedia ?? 0), mediaTypes: [],
-  optOutType: f.OptOutType ?? null, messagingServiceSid: f.MessagingServiceSid ?? null, accountSid: f.AccountSid ?? null,
+  messageSid: f.MessageSid,
+  from: f.From,
+  to: f.To,
+  body: f.Body ?? "",
+  numMedia: Number(f.NumMedia ?? 0),
+  mediaTypes: [],
+  optOutType: f.OptOutType ?? null,
+  messagingServiceSid: f.MessagingServiceSid ?? null,
+  accountSid: f.AccountSid ?? null,
 });
 
 /** The world as it is when everything is in order, unless a case says otherwise. */
-function world(to, { lines = [lineRow(to)], channels = [channelRow(to)], faults = {}, secrets = { auth_token: TOKEN } } = {}) {
+function world(
+  to,
+  { lines = [lineRow(to)], channels = [channelRow(to)], faults = {}, secrets = { auth_token: TOKEN } } = {},
+) {
   return fakeDb({ lines, tenant_channels: channels }, faults, { get_line_credentials: () => secrets });
 }
 const plan = (to, db, over = {}) => {
@@ -100,7 +128,14 @@ test("a number no line carries is a 404, and the platform is told once for the w
   // wrote. Suppressing per number meant a POST loop that changed it every
   // request sent one email per request and buried every real alert; the
   // constant key caps the class at one per window, like a known number.
-  assert.deepEqual(v, { kind: "refuse", status: 404, log: "sms_unknown_line", level: "warn", alert: "no line row carries this number", alertKey: "unknown-line" });
+  assert.deepEqual(v, {
+    kind: "refuse",
+    status: 404,
+    log: "sms_unknown_line",
+    level: "warn",
+    alert: "no line row carries this number",
+    alertKey: "unknown-line",
+  });
   const other = await plan(freshNumber(), world(to, { lines: [] }));
   assert.equal(other.alertKey, v.alertKey, "a different To is the same alert");
 });
@@ -116,19 +151,34 @@ test("a line whose voice provisioning failed is not a line at all", async () => 
 test("a line with no token in the vault refuses 503, because the signature cannot be checked without one", async () => {
   const to = freshNumber();
   const v = await plan(to, world(to, { secrets: {} }));
-  assert.deepEqual(v, { kind: "refuse", status: 503, log: "sms_line_without_account", level: "error", alert: "the line has no subaccount or no token in the vault" });
+  assert.deepEqual(v, {
+    kind: "refuse",
+    status: 503,
+    log: "sms_line_without_account",
+    level: "error",
+    alert: "the line has no subaccount or no token in the vault",
+  });
 });
 
 test("a read that throws is a 503 so Twilio's own log carries the trace, never a 500 nobody looks at", async () => {
   const to = freshNumber();
   const v = await plan(to, world(to, { faults: { "lines.select": { message: "connection reset" } } }));
-  assert.deepEqual(v, { kind: "refuse", status: 503, log: "sms_line_unreadable", level: "error", alert: "the line or its token could not be read" });
+  assert.deepEqual(v, {
+    kind: "refuse",
+    status: 503,
+    log: "sms_line_unreadable",
+    level: "error",
+    alert: "the line or its token could not be read",
+  });
 });
 
 test("the signature is Twilio's real rule: a forged one is refused, and it pages nobody", async () => {
   const to = freshNumber();
   const f = form(to);
-  const v = await plan(to, world(to, { lines: [lineRow(to, { provider: "twilio" })] }), { form: f, signature: "not-a-signature" });
+  const v = await plan(to, world(to, { lines: [lineRow(to, { provider: "twilio" })] }), {
+    form: f,
+    signature: "not-a-signature",
+  });
   assert.equal(v.kind, "refuse");
   assert.equal(v.status, 403);
   assert.equal(v.level, "warn");
@@ -158,7 +208,13 @@ test("the dry provider signs nothing, and only the dry provider", async () => {
 test("a channel row that is missing or switched off is answered 200: Twilio must stop asking", async () => {
   const off = freshNumber();
   const disabled = await plan(off, world(off, { channels: [channelRow(off, { status: "disabled" })] }));
-  assert.deepEqual(disabled, { kind: "refuse", status: 200, log: "sms_unroutable", level: "error", alert: "the sms channel row is missing or not active" });
+  assert.deepEqual(disabled, {
+    kind: "refuse",
+    status: 200,
+    log: "sms_unroutable",
+    level: "error",
+    alert: "the sms channel row is missing or not active",
+  });
   const gone = freshNumber();
   const missing = await plan(gone, world(gone, { channels: [] }));
   assert.equal(missing.status, 200, "no row is an answer, not a retry");
@@ -167,7 +223,13 @@ test("a channel row that is missing or switched off is answered 200: Twilio must
 test("a channel lookup that FAILED is 503, because that one is ours to retry", async () => {
   const to = freshNumber();
   const v = await plan(to, world(to, { faults: { "tenant_channels.select": { message: "timeout" } } }));
-  assert.deepEqual(v, { kind: "refuse", status: 503, log: "sms_routing_lookup_failed", level: "error", alert: "the sms channel row could not be read" });
+  assert.deepEqual(v, {
+    kind: "refuse",
+    status: 503,
+    log: "sms_routing_lookup_failed",
+    level: "error",
+    alert: "the sms channel row could not be read",
+  });
   // The two must never share a status: one asks the provider to send the text
   // again, the other tells it never to.
   assert.notEqual(v.status, 200);
@@ -175,7 +237,12 @@ test("a channel lookup that FAILED is 503, because that one is ours to retry", a
 
 test("the carrier is this message's wire: the footer once, the hold's words, the carrier's own STOP", async () => {
   const sent = [];
-  const sender = { send: async (to, body) => { sent.push({ to, body }); return { ok: true, wamid: "SM1", status: 201 }; } };
+  const sender = {
+    send: async (to, body) => {
+      sent.push({ to, body });
+      return { ok: true, wamid: "SM1", status: 201 };
+    },
+  };
 
   const open = carrierFor(inboundOf(form("+13055550100")), false, sender);
   assert.equal(open.channel, "sms");
@@ -192,8 +259,14 @@ test("the carrier is this message's wire: the footer once, the hold's words, the
   assert.deepEqual(await held.send("16465550123", "hello"), { ok: false, wamid: null, status: 503 });
 
   // The carrier's verdict and the carriers' words both reach the consent gate.
-  assert.deepEqual(carrierFor(inboundOf(form("+1", { OptOutType: "STOP" })), false, sender).consent, { optOut: true, optIn: false });
-  assert.deepEqual(carrierFor(inboundOf(form("+1", { Body: "CANCEL" })), false, sender).consent, { optOut: true, optIn: false });
+  assert.deepEqual(carrierFor(inboundOf(form("+1", { OptOutType: "STOP" })), false, sender).consent, {
+    optOut: true,
+    optIn: false,
+  });
+  assert.deepEqual(carrierFor(inboundOf(form("+1", { Body: "CANCEL" })), false, sender).consent, {
+    optOut: true,
+    optIn: false,
+  });
   assert.equal(carrierFor(inboundOf(form("+1", { Body: "hello" })), false, sender).consent, null);
 });
 

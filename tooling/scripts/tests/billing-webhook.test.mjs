@@ -28,40 +28,100 @@ const sdk = new Stripe("sk_test_only");
 const SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const subs = new Map();
-setStripeClient({ webhooks: sdk.webhooks, subscriptions: { retrieve: async (id) => { const s = subs.get(id); if (!s) throw new Error(`no such subscription ${id}`); return s; } } });
-after(() => { setStripeClient(null); setPg(null); });
+setStripeClient({
+  webhooks: sdk.webhooks,
+  subscriptions: {
+    retrieve: async (id) => {
+      const s = subs.get(id);
+      if (!s) throw new Error(`no such subscription ${id}`);
+      return s;
+    },
+  },
+});
+after(() => {
+  setStripeClient(null);
+  setPg(null);
+});
 
 const row = (over = {}) => ({
-  tenant_id: T, mode: "stripe", status: "trialing", price_id: "price_1", stripe_customer_id: "cus_1", stripe_subscription_id: "sub_1",
-  trial_end: "2026-09-20T00:00:00Z", current_period_end: "2026-09-20T00:00:00Z", cancel_at: null, cancel_at_period_end: false,
-  card_brand: "visa", card_last4: "4242", last_payment_failed_at: null, last_paid_at: null, facts: {}, created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:00:00Z", ...over,
+  tenant_id: T,
+  mode: "stripe",
+  status: "trialing",
+  price_id: "price_1",
+  stripe_customer_id: "cus_1",
+  stripe_subscription_id: "sub_1",
+  trial_end: "2026-09-20T00:00:00Z",
+  current_period_end: "2026-09-20T00:00:00Z",
+  cancel_at: null,
+  cancel_at_period_end: false,
+  card_brand: "visa",
+  card_last4: "4242",
+  last_payment_failed_at: null,
+  last_paid_at: null,
+  facts: {},
+  created_at: "2026-09-01T00:00:00Z",
+  updated_at: "2026-09-01T00:00:00Z",
+  ...over,
 });
 const tables = (over = {}) => ({
   tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
-  billing_accounts: [row()], billing_events: [], notifications: [], events: [],
+  billing_accounts: [row()],
+  billing_events: [],
+  notifications: [],
+  events: [],
   ...over,
 });
 const sub = (over = {}) => ({
-  id: "sub_1", object: "subscription", customer: "cus_1", metadata: { tenant_id: T }, status: "active",
+  id: "sub_1",
+  object: "subscription",
+  customer: "cus_1",
+  metadata: { tenant_id: T },
+  status: "active",
   items: { data: [{ price: { id: "price_1" }, current_period_end: 1758326400 }] },
-  trial_end: null, cancel_at: null, cancel_at_period_end: false, default_payment_method: { card: { brand: "visa", last4: "4242" } },
+  trial_end: null,
+  cancel_at: null,
+  cancel_at_period_end: false,
+  default_payment_method: { card: { brand: "visa", last4: "4242" } },
   ...over,
 });
 let seq = 0;
 function deliver(type, object, id = `evt_${++seq}`) {
-  const payload = JSON.stringify({ id, object: "event", type, data: { object }, created: Math.floor(Date.now() / 1000), api_version: "2024-06-20" });
+  const payload = JSON.stringify({
+    id,
+    object: "event",
+    type,
+    data: { object },
+    created: Math.floor(Date.now() / 1000),
+    api_version: "2024-06-20",
+  });
   const sig = sdk.webhooks.generateTestHeaderString({ payload, secret: SECRET });
-  return hook.POST(new Request("http://localhost/api/stripe-webhook", { method: "POST", headers: { "stripe-signature": sig }, body: payload }));
+  return hook.POST(
+    new Request("http://localhost/api/stripe-webhook", {
+      method: "POST",
+      headers: { "stripe-signature": sig },
+      body: payload,
+    }),
+  );
 }
 const first = (s) => (Array.isArray(s.values) ? s.values[0] : s.values);
-const writes = (db, table) => db.seen.filter((s) => s.table === table && ["insert", "update", "upsert", "delete"].includes(s.op));
+const writes = (db, table) =>
+  db.seen.filter((s) => s.table === table && ["insert", "update", "upsert", "delete"].includes(s.op));
 
-beforeEach(() => { subs.clear(); subs.set("sub_1", sub()); });
+beforeEach(() => {
+  subs.clear();
+  subs.set("sub_1", sub());
+});
 
 test("a bad signature is refused before anything is read", async () => {
   const db = fakeDb(tables());
   setPg(db);
-  const res = await hook.POST(new Request("http://localhost/api/stripe-webhook", { method: "POST", headers: { "stripe-signature": "t=1,v1=nope" }, body: JSON.stringify({ id: "evt_x", type: "customer.subscription.updated" }) }));
+  const res = await hook.POST(
+    new Request("http://localhost/api/stripe-webhook", {
+      method: "POST",
+      headers: { "stripe-signature": "t=1,v1=nope" },
+      body: JSON.stringify({ id: "evt_x", type: "customer.subscription.updated" }),
+    }),
+  );
   assert.equal(res.status, 400);
   assert.deepEqual(await res.json(), { ok: false, error: "signature" });
   assert.equal(db.seen.length, 0, "nothing read, nothing written");
@@ -80,15 +140,24 @@ test("a subscription event is kept once and applied: the row follows Stripe's re
   assert.equal(first(kept[0]).tenant_id, T);
   const up = writes(db, "billing_accounts").find((s) => s.op === "update");
   assert.ok(up, "the row is written");
-  assert.deepEqual([first(up).status, first(up).card_brand, first(up).card_last4], ["active", "mastercard", "0005"], "the status, and the card from the full read, not the event's copy");
-  assert.ok(up.filters.some(([op, col]) => op === "eq" && col === "updated_at"), "written only if the row is still what the reading was planned against");
+  assert.deepEqual(
+    [first(up).status, first(up).card_brand, first(up).card_last4],
+    ["active", "mastercard", "0005"],
+    "the status, and the card from the full read, not the event's copy",
+  );
+  assert.ok(
+    up.filters.some(([op, col]) => op === "eq" && col === "updated_at"),
+    "written only if the row is still what the reading was planned against",
+  );
   assert.equal(writes(db, "events").length, 1);
   assert.equal(first(writes(db, "events")[0]).kind, "billing.updated");
   assert.equal(writes(db, "tenants").length, 0, "trialing to active: the receptionist was on and stays on");
 });
 
 test("a replay changes nothing: the id hits the primary key, the answer is 200, and the row is not written", async () => {
-  const db = fakeDb(tables(), { "billing_events.insert": { message: "duplicate key value violates unique constraint", code: "23505" } });
+  const db = fakeDb(tables(), {
+    "billing_events.insert": { message: "duplicate key value violates unique constraint", code: "23505" },
+  });
   setPg(db);
   const res = await deliver("customer.subscription.updated", sub(), "evt_seen_before");
   assert.equal(res.status, 200);
@@ -109,7 +178,10 @@ test("an apply that fails gives the claim back, so Stripe's retry is not answere
   const failed = await deliver("customer.subscription.updated", sub({ status: "paused" }), "evt_retried");
   assert.equal(failed.status, 500, "the write failed, so Stripe is asked to try again");
   assert.deepEqual(state.billing_events, [], "and the claim is given back, not left standing");
-  assert.ok(broken.seen.some((q) => q.table === "billing_events" && q.op === "delete"), "given back explicitly");
+  assert.ok(
+    broken.seen.some((q) => q.table === "billing_events" && q.op === "delete"),
+    "given back explicitly",
+  );
 
   // The same delivery again, against the same ledger, with the database well.
   subs.set("sub_1", sub({ status: "paused" }));
@@ -117,7 +189,11 @@ test("an apply that fails gives the claim back, so Stripe's retry is not answere
   setPg(healthy);
   const retried = await deliver("customer.subscription.updated", sub({ status: "paused" }), "evt_retried");
   assert.equal(retried.status, 200);
-  assert.deepEqual(await retried.json(), { ok: true, status: "paused", switched: "paused" }, "the retry APPLIES the change, rather than reporting a duplicate");
+  assert.deepEqual(
+    await retried.json(),
+    { ok: true, status: "paused", switched: "paused" },
+    "the retry APPLIES the change, rather than reporting a duplicate",
+  );
   assert.equal(first(writes(healthy, "tenants").at(-1)).status, "paused", "the receptionist is actually stopped");
   assert.equal(state.billing_events.length, 1, "and now the event is on record once");
 });
@@ -167,7 +243,15 @@ test("a paused subscription pauses the workspace and rings once; resuming turns 
   subs.set("sub_1", sub({ status: "active" }));
   const back = await deliver("customer.subscription.resumed", sub({ status: "active" }));
   assert.deepEqual(await back.json(), { ok: true, status: "active", switched: "resumed" });
-  assert.equal(first(writes(db, "tenants").filter((s) => s.op === "update").at(-1)).status, "active", "the receptionist answers again");
+  assert.equal(
+    first(
+      writes(db, "tenants")
+        .filter((s) => s.op === "update")
+        .at(-1),
+    ).status,
+    "active",
+    "the receptionist answers again",
+  );
   assert.equal(writes(db, "notifications").length, 2, "one bell each way, never twice for one change");
   assert.equal(first(writes(db, "events").at(-1)).kind, "billing.resumed");
 });
@@ -175,7 +259,12 @@ test("a paused subscription pauses the workspace and rings once; resuming turns 
 test("a failed payment marks the row and rings, and the receptionist keeps answering", async () => {
   const db = fakeDb(tables({ billing_accounts: [row({ status: "past_due" })] }));
   setPg(db);
-  const res = await deliver("invoice.payment_failed", { id: "in_1", object: "invoice", customer: "cus_1", metadata: {} });
+  const res = await deliver("invoice.payment_failed", {
+    id: "in_1",
+    object: "invoice",
+    customer: "cus_1",
+    metadata: {},
+  });
   assert.deepEqual(await res.json(), { ok: true });
   const up = writes(db, "billing_accounts").find((s) => s.op === "update");
   assert.ok(first(up).last_payment_failed_at, "the row keeps when it failed");
@@ -190,7 +279,10 @@ test("a deleted customer is forgotten: the ids point at nothing, the row says no
   const res = await deliver("customer.deleted", { id: "cus_1", object: "customer", metadata: { tenant_id: T } });
   assert.deepEqual(await res.json(), { ok: true, forgotten: true });
   const up = writes(db, "billing_accounts").find((s) => s.op === "update");
-  assert.deepEqual([first(up).stripe_customer_id, first(up).stripe_subscription_id, first(up).status, first(up).card_brand], [null, null, "none", null]);
+  assert.deepEqual(
+    [first(up).stripe_customer_id, first(up).stripe_subscription_id, first(up).status, first(up).card_brand],
+    [null, null, "none", null],
+  );
   assert.deepEqual(first(writes(db, "events")[0]).data, { source: "customer.deleted", status: "none" });
 });
 
@@ -201,7 +293,10 @@ test("a type nobody acts on is kept once and said to be ignored; an event about 
   assert.deepEqual(await ignored.json(), { ok: true, ignored: "charge.refunded" });
   assert.equal(writes(db, "billing_events").length, 1);
   assert.equal(writes(db, "billing_accounts").length, 0);
-  const stranger = await deliver("customer.subscription.updated", sub({ id: "sub_9", customer: "cus_9", metadata: {} }));
+  const stranger = await deliver(
+    "customer.subscription.updated",
+    sub({ id: "sub_9", customer: "cus_9", metadata: {} }),
+  );
   assert.deepEqual(await stranger.json(), { ok: true, unrouted: true });
   assert.equal(writes(db, "billing_accounts").length, 0, "nobody's row is written for a subscription nobody owns");
 });

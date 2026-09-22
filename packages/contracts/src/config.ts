@@ -18,7 +18,19 @@ export type Role = (typeof ROLES)[number];
 
 /** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client
  *  gate() chips read this shape; the server re-checks via requireRole. */
-export const ROLE_PERMS: Record<Role, { approve: boolean; autonomy: boolean; disconnect: boolean; billing: boolean; team: boolean; settings: boolean; export: boolean; find: boolean }> = {
+export const ROLE_PERMS: Record<
+  Role,
+  {
+    approve: boolean;
+    autonomy: boolean;
+    disconnect: boolean;
+    billing: boolean;
+    team: boolean;
+    settings: boolean;
+    export: boolean;
+    find: boolean;
+  }
+> = {
   // `settings` is the business details and who is alerted: PUT /settings is
   // owner-only, and the form used to open on the autonomy gate, which let an
   // operator fill it in and be refused at Save.
@@ -28,9 +40,36 @@ export const ROLE_PERMS: Record<Role, { approve: boolean; autonomy: boolean; dis
   // putting one back. Each spends the month's allowance, so it is the
   // owner's alone (PRD v3 §16.6, S9); has_permission() in 00140 says the
   // same, and lead-engine.db.test.mjs holds the two together.
-  owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true,  export: true,  find: true },
-  operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false, find: false },
-  viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false, find: false },
+  owner: {
+    approve: true,
+    autonomy: true,
+    disconnect: true,
+    billing: true,
+    team: true,
+    settings: true,
+    export: true,
+    find: true,
+  },
+  operator: {
+    approve: true,
+    autonomy: true,
+    disconnect: false,
+    billing: false,
+    team: false,
+    settings: false,
+    export: false,
+    find: false,
+  },
+  viewer: {
+    approve: false,
+    autonomy: false,
+    disconnect: false,
+    billing: false,
+    team: false,
+    settings: false,
+    export: false,
+    find: false,
+  },
 };
 
 /* --------------------------------------------------------------- E3 policy */
@@ -46,11 +85,31 @@ export type PolicyClass = (typeof POLICY_CLASSES)[number];
  */
 export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: string; note: string }> = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile · ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book · reschedule", short: "Bookings", note: "auto sends your booking link · ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile · auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile · ask hands every service or pricing question to you, on WhatsApp and on the phone",
+  },
+  booking: {
+    name: "Book · reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link · ask has a person confirm instead, on WhatsApp and on the phone",
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing",
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing",
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile · auto answers each within the hour, ask drafts one for you to send, never leaves them all to you",
+  },
   money: { name: "Refunds · rates · negotiation", short: "Money", note: "always goes to you" },
 };
 
@@ -80,8 +139,18 @@ export type PolicyMode = (typeof POLICY_MODES)[number];
  */
 export const POLICY_MODE_WORDS: Record<PolicyMode, { head: string; sub: string; chip: string; does: string }> = {
   auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
-  veto: { head: "Holds it", sub: "you can stop it", chip: "holds it", does: "Writes it, holds it, and sends it unless you stop it." },
-  ask: { head: "Asks you", sub: "nothing sent", chip: "asks you", does: "Waits for you. Nothing is sent until you say so." },
+  veto: {
+    head: "Holds it",
+    sub: "you can stop it",
+    chip: "holds it",
+    does: "Writes it, holds it, and sends it unless you stop it.",
+  },
+  ask: {
+    head: "Asks you",
+    sub: "nothing sent",
+    chip: "asks you",
+    does: "Waits for you. Nothing is sent until you say so.",
+  },
   never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." },
 };
 
@@ -113,7 +182,10 @@ export function policyClassOfIntent(intent: string | null | undefined): "booking
 }
 
 /** The class that is set to "ask" and that this intent falls under, or null. An unknown mode counts as ask, fail safe. */
-export function policyAskClass(policy: Record<string, { mode: string }> | null | undefined, intent: string | null | undefined): "booking" | "faq" | null {
+export function policyAskClass(
+  policy: Record<string, { mode: string }> | null | undefined,
+  intent: string | null | undefined,
+): "booking" | "faq" | null {
   const cls = policyClassOfIntent(intent);
   if (!cls) return null;
   const mode = policy?.[cls]?.mode ?? "auto";
@@ -143,19 +215,26 @@ export function bookingHeld(policy: Record<string, { mode: string }> | null | un
  * it offers. "ask" hands the matter to a person, in words the customer can
  * hear on the phone and read on WhatsApp.
  */
-export function policyRules(policy: Record<string, { mode: string }> | null | undefined, channel: "whatsapp" | "voice"): string[] {
+export function policyRules(
+  policy: Record<string, { mode: string }> | null | undefined,
+  channel: "whatsapp" | "voice",
+): string[] {
   const out: string[] = [];
   const modeOf = (cls: string): string => policy?.[cls]?.mode ?? "auto";
   const voice = channel === "voice";
   if (modeOf("booking") !== "auto") {
-    out.push(voice
-      ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name."
-      : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.");
+    out.push(
+      voice
+        ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name."
+        : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.",
+    );
   }
   if (modeOf("faq") !== "auto") {
-    out.push(voice
-      ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name."
-      : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.");
+    out.push(
+      voice
+        ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name."
+        : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.",
+    );
   }
   return out;
 }
@@ -653,8 +732,13 @@ export function isRealDate(key: string): boolean {
 }
 
 const DAY_NAME: Record<string, string> = {
-  mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
-  fri: "Friday", sat: "Saturday", sun: "Sunday",
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday",
 };
 
 function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
@@ -671,21 +755,24 @@ function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
   }
   if (open && close && close <= open) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom, path: at("close"),
+      code: z.ZodIssueCode.custom,
+      path: at("close"),
       message: `${name} closes at or before it opens.`,
     });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom, path: at("intervals"),
+      code: z.ZodIssueCode.custom,
+      path: at("intervals"),
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`,
     });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom, path: at("intervals", n, "close"),
+        code: z.ZodIssueCode.custom,
+        path: at("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`,
       });
     }
@@ -698,7 +785,8 @@ function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom, path: at("intervals", n, "open"),
+        code: z.ZodIssueCode.custom,
+        path: at("intervals", n, "open"),
         message: `${name}: two shifts overlap.`,
       });
     }
@@ -711,19 +799,22 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
   // renderer that would have to print it raw to avoid naming the wrong day.
   if (!isRealDate(c.date)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom, path: at("date"),
+      code: z.ZodIssueCode.custom,
+      path: at("date"),
       message: `${c.date} is not a date on the calendar.`,
     });
   }
   if (c.until && !isRealDate(c.until)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom, path: at("until"),
+      code: z.ZodIssueCode.custom,
+      path: at("until"),
       message: `${c.until} is not a date on the calendar.`,
     });
   }
   if (c.until && c.until < c.date) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom, path: at("until"),
+      code: z.ZodIssueCode.custom,
+      path: at("until"),
       message: "A closure cannot end before it starts.",
     });
   }
@@ -739,7 +830,11 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
 export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords("address") ?? "Not an address the receptionist may read.",
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -754,9 +849,7 @@ export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx)
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
 
-export type TenantConfigParse =
-  | { ok: true; config: TenantConfig }
-  | { ok: false; issues: string[] };
+export type TenantConfigParse = { ok: true; config: TenantConfig } | { ok: false; issues: string[] };
 
 /**
  * Parse unknown JSONB into TenantConfig.
@@ -782,12 +875,16 @@ export function parseTenantConfig(raw: unknown): TenantConfig | null {
   return r.ok ? r.config : null;
 }
 
-
 /* ---------------------------------------------------------------- compose */
 
 const DAY_LABEL: Record<string, string> = {
-  mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
-  fri: "Friday", sat: "Saturday", sun: "Sunday",
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday",
 };
 
 /** "Monday–Friday 9:00–18:00" style lines, collapsing identical runs. */
@@ -890,8 +987,7 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
   // composed prompt containing no hours, no services and no address — strictly
   // worse than the hand-written one it replaced. At least one real opening
   // time has to exist before this counts.
-  const statedHours =
-    !!p.hours && Object.values(p.hours).some((h) => (h?.open && h?.close) || h?.intervals?.length);
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => (h?.open && h?.close) || h?.intervals?.length);
   // NOT closures. Their contents EXPIRE: a profile whose only fact is a closure
   // would compose a real prompt while it was upcoming and, the day after it
   // passed, compose one with no hours, no address and no services — while this
@@ -899,9 +995,15 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
   // prompt either. A prompt that changes what it says because a date went by,
   // from a config nobody touched.
   return !!(
-    p.address || p.tone || p.extra_instructions || statedHours ||
-    p.services?.length || p.languages?.length || p.escalate_when?.length ||
-    p.website || p.notes?.length
+    p.address ||
+    p.tone ||
+    p.extra_instructions ||
+    statedHours ||
+    p.services?.length ||
+    p.languages?.length ||
+    p.escalate_when?.length ||
+    p.website ||
+    p.notes?.length
   );
 }
 
@@ -927,10 +1029,15 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
 function dateKeyInZone(tz: string, at: Date): string | null {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     }).formatToParts(at);
     const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-    const y = get("year"), m = get("month"), d = get("day");
+    const y = get("year"),
+      m = get("month"),
+      d = get("day");
     return y && m && d ? `${y}-${m}-${d}` : null;
   } catch {
     return null;
@@ -952,16 +1059,14 @@ function labelDate(key: string, withWeekday: boolean): string {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC",
     ...(withWeekday ? { weekday: "long" as const } : {}),
-    month: "long", day: "numeric", year: "numeric",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
   }).format(at);
 }
 
 /** The closures still ahead of the business, oldest first. */
-function upcomingClosures(
-  closures: Closure[] | undefined,
-  tz: string | null | undefined,
-  at: Date,
-): Closure[] {
+function upcomingClosures(closures: Closure[] | undefined, tz: string | null | undefined, at: Date): Closure[] {
   if (!closures?.length) return [];
   // No zone means we do not know what day it is there. Err toward stating a
   // closure a day longer rather than hiding one that is live.
@@ -974,26 +1079,25 @@ function upcomingClosures(
 
 function closureLines(closures: Closure[]): string[] {
   return closures.map((c) => {
-    const when = c.until && c.until !== c.date && c.until > c.date
-      ? `${labelDate(c.date, false)} – ${labelDate(c.until, false)}`
-      : labelDate(c.date, true);
+    const when =
+      c.until && c.until !== c.date && c.until > c.date
+        ? `${labelDate(c.date, false)} – ${labelDate(c.until, false)}`
+        : labelDate(c.date, true);
     return c.note ? `${when} — ${c.note}` : when;
   });
 }
 
 /** Is the business shut on the date `at` falls on, in its own zone? */
-function closedToday(
-  closures: Closure[] | undefined,
-  tz: string | null | undefined,
-  at: Date,
-): Closure | null {
+function closedToday(closures: Closure[] | undefined, tz: string | null | undefined, at: Date): Closure | null {
   if (!closures?.length || !tz) return null;
   const today = dateKeyInZone(tz, at);
   if (!today) return null;
-  return closures.find((c) => {
-    const end = c.until && c.until >= c.date ? c.until : c.date;
-    return c.date <= today && today <= end;
-  }) ?? null;
+  return (
+    closures.find((c) => {
+      const end = c.until && c.until >= c.date ? c.until : c.date;
+      return c.date <= today && today <= end;
+    }) ?? null
+  );
 }
 
 const NO_CLOCK =
@@ -1149,7 +1253,9 @@ function composeSystemPromptWith(
     s.push(
       `\n${PROMPT_OPENINGS.closures}, whatever the opening hours above say:\n${closed
         .map((l) => `- ${l}`)
-        .join("\n")}\nIf someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`,
+        .join(
+          "\n",
+        )}\nIf someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`,
     );
   }
 
@@ -1177,8 +1283,12 @@ function composeSystemPromptWith(
           : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`,
       );
     }
-    if (br.consult_first?.length) lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-    if (br.party_max) lines.push(`Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`);
+    if (br.consult_first?.length)
+      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+    if (br.party_max)
+      lines.push(
+        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`,
+      );
     for (const n of br.notes ?? []) lines.push(n);
     s.push(`\n${PROMPT_OPENINGS.bookingRules}\n${lines.map((l) => `- ${l}`).join("\n")}`);
   }
@@ -1200,9 +1310,7 @@ function composeSystemPromptWith(
   // transfer tool — and a model reading "[[HUMAN]]" aloud to a caller is worse
   // than no handoff at all.
   if (channel === "whatsapp") {
-    const when = profile.escalate_when?.length
-      ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`
-      : "";
+    const when = profile.escalate_when?.length ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
     s.push(
       `\n${PROMPT_OPENINGS.handoffChat}\n` +
         `Put the exact token [[HUMAN]] at the very end of your reply. It is removed ` +
@@ -1223,9 +1331,7 @@ function composeSystemPromptWith(
     // exists on the shell regardless, dialling `{{handoff_number}}`; with no
     // line the variable is empty, and an agent told to use it would ring
     // nothing and go quiet on the caller.
-    const when = profile.escalate_when?.length
-      ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`
-      : "";
+    const when = profile.escalate_when?.length ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
     const staffed = profile.handoff_number
       ? "Use transfer_to_staff during opening hours — it rings the line a person answers, and you stay on until they pick up. " +
         "Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up."
@@ -1277,9 +1383,7 @@ function composeSystemPromptWith(
       stated
         ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.`
         : "",
-      channel === "voice"
-        ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.`
-        : "",
+      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -1304,17 +1408,25 @@ function composeSystemPromptWith(
   const g = guardrailsInForce(profile.guardrails);
   const rules: string[] = [];
   if (g.never_quote_prices) {
-    rules.push("Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.");
+    rules.push(
+      "Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.",
+    );
   }
   if (g.never_confirm_booking) {
     rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
   }
   if (g.disclose_ai) {
-    rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
+    rules.push(
+      "If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
+    );
   }
-  rules.push("If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.");
+  rules.push(
+    "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
+  );
   if (g.no_health_advice) {
-    rules.push("Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
+    rules.push(
+      "Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.",
+    );
   }
   // The Autonomy pane's Booking and FAQ rows, as rules — the same words on
   // both channels' prompts, so a switch flipped once changes both.
@@ -1360,7 +1472,9 @@ export function resolveSystemPrompt(
 ): string {
   if (!hasProfile(brain.profile)) {
     const rules = policyRules(policy, channel);
-    return rules.length ? `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
+    return rules.length
+      ? `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`
+      : brain.system_prompt;
   }
   const profile = brain.profile as BusinessProfile;
   const facts = resolveFacts(brain, known);
@@ -1405,8 +1519,7 @@ export function ownWordsOf(
 
 /** Whose words stand in the owner's place: see whoseWords. */
 export type WhoseWords =
-  | { kind: "own" | "carried" | "prompt" | "baseline"; text: string }
-  | { kind: "none"; text: null };
+  { kind: "own" | "carried" | "prompt" | "baseline"; text: string } | { kind: "none"; text: null };
 
 /**
  * Whose words the receptionist is given in the owner's place, decided once.
@@ -1441,7 +1554,8 @@ export function whoseWords(
   // The owner's own field first, and under the strict test: the loose one read
   // "…Salon, a family salon since 1998. We never book walk-ins after 5pm. …" as
   // the product's, and would have charged an owner's own words to the platform.
-  if (brain?.profile?.extra_instructions?.trim()) return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
+  if (brain?.profile?.extra_instructions?.trim())
+    return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
   if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
   // The profile arrives as the brain stores it; hasProfile reads only what it counts.
   return { kind: hasProfile(brain?.profile as BusinessProfile | null | undefined) ? "carried" : "prompt", text };
@@ -1475,9 +1589,12 @@ export type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
  * and a customer is never sent "call us at ." before a line exists.
  */
 export const FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} — or a member of our team will reply here soon.",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}.",
+  greeting:
+    "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error:
+    "Thanks for reaching out to {business}! Book anytime: {booking link} — or a member of our team will reply here soon.",
+  non_text:
+    "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}.",
 };
 
 const DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
@@ -1523,7 +1640,8 @@ export function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null):
     "booking link": facts.booking_link.value ?? brain.booking_link,
     phone: facts.phone_display.value,
   };
-  const say = (kind: keyof BrainConfig["fallbacks"]) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  const say = (kind: keyof BrainConfig["fallbacks"]) =>
+    fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
 }
 

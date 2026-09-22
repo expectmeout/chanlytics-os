@@ -9,15 +9,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deployment } from "./deployment";
 import type { Database } from "@chanlytics/db";
-import type { GoogleAudience, GoogleConnectionDto, GoogleDayDto, GoogleListingDto, GoogleReviewDto } from "@chanlytics/contracts";
+import type {
+  GoogleAudience,
+  GoogleConnectionDto,
+  GoogleDayDto,
+  GoogleListingDto,
+  GoogleReviewDto,
+} from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
 
 import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
-export const LISTING_COLUMNS = "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
-export const REVIEW_COLUMNS = "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, maps_uri, first_seen_at";
+export const LISTING_COLUMNS =
+  "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
+export const REVIEW_COLUMNS =
+  "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, maps_uri, first_seen_at";
 /** Never the credentials name: the row says who and when, not where the token is. */
-export const CONNECTION_COLUMNS = "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";
+export const CONNECTION_COLUMNS =
+  "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";
 
 /** The reviews a screen shows; the rest are on Google. */
 export const REVIEWS_SHOWN = 20;
@@ -25,24 +34,53 @@ export const REVIEWS_SHOWN = 20;
 export const DAYS_KEPT = 92;
 
 export async function listingFor(db: SupabaseClient<Database>, tenantId: string): Promise<GoogleListingDto | null> {
-  const { data, error } = await db.from("google_listings").select(LISTING_COLUMNS).eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await db
+    .from("google_listings")
+    .select(LISTING_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? (data as GoogleListingDto) : null;
 }
 
-export async function connectionFor(db: SupabaseClient<Database>, tenantId: string): Promise<GoogleConnectionDto | null> {
-  const { data, error } = await db.from("google_connections").select(CONNECTION_COLUMNS).eq("tenant_id", tenantId).maybeSingle();
+export async function connectionFor(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<GoogleConnectionDto | null> {
+  const { data, error } = await db
+    .from("google_connections")
+    .select(CONNECTION_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? (data as GoogleConnectionDto) : null;
 }
 
-export async function googleFor(db: SupabaseClient<Database>, tenantId: string): Promise<{ listing: GoogleListingDto | null; connection: GoogleConnectionDto | null; reviews: GoogleReviewDto[]; days: GoogleDayDto[] }> {
+export async function googleFor(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<{
+  listing: GoogleListingDto | null;
+  connection: GoogleConnectionDto | null;
+  reviews: GoogleReviewDto[];
+  days: GoogleDayDto[];
+}> {
   const [listing, connection] = await Promise.all([listingFor(db, tenantId), connectionFor(db, tenantId)]);
   if (!listing) return { listing: null, connection, reviews: [], days: [] };
   const sinceDay = new Date(Date.now() - DAYS_KEPT * 86_400_000).toISOString().slice(0, 10);
   const [reviews, days] = await Promise.all([
-    db.from("google_reviews").select(REVIEW_COLUMNS).eq("tenant_id", tenantId).order("published_at", { ascending: false, nullsFirst: false }).limit(REVIEWS_SHOWN),
-    db.from("google_listing_days").select("day, rating, review_count").eq("tenant_id", tenantId).gte("day", sinceDay).order("day", { ascending: true }),
+    db
+      .from("google_reviews")
+      .select(REVIEW_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .limit(REVIEWS_SHOWN),
+    db
+      .from("google_listing_days")
+      .select("day, rating, review_count")
+      .eq("tenant_id", tenantId)
+      .gte("day", sinceDay)
+      .order("day", { ascending: true }),
   ]);
   if (reviews.error) throw new Error(reviews.error.message);
   if (days.error) throw new Error(days.error.message);
@@ -62,12 +100,17 @@ export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_0
   try {
     const r = await fetch(`${edgeUrl()}/api/admin/google`, {
       method: "POST",
-      headers: edgeHeaders("/api/admin/google", { workspace: typeof body.tenant_id === "string" ? body.tenant_id : null }),
+      headers: edgeHeaders("/api/admin/google", {
+        workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+      }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
     const parsed = (await r.json().catch(() => null)) as unknown;
-    return { status: r.status, body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null };
+    return {
+      status: r.status,
+      body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null,
+    };
   } catch (e) {
     return { status: 503, body: { ok: false, error: e instanceof Error ? e.message : String(e) } };
   }
@@ -96,16 +139,30 @@ export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness
   if (readyCache && now - readyCache.at < READY_TTL_MS) return readyCache.value;
   const a = await edgeGoogle({ op: "status" }, 4_000);
   const b = a.body ?? {};
-  const ready = b.ready && typeof b.ready === "object" ? (b.ready as Partial<Record<"places" | "profile" | "audience", unknown>>) : null;
-  const oauth = b.profile && typeof b.profile === "object" ? (b.profile as Partial<Record<"client_id" | "redirect_uri", unknown>>) : null;
-  const value: GoogleReadiness = a.status === 200 && b.ok === true && ready
-    ? {
-      places: ready.places === true,
-      profile: ready.profile === true && typeof oauth?.client_id === "string" && typeof oauth?.redirect_uri === "string",
-      audience: ready.audience === "testing" || ready.audience === "unverified" || ready.audience === "verified" ? ready.audience : null,
-      oauth: typeof oauth?.client_id === "string" && typeof oauth?.redirect_uri === "string" ? { client_id: oauth.client_id, redirect_uri: oauth.redirect_uri } : null,
-    }
-    : NOT_READY;
+  const ready =
+    b.ready && typeof b.ready === "object"
+      ? (b.ready as Partial<Record<"places" | "profile" | "audience", unknown>>)
+      : null;
+  const oauth =
+    b.profile && typeof b.profile === "object"
+      ? (b.profile as Partial<Record<"client_id" | "redirect_uri", unknown>>)
+      : null;
+  const value: GoogleReadiness =
+    a.status === 200 && b.ok === true && ready
+      ? {
+          places: ready.places === true,
+          profile:
+            ready.profile === true && typeof oauth?.client_id === "string" && typeof oauth?.redirect_uri === "string",
+          audience:
+            ready.audience === "testing" || ready.audience === "unverified" || ready.audience === "verified"
+              ? ready.audience
+              : null,
+          oauth:
+            typeof oauth?.client_id === "string" && typeof oauth?.redirect_uri === "string"
+              ? { client_id: oauth.client_id, redirect_uri: oauth.redirect_uri }
+              : null,
+        }
+      : NOT_READY;
   readyCache = { at: now, value };
   return value;
 }

@@ -50,8 +50,19 @@ export interface CallbackPlan {
   refused: CallbackRefusal | null;
 }
 
-export function callbackPlan(q: { code: string | null; next: string | null; error: string | null; errorCode?: string | null; errorDescription?: string | null }): CallbackPlan {
-  if (q.error) return { exchange: null, to: OAUTH_FAILED, refused: { error: clip(q.error) ?? "unknown", code: clip(q.errorCode), description: clip(q.errorDescription) } };
+export function callbackPlan(q: {
+  code: string | null;
+  next: string | null;
+  error: string | null;
+  errorCode?: string | null;
+  errorDescription?: string | null;
+}): CallbackPlan {
+  if (q.error)
+    return {
+      exchange: null,
+      to: OAUTH_FAILED,
+      refused: { error: clip(q.error) ?? "unknown", code: clip(q.errorCode), description: clip(q.errorDescription) },
+    };
   if (!q.code) return { exchange: null, to: "/login", refused: null };
   return { exchange: q.code, to: safeNext(q.next), refused: null };
 }

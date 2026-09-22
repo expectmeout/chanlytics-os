@@ -186,8 +186,23 @@ export interface ReportVM {
     priorShare: number | null;
   };
   reasons: ReportBarVM[];
-  replyTime: { count: number; median: number | null; p90: number | null; medianLabel: string; p90Label: string; buckets: ReportBarVM[] };
-  calls: { points: ReportPointVM[]; total: number; minutes: number; voicemail: number; sentiments: ReportBarVM[]; max: number; prior: (number | null)[] };
+  replyTime: {
+    count: number;
+    median: number | null;
+    p90: number | null;
+    medianLabel: string;
+    p90Label: string;
+    buckets: ReportBarVM[];
+  };
+  calls: {
+    points: ReportPointVM[];
+    total: number;
+    minutes: number;
+    voicemail: number;
+    sentiments: ReportBarVM[];
+    max: number;
+    prior: (number | null)[];
+  };
   people: {
     points: ReportPointVM[];
     total: number;
@@ -272,7 +287,12 @@ export function pointsDelta(current: number | null, previous: number | null, nou
  * are zero (nothing against nothing says nothing). Never a percentage: #557 took those out because they lied on
  * small counts.
  */
-export function compareWords(current: number, previous: number, rangeLabel: string, priorHadAny: boolean): string | null {
+export function compareWords(
+  current: number,
+  previous: number,
+  rangeLabel: string,
+  priorHadAny: boolean,
+): string | null {
   if (!priorHadAny || (current === 0 && previous === 0)) return null;
   if (previous === 0) return `none the ${rangeLabel} before`;
   if (current === previous) return `same as the ${rangeLabel} before`;
@@ -362,9 +382,12 @@ export function hoursOf(grid: readonly (readonly number[])[] | undefined): Repor
 /** The channels in their fixed order; one with nothing now and nothing before is left out. Null without v3. */
 export function channelsOf(ch: ReportDto["channels"]): ReportChannelVM[] | null {
   if (!ch) return null;
-  return REPORT_CHANNELS
-    .map(({ key, label }) => ({ key, label, value: Number(ch.current?.[key]) || 0, prior: Number(ch.previous?.[key]) || 0 }))
-    .filter((c) => c.value > 0 || c.prior > 0);
+  return REPORT_CHANNELS.map(({ key, label }) => ({
+    key,
+    label,
+    value: Number(ch.current?.[key]) || 0,
+    prior: Number(ch.previous?.[key]) || 0,
+  })).filter((c) => c.value > 0 || c.prior > 0);
 }
 
 export function runningTotal(values: readonly (number | null)[]): number[] {
@@ -377,7 +400,10 @@ export function runningTotal(values: readonly (number | null)[]): number[] {
  * period's last day so the newest point is a whole week; a first week of fewer than four days joins the next. The
  * median and the slowest tenth are taken from the replies themselves, never averaged from daily medians.
  */
-export function speedOf(replies: readonly { day: string; s: number }[], days: readonly string[]): { unit: "day" | "week"; points: ReportSpeedPointVM[] } {
+export function speedOf(
+  replies: readonly { day: string; s: number }[],
+  days: readonly string[],
+): { unit: "day" | "week"; points: ReportSpeedPointVM[] } {
   const byDay = new Map<string, number[]>();
   for (const r of replies) {
     if (!Number.isFinite(r.s)) continue;
@@ -421,7 +447,8 @@ const listWords = (names: readonly string[], last: "or" | "and"): string =>
   names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} ${last} ${names[names.length - 1]}`;
 
 /** A channel inside a sentence: "calls" and "email" are common nouns there, the rest are names. */
-const channelNoun = (c: ReportChannelVM): string => (c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.label);
+const channelNoun = (c: ReportChannelVM): string =>
+  c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.label;
 
 /** Where people reached the business, beside where they reached it the period before. */
 function channelsLine(channels: ReportChannelVM[] | null, rangeLabel: string): string | null {
@@ -429,9 +456,10 @@ function channelsLine(channels: ReportChannelVM[] | null, rangeLabel: string): s
   const reached = channels.reduce((s, c) => s + c.value, 0);
   if (!reached) return null;
   const top = channels.reduce((a, c) => (c.value > a.value ? c : a));
-  const lead = top.value * 2 > reached
-    ? `Mostly ${channelNoun(top)}`
-    : `${capitalize(channelNoun(top))} ${top.key === "voice" ? "lead" : "leads"}`;
+  const lead =
+    top.value * 2 > reached
+      ? `Mostly ${channelNoun(top)}`
+      : `${capitalize(channelNoun(top))} ${top.key === "voice" ? "lead" : "leads"}`;
   const before = channels.reduce((s, c) => s + c.prior, 0);
   if (!before) return `${lead}.`;
   const wasTop = channels.reduce((a, c) => (c.prior > a.prior ? c : a));
@@ -448,7 +476,11 @@ function rhythmLine(week: ReportWeekVM): string | null {
   const avg = week.unit === "average";
   const name = (i: number): string => (avg ? `${week.long[i]}s` : week.long[i]);
   const idle = week.current.flatMap((v, i) => (v === 0 ? [i] : []));
-  if (idle.length >= 4) return `Only on ${listWords(week.current.flatMap((v, i) => (v > 0 ? [name(i)] : [])), "and")}.`;
+  if (idle.length >= 4)
+    return `Only on ${listWords(
+      week.current.flatMap((v, i) => (v > 0 ? [name(i)] : [])),
+      "and",
+    )}.`;
   if (idle.length) return `Nothing on ${listWords(idle.map(name), "or")}.`;
   if (week.quietest === null) return null;
   return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
@@ -523,7 +555,9 @@ export function toReportVM(dto: ReportDto): ReportVM {
       id: "answered",
       label: "Receptionist answered",
       value: aiShare === null ? "—" : `${aiShare}%`,
-      meta: answeredTotal ? `${tot.ai} of ${answeredTotal} · ${tot.you} by you · ${tot.none} unanswered` : "nothing to answer",
+      meta: answeredTotal
+        ? `${tot.ai} of ${answeredTotal} · ${tot.you} by you · ${tot.none} unanswered`
+        : "nothing to answer",
       // A share compares in POINTS. Against counts, the share could fall from
       // 100% to 60% while the delta read +20% in green.
       delta: pointsDelta(aiShare, prevShare, noun),
@@ -534,7 +568,9 @@ export function toReportVM(dto: ReportDto): ReportVM {
       id: "reply",
       label: "Median reply time",
       value: fmtSeconds(median),
-      meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} · ${sortedReply.length} replies` : "no receptionist replies yet",
+      meta: sortedReply.length
+        ? `slowest tenth ${fmtSeconds(p90)} · ${sortedReply.length} replies`
+        : "no receptionist replies yet",
       delta: null,
       spark: [],
       compare: null,
@@ -552,7 +588,9 @@ export function toReportVM(dto: ReportDto): ReportVM {
       id: "calls",
       label: "Calls",
       value: String(tot.calls),
-      meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone · ${dto.voicemail ?? 0} to voicemail` : "no calls",
+      meta: tot.calls
+        ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone · ${dto.voicemail ?? 0} to voicemail`
+        : "no calls",
       delta: deltaOf(tot.calls, prev.calls, true, noun),
       spark: points.map((p) => p.calls),
       compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny),
@@ -622,7 +660,15 @@ export function toReportVM(dto: ReportDto): ReportVM {
       p90Label: fmtSeconds(p90),
       buckets: bars(bucketCounts),
     },
-    calls: { points, total: tot.calls, minutes: Math.round(tot.callSeconds / 60), voicemail: dto.voicemail ?? 0, sentiments, max: Math.max(1, ...points.map((p) => p.calls)), prior: priorOf(current.length, previous, (d) => d.calls) },
+    calls: {
+      points,
+      total: tot.calls,
+      minutes: Math.round(tot.callSeconds / 60),
+      voicemail: dto.voicemail ?? 0,
+      sentiments,
+      max: Math.max(1, ...points.map((p) => p.calls)),
+      prior: priorOf(current.length, previous, (d) => d.calls),
+    },
     people: {
       points,
       total: tot.newPeople,
@@ -633,7 +679,12 @@ export function toReportVM(dto: ReportDto): ReportVM {
         prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null,
       },
     },
-    speed: dto.replies ? speedOf(dto.replies, current.map((d) => d.day)) : null,
+    speed: dto.replies
+      ? speedOf(
+          dto.replies,
+          current.map((d) => d.day),
+        )
+      : null,
     week,
     hours: hoursOf(dto.hours),
     channels,
@@ -642,18 +693,32 @@ export function toReportVM(dto: ReportDto): ReportVM {
       hero: answeredTotal
         ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}`
         : "No customer wrote in this period.",
-      heroBefore: prevAnsweredTotal ? `${Math.round((prev.ai / prevAnsweredTotal) * 100)}% the ${rangeLabel} before` : null,
+      heroBefore: prevAnsweredTotal
+        ? `${Math.round((prev.ai / prevAnsweredTotal) * 100)}% the ${rangeLabel} before`
+        : null,
       answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
       // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
-      reply: sortedReply.length >= 10
-        ? `Nine in ten within ${fmtSeconds(p90)}.`
-        : sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null,
+      reply:
+        sortedReply.length >= 10
+          ? `Nine in ten within ${fmtSeconds(p90)}.`
+          : sortedReply.length
+            ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.`
+            : null,
       calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
       channels: channelsLine(channels, rangeLabel),
       rhythm: rhythmLine(week),
     },
     table: {
-      columns: ["Day", "Customer messages", "Answered by receptionist", "Answered by you", "Unanswered", "Calls", "Needed you", "New people"],
+      columns: [
+        "Day",
+        "Customer messages",
+        "Answered by receptionist",
+        "Answered by you",
+        "Unanswered",
+        "Calls",
+        "Needed you",
+        "New people",
+      ],
       rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople]),
     },
   };

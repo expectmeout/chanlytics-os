@@ -74,7 +74,10 @@ test.describe("the Team card", () => {
     await menus.first().click();
     // Inside the menu, not the row behind it — a role badge reading "Viewer"
     // would otherwise be a perfectly plausible thing to click by accident.
-    await page.locator(".more-menu").getByRole("menuitem", { name: /Viewer/ }).click();
+    await page
+      .locator(".more-menu")
+      .getByRole("menuitem", { name: /Viewer/ })
+      .click();
 
     await expect.poll(() => seen.length, { timeout: 10_000 }).toBe(1);
     expect(seen[0].method).toBe("PATCH");
@@ -113,11 +116,9 @@ test.describe("the chrome tells the truth", () => {
     await signInAndGo(page, "#/today");
     // The globals are written by the seam's workspace override, which lands
     // after first paint — wait for it rather than reading an empty list.
-    await page.waitForFunction(
-      () => !!(window as unknown as { __WORKSPACES?: unknown[] }).__WORKSPACES,
-      undefined,
-      { timeout: 20_000 },
-    );
+    await page.waitForFunction(() => !!(window as unknown as { __WORKSPACES?: unknown[] }).__WORKSPACES, undefined, {
+      timeout: 20_000,
+    });
     const active = await page.evaluate(() => {
       const w = window as unknown as { __WORKSPACES?: { id: string; name: string }[]; __ACTIVE_WORKSPACE?: string };
       const list = w.__WORKSPACES ?? [];

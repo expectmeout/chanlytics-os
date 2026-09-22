@@ -48,7 +48,12 @@ test("the four rules carry three different guarantees", () => {
   assert.equal(ruleStrength("disclose_ai").strength, "instructed");
   assert.equal(ruleStrength("no_health_advice").strength, "instructed");
   // Every key the editor writes has a strength, and no key has one it does not write.
-  assert.deepEqual([...GUARDRAIL_KEYS].sort(), ["disclose_ai", "never_confirm_booking", "never_quote_prices", "no_health_advice"]);
+  assert.deepEqual([...GUARDRAIL_KEYS].sort(), [
+    "disclose_ai",
+    "never_confirm_booking",
+    "never_quote_prices",
+    "no_health_advice",
+  ]);
   for (const k of GUARDRAIL_KEYS) {
     const r = ruleStrength(k);
     assert.ok(r.chip.length > 0 && r.sentence.length > 0, `${k} needs a chip and a sentence`);
@@ -60,7 +65,10 @@ test("the four rules carry three different guarantees", () => {
   // channels too would print the same fact twice on one row.
   const priced = ruleStrength("never_quote_prices");
   assert.equal(priced.checkedOn?.length, 2);
-  assert.deepEqual(priced.checkedOn.map((c) => c.channel), ["whatsapp", "voice"]);
+  assert.deepEqual(
+    priced.checkedOn.map((c) => c.channel),
+    ["whatsapp", "voice"],
+  );
   // On chat a draft sits in between, so the swap happens before anyone reads it.
   assert.match(priced.checkedOn[0].words, /before the customer sees them/i);
   // On a call there is no before. Saying there is would be the one dishonest sentence
@@ -135,8 +143,15 @@ test("a record with nothing says so without listing every gap", () => {
 /* ---- What it can do: one card, every ability, what each runs on ---- */
 
 const live = {
-  voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true,
-  hasBookingTemplate: true, hasHandoffNumber: true, hasEscalateWhen: true, pauseHours: 24, visionOn: false,
+  voiceLive: true,
+  whatsappLive: true,
+  hasCalendarFeed: true,
+  hasBookingLink: true,
+  hasBookingTemplate: true,
+  hasHandoffNumber: true,
+  hasEscalateWhen: true,
+  pauseHours: 24,
+  visionOn: false,
   bookingHeld: false,
 };
 const idOf = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
@@ -170,8 +185,15 @@ test("an ability names its channels and the row it runs on", () => {
 
 test("an ability whose input is missing says which row to fill", () => {
   const rows = abilityRows({
-    voiceLive: true, whatsappLive: true, hasCalendarFeed: false,
-    hasBookingLink: true, hasHandoffNumber: false, hasEscalateWhen: true, visionOn: false, hasBookingTemplate: true, pauseHours: 24,
+    voiceLive: true,
+    whatsappLive: true,
+    hasCalendarFeed: false,
+    hasBookingLink: true,
+    hasHandoffNumber: false,
+    hasEscalateWhen: true,
+    visionOn: false,
+    hasBookingTemplate: true,
+    pauseHours: 24,
     bookingHeld: false,
   });
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
@@ -185,15 +207,29 @@ test("nothing is ready on a channel that is not answering", () => {
   // setting, not an ability: a workspace with nothing picking up must not be told
   // its receptionist sends the booking link.
   const dark = abilityRows({
-    voiceLive: false, whatsappLive: false, hasCalendarFeed: true,
-    hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true, hasBookingTemplate: true, pauseHours: 24,
+    voiceLive: false,
+    whatsappLive: false,
+    hasCalendarFeed: true,
+    hasBookingLink: true,
+    hasHandoffNumber: true,
+    hasEscalateWhen: true,
+    visionOn: true,
+    hasBookingTemplate: true,
+    pauseHours: 24,
     bookingHeld: false,
   });
   for (const r of dark) assert.equal(r.ready, false, `${r.id} cannot be ready with nothing answering`);
   // And a phone-only workspace has no chat abilities, whatever is filled in.
   const phoneOnly = abilityRows({
-    voiceLive: true, whatsappLive: false, hasCalendarFeed: true,
-    hasBookingLink: true, hasHandoffNumber: true, hasEscalateWhen: true, visionOn: true, hasBookingTemplate: true, pauseHours: 24,
+    voiceLive: true,
+    whatsappLive: false,
+    hasCalendarFeed: true,
+    hasBookingLink: true,
+    hasHandoffNumber: true,
+    hasEscalateWhen: true,
+    visionOn: true,
+    hasBookingTemplate: true,
+    pauseHours: 24,
     bookingHeld: false,
   });
   const byId = Object.fromEntries(phoneOnly.map((r) => [r.id, r]));
@@ -215,19 +251,33 @@ test("with no calendar it does not guess at times, and promises the link only wh
   const row = idOf(abilityRows(noFeed)).open_times;
   assert.equal(row.detail, "No calendar to read, so it does not guess at open times — it sends the link instead.");
   assert.equal(row.ready, false);
-  for (const [what, shape] of [["no WhatsApp", { ...noFeed, whatsappLive: false }], ["no link", { ...noFeed, hasBookingLink: false }], ["bookings held", { ...noFeed, bookingHeld: true }]]) {
-    assert.equal(idOf(abilityRows(shape)).open_times.detail, "No calendar to read, so it does not guess at open times.", what);
+  for (const [what, shape] of [
+    ["no WhatsApp", { ...noFeed, whatsappLive: false }],
+    ["no link", { ...noFeed, hasBookingLink: false }],
+    ["bookings held", { ...noFeed, bookingHeld: true }],
+  ]) {
+    assert.equal(
+      idOf(abilityRows(shape)).open_times.detail,
+      "No calendar to read, so it does not guess at open times.",
+      what,
+    );
   }
 });
 
 test("with a calendar, the link follows the times only where it can go", () => {
   assert.match(idOf(abilityRows(live)).open_times.detail, /It offers up to three that fit, then the link\.$/);
   // A phone-only workspace offers times on a call, and has no way to send the link after them.
-  assert.match(idOf(abilityRows({ ...live, whatsappLive: false })).open_times.detail, /It offers up to three that fit\.$/);
+  assert.match(
+    idOf(abilityRows({ ...live, whatsappLive: false })).open_times.detail,
+    /It offers up to three that fit\.$/,
+  );
   // With bookings held, the call's tool offers no times (retell-availability.ts) while the call
   // starts with the openings (call-start.ts) and chat is handed them; a request to book gets no link on either.
   const held = idOf(abilityRows({ ...live, bookingHeld: true })).open_times;
-  assert.equal(held.detail, "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows.");
+  assert.equal(
+    held.detail,
+    "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows.",
+  );
 });
 
 test("on WhatsApp alone, the link goes in the thread", () => {
@@ -256,7 +306,11 @@ test("the booking link goes by WhatsApp, so a phone-only workspace cannot send i
   assert.match(full.detail, /caller's WhatsApp, when their number has one/i);
 
   for (const shape of [live, { ...live, whatsappLive: false }, { ...live, hasBookingTemplate: false }]) {
-    assert.doesNotMatch(idOf(abilityRows(shape)).booking_link.detail, /\btexts?\b/i, "never 'text': texting is not sold");
+    assert.doesNotMatch(
+      idOf(abilityRows(shape)).booking_link.detail,
+      /\btexts?\b/i,
+      "never 'text': texting is not sold",
+    );
   }
 });
 
@@ -290,19 +344,24 @@ test("a hand-off holds off as long as the Autonomy tab says, and a day when noth
   // 24-hour default). Nothing stored is the common case, and it read "holds off for NaN hours";
   // null and 0 read "an hour" where the product holds a day.
   const said = (h) => idOf(abilityRows({ ...live, pauseHours: h })).handoff.detail;
-  for (const unset of [undefined, null, 0, ""]) assert.match(said(unset), /holds off for a day,/, JSON.stringify(unset));
+  for (const unset of [undefined, null, 0, ""])
+    assert.match(said(unset), /holds off for a day,/, JSON.stringify(unset));
   assert.match(said(4), /holds off for 4 hours,/);
   assert.match(said(72), /holds off for 3 days,/);
   // Every value the Autonomy pane offers (settings.jsx AUT_PAUSE: 1h, 4h, 12h, 24h, 3d).
   const pane = { 1: "an hour", 4: "4 hours", 12: "12 hours", 24: "a day", 72: "3 days" };
-  for (const [hours, words] of Object.entries(pane)) assert.match(said(Number(hours)), new RegExp(`holds off for ${words},`), `${hours}h`);
+  for (const [hours, words] of Object.entries(pane))
+    assert.match(said(Number(hours)), new RegExp(`holds off for ${words},`), `${hours}h`);
   for (const h of [undefined, null, 0, 1, 4, 12, 24, 72]) assert.doesNotMatch(said(h), /NaN/);
 });
 
 test("with the owner's reasons, a hand-off still happens when it can't help", () => {
   // The composer hands over whenever the customer asks for a person or asks something the
   // instructions do not cover, "and whenever" the owner's reasons apply. The reasons widen it.
-  assert.match(idOf(abilityRows(live)).handoff.detail, /^On your reasons, or when a customer asks for a person or it can't help, it stops answering/);
+  assert.match(
+    idOf(abilityRows(live)).handoff.detail,
+    /^On your reasons, or when a customer asks for a person or it can't help, it stops answering/,
+  );
 });
 
 test("with bookings held on the Autonomy tab, the link is not ready, and the row says who holds it", () => {
@@ -311,13 +370,31 @@ test("with bookings held on the Autonomy tab, the link is not ready, and the row
   // and "sends it".
   const held = idOf(abilityRows({ ...live, bookingHeld: true })).booking_link;
   assert.equal(held.ready, false);
-  assert.equal(held.detail, "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.");
+  assert.equal(
+    held.detail,
+    "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.",
+  );
   // Missing the link, or WhatsApp, is still said first: those are what the page can fix here.
-  assert.match(idOf(abilityRows({ ...live, bookingHeld: true, hasBookingLink: false })).booking_link.detail, /^No booking link yet/);
-  assert.match(idOf(abilityRows({ ...live, bookingHeld: true, whatsappLive: false })).booking_link.detail, /WhatsApp, which isn't connected/);
+  assert.match(
+    idOf(abilityRows({ ...live, bookingHeld: true, hasBookingLink: false })).booking_link.detail,
+    /^No booking link yet/,
+  );
+  assert.match(
+    idOf(abilityRows({ ...live, bookingHeld: true, whatsappLive: false })).booking_link.detail,
+    /WhatsApp, which isn't connected/,
+  );
   // The page computes the input with the predicate the edge asks (policyAskClass, retell-fn.ts):
   // any mode but auto holds it, fail safe, and the Replies row is not the Booking row.
-  const policies = [null, {}, { booking: { mode: "auto" } }, { booking: { mode: "ask" } }, { booking: { mode: "never" } }, { booking: { mode: "veto" } }, { reply: { mode: "ask" } }, { faq: { mode: "ask" } }];
+  const policies = [
+    null,
+    {},
+    { booking: { mode: "auto" } },
+    { booking: { mode: "ask" } },
+    { booking: { mode: "never" } },
+    { booking: { mode: "veto" } },
+    { reply: { mode: "ask" } },
+    { faq: { mode: "ask" } },
+  ];
   assert.deepEqual(policies.map(bookingHeld), [false, false, false, true, true, true, false, false]);
   for (const p of policies) assert.equal(bookingHeld(p), policyAskClass(p, "booking") === "booking", JSON.stringify(p));
 });
@@ -327,9 +404,22 @@ test("an input left out throws and says which, rather than drawing a card that l
   // and the card would say a line is dark or a switch is off with no error anywhere -- the
   // stance promptBlocks already takes on its own argument.
   const { visionOn: _v, bookingHeld: _b, ...missing } = live;
-  assert.throws(() => abilityRows(missing), (e) => e instanceof TypeError && /visionOn/.test(e.message) && /bookingHeld/.test(e.message) && !/voiceLive/.test(e.message));
-  assert.throws(() => abilityRows({ ...live, voiceLive: "yes" }), (e) => e instanceof TypeError && /voiceLive/.test(e.message));
-  assert.throws(() => abilityRows({ ...live, whatsappLive: 1 }), (e) => e instanceof TypeError && /whatsappLive/.test(e.message));
+  assert.throws(
+    () => abilityRows(missing),
+    (e) =>
+      e instanceof TypeError &&
+      /visionOn/.test(e.message) &&
+      /bookingHeld/.test(e.message) &&
+      !/voiceLive/.test(e.message),
+  );
+  assert.throws(
+    () => abilityRows({ ...live, voiceLive: "yes" }),
+    (e) => e instanceof TypeError && /voiceLive/.test(e.message),
+  );
+  assert.throws(
+    () => abilityRows({ ...live, whatsappLive: 1 }),
+    (e) => e instanceof TypeError && /whatsappLive/.test(e.message),
+  );
   assert.throws(() => abilityRows(undefined), TypeError);
   // pauseHours is not one of them: whatever is stored is read the way the Autonomy pane reads it.
   assert.doesNotThrow(() => abilityRows({ ...live, pauseHours: undefined }));
@@ -368,8 +458,14 @@ test("what it cannot do is stated, and is not a setting", () => {
 test("a text message is not listed as something it cannot do once texting is live", () => {
   // Texting goes live on an active carrier line that is not a rehearsal filing
   // (capabilities.ts). On such a line "not part of what is sold yet" is not true.
-  assert.deepEqual(cannotRows({ smsLive: true }).map((r) => r.id), ["book", "outbound_call"]);
+  assert.deepEqual(
+    cannotRows({ smsLive: true }).map((r) => r.id),
+    ["book", "outbound_call"],
+  );
   // Left out by an untyped caller, it would quietly read as not live.
-  assert.throws(() => cannotRows({}), (e) => e instanceof TypeError && /smsLive/.test(e.message));
+  assert.throws(
+    () => cannotRows({}),
+    (e) => e instanceof TypeError && /smsLive/.test(e.message),
+  );
   assert.throws(() => cannotRows(), TypeError);
 });

@@ -45,14 +45,22 @@ export async function POST(request: Request): Promise<Response> {
 
   let runRow: IngressRunRow | null;
   try {
-    const { data, error } = await db.from("lead_runs").select("id, tenant_id, apify_run_id, state, webhook_token_hash").eq("id", runRowId).maybeSingle();
+    const { data, error } = await db
+      .from("lead_runs")
+      .select("id, tenant_id, apify_run_id, state, webhook_token_hash")
+      .eq("id", runRowId)
+      .maybeSingle();
     if (error) throw new Error(error.message);
     runRow = (data as IngressRunRow | null) ?? null;
   } catch (e) {
     L.error("apify_webhook_read_failed", { error: errField(e) });
     return json(503, { ok: false });
   }
-  const verdict = planApifyIngress({ runRow, tokenOk: !!runRow && tokenMatches(token, runRow.webhook_token_hash), body });
+  const verdict = planApifyIngress({
+    runRow,
+    tokenOk: !!runRow && tokenMatches(token, runRow.webhook_token_hash),
+    body,
+  });
 
   switch (verdict.action) {
     case "refuse":
@@ -64,7 +72,10 @@ export async function POST(request: Request): Promise<Response> {
     case "abort_foreign": {
       // A run started with our token by something that is not our runner: aborted, and the delivery answered so it stops coming.
       const wires = leadWires();
-      if (wires) await wires.apify.abortRun(verdict.apifyRunId).catch((e: unknown) => L.error("apify_webhook_abort_failed", { error: errField(e) }));
+      if (wires)
+        await wires.apify
+          .abortRun(verdict.apifyRunId)
+          .catch((e: unknown) => L.error("apify_webhook_abort_failed", { error: errField(e) }));
       L.warn(verdict.log, { run: runRowId, aborted: verdict.apifyRunId, source: wires ? "on" : "off" });
       return json(200, { ok: true, aborted: !!wires });
     }
@@ -74,10 +85,20 @@ export async function POST(request: Request): Promise<Response> {
         // dataset the delivery named may be nothing, and the RPC takes four arguments
         // whatever it is: an omitted one is a function PostgREST cannot find.
         if (verdict.fill) {
-          const filled = await leadDb(db).runReconcile(verdict.runRowId, verdict.apifyRunId, verdict.fill.datasetId, "running");
+          const filled = await leadDb(db).runReconcile(
+            verdict.runRowId,
+            verdict.apifyRunId,
+            verdict.fill.datasetId,
+            "running",
+          );
           L.info("apify_webhook_filled", { run: verdict.runRowId, filled });
         }
-        const outcome = await scheduleJobOnce(db, { tenantId: verdict.tenantId, kind: "lead_collect", dueAt: new Date(), payload: { run_id: verdict.runRowId, seq: "final" } });
+        const outcome = await scheduleJobOnce(db, {
+          tenantId: verdict.tenantId,
+          kind: "lead_collect",
+          dueAt: new Date(),
+          payload: { run_id: verdict.runRowId, seq: "final" },
+        });
         L.info("apify_webhook_scheduled", { run: verdict.runRowId, outcome });
         return json(200, { ok: true });
       } catch (e) {

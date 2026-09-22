@@ -10,10 +10,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
 import {
-  runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
-  encodeForm, brandTypeFor, refusalWords, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord, type CampaignError,
+  runA2PSaga,
+  smsStateFor,
+  registrationVerdict,
+  LOW_VOLUME_USECASE,
+  deleteCampaignRequest,
+  updateCampaignRequest,
+  encodeForm,
+  brandTypeFor,
+  refusalWords,
+  type A2PPorts,
+  type A2PRequest,
+  type A2PState,
+  type BusinessRecord,
+  type CampaignError,
 } from "./packages/channels.js";
-import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight, optInConfirmation, verbalOptInScript } from "./packages/contracts.js";
+import {
+  formatPhoneDisplay,
+  industryOf,
+  businessRecordProblems,
+  registrationPathOf,
+  registrationPreflight,
+  optInConfirmation,
+  verbalOptInScript,
+} from "./packages/contracts.js";
 import { emitEvent } from "./packages/db.js";
 import { platformTo, recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -62,7 +82,10 @@ export function businessRecordFrom(r: RecordRow): BusinessRecord {
 
 /** The receipts, as the row keeps them. */
 export function a2pStateFrom(l: LineRow): A2PState {
-  const f = (l.facts && typeof l.facts === "object" && !Array.isArray(l.facts) ? l.facts : {}) as Record<string, unknown>;
+  const f = (l.facts && typeof l.facts === "object" && !Array.isArray(l.facts) ? l.facts : {}) as Record<
+    string,
+    unknown
+  >;
   return {
     profileSid: l.profile_sid,
     businessSid: typeof f.a2p_business_sid === "string" ? f.a2p_business_sid : null,
@@ -164,15 +187,17 @@ export function campaignFactsFor(o: {
   // auto-reply is quoted when the whole flow fits with it and referred to
   // otherwise, because it is filed beside the flow as this campaign's own
   // opt-in message, so a reviewer has the words either way.
-  const flowEnding = (autoReply: string) => [
-    `${name} collects opt-in directly from the customer, for one program: replies to what they write, and confirmations and reminders about their own appointments. No promotional messages are sent under this campaign.`,
-    `(1) KEYWORD START on the sign-up page (${o.optInUrl}), public: under "Messages about your visit" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, and to reply HELP for help and STOP to stop; privacy policy and terms are linked on the page. It shows the number; the customer opts in by texting START to it from their own phone and ${autoReply}`,
-    `(2) PAPER FORM (${formUrl}), public: the same statement above an unticked box, signed and dated at the business; staff record it on the profile as "Sign-up form" with the date and keep the sheet.`,
-    `(3) IN PERSON OR ON THE PHONE: staff ask "${script}" and record a yes on the profile as "In person" or "On the phone" with the date and who heard it; a spoken yes is never used for promotions.`,
-    `A first text from a customer is answered in that conversation only and is not an opt-in; appointment messages go only to customers opted in by (1), (2) or (3). STOP at any time ends all messages. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,
-  ].join(" ");
+  const flowEnding = (autoReply: string) =>
+    [
+      `${name} collects opt-in directly from the customer, for one program: replies to what they write, and confirmations and reminders about their own appointments. No promotional messages are sent under this campaign.`,
+      `(1) KEYWORD START on the sign-up page (${o.optInUrl}), public: under "Messages about your visit" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, and to reply HELP for help and STOP to stop; privacy policy and terms are linked on the page. It shows the number; the customer opts in by texting START to it from their own phone and ${autoReply}`,
+      `(2) PAPER FORM (${formUrl}), public: the same statement above an unticked box, signed and dated at the business; staff record it on the profile as "Sign-up form" with the date and keep the sheet.`,
+      `(3) IN PERSON OR ON THE PHONE: staff ask "${script}" and record a yes on the profile as "In person" or "On the phone" with the date and who heard it; a spoken yes is never used for promotions.`,
+      `A first text from a customer is answered in that conversation only and is not an opt-in; appointment messages go only to customers opted in by (1), (2) or (3). STOP at any time ends all messages. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,
+    ].join(" ");
   const quoted = flowEnding(`receives the auto-reply "${confirmation}"`);
-  const messageFlow = quoted.length <= MESSAGE_FLOW_MAX ? quoted : flowEnding("receives the filed opt-in message as the auto-reply");
+  const messageFlow =
+    quoted.length <= MESSAGE_FLOW_MAX ? quoted : flowEnding("receives the filed opt-in message as the auto-reply");
   return {
     // What the campaign IS, in the plainest terms, with the separation stated
     // rather than left to be inferred from the flow.
@@ -366,30 +391,35 @@ export async function unfileMockRegistration(
   }
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of.
-  const cleared = await db.from("lines").update({
-    brand_sid: null,
-    campaign_sid: null,
-    // The MOCK BRAND CANNOT BE DELETED. Twilio answers 405/20004 on
-    // DELETE /v1/a2p/BrandRegistrations/{sid} -- brands are permanent, mock or
-    // not -- and it then refuses a second brand for the same (customer profile,
-    // messaging profile) pair with "Duplicate Brand can not be saved" (20409).
-    // So the pair has to change, and the cheap half to change is the messaging
-    // profile: clearing this resumes the saga at `a2p_profile`, which creates a
-    // fresh bundle, re-attaches the SAME customer profile and company-type end
-    // user to it, and submits it. Nothing that cost anything is redone -- the
-    // business, the representative, the address and the document all stay on
-    // the customer profile, which is the expensive half.
-    //
-    // Without this the refile was refused at the brand step every time, and the
-    // row was left saying nothing was filed while Twilio still held a mock
-    // brand and campaign. Found by running it.
-    a2p_profile_sid: null,
-    reg_mock: false,
-    reg_step: null,
-    sms_state: "registering",
-    last_error: null,
-    state_since: new Date().toISOString(),
-  }).eq("id", line.id).select("*").single();
+  const cleared = await db
+    .from("lines")
+    .update({
+      brand_sid: null,
+      campaign_sid: null,
+      // The MOCK BRAND CANNOT BE DELETED. Twilio answers 405/20004 on
+      // DELETE /v1/a2p/BrandRegistrations/{sid} -- brands are permanent, mock or
+      // not -- and it then refuses a second brand for the same (customer profile,
+      // messaging profile) pair with "Duplicate Brand can not be saved" (20409).
+      // So the pair has to change, and the cheap half to change is the messaging
+      // profile: clearing this resumes the saga at `a2p_profile`, which creates a
+      // fresh bundle, re-attaches the SAME customer profile and company-type end
+      // user to it, and submits it. Nothing that cost anything is redone -- the
+      // business, the representative, the address and the document all stay on
+      // the customer profile, which is the expensive half.
+      //
+      // Without this the refile was refused at the brand step every time, and the
+      // row was left saying nothing was filed while Twilio still held a mock
+      // brand and campaign. Found by running it.
+      a2p_profile_sid: null,
+      reg_mock: false,
+      reg_step: null,
+      sms_state: "registering",
+      last_error: null,
+      state_since: new Date().toISOString(),
+    })
+    .eq("id", line.id)
+    .select("*")
+    .single();
   if (cleared.error) return { ok: false, error: cleared.error.message };
   return { ok: true, row: cleared.data };
 }
@@ -419,13 +449,17 @@ export async function unfileMockRegistration(
  * carrying the CARRIERS' verdict and their reason, and overwriting that with our
  * own pre-check would erase the only record of what they actually said.
  */
-export async function filingProblems(db: Db, line: LineRow, o: {
-  record: RecordRow;
-  /** What the CAMPAIGN will state. Not the record's name, which is what the brand states. */
-  workspaceName: string;
-  /** Whether a customer has any way to say yes yet. Defaults to true: a caller that never looked it up must not block a filing on it. */
-  hasOptInNumber?: boolean;
-}): Promise<string[]> {
+export async function filingProblems(
+  db: Db,
+  line: LineRow,
+  o: {
+    record: RecordRow;
+    /** What the CAMPAIGN will state. Not the record's name, which is what the brand states. */
+    workspaceName: string;
+    /** Whether a customer has any way to say yes yet. Defaults to true: a caller that never looked it up must not block a filing on it. */
+    hasOptInNumber?: boolean;
+  },
+): Promise<string[]> {
   // WHICH registration, and is the record complete FOR IT. The same validator the
   // form and the dashboard route use, on the row as it is stored:
   // `business_records` is already the DTO's shape, so there is nothing to map and
@@ -533,12 +567,17 @@ export async function resubmitRejectedCampaign(
   }
   L.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });
 
-  const cleared = await db.from("lines").update({
-    sms_state: "registering",
-    reg_step: null,
-    last_error: null,
-    state_since: new Date().toISOString(),
-  }).eq("id", line.id).select("*").single();
+  const cleared = await db
+    .from("lines")
+    .update({
+      sms_state: "registering",
+      reg_step: null,
+      last_error: null,
+      state_since: new Date().toISOString(),
+    })
+    .eq("id", line.id)
+    .select("*")
+    .single();
   if (cleared.error) return { ok: false, error: cleared.error.message };
   return { ok: true, row: cleared.data };
 }
@@ -595,13 +634,18 @@ export async function replaceRejectedCampaign(
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of. The
   // brand and the messaging profile stay; only the campaign's receipt goes.
-  const cleared = await db.from("lines").update({
-    campaign_sid: null,
-    reg_step: null,
-    sms_state: "registering",
-    last_error: null,
-    state_since: new Date().toISOString(),
-  }).eq("id", line.id).select("*").single();
+  const cleared = await db
+    .from("lines")
+    .update({
+      campaign_sid: null,
+      reg_step: null,
+      sms_state: "registering",
+      last_error: null,
+      state_since: new Date().toISOString(),
+    })
+    .eq("id", line.id)
+    .select("*")
+    .single();
   if (cleared.error) return { ok: false, error: cleared.error.message };
   return { ok: true, row: cleared.data };
 }
@@ -629,36 +673,41 @@ export interface RegisterResult {
  * registry: nothing is charged, nothing routes, and it expires in thirty
  * days — which is how this path is walked before a customer pays.
  */
-export async function registerLine(db: Db, o: {
-  line: LineRow;
-  record: RecordRow;
-  workspaceName: string;
-  optInUrl: string;
-  privacyUrl: string;
-  termsUrl: string;
-  /** The workspace's own hosted page, `/b/<slug>`: its website and privacy policy when it has none. */
-  hostedUrl?: string | null;
-  /**
-   * Whether a customer has any way to say yes yet.
-   *
-   * The message flow tells the carriers customers opt in by texting this
-   * business. Absent a number, the opt-in page says the business is not set up
-   * to take sign-ups — so the flow would describe something that does not
-   * happen. Defaults to true so a caller that does not know does not block a
-   * filing on a fact it never looked up.
-   */
-  hasOptInNumber?: boolean;
-  mock: boolean;
-  statusCallback?: string;
-}): Promise<RegisterResult> {
+export async function registerLine(
+  db: Db,
+  o: {
+    line: LineRow;
+    record: RecordRow;
+    workspaceName: string;
+    optInUrl: string;
+    privacyUrl: string;
+    termsUrl: string;
+    /** The workspace's own hosted page, `/b/<slug>`: its website and privacy policy when it has none. */
+    hostedUrl?: string | null;
+    /**
+     * Whether a customer has any way to say yes yet.
+     *
+     * The message flow tells the carriers customers opt in by texting this
+     * business. Absent a number, the opt-in page says the business is not set up
+     * to take sign-ups — so the flow would describe something that does not
+     * happen. Defaults to true so a caller that does not know does not block a
+     * filing on a fact it never looked up.
+     */
+    hasOptInNumber?: boolean;
+    mock: boolean;
+    statusCallback?: string;
+  },
+): Promise<RegisterResult> {
   const choice = lineProviderFromEnv();
   const primary = primaryProfileSid();
   const email = platformEmail();
   const state = a2pStateFrom(o.line);
-  if (!choice || choice.name !== "twilio") return { ok: false, error: "no_provider", state, smsState: o.line.sms_state };
+  if (!choice || choice.name !== "twilio")
+    return { ok: false, error: "no_provider", state, smsState: o.line.sms_state };
   if (!primary) return { ok: false, error: "no_primary_profile", state, smsState: o.line.sms_state };
   if (!email) return { ok: false, error: "no_platform_mailbox", state, smsState: o.line.sms_state };
-  if (!o.line.messaging_service_sid) return { ok: false, error: "no_messaging_service", state, smsState: o.line.sms_state };
+  if (!o.line.messaging_service_sid)
+    return { ok: false, error: "no_messaging_service", state, smsState: o.line.sms_state };
   // Checked before a single call is made, because on a real filing an incomplete
   // record is a fee spent on a rejection that arrives days later. The decision
   // itself lives in `filingProblems` above, which the refile path asks too -- so
@@ -675,16 +724,20 @@ export async function registerLine(db: Db, o: {
     // sentences are what the owner has to act on. They are RETURNED as well as
     // stored: the row is read by a page that reloads, and the person who just
     // pressed the button is owed the answer now rather than an error token.
-    await db.from("lines").update({
-      sms_state: "needs_record",
-      last_error: problems.join(" "),
-      state_since: new Date().toISOString(),
-    }).eq("id", o.line.id);
+    await db
+      .from("lines")
+      .update({
+        sms_state: "needs_record",
+        last_error: problems.join(" "),
+        state_since: new Date().toISOString(),
+      })
+      .eq("id", o.line.id);
     return {
       ok: false,
       error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete",
       problems,
-      state, smsState: "needs_record",
+      state,
+      smsState: "needs_record",
     };
   }
 
@@ -716,7 +769,9 @@ export async function registerLine(db: Db, o: {
     try {
       const parsed = JSON.parse(text) as unknown;
       body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-    } catch { body = text ? { text: text.slice(0, 300) } : null; }
+    } catch {
+      body = text ? { text: text.slice(0, 300) } : null;
+    }
     return { status: r.status, body };
   };
 
@@ -735,7 +790,11 @@ export async function registerLine(db: Db, o: {
     brandSid: "brand_sid",
     campaignSid: "campaign_sid",
   };
-  let facts = (o.line.facts && typeof o.line.facts === "object" && !Array.isArray(o.line.facts) ? { ...(o.line.facts as Record<string, unknown>) } : {}) as Record<string, unknown>;
+  let facts = (
+    o.line.facts && typeof o.line.facts === "object" && !Array.isArray(o.line.facts)
+      ? { ...(o.line.facts as Record<string, unknown>) }
+      : {}
+  ) as Record<string, unknown>;
 
   const ports: A2PPorts = {
     send,
@@ -748,7 +807,15 @@ export async function registerLine(db: Db, o: {
     // Twilio's vertical enum. The sole-proprietor end user asks for it by
     // name; the standard path carries it inside the business end user.
     industry: industryOf(record.industry),
-    campaign: campaignFactsFor({ businessName: o.workspaceName, legalName: o.record.legal_name, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl, hostedUrl: o.hostedUrl, lineNumber: formatPhoneDisplay(o.line.e164) }),
+    campaign: campaignFactsFor({
+      businessName: o.workspaceName,
+      legalName: o.record.legal_name,
+      optInUrl: o.optInUrl,
+      privacyUrl: o.privacyUrl,
+      termsUrl: o.termsUrl,
+      hostedUrl: o.hostedUrl,
+      lineNumber: formatPhoneDisplay(o.line.e164),
+    }),
     messagingServiceSid: o.line.messaging_service_sid,
     useCase: LOW_VOLUME_USECASE,
     mock: o.mock,
@@ -764,12 +831,21 @@ export async function registerLine(db: Db, o: {
       let touchedFacts = false;
       for (const [k, v] of Object.entries(patch)) {
         const col = COLUMN_OF[k as keyof A2PState];
-        if (col) { row[col] = v; continue; }
+        if (col) {
+          row[col] = v;
+          continue;
+        }
         const fact = FACT_OF[k as keyof A2PState];
-        if (fact) { facts[fact] = v; touchedFacts = true; }
+        if (fact) {
+          facts[fact] = v;
+          touchedFacts = true;
+        }
       }
       if (touchedFacts) row.facts = facts;
-      const { error } = await db.from("lines").update(row as Database["public"]["Tables"]["lines"]["Update"]).eq("id", o.line.id);
+      const { error } = await db
+        .from("lines")
+        .update(row as Database["public"]["Tables"]["lines"]["Update"])
+        .eq("id", o.line.id);
       if (error) throw new Error(`keeping the registration's receipt: ${error.message}`);
     },
   };
@@ -778,26 +854,33 @@ export async function registerLine(db: Db, o: {
   // owner who incorporates and types their new tax id would otherwise read
   // back as a standard brand while the carriers still hold the narrow one --
   // promising throughput the line does not have.
-  await db.from("lines").update({
-    sms_state: "registering",
-    reg_mock: o.mock,
-    reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR",
-    last_error: null,
-    state_since: new Date().toISOString(),
-  }).eq("id", o.line.id);
+  await db
+    .from("lines")
+    .update({
+      sms_state: "registering",
+      reg_mock: o.mock,
+      reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR",
+      last_error: null,
+      state_since: new Date().toISOString(),
+    })
+    .eq("id", o.line.id);
   const result = await runA2PSaga(state, ports);
   // A campaign that cannot be filed until the carriers finish with the brand
   // is a WAIT: everything asked for was accepted. The row says "waiting on
   // carriers", carries no error, and the next status check files it.
   const waiting = !result.ok && result.pending;
   const smsState = result.ok || waiting ? "registering" : "failed";
-  await db.from("lines").update({
-    sms_state: smsState,
-    reg_step: result.ok ? null : result.step,
-    last_error: result.ok || waiting ? null : result.error,
-    state_since: new Date().toISOString(),
-  }).eq("id", o.line.id);
-  if (result.ok) L.info("a2p_filed", { mock: o.mock, brand: result.state.brandSid, campaign: result.state.campaignSid });
+  await db
+    .from("lines")
+    .update({
+      sms_state: smsState,
+      reg_step: result.ok ? null : result.step,
+      last_error: result.ok || waiting ? null : result.error,
+      state_since: new Date().toISOString(),
+    })
+    .eq("id", o.line.id);
+  if (result.ok)
+    L.info("a2p_filed", { mock: o.mock, brand: result.state.brandSid, campaign: result.state.campaignSid });
   else if (waiting) L.info("a2p_waiting_on_brand", { brand: result.state.brandSid });
   else L.error("a2p_failed", { step: result.step, error: result.error });
   return result.ok
@@ -806,7 +889,10 @@ export async function registerLine(db: Db, o: {
 }
 
 /** Ask Twilio where the brand and the campaign stand, and write it to the row. */
-export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boolean; smsState: string; brand?: string; campaign?: string; error?: string; told?: boolean }> {
+export async function syncRegistration(
+  db: Db,
+  line: LineRow,
+): Promise<{ ok: boolean; smsState: string; brand?: string; campaign?: string; error?: string; told?: boolean }> {
   const choice = lineProviderFromEnv();
   if (!choice || choice.name !== "twilio") return { ok: false, smsState: line.sms_state, error: "no_provider" };
   const basic = (a: { sid: string; token: string }) => `Basic ${Buffer.from(`${a.sid}:${a.token}`).toString("base64")}`;
@@ -825,7 +911,10 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
     // returns from without touching never moves down the queue. Twenty lines
     // with a lost token would otherwise hold every page for ever and the
     // twenty-first would never be asked about at all.
-    await db.from("lines").update({ last_error: "could not read the registration: the line has no credentials on file" }).eq("id", line.id);
+    await db
+      .from("lines")
+      .update({ last_error: "could not read the registration: the line has no credentials on file" })
+      .eq("id", line.id);
     return { ok: false, smsState: line.sms_state, error: "no_line_credentials" };
   }
 
@@ -839,8 +928,12 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   // conflating the two is how a registration sits still for a week looking
   // exactly like one that is progressing.
   const ask = async (acct: { sid: string; token: string }) => ({
-    brand: line.brand_sid ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, acct) : null,
-    campaign: line.messaging_service_sid ? await read(`https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`, acct) : null,
+    brand: line.brand_sid
+      ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, acct)
+      : null,
+    campaign: line.messaging_service_sid
+      ? await read(`https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`, acct)
+      : null,
   });
   const refused = (a: { brand: { status: number } | null; campaign: { status: number } | null }) =>
     [a.brand, a.campaign].some((x) => x && (x.status === 401 || x.status === 403));
@@ -849,12 +942,23 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   if (refused(answers)) {
     const fresh = await refreshLineToken(db, line);
     if (!fresh.ok || !fresh.account) {
-      await db.from("lines").update({ last_error: `could not read the registration: ${fresh.error ?? "the provider refused our credentials"}` }).eq("id", line.id);
+      await db
+        .from("lines")
+        .update({
+          last_error: `could not read the registration: ${fresh.error ?? "the provider refused our credentials"}`,
+        })
+        .eq("id", line.id);
       return { ok: false, smsState: line.sms_state, error: fresh.error ?? "provider_unauthorized" };
     }
     answers = await ask(fresh.account);
     if (refused(answers)) {
-      await db.from("lines").update({ last_error: "could not read the registration: the provider refused the line's credentials even after a refresh" }).eq("id", line.id);
+      await db
+        .from("lines")
+        .update({
+          last_error:
+            "could not read the registration: the provider refused the line's credentials even after a refresh",
+        })
+        .eq("id", line.id);
       return { ok: false, smsState: line.sms_state, error: "provider_unauthorized" };
     }
   }
@@ -875,7 +979,9 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   // smsStateFor's VERIFIED branch says it was written to end. A field read one
   // level too high does not fail; it reads as "the carriers have not answered",
   // which is indistinguishable from a slow week.
-  const usa2p = Array.isArray(campaign?.compliance) ? (campaign.compliance[0] as Record<string, unknown> | undefined) : undefined;
+  const usa2p = Array.isArray(campaign?.compliance)
+    ? (campaign.compliance[0] as Record<string, unknown> | undefined)
+    : undefined;
   const campaignStatus = typeof usa2p?.campaign_status === "string" ? usa2p.campaign_status : null;
   // Twilio says whether the filing it holds is a rehearsal, so it -- not our
   // column -- is the authority on it. A refile that made the campaign real is
@@ -896,22 +1002,25 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   // nothing.
   const refusing = smsState === "rejected" || smsState === "failed";
   const reason = refusing
-    ? refusalWords({
+    ? (refusalWords({
         brandFailureReason: typeof brand?.failure_reason === "string" ? brand.failure_reason : null,
         campaignErrors: Array.isArray(usa2p?.errors) ? (usa2p.errors as CampaignError[]) : null,
-      }) ?? "the carriers sent the registration back"
+      }) ?? "the carriers sent the registration back")
     : null;
   const moved = smsState !== line.sms_state;
-  await db.from("lines").update({
-    sms_state: smsState,
-    reg_mock: mock,
-    last_error: reason,
-    // Only when the state actually MOVED. This sweep runs hourly and wrote it
-    // every time, so `state_since` meant "the last hour" rather than "when this
-    // wait began" -- and the Setup row reads it to say how long the carriers
-    // have had it, which therefore never got past an hour.
-    ...(moved ? { state_since: new Date().toISOString() } : {}),
-  }).eq("id", line.id);
+  await db
+    .from("lines")
+    .update({
+      sms_state: smsState,
+      reg_mock: mock,
+      last_error: reason,
+      // Only when the state actually MOVED. This sweep runs hourly and wrote it
+      // every time, so `state_since` meant "the last hour" rather than "when this
+      // wait began" -- and the Setup row reads it to say how long the carriers
+      // have had it, which therefore never got past an hour.
+      ...(moved ? { state_since: new Date().toISOString() } : {}),
+    })
+    .eq("id", line.id);
 
   // The carriers answering is the whole point of the wait, so the owner is
   // told — once, on the change. The sweep runs hourly; a bell every hour
@@ -927,8 +1036,25 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
     mock,
   });
   if (verdict) {
-    await recordNotification(line.tenant_id, { kind: verdict.kind, title: verdict.title, body: verdict.body, route: verdict.route, about: { type: "line", id: line.id } });
-    await emitEvent(db, line.tenant_id, verdict.event, "setup", "line", line.id, { e164: line.e164, from: line.sms_state, to: smsState, mock }).catch(() => {});
+    await recordNotification(line.tenant_id, {
+      kind: verdict.kind,
+      title: verdict.title,
+      body: verdict.body,
+      route: verdict.route,
+      about: { type: "line", id: line.id },
+    });
+    await emitEvent(db, line.tenant_id, verdict.event, "setup", "line", line.id, {
+      e164: line.e164,
+      from: line.sms_state,
+      to: smsState,
+      mock,
+    }).catch(() => {});
   }
-  return { ok: true, smsState, brand: brandStatus ?? undefined, campaign: campaignStatus ?? undefined, told: !!verdict };
+  return {
+    ok: true,
+    smsState,
+    brand: brandStatus ?? undefined,
+    campaign: campaignStatus ?? undefined,
+    told: !!verdict,
+  };
 }

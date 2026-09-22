@@ -16,11 +16,22 @@ globalThis.window = {
   innerHeight: 900,
   canDo: () => true,
   gate: () => ({}),
-  addEventListener(type, fn, opts) { listeners.push({ type, fn, opts }); },
-  removeEventListener(type, fn) { const i = listeners.findIndex((l) => l.type === type && l.fn === fn); if (i >= 0) listeners.splice(i, 1); },
-  setTimeout: () => 1, clearTimeout() {},
+  addEventListener(type, fn, opts) {
+    listeners.push({ type, fn, opts });
+  },
+  removeEventListener(type, fn) {
+    const i = listeners.findIndex((l) => l.type === type && l.fn === fn);
+    if (i >= 0) listeners.splice(i, 1);
+  },
+  setTimeout: () => 1,
+  clearTimeout() {},
 };
-globalThis.document = { body: { appendChild() {} }, addEventListener() {}, removeEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }) };
+globalThis.document = {
+  body: { appendChild() {} },
+  addEventListener() {},
+  removeEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
+};
 
 let cells = [];
 let seq = 0;
@@ -33,11 +44,39 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
   useMemo: (fn) => fn(),
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
@@ -46,13 +85,25 @@ const { MoreMenu, moreFit } = globalThis.window;
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const find = (tree, pred) => { let hit = null; walk(tree, (n) => { if (!hit && pred(n)) hit = n; }); return hit; };
-const classesOf = (n) => String(n?.props?.className || "").split(" ").filter(Boolean);
+const find = (tree, pred) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && pred(n)) hit = n;
+  });
+  return hit;
+};
+const classesOf = (n) =>
+  String(n?.props?.className || "")
+    .split(" ")
+    .filter(Boolean);
 const menuOf = (tree) => find(tree, (n) => classesOf(n).includes("more-menu"));
 
 /**
@@ -65,7 +116,11 @@ const boxes = ({ trigger, w = 292, h = 296, alignLeft = true, offset = { x: 0, y
   const px = (v) => (v === undefined ? 0 : Number.parseFloat(v));
   const menu = {
     style,
-    classList: { contains: (c) => classes.has(c), toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), add: (c) => classes.add(c) },
+    classList: {
+      contains: (c) => classes.has(c),
+      toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+      add: (c) => classes.add(c),
+    },
     getBoundingClientRect: () => {
       const left = px(style.left) + offset.x;
       const top = px(style.top) + offset.y;
@@ -73,9 +128,15 @@ const boxes = ({ trigger, w = 292, h = 296, alignLeft = true, offset = { x: 0, y
       return { left, top, width: w, height, right: left + w, bottom: top + height };
     },
     // As a browser's Node.contains: it answers for a node, and throws for anything else (the window, say).
-    contains: (t) => { if (!t || typeof t.nodeType !== "number") throw new TypeError("parameter 1 is not of type 'Node'"); return t === INSIDE; },
+    contains: (t) => {
+      if (!t || typeof t.nodeType !== "number") throw new TypeError("parameter 1 is not of type 'Node'");
+      return t === INSIDE;
+    },
   };
-  const wrap = { querySelector: (s) => (s === ":scope > button" ? { getBoundingClientRect: () => trigger } : s === ":scope > .more-menu" ? menu : null) };
+  const wrap = {
+    querySelector: (s) =>
+      s === ":scope > button" ? { getBoundingClientRect: () => trigger } : s === ":scope > .more-menu" ? menu : null,
+  };
   return { wrap, menu, classes };
 };
 const placed = (spec, size = { w: 1440, h: 900 }) => {
@@ -84,7 +145,14 @@ const placed = (spec, size = { w: 1440, h: 900 }) => {
   const b = boxes(spec);
   moreFit(b.wrap);
   const r = b.menu.getBoundingClientRect();
-  return { top: r.top, left: r.left, bottom: r.bottom, maxHeight: b.menu.style.maxHeight, up: b.classes.has("up"), placed: b.classes.has("placed") };
+  return {
+    top: r.top,
+    left: r.left,
+    bottom: r.bottom,
+    maxHeight: b.menu.style.maxHeight,
+    up: b.classes.has("up"),
+    placed: b.classes.has("placed"),
+  };
 };
 // The Leads rail's … on a search row: a 22px button near the rail's right edge.
 const RAIL = (top) => ({ left: 230, right: 252, top, bottom: top + 22 });
@@ -95,7 +163,14 @@ const THE_WINDOW = {};
 
 test("an escaped menu hangs under its trigger at a menu's full width, on the side it names, held inside the window", () => {
   // Room below: under the trigger by the menu's own 8px, hung from the trigger's left edge, so it opens over the table.
-  assert.deepEqual(placed({ trigger: RAIL(300) }), { top: 330, left: 230, bottom: 626, maxHeight: undefined, up: false, placed: true });
+  assert.deepEqual(placed({ trigger: RAIL(300) }), {
+    top: 330,
+    left: 230,
+    bottom: 626,
+    maxHeight: undefined,
+    up: false,
+    placed: true,
+  });
   // Hung from the right edge it would start 40px past the window's left edge; it is held 8px inside instead.
   assert.equal(placed({ trigger: RAIL(300), alignLeft: false }).left, 8);
   // And a trigger at the window's right edge keeps the menu 8px inside that edge.
@@ -115,7 +190,14 @@ test("an escaped menu turns up above its trigger when the window has more room t
 });
 
 test("an escaped menu lands where it was meant to under a transformed ancestor, which makes itself a fixed box's containing block", () => {
-  assert.deepEqual(placed({ trigger: RAIL(300), offset: { x: 40, y: 12 } }), { top: 330, left: 230, bottom: 626, maxHeight: undefined, up: false, placed: true });
+  assert.deepEqual(placed({ trigger: RAIL(300), offset: { x: 40, y: 12 } }), {
+    top: 330,
+    left: 230,
+    bottom: 626,
+    maxHeight: undefined,
+    up: false,
+    placed: true,
+  });
 });
 
 test("a menu that cannot be measured is left alone", () => {
@@ -126,11 +208,17 @@ test("a menu that cannot be measured is left alone", () => {
 });
 
 test("the menu wears .escape only when asked, and an escaped one closes on a scroll outside it or a resize", () => {
-  const items = [{ label: "Rename", icon: "pencil", onClick() {} }, { label: "Find new ones", icon: "refresh", meta: "Only places not already in your leads count", onClick() {} }];
+  const items = [
+    { label: "Rename", icon: "pencil", onClick() {} },
+    { label: "Find new ones", icon: "refresh", meta: "Only places not already in your leads count", onClick() {} },
+  ];
   const open = (props) => {
-    cells = []; seq = 0;
+    cells = [];
+    seq = 0;
     const first = MoreMenu({ items, ...props });
-    find(first, (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").props.onClick({ stopPropagation() {} });
+    find(first, (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").props.onClick({
+      stopPropagation() {},
+    });
     seq = 0;
     return MoreMenu({ items, ...props });
   };
@@ -142,11 +230,16 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
   globalThis.window.innerHeight = 900;
   const b = boxes({ trigger: RAIL(300) });
   listeners.length = 0;
-  cells = [true, { current: b.wrap }]; seq = 0;
+  cells = [true, { current: b.wrap }];
+  seq = 0;
   MoreMenu({ items, escape: true, align: "left" });
   assert.ok(b.classes.has("placed"), "placed as it opens");
   const on = (type) => listeners.find((l) => l.type === type);
-  assert.equal(on("scroll").opts, true, "a scroll anywhere reaches it: it listens in the capture phase, since scroll does not bubble");
+  assert.equal(
+    on("scroll").opts,
+    true,
+    "a scroll anywhere reaches it: it listens in the capture phase, since scroll does not bubble",
+  );
   on("scroll").fn({ target: INSIDE });
   assert.equal(cells[0], true, "its own list scrolling (a menu taller than its room) keeps it open");
   on("scroll").fn({ target: THE_RAIL });
@@ -159,9 +252,13 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
 
   // A menu that does not escape moves with its trigger, so it listens for Escape alone, as before.
   listeners.length = 0;
-  cells = [true, { current: null }]; seq = 0;
+  cells = [true, { current: null }];
+  seq = 0;
   MoreMenu({ items });
-  assert.deepEqual(listeners.map((l) => l.type), ["keydown"]);
+  assert.deepEqual(
+    listeners.map((l) => l.type),
+    ["keydown"],
+  );
 });
 
 test("an item with `checked` is one of a set: a menuitemradio, ticked when chosen, its words in one column with the rest", () => {
@@ -172,18 +269,30 @@ test("an item with `checked` is one of a set: a menuitemradio, ticked when chose
     { label: "Export everyone", icon: "external", onClick() {} },
   ];
   // Drawn open, as the page holds it once its trigger is pressed.
-  cells = [true, { current: null }]; seq = 0;
+  cells = [true, { current: null }];
+  seq = 0;
   const open = MoreMenu({ items });
   const rows = [];
-  walk(open, (n) => { if (n.type === "button" && classesOf(n).includes("more-item")) rows.push(n); });
+  walk(open, (n) => {
+    if (n.type === "button" && classesOf(n).includes("more-item")) rows.push(n);
+  });
   const kids = (n) => (n.props.children || []).flat(Infinity);
-  const said = (n) => kids(n).find((k) => k && k.props && k.props.className === "more-item-label").props.children.join("");
-  assert.deepEqual(rows.map((n) => [said(n), n.props.role, n.props["aria-checked"]]), [
-    ["Needs you first", "menuitemradio", false],
-    ["Latest contact first", "menuitemradio", true],
-    ["Export everyone", "menuitem", undefined],
-  ]);
+  const said = (n) =>
+    kids(n)
+      .find((k) => k && k.props && k.props.className === "more-item-label")
+      .props.children.join("");
+  assert.deepEqual(
+    rows.map((n) => [said(n), n.props.role, n.props["aria-checked"]]),
+    [
+      ["Needs you first", "menuitemradio", false],
+      ["Latest contact first", "menuitemradio", true],
+      ["Export everyone", "menuitem", undefined],
+    ],
+  );
   // Every item of a set draws the tick, and components.css hides it where aria-checked is false, so the words of the
   // one chosen and the rest stand in one column.
-  assert.deepEqual(rows.map((n) => (kids(n).find((k) => k && k.type === "Icon") || { props: {} }).props.name), ["check", "check", "external"]);
+  assert.deepEqual(
+    rows.map((n) => (kids(n).find((k) => k && k.type === "Icon") || { props: {} }).props.name),
+    ["check", "check", "external"],
+  );
 });

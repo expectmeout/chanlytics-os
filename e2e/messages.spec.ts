@@ -15,7 +15,9 @@ test.describe("Templates on a real workspace", () => {
     await signIn(page);
   });
 
-  test("one card per template, the bubble the customer sees, the languages beside it, the sample never shown", async ({ page }) => {
+  test("one card per template, the bubble the customer sees, the languages beside it, the sample never shown", async ({
+    page,
+  }) => {
     await page.goto("/#/messages");
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("messages-real");
@@ -28,13 +30,19 @@ test.describe("Templates on a real workspace", () => {
     const res = await apiGet(page, "/api/v1/templates?all=1");
     expect(res.status()).toBe(200);
     const { data } = await res.json();
-    const wa = data.templates.filter((t: { channel: string; name: string }) => t.channel === "whatsapp" && t.name !== "hello_world");
+    const wa = data.templates.filter(
+      (t: { channel: string; name: string }) => t.channel === "whatsapp" && t.name !== "hello_world",
+    );
     const shown = wa.filter((t: { hidden_at: string | null }) => !t.hidden_at);
     await expect(real).not.toContainText("hello_world");
     await expect(real.getByTestId("templates-hidden")).toHaveCount(wa.length - shown.length > 0 ? 1 : 0);
 
     const hasNumber = (await real.getByTestId("messages-no-number").count()) === 0;
-    const starterNames = await page.evaluate(() => (window as unknown as { __starters?: { list: Array<{ name: string }> } }).__starters?.list.map((s) => s.name) ?? []);
+    const starterNames = await page.evaluate(
+      () =>
+        (window as unknown as { __starters?: { list: Array<{ name: string }> } }).__starters?.list.map((s) => s.name) ??
+        [],
+    );
     // ONE language chip per message, however many languages it has: every starter
     // (with a number), and each message the workspace keeps in the composers,
     // counted once by its name. It was a slot per language, "EN ES" on every row.

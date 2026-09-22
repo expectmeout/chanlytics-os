@@ -18,7 +18,10 @@ async function violationsOn(page: Page, path: string, settle: () => Promise<void
   const seen: string[] = [];
   // A directive the browser ignores in a report-only policy is a note about the header, not a page the policy would break.
   const NOTE = /is ignored when delivered in a report-only policy/i;
-  const onConsole = (m: { text(): string }) => { const t = m.text(); if (VIOLATION.test(t) && !NOTE.test(t)) seen.push(`${path}: ${t.slice(0, 240)}`); };
+  const onConsole = (m: { text(): string }) => {
+    const t = m.text();
+    if (VIOLATION.test(t) && !NOTE.test(t)) seen.push(`${path}: ${t.slice(0, 240)}`);
+  };
   page.on("console", onConsole);
   await page.goto(path);
   await settle();
@@ -27,7 +30,9 @@ async function violationsOn(page: Page, path: string, settle: () => Promise<void
 }
 
 test.describe("Content-Security-Policy, enforced", () => {
-  test("every page carries the policy, with no foreign script origin and no eval, and frame-ancestors beside it", async ({ page }) => {
+  test("every page carries the policy, with no foreign script origin and no eval, and frame-ancestors beside it", async ({
+    page,
+  }) => {
     const res = await page.goto("/login");
     expect(res).not.toBeNull();
     const headers = res!.headers();
@@ -56,11 +61,32 @@ test.describe("Content-Security-Policy, enforced", () => {
       test.setTimeout(180_000);
       await signIn(page);
       const seen: string[] = [];
-      for (const hash of ["#/today", "#/inbox", "#/conversations", "#/live", "#/clients", "#/calendar", "#/outbound", "#/broadcasts", "#/messages", "#/reports", "#/admin/setup", "#/admin/workspace", "#/admin/team", "#/admin/autonomy", "#/admin/notifications", "#/admin/integrations", "#/admin/billing", "#/admin/activity"]) {
-        seen.push(...(await violationsOn(page, `/${hash}`, async () => {
-          await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
-          await page.waitForLoadState("networkidle");
-        })));
+      for (const hash of [
+        "#/today",
+        "#/inbox",
+        "#/conversations",
+        "#/live",
+        "#/clients",
+        "#/calendar",
+        "#/outbound",
+        "#/broadcasts",
+        "#/messages",
+        "#/reports",
+        "#/admin/setup",
+        "#/admin/workspace",
+        "#/admin/team",
+        "#/admin/autonomy",
+        "#/admin/notifications",
+        "#/admin/integrations",
+        "#/admin/billing",
+        "#/admin/activity",
+      ]) {
+        seen.push(
+          ...(await violationsOn(page, `/${hash}`, async () => {
+            await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
+            await page.waitForLoadState("networkidle");
+          })),
+        );
       }
       expect(seen).toEqual([]);
     });

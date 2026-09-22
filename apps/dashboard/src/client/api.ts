@@ -23,7 +23,8 @@ type MethodOf<K extends RouteKey> = (typeof ROUTES)[K]["method"];
 /** A read's query, as its schema declares it; a write has none. */
 type QueryOf<K extends RouteKey> = MethodOf<K> extends "GET" ? InputOf<Routes[K]> : never;
 /** A write's body: the declared schema, or anything JSON for a route that reads its own. */
-type BodyOf<K extends RouteKey> = MethodOf<K> extends "GET" ? never : InputOf<Routes[K]> extends undefined ? unknown : InputOf<Routes[K]>;
+type BodyOf<K extends RouteKey> =
+  MethodOf<K> extends "GET" ? never : InputOf<Routes[K]> extends undefined ? unknown : InputOf<Routes[K]>;
 
 export interface ApiOptions<K extends RouteKey> {
   params?: Params<K>;
@@ -57,10 +58,15 @@ export interface ApiOptions<K extends RouteKey> {
  */
 export type ApiRefusal = { ok: false } & Refusal;
 export type ApiResult<O> = { ok: true; data: O } | ApiRefusal;
-type Envelope = { ok: true; data: unknown } | { ok: false; error?: { code?: string; message?: string; details?: unknown } };
+type Envelope =
+  { ok: true; data: unknown } | { ok: false; error?: { code?: string; message?: string; details?: unknown } };
 
 export class ApiError extends Error {
-  constructor(readonly code: string, readonly status: number, message: string) {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -104,7 +110,8 @@ export function createApi(deps: ApiDeps) {
     const params = (opts.params ?? {}) as Record<string, string>;
     const url = ROUTES[key].path.replace(/\[(\w+)\]/g, (_m, name: string) => encodeURIComponent(params[name] ?? ""));
     const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries((opts.query ?? {}) as Record<string, unknown>)) if (v !== undefined && v !== null) qs.set(k, String(v));
+    for (const [k, v] of Object.entries((opts.query ?? {}) as Record<string, unknown>))
+      if (v !== undefined && v !== null) qs.set(k, String(v));
     const ws = deps.workspace();
     if (ws && !qs.has("workspace")) qs.set("workspace", ws);
     const q = qs.toString();
@@ -126,7 +133,10 @@ export function createApi(deps: ApiDeps) {
     };
   }
 
-  async function send<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): Promise<ApiResult<OutputOf<Routes[K]>>> {
+  async function send<K extends RouteKey>(
+    key: K,
+    opts: ApiOptions<K> = {} as ApiOptions<K>,
+  ): Promise<ApiResult<OutputOf<Routes[K]>>> {
     const isRead = ROUTES[key].method === "GET";
     const url = urlFor(key, opts);
     if (isRead) {
@@ -157,7 +167,15 @@ export function createApi(deps: ApiDeps) {
         // what a page shows and when it may try again, in the owner's words.
         return {
           ok: false,
-          ...refusalOf({ code: e?.code, status: res.status, message: e?.message, details: e?.details, retryAfter: res.headers.get("retry-after"), write: !isRead, nowMs: now() }),
+          ...refusalOf({
+            code: e?.code,
+            status: res.status,
+            message: e?.message,
+            details: e?.details,
+            retryAfter: res.headers.get("retry-after"),
+            write: !isRead,
+            nowMs: now(),
+          }),
         };
       }
       if (!isRead) {
@@ -182,7 +200,9 @@ export function createApi(deps: ApiDeps) {
           if (holds > 0 && r.ok) entry.kept = true;
           else inFlight.delete(url);
         },
-        () => { if (inFlight.get(url) === entry) inFlight.delete(url); },
+        () => {
+          if (inFlight.get(url) === entry) inFlight.delete(url);
+        },
       );
     }
     return p;

@@ -20,9 +20,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { resolveConsent } = await import(
-  pathToFileURL(path.join(here, "../../../apps/edge/lib/consent.ts")).href
-);
+const { resolveConsent } = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/consent.ts")).href);
 
 /** Postgres answered and nobody opted out — the ordinary case. */
 const base = { optOutNow: false, optInNow: false, recorded: false };

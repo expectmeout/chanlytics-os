@@ -72,7 +72,11 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
       "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
     checkedOn: [
       { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
-      { channel: "voice", words: "It has already been heard. A correction goes into the live call, and you are told while it is still up." },
+      {
+        channel: "voice",
+        words:
+          "It has already been heard. A correction goes into the live call, and you are told while it is still up.",
+      },
     ],
   },
   disclose_ai: {
@@ -120,7 +124,11 @@ export interface StandingVM {
 }
 
 const has = (v: unknown): boolean =>
-  typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v as object).length > 0;
+  typeof v === "string"
+    ? v.trim().length > 0
+    : Array.isArray(v)
+      ? v.length > 0
+      : !!v && Object.keys(v as object).length > 0;
 
 /**
  * Three clauses, worst last.
@@ -138,7 +146,11 @@ export function standingLine(i: StandingInputs): StandingVM {
   if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
   if (!has(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
   if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
-  if (!has(p.tone)) gaps.push({ sentence: "It has no voice of its own yet — it answers in nobody in particular's words.", row: "tone" });
+  if (!has(p.tone))
+    gaps.push({
+      sentence: "It has no voice of its own yet — it answers in nobody in particular's words.",
+      row: "tone",
+    });
 
   const answers: string[] = [];
   if (has(p.address)) answers.push("where you are");
@@ -202,7 +214,10 @@ export interface AbilityInputs {
 }
 
 /** The inputs that must be true or false. Typed off AbilityInputs, so a new boolean cannot be left off. */
-const BOOLEAN_INPUTS: Record<{ [K in keyof AbilityInputs]-?: AbilityInputs[K] extends boolean ? K : never }[keyof AbilityInputs], true> = {
+const BOOLEAN_INPUTS: Record<
+  { [K in keyof AbilityInputs]-?: AbilityInputs[K] extends boolean ? K : never }[keyof AbilityInputs],
+  true
+> = {
   voiceLive: true,
   whatsappLive: true,
   hasCalendarFeed: true,
@@ -234,10 +249,17 @@ function heldFor(pauseHours: number): string {
 }
 
 export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
-  if (!i || typeof i !== "object") throw new TypeError("abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.");
-  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof (i as unknown as Record<string, unknown>)[k] !== "boolean");
+  if (!i || typeof i !== "object")
+    throw new TypeError(
+      "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.",
+    );
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter(
+    (k) => typeof (i as unknown as Record<string, unknown>)[k] !== "boolean",
+  );
   if (notBoolean.length) {
-    throw new TypeError(`abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`);
+    throw new TypeError(
+      `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`,
+    );
   }
   const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
   // Nothing is ready on a channel that is not answering. An input filled against a
@@ -286,7 +308,8 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       id: "answer",
       title: "Answer from your facts",
       // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
-      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
+      detail:
+        "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
       ready: answering,

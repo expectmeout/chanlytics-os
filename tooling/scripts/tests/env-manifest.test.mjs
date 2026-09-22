@@ -40,7 +40,13 @@ const MANIFESTS = [
     // src/legacy is the ported mockup and reads no env. middleware.ts sits at
     // the app root and was not scanned at all — the one file every request
     // passes through, reading env to decide the address and the session.
-    sources: ["apps/dashboard/app", "apps/dashboard/src/server", "apps/dashboard/src/lib", "apps/dashboard/src/legacy-bridge", "apps/dashboard/proxy.ts"],
+    sources: [
+      "apps/dashboard/app",
+      "apps/dashboard/src/server",
+      "apps/dashboard/src/lib",
+      "apps/dashboard/src/legacy-bridge",
+      "apps/dashboard/proxy.ts",
+    ],
   },
 ];
 
@@ -85,14 +91,11 @@ function declared(file) {
 // Set by the platform, not by an operator filling in this file.
 const PROVIDED_BY_VERCEL = new Set(["VERCEL_ENV", "VERCEL_URL", "VERCEL_GIT_COMMIT_SHA", "NODE_ENV"]);
 
-const usedBy = (m) =>
-  new Set(m.sources.flatMap((s) => [...envReads(path.join(ROOT, s))]));
+const usedBy = (m) => new Set(m.sources.flatMap((s) => [...envReads(path.join(ROOT, s))]));
 
 for (const m of MANIFESTS) {
   test(`${m.name} documents every env var that code reads`, () => {
-    const missing = [...usedBy(m)]
-      .filter((k) => !declared(m.file).has(k) && !PROVIDED_BY_VERCEL.has(k))
-      .sort();
+    const missing = [...usedBy(m)].filter((k) => !declared(m.file).has(k) && !PROVIDED_BY_VERCEL.has(k)).sort();
     assert.deepEqual(
       missing,
       [],
@@ -104,9 +107,7 @@ for (const m of MANIFESTS) {
     // A stale entry is its own lie: it implies a variable does something, and
     // sends whoever is provisioning an environment looking for a value.
     const used = usedBy(m);
-    const stale = [...declared(m.file)]
-      .filter((k) => !used.has(k) && !PROVIDED_BY_VERCEL.has(k))
-      .sort();
+    const stale = [...declared(m.file)].filter((k) => !used.has(k) && !PROVIDED_BY_VERCEL.has(k)).sort();
     assert.deepEqual(stale, [], `declared in ${m.name} but never read`);
   });
 }

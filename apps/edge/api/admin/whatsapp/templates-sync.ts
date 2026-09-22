@@ -54,7 +54,11 @@ export async function POST(request: Request): Promise<Response> {
 
   const listed = await listTemplates(creds.accessToken, ch.waba_id);
   if (!listed.ok) {
-    L.error("wa_templates_list_failed", { tenant_id: tenantId, status: listed.status, error: listed.error.slice(0, 200) });
+    L.error("wa_templates_list_failed", {
+      tenant_id: tenantId,
+      status: listed.status,
+      error: listed.error.slice(0, 200),
+    });
     return json(502, { ok: false, error: "meta_failed", detail: listed.error });
   }
 
@@ -72,15 +76,26 @@ export async function POST(request: Request): Promise<Response> {
   const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));
   const known = rows.filter((r) => !fresh.includes(r));
   if (known.length) {
-    const { error } = await db
-      .from("templates")
-      .upsert(known.map((r) => ({ ...r, components: r.components as unknown as Json, variables: r.variables as unknown as Json })), { onConflict: "tenant_id,channel,name,language" });
+    const { error } = await db.from("templates").upsert(
+      known.map((r) => ({
+        ...r,
+        components: r.components as unknown as Json,
+        variables: r.variables as unknown as Json,
+      })),
+      { onConflict: "tenant_id,channel,name,language" },
+    );
     if (error) return json(500, { ok: false, error: "write_failed", detail: error.message });
   }
   if (fresh.length) {
-    const { error } = await db
-      .from("templates")
-      .upsert(fresh.map((r) => ({ ...r, components: r.components as unknown as Json, variables: r.variables as unknown as Json, hidden_at: now.toISOString() })), { onConflict: "tenant_id,channel,name,language" });
+    const { error } = await db.from("templates").upsert(
+      fresh.map((r) => ({
+        ...r,
+        components: r.components as unknown as Json,
+        variables: r.variables as unknown as Json,
+        hidden_at: now.toISOString(),
+      })),
+      { onConflict: "tenant_id,channel,name,language" },
+    );
     if (error) return json(500, { ok: false, error: "write_failed", detail: error.message });
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;

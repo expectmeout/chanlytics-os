@@ -31,5 +31,10 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "broadcast",
-  handle: async ({ ctx, req, member }) => createBroadcast(createBroadcastPorts(ctx, member.tenantId), { userId: ctx.userId, body: await jsonBody(req), now: new Date() }),
+  handle: async ({ ctx, req, member }) =>
+    createBroadcast(createBroadcastPorts(ctx, member.tenantId), {
+      userId: ctx.userId,
+      body: await jsonBody(req),
+      now: new Date(),
+    }),
 });

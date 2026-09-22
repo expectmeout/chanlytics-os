@@ -34,7 +34,10 @@ export async function upsertEscalation(
   details: string,
 ): Promise<EscalationOutcome> {
   const { error } = await db.from("escalations").insert({
-    tenant_id: tenantId, conversation_id: conversationId, reason, details,
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    reason,
+    details,
   });
   if (!error) return "opened";
   if (error.code === "23505") {
@@ -42,7 +45,8 @@ export async function upsertEscalation(
     // Whether it said something ELSE is the whole question: asked as an update
     // that only matches a different reason, so the answer is a row count rather
     // than a read and a write with a gap between them.
-    const { data: replaced, error: changeErr } = await db.from("escalations")
+    const { data: replaced, error: changeErr } = await db
+      .from("escalations")
       .update({ details, reason })
       .eq("tenant_id", tenantId)
       .eq("conversation_id", conversationId)
@@ -59,7 +63,8 @@ export async function upsertEscalation(
     // A refresh that did not land must not come back as "refreshed": the caller
     // reads that as "the hold is already open and now says why" and stays quiet,
     // which is how a hold ends up open with a stale reason and nobody paged.
-    const { error: refreshErr } = await db.from("escalations")
+    const { error: refreshErr } = await db
+      .from("escalations")
       .update({ details })
       .eq("tenant_id", tenantId)
       .eq("conversation_id", conversationId)

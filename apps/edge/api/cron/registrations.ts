@@ -65,7 +65,11 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const r = await syncRegistration(db, line);
       if (!r.ok) {
-        if (r.error === "provider_unauthorized" || r.error === "no_line_credentials" || /credentials/.test(r.error ?? "")) {
+        if (
+          r.error === "provider_unauthorized" ||
+          r.error === "no_line_credentials" ||
+          /credentials/.test(r.error ?? "")
+        ) {
           unreadable++;
           L.error("registration_unreadable", { line_id: line.id, error: r.error });
         }
@@ -94,7 +98,10 @@ export async function POST(request: Request): Promise<Response> {
         }
       }
     } catch (e) {
-      L.error("registration_sweep_line_failed", { line_id: line.id, error: e instanceof Error ? e.message : String(e) });
+      L.error("registration_sweep_line_failed", {
+        line_id: line.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
   L.info("registration_sweep", { checked: lines.length, campaigns_filed: filed, states_moved: moved, unreadable });

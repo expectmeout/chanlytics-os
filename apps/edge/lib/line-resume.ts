@@ -55,7 +55,9 @@ export function retryRequestedBy(raw: unknown): "owner" | "support" {
 }
 
 const factsOf = (row: Pick<LineDbRow, "facts">): Record<string, unknown> =>
-  row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? { ...(row.facts as Record<string, unknown>) } : {};
+  row.facts && typeof row.facts === "object" && !Array.isArray(row.facts)
+    ? { ...(row.facts as Record<string, unknown>) }
+    : {};
 
 /** The automatic tries this line has had since a person last pressed Retry. */
 export function automaticResumesOf(row: Pick<LineDbRow, "facts">): number {
@@ -90,7 +92,13 @@ export async function claimLineForResume(
     ...(by === "sweep" ? {} : { facts: { ...factsOf(row), automatic_resumes: 0 } as Json }),
   };
   if (row.voice_state === "failed") {
-    const { data, error } = await db.from("lines").update(values).eq("id", row.id).eq("voice_state", "failed").select("*").maybeSingle();
+    const { data, error } = await db
+      .from("lines")
+      .update(values)
+      .eq("id", row.id)
+      .eq("voice_state", "failed")
+      .select("*")
+      .maybeSingle();
     if (error) throw new Error(`claim_line: ${error.message}`);
     return data ?? null;
   }
@@ -98,7 +106,14 @@ export async function claimLineForResume(
     // The same deadline `lineStuckProvisioning` reads, as a filter: a saga that is
     // genuinely still running has a `state_since` inside it and is never taken.
     const cutoff = new Date(nowMs - PROVISIONING_DEADLINE_MS).toISOString();
-    const { data, error } = await db.from("lines").update(values).eq("id", row.id).eq("voice_state", "provisioning").lt("state_since", cutoff).select("*").maybeSingle();
+    const { data, error } = await db
+      .from("lines")
+      .update(values)
+      .eq("id", row.id)
+      .eq("voice_state", "provisioning")
+      .lt("state_since", cutoff)
+      .select("*")
+      .maybeSingle();
     if (error) throw new Error(`claim_line: ${error.message}`);
     return data ?? null;
   }
@@ -120,7 +135,10 @@ export async function claimLineForResume(
  * keeps `provisioning` with a fresh `state_since`, which holds it off until the
  * deadline passes.
  */
-export async function countAutomaticResume(db: Db, row: LineDbRow): Promise<{ ok: true; row: LineDbRow } | { ok: false; error: string }> {
+export async function countAutomaticResume(
+  db: Db,
+  row: LineDbRow,
+): Promise<{ ok: true; row: LineDbRow } | { ok: false; error: string }> {
   const facts = { ...factsOf(row), automatic_resumes: automaticResumesOf(row) + 1 } as Json;
   const { error } = await db.from("lines").update({ facts }).eq("id", row.id);
   if (error) return { ok: false, error: error.message };
@@ -178,14 +196,25 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
     .limit(limit);
   if (error) throw new Error(`lines_sweep_read: ${error.message}`);
 
-  const out: StuckSweepResult = { stuck: (rows ?? []).length, resumed: 0, failed: 0, gaveUp: 0, skipped: 0, unreadable: 0 };
+  const out: StuckSweepResult = {
+    stuck: (rows ?? []).length,
+    resumed: 0,
+    failed: 0,
+    gaveUp: 0,
+    skipped: 0,
+    unreadable: 0,
+  };
   for (const row of rows ?? []) {
     // The workspace first, and only then the take: a line whose workspace cannot be
     // read is left untouched for the next tick rather than taken and abandoned.
     const t = await db.from("tenants").select("id, name").eq("id", row.tenant_id).maybeSingle();
     if (t.error || !t.data) {
       out.unreadable += 1;
-      deps.log.error("lines_sweep_no_workspace", { line_id: row.id, tenant_id: row.tenant_id, error: t.error?.message ?? "not found" });
+      deps.log.error("lines_sweep_no_workspace", {
+        line_id: row.id,
+        tenant_id: row.tenant_id,
+        error: t.error?.message ?? "not found",
+      });
       continue;
     }
 
@@ -194,7 +223,10 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
       taken = await claimLineForResume(db, row, deps.now(), "sweep");
     } catch (e) {
       out.failed += 1;
-      deps.log.error("lines_sweep_claim_failed", { line_id: row.id, error: e instanceof Error ? e.message : String(e) });
+      deps.log.error("lines_sweep_claim_failed", {
+        line_id: row.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
       continue;
     }
     if (!taken) {
@@ -250,7 +282,10 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
       // Died outside its own error handling. The try is counted and the row keeps
       // `provisioning`, so the next tick after the deadline takes it again.
       out.failed += 1;
-      deps.log.error("lines_sweep_resume_threw", { line_id: taken.id, error: e instanceof Error ? e.message : String(e) });
+      deps.log.error("lines_sweep_resume_threw", {
+        line_id: taken.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
   return out;

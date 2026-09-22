@@ -32,7 +32,10 @@ const Body = z
     hidden: z.boolean().optional(),
     title: z.string().nullable().optional(),
   })
-  .refine((b) => b.hidden !== undefined || b.title !== undefined, "Say what changes: whether it is hidden, or its title.");
+  .refine(
+    (b) => b.hidden !== undefined || b.title !== undefined,
+    "Say what changes: whether it is hidden, or its title.",
+  );
 
 export const PUT = write({
   scope: templateScope,
@@ -43,16 +46,29 @@ export const PUT = write({
     const id = tpl.id;
     const hasHidden = input.hidden !== undefined;
     const hasTitle = input.title !== undefined;
-    const title = hasTitle ? String(input.title ?? "").replace(/\s+/g, " ").trim().slice(0, TEMPLATE_TITLE_MAX) : undefined;
+    const title = hasTitle
+      ? String(input.title ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, TEMPLATE_TITLE_MAX)
+      : undefined;
     if (hasHidden) {
-      const { error: dErr } = await ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: input.hidden === true });
+      const { error: dErr } = await ctx.supabase.rpc("set_template_hidden", {
+        p_template_id: id,
+        p_hidden: input.hidden === true,
+      });
       if (dErr) throw new Error(dErr.message);
     }
     if (hasTitle) {
       const { error: tErr } = await ctx.supabase.rpc("set_template_title", { p_template_id: id, p_title: title || "" });
       if (tErr) throw new Error(tErr.message);
     }
-    return { id, name: tpl.name, ...(hasHidden ? { hidden: input.hidden === true } : {}), ...(hasTitle ? { title: title || null } : {}) };
+    return {
+      id,
+      name: tpl.name,
+      ...(hasHidden ? { hidden: input.hidden === true } : {}),
+      ...(hasTitle ? { title: title || null } : {}),
+    };
   },
 });
 
@@ -86,7 +102,11 @@ export const DELETE = write({
     const r = await deleteTemplate(tpl.tenant_id, id);
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The template could not be deleted (${r.reason}).`;
-      throw new AppError(r.reason === "not_found" ? "not_found" : "upstream_meta", said, r.reason === "not_found" ? 404 : 502);
+      throw new AppError(
+        r.reason === "not_found" ? "not_found" : "upstream_meta",
+        said,
+        r.reason === "not_found" ? 404 : 502,
+      );
     }
     return { deleted: true, id, name: tpl.name, language: tpl.language, at_meta: r.atMeta };
   },

@@ -31,7 +31,10 @@ const teamRoute = readCode("apps/dashboard/app/api/v1/team/route.ts");
 test("the roster refuses a caller who is not in the workspace", () => {
   // A definer function that reads auth.users without checking who is asking is
   // an email-enumeration endpoint for every workspace at once.
-  assert.match(sql, /from public\.memberships m\s*\n\s*where m\.tenant_id = p_tenant_id and m\.user_id = auth\.uid\(\)/);
+  assert.match(
+    sql,
+    /from public\.memberships m\s*\n\s*where m\.tenant_id = p_tenant_id and m\.user_id = auth\.uid\(\)/,
+  );
   assert.match(sql, /raise exception 'Not a member of this workspace\.' using errcode = '42501'/);
 });
 

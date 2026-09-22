@@ -13,7 +13,16 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  *
  * Intercepts its own PUT, so the workspace's policy is never changed.
  */
-const INVENTED = ["conf ≥ 0.8", "Kayla", "birthday 20%", "Quiet hours", "New-client outreach", "Per-segment guardrails", "auto-sent", "Discounts above 15%"];
+const INVENTED = [
+  "conf ≥ 0.8",
+  "Kayla",
+  "birthday 20%",
+  "Quiet hours",
+  "New-client outreach",
+  "Per-segment guardrails",
+  "auto-sent",
+  "Discounts above 15%",
+];
 
 test.describe("Settings → Autonomy on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -21,7 +30,9 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the matrix is the policies table: reply live, money locked, the rest honest about enforcement", async ({ page }) => {
+  test("the matrix is the policies table: reply live, money locked, the rest honest about enforcement", async ({
+    page,
+  }) => {
     await page.goto("/#/admin/autonomy");
     await page.waitForLoadState("networkidle");
     const table = page.locator(".pol-table");
@@ -73,7 +84,9 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     await expect(page.getByTestId("aut-pause").locator(".cl-tab.active")).toHaveText(/^\d+h$/);
   });
 
-  test("changing the reply mode issues a workspace-scoped PUT with the class and mode — intercepted", async ({ page }) => {
+  test("changing the reply mode issues a workspace-scoped PUT with the class and mode — intercepted", async ({
+    page,
+  }) => {
     await page.goto("/#/admin/autonomy");
     await page.waitForLoadState("networkidle");
     const reply = page.locator(".pol-table tbody tr").filter({ hasText: "Replies to customers" });

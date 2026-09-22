@@ -74,8 +74,10 @@ export async function POST(request: Request): Promise<Response> {
       { tenantId: null, notifications: null, isEnvDefault: true },
       {
         subject: "Background sweeps are answering again",
-        body: `These were failing and are now answering normally:\n\n` +
-              plan.recovered.map((s) => `  - ${s}`).join("\n") + `\n`,
+        body:
+          `These were failing and are now answering normally:\n\n` +
+          plan.recovered.map((s) => `  - ${s}`).join("\n") +
+          `\n`,
       },
     );
   }
@@ -95,7 +97,12 @@ export async function POST(request: Request): Promise<Response> {
   if (backlogErr) L.error("sweep_health_backlog_unreadable", { error: backlogErr.message });
   const due = typeof backlog === "number" ? backlog : 0;
   if (due > 0) {
-    await pageOperator({ db }, "jobs_backlog", `${due} due jobs have waited more than two minutes`, "The heartbeat is scheduled but not draining. Check sweep_health for 'jobs' and the tick's Vercel logs.");
+    await pageOperator(
+      { db },
+      "jobs_backlog",
+      `${due} due jobs have waited more than two minutes`,
+      "The heartbeat is scheduled but not draining. Check sweep_health for 'jobs' and the tick's Vercel logs.",
+    );
   }
 
   // WhatsApp messages that never heard back, in a workspace where nothing

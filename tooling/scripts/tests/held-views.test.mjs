@@ -11,11 +11,15 @@ import assert from "node:assert/strict";
 
 globalThis.window = { location: { pathname: "/w/salon" } };
 const { heldViews } = await import("../../../apps/dashboard/src/legacy-bridge/held-views.ts");
-const at = (path) => { globalThis.window.location.pathname = path; };
+const at = (path) => {
+  globalThis.window.location.pathname = path;
+};
 
 test("the last N views are held, the newest kept: holding one again makes it the newest", () => {
   const v = heldViews(3);
-  v.hold("a", 1); v.hold("b", 2); v.hold("c", 3);
+  v.hold("a", 1);
+  v.hold("b", 2);
+  v.hold("c", 3);
   v.hold("a", 10);
   v.hold("d", 4);
   assert.equal(v.get("b"), undefined, "the oldest went");

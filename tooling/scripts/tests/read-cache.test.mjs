@@ -17,16 +17,24 @@ globalThis.window.location = { pathname: "/w/salon", hash: "" };
 
 const { readCache, clearReadCaches } = await import("../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 
-const asWorkspace = (slug) => { globalThis.window.location.pathname = `/w/${slug}`; };
+const asWorkspace = (slug) => {
+  globalThis.window.location.pathname = `/w/${slug}`;
+};
 
-beforeEach(() => { asWorkspace("salon"); clearReadCaches(); });
+beforeEach(() => {
+  asWorkspace("salon");
+  clearReadCaches();
+});
 
 test("nothing is held until a read goes through it, and then the next paint is synchronous", async () => {
   const c = readCache("rows");
   assert.equal(c.peek("a"), null, "a cold tab holds nothing");
 
   let reads = 0;
-  const fresh = async () => { reads++; return { ok: true, rows: [1, 2, 3] }; };
+  const fresh = async () => {
+    reads++;
+    return { ok: true, rows: [1, 2, 3] };
+  };
   const first = await c.through("a", fresh);
   assert.deepEqual(first.rows, [1, 2, 3]);
   assert.equal(reads, 1);
@@ -62,7 +70,10 @@ test("an answer read under one workspace is invisible under another", async () =
 test("warming reads once, and not at all for something already held", async () => {
   const c = readCache("rows");
   let reads = 0;
-  const fresh = async () => { reads++; return { ok: true, rows: [reads] }; };
+  const fresh = async () => {
+    reads++;
+    return { ok: true, rows: [reads] };
+  };
 
   c.warm("a", fresh);
   await new Promise((r) => setTimeout(r, 0));
@@ -76,7 +87,9 @@ test("warming reads once, and not at all for something already held", async () =
 
 test("a read that throws while warming is swallowed: nothing on the page asked for it", async () => {
   const c = readCache("rows");
-  c.warm("a", async () => { throw new Error("offline"); });
+  c.warm("a", async () => {
+    throw new Error("offline");
+  });
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(c.peek("a"), null, "and nothing is held");
 });
@@ -111,7 +124,7 @@ test("a log paged deep does not evict its own head", async () => {
   assert.equal(c.peek("page-1"), null, "the oldest one goes instead");
 });
 
-test("a \"not in your workspace\" is never held: it is the one answer that changes the moment somebody is added", async () => {
+test('a "not in your workspace" is never held: it is the one answer that changes the moment somebody is added', async () => {
   // The person cache is built with exactly this rule (legacy-bridge/people-detail.ts).
   const c = readCache("person", (vm) => vm !== null);
   await c.through("p-1", async () => null);

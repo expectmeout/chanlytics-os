@@ -78,7 +78,12 @@ export interface DuePage<T> {
  * key that is absent reads as SQL NULL either way; the text form also excludes
  * a key explicitly set to JSON null, which has no feed either.
  */
-export async function calendarDue(db: Db, now: Date, limit: number, minAgeMs = 55 * 60_000): Promise<DuePage<{ tenant_id: string; config: unknown }>> {
+export async function calendarDue(
+  db: Db,
+  now: Date,
+  limit: number,
+  minAgeMs = 55 * 60_000,
+): Promise<DuePage<{ tenant_id: string; config: unknown }>> {
   const before = new Date(now.getTime() - minAgeMs).toISOString();
   const due = `calendar_checked_at.is.null,calendar_checked_at.lt.${before}`;
   const { data, error, count } = await db
@@ -95,7 +100,10 @@ export async function calendarDue(db: Db, now: Date, limit: number, minAgeMs = 5
 
 /** Stamp a workspace as read. Only ever on SUCCESS: a failure leaves it due, which self-heals next tick. */
 export async function markCalendarChecked(db: Db, tenantId: string, now: Date): Promise<void> {
-  const { error } = await db.from("tenant_config").update({ calendar_checked_at: now.toISOString() }).eq("tenant_id", tenantId);
+  const { error } = await db
+    .from("tenant_config")
+    .update({ calendar_checked_at: now.toISOString() })
+    .eq("tenant_id", tenantId);
   if (error) throw new Error(`stamping the calendar read: ${error.message}`);
 }
 
@@ -106,7 +114,10 @@ export async function markCalendarChecked(db: Db, tenantId: string, now: Date): 
  * unlike the calendar this needed no new column, only the ordering and the cap
  * it never had.
  */
-export async function playbooksDue(db: Db, limit: number): Promise<DuePage<Database["public"]["Tables"]["playbooks"]["Row"]>> {
+export async function playbooksDue(
+  db: Db,
+  limit: number,
+): Promise<DuePage<Database["public"]["Tables"]["playbooks"]["Row"]>> {
   const { data, error, count } = await db
     .from("playbooks")
     .select("*", { count: "exact" })
@@ -125,7 +136,11 @@ export async function playbooksDue(db: Db, limit: number): Promise<DuePage<Datab
  * Never throws: a sweep that did its work must not report failure because its
  * own bookkeeping could not be written.
  */
-export async function noteBacklog(db: Db, sweep: string, remaining: number): Promise<{ ticks: number; alarm: boolean }> {
+export async function noteBacklog(
+  db: Db,
+  sweep: string,
+  remaining: number,
+): Promise<{ ticks: number; alarm: boolean }> {
   const { data, error } = await db.rpc("note_sweep_backlog", { p_sweep: sweep, p_remaining: remaining });
   if (error) return { ticks: 0, alarm: false };
   const ticks = typeof data === "number" ? data : 0;

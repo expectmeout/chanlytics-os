@@ -41,7 +41,13 @@ import { api as client } from "./api";
 import type { Input } from "../client/api";
 import { getActiveWorkspace } from "./workspace";
 
-export const FEED_EVENTS = ["surface:inbox", "surface:live", "surface:settings", "surface:workspace", "surface:notifications"] as const;
+export const FEED_EVENTS = [
+  "surface:inbox",
+  "surface:live",
+  "surface:settings",
+  "surface:workspace",
+  "surface:notifications",
+] as const;
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -95,7 +101,11 @@ export function readState(storage: StorageLike | null, workspaceId: string | nul
   }
 }
 
-export function writeState(storage: StorageLike | null, workspaceId: string | null, state: NotificationReadState): void {
+export function writeState(
+  storage: StorageLike | null,
+  workspaceId: string | null,
+  state: NotificationReadState,
+): void {
   if (!storage) return;
   try {
     storage.setItem(storageKey(workspaceId), JSON.stringify(state));
@@ -174,8 +184,14 @@ export function installNotifications(
    */
   const prune = (s: NotificationReadState): NotificationReadState => {
     const live = new Set(feedFromGlobals(win, Date.now()).map((i) => i.key));
-    const loaded = { threads: Array.isArray(win.INBOX_DATA?.THREADS), calls: !!win.__LIVE, invites: Array.isArray(win.__TEAM_INVITES) };
-    const keep = (k: string) => live.has(k) || !(k.startsWith("call:") ? loaded.calls : k.startsWith("invite:") ? loaded.invites : loaded.threads);
+    const loaded = {
+      threads: Array.isArray(win.INBOX_DATA?.THREADS),
+      calls: !!win.__LIVE,
+      invites: Array.isArray(win.__TEAM_INVITES),
+    };
+    const keep = (k: string) =>
+      live.has(k) ||
+      !(k.startsWith("call:") ? loaded.calls : k.startsWith("invite:") ? loaded.invites : loaded.threads);
     return { ...s, read: s.read.filter(keep), dismissed: s.dismissed.filter(keep) };
   };
   const save = (patch: Partial<NotificationReadState>) => {
@@ -185,7 +201,11 @@ export function installNotifications(
   // What the surfaces derive (read marks on this device, the seen moment
   // the server's) beside what the workspace keeps (marks on the server),
   // newest first.
-  const rows = () => dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), deviceState()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at);
+  const rows = () =>
+    dedupeFeed([
+      ...applyReadState(feedFromGlobals(win, Date.now()), deviceState()),
+      ...serverNotificationRows(win.__NOTIFICATIONS?.dto),
+    ]).sort((a, b) => b.at - a.at);
   const isKept = (key: string) => key.startsWith(SERVER_KEY_PREFIX);
   // A kept row's marks go to the server, and the refresh map re-reads the
   // surface after one lands, so every device agrees; a failure here loses a
@@ -233,13 +253,38 @@ export function installNotifications(
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
     unread: () => unreadCount(rows()),
-    seenAll: () => { save({ seenAt: Date.now() }); void mark({ seen: true }); },
-    read: (key) => { if (isKept(key)) { void mark({ id: key.slice(SERVER_KEY_PREFIX.length), read: true }); return; } save({ read: [...new Set([...state().read, key])] }); },
-    dismiss: (key) => { if (isKept(key)) { void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: true }); return; } save({ dismissed: [...new Set([...state().dismissed, key])] }); },
-    restore: (key) => { if (isKept(key)) { void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: false }); return; } save({ dismissed: state().dismissed.filter((k) => k !== key) }); },
+    seenAll: () => {
+      save({ seenAt: Date.now() });
+      void mark({ seen: true });
+    },
+    read: (key) => {
+      if (isKept(key)) {
+        void mark({ id: key.slice(SERVER_KEY_PREFIX.length), read: true });
+        return;
+      }
+      save({ read: [...new Set([...state().read, key])] });
+    },
+    dismiss: (key) => {
+      if (isKept(key)) {
+        void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: true });
+        return;
+      }
+      save({ dismissed: [...new Set([...state().dismissed, key])] });
+    },
+    restore: (key) => {
+      if (isKept(key)) {
+        void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: false });
+        return;
+      }
+      save({ dismissed: state().dismissed.filter((k) => k !== key) });
+    },
     alerts: () => {
       const N = (win as unknown as { Notification?: typeof Notification }).Notification;
-      return { on: state().alerts && !!N && N.permission === "granted", can: !!N, permission: N ? N.permission : "unsupported" };
+      return {
+        on: state().alerts && !!N && N.permission === "granted",
+        can: !!N,
+        permission: N ? N.permission : "unsupported",
+      };
     },
     setAlerts: async (on) => {
       const N = (win as unknown as { Notification?: typeof Notification }).Notification;
@@ -249,7 +294,11 @@ export function installNotifications(
       }
       let permission = N.permission;
       if (permission === "default") {
-        try { permission = await N.requestPermission(); } catch { permission = "denied"; }
+        try {
+          permission = await N.requestPermission();
+        } catch {
+          permission = "denied";
+        }
       }
       save({ alerts: permission === "granted" });
       return { on: permission === "granted", permission };

@@ -220,7 +220,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   // wait for its answer, so no read is issued that the server would have to
   // guess at; and it does not guess: an unnamed read from an account in two
   // workspaces is refused (plan 3.4).
-  const workspaceFirst = getActiveWorkspace() ? null : overrides.find((o) => o.key === "workspace") ?? null;
+  const workspaceFirst = getActiveWorkspace() ? null : (overrides.find((o) => o.key === "workspace") ?? null);
   // Who you are, then what you are looking at, then the rest -- through four
   // lanes rather than all at once. Identity leads even on a workspace page,
   // where it does not BLOCK the others: the shell reads __ME to decide what a
@@ -236,7 +236,13 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   // go of it) or an event the feed would not yet have delivered anyway.
   const releaseAnswers = api().holdAnswers();
   const booted = workspaceFirst
-    ? boot(workspaceFirst).then(() => inLanes(queued.filter((o) => o !== workspaceFirst), BOOT_LANES, boot))
+    ? boot(workspaceFirst).then(() =>
+        inLanes(
+          queued.filter((o) => o !== workspaceFirst),
+          BOOT_LANES,
+          boot,
+        ),
+      )
     : inLanes(queued, BOOT_LANES, boot);
   void booted.then(() => {
     releaseAnswers();
@@ -279,7 +285,11 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     againRunning = true;
     const onScreen = surfaceOnScreen(window);
     const first = (o: SurfaceOverride) => (o.key === onScreen ? 0 : 1);
-    void inLanes([...overrides].sort((x, y) => first(x) - first(y)), BOOT_LANES, (o) => refresh(o, "refresh")).finally(() => {
+    void inLanes(
+      [...overrides].sort((x, y) => first(x) - first(y)),
+      BOOT_LANES,
+      (o) => refresh(o, "refresh"),
+    ).finally(() => {
       againRunning = false;
     });
   };

@@ -20,7 +20,18 @@ import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { emitEvent } from "../../../lib/packages/db.js";
 import type { Json } from "../../../lib/packages/db.js";
-import { alreadyRegistered, exchangeCode, metaAppId, newPin, phoneNumber, pinMismatch, registerNumber, subscribeWaba, toE164, wabaInfo } from "../../../lib/meta-graph.js";
+import {
+  alreadyRegistered,
+  exchangeCode,
+  metaAppId,
+  newPin,
+  phoneNumber,
+  pinMismatch,
+  registerNumber,
+  subscribeWaba,
+  toE164,
+  wabaInfo,
+} from "../../../lib/meta-graph.js";
 import { env } from "../../../lib/env.js";
 import { logger } from "../../../lib/log.js";
 
@@ -35,7 +46,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!appId || !appSecret) return json(503, { ok: false, error: "no_app_credentials" });
 
   let body: { tenant_id?: string; user_id?: string; code?: string; phone_number_id?: string; waba_id?: string } = {};
-  try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* below */
+  }
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -44,7 +59,14 @@ export async function POST(request: Request): Promise<Response> {
   const code = String(body.code || "").trim();
   const phoneNumberId = String(body.phone_number_id || "").trim();
   const wabaId = String(body.waba_id || "").trim();
-  if (!UUID.test(tenantId) || !UUID.test(userId) || !code || code.length > 2000 || !ID.test(phoneNumberId) || !ID.test(wabaId)) {
+  if (
+    !UUID.test(tenantId) ||
+    !UUID.test(userId) ||
+    !code ||
+    code.length > 2000 ||
+    !ID.test(phoneNumberId) ||
+    !ID.test(wabaId)
+  ) {
     return json(400, { ok: false, error: "tenant_id, user_id, code, phone_number_id and waba_id required" });
   }
   const db = pg();
@@ -58,7 +80,12 @@ export async function POST(request: Request): Promise<Response> {
   // another workspace's, whose tenant_id and Vault token it would rewrite. A
   // read that failed says nothing about who holds the number, and treating it
   // as "nobody" is how a pooler blip moved a live number between workspaces.
-  const { data: taken, error: takenErr } = await db.from("tenant_channels").select("id, tenant_id").eq("kind", "whatsapp").eq("external_id", phoneNumberId).maybeSingle();
+  const { data: taken, error: takenErr } = await db
+    .from("tenant_channels")
+    .select("id, tenant_id")
+    .eq("kind", "whatsapp")
+    .eq("external_id", phoneNumberId)
+    .maybeSingle();
   if (takenErr) {
     L.info("wa_connect_channel_read_failed", { error: takenErr.message });
     return json(503, { ok: false, error: "channel_read_failed" });
@@ -122,7 +149,15 @@ export async function POST(request: Request): Promise<Response> {
   // even if the read above was answered wrongly: the update touches only a row
   // this workspace already owns, and the insert that follows a miss trips the
   // unique index (23505) when the number belongs to someone else.
-  const fields = { tenant_id: tenantId, kind: "whatsapp" as const, external_id: phoneNumberId, number_e164: e164, waba_id: wabaId, status: "active", config: config as unknown as Json };
+  const fields = {
+    tenant_id: tenantId,
+    kind: "whatsapp" as const,
+    external_id: phoneNumberId,
+    number_e164: e164,
+    waba_id: wabaId,
+    status: "active",
+    config: config as unknown as Json,
+  };
   const mine = await db
     .from("tenant_channels")
     .update(fields)
@@ -142,7 +177,12 @@ export async function POST(request: Request): Promise<Response> {
       // Embedded Signup twice because the first attempt's four Graph calls
       // outlasted their patience — and telling them their own number belongs
       // to somebody else would be a worse answer than the upsert used to give.
-      const mineNow = await db.from("tenant_channels").select("id, tenant_id").eq("kind", "whatsapp").eq("external_id", phoneNumberId).maybeSingle();
+      const mineNow = await db
+        .from("tenant_channels")
+        .select("id, tenant_id")
+        .eq("kind", "whatsapp")
+        .eq("external_id", phoneNumberId)
+        .maybeSingle();
       if (mineNow.data?.tenant_id === tenantId) {
         L.info("wa_connect_raced_self");
         row = { id: mineNow.data.id };
@@ -173,8 +213,20 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   await emitEvent(db, tenantId, "channel.connected", "system", "channel", row.id, {
-    kind: "whatsapp", phone_number_id: phoneNumberId, waba_id: wabaId, number_e164: e164, verified_name: config.verified_name, by: userId,
+    kind: "whatsapp",
+    phone_number_id: phoneNumberId,
+    waba_id: wabaId,
+    number_e164: e164,
+    verified_name: config.verified_name,
+    by: userId,
   } as unknown as Json).catch(() => {});
   L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration });
-  return json(200, { ok: true, channel_id: row.id, number_e164: e164, verified_name: config.verified_name, quality_rating: config.quality_rating, registration: config.registration });
+  return json(200, {
+    ok: true,
+    channel_id: row.id,
+    number_e164: e164,
+    verified_name: config.verified_name,
+    quality_rating: config.quality_rating,
+    registration: config.registration,
+  });
 }

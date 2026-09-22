@@ -39,7 +39,15 @@ export function DeskSign({ vm, qr, host }: { vm: DeskSignVM; qr: string | null; 
             <p>{vm.terms.join(" ")}</p>
             <p>{vm.operator}</p>
             <p>
-              <span className="sign-addr">Privacy: {host}{vm.links.privacy}</span> · <span className="sign-addr">Terms: {host}{vm.links.terms}</span>
+              <span className="sign-addr">
+                Privacy: {host}
+                {vm.links.privacy}
+              </span>{" "}
+              ·{" "}
+              <span className="sign-addr">
+                Terms: {host}
+                {vm.links.terms}
+              </span>
             </p>
           </div>
         </div>

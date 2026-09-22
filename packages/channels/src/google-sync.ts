@@ -53,7 +53,11 @@ interface NewsItem {
  * summary naming who wrote; with nothing new by name but ratings gained by
  * the count, one row that says why the words are missing.
  */
-export function reviewBells(news: NewsItem[], counted: number, listing: { rating: number | null; review_count: number | null }): ReviewBell[] {
+export function reviewBells(
+  news: NewsItem[],
+  counted: number,
+  listing: { rating: number | null; review_count: number | null },
+): ReviewBell[] {
   if (news.length > 0 && news.length <= REVIEW_BELL_MAX) {
     return news.map((r) => ({
       title: `New on Google: ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
@@ -62,19 +66,26 @@ export function reviewBells(news: NewsItem[], counted: number, listing: { rating
     }));
   }
   if (news.length > REVIEW_BELL_MAX) {
-    const who = news.map((r) => r.author?.trim() || "a customer").slice(0, 5).join(", ");
-    return [{
-      title: `${news.length} new reviews on Google`,
-      body: `From ${who}${news.length > 5 ? " and others" : ""}. ${overall(listing.rating, listing.review_count)}. The words are on Reports.`,
-      review_id: null,
-    }];
+    const who = news
+      .map((r) => r.author?.trim() || "a customer")
+      .slice(0, 5)
+      .join(", ");
+    return [
+      {
+        title: `${news.length} new reviews on Google`,
+        body: `From ${who}${news.length > 5 ? " and others" : ""}. ${overall(listing.rating, listing.review_count)}. The words are on Reports.`,
+        review_id: null,
+      },
+    ];
   }
   if (counted > 0) {
-    return [{
-      title: `${plural(counted, "new rating")} on Google`,
-      body: `${overall(listing.rating, listing.review_count)}. Google shows the words of its five most relevant reviews; a rating outside them counts without its words.`,
-      review_id: null,
-    }];
+    return [
+      {
+        title: `${plural(counted, "new rating")} on Google`,
+        body: `${overall(listing.rating, listing.review_count)}. Google shows the words of its five most relevant reviews; a rating outside them counts without its words.`,
+        review_id: null,
+      },
+    ];
   }
   return [];
 }
@@ -122,9 +133,10 @@ export function planListingCheck(
   const carriesReviews = opts.reviews !== false;
   const unseen = carriesReviews ? fresh.reviews.filter((r) => !knownIds.has(r.review_id)) : [];
   const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r) => writtenSince(r.published_at, sinceMs));
-  const counted = first || typeof before.review_count !== "number" || typeof fresh.review_count !== "number"
-    ? 0
-    : Math.max(0, fresh.review_count - before.review_count);
+  const counted =
+    first || typeof before.review_count !== "number" || typeof fresh.review_count !== "number"
+      ? 0
+      : Math.max(0, fresh.review_count - before.review_count);
   return {
     listing: {
       name: fresh.name,
@@ -182,15 +194,23 @@ export function planProfileSync(
   const sinceMs = before.last_synced_at ? Date.parse(before.last_synced_at) : NaN;
   const unseen = page.reviews.filter((r) => !known.has(r.review_id));
   const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r) => writtenSince(r.created_at, sinceMs));
-  const replied = page.reviews.filter((r) => {
-    const k = known.get(r.review_id);
-    return !!k && !!r.reply_text && r.reply_text !== k.reply_text;
-  }).map((r) => r.review_id);
+  const replied = page.reviews
+    .filter((r) => {
+      const k = known.get(r.review_id);
+      return !!k && !!r.reply_text && r.reply_text !== k.reply_text;
+    })
+    .map((r) => r.review_id);
   const rating = page.average_rating;
   const count = page.total_count;
-  const listing: ProfileSyncPlan["listing"] = typeof count === "number" || typeof rating === "number"
-    ? { rating: typeof rating === "number" ? Math.round(rating * 10) / 10 : null, review_count: count, checked_at: now, check_error: null }
-    : null;
+  const listing: ProfileSyncPlan["listing"] =
+    typeof count === "number" || typeof rating === "number"
+      ? {
+          rating: typeof rating === "number" ? Math.round(rating * 10) / 10 : null,
+          review_count: count,
+          checked_at: now,
+          check_error: null,
+        }
+      : null;
   return {
     listing,
     day: typeof count === "number" ? { day, rating: listing?.rating ?? null, review_count: count } : null,

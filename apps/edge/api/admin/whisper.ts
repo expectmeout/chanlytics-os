@@ -30,7 +30,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
 
   let body: { call_id?: string; text?: string; trigger?: boolean } = {};
-  try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* below */
+  }
   const callId = String(body.call_id || "");
   const text = String(body.text || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !text || text.length > MAX_CHARS) {

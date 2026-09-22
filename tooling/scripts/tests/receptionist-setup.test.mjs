@@ -72,10 +72,16 @@ test("the fallbacks name the owner's details, and a customer reads the owner's o
   // Copied in, they went stale: a workspace set up before its line existed told
   // customers "call us at .", and a new booking link never reached them.
   const f = newReceptionistDefaults(NAME).fallbacks;
-  assert.ok(f.greeting.includes("{business}") && f.greeting.includes("{booking link}"), "named, so they follow the details");
+  assert.ok(
+    f.greeting.includes("{business}") && f.greeting.includes("{booking link}"),
+    "named, so they follow the details",
+  );
   assert.ok(f.non_text.includes("{phone}"));
   const read = fallbackMessages(freshConfig().brain, null);
-  assert.ok(read.greeting.includes(NAME) && read.greeting.includes(LINK), "and filled with the business's own as each goes out");
+  assert.ok(
+    read.greeting.includes(NAME) && read.greeting.includes(LINK),
+    "and filled with the business's own as each goes out",
+  );
   assert.ok(read.non_text.includes(PHONE), "the urgent path is the number they gave");
   for (const v of [...Object.values(f), ...Object.values(read)]) {
     assert.ok(!/Melany|Booksy demo|example\.com/i.test(v), "no other business may appear");
@@ -109,7 +115,10 @@ test("the form collects the three things a receptionist cannot exist without", (
   // free-text copy of a provisioned number is how the first live salon came
   // to publish the number it transfers to.
   assert.ok(pane.includes("phone_display: phone || undefined,"));
-  assert.ok(pane.includes('if (!phone && !voiceLine) found.phone = needs("a phone number")'), "and only a workspace with no line AND nothing typed is missing one");
+  assert.ok(
+    pane.includes('if (!phone && !voiceLine) found.phone = needs("a phone number")'),
+    "and only a workspace with no line AND nothing typed is missing one",
+  );
   assert.ok(pane.includes("booking_link: link,"));
 });
 
@@ -120,7 +129,11 @@ test("an existing workspace's own words are never overwritten by a default", () 
   // keeps what the owner left there as their instructions, and the prompt goes
   // back to the baseline -- settings-editor.test.mjs runs it.
   assert.ok(pane.includes("system_prompt: defaults.system_prompt,"));
-  assert.ok(pane.includes("fallbacks: { greeting: fallbacks.greeting.trim(), error: fallbacks.error.trim(), non_text: fallbacks.non_text.trim() },"));
+  assert.ok(
+    pane.includes(
+      "fallbacks: { greeting: fallbacks.greeting.trim(), error: fallbacks.error.trim(), non_text: fallbacks.non_text.trim() },",
+    ),
+  );
 });
 
 test("the workspace that most needs this form is the one that can open it", () => {

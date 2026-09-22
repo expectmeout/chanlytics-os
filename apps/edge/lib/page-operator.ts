@@ -68,7 +68,10 @@ export async function pageOperator(ports: PagePorts, key: string, subject: strin
     return false;
   });
   if (!ok) return "failed";
-  await ports.db.from("operator_pages").update({ alerted_at: new Date(now).toISOString() }).eq("key", key);
+  await ports.db
+    .from("operator_pages")
+    .update({ alerted_at: new Date(now).toISOString() })
+    .eq("key", key);
   return "sent";
 }
 
@@ -111,5 +114,7 @@ export function pageStates(rows: PageRow[], now = Date.now()): PageState[] {
 
 /** The conditions that fired inside the window and reached nobody: what an operator reading diag must act on. */
 export function untoldPages(rows: PageRow[], now = Date.now()): string[] {
-  return pageStates(rows, now).filter((s) => s.recent && !s.told).map((s) => s.key);
+  return pageStates(rows, now)
+    .filter((s) => s.recent && !s.told)
+    .map((s) => s.key);
 }

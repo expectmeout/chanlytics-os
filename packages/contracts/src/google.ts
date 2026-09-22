@@ -113,7 +113,13 @@ export interface SetupGoogleFacts {
   ready: boolean;
   /** Listings can be found here (a Places key); absent means yes. */
   places?: boolean;
-  listing: { name: string; rating: number | null; review_count: number | null; checked_at: string | null; check_error: string | null } | null;
+  listing: {
+    name: string;
+    rating: number | null;
+    review_count: number | null;
+    checked_at: string | null;
+    check_error: string | null;
+  } | null;
   connected?: boolean;
 }
 
@@ -153,7 +159,8 @@ export function listingLine(l: { name: string; rating: number | null; review_cou
 
 /** When the listing was read, in words — the fact the owner wants when a number looks stale. */
 export function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_error">, nowMs: number): string {
-  if (l.check_error && l.checked_at) return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} — read again once a day`;
+  if (l.check_error && l.checked_at)
+    return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} — read again once a day`;
   if (l.check_error) return "Google could not be read yet — read again once a day";
   if (l.checked_at) return `Checked ${agoWords(Date.parse(l.checked_at), nowMs)}`;
   return "Not read yet";
@@ -163,7 +170,8 @@ export function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_err
 export function connectionWords(c: GoogleConnectionDto, nowMs: number): string {
   const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
   if (!c.location_name) return `${who} · choose the location to finish`;
-  if (c.sync_error && c.last_synced_at) return `${who} · could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} — read again once a day`;
+  if (c.sync_error && c.last_synced_at)
+    return `${who} · could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} — read again once a day`;
   if (c.sync_error) return `${who} · could not sync yet — read again once a day`;
   if (c.last_synced_at) return `${who} · synced ${agoWords(Date.parse(c.last_synced_at), nowMs)}`;
   return `${who} · not synced yet`;
@@ -213,7 +221,13 @@ export interface GoogleVM {
     trouble: boolean;
   } | null;
   /** The owner's profile, when connected: whose account, the location, when it synced. */
-  connection: { email: string | null; location: string | null; words: string; pending: boolean; trouble: boolean } | null;
+  connection: {
+    email: string | null;
+    location: string | null;
+    words: string;
+    pending: boolean;
+    trouble: boolean;
+  } | null;
   /** Reviews can be answered from here: the profile is connected and complete. */
   canReply: boolean;
   /** What the receptionist does under a new review, and the words for it beside the source; empty until replies can go out from here. */
@@ -255,7 +269,11 @@ function shiftDay(day: string, n: number): string {
 }
 
 /** Whether a review is news: first seen recently, written recently, and after the first read. */
-export function reviewIsNew(r: Pick<GoogleReviewDto, "first_seen_at" | "published_at">, linkedAt: string, nowMs: number): boolean {
+export function reviewIsNew(
+  r: Pick<GoogleReviewDto, "first_seen_at" | "published_at">,
+  linkedAt: string,
+  nowMs: number,
+): boolean {
   const seen = Date.parse(r.first_seen_at);
   const linked = Date.parse(linkedAt);
   if (Number.isNaN(seen)) return false;
@@ -289,7 +307,10 @@ const EMPTY_GAINED: GoogleVM["gained"] = { points: [], max: 0, total: null, sinc
  * day less the count on the newest day before the period (or the first day
  * inside it, which is then named), and the same for the period before.
  */
-export function gainedOver(days: GoogleDayDto[], periodDays: number): { current: GoogleVM["gained"]; previous: number | null } {
+export function gainedOver(
+  days: GoogleDayDto[],
+  periodDays: number,
+): { current: GoogleVM["gained"]; previous: number | null } {
   const sorted = [...days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
   if (sorted.length < 2) return { current: EMPTY_GAINED, previous: null };
   const last = sorted[sorted.length - 1];
@@ -314,7 +335,10 @@ export function gainedOver(days: GoogleDayDto[], periodDays: number): { current:
   const prevSince = shiftDay(since, -periodDays);
   const prevBefore = sorted.filter((d) => d.day < prevSince);
   const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
-  const previous = prevBefore.length && prevInside.length ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count : null;
+  const previous =
+    prevBefore.length && prevInside.length
+      ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count
+      : null;
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
 
@@ -322,23 +346,45 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
   const l = dto.listing;
   const c = dto.connection ?? null;
   const connection: GoogleVM["connection"] = c
-    ? { email: c.google_email, location: c.location_title, words: connectionWords(c, nowMs), pending: !c.location_name, trouble: !!c.sync_error }
+    ? {
+        email: c.google_email,
+        location: c.location_title,
+        words: connectionWords(c, nowMs),
+        pending: !c.location_name,
+        trouble: !!c.sync_error,
+      }
     : null;
   const canReply = !!c && !!c.location_name;
   const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
   const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] as (string | number)[][] };
-  if (!l) return { listing: null, connection, canReply, reply, tiles: [], gained: EMPTY_GAINED, latest: [], source: "", table, todayLine: null };
+  if (!l)
+    return {
+      listing: null,
+      connection,
+      canReply,
+      reply,
+      tiles: [],
+      gained: EMPTY_GAINED,
+      latest: [],
+      source: "",
+      table,
+      todayLine: null,
+    };
 
   const latest = [...dto.reviews]
     .sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0))
     .map((r) => toGoogleReviewVM(r, l.linked_at, nowMs));
   table.rows = latest.map((r) => [r.author, r.rating ?? "—", r.when || "—", r.text || "—"]);
-  const source = canReply ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
+  const source = canReply
+    ? "every review, from your Business Profile"
+    : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
 
   const days = [...dto.days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
   const { current: gained, previous } = gainedOver(days, periodDays);
   const noun = `${periodDays} days`;
-  const inPeriod = days.length ? days.filter((d) => d.day >= shiftDay(days[days.length - 1].day, -(periodDays - 1))) : [];
+  const inPeriod = days.length
+    ? days.filter((d) => d.day >= shiftDay(days[days.length - 1].day, -(periodDays - 1)))
+    : [];
   const ratingSpark = inPeriod.map((d) => d.rating ?? 0);
   const countSpark = inPeriod.map((d) => d.review_count);
   const baselineRating = (() => {
@@ -347,11 +393,15 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     const before = days.filter((d) => d.day < since);
     return before.length ? before[before.length - 1].rating : null;
   })();
-  const ratingDelta: ReportTileVM["delta"] = typeof l.rating === "number" && typeof baselineRating === "number"
-    ? (Math.abs(l.rating - baselineRating) < 0.05
-      ? { text: `same as ${noun} ago`, tone: "" }
-      : { text: `${l.rating - baselineRating > 0 ? "+" : ""}${(l.rating - baselineRating).toFixed(1)} vs ${noun} ago`, tone: l.rating > baselineRating ? "pos" : "neg" })
-    : null;
+  const ratingDelta: ReportTileVM["delta"] =
+    typeof l.rating === "number" && typeof baselineRating === "number"
+      ? Math.abs(l.rating - baselineRating) < 0.05
+        ? { text: `same as ${noun} ago`, tone: "" }
+        : {
+            text: `${l.rating - baselineRating > 0 ? "+" : ""}${(l.rating - baselineRating).toFixed(1)} vs ${noun} ago`,
+            tone: l.rating > baselineRating ? "pos" : "neg",
+          }
+      : null;
   const newest = latest[0] ?? null;
   const checked = checkedWords(l, nowMs);
 
@@ -378,7 +428,12 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       id: "gained",
       label: `Gained in ${noun}`,
       value: gained.total === null ? "—" : String(gained.total),
-      meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
+      meta:
+        gained.total === null
+          ? "needs a second day of reading"
+          : gained.sinceLabel
+            ? `since ${gained.sinceLabel}, the first day on record`
+            : `new ratings, words or not`,
       delta: gained.total !== null && previous !== null ? deltaOf(gained.total, previous, true, noun) : null,
       spark: gained.points.map((p) => p.gained),
       compare: null,
@@ -387,7 +442,11 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       id: "newest",
       label: "Newest review",
       value: newest?.when || "—",
-      meta: newest ? `${newest.stars} · ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
+      meta: newest
+        ? `${newest.stars} · ${newest.author}`
+        : canReply
+          ? "no review yet"
+          : "none of the five Google shows has a date",
       delta: null,
       spark: [],
       compare: null,
@@ -396,7 +455,10 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
 
   const news = latest.find((r) => r.isNew) ?? null;
   const todayLine = news
-    ? { text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` — “${reviewSnippet(news.text)}”` : ""}`, to: "reports" }
+    ? {
+        text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` — “${reviewSnippet(news.text)}”` : ""}`,
+        to: "reports",
+      }
     : null;
 
   return {

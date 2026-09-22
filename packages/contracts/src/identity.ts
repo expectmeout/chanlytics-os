@@ -58,7 +58,10 @@ export function identityWords(me: IdentityInput | null | undefined): IdentityWor
  * A member as a roster shows them: the name they gave with the email under
  * it, or the email alone — never the email's local part dressed as a name.
  */
-export function memberWords(m: { email: string | null; display_name?: string | null }): { name: string; sub: string | null } {
+export function memberWords(m: { email: string | null; display_name?: string | null }): {
+  name: string;
+  sub: string | null;
+} {
   const name = (m.display_name ?? "").trim();
   if (name) return { name, sub: m.email };
   return { name: m.email ?? "Someone", sub: null };
@@ -101,5 +104,8 @@ export function inviteState(expiresAt: string | null | undefined, nowMs: number)
   if (Number.isNaN(at)) return { expired: false, words: "invite pending" };
   if (at <= nowMs) return { expired: true, words: "invite expired — revoke it and send a new one" };
   const days = Math.ceil((at - nowMs) / 86_400_000);
-  return { expired: false, words: days <= 1 ? "invite pending · expires today" : `invite pending · expires in ${days} days` };
+  return {
+    expired: false,
+    words: days <= 1 ? "invite pending · expires today" : `invite pending · expires in ${days} days`,
+  };
 }

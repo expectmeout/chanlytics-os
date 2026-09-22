@@ -65,22 +65,66 @@ test("Today and Reports agree on who answered, and the first replier wins", { sk
   const tenantId = await smokeTenantId();
   await cleanup(tenantId);
   try {
-    const contact = ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "Metrics Probe" }).select("id").single());
-    const conv = ok(await db.from("conversations").insert({ tenant_id: tenantId, contact_id: contact.id, state: "open", last_message_at: minutesAgo(1) }).select("id").single());
-    const base = { tenant_id: tenantId, conversation_id: conv.id, contact_id: contact.id, channel: "whatsapp", type: "text", meta: {} };
+    const contact = ok(
+      await db
+        .from("contacts")
+        .insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "Metrics Probe" })
+        .select("id")
+        .single(),
+    );
+    const conv = ok(
+      await db
+        .from("conversations")
+        .insert({ tenant_id: tenantId, contact_id: contact.id, state: "open", last_message_at: minutesAgo(1) })
+        .select("id")
+        .single(),
+    );
+    const base = {
+      tenant_id: tenantId,
+      conversation_id: conv.id,
+      contact_id: contact.id,
+      channel: "whatsapp",
+      type: "text",
+      meta: {},
+    };
 
     // The take-over / hand-back loop: the customer asks, YOU answer at +2 min,
     // the receptionist answers at +5 min. Before 00035 Today counted both.
-    ok(await db.from("messages").insert([
-      { ...base, direction: "inbound", sender: "customer", status: "received", body: "hola", created_at: minutesAgo(6) },
-      { ...base, direction: "outbound", sender: "human", status: "sent", body: "hi, Melany here", created_at: minutesAgo(4) },
-      { ...base, direction: "outbound", sender: "ai", status: "sent", body: "we open at 9:30", created_at: minutesAgo(1) },
-    ]));
+    ok(
+      await db.from("messages").insert([
+        {
+          ...base,
+          direction: "inbound",
+          sender: "customer",
+          status: "received",
+          body: "hola",
+          created_at: minutesAgo(6),
+        },
+        {
+          ...base,
+          direction: "outbound",
+          sender: "human",
+          status: "sent",
+          body: "hi, Melany here",
+          created_at: minutesAgo(4),
+        },
+        {
+          ...base,
+          direction: "outbound",
+          sender: "ai",
+          status: "sent",
+          body: "we open at 9:30",
+          created_at: minutesAgo(1),
+        },
+      ]),
+    );
 
     // The shared rule, asked about THIS conversation: other integration files
     // run against the same smoke tenant at the same time, so tenant-wide
     // deltas are not a fixture of ours.
-    const mine = ok(await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: minutesAgo(30) })).filter((r) => r.conversation_id === conv.id);
+    const mine = ok(await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: minutesAgo(30) })).filter(
+      (r) => r.conversation_id === conv.id,
+    );
     assert.equal(mine.length, 1);
     assert.equal(mine[0].who, "you", "REGRESSION: the later AI reply counted too — the first replier wins");
     assert.equal(mine[0].ai_seconds, null, "an AI reply that came second is not timed");
@@ -91,11 +135,20 @@ test("Today and Reports agree on who answered, and the first replier wins", { sk
     // same time), so a disagreement earns a few more looks before it counts.
     let after = await both(tenantId);
     for (let attempt = 0; attempt < 4; attempt++) {
-      if (after.m.period.answered_by_you === after.today.answered_you && after.m.period.answered_by_ai === after.today.answered_ai && after.m.period.unanswered_in_window === after.today.unanswered) break;
+      if (
+        after.m.period.answered_by_you === after.today.answered_you &&
+        after.m.period.answered_by_ai === after.today.answered_ai &&
+        after.m.period.unanswered_in_window === after.today.unanswered
+      )
+        break;
       await new Promise((r) => setTimeout(r, 400));
       after = await both(tenantId);
     }
-    assert.equal(after.m.period.answered_by_ai, after.today.answered_ai, "Today and Reports: same number for the same day");
+    assert.equal(
+      after.m.period.answered_by_ai,
+      after.today.answered_ai,
+      "Today and Reports: same number for the same day",
+    );
     assert.equal(after.m.period.answered_by_you, after.today.answered_you);
     assert.equal(after.m.period.unanswered_in_window, after.today.unanswered);
   } finally {
@@ -107,20 +160,76 @@ test("reply time runs from the moment the reply left, not from the draft", { ski
   const tenantId = await smokeTenantId();
   await cleanup(tenantId);
   try {
-    const contact = ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "Metrics Probe" }).select("id").single());
-    const conv = ok(await db.from("conversations").insert({ tenant_id: tenantId, contact_id: contact.id, state: "open", last_message_at: minutesAgo(1) }).select("id").single());
-    const base = { tenant_id: tenantId, conversation_id: conv.id, contact_id: contact.id, channel: "whatsapp", type: "text", meta: {} };
-    ok(await db.from("messages").insert({ ...base, direction: "inbound", sender: "customer", status: "received", body: "hola", created_at: minutesAgo(10) }));
+    const contact = ok(
+      await db
+        .from("contacts")
+        .insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "Metrics Probe" })
+        .select("id")
+        .single(),
+    );
+    const conv = ok(
+      await db
+        .from("conversations")
+        .insert({ tenant_id: tenantId, contact_id: contact.id, state: "open", last_message_at: minutesAgo(1) })
+        .select("id")
+        .single(),
+    );
+    const base = {
+      tenant_id: tenantId,
+      conversation_id: conv.id,
+      contact_id: contact.id,
+      channel: "whatsapp",
+      type: "text",
+      meta: {},
+    };
+    ok(
+      await db.from("messages").insert({
+        ...base,
+        direction: "inbound",
+        sender: "customer",
+        status: "received",
+        body: "hola",
+        created_at: minutesAgo(10),
+      }),
+    );
     // A veto-window reply: drafted at +1 min (the row), sent at +7 min (the event).
-    const ai = ok(await db.from("messages").insert({ ...base, direction: "outbound", sender: "ai", status: "sent", body: "we open at 9:30", created_at: minutesAgo(9) }).select("id").single());
-    ok(await db.from("events").insert({ tenant_id: tenantId, kind: "message.sent", category: "message", subject_type: "message", subject_id: ai.id, data: { sender: "ai" }, created_at: minutesAgo(3) }));
+    const ai = ok(
+      await db
+        .from("messages")
+        .insert({
+          ...base,
+          direction: "outbound",
+          sender: "ai",
+          status: "sent",
+          body: "we open at 9:30",
+          created_at: minutesAgo(9),
+        })
+        .select("id")
+        .single(),
+    );
+    ok(
+      await db.from("events").insert({
+        tenant_id: tenantId,
+        kind: "message.sent",
+        category: "message",
+        subject_type: "message",
+        subject_id: ai.id,
+        data: { sender: "ai" },
+        created_at: minutesAgo(3),
+      }),
+    );
 
     // Asked about THIS conversation, so other files' fixtures cannot interfere.
-    const mine = ok(await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: minutesAgo(30) })).filter((r) => r.conversation_id === conv.id);
+    const mine = ok(await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: minutesAgo(30) })).filter(
+      (r) => r.conversation_id === conv.id,
+    );
     assert.equal(mine.length, 1);
     assert.equal(mine[0].who, "ai");
     const secs = Number(mine[0].ai_seconds);
-    assert.ok(Math.abs(secs - 420) <= 5, `REGRESSION: expected ~420 s (the send), got ${secs} (60 s would be the draft)`);
+    assert.ok(
+      Math.abs(secs - 420) <= 5,
+      `REGRESSION: expected ~420 s (the send), got ${secs} (60 s would be the draft)`,
+    );
     // And it reaches Reports' raw list for the median.
     const { r } = await both(tenantId);
     assert.ok(r.reply_seconds.map(Number).some((s) => Math.abs(s - 420) <= 5));

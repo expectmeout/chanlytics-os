@@ -42,7 +42,11 @@ export interface Page<T> {
  * thrown: a truncated answer that says so beats both a silent one and an
  * outage.
  */
-export async function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap = DEFAULT_ROW_CAP): Promise<T[]> {
+export async function readAllRows<T>(
+  what: string,
+  page: (from: number, to: number) => PromiseLike<Page<T>>,
+  cap = DEFAULT_ROW_CAP,
+): Promise<T[]> {
   const out: T[] = [];
   while (out.length < cap) {
     const size = Math.min(MAX_ROWS, cap - out.length);

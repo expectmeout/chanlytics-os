@@ -7,11 +7,11 @@ is right.
 
 ## The three things that run
 
-| Part | Runs on | Locally |
-|---|---|---|
-| `apps/dashboard` | Vercel project `chanlytics-os`, root directory `apps/dashboard`, Next.js | `corepack pnpm --filter @chanlytics/dashboard dev` |
-| `apps/edge` | Vercel project `chanlytics-messaging`, root directory `apps/edge`, Node functions | No dev script; see below |
-| The database | Supabase project (`supabase/config.toml` names it) | `supabase start` (needs Docker) |
+| Part             | Runs on                                                                           | Locally                                            |
+| ---------------- | --------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `apps/dashboard` | Vercel project `chanlytics-os`, root directory `apps/dashboard`, Next.js          | `corepack pnpm --filter @chanlytics/dashboard dev` |
+| `apps/edge`      | Vercel project `chanlytics-messaging`, root directory `apps/edge`, Node functions | No dev script; see below                           |
+| The database     | Supabase project (`supabase/config.toml` names it)                                | `supabase start` (needs Docker)                    |
 
 Both Vercel projects deploy production from `main` on every merge and a
 preview for every pull request, independently of each other. Vercel builds
@@ -85,12 +85,12 @@ git rebase --continue
 
 ## Test it
 
-| Suite | Command | Needs |
-|---|---|---|
-| The node suite: routes, doors, verbs, view models over fakes | `corepack pnpm test` | Nothing. Database and integration suites skip, with the reason printed |
-| The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db` | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's |
-| The browser suite | `corepack pnpm e2e` | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
-| The edge's frozen HTTP contract | `node tooling/scripts/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets |
+| Suite                                                        | Command                                | Needs                                                                                              |
+| ------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| The node suite: routes, doors, verbs, view models over fakes | `corepack pnpm test`                   | Nothing. Database and integration suites skip, with the reason printed                             |
+| The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db`                | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's                          |
+| The browser suite                                            | `corepack pnpm e2e`                    | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
+| The edge's frozen HTTP contract                              | `node tooling/scripts/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets                                                        |
 
 A skip is not a pass. A run that is meant to hold credentials says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and the coverage guard then fails instead of
@@ -98,12 +98,12 @@ skipping. The nightly sets it; the pull-request jobs do not.
 
 ## What CI proves
 
-| Workflow | On | Proves |
-|---|---|---|
-| `ci.yml`, Secret scan | every pull request and push to main | No secret in what the pull request adds |
-| `ci.yml`, Typecheck | same | `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; the formatting check; the node suite; the dashboard builds the way Vercel builds it |
-| `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack |
-| `nightly-e2e.yml` | 09:00 UTC | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace |
+| Workflow                          | On                                                    | Proves                                                                                                                                                                                                 |
+| --------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ci.yml`, Secret scan             | every pull request and push to main                   | No secret in what the pull request adds                                                                                                                                                                |
+| `ci.yml`, Typecheck               | same                                                  | `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; the formatting check; the node suite; the dashboard builds the way Vercel builds it |
+| `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack                                    |
+| `nightly-e2e.yml`                 | 09:00 UTC                                             | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace                                                                                    |
 
 Branch protection requires Typecheck by name. Requiring the migrations replay
 too is a repository setting worth flipping: the product's safety model lives

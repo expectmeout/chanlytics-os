@@ -35,11 +35,18 @@ export const POST = write({
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : "failed";
       const said = SAID[reason] ?? `The reply did not go through (${reason}).`;
-      throw new AppError(a.status === 404 ? "not_found" : a.status === 409 ? "conflict" : "internal", reason === "google_refused" && typeof b.detail === "string" ? `${said} ${b.detail.slice(0, 200)}` : said, a.status === 404 ? 404 : a.status === 409 ? 409 : 502);
+      throw new AppError(
+        a.status === 404 ? "not_found" : a.status === 409 ? "conflict" : "internal",
+        reason === "google_refused" && typeof b.detail === "string" ? `${said} ${b.detail.slice(0, 200)}` : said,
+        a.status === 404 ? 404 : a.status === 409 ? 409 : 502,
+      );
     }
     const repliedAt = typeof b.replied_at === "string" ? b.replied_at : null;
     const replyText = typeof b.reply_text === "string" ? b.reply_text : comment;
-    const decisionId = await recordDecision(ctx, member.tenantId, "review", id, "reply_review", { comment, replied_at: repliedAt });
+    const decisionId = await recordDecision(ctx, member.tenantId, "review", id, "reply_review", {
+      comment,
+      replied_at: repliedAt,
+    });
     return { reply_text: replyText, replied_at: repliedAt, decision_id: decisionId };
   },
 });

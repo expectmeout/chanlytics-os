@@ -4,8 +4,21 @@ import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
 import { removeMediaObjects, scrubErasedJobs, beginErasure, FINISHED_JOB_STATES } from "@/server/service";
 import { requireUuid } from "@/server/request-guards";
-import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
-import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
+import {
+  CALL_COLUMNS,
+  CONVERSATION_COLUMNS,
+  MESSAGE_COLUMNS,
+  groupMessages,
+  toCallDto,
+  toConversationDto,
+} from "@/server/dto";
+import type {
+  MessageDto,
+  PersonDecisionDto,
+  PersonDetailDto,
+  PersonEscalationDto,
+  PersonRowDto,
+} from "@chanlytics/contracts";
 import { personLike, personVisits } from "@/server/calendar";
 
 const digits = (s: string) => s.replace(/\D/g, "");
@@ -54,11 +67,17 @@ export const DELETE = write({
     // cancels in the same transaction. A re-drive repeats the id-keyed legs.
     if (contact.erased_at) {
       const needles: string[] = [];
-      const { error: polErr } = await ctx.supabase.from("policies").delete()
-        .eq("tenant_id", contact.tenant_id).eq("subject_type", "contact").eq("subject_id", id);
+      const { error: polErr } = await ctx.supabase
+        .from("policies")
+        .delete()
+        .eq("tenant_id", contact.tenant_id)
+        .eq("subject_type", "contact")
+        .eq("subject_id", id);
       if (polErr) console.error("erase_person_policy_failed", id, polErr.message);
       const { error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
-        p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: needles,
+        p_tenant_id: contact.tenant_id,
+        p_contact_id: id,
+        p_needles: needles,
       });
       if (askErr) console.error("erase_ask_scrub_failed", id, askErr.message);
       const jobs = await scrubErasedJobs(contact.tenant_id, id, needles).catch((e: unknown) => {
@@ -66,7 +85,9 @@ export const DELETE = write({
         return 0;
       });
       return {
-        contact_id: id, already_erased: true, erased_at: contact.erased_at,
+        contact_id: id,
+        already_erased: true,
+        erased_at: contact.erased_at,
         redriven: { policy: !polErr, ask: !askErr, jobs },
       };
     }
@@ -78,29 +99,39 @@ export const DELETE = write({
     // wa_ids, leaving the customer's number quoted in an assistant's memory
     // while the owner is told the person was erased.
     const keyRead = (what: string, e: { message: string } | null): void => {
-      if (e) throw new AppError("internal", `Could not read this person's ${what}, so nothing was deleted. Try again.`, 500);
+      if (e)
+        throw new AppError("internal", `Could not read this person's ${what}, so nothing was deleted. Try again.`, 500);
     };
     const { data: idents, error: identErr } = await ctx.supabase
-      .from("contact_identities").select("external_id").eq("contact_id", id);
+      .from("contact_identities")
+      .select("external_id")
+      .eq("contact_id", id);
     keyRead("WhatsApp identities", identErr);
     // Every spelling of the customer's number, as an Ask turn may quote it:
     // the WhatsApp wa_id is bare digits and a call's from_number is E.164, so
     // both are reduced to the digits.
-    const threadIds = [...new Set(
-      [contact.phone_e164 ?? "", ...(idents ?? []).map((i) => i.external_id ?? "")]
-        .map(digits).filter(Boolean),
-    )];
+    const threadIds = [
+      ...new Set(
+        [contact.phone_e164 ?? "", ...(idents ?? []).map((i) => i.external_id ?? "")].map(digits).filter(Boolean),
+      ),
+    ];
 
-    const { data: calls, error: callErr } = await ctx.supabase
-      .from("calls").select("recording").eq("contact_id", id);
+    const { data: calls, error: callErr } = await ctx.supabase.from("calls").select("recording").eq("contact_id", id);
     keyRead("call recordings", callErr);
     const { data: media, error: mediaErr } = await ctx.supabase
-      .from("messages").select("media").eq("contact_id", id).not("media", "is", null);
+      .from("messages")
+      .select("media")
+      .eq("contact_id", id)
+      .not("media", "is", null);
     keyRead("stored media", mediaErr);
-    const paths = [...new Set([
-      ...(calls ?? []).map((c) => (c.recording as { storage_path?: string } | null)?.storage_path),
-      ...(media ?? []).map((m) => (m.media as { storage_path?: string } | null)?.storage_path),
-    ].filter((p): p is string => !!p))];
+    const paths = [
+      ...new Set(
+        [
+          ...(calls ?? []).map((c) => (c.recording as { storage_path?: string } | null)?.storage_path),
+          ...(media ?? []).map((m) => (m.media as { storage_path?: string } | null)?.storage_path),
+        ].filter((p): p is string => !!p),
+      ),
+    ];
 
     /* ---- the block, before anything is destroyed ---- */
     // After the reads (they destroy nothing and a failed one is a retry with
@@ -111,7 +142,11 @@ export const DELETE = write({
       await beginErasure(contact.tenant_id, id, { phone: contact.phone_e164 ?? null, email: contact.email ?? null });
     } catch (e) {
       console.error("erase_begin_failed", id, e instanceof Error ? e.message : e);
-      throw new AppError("internal", "Could not mark this person as being erased, so nothing was deleted. Try again.", 500);
+      throw new AppError(
+        "internal",
+        "Could not mark this person as being erased, so nothing was deleted. Try again.",
+        500,
+      );
     }
 
     /* ---- 2. the copies keyed on the number, while the number is still in hand ---- */
@@ -126,17 +161,27 @@ export const DELETE = write({
     // finishes first, and the best-effort pass after step 4 reaches it.
     {
       const { error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
-        p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
+        p_tenant_id: contact.tenant_id,
+        p_contact_id: id,
+        p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
       });
       if (askErr) {
         console.error("erase_ask_prescrub_failed", id, askErr.message);
-        throw new AppError("internal", "The assistant's memory of this person could not be scrubbed, so nothing was deleted. Try again.", 500);
+        throw new AppError(
+          "internal",
+          "The assistant's memory of this person could not be scrubbed, so nothing was deleted. Try again.",
+          500,
+        );
       }
       try {
         await scrubErasedJobs(contact.tenant_id, id, threadIds, FINISHED_JOB_STATES);
       } catch (e) {
         console.error("erase_jobs_prescrub_failed", id, e instanceof Error ? e.message : e);
-        throw new AppError("internal", "The finished jobs that carried this person's number could not be scrubbed, so nothing was deleted. Try again.", 500);
+        throw new AppError(
+          "internal",
+          "The finished jobs that carried this person's number could not be scrubbed, so nothing was deleted. Try again.",
+          500,
+        );
       }
     }
 
@@ -150,7 +195,7 @@ export const DELETE = write({
       throw new AppError(
         "internal",
         "The stored recordings and media could not be removed, so the erasure was not " +
-        "completed. Nothing has been deleted, and repeating this request finishes the job.",
+          "completed. Nothing has been deleted, and repeating this request finishes the job.",
         500,
       );
     }
@@ -166,8 +211,12 @@ export const DELETE = write({
     // The person's own receptionist setting goes with them: a policy row scoped
     // to an erased contact is a name that outlives its erasure.
     {
-      const { error: polErr } = await ctx.supabase.from("policies").delete()
-        .eq("tenant_id", contact.tenant_id).eq("subject_type", "contact").eq("subject_id", id);
+      const { error: polErr } = await ctx.supabase
+        .from("policies")
+        .delete()
+        .eq("tenant_id", contact.tenant_id)
+        .eq("subject_type", "contact")
+        .eq("subject_id", id);
       if (polErr) console.error("erase_person_policy_failed", id, polErr.message);
     }
     // The Ask turns that quoted them, for every member of the workspace: an
@@ -178,7 +227,9 @@ export const DELETE = write({
         // off the row before erase_contact ran, because the row no longer has it.
         // Step 2 already scrubbed with these needles; this pass catches a turn
         // written since, and a re-driven erasure (above) scrubs by the id alone.
-        p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
+        p_tenant_id: contact.tenant_id,
+        p_contact_id: id,
+        p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
       });
       if (askErr) console.error("erase_ask_scrub_failed", id, askErr.message);
       else console.log(JSON.stringify({ level: "info", event: "erase_ask_scrubbed", contact: id, messages: scrubbed }));
@@ -192,7 +243,9 @@ export const DELETE = write({
     });
     console.log(JSON.stringify({ level: "info", event: "erase_jobs_scrubbed", contact: id, jobs: jobsScrubbed }));
     const out = rpc as unknown as {
-      counts?: Record<string, number>; storage_paths?: string[]; jobs_canceled?: number;
+      counts?: Record<string, number>;
+      storage_paths?: string[];
+      jobs_canceled?: number;
     };
 
     /* ---- 5. anything that landed during the window ----
@@ -209,8 +262,10 @@ export const DELETE = write({
       // throwing here would report that as a failure and send the owner back to
       // a route that now answers `already_erased`.
       await recordDecision(ctx, contact.tenant_id, "contact", id, "erase", {
-        leg: "storage_sweep", requested: sweep.requested,
-        removed: sweep.removed.length, error: sweep.error,
+        leg: "storage_sweep",
+        requested: sweep.requested,
+        removed: sweep.removed.length,
+        error: sweep.error,
       } as Json).catch((e: unknown) => {
         console.error("erase_sweep_decision_failed", id, e instanceof Error ? e.message : e);
       });
@@ -253,27 +308,62 @@ export const GET = read({
     const sb = ctx.supabase;
     const [idents, convs, calls, personPol, wsPol, added, own, cfgRow, history] = await Promise.all([
       sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
-      sb.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
+      sb
+        .from("conversations")
+        .select(CONVERSATION_COLUMNS)
+        .eq("tenant_id", tenantId)
+        .eq("contact_id", id)
         .order("last_message_at", { ascending: false, nullsFirst: false }),
-      sb.from("calls").select(CALL_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
-        .order("started_at", { ascending: false, nullsFirst: false }).limit(200),
+      sb
+        .from("calls")
+        .select(CALL_COLUMNS)
+        .eq("tenant_id", tenantId)
+        .eq("contact_id", id)
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .limit(200),
       // This person's own receptionist mode, and the workspace's, for the rail.
-      sb.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply")
-        .eq("subject_type", "contact").eq("subject_id", id).maybeSingle(),
-      sb.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply")
-        .is("subject_type", null).maybeSingle(),
+      sb
+        .from("policies")
+        .select("mode")
+        .eq("tenant_id", tenantId)
+        .eq("class", "reply")
+        .eq("subject_type", "contact")
+        .eq("subject_id", id)
+        .maybeSingle(),
+      sb
+        .from("policies")
+        .select("mode")
+        .eq("tenant_id", tenantId)
+        .eq("class", "reply")
+        .is("subject_type", null)
+        .maybeSingle(),
       // Where they came from, when it was not a message or a call: the
       // calendar sweep records the appointment that named them.
-      sb.from("events").select("data, created_at").eq("tenant_id", tenantId).eq("kind", "contact.added")
-        .eq("subject_type", "contact").eq("subject_id", id).order("created_at").limit(1).maybeSingle(),
+      sb
+        .from("events")
+        .select("data, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("kind", "contact.added")
+        .eq("subject_type", "contact")
+        .eq("subject_id", id)
+        .order("created_at")
+        .limit(1)
+        .maybeSingle(),
       // The owner's notes: the one column people_list does not carry.
       sb.from("contacts").select("notes").eq("id", id).maybeSingle(),
       // The booking link, so the profile can text it in one step.
       sb.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
       // Every change to either answer: the ledger rows the doors write, which
       // the timeline shows as evidence. Newest first, two hundred at most.
-      sb.from("events").select("id, subject_id, created_at, data").eq("tenant_id", tenantId).eq("kind", "contact.consent_changed")
-        .eq("subject_type", "contact").eq("subject_id", id).order("created_at", { ascending: false }).limit(200),
+      sb
+        .from("events")
+        .select("id, subject_id, created_at, data")
+        .eq("tenant_id", tenantId)
+        .eq("kind", "contact.consent_changed")
+        .eq("subject_type", "contact")
+        .eq("subject_id", id)
+        .order("created_at", { ascending: false })
+        .limit(200),
     ]);
     if (history.error) throw new Error(history.error.message);
     if (own.error) throw new Error(own.error.message);
@@ -283,7 +373,7 @@ export const GET = read({
     // vanishes for a workspace that has it configured.
     if (cfgRow.error) throw new Error(cfgRow.error.message);
     if (added.error) throw new Error(added.error.message);
-    const bookingLink = ((cfgRow.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link);
+    const bookingLink = (cfgRow.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link;
     if (idents.error) throw new Error(idents.error.message);
     if (personPol.error) throw new Error(personPol.error.message);
     if (wsPol.error) throw new Error(wsPol.error.message);
@@ -297,13 +387,24 @@ export const GET = read({
     if (convIds.length) {
       const [msgs, escs, decs] = await Promise.all([
         // Newest-first so a cap drops the oldest history; groupMessages restores order.
-        sb.from("messages").select(MESSAGE_COLUMNS).in("conversation_id", convIds)
-          .order("created_at", { ascending: false }).limit(2000),
-        sb.from("escalations").select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
-          .in("conversation_id", convIds).order("created_at", { ascending: false }),
-        sb.from("decisions").select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload")
-          .eq("subject_type", "conversation").in("subject_id", convIds)
-          .order("created_at", { ascending: false }).limit(500),
+        sb
+          .from("messages")
+          .select(MESSAGE_COLUMNS)
+          .in("conversation_id", convIds)
+          .order("created_at", { ascending: false })
+          .limit(2000),
+        sb
+          .from("escalations")
+          .select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
+          .in("conversation_id", convIds)
+          .order("created_at", { ascending: false }),
+        sb
+          .from("decisions")
+          .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload")
+          .eq("subject_type", "conversation")
+          .in("subject_id", convIds)
+          .order("created_at", { ascending: false })
+          .limit(500),
       ]);
       if (msgs.error) throw new Error(msgs.error.message);
       if (escs.error) throw new Error(escs.error.message);
@@ -316,7 +417,10 @@ export const GET = read({
     // Their appointments on the owner's calendar, when one is connected.
     // Never fatal: a feed that cannot be read costs this line, not the profile.
     const visits = await personVisits(ctx, tenantId, personLike(row)).catch((e: unknown) => {
-      console.error("person_visits_failed", JSON.stringify({ contact: id, error: e instanceof Error ? e.message : String(e) }));
+      console.error(
+        "person_visits_failed",
+        JSON.stringify({ contact: id, error: e instanceof Error ? e.message : String(e) }),
+      );
       return null;
     });
 
@@ -334,7 +438,14 @@ export const GET = read({
       booking_link: typeof bookingLink === "string" && bookingLink.trim() ? bookingLink.trim() : null,
       consent_history: (history.data ?? []).map(consentChangeOf),
       added: added.data
-        ? { at: added.data.created_at, source: String((added.data.data as { source?: unknown } | null)?.source ?? "manual"), title: typeof (added.data.data as { title?: unknown } | null)?.title === "string" ? String((added.data.data as { title: string }).title) : null }
+        ? {
+            at: added.data.created_at,
+            source: String((added.data.data as { source?: unknown } | null)?.source ?? "manual"),
+            title:
+              typeof (added.data.data as { title?: unknown } | null)?.title === "string"
+                ? String((added.data.data as { title: string }).title)
+                : null,
+          }
         : undefined,
     };
     return { person };

@@ -22,7 +22,9 @@
   --auth-teal: var(--accent-ink);
   --auth-danger: var(--danger-ink);
 }
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 body {
   margin: 0;
   background: var(--bg);
@@ -35,15 +37,54 @@ body {
 /* The form and the half that says what this is. One column on a phone, where
    the panel is not rendered at all: the form is the work, and nothing
    decorative goes above the thing somebody came to do. */
-.auth-split { min-height: 100dvh; display: grid; grid-template-columns: 1fr; }
-.auth-col { display: grid; align-content: center; justify-items: center; padding: 40px 20px; }
-.auth-colinner { width: 100%; max-width: 380px; }
-.auth-mark { display: flex; align-items: center; gap: 9px; margin: 0 0 30px; font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); }
-.auth-mark-dot { width: 9px; height: 9px; border-radius: var(--radius-full); background: var(--accent); flex: none; }
-.auth-mark-name { color: var(--ink); }
-.auth-foot { margin: 26px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
-.auth-foot a { color: var(--ink-dim); text-decoration: none; }
-.auth-foot a:hover { color: var(--ink-muted); text-decoration: underline; text-underline-offset: 2px; }
+.auth-split {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.auth-col {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 40px 20px;
+}
+.auth-colinner {
+  width: 100%;
+  max-width: 380px;
+}
+.auth-mark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 30px;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+.auth-mark-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  flex: none;
+}
+.auth-mark-name {
+  color: var(--ink);
+}
+.auth-foot {
+  margin: 26px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.auth-foot a {
+  color: var(--ink-dim);
+  text-decoration: none;
+}
+.auth-foot a:hover {
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 /* The card. Standalone it is a bordered card, which is what the OS's own
    error boundary renders; inside the split it is just the form column, so it
@@ -56,10 +97,36 @@ body {
   border-radius: var(--radius-lg);
   padding: 28px;
 }
-.auth-split .auth-card { max-width: none; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; }
-.auth-card h1 { font-size: var(--text-3xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 8px; text-wrap: balance; }
-.auth-card p { color: var(--ink-muted); font-size: var(--text-md); line-height: var(--leading-snug); margin: 0 0 22px; text-wrap: pretty; }
-.auth-card label { display: block; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-muted); margin-bottom: 6px; }
+.auth-split .auth-card {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+.auth-card h1 {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+.auth-card p {
+  color: var(--ink-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  margin: 0 0 22px;
+  text-wrap: pretty;
+}
+.auth-card label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+  margin-bottom: 6px;
+}
 .auth-card input {
   width: 100%;
   background: var(--bg-raised);
@@ -71,9 +138,17 @@ body {
   margin-bottom: 15px;
   transition: border-color var(--duration-fast) var(--ease-out);
 }
-.auth-card input::placeholder { color: var(--ink-faint); }
-.auth-card input:hover { border-color: var(--ink-faint); }
-.auth-card input:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.auth-card input::placeholder {
+  color: var(--ink-faint);
+}
+.auth-card input:hover {
+  border-color: var(--ink-faint);
+}
+.auth-card input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
 .auth-card button {
   width: 100%;
   background: var(--accent);
@@ -86,13 +161,32 @@ body {
   cursor: pointer;
   transition: filter var(--duration-fast) var(--ease-out);
 }
-.auth-card button:hover:not(:disabled) { filter: brightness(1.08); }
-.auth-card button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.auth-card button:disabled { opacity: 0.55; cursor: default; }
-.auth-card a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
-.auth-card a:hover { opacity: 0.85; }
-.auth-legal { margin-top: 14px; font-size: var(--text-sm); }
-.auth-legal a { color: var(--ink-dim); }
+.auth-card button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.auth-card button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.auth-card button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.auth-card a {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auth-card a:hover {
+  opacity: 0.85;
+}
+.auth-legal {
+  margin-top: 14px;
+  font-size: var(--text-sm);
+}
+.auth-legal a {
+  color: var(--ink-dim);
+}
 
 /* Sign in with Google, in Google's dark-theme shape because the page is dark:
    their own guidelines draw it this way, with the four-colour G left of the
@@ -108,11 +202,36 @@ body {
   font-weight: var(--weight-medium);
   margin-bottom: 6px;
 }
-.auth-card .auth-google:hover:not(:disabled) { filter: none; background: var(--bg-hover); }
-.auth-card .auth-google svg { width: 18px; height: 18px; flex: none; }
-.auth-card .auth-google-hint { margin-top: 0; margin-bottom: 10px; }
-.auth-or { display: flex; align-items: center; gap: 12px; color: var(--ink-dim); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; margin: 18px 0; }
-.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth-card .auth-google:hover:not(:disabled) {
+  filter: none;
+  background: var(--bg-hover);
+}
+.auth-card .auth-google svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.auth-card .auth-google-hint {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-dim);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  margin: 18px 0;
+}
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
 
 /* A button that reads as a link: the way to the code door, the way back from
    it, and "resend". */
@@ -128,18 +247,42 @@ body {
   text-underline-offset: 2px;
   cursor: pointer;
 }
-.auth-card .auth-linkbtn:hover:not(:disabled) { filter: none; color: var(--ink); }
-.auth-card .auth-linkbtn:disabled { opacity: 0.55; cursor: default; text-decoration: none; }
-.auth-card .auth-linkbtn-spaced { margin-left: 8px; }
-.auth-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 14px; font-size: var(--text-sm); }
-.auth-card .auth-field-hint { color: var(--ink-dim); font-size: var(--text-sm); margin: -9px 0 15px; }
+.auth-card .auth-linkbtn:hover:not(:disabled) {
+  filter: none;
+  color: var(--ink);
+}
+.auth-card .auth-linkbtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  text-decoration: none;
+}
+.auth-card .auth-linkbtn-spaced {
+  margin-left: 8px;
+}
+.auth-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: var(--text-sm);
+}
+.auth-card .auth-field-hint {
+  color: var(--ink-dim);
+  font-size: var(--text-sm);
+  margin: -9px 0 15px;
+}
 
 /* ------------------------------------------------- the half beside the form */
 
 /* Not rendered on a phone: see .auth-split. */
-.auth-aside { display: none; }
+.auth-aside {
+  display: none;
+}
 @media (min-width: 900px) {
-  .auth-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .auth-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
   .auth-aside {
     display: grid;
     align-content: center;
@@ -147,15 +290,28 @@ body {
     padding: 52px;
     border: 1px solid var(--line);
     border-radius: var(--radius-2xl);
-    background:
-      radial-gradient(120% 90% at 100% 0%, var(--accent-soft), transparent 62%),
-      var(--bg-sunken);
+    background: radial-gradient(120% 90% at 100% 0%, var(--accent-soft), transparent 62%), var(--bg-sunken);
     overflow: hidden;
   }
 }
-.auth-aside-inner { max-width: 460px; }
-.auth-aside-title { margin: 0 0 12px; font-size: var(--text-4xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); text-wrap: balance; }
-.auth-aside-lead { margin: 0; color: var(--ink-muted); font-size: var(--text-md); line-height: var(--leading-relaxed); text-wrap: pretty; }
+.auth-aside-inner {
+  max-width: 460px;
+}
+.auth-aside-title {
+  margin: 0 0 12px;
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+.auth-aside-lead {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  text-wrap: pretty;
+}
 .auth-show {
   margin: 34px 0 0;
   padding: 18px;
@@ -164,8 +320,23 @@ body {
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
 }
-.auth-show-head { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
-.auth-show-live { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--accent); flex: none; }
+.auth-show-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.auth-show-live {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  flex: none;
+}
 .auth-show-msg {
   width: fit-content;
   max-width: 88%;
@@ -176,8 +347,16 @@ body {
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
 }
-.auth-show-out { margin-left: auto; background: var(--accent-soft); color: var(--ink); }
-.auth-show-foot { margin: 14px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.auth-show-out {
+  margin-left: auto;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.auth-show-foot {
+  margin: 14px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
 
 /* The two public pages every platform review links to. Same tokens as the
    auth card, a reading width instead of a form's. */
@@ -187,12 +366,35 @@ body {
   padding: 0 24px;
   line-height: 1.6;
 }
-.legal h1 { font-size: 1.6rem; margin: 0 0 4px; text-wrap: balance; }
-.legal .legal-meta { color: var(--auth-muted); font-size: 0.85rem; margin: 0 0 28px; }
-.legal h2 { font-size: 1.05rem; margin: 28px 0 8px; }
-.legal p, .legal li { color: var(--auth-ink); font-size: 0.95rem; margin: 0 0 12px; }
-.legal ul { padding-left: 20px; margin: 0 0 12px; }
-.legal a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
+.legal h1 {
+  font-size: 1.6rem;
+  margin: 0 0 4px;
+  text-wrap: balance;
+}
+.legal .legal-meta {
+  color: var(--auth-muted);
+  font-size: 0.85rem;
+  margin: 0 0 28px;
+}
+.legal h2 {
+  font-size: 1.05rem;
+  margin: 28px 0 8px;
+}
+.legal p,
+.legal li {
+  color: var(--auth-ink);
+  font-size: 0.95rem;
+  margin: 0 0 12px;
+}
+.legal ul {
+  padding-left: 20px;
+  margin: 0 0 12px;
+}
+.legal a {
+  color: var(--auth-teal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 /* A workspace's public "say yes to offers" page: read on a phone, at a desk,
    by a customer who has never seen this product. */
 .yes {
@@ -201,19 +403,57 @@ body {
   padding: 0 22px;
   line-height: 1.55;
 }
-.yes h1 { font-size: 1.45rem; margin: 0 0 8px; text-wrap: balance; }
-.yes-lead { color: var(--auth-muted); font-size: 0.95rem; margin: 0 0 26px; }
+.yes h1 {
+  font-size: 1.45rem;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+.yes-lead {
+  color: var(--auth-muted);
+  font-size: 0.95rem;
+  margin: 0 0 26px;
+}
 /* Two asks, visibly separate — which is the point the carriers are checking.
    Each is its own bordered block with its own disclosures, so a reader can give
    one and not the other without hunting for how. The optional one says so in
    its own line rather than in small print under both. */
-.yes-ask { margin: 0 0 22px; padding: 18px; border: 1px solid var(--auth-line); border-radius: 14px; background: var(--auth-surface); }
-.yes-ask-title { font-size: 1.05rem; font-weight: 600; margin: 0 0 6px; }
-.yes-ask-lead { color: var(--auth-muted); font-size: 0.9rem; margin: 0 0 10px; }
-.yes-ask-optional { font-size: 0.85rem; margin: 0 0 12px; padding: 10px 12px; border-radius: 9px; background: rgba(255, 255, 255, 0.04); border: 1px dashed var(--auth-line); color: var(--auth-muted); }
-.yes-ask .yes-terms { margin: 14px 0 0; }
-.yes-ask .yes-way { background: transparent; }
-.yes-ways { display: flex; flex-direction: column; gap: 10px; }
+.yes-ask {
+  margin: 0 0 22px;
+  padding: 18px;
+  border: 1px solid var(--auth-line);
+  border-radius: 14px;
+  background: var(--auth-surface);
+}
+.yes-ask-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.yes-ask-lead {
+  color: var(--auth-muted);
+  font-size: 0.9rem;
+  margin: 0 0 10px;
+}
+.yes-ask-optional {
+  font-size: 0.85rem;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed var(--auth-line);
+  color: var(--auth-muted);
+}
+.yes-ask .yes-terms {
+  margin: 14px 0 0;
+}
+.yes-ask .yes-way {
+  background: transparent;
+}
+.yes-ways {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .yes-way {
   display: flex;
   align-items: center;
@@ -223,9 +463,21 @@ body {
   border-radius: 12px;
   padding: 16px 18px;
 }
-.yes-way-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.yes-way-title { font-size: 0.95rem; font-weight: 600; }
-.yes-way-sentence { font-size: 0.85rem; color: var(--auth-muted); }
+.yes-way-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.yes-way-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.yes-way-sentence {
+  font-size: 0.85rem;
+  color: var(--auth-muted);
+}
 .yes-btn {
   flex: none;
   background: var(--auth-teal);
@@ -236,11 +488,30 @@ body {
   border-radius: 9px;
   padding: 10px 16px;
 }
-.yes-btn:hover { opacity: 0.9; }
-.yes-qr { margin: 26px 0 0; text-align: center; }
-.yes-qr-code { display: inline-block; background: #fff; padding: 10px; border-radius: 12px; line-height: 0; }
-.yes-qr-code svg { display: block; width: 190px; height: 190px; }
-.yes-qr-note { color: var(--auth-muted); font-size: 0.82rem; margin: 10px 0 0; }
+.yes-btn:hover {
+  opacity: 0.9;
+}
+.yes-qr {
+  margin: 26px 0 0;
+  text-align: center;
+}
+.yes-qr-code {
+  display: inline-block;
+  background: #fff;
+  padding: 10px;
+  border-radius: 12px;
+  line-height: 0;
+}
+.yes-qr-code svg {
+  display: block;
+  width: 190px;
+  height: 190px;
+}
+.yes-qr-note {
+  color: var(--auth-muted);
+  font-size: 0.82rem;
+  margin: 10px 0 0;
+}
 .yes-terms {
   margin: 30px 0 0;
   padding: 18px 18px 18px 34px;
@@ -249,36 +520,129 @@ body {
   color: var(--auth-muted);
   font-size: 0.8rem;
 }
-.yes-terms li { margin: 0 0 7px; }
-.yes-terms li:last-child { margin-bottom: 0; }
+.yes-terms li {
+  margin: 0 0 7px;
+}
+.yes-terms li:last-child {
+  margin-bottom: 0;
+}
 /* Who is asking: the business's name, contacts and services, for the carrier
    reviewer who opens this page as the business's website (30919). */
-.yes-who { margin: 22px 0 0; padding: 18px; border: 1px solid var(--auth-line); border-radius: 14px; font-size: 0.88rem; }
-.yes-who ul { margin: 0 0 16px; padding: 0 0 0 18px; color: var(--auth-muted); }
-.yes-who li { margin: 0 0 5px; overflow-wrap: anywhere; }
-.yes-who li b { color: var(--auth-ink); font-weight: 600; }
-.yes-who-more { margin: 0; font-size: 0.85rem; }
-.yes-foot { color: var(--auth-muted); font-size: 0.8rem; margin: 22px 0 0; text-align: center; }
-.yes a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
+.yes-who {
+  margin: 22px 0 0;
+  padding: 18px;
+  border: 1px solid var(--auth-line);
+  border-radius: 14px;
+  font-size: 0.88rem;
+}
+.yes-who ul {
+  margin: 0 0 16px;
+  padding: 0 0 0 18px;
+  color: var(--auth-muted);
+}
+.yes-who li {
+  margin: 0 0 5px;
+  overflow-wrap: anywhere;
+}
+.yes-who li b {
+  color: var(--auth-ink);
+  font-weight: 600;
+}
+.yes-who-more {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.yes-foot {
+  color: var(--auth-muted);
+  font-size: 0.8rem;
+  margin: 22px 0 0;
+  text-align: center;
+}
+.yes a {
+  color: var(--auth-teal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 /* Specificity, deliberately: the link rule above is (0,1,1) and would
    otherwise paint the button's label teal on teal — invisible. */
-.yes a.yes-btn { color: #06231d; text-decoration: none; }
+.yes a.yes-btn {
+  color: #06231d;
+  text-decoration: none;
+}
 /* The paper form, /yes/<slug>/form. Printed and signed by hand: every ask its own
    box, nothing interactive, and black on white once it reaches paper. */
-.yes-paper-fields { display: grid; gap: 6px; margin: 0 0 22px; }
-.yes-paper-line { border-bottom: 1px solid var(--auth-muted); padding: 22px 0 4px; font-size: 0.78rem; color: var(--auth-muted); }
-.yes-paper-box { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; margin: 4px 0 12px; }
-.yes-paper-tick { flex: none; width: 18px; height: 18px; margin-top: 2px; border: 1.5px solid var(--auth-ink); border-radius: 3px; }
-.yes-paper-sign { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin: 12px 0 0; }
-.yes-paper-office { color: var(--auth-muted); font-size: 0.75rem; margin: 22px 0 0; }
+.yes-paper-fields {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 22px;
+}
+.yes-paper-line {
+  border-bottom: 1px solid var(--auth-muted);
+  padding: 22px 0 4px;
+  font-size: 0.78rem;
+  color: var(--auth-muted);
+}
+.yes-paper-box {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-weight: 600;
+  margin: 4px 0 12px;
+}
+.yes-paper-tick {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 1.5px solid var(--auth-ink);
+  border-radius: 3px;
+}
+.yes-paper-sign {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 18px;
+  margin: 12px 0 0;
+}
+.yes-paper-office {
+  color: var(--auth-muted);
+  font-size: 0.75rem;
+  margin: 22px 0 0;
+}
 @media print {
-  body { background: #fff; color: #000; }
-  .yes-paper { max-width: none; margin: 0; padding: 0; }
-  .yes-paper .yes-ask { background: #fff; border-color: #000; break-inside: avoid; }
-  .yes-paper .yes-lead, .yes-paper .yes-ask-optional, .yes-paper .yes-terms, .yes-paper .yes-foot, .yes-paper-line, .yes-paper-office { color: #000; border-color: #000; background: none; }
-  .yes-paper-tick { border-color: #000; }
-  .yes-paper a { color: #000; text-decoration: none; }
-  .yes-paper-noprint { display: none; }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .yes-paper {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  .yes-paper .yes-ask {
+    background: #fff;
+    border-color: #000;
+    break-inside: avoid;
+  }
+  .yes-paper .yes-lead,
+  .yes-paper .yes-ask-optional,
+  .yes-paper .yes-terms,
+  .yes-paper .yes-foot,
+  .yes-paper-line,
+  .yes-paper-office {
+    color: #000;
+    border-color: #000;
+    background: none;
+  }
+  .yes-paper-tick {
+    border-color: #000;
+  }
+  .yes-paper a {
+    color: #000;
+    text-decoration: none;
+  }
+  .yes-paper-noprint {
+    display: none;
+  }
 }
 
 /* The desk sign, /yes/<slug>/sign: one sheet, printed and put where customers wait. On screen it is that sheet,
@@ -287,16 +651,39 @@ body {
    proportions and break their lines in the same places. The max() floors only lift the small print on a phone,
    where the sheet is three hundred pixels wide; on paper every size sits well above its floor. Letter holds
    135cqi of it under the sheet's own half-inch margins, and a sign for a twenty-character name takes 124. */
-.sign-page { max-width: 720px; margin: 5vh auto 8vh; padding: 0 16px; }
-.sign-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; }
-.sign-bar p { margin: 0; color: var(--auth-muted); font-size: 0.9rem; text-wrap: balance; }
-.sign-print { border: 0; cursor: pointer; font: inherit; font-size: 0.9rem; font-weight: 600; }
+.sign-page {
+  max-width: 720px;
+  margin: 5vh auto 8vh;
+  padding: 0 16px;
+}
+.sign-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.sign-bar p {
+  margin: 0;
+  color: var(--auth-muted);
+  font-size: 0.9rem;
+  text-wrap: balance;
+}
+.sign-print {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 .sign-sheet {
   background: #fff;
   color: #000;
   border-radius: 4px;
   padding: clamp(20px, 7%, 56px);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 18px 48px rgb(0 0 0 / 0.45);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.3),
+    0 18px 48px rgb(0 0 0 / 0.45);
 }
 .sign-body {
   container-type: inline-size;
@@ -306,37 +693,125 @@ body {
   text-align: center;
   font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
 }
-.sign-business { margin: 0; font-size: max(3.1cqi, 11px); font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; text-wrap: balance; }
-.sign-headline { margin: 2.8cqi 0 0; font-size: 8.4cqi; font-weight: 600; line-height: 1.04; letter-spacing: -0.025em; text-wrap: balance; }
-.sign-qr { margin: 3.6cqi 0 0; width: 52cqi; line-height: 0; }
-.sign-qr svg { display: block; width: 100%; height: auto; }
-.sign-how { margin: 3.6cqi 0 0; max-width: 88cqi; font-size: max(3.3cqi, 13px); line-height: 1.3; text-wrap: balance; }
-.sign-byhand { margin: 2cqi 0 0; max-width: 88cqi; font-size: max(2.6cqi, 12px); line-height: 1.35; text-wrap: balance; }
-.sign-how b, .sign-byhand b { font-weight: 600; white-space: nowrap; }
-.sign-fine { margin: 5.5cqi 0 0; padding: 2.6cqi 0 0; border-top: 1px solid #000; font-size: max(1.75cqi, 10px); line-height: 1.45; }
-.sign-fine p { margin: 0; }
-.sign-fine p + p { margin-top: 0.9cqi; }
+.sign-business {
+  margin: 0;
+  font-size: max(3.1cqi, 11px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.sign-headline {
+  margin: 2.8cqi 0 0;
+  font-size: 8.4cqi;
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.sign-qr {
+  margin: 3.6cqi 0 0;
+  width: 52cqi;
+  line-height: 0;
+}
+.sign-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.sign-how {
+  margin: 3.6cqi 0 0;
+  max-width: 88cqi;
+  font-size: max(3.3cqi, 13px);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.sign-byhand {
+  margin: 2cqi 0 0;
+  max-width: 88cqi;
+  font-size: max(2.6cqi, 12px);
+  line-height: 1.35;
+  text-wrap: balance;
+}
+.sign-how b,
+.sign-byhand b {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sign-fine {
+  margin: 5.5cqi 0 0;
+  padding: 2.6cqi 0 0;
+  border-top: 1px solid #000;
+  font-size: max(1.75cqi, 10px);
+  line-height: 1.45;
+}
+.sign-fine p {
+  margin: 0;
+}
+.sign-fine p + p {
+  margin-top: 0.9cqi;
+}
 /* An address is read with its label, so the two break together, and a long one breaks inside itself rather than
    pushing a phone sideways. */
-.sign-addr { display: inline-block; overflow-wrap: anywhere; }
+.sign-addr {
+  display: inline-block;
+  overflow-wrap: anywhere;
+}
 /* A long name (DeskSign LONG_NAME) takes a second line at the top and more lines of small print: the name is set a
    size smaller and the code gives up a little of its width, so the sheet still fits one page. */
-.sign-long .sign-business { font-size: max(2.6cqi, 11px); }
-.sign-long .sign-qr { width: 46cqi; }
+.sign-long .sign-business {
+  font-size: max(2.6cqi, 11px);
+}
+.sign-long .sign-qr {
+  width: 46cqi;
+}
 /* No page margin, so the browser has nowhere to print its own header and footer (the tab's title, the address and
    the date across the top of a sign); the sheet's padding is the margin instead. */
-@page desk-sign { margin: 0; }
+@page desk-sign {
+  margin: 0;
+}
 @media print {
-  .sign-page { page: desk-sign; max-width: none; margin: 0; padding: 0; }
-  .sign-bar { display: none; }
-  .sign-sheet { box-shadow: none; border-radius: 0; padding: 0.5in 0.55in; }
+  .sign-page {
+    page: desk-sign;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  .sign-bar {
+    display: none;
+  }
+  .sign-sheet {
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0.5in 0.55in;
+  }
 }
 
-.legal .legal-foot { border-top: 1px solid var(--auth-line); margin-top: 36px; padding-top: 16px; color: var(--auth-muted); font-size: 0.85rem; }
-.auth-card .error { color: var(--auth-danger); font-size: 0.85rem; margin-top: 10px; }
-.auth-card .hint { color: var(--auth-muted); font-size: 0.8rem; margin-top: 12px; }
-.os-shell { max-width: 760px; margin: 8vh auto; padding: 0 24px; }
-.os-shell h1 { font-size: 1.5rem; }
+.legal .legal-foot {
+  border-top: 1px solid var(--auth-line);
+  margin-top: 36px;
+  padding-top: 16px;
+  color: var(--auth-muted);
+  font-size: 0.85rem;
+}
+.auth-card .error {
+  color: var(--auth-danger);
+  font-size: 0.85rem;
+  margin-top: 10px;
+}
+.auth-card .hint {
+  color: var(--auth-muted);
+  font-size: 0.8rem;
+  margin-top: 12px;
+}
+.os-shell {
+  max-width: 760px;
+  margin: 8vh auto;
+  padding: 0 24px;
+}
+.os-shell h1 {
+  font-size: 1.5rem;
+}
 .os-shell .card {
   background: var(--auth-surface);
   border: 1px solid var(--auth-line);
@@ -344,11 +819,27 @@ body {
   padding: 20px 24px;
   margin: 16px 0;
 }
-.os-shell .muted { color: var(--auth-muted); }
-.os-shell a { color: var(--auth-teal); }
-.os-shell code { background: #0a100e; border-radius: 4px; padding: 1px 6px; font-size: 0.85em; }
-.os-shell form { display: inline; }
+.os-shell .muted {
+  color: var(--auth-muted);
+}
+.os-shell a {
+  color: var(--auth-teal);
+}
+.os-shell code {
+  background: #0a100e;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.85em;
+}
+.os-shell form {
+  display: inline;
+}
 .os-shell button {
-  background: none; border: 1px solid var(--auth-line); color: var(--auth-muted);
-  border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 0.85rem;
+  background: none;
+  border: 1px solid var(--auth-line);
+  color: var(--auth-muted);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
 }

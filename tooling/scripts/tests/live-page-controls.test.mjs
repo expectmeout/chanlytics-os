@@ -21,29 +21,53 @@ const CALL = "call_abc123def456";
 const LINE = "+13055550199";
 
 const call = (over = {}) => ({
-  id: "c-live", retell_call_id: CALL, direction: "inbound", call_type: "phone_call", status: "ongoing",
-  from_e164: "+16465550123", from_raw: null, to_e164: "+13055550100",
-  started_at: iso(90_000), ended_at: null, duration_ms: null, disconnection_reason: null,
-  sentiment: null, call_successful: null, in_voicemail: null, summary: null, wanted: null, outcome: null, follow_up: null, caller_name: null,
+  id: "c-live",
+  retell_call_id: CALL,
+  direction: "inbound",
+  call_type: "phone_call",
+  status: "ongoing",
+  from_e164: "+16465550123",
+  from_raw: null,
+  to_e164: "+13055550100",
+  started_at: iso(90_000),
+  ended_at: null,
+  duration_ms: null,
+  disconnection_reason: null,
+  sentiment: null,
+  call_successful: null,
+  in_voicemail: null,
+  summary: null,
+  wanted: null,
+  outcome: null,
+  follow_up: null,
+  caller_name: null,
   transcript_object: [
     { role: "agent", content: "Thank you for calling Harbor Moving!" },
     { role: "injected", content: frameWhisper("offer the 3pm slot") },
     { role: "user", content: "Can I speak to someone?" },
     { role: "injected", content: frameHandOver() },
   ],
-  recording: null, conversation_id: "cv1", contact_id: "k1", message_id: null,
-  created_at: iso(90_000), updated_at: iso(2_000),
+  recording: null,
+  conversation_id: "cv1",
+  contact_id: "k1",
+  message_id: null,
+  created_at: iso(90_000),
+  updated_at: iso(2_000),
   contact: { display_name: "Rosa", wa_profile_name: null, phone_e164: "+16465550123" },
   ...over,
 });
-const channels = [{ id: "ch1", kind: "voice", number_e164: "+13055550100", status: "active", created_at: iso(86_400_000), config: {} }];
+const channels = [
+  { id: "ch1", kind: "voice", number_e164: "+13055550100", status: "active", created_at: iso(86_400_000), config: {} },
+];
 
 /* ---- the page itself, rendered without a browser ---- */
 const calls = { end: [], hand: [], whisper: [], flash: [], nav: [], refresh: 0 };
 // The page destructures the hooks at module load, so React carries them from the start.
 let cells = [];
 let seq = 0;
-const fresh = () => { cells = []; };
+const fresh = () => {
+  cells = [];
+};
 globalThis.Icon = "Icon";
 globalThis.StatePill = "StatePill";
 globalThis.StatStrip = "StatStrip";
@@ -59,16 +83,40 @@ globalThis.React = {
   useState: (init) => {
     const k = seq++;
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }];
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
   },
   useReducer: (red, init) => {
     const k = seq++;
     if (!(k in cells)) cells[k] = init;
-    return [cells[k], (a) => { cells[k] = red(cells[k], a); }];
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
   },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
-  useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
+  useMemo: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = fn();
+    return cells[k];
+  },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
 };
 globalThis.window = {
   // The chrome bridge, as installShell publishes it.
@@ -76,10 +124,21 @@ globalThis.window = {
   __LIVE: toLiveVM([call()], channels, ZONE, new Date(NOW)),
   __FACTS: { facts: { handoff_number: { value: LINE } } },
   // The client's answers: the route's body under data (client/api.ts). A flat fake hid that the toast read r.line.
-  __endCall: async (id) => { calls.end.push(id); return { ok: true, data: { ok: true, decision_id: "d1" } }; },
-  __handOverCall: async (id) => { calls.hand.push(id); return { ok: true, data: { ok: true, decision_id: "d2", line: LINE } }; },
-  __whisperCall: async (id, text) => { calls.whisper.push([id, text]); return { ok: true }; },
-  __refreshLive: () => { calls.refresh += 1; },
+  __endCall: async (id) => {
+    calls.end.push(id);
+    return { ok: true, data: { ok: true, decision_id: "d1" } };
+  },
+  __handOverCall: async (id) => {
+    calls.hand.push(id);
+    return { ok: true, data: { ok: true, decision_id: "d2", line: LINE } };
+  },
+  __whisperCall: async (id, text) => {
+    calls.whisper.push([id, text]);
+    return { ok: true };
+  },
+  __refreshLive: () => {
+    calls.refresh += 1;
+  },
   usePPToast: () => [null, (m) => calls.flash.push(m)],
   gate: () => ({}),
   CHANLY: { nav: (to) => calls.nav.push(to), R: { client: (id) => `clients/${id}` } },
@@ -89,7 +148,11 @@ globalThis.window = {
   removeEventListener() {},
 };
 // The end is confirmed through the shared Confirm (data-bits.jsx), drawn for real.
-globalThis.document ??= { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.document ??= {
+  body: {},
+  addEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+};
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.Confirm = globalThis.window.Confirm;
@@ -98,17 +161,38 @@ globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
 await import("../../../apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
 const Page = globalThis.window.LiveMonitorPage;
 
-function mount() { seq = 0; return Page(); }
+function mount() {
+  seq = 0;
+  return Page();
+}
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
   fn(n);
   for (const k of n.props?.children ?? []) walk(k, fn);
   if (n.rendered) walk(n.rendered, fn);
 };
-const byTestId = (tree, id) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
-const allByTestId = (tree, id) => { const hits = []; walk(tree, (n) => { if (n.props?.["data-testid"] === id) hits.push(n); }); return hits; };
+const byTestId = (tree, id) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && n.props?.["data-testid"] === id) hit = n;
+  });
+  return hit;
+};
+const allByTestId = (tree, id) => {
+  const hits = [];
+  walk(tree, (n) => {
+    if (n.props?.["data-testid"] === id) hits.push(n);
+  });
+  return hits;
+};
 /** The text under a node, as a reader sees it. */
-const textOf = (n) => { const out = []; walk(n, (x) => { for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k)); }); return out.join(""); };
+const textOf = (n) => {
+  const out = [];
+  walk(n, (x) => {
+    for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k));
+  });
+  return out.join("");
+};
 /** The toast's words: the flash carries a React element, so its strings are gathered the same way. */
 const said = (m) => textOf(m.msg);
 
@@ -134,7 +218,10 @@ test("the transcript says who spoke: the owner's whisper as the owner's, the pla
   assert.ok(textOf(whisper[0]).includes("offer the 3pm slot"));
   assert.ok(textOf(platform[0]).includes("Chanlytics told the receptionist"));
   assert.ok(textOf(platform[0]).includes("The business owner is picking up this call themselves."));
-  assert.ok(!textOf(platform[0]).includes("transfer_to_staff"), "the instruction stays between the platform and the agent");
+  assert.ok(
+    !textOf(platform[0]).includes("transfer_to_staff"),
+    "the instruction stays between the platform and the agent",
+  );
 });
 
 test("ending is armed first, and the second click reaches the bridge with the call and tells the owner once", async () => {
@@ -145,8 +232,15 @@ test("ending is armed first, and the second click reaches the bridge with the ca
   const yes = byTestId(tree, "live-end-yes");
   assert.ok(yes, "armed: the question with its Yes");
   await yes.props.onClick();
-  assert.deepEqual(calls.end, ["c-live"], "the row's id, as the route takes it; the provider's call id is the route's to look up");
-  assert.ok(calls.flash.some((m) => said(m).includes("Call ended")), "the owner is told");
+  assert.deepEqual(
+    calls.end,
+    ["c-live"],
+    "the row's id, as the route takes it; the provider's call id is the route's to look up",
+  );
+  assert.ok(
+    calls.flash.some((m) => said(m).includes("Call ended")),
+    "the owner is told",
+  );
   tree = mount();
   assert.equal(byTestId(tree, "live-end-yes"), null, "disarmed after the act");
 });
@@ -179,7 +273,20 @@ test("a workspace with no line is told the fix on the button itself, and the but
 test("a call that has ended offers no control, only its summary and the way to the transcript", () => {
   fresh();
   const was = globalThis.window.__LIVE;
-  globalThis.window.__LIVE = toLiveVM([call({ status: "ended", ended_at: iso(1_000), duration_ms: 89_000, disconnection_reason: "manual_stopped", summary: "Asked for a person." })], channels, ZONE, new Date(NOW));
+  globalThis.window.__LIVE = toLiveVM(
+    [
+      call({
+        status: "ended",
+        ended_at: iso(1_000),
+        duration_ms: 89_000,
+        disconnection_reason: "manual_stopped",
+        summary: "Asked for a person.",
+      }),
+    ],
+    channels,
+    ZONE,
+    new Date(NOW),
+  );
   try {
     const tree = mount();
     assert.equal(byTestId(tree, "live-controls"), null, "nothing to end or pass");

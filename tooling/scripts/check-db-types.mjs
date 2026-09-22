@@ -82,11 +82,17 @@ function schemaLines(src) {
     while (open < lines.length && TOP_COMMENT.test(lines[open])) open++;
     if (open < lines.length && INTERNAL_BLOCK.test(lines[open])) {
       const end = closing(lines, open, TOP_END);
-      if (end !== -1) { i = end; continue; }
+      if (end !== -1) {
+        i = end;
+        continue;
+      }
     }
     if (PARTITION_TABLE.test(lines[i])) {
       const end = closing(lines, i, TABLE_END);
-      if (end !== -1) { i = end; continue; }
+      if (end !== -1) {
+        i = end;
+        continue;
+      }
     }
     kept.push(lines[i]);
     origin.push(i + 1);
@@ -118,7 +124,10 @@ function firstDifference(committed, generated) {
   for (const indent of [6, 4, 2]) {
     for (let j = Math.min(i, source.length - 1); j >= 0; j--) {
       const m = new RegExp(`^ {${indent}}"?([\\w-]+)"?: \\{$`).exec(source[j]);
-      if (m) { within.unshift(m[1]); break; }
+      if (m) {
+        within.unshift(m[1]);
+        break;
+      }
       if (/^ {0,5}\S/.test(source[j]) && indent === 6) break;
     }
   }
@@ -163,7 +172,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exit(2);
   }
   if (!looksGenerated(generated)) {
-    console.error(`check-db-types: "${CLI}" produced ${generated.length} bytes that are not generated types -- is this the database \`supabase start\` built from supabase/migrations?`);
+    console.error(
+      `check-db-types: "${CLI}" produced ${generated.length} bytes that are not generated types -- is this the database \`supabase start\` built from supabase/migrations?`,
+    );
     process.exit(2);
   }
 

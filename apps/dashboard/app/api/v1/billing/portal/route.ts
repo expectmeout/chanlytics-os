@@ -16,7 +16,11 @@ export const POST = write({
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true || typeof b.url !== "string") {
       const reason = typeof b.error === "string" ? b.error : "failed";
-      throw new AppError(a.status === 409 ? "conflict" : a.status === 503 ? "upstream_auth" : "internal", BILLING_SAID[reason] ?? `The portal could not be opened (${reason}).`, a.status === 409 ? 409 : a.status === 503 ? 503 : 502);
+      throw new AppError(
+        a.status === 409 ? "conflict" : a.status === 503 ? "upstream_auth" : "internal",
+        BILLING_SAID[reason] ?? `The portal could not be opened (${reason}).`,
+        a.status === 409 ? 409 : a.status === 503 ? 503 : 502,
+      );
     }
     return { url: b.url };
   },

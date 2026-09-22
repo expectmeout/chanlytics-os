@@ -1,4 +1,17 @@
-import { AppError, firstNameOf, inboxSlots, isOptedOutContact, normalizeEmail, OPT_OUT_REFUSAL, purposeOfTemplate, renderTemplate, REPLY_LIMITS, replyWindow, resolveParams, slotToWrite } from "@chanlytics/contracts";
+import {
+  AppError,
+  firstNameOf,
+  inboxSlots,
+  isOptedOutContact,
+  normalizeEmail,
+  OPT_OUT_REFUSAL,
+  purposeOfTemplate,
+  renderTemplate,
+  REPLY_LIMITS,
+  replyWindow,
+  resolveParams,
+  slotToWrite,
+} from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Thread, ThreadPorts } from "./ports";
 import { PERSON_CONTROL_MAX_S } from "./take-over";
@@ -27,7 +40,14 @@ export interface ReplyBody {
   email_to?: string;
 }
 /** `decision_id` is the ledger row, for an undo to name; absent on a receipt stored before it was kept. */
-export interface ReplyReceipt { message_id: string; status: string; cancelable_until: string; window_open: boolean; withdrawn_drafts: number; decision_id?: string }
+export interface ReplyReceipt {
+  message_id: string;
+  status: string;
+  cancelable_until: string;
+  window_open: boolean;
+  withdrawn_drafts: number;
+  decision_id?: string;
+}
 export interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
   contact_id: string | null;
   last_wa_inbound_at: string | null;
@@ -57,7 +77,10 @@ export interface QueuedReply {
   meta?: Json;
 }
 /** An address never travels in a field the send path reads as a phone number: an email's is `to_email`. */
-export type SendPayload = { message_id: string; conversation_id: string } & ({ to_phone: string } | { to_email: string }) & ({ body: string } | { template: { name: string; language: string; params: string[] } });
+export type SendPayload = { message_id: string; conversation_id: string } & (
+  { to_phone: string } | { to_email: string }
+) &
+  ({ body: string } | { template: { name: string; language: string; params: string[] } });
 
 /** The email a reply answers, as the thread stores it. */
 export interface EmailParentFacts {
@@ -81,19 +104,42 @@ export interface EmailReplyPorts {
   /** The person's latest email on this thread; null when it holds none. Read inside this workspace and this conversation only. */
   parent(conv: { id: string; tenant_id: string }): Promise<EmailParentFacts | null>;
   /** The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send from. */
-  freeze(input: { tenantId: string; messageId: string; to: string; parent: EmailParentFacts; body: string }): Promise<{ request: Json; subject: string } | null>;
+  freeze(input: {
+    tenantId: string;
+    messageId: string;
+    to: string;
+    parent: EmailParentFacts;
+    body: string;
+  }): Promise<{ request: Json; subject: string } | null>;
   /** The row's id before the row exists. */
   newId(): string;
 }
 
-export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
+export interface ReplyPorts extends Pick<
+  ThreadPorts,
+  "pauseMs" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"
+> {
   /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
   replyChannel(conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms" | "email">;
   email: EmailReplyPorts;
   /** The receipt stored under this caller's key, with when and for which intent it was stored. */
-  priorReceipt(tenantId: string, key: string): Promise<{ response: ReplyReceipt; created_at: string; request_hash: string | null } | null>;
+  priorReceipt(
+    tenantId: string,
+    key: string,
+  ): Promise<{ response: ReplyReceipt; created_at: string; request_hash: string | null } | null>;
   /** The workspace's template by name and language, as Meta last told us about it; `variables` is one entry per slot, when the sync has filled it. */
-  template(tenantId: string, name: string, language: string): Promise<{ name: string; language: string; body_preview: string | null; meta_status: string | null; category: string | null; variables?: unknown } | null>;
+  template(
+    tenantId: string,
+    name: string,
+    language: string,
+  ): Promise<{
+    name: string;
+    language: string;
+    body_preview: string | null;
+    meta_status: string | null;
+    category: string | null;
+    variables?: unknown;
+  } | null>;
   /** The facts a template's params come from, when the workspace has them. */
   templateFacts(tenantId: string): Promise<{ business_name: string; booking_link: string } | null>;
   /** needs_human, paused until, snooze cleared, claimed by the user, and the thread touched now. True iff a row changed. */
@@ -109,7 +155,12 @@ export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" 
   /** A stable digest of a string, for the intent and the content. */
   hash(s: string): string;
 }
-export interface ReplyCommand { conv: ReplyThread; userId: string; body: ReplyBody; idempotencyKey: string | null }
+export interface ReplyCommand {
+  conv: ReplyThread;
+  userId: string;
+  body: ReplyBody;
+  idempotencyKey: string | null;
+}
 
 /**
  * What an email reply adds to the queued row. Everything here is decided
@@ -121,9 +172,18 @@ export interface ReplyCommand { conv: ReplyThread; userId: string; body: ReplyBo
  * operator is told where the reply will go and agrees to it by value, rather
  * than the reply going somewhere they did not expect (the plan's §7).
  */
-async function shapeEmailReply(ports: ReplyPorts, conv: ReplyThread, to: string, text: string, agreedTo: string | undefined): Promise<{ id: string; meta: Json }> {
+async function shapeEmailReply(
+  ports: ReplyPorts,
+  conv: ReplyThread,
+  to: string,
+  text: string,
+  agreedTo: string | undefined,
+): Promise<{ id: string; meta: Json }> {
   if (conv.email_suppressed_at) {
-    throw new AppError("conflict", "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way.");
+    throw new AppError(
+      "conflict",
+      "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way.",
+    );
   }
   const parent = await ports.email.parent(conv);
   if (!parent) throw new AppError("conflict", "There is no email from this person on this thread to reply to.");
@@ -137,8 +197,23 @@ async function shapeEmailReply(ports: ReplyPorts, conv: ReplyThread, to: string,
   }
   const id = ports.email.newId();
   const frozen = await ports.email.freeze({ tenantId: conv.tenant_id, messageId: id, to, parent, body: text });
-  if (!frozen) throw new AppError("conflict", "This workspace has no email address to send from yet. Set one up in Settings › Channels first.");
-  return { id, meta: { email: { subject: frozen.subject, to: [to], parent_id: parent.messageId, in_reply_to: parent.rfcMessageId, request: frozen.request } } as Json };
+  if (!frozen)
+    throw new AppError(
+      "conflict",
+      "This workspace has no email address to send from yet. Set one up in Settings › Channels first.",
+    );
+  return {
+    id,
+    meta: {
+      email: {
+        subject: frozen.subject,
+        to: [to],
+        parent_id: parent.messageId,
+        in_reply_to: parent.rfcMessageId,
+        request: frozen.request,
+      },
+    } as Json,
+  };
 }
 
 /**
@@ -161,11 +236,14 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   // A reply goes back on the wire the person last wrote on, to the address that
   // wire needs. It never crosses: an email that cannot be sent does not become a text.
   const channel = await ports.replyChannel(conv);
-  const to = channel === "email" ? conv.email ?? null : conv.phone_e164;
+  const to = channel === "email" ? (conv.email ?? null) : conv.phone_e164;
   if (!to) {
-    throw new AppError("conflict", channel === "email"
-      ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first."
-      : "This person has no phone number, so a WhatsApp or text reply cannot reach them.");
+    throw new AppError(
+      "conflict",
+      channel === "email"
+        ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first."
+        : "This person has no phone number, so a WhatsApp or text reply cannot reach them.",
+    );
   }
   const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
 
@@ -196,14 +274,21 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     if (messageBody.length > REPLY_LIMITS[channel].max) throw new AppError("validation", REPLY_LIMITS[channel].refusal);
     if (channel === "email") email = await shapeEmailReply(ports, conv, to, messageBody, body.email_to);
   } else {
-    if (!body.template?.name) throw new AppError("window_closed", "The 24-hour WhatsApp window is closed — replies must use an approved template.");
+    if (!body.template?.name)
+      throw new AppError(
+        "window_closed",
+        "The 24-hour WhatsApp window is closed — replies must use an approved template.",
+      );
     const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
     if (!tpl || tpl.meta_status !== "approved") throw new AppError("validation", "Template not found or not approved.");
     // Which yes this template needs is Meta's category, and the door asks
     // again at the wire. Asked here too, so the operator hears a sentence now
     // instead of finding a canceled row later.
     if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
-      throw new AppError("forbidden", "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.");
+      throw new AppError(
+        "forbidden",
+        "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.",
+      );
     }
     // The template's own slots, filled as broadcasts and the assistant fill them (inboxSlots, resolveParams): the
     // customer's first name, the business name, the booking link. The Inbox filled exactly two -- the business name
@@ -212,14 +297,21 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     // sentence, not by Meta fifteen seconds after "queued".
     const toWrite = slotToWrite(tpl);
     if (toWrite) {
-      throw new AppError("validation", `This template needs words for “${toWrite}”, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`);
+      throw new AppError(
+        "validation",
+        `This template needs words for “${toWrite}”, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`,
+      );
     }
     // Params are TENANT FACTS (E4): the workspace's own words for the slots
     // that name it, never the browser's, so the browser never chooses the
     // link that lands on a phone. A workspace with no facts on file cannot
     // send a template from here, and is told so before anything is queued.
     const facts = await ports.templateFacts(conv.tenant_id);
-    if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings › Business first.");
+    if (!facts)
+      throw new AppError(
+        "validation",
+        "This workspace has no template facts configured yet. Add the business name and booking link in Settings › Business first.",
+      );
     const params: string[] = resolveParams(inboxSlots(tpl), {
       firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
       businessName: facts.business_name,
@@ -238,12 +330,19 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   const pauseUntil = now + (await ports.pauseMs(conv.tenant_id));
   // The claim IS the pause: one statement, one fact, and nothing in front of it
   // to be left disagreeing when it changes no row (take-over.ts says why).
-  if (!(await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString()))) {
+  if (
+    !(await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString()))
+  ) {
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
   // Who is speaking now (00132), taken before the drafts go: the wire asks
   // this, and between the claim and the withdrawal a draft can still reach it.
-  await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((pauseUntil - now) / 1000))));
+  await ports.takeControl(
+    conv.tenant_id,
+    conv.id,
+    cmd.userId,
+    Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((pauseUntil - now) / 1000))),
+  );
   // The operator is REPLACING the receptionist's held reply, not queueing
   // behind it: withdraw the draft before writing their own words, or the
   // customer receives both.
@@ -265,7 +364,8 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   const dueAt = new Date(now + SEND_GRACE_MS);
   try {
     await ports.schedule(conv.tenant_id, dueAt, {
-      message_id, conversation_id: conv.id,
+      message_id,
+      conversation_id: conv.id,
       ...(channel === "email" ? { to_email: to } : { to_phone: to }),
       ...(jobTemplate ? { template: jobTemplate } : { body: messageBody }),
     });
@@ -277,9 +377,19 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   // The receipt is kept the moment the send is certain: a retry under the same
   // key after a failure further down must find it, or the words go twice. It
   // is kept again below with the decision's id, once there is one.
-  const queued: ReplyReceipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts };
+  const queued: ReplyReceipt = {
+    message_id,
+    status: "queued",
+    cancelable_until: dueAt.toISOString(),
+    window_open: window.open,
+    withdrawn_drafts,
+  };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", { message_id, window_open: window.open, template: templateName });
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
+    message_id,
+    window_open: window.open,
+    template: templateName,
+  });
   await ports.resolveEscalation(conv.id, decision_id);
 
   const receipt: ReplyReceipt = { ...queued, decision_id };

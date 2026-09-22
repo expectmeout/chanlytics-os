@@ -12,7 +12,14 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildEmailRequest, hostedAddress, hostedIdentity } from "@chanlytics/channels";
-import { AppError, normalizeLocalPart, whyNotAFromName, whyNotALocalPart, type EmailSetupDto, type MailboxDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  normalizeLocalPart,
+  whyNotAFromName,
+  whyNotALocalPart,
+  type EmailSetupDto,
+  type MailboxDto,
+} from "@chanlytics/contracts";
 import { mailboxOfTenant, type Database, type Json } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
 import type { RouteContext } from "./with-route";
@@ -27,7 +34,10 @@ export function emailDomain(): string | null {
  * A person's own reply, as the request it leaves as. No signature is added:
  * what a person typed is what is sent, the way it is on every other wire.
  */
-export async function freezeReply(ctx: RouteContext, i: Parameters<EmailReplyPorts["freeze"]>[0]): Promise<{ request: Json; subject: string } | null> {
+export async function freezeReply(
+  ctx: RouteContext,
+  i: Parameters<EmailReplyPorts["freeze"]>[0],
+): Promise<{ request: Json; subject: string } | null> {
   const domain = emailDomain();
   if (!domain) return null;
   const mailbox = await mailboxOfTenant(ctx.supabase, i.tenantId);
@@ -35,7 +45,12 @@ export async function freezeReply(ctx: RouteContext, i: Parameters<EmailReplyPor
   const request = buildEmailRequest({
     identity: hostedIdentity(mailbox, domain),
     to: i.to,
-    parent: { messageId: i.parent.messageId, rfcMessageId: i.parent.rfcMessageId, references: i.parent.references, subject: i.parent.subject },
+    parent: {
+      messageId: i.parent.messageId,
+      rfcMessageId: i.parent.rfcMessageId,
+      references: i.parent.references,
+      subject: i.parent.subject,
+    },
     body: i.body,
     signature: null,
     actor: "human",
@@ -46,8 +61,23 @@ export async function freezeReply(ctx: RouteContext, i: Parameters<EmailReplyPor
 }
 
 /** A mailbox row as the pages are told about it: its address on this deployment's domain, and never its reply route. */
-function mailboxDto(row: { id: string; local_part: string; from_name: string; last_received_at: string | null; last_error?: string | null }, domain: string): MailboxDto {
-  return { id: row.id, address: hostedAddress(row.local_part, domain), from_name: row.from_name, last_received_at: row.last_received_at, last_error: row.last_error ?? null };
+function mailboxDto(
+  row: {
+    id: string;
+    local_part: string;
+    from_name: string;
+    last_received_at: string | null;
+    last_error?: string | null;
+  },
+  domain: string,
+): MailboxDto {
+  return {
+    id: row.id,
+    address: hostedAddress(row.local_part, domain),
+    from_name: row.from_name,
+    last_received_at: row.last_received_at,
+    last_error: row.last_error ?? null,
+  };
 }
 
 /**
@@ -68,12 +98,20 @@ function doorRefusal(e: { code?: string; message: string }): AppError {
 }
 
 /** An owner gives the workspace its address (00129). Judged here first, so the refusal says which kind of not-an-address it was. */
-export async function createMailbox(ctx: RouteContext, tenantId: string, input: { localPart: string; fromName: string }): Promise<MailboxDto> {
+export async function createMailbox(
+  ctx: RouteContext,
+  tenantId: string,
+  input: { localPart: string; fromName: string },
+): Promise<MailboxDto> {
   const domain = emailDomain();
   if (!domain) throw new AppError("conflict", "Email is not available here yet.");
   const problem = whyNotALocalPart(input.localPart) ?? whyNotAFromName(input.fromName);
   if (problem) throw new AppError("validation", problem);
-  const { error } = await ctx.supabase.rpc("create_mailbox", { p_tenant_id: tenantId, p_local_part: normalizeLocalPart(input.localPart), p_from_name: input.fromName.trim() });
+  const { error } = await ctx.supabase.rpc("create_mailbox", {
+    p_tenant_id: tenantId,
+    p_local_part: normalizeLocalPart(input.localPart),
+    p_from_name: input.fromName.trim(),
+  });
   if (error) throw doorRefusal(error);
   const row = await mailboxOfTenant(ctx.supabase, tenantId);
   if (!row) throw new Error("create_mailbox answered and the mailbox cannot be read back");
@@ -81,7 +119,12 @@ export async function createMailbox(ctx: RouteContext, tenantId: string, input: 
 }
 
 /** An owner changes the name customers see. The mailbox must be this workspace's: another's is not found, whatever the door would say. */
-export async function renameMailbox(ctx: RouteContext, tenantId: string, mailboxId: string, fromName: string): Promise<MailboxDto> {
+export async function renameMailbox(
+  ctx: RouteContext,
+  tenantId: string,
+  mailboxId: string,
+  fromName: string,
+): Promise<MailboxDto> {
   const domain = emailDomain();
   if (!domain) throw new AppError("conflict", "Email is not available here yet.");
   const problem = whyNotAFromName(fromName);

@@ -23,8 +23,7 @@ import { verifyEdgeToken } from "./packages/channels.js";
 import { env } from "./env.js";
 
 export type AdminAuth =
-  | { ok: true; via: "token" | "key"; workspace: string | null; user: string | null }
-  | { ok: false; response: Response };
+  { ok: true; via: "token" | "key"; workspace: string | null; user: string | null } | { ok: false; response: Response };
 
 export function authorizeAdmin(request: Request, aud: string): AdminAuth {
   const token = request.headers.get("x-edge-token");

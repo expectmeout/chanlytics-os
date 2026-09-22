@@ -15,29 +15,66 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay, instructionsDraft, INSTRUCTIONS_MAX, fallbackMessages, FALLBACK_DEFAULTS, unknownDetails } from "@chanlytics/contracts";
+import {
+  stateOf,
+  whyNotAHandoff,
+  whyNotAPhone,
+  samePhone,
+  handoffE164,
+  formatPhoneDisplay,
+  instructionsDraft,
+  INSTRUCTIONS_MAX,
+  fallbackMessages,
+  FALLBACK_DEFAULTS,
+  unknownDetails,
+} from "@chanlytics/contracts";
 
 const TID = "t-studio";
 
 /* ---------------------------------- the window ---------------------------------- */
 
 const listeners = {};
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+  body: { appendChild() {} },
+  activeElement: null,
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  location: { pathname: "/w/studio", hash: "#/admin/workspace", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/studio",
+    hash: "#/admin/workspace",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   history: { replaceState() {} },
   innerHeight: 800,
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
@@ -53,7 +90,10 @@ let cells = new Map();
 let frames = [];
 let dirty = false;
 let lastTree = null;
-const slot = () => { const f = frames[frames.length - 1]; return `${f.key}#${f.hook++}`; };
+const slot = () => {
+  const f = frames[frames.length - 1];
+  return `${f.key}#${f.hook++}`;
+};
 const went = [];
 const toasts = [];
 const saved = [];
@@ -71,19 +111,49 @@ globalThis.React = {
       const name = type.name || "anon";
       parent.kids[name] = (parent.kids[name] || 0) + 1;
       frames.push({ key: `${parent.key}/${name}:${parent.kids[name]}`, hook: 0, kids: {} });
-      try { node.rendered = type(props); } finally { frames.pop(); }
+      try {
+        node.rendered = type(props);
+      } finally {
+        frames.pop();
+      }
     }
     return node;
   },
   useState: (init) => {
     const k = slot();
     if (!cells.has(k)) cells.set(k, typeof init === "function" ? init() : init);
-    return [cells.get(k), (v) => { cells.set(k, typeof v === "function" ? v(cells.get(k)) : v); dirty = true; }];
+    return [
+      cells.get(k),
+      (v) => {
+        cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
+        dirty = true;
+      },
+    ];
   },
-  useReducer: (red, init) => { const k = slot(); if (!cells.has(k)) cells.set(k, init); return [cells.get(k), (a) => { cells.set(k, red(cells.get(k), a)); dirty = true; }]; },
-  useRef: (init) => { const k = slot(); if (!cells.has(k)) cells.set(k, { current: init }); return cells.get(k); },
-  useMemo: (fn) => { slot(); return fn(); },
-  useCallback: (fn) => { slot(); return fn; },
+  useReducer: (red, init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, init);
+    return [
+      cells.get(k),
+      (a) => {
+        cells.set(k, red(cells.get(k), a));
+        dirty = true;
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, { current: init });
+    return cells.get(k);
+  },
+  useMemo: (fn) => {
+    slot();
+    return fn();
+  },
+  useCallback: (fn) => {
+    slot();
+    return fn;
+  },
   useId: () => `id-${slot()}`,
   // SetRow names its control from the row: the three calls it makes, over this stub's nodes.
   Children: { map: (kids, fn) => (kids == null ? kids : [].concat(kids).flat(Infinity).map(fn)) },
@@ -93,7 +163,14 @@ globalThis.React = {
   useEffect: (fn, deps) => {
     const k = slot();
     const prev = cells.get(k);
-    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (
+      prev &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     const cell = { deps, cleanup: undefined };
     cells.set(k, cell);
@@ -118,12 +195,19 @@ Object.assign(globalThis.window, {
   __phoneDisplay: formatPhoneDisplay,
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) => String(name || email).slice(0, 2).toUpperCase(),
+    initials: (name, email) =>
+      String(name || email)
+        .slice(0, 2)
+        .toUpperCase(),
     words: (me) => ({ name: me.display_name || me.email, email: me.email }),
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
   // The bridge's versioned save (inbox-verbs.ts). Without it every save returns before its checks run.
-  __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
+  __saveSettings: (config, version, accepted) => {
+    saved.push({ config, version });
+    accepted();
+    return Promise.resolve({ ok: true });
+  },
   // What the instructions box opens with and the most it holds, as the bridge publishes them (S4).
   __instructionsDraft: instructionsDraft,
   __instructionsMax: INSTRUCTIONS_MAX,
@@ -136,13 +220,26 @@ await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
 // A drawn component is walked twice, as the children it was given and as what it rendered: each node counts once.
-const all = (tree, pred) => { const out = []; const seen = new Set(); walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } }); return out; };
+const all = (tree, pred) => {
+  const out = [];
+  const seen = new Set();
+  walk(tree, (n) => {
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
@@ -152,14 +249,33 @@ const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return textOf(n.props?.children);
 };
-const classed = (tree, cls) => find(tree, (n) => String(n.props?.className || "").split(" ").includes(cls));
+const classed = (tree, cls) =>
+  find(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes(cls),
+  );
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const labelled = (tree, tag, label) => find(tree, (n) => n.type === tag && n.props["aria-label"] === label);
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 const type = (node, value) => node.props.onChange({ target: { value } });
-const fresh = () => { cells = new Map(); went.length = 0; toasts.length = 0; saved.length = 0; for (const k of Object.keys(listeners)) delete listeners[k]; };
-const draw = (tab) => { frames = [{ key: "root", hook: 0, kids: {} }]; dirty = false; lastTree = globalThis.window.SettingsPage({ tab, onTab() {} }); return lastTree; };
-const settings = (tab) => { fresh(); return draw(tab); };
+const fresh = () => {
+  cells = new Map();
+  went.length = 0;
+  toasts.length = 0;
+  saved.length = 0;
+  for (const k of Object.keys(listeners)) delete listeners[k];
+};
+const draw = (tab) => {
+  frames = [{ key: "root", hook: 0, kids: {} }];
+  dirty = false;
+  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  return lastTree;
+};
+const settings = (tab) => {
+  fresh();
+  return draw(tab);
+};
 const again = draw;
 const settle = (tab) => (dirty ? draw(tab) : lastTree);
 
@@ -172,11 +288,17 @@ const workspace = (over = {}) => {
   Object.assign(globalThis.window, {
     __ME: { email: "owner@northside.example", role: "owner", display_name: "Dana" },
     __SETTINGS: {
-      role: "owner", version: 3,
+      role: "owner",
+      version: 3,
       config: {
         brain: {
-          business_name: "Northside Studio", booking_link: "https://book.example/northside",
-          profile: { handoff_number: "+17865550182", services: [{ name: "Cut", duration_min: 45 }, { name: "Color" }], notes: [{ title: "Parking", text: "Behind the building." }] },
+          business_name: "Northside Studio",
+          booking_link: "https://book.example/northside",
+          profile: {
+            handoff_number: "+17865550182",
+            services: [{ name: "Cut", duration_min: 45 }, { name: "Color" }],
+            notes: [{ title: "Parking", text: "Behind the building." }],
+          },
         },
         notifications: { escalation_emails: ["owner@northside.example"] },
       },
@@ -208,16 +330,24 @@ test("REGRESSION (D7, S18): the Business card draws again when the settings surf
   settings("workspace");
   // The re-read after a save lands: a new transfer number.
   const was = globalThis.window.__FACTS;
-  globalThis.window.__FACTS = { ...was, facts: { ...was.facts, handoff_number: { value: "+17865550199", source: "typed" } } };
+  globalThis.window.__FACTS = {
+    ...was,
+    facts: { ...was.facts, handoff_number: { value: "+17865550199", source: "typed" } },
+  };
   globalThis.window.dispatchEvent({ type: "surface:settings" });
   const tree = settle("workspace");
-  assert.ok(textOf(byTestId(tree, "fact-transfers-a-caller-to")).includes("555-0199"), "REGRESSION: the card still showed the number from before the save");
+  assert.ok(
+    textOf(byTestId(tree, "fact-transfers-a-caller-to")).includes("555-0199"),
+    "REGRESSION: the card still showed the number from before the save",
+  );
 });
 
 test("REGRESSION (D7, S11): the Team card draws again when the settings surface is re-read -- an invitation just sent was not on it", () => {
   workspace();
   settings("team");
-  globalThis.window.__TEAM_INVITES = [{ id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: "2026-09-22T12:00:00Z" }];
+  globalThis.window.__TEAM_INVITES = [
+    { id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: "2026-09-22T12:00:00Z" },
+  ];
   globalThis.window.dispatchEvent({ type: "surface:settings" });
   const tree = settle("team");
   assert.ok(textOf(tree).includes("sam@northside.example"), "REGRESSION: the roster on screen did not change");
@@ -228,10 +358,22 @@ test("REGRESSION (D7, S11): the Team card draws again when the settings surface 
 test("REGRESSION (S13): the timezone can be set before the receptionist exists -- it waited for one it does not depend on", () => {
   workspace({
     __SETTINGS: { role: "owner", version: 1, config: {} },
-    __FACTS: { facts: { business_name: absent, voice_line: absent, phone_display: absent, handoff_number: absent, address: absent }, conflicts: [] },
+    __FACTS: {
+      facts: {
+        business_name: absent,
+        voice_line: absent,
+        phone_display: absent,
+        handoff_number: absent,
+        address: absent,
+      },
+      conflicts: [],
+    },
   });
   const tree = settings("workspace");
-  assert.ok(textOf(tree).includes("This workspace has no receptionist yet"), "the fixture is a workspace with nothing set up");
+  assert.ok(
+    textOf(tree).includes("This workspace has no receptionist yet"),
+    "the fixture is a workspace with nothing set up",
+  );
   assert.ok(byTestId(tree, "set-timezone"), "REGRESSION: the timezone row was hidden with the receptionist's details");
   assert.ok(byTestId(tree, "set-tz-change"), "and it can be changed from there");
 });
@@ -242,17 +384,30 @@ test("REGRESSION (L7): Business writes numbers the way Setup does -- it showed +
   const said = (id) => textOf(byTestId(tree, id));
   assert.ok(said("fact-answers-on").includes("+1 (305) 555-0100"), `REGRESSION: ${said("fact-answers-on")}`);
   assert.ok(!said("fact-answers-on").includes("+13055550100"));
-  assert.ok(said("fact-transfers-a-caller-to").includes("+1 (786) 555-0182"), `REGRESSION: ${said("fact-transfers-a-caller-to")}`);
-  assert.ok(said("fact-tells-customers-to-call").includes("+1 (305) 555-0100"), "the number it gives out, as it says it");
+  assert.ok(
+    said("fact-transfers-a-caller-to").includes("+1 (786) 555-0182"),
+    `REGRESSION: ${said("fact-transfers-a-caller-to")}`,
+  );
+  assert.ok(
+    said("fact-tells-customers-to-call").includes("+1 (305) 555-0100"),
+    "the number it gives out, as it says it",
+  );
 
   press(byTestId(tree, "set-pub-change"));
   tree = again("workspace");
-  assert.ok(said("fact-tells-customers-to-call").includes("+1 (305) 555-0100 — the line your receptionist answers"), `REGRESSION: ${said("fact-tells-customers-to-call")}`);
+  assert.ok(
+    said("fact-tells-customers-to-call").includes("+1 (305) 555-0100 — the line your receptionist answers"),
+    `REGRESSION: ${said("fact-tells-customers-to-call")}`,
+  );
   assert.ok(!said("fact-tells-customers-to-call").includes("+13055550100"));
 
   press(byTestId(tree, "set-handoff-change"));
   tree = again("workspace");
-  assert.equal(byTestId(tree, "set-handoff-input").props.value, "+1 (786) 555-0182", "a change starts from the number as it is shown");
+  assert.equal(
+    byTestId(tree, "set-handoff-input").props.value,
+    "+1 (786) 555-0182",
+    "a change starts from the number as it is shown",
+  );
   assert.equal(whyNotAHandoff("+1 (786) 555-0182", "+13055550100"), null, "which the transfer check accepts");
   assert.equal(handoffE164("+1 (786) 555-0182"), "+17865550182", "and stores as it was");
 });
@@ -261,7 +416,13 @@ test("REGRESSION (L7): setting up the receptionist names the line the same way -
   workspace({
     __SETTINGS: { role: "owner", version: 1, config: {} },
     __FACTS: {
-      facts: { business_name: absent, voice_line: { value: "+13055550100", source: "provisioned" }, phone_display: { value: formatPhoneDisplay("+13055550100"), source: "provisioned" }, handoff_number: absent, address: absent },
+      facts: {
+        business_name: absent,
+        voice_line: { value: "+13055550100", source: "provisioned" },
+        phone_display: { value: formatPhoneDisplay("+13055550100"), source: "provisioned" },
+        handoff_number: absent,
+        address: absent,
+      },
       conflicts: [],
     },
   });
@@ -295,7 +456,11 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   tree = again("workspace");
   press(byTestId(tree, "set-handoff-save"));
   assert.match(textOf(toasts.at(-1)?.msg), /country code/);
-  assert.equal(toasts.at(-1)?.tone, "warn", "REGRESSION: a number nobody can be transferred to was refused under a green check");
+  assert.equal(
+    toasts.at(-1)?.tone,
+    "warn",
+    "REGRESSION: a number nobody can be transferred to was refused under a green check",
+  );
   // The number it gives out.
   tree = settings("workspace");
   press(byTestId(tree, "set-pub-change"));
@@ -314,7 +479,11 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   type(labelled(tree, "input", "Website"), "not a website");
   tree = again("workspace");
   press(buttonSaying(classed(tree, "set-editor-foot"), "Save"));
-  assert.match(textOf(toasts.at(-1)?.msg), /1 field needs a look/, "the toast counts; the website's own sentence is under its box (settings-editor.test.mjs)");
+  assert.match(
+    textOf(toasts.at(-1)?.msg),
+    /1 field needs a look/,
+    "the toast counts; the website's own sentence is under its box (settings-editor.test.mjs)",
+  );
   assert.equal(toasts.at(-1)?.tone, "warn", "the website check");
   assert.equal(saved.length, 0, "and a refused form is not saved");
   // Who is alerted.
@@ -328,7 +497,10 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   tree = settings("team");
   press(buttonSaying(tree, "Invite"));
   tree = again("team");
-  type(find(tree, (n) => n.type === "input" && n.props.type === "email"), "nobody");
+  type(
+    find(tree, (n) => n.type === "input" && n.props.type === "email"),
+    "nobody",
+  );
   tree = again("team");
   press(buttonSaying(tree, "Send invite"));
   assert.match(textOf(toasts.at(-1)?.msg), /email/);
@@ -379,7 +551,12 @@ test("REGRESSION (S20): Profile's sign-out is not titled for one device, and Ale
 
 test("a real roster is counted in people, never in seats of a plan it does not have, and Invite stays offered", () => {
   workspace({
-    __TEAM: ["ana", "bo", "cy", "di", "ed", "flo"].map((n, i) => ({ membershipId: `m-${n}`, email: `${n}@northside.example`, displayName: "", role: i ? "viewer" : "owner" })),
+    __TEAM: ["ana", "bo", "cy", "di", "ed", "flo"].map((n, i) => ({
+      membershipId: `m-${n}`,
+      email: `${n}@northside.example`,
+      displayName: "",
+      role: i ? "viewer" : "owner",
+    })),
     __ME: { email: "ana@northside.example", role: "owner", display_name: "" },
   });
   const tree = settings("team");
@@ -393,9 +570,17 @@ test("the bridge publishes a number's written form from contracts, beside the ph
   delete globalThis.window.__phoneDisplay;
   try {
     await import("../../../apps/dashboard/src/legacy-bridge/seed-globals.ts");
-    assert.equal(typeof globalThis.window.__phoneDisplay, "function", "REGRESSION: the page had no way to write a stored number for people");
+    assert.equal(
+      typeof globalThis.window.__phoneDisplay,
+      "function",
+      "REGRESSION: the page had no way to write a stored number for people",
+    );
     assert.equal(globalThis.window.__phoneDisplay("+13055550100"), "+1 (305) 555-0100");
-    assert.equal(globalThis.window.__phoneDisplay("+442071838750"), formatPhoneDisplay("+442071838750"), "contracts' own rule, not a copy");
+    assert.equal(
+      globalThis.window.__phoneDisplay("+442071838750"),
+      formatPhoneDisplay("+442071838750"),
+      "contracts' own rule, not a copy",
+    );
   } finally {
     globalThis.window.__phoneDisplay = stub;
   }

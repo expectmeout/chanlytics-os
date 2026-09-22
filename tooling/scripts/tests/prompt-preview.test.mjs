@@ -28,7 +28,9 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { composePromptPreview, openingsBlock } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/prompt-preview.ts")).href);
+const { composePromptPreview, openingsBlock } = await import(
+  pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/prompt-preview.ts")).href
+);
 
 const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
 const pane = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
@@ -60,24 +62,55 @@ test("the preview is the edge's composition, argument for argument: the rows, th
   // of them out.
   const openings = "Open times (from the calendar):\n- Tue Sep 15: 9:00 AM–12:00 PM";
   const p = composePromptPreview(BRAIN, { tz: TZ, policy: POLICY, known: KNOWN, openings }, NOW);
-  assert.equal(p.whatsapp, resolveSystemPrompt(BRAIN, "whatsapp", TZ, NOW, POLICY, KNOWN), "the WhatsApp text the edge composes");
-  assert.equal(p.voice, resolveSystemPrompt(BRAIN, "voice", TZ, NOW, POLICY, KNOWN), "the phone text the edge composes");
-  assert.equal(p.now, `${describeNow(TZ, NOW, BRAIN.profile.closures)}\n\n${openings}`, "the uncached block: the clock with the closures, then the openings");
+  assert.equal(
+    p.whatsapp,
+    resolveSystemPrompt(BRAIN, "whatsapp", TZ, NOW, POLICY, KNOWN),
+    "the WhatsApp text the edge composes",
+  );
+  assert.equal(
+    p.voice,
+    resolveSystemPrompt(BRAIN, "voice", TZ, NOW, POLICY, KNOWN),
+    "the phone text the edge composes",
+  );
+  assert.equal(
+    p.now,
+    `${describeNow(TZ, NOW, BRAIN.profile.closures)}\n\n${openings}`,
+    "the uncached block: the clock with the closures, then the openings",
+  );
   assert.equal(p.tz, TZ);
-  assert.ok(p.whatsapp.includes("Booking: when someone wants to book, reschedule or cancel, do not send the booking link."), "an Autonomy row is a rule in the prompt");
+  assert.ok(
+    p.whatsapp.includes("Booking: when someone wants to book, reschedule or cancel, do not send the booking link."),
+    "an Autonomy row is a rule in the prompt",
+  );
   assert.ok(p.voice.includes("do not offer the booking link"), "and the phone's version of it");
   assert.ok(p.now.includes("CLOSED today"), "the closure reached the clock");
-  assert.notEqual(p.whatsapp, resolveSystemPrompt(BRAIN, "whatsapp", TZ), "what the browser used to compose was a different prompt");
+  assert.notEqual(
+    p.whatsapp,
+    resolveSystemPrompt(BRAIN, "whatsapp", TZ),
+    "what the browser used to compose was a different prompt",
+  );
   const bare = composePromptPreview(BRAIN, { tz: TZ, policy: {}, known: KNOWN, openings: null }, NOW);
-  assert.equal(bare.now, describeNow(TZ, NOW, BRAIN.profile.closures), "no openings, no block: the edge appends nothing either");
+  assert.equal(
+    bare.now,
+    describeNow(TZ, NOW, BRAIN.profile.closures),
+    "no openings, no block: the edge appends nothing either",
+  );
   assert.ok(!bare.whatsapp.includes("Booking: when someone"), "every row on auto adds no rule");
 });
 
 test("the openings block is the edge's: the feed's busy blocks against the hours, in the zone; nothing without a feed, a profile or a zone; nothing when the feed cannot be read", async () => {
   const ics = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//test//EN",
-    "BEGIN:VEVENT", "UID:1", "DTSTART:20260915T130000Z", "DTEND:20260915T150000Z", "SUMMARY:Move for Ada", "END:VEVENT",
-    "END:VCALENDAR", "",
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:1",
+    "DTSTART:20260915T130000Z",
+    "DTEND:20260915T150000Z",
+    "SUMMARY:Move for Ada",
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
   ].join("\r\n");
   const realFetch = globalThis.fetch;
   const fetched = [];
@@ -87,25 +120,64 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
     return new Response(ics, { status: 200, headers: { "content-type": "text/calendar" } });
   };
   try {
-    const got = await openingsBlock("t-preview-1", { url: "webcal://cal.example/harbor.ics", brain: BRAIN, tz: TZ }, NOW);
-    const parsed = parseIcs(ics, TZ, { horizon: { from: NOW.getTime() - 90 * 86_400_000, to: NOW.getTime() + 90 * 86_400_000 } });
-    const expected = describeOpenings(freeWindows({ hours: BRAIN.profile.hours, closures: BRAIN.profile.closures, tz: TZ, busy: parsed.busy, rules: null, now: NOW }), TZ, { daysAhead: 14 });
+    const got = await openingsBlock(
+      "t-preview-1",
+      { url: "webcal://cal.example/harbor.ics", brain: BRAIN, tz: TZ },
+      NOW,
+    );
+    const parsed = parseIcs(ics, TZ, {
+      horizon: { from: NOW.getTime() - 90 * 86_400_000, to: NOW.getTime() + 90 * 86_400_000 },
+    });
+    const expected = describeOpenings(
+      freeWindows({
+        hours: BRAIN.profile.hours,
+        closures: BRAIN.profile.closures,
+        tz: TZ,
+        busy: parsed.busy,
+        rules: null,
+        now: NOW,
+      }),
+      TZ,
+      { daysAhead: 14 },
+    );
     assert.equal(got, expected, "the same functions the edge's openingsFor runs, with the same inputs");
-    assert.ok(got.startsWith("Open times (from the calendar") && got.includes("Tuesday, September 15"), "the busy block on Tuesday morning leaves the afternoon, and Monday is closed");
+    assert.ok(
+      got.startsWith("Open times (from the calendar") && got.includes("Tuesday, September 15"),
+      "the busy block on Tuesday morning leaves the afternoon, and Monday is closed",
+    );
     assert.equal(fetched[0], "https://cal.example/harbor.ics", "webcal is https in a hat, as on the edge");
 
     assert.equal(await openingsBlock("t-preview-2", { url: null, brain: BRAIN, tz: TZ }, NOW), null, "no feed");
-    assert.equal(await openingsBlock("t-preview-3", { url: "https://cal.example/x.ics", brain: { ...BRAIN, profile: undefined }, tz: TZ }, NOW), null, "no profile");
-    assert.equal(await openingsBlock("t-preview-4", { url: "https://cal.example/x.ics", brain: BRAIN, tz: null }, NOW), null, "no zone");
+    assert.equal(
+      await openingsBlock(
+        "t-preview-3",
+        { url: "https://cal.example/x.ics", brain: { ...BRAIN, profile: undefined }, tz: TZ },
+        NOW,
+      ),
+      null,
+      "no profile",
+    );
+    assert.equal(
+      await openingsBlock("t-preview-4", { url: "https://cal.example/x.ics", brain: BRAIN, tz: null }, NOW),
+      null,
+      "no zone",
+    );
     assert.equal(fetched.length, 1, "none of those reached for the feed");
-    assert.equal(await openingsBlock("t-preview-5", { url: "https://cal.example/broken.ics", brain: BRAIN, tz: TZ }, NOW), null, "a feed that cannot be read: the receptionist says nothing about open times, and so does the preview");
+    assert.equal(
+      await openingsBlock("t-preview-5", { url: "https://cal.example/broken.ics", brain: BRAIN, tz: TZ }, NOW),
+      null,
+      "a feed that cannot be read: the receptionist says nothing about open times, and so does the preview",
+    );
   } finally {
     globalThis.fetch = realFetch;
   }
 });
 
 test("the browser only reads what the server composed: no composer runs in the page", () => {
-  assert.ok(!verbs.includes("resolveSystemPrompt(") && !verbs.includes("describeNow("), "the bridge no longer composes a prompt of its own, which is how it drifted");
+  assert.ok(
+    !verbs.includes("resolveSystemPrompt(") && !verbs.includes("describeNow("),
+    "the bridge no longer composes a prompt of its own, which is how it drifted",
+  );
   assert.ok(verbs.includes("return { text: prompt[channel], now: prompt.now, tz: prompt.tz };"));
 });
 

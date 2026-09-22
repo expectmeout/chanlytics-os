@@ -51,7 +51,10 @@ test("creating a tenant provisions it — no application code involved", { skip 
   tenantId = data.id;
 
   const { data: policies } = await db
-    .from("policies").select("class, mode, limits").eq("tenant_id", tenantId).is("subject_type", null);
+    .from("policies")
+    .select("class, mode, limits")
+    .eq("tenant_id", tenantId)
+    .is("subject_type", null);
   const byClass = Object.fromEntries((policies ?? []).map((p) => [p.class, p]));
 
   // The CLASSES, not their number. `byClass` is already built from the class
@@ -59,7 +62,11 @@ test("creating a tenant provisions it — no application code involved", { skip 
   // class where a count catches only the first. The literal 6 was wrong from
   // the day `reviews` was added and stayed wrong because this suite needs
   // service credentials and so ran nowhere at all.
-  assert.deepEqual(Object.keys(byClass).sort(), [...POLICY_CLASSES].sort(), "the matrix must hold exactly the classes contracts declares");
+  assert.deepEqual(
+    Object.keys(byClass).sort(),
+    [...POLICY_CLASSES].sort(),
+    "the matrix must hold exactly the classes contracts declares",
+  );
   // The modes must mirror the runtime's actual behaviour, or provisioning a
   // tenant would CHANGE how it behaves rather than just making it visible.
   assert.equal(byClass.reply.mode, "auto");
@@ -74,7 +81,10 @@ test("creating a tenant provisions it — no application code involved", { skip 
 
 test("the new tenant has a config row, so Settings can be read and written", { skip }, async () => {
   const { data: cfg } = await db
-    .from("tenant_config").select("config, version").eq("tenant_id", tenantId).maybeSingle();
+    .from("tenant_config")
+    .select("config, version")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   assert.ok(cfg, "no tenant_config row — GET /v1/settings would 404 and PUT would report a false conflict");
   assert.deepEqual(cfg.config, {}, "provisioning must not invent a persona");
   assert.equal(cfg.version, 1);
@@ -84,16 +94,14 @@ test("an EMPTY config still means the receptionist does not speak", { skip }, as
   // Provisioning makes a tenant configurable; it does not make it talk. A brain
   // section is the only thing that gives it a voice, and silence beats speaking
   // in a persona we invented for someone else.
-  const { data: cfg } = await db
-    .from("tenant_config").select("config").eq("tenant_id", tenantId).single();
+  const { data: cfg } = await db.from("tenant_config").select("config").eq("tenant_id", tenantId).single();
   assert.equal(cfg.config.brain, undefined);
 });
 
 test("provision_tenant is idempotent — the trigger, backfill and onboarding can all call it", { skip }, async () => {
   const { error } = await db.rpc("provision_tenant", { p_tenant_id: tenantId });
   assert.equal(error, null, error?.message);
-  const { data: policies } = await db
-    .from("policies").select("id").eq("tenant_id", tenantId).is("subject_type", null);
+  const { data: policies } = await db.from("policies").select("id").eq("tenant_id", tenantId).is("subject_type", null);
   assert.equal(policies.length, POLICY_CLASSES.length, "a second call duplicated the matrix");
 });
 
@@ -102,10 +110,8 @@ test("every existing tenant was backfilled", { skip }, async () => {
   // live one — a partially provisioned production tenant is the same defect.
   const { data: tenants } = await db.from("tenants").select("id, slug");
   for (const t of tenants ?? []) {
-    const { data: p } = await db
-      .from("policies").select("id").eq("tenant_id", t.id).is("subject_type", null);
-    const { data: c } = await db
-      .from("tenant_config").select("tenant_id").eq("tenant_id", t.id).maybeSingle();
+    const { data: p } = await db.from("policies").select("id").eq("tenant_id", t.id).is("subject_type", null);
+    const { data: c } = await db.from("tenant_config").select("tenant_id").eq("tenant_id", t.id).maybeSingle();
     // The database suites run side by side and each makes and removes its own
     // workspaces: one that was deleted between the listing above and these
     // reads has no rows because it is gone, not because it was never backfilled.

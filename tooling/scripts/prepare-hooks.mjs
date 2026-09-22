@@ -12,10 +12,7 @@
 import { existsSync } from "node:fs";
 
 const skip =
-  process.env.CI === "true" ||
-  process.env.VERCEL === "1" ||
-  process.env.HUSKY === "0" ||
-  !existsSync(".git");
+  process.env.CI === "true" || process.env.VERCEL === "1" || process.env.HUSKY === "0" || !existsSync(".git");
 
 if (!skip) {
   try {

@@ -45,7 +45,10 @@ export interface BrainReply {
   meta?: BrainMeta;
 }
 
-interface TextBlock { type: string; text?: string }
+interface TextBlock {
+  type: string;
+  text?: string;
+}
 interface RawResponse {
   stop_reason: string;
   content: TextBlock[];
@@ -78,7 +81,14 @@ function legacyReply(raw: string, fallbackText: string, stopReason: string, usag
     escalate,
     reason: escalate ? "human_token" : undefined,
     usage,
-    meta: { intent: "other", confidence: 0, reason: "read without its record: the schema was refused and the plain retry answered", facts_used: [], language: "other", model: BRAIN_MODEL },
+    meta: {
+      intent: "other",
+      confidence: 0,
+      reason: "read without its record: the schema was refused and the plain retry answered",
+      facts_used: [],
+      language: "other",
+      model: BRAIN_MODEL,
+    },
   };
 }
 
@@ -129,7 +139,8 @@ export async function generateReply(
   // its last turn is usually that same message; appending it again showed
   // the model every message twice. The copy is skipped, the memory kept.
   const last = history[history.length - 1];
-  const prior = last && last.role === "user" && last.content.trim() === userText.trim() ? history.slice(0, -1) : history;
+  const prior =
+    last && last.role === "user" && last.content.trim() === userText.trim() ? history.slice(0, -1) : history;
   const messages = [...prior, { role: "user" as const, content: userContent }];
   const base = {
     model: BRAIN_MODEL,
@@ -196,5 +207,11 @@ export async function generateReply(
     text = fallbackText;
     escalate = true;
   }
-  return { text, escalate, reason: escalate ? "human_token" : undefined, usage, meta: brainMetaOf(parsed.value, BRAIN_MODEL) };
+  return {
+    text,
+    escalate,
+    reason: escalate ? "human_token" : undefined,
+    usage,
+    meta: brainMetaOf(parsed.value, BRAIN_MODEL),
+  };
 }

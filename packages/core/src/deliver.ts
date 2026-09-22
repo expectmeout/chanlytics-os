@@ -26,7 +26,17 @@
  * conversational words at all.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendText, sendTemplate, sendEmail, requestLeavesAs, type SendResult, type WaConfig, type EmailRequest, type EmailSendsAs, type ResendConfig } from "@chanlytics/channels";
+import {
+  sendText,
+  sendTemplate,
+  sendEmail,
+  requestLeavesAs,
+  type SendResult,
+  type WaConfig,
+  type EmailRequest,
+  type EmailSendsAs,
+  type ResendConfig,
+} from "@chanlytics/channels";
 import { mayMessageFor, purposeOfTemplate, type SendPurpose, type EventKind } from "@chanlytics/contracts";
 import { emitEvent, recordOutbound, type Database, type Json } from "@chanlytics/db";
 
@@ -100,7 +110,8 @@ export function whatsappSender(cfg: WaConfig | null): Sender | null {
  */
 export function emailSender(cfg: ResendConfig | null, as: EmailSendsAs | null): Sender | null {
   if (!cfg || !as) return null;
-  const refuse = (errorBody: string): Promise<SendResult> => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
+  const refuse = (errorBody: string): Promise<SendResult> =>
+    Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
   return (to, p) => {
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
@@ -189,9 +200,14 @@ interface WireFacts {
    */
   control: { kind: string; until: string } | null;
   contact: {
-    consent: string | null; dnc: boolean | null; marketing_consent: string | null; erased_at: string | null; erasing_since: string | null;
+    consent: string | null;
+    dnc: boolean | null;
+    marketing_consent: string | null;
+    erased_at: string | null;
+    erasing_since: string | null;
     /** The address on file now, and whether it has stopped being sent to (00125, 00126). */
-    email: string | null; email_suppressed_at: string | null;
+    email: string | null;
+    email_suppressed_at: string | null;
   };
   tenantStatus: string | null;
 }
@@ -205,7 +221,9 @@ interface WireFacts {
 async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   const { data, error } = await db
     .from("conversations")
-    .select("paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)")
+    .select(
+      "paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)",
+    )
     .eq("id", d.conversationId)
     .eq("tenant_id", d.tenantId)
     .maybeSingle();
@@ -221,7 +239,15 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   return {
     pausedUntil: row.paused_until ?? null,
     control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
-    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null, email: null, email_suppressed_at: null },
+    contact: row.contacts ?? {
+      consent: null,
+      dnc: null,
+      marketing_consent: null,
+      erased_at: null,
+      erasing_since: null,
+      email: null,
+      email_suppressed_at: null,
+    },
     tenantStatus: row.tenants?.status ?? null,
   };
 }
@@ -287,7 +313,8 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // off one person: while a call is in progress the thread is held, so the
   // text receptionist stores what the customer writes and answers none of it,
   // rather than talking over the call the same customer is on.
-  if (kind !== "draft" && kind !== "system" && (held || (f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()))) return "human_has_it";
+  if (kind !== "draft" && kind !== "system" && (held || (f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime())))
+    return "human_has_it";
   return null;
 }
 
@@ -324,14 +351,28 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
 }
 
 /** The same writer every other event goes through: a failed insert is logged there, never dropped. */
-function event(db: Db, d: Delivery, kind: EventKind, messageId: string | null, data: Record<string, Json>): Promise<void> {
+function event(
+  db: Db,
+  d: Delivery,
+  kind: EventKind,
+  messageId: string | null,
+  data: Record<string, Json>,
+): Promise<void> {
   return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
 }
 
 /** The thread stamped with the send, as recordOutbound stamps it on the row it writes. */
 async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
-  const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
-  if (error) console.error("deliver_stamp_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }));
+  const { error } = await db
+    .from("conversations")
+    .update({ last_message_at: new Date(nowMs).toISOString() })
+    .eq("id", d.conversationId)
+    .eq("tenant_id", d.tenantId);
+  if (error)
+    console.error(
+      "deliver_stamp_failed",
+      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }),
+    );
 }
 
 /**
@@ -365,8 +406,12 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     if (d.messageId) {
       await finalizeQueued(ports.db, d, { status: "canceled", error: { reason } });
       await event(ports.db, d, "message.send_blocked", d.messageId, {
-        reason, purpose: d.purpose, consent: facts.contact.consent, dnc: facts.contact.dnc,
-        marketing_consent: facts.contact.marketing_consent, ...(overtakenBy ? { after: overtakenBy } : {}),
+        reason,
+        purpose: d.purpose,
+        consent: facts.contact.consent,
+        dnc: facts.contact.dnc,
+        marketing_consent: facts.contact.marketing_consent,
+        ...(overtakenBy ? { after: overtakenBy } : {}),
       });
     }
     return { outcome: "refused", reason, messageId: d.messageId ?? null };
@@ -374,9 +419,11 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
 
   const send = ports.wire[d.channel];
   const sent: SendResult & { reason?: "no_sender_for_channel" | "no_credentials" } =
-    send === undefined ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" }
-    : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }
-    : await send(d.to, { body: d.body, template: d.template, ...(d.email ? { email: d.email } : {}) });
+    send === undefined
+      ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" }
+      : send === null
+        ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }
+        : await send(d.to, { body: d.body, template: d.template, ...(d.email ? { email: d.email } : {}) });
 
   if (sent.ok) {
     if (d.messageId) {
@@ -384,12 +431,25 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
       // that won the row between the send and this write is the signal, not
       // something to overwrite silently. A write that failed is neither: the
       // words left, so it is logged with the wamid and the send still reported.
-      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...(sent.wamid ? { external_id: sent.wamid } : {}) }).catch((e: unknown) => {
-        console.error("deliver_finalize_failed", JSON.stringify({ tenant: d.tenantId, message: d.messageId, wamid: sent.wamid, error: e instanceof Error ? e.message : String(e) }));
+      const marked = await finalizeQueued(ports.db, d, {
+        status: "sent",
+        ...(sent.wamid ? { external_id: sent.wamid } : {}),
+      }).catch((e: unknown) => {
+        console.error(
+          "deliver_finalize_failed",
+          JSON.stringify({
+            tenant: d.tenantId,
+            message: d.messageId,
+            wamid: sent.wamid,
+            error: e instanceof Error ? e.message : String(e),
+          }),
+        );
         return null;
       });
       await Promise.all([
-        marked === false ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid }) : Promise.resolve(),
+        marked === false
+          ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid })
+          : Promise.resolve(),
         stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
       ]);
@@ -400,11 +460,26 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     // the send still reported: a caller that took "not recorded" for "not
     // sent" would send them again.
     const messageId = await recordOutbound(ports.db, {
-      tenantId: d.tenantId, conversationId: d.conversationId, contactId: d.contactId,
-      sender: d.sender, type: d.template ? "template" : "text", body: d.body, channel: d.channel,
-      externalId: sent.wamid, status: "sent", meta: d.meta ?? {},
+      tenantId: d.tenantId,
+      conversationId: d.conversationId,
+      contactId: d.contactId,
+      sender: d.sender,
+      type: d.template ? "template" : "text",
+      body: d.body,
+      channel: d.channel,
+      externalId: sent.wamid,
+      status: "sent",
+      meta: d.meta ?? {},
     }).catch((e: unknown) => {
-      console.error("deliver_record_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, wamid: sent.wamid, error: e instanceof Error ? e.message : String(e) }));
+      console.error(
+        "deliver_record_failed",
+        JSON.stringify({
+          tenant: d.tenantId,
+          conversation: d.conversationId,
+          wamid: sent.wamid,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
       return null;
     });
     return { outcome: "sent", messageId, externalId: sent.wamid };
@@ -418,13 +493,26 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     // Recorded as a failed row rather than dropped: the business should see
     // that it tried and could not reach them.
     messageId = await recordOutbound(ports.db, {
-      tenantId: d.tenantId, conversationId: d.conversationId, contactId: d.contactId,
-      sender: d.sender, type: d.template ? "template" : "text", body: d.body, channel: d.channel,
-      externalId: null, status: "failed", meta: { ...(d.meta ?? {}), ...failure },
+      tenantId: d.tenantId,
+      conversationId: d.conversationId,
+      contactId: d.contactId,
+      sender: d.sender,
+      type: d.template ? "template" : "text",
+      body: d.body,
+      channel: d.channel,
+      externalId: null,
+      status: "failed",
+      meta: { ...(d.meta ?? {}), ...failure },
     });
   }
   await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
-  return { outcome: "failed", reason: sent.reason ?? "provider", status: sent.status, errorBody: sent.errorBody ?? null, messageId };
+  return {
+    outcome: "failed",
+    reason: sent.reason ?? "provider",
+    status: sent.status,
+    errorBody: sent.errorBody ?? null,
+    messageId,
+  };
 }
 
 /**
@@ -433,7 +521,11 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
  * a template whose category we do not have reads as marketing. A read that
  * fails throws: a purpose that cannot be read is not "utility".
  */
-export async function templatePurpose(db: Db, tenantId: string, template: { name: string; language: string } | undefined | null): Promise<SendPurpose> {
+export async function templatePurpose(
+  db: Db,
+  tenantId: string,
+  template: { name: string; language: string } | undefined | null,
+): Promise<SendPurpose> {
   if (!template) return "conversational";
   const { data, error } = await db
     .from("templates")
@@ -458,7 +550,10 @@ export async function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<D
     return await deliver(ports, d);
   } catch (e) {
     const errorBody = e instanceof Error ? e.message : String(e);
-    console.error("deliver_threw", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: errorBody }));
+    console.error(
+      "deliver_threw",
+      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: errorBody }),
+    );
     return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
   }
 }

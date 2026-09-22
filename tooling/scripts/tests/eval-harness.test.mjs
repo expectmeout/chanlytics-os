@@ -20,13 +20,40 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const judge = await import(pathToFileURL(path.join(here, "../eval-judge.mjs")).href);
 const cases = JSON.parse(readFileSync(path.join(ROOT, "tooling/evals/whatsapp-cases.json"), "utf8"));
 
-const ok = (over) => ({ id: "x", ok: true, text: "We open at 10 tomorrow!", escalate: false, reason: null, meta: { intent: "hours", confidence: 0.9, language: "en", facts_used: ["Tue–Sat 10:00"] }, usage: { input_tokens: 1200, output_tokens: 80 }, ms: 2100, ...over });
+const ok = (over) => ({
+  id: "x",
+  ok: true,
+  text: "We open at 10 tomorrow!",
+  escalate: false,
+  reason: null,
+  meta: { intent: "hours", confidence: 0.9, language: "en", facts_used: ["Tue–Sat 10:00"] },
+  usage: { input_tokens: 1200, output_tokens: 80 },
+  ms: 2100,
+  ...over,
+});
 
 test("the judge: a price always fails, and each expectation names what it wanted", () => {
-  assert.deepEqual(judge.judgeCase({ id: "x", text: "hours?", expect: { intent: "hours", language: "en", escalate: false } }, ok({})), { pass: true, failures: [] });
+  assert.deepEqual(
+    judge.judgeCase({ id: "x", text: "hours?", expect: { intent: "hours", language: "en", escalate: false } }, ok({})),
+    { pass: true, failures: [] },
+  );
   const priced = judge.judgeCase({ id: "x", text: "price?" }, ok({ text: "A balayage is $180." }));
   assert.deepEqual(priced.failures, ["quoted a price"]);
-  const wrong = judge.judgeCase({ id: "x", text: "?", expect: { intent: ["pricing", "services"], escalate: true, language: "es", includes: ["Pitkin"], excludes: ["open at"], min_confidence: 0.95 } }, ok({}));
+  const wrong = judge.judgeCase(
+    {
+      id: "x",
+      text: "?",
+      expect: {
+        intent: ["pricing", "services"],
+        escalate: true,
+        language: "es",
+        includes: ["Pitkin"],
+        excludes: ["open at"],
+        min_confidence: 0.95,
+      },
+    },
+    ok({}),
+  );
   assert.deepEqual(wrong.failures, [
     "intent hours, wanted pricing|services",
     "escalate false, wanted true",
@@ -35,23 +62,49 @@ test("the judge: a price always fails, and each expectation names what it wanted
     "must not say /open at/",
     "confidence 0.9 < 0.95",
   ]);
-  assert.deepEqual(judge.judgeCase({ id: "x", text: "?" }, { id: "x", ok: false, error: "timeout" }), { pass: false, failures: ["no answer: timeout"] });
+  assert.deepEqual(judge.judgeCase({ id: "x", text: "?" }, { id: "x", ok: false, error: "timeout" }), {
+    pass: false,
+    failures: ["no answer: timeout"],
+  });
   assert.deepEqual(judge.judgeCase({ id: "x", text: "?" }, undefined).failures, ["no answer: missing result"]);
-  assert.ok(judge.judgeCase({ id: "x", text: "?" }, ok({ meta: null })).failures.includes("no record (intent/confidence) came back"), "a legacy answer is a failure: the record is the point");
+  assert.ok(
+    judge
+      .judgeCase({ id: "x", text: "?" }, ok({ meta: null }))
+      .failures.includes("no record (intent/confidence) came back"),
+    "a legacy answer is a failure: the record is the point",
+  );
 });
 
 test("the case set is well formed, covers both languages, the handoff, the price rule and the booking rule", () => {
   assert.deepEqual(judge.validateCases(cases), []);
-  assert.deepEqual(judge.validateCases([{ id: "a", text: "" }, { id: "a", text: "x", expect: { includes: ["("] } }]), ["a: text is empty or over 500 chars", "duplicate id a", "a: bad pattern ("]);
+  assert.deepEqual(
+    judge.validateCases([
+      { id: "a", text: "" },
+      { id: "a", text: "x", expect: { includes: ["("] } },
+    ]),
+    ["a: text is empty or over 500 chars", "duplicate id a", "a: bad pattern ("],
+  );
   assert.ok(cases.some((c) => c.expect?.language === "es") && cases.some((c) => c.expect?.language === "en"));
-  assert.ok(cases.some((c) => c.expect?.escalate === true), "a handoff is expected somewhere");
-  assert.ok(cases.some((c) => c.id.startsWith("price_")), "the price rule is exercised");
-  assert.ok(cases.some((c) => c.expect?.intent === "booking" && (c.expect.excludes ?? []).length), "a booking is offered, never confirmed");
+  assert.ok(
+    cases.some((c) => c.expect?.escalate === true),
+    "a handoff is expected somewhere",
+  );
+  assert.ok(
+    cases.some((c) => c.id.startsWith("price_")),
+    "the price rule is exercised",
+  );
+  assert.ok(
+    cases.some((c) => c.expect?.intent === "booking" && (c.expect.excludes ?? []).length),
+    "a booking is offered, never confirmed",
+  );
   assert.ok(cases.length >= 12 && cases.length <= 24, "small enough to run on purpose, big enough to mean something");
 });
 
 test("the report reads at a glance and counts what passed", () => {
-  const two = [{ id: "a", text: "?", expect: { intent: "hours" } }, { id: "b", text: "?", expect: { intent: "pricing" } }];
+  const two = [
+    { id: "a", text: "?", expect: { intent: "hours" } },
+    { id: "b", text: "?", expect: { intent: "pricing" } },
+  ];
   const r = judge.formatReport(two, [ok({ id: "a" }), ok({ id: "b" })]);
   assert.equal(r.passed, 1);
   assert.equal(r.total, 2);
@@ -71,8 +124,16 @@ test("the runner knocks with the key and saves the exchange where git ignores it
 test("every reply leaves a quality signal on its usage event, and the diagnostics read the day back", () => {
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes("const tBrain = Date.now();") && wa.includes("brainMs = Date.now() - tBrain;"));
-  assert.ok(wa.includes("intent: brainMeta?.intent ?? null,") && wa.includes("confidence: brainMeta?.confidence ?? null,") && wa.includes("latency_ms: brainMs,"));
-  assert.equal((wa.match(/sink\.usage\(\{ \.\.\.usage, \.\.\.replyQuality \}\)/g) ?? []).length, 2, "the held path and the sent path");
+  assert.ok(
+    wa.includes("intent: brainMeta?.intent ?? null,") &&
+      wa.includes("confidence: brainMeta?.confidence ?? null,") &&
+      wa.includes("latency_ms: brainMs,"),
+  );
+  assert.equal(
+    (wa.match(/sink\.usage\(\{ \.\.\.usage, \.\.\.replyQuality \}\)/g) ?? []).length,
+    2,
+    "the held path and the sent path",
+  );
   assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("usage: (u: Record<string, unknown>) =>"));
   // The diagnostic reading the day back (brainSummary) is run in diag-door.test.mjs.
   const b = readCode("apps/edge/lib/budget.ts");
@@ -86,7 +147,10 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
   assert.ok(ESCALATION_REASONS.includes("budget"));
   assert.ok(ESCALATION_REASON_LABELS.budget.includes("budget"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  assert.ok(wa.includes("const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);"), "the cap is handed to the read, which stops at it");
+  assert.ok(
+    wa.includes("const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);"),
+    "the cap is handed to the read, which stops at it",
+  );
   assert.ok(wa.includes('sink.escalate("budget",'));
   assert.ok(wa.includes('"(no reply sent — the day\'s model budget is used up)"'));
   const sql = readRaw("supabase/migrations/00039_budget_reason.sql");

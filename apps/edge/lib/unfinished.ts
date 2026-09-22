@@ -71,7 +71,13 @@ export const ORPHAN_NOTE = "no job was left to send this";
 export interface UnfinishedPorts {
   db: Db;
   L: ReturnType<typeof logger>;
-  upsertEscalation: (db: Db, tenantId: string, conversationId: string, reason: string, details: string) => Promise<EscalationOutcome>;
+  upsertEscalation: (
+    db: Db,
+    tenantId: string,
+    conversationId: string,
+    reason: string,
+    details: string,
+  ) => Promise<EscalationOutcome>;
   markProcessed: (db: Db, tenantId: string, messageId: string) => Promise<void>;
   notify: typeof notifyFn;
   loadTenantNotifications: typeof loadFn;
@@ -88,8 +94,21 @@ export interface UnfinishedSummary {
   told: number;
 }
 
-interface InboundRow { id: string; tenant_id: string; conversation_id: string | null; body: string | null; created_at: string; meta: Record<string, unknown> | null }
-interface QueuedRow { id: string; tenant_id: string; conversation_id: string | null; sender: string | null; created_at: string }
+interface InboundRow {
+  id: string;
+  tenant_id: string;
+  conversation_id: string | null;
+  body: string | null;
+  created_at: string;
+  meta: Record<string, unknown> | null;
+}
+interface QueuedRow {
+  id: string;
+  tenant_id: string;
+  conversation_id: string | null;
+  sender: string | null;
+  created_at: string;
+}
 
 const iso = (ms: number) => new Date(ms).toISOString();
 const short = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -154,12 +173,21 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
             redactedBody: `A customer in this workspace wrote ${waitedMin} minutes ago and nothing answered; the thread is flagged.`,
           });
           if (told) out.told += 1;
-          p.L.warn("unfinished_inbound_flagged", { tenant_id: r.tenant_id, message: r.id, waited_min: waitedMin, told });
+          p.L.warn("unfinished_inbound_flagged", {
+            tenant_id: r.tenant_id,
+            message: r.id,
+            waited_min: waitedMin,
+            told,
+          });
         }
         // Handled now, one way or the other: raised once, or a reply was there all along.
         await p.markProcessed(p.db, r.tenant_id, r.id);
       } catch (e) {
-        p.L.error("unfinished_inbound_failed", { tenant_id: r.tenant_id, message: r.id, error: e instanceof Error ? e.message : String(e) });
+        p.L.error("unfinished_inbound_failed", {
+          tenant_id: r.tenant_id,
+          message: r.id,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
   }
@@ -181,9 +209,14 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
       .select("payload")
       .eq("kind", "outbound_send")
       .in("state", ["scheduled", "fired"])
-      .in("payload->>message_id", stuck.map((s) => s.id));
+      .in(
+        "payload->>message_id",
+        stuck.map((s) => s.id),
+      );
     if (jErr) throw new Error(`unfinished: cannot read the jobs: ${jErr.message}`);
-    const live = new Set(((jobs ?? []) as { payload: { message_id?: unknown } | null }[]).map((j) => String(j.payload?.message_id ?? "")));
+    const live = new Set(
+      ((jobs ?? []) as { payload: { message_id?: unknown } | null }[]).map((j) => String(j.payload?.message_id ?? "")),
+    );
     for (const s of stuck) {
       if (live.has(s.id)) continue;
       try {
@@ -199,7 +232,13 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
         out.orphaned += 1;
         if (s.conversation_id) {
           const who = s.sender === "ai" ? "The receptionist's reply" : "A reply";
-          await p.upsertEscalation(p.db, s.tenant_id, s.conversation_id, "send_failed", `${who} never left: ${ORPHAN_NOTE}. Check the conversation before sending it again.`);
+          await p.upsertEscalation(
+            p.db,
+            s.tenant_id,
+            s.conversation_id,
+            "send_failed",
+            `${who} never left: ${ORPHAN_NOTE}. Check the conversation before sending it again.`,
+          );
           const told = await tell(s.tenant_id, {
             kind: "deadman",
             route: "inbox",
@@ -211,7 +250,11 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
         }
         p.L.warn("unfinished_queued_failed", { tenant_id: s.tenant_id, message: s.id });
       } catch (e) {
-        p.L.error("unfinished_queued_sweep_failed", { tenant_id: s.tenant_id, message: s.id, error: e instanceof Error ? e.message : String(e) });
+        p.L.error("unfinished_queued_sweep_failed", {
+          tenant_id: s.tenant_id,
+          message: s.id,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
   }

@@ -20,7 +20,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { businessPageVM, smsConsentSentence, registrationPreflight, SMS_CLAUSES, textingTermsVM } from "@chanlytics/contracts";
+import {
+  businessPageVM,
+  smsConsentSentence,
+  registrationPreflight,
+  SMS_CLAUSES,
+  textingTermsVM,
+} from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = {
@@ -72,7 +78,10 @@ test("their own website is linked, not replaced", () => {
   assert.equal(withSite.websiteUrl, "https://melanys.example");
   assert.ok(withSite.identity.some((f) => f.label === "Website" && f.href === "https://melanys.example"));
   assert.equal(businessPageVM(salon).websiteUrl, null);
-  assert.ok(!businessPageVM(salon).identity.some((f) => f.label === "Website"), "no empty row for a site they do not have");
+  assert.ok(
+    !businessPageVM(salon).identity.some((f) => f.label === "Website"),
+    "no empty row for a site they do not have",
+  );
 });
 
 test("the SMS clauses are the shared ones, word for word", () => {
@@ -83,7 +92,7 @@ test("the SMS clauses are the shared ones, word for word", () => {
   assert.match(said, /Message frequency varies/);
   assert.match(said, /Reply STOP to stop and HELP for help/);
   assert.match(said, /No mobile information will be shared with third parties or affiliates/);
-  assert.ok(!/standard rate/i.test(said), "carriers refuse \"standard\": it implies premium-rate messaging");
+  assert.ok(!/standard rate/i.test(said), 'carriers refuse "standard": it implies premium-rate messaging');
 
   // The lead names the business and states what the texting line carries: no
   // promotions, ever, since the fourth refusal (30896) -- offers go by WhatsApp.
@@ -114,7 +123,9 @@ test("what they do, from what they already told the receptionist", () => {
   ]);
   // A price the business could not state flatly is free text, and a service with
   // neither duration nor price is still a service.
-  assert.deepEqual(businessPageVM({ ...salon, services: [{ name: "Consult" }] }).services, [{ name: "Consult", detail: null }]);
+  assert.deepEqual(businessPageVM({ ...salon, services: [{ name: "Consult" }] }).services, [
+    { name: "Consult", detail: null },
+  ]);
   assert.deepEqual(businessPageVM({ ...salon, services: [] }).services, []);
 });
 
@@ -123,7 +134,10 @@ test("the page is on the same domain as the opt-in page, which is what 30907 wan
   // Relative, so it is the same site by construction rather than by a constant
   // somebody has to keep correct.
   assert.match(server, /optInUrl: `\/yes\/\$\{clean\}`/);
-  assert.ok(!/https?:\/\//.test(server.slice(server.indexOf("optInUrl"))), "no hardcoded origin to point at the wrong deployment");
+  assert.ok(
+    !/https?:\/\//.test(server.slice(server.indexOf("optInUrl"))),
+    "no hardcoded origin to point at the wrong deployment",
+  );
 
   // And the ABSOLUTE form the carriers are handed is built the same way the
   // opt-in URL is, from one origin, at the one moment a filing is composed.
@@ -141,8 +155,14 @@ test("a business with no website of its own files the page we publish", () => {
   // And the website on the brand's own end user is substituted ONCE, before any
   // request is built -- the brand, the campaign and the profile must all name
   // the same URL.
-  assert.match(a2p, /const record = base\.websiteUrl\?\.trim\(\) \? base : \{ \.\.\.base, websiteUrl: o\.hostedUrl \?\? base\.websiteUrl \}/);
-  assert.ok(a2p.indexOf("const record = base.websiteUrl") < a2p.indexOf("const ports: A2PPorts"), "before anything is composed from it");
+  assert.match(
+    a2p,
+    /const record = base\.websiteUrl\?\.trim\(\) \? base : \{ \.\.\.base, websiteUrl: o\.hostedUrl \?\? base\.websiteUrl \}/,
+  );
+  assert.ok(
+    a2p.indexOf("const record = base.websiteUrl") < a2p.indexOf("const ports: A2PPorts"),
+    "before anything is composed from it",
+  );
 
   // Which is only safe because the form no longer demands a URL it cannot get.
   const rec = readRaw("packages/contracts/src/business-record.ts");
@@ -156,31 +176,57 @@ test("the wiring: public, indexed, reads by slug, writes nothing", () => {
   assert.ok(!/<form|<input|useState|"POST"/.test(page), "nothing to fill in and nothing to write");
   // INDEXED, unlike the opt-in page: a business a reviewer cannot look up is
   // exactly what 30919 was complaining about.
-  assert.ok(page.includes("return businessPageMetadata(await businessPageFor(slug));"), "indexed by contracts' rule, which public-page-titles.test.mjs runs");
-  assert.ok(readCode("apps/dashboard/app/yes/[slug]/page.tsx").includes("return consentPageMetadata(await consentPageFor(slug));"), "and the opt-in page still is not");
+  assert.ok(
+    page.includes("return businessPageMetadata(await businessPageFor(slug));"),
+    "indexed by contracts' rule, which public-page-titles.test.mjs runs",
+  );
+  assert.ok(
+    readCode("apps/dashboard/app/yes/[slug]/page.tsx").includes(
+      "return consentPageMetadata(await consentPageFor(slug));",
+    ),
+    "and the opt-in page still is not",
+  );
 
   const server = readCode("apps/dashboard/src/server/business-page.ts");
   assert.ok(server.includes('import "server-only";') && server.includes("createServiceClient({"));
-  assert.ok(server.includes('if (!tenant || tenant.status === "test") return null;'), "a fixture workspace has no page");
-  assert.ok(server.includes("if (!record.data) return null;"), "and neither does a business that has not said who it is");
+  assert.ok(
+    server.includes('if (!tenant || tenant.status === "test") return null;'),
+    "a fixture workspace has no page",
+  );
+  assert.ok(
+    server.includes("if (!record.data) return null;"),
+    "and neither does a business that has not said who it is",
+  );
   assert.ok(!/insert|update|delete|upsert/i.test(server), "the public page's reader may not write");
 
   // The identity is `business_records` -- the same facts the carriers vetted on
   // the brand. Publishing anything else would mean a page that disagrees with
   // the filing it exists to support.
   assert.ok(server.includes('.from("business_records")'));
-  assert.ok(server.includes("parseTenantConfig(cfg.data?.config ?? null)?.brain?.profile"), "and the services are what they told the receptionist");
+  assert.ok(
+    server.includes("parseTenantConfig(cfg.data?.config ?? null)?.brain?.profile"),
+    "and the services are what they told the receptionist",
+  );
 });
 
 test("Chanlytics' own policy and a workspace's page cannot drift", () => {
   const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
-  assert.ok(privacy.includes('import { retentionWords, SMS_CLAUSES } from "@chanlytics/contracts";'), "the clauses, and the retention it prints, from contracts");
-  assert.ok(privacy.includes("<p>{retentionWords()} An owner can download everything a workspace holds"), "the page prints the contract's paragraph, not its own numbers");
+  assert.ok(
+    privacy.includes('import { retentionWords, SMS_CLAUSES } from "@chanlytics/contracts";'),
+    "the clauses, and the retention it prints, from contracts",
+  );
+  assert.ok(
+    privacy.includes("<p>{retentionWords()} An owner can download everything a workspace holds"),
+    "the page prints the contract's paragraph, not its own numbers",
+  );
   assert.ok(privacy.includes('{SMS_CLAUSES.join(" ")}'), "the policy renders them rather than repeating them");
   // The sentence that is NOT shared is the one that names who is sending: the
   // policy speaks about businesses in general, a workspace's page names one.
   assert.ok(privacy.includes("A business&rsquo;s customers receive texts only when"));
-  assert.ok(!privacy.includes("No mobile information will be shared with third parties or affiliates for marketing"), "REGRESSION: a second copy of a compliance clause");
+  assert.ok(
+    !privacy.includes("No mobile information will be shared with third parties or affiliates for marketing"),
+    "REGRESSION: a second copy of a compliance clause",
+  );
 });
 
 /* -------------------------------------------------------------------------- *
@@ -226,7 +272,12 @@ test("the name the carriers are told, against the name the brand registers", () 
   assert.deepEqual(registrationPreflight(ready({ workspaceName: "Melany Beauty Corp" })), []);
   assert.deepEqual(registrationPreflight(ready({ workspaceName: "Melany's Beauty Salon" })), []);
   // And the comparison is loose enough not to nag about punctuation or a suffix.
-  for (const near of ["Melanys Beauty Salon", "MELANY'S BEAUTY SALON", "Melany Beauty Corp LLC", "The Melany Beauty Corp"]) {
+  for (const near of [
+    "Melanys Beauty Salon",
+    "MELANY'S BEAUTY SALON",
+    "Melany Beauty Corp LLC",
+    "The Melany Beauty Corp",
+  ]) {
     assert.deepEqual(registrationPreflight(ready({ workspaceName: near })), [], near);
   }
 });
@@ -278,18 +329,35 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   // checks and another does not, and that is exactly what the file was: the refile
   // path reached the carriers through `resubmitRejectedCampaign`, which asked
   // nothing. a2p-refile.test.mjs now slices each sender and asks of each.
-  assert.match(edge, /export async function filingProblems\(/, "one decider, so both senders can ask the same question");
+  assert.match(
+    edge,
+    /export async function filingProblems\(/,
+    "one decider, so both senders can ask the same question",
+  );
   const inRegister = edge.slice(edge.indexOf("export async function registerLine("));
-  assert.ok(inRegister.indexOf("filingProblems(") < inRegister.indexOf("const send = async"), "before a single call is made");
-  assert.match(edge, /problems\.push\(`\$\{p\.what\} \$\{p\.fix\}`\)/, "what is wrong AND what to do, on the row the page reads");
+  assert.ok(
+    inRegister.indexOf("filingProblems(") < inRegister.indexOf("const send = async"),
+    "before a single call is made",
+  );
+  assert.match(
+    edge,
+    /problems\.push\(`\$\{p\.what\} \$\{p\.fix\}`\)/,
+    "what is wrong AND what to do, on the row the page reads",
+  );
   // And they REACH the owner. The sentences used to be stored and then dropped:
   // the edge returned a token, the dashboard passed the token through, and the
   // bridge printed `record_incomplete` at the person who pressed the button.
-  assert.ok(inRegister.slice(0, inRegister.indexOf("const send = async")).includes("problems,"), "returned as well as stored");
+  assert.ok(
+    inRegister.slice(0, inRegister.indexOf("const send = async")).includes("problems,"),
+    "returned as well as stored",
+  );
   const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
   assert.match(owner, /b\.error === "record_incomplete" \|\| b\.error === "sole_proprietor_incomplete"/);
   assert.match(owner, /problems\.length\s*\?\s*problems\.join\(" "\)/, "and become the refusal the owner reads");
-  assert.ok(!owner.includes("sole_proprietor_unsupported"), "REGRESSION: a refusal for an error nothing can return since gate 7");
+  assert.ok(
+    !owner.includes("sole_proprietor_unsupported"),
+    "REGRESSION: a refusal for an error nothing can return since gate 7",
+  );
   // The workspace's name is what the campaign will say, so it is what gets
   // checked -- not the record's, which is what the brand says.
   assert.match(edge, /workspaceName: o\.workspaceName,/);
@@ -304,7 +372,10 @@ test("what the program keeps and what for, on the page filed as the privacy poli
   // what is.
   const vm = businessPageVM(salon);
   assert.equal(vm.yourData.length, 2);
-  assert.match(vm.yourData[0], /Melany's Beauty Salon keeps your mobile number, the messages you and it exchange, and your yes to messages/);
+  assert.match(
+    vm.yourData[0],
+    /Melany's Beauty Salon keeps your mobile number, the messages you and it exchange, and your yes to messages/,
+  );
   assert.match(vm.yourData[1], /not shared with third parties or affiliates for marketing or promotional purposes/);
   assert.equal(vm.termsUrl, "/b/melanys-beauty-salon/terms", "and the program's own terms are beside it");
 });
@@ -315,23 +386,38 @@ test("the program's terms carry the eight things a reviewer looks for, in the bu
   const vm = textingTermsVM(salon);
   assert.equal(vm.empty, false);
   assert.equal(vm.title, "Text messaging terms: Melany's Beauty Salon");
-  assert.match(vm.lead, /Melany Beauty Corp, trading as Melany's Beauty Salon, 2581 Pitkin Ave, Brooklyn, NY 11208, US/, "who is bound: the registered name and address");
+  assert.match(
+    vm.lead,
+    /Melany Beauty Corp, trading as Melany's Beauty Salon, 2581 Pitkin Ave, Brooklyn, NY 11208, US/,
+    "who is bound: the registered name and address",
+  );
   const by = Object.fromEntries(vm.items.map((i) => [i.label, i.text]));
   assert.match(by["The program"], /^Melany's Beauty Salon texts customers who asked for it/, "the program, named");
   assert.match(by["The program"], /No offers or promotions are sent by text/);
   assert.match(by["How you join"], /START/);
-  assert.doesNotMatch(by["How you join"], /YES OFFERS/, "REGRESSION: a marketing keyword on the texting number is 30896");
+  assert.doesNotMatch(
+    by["How you join"],
+    /YES OFFERS/,
+    "REGRESSION: a marketing keyword on the texting number is 30896",
+  );
   assert.match(by["How you join"], /not a condition of any purchase/);
   assert.match(by["Message frequency"], /Message frequency varies/);
   assert.equal(by["Cost"], "Message and data rates may apply.", "verbatim");
-  assert.equal(by["Help"], "Reply HELP for help, or call +1 (308) 336-8109 or email hola@melanys.example.", "a way to reach a person");
+  assert.equal(
+    by["Help"],
+    "Reply HELP for help, or call +1 (308) 336-8109 or email hola@melanys.example.",
+    "a way to reach a person",
+  );
   assert.match(by["Stop"], /Reply STOP at any time to stop/);
   assert.match(by["Carriers"], /carriers are not liable for delayed or undelivered messages/i);
   assert.equal(by["Your information"], SMS_CLAUSES[3], "the non-sharing clause, the shared copy");
   assert.equal(vm.privacyUrl, "/b/melanys-beauty-salon", "linked to the privacy page");
-  assert.ok(!/standard rate/i.test(vm.items.map((i) => i.text).join(" ")), "carriers refuse \"standard\"");
+  assert.ok(!/standard rate/i.test(vm.items.map((i) => i.text).join(" ")), 'carriers refuse "standard"');
   // No number and no email: help is still HELP.
-  assert.equal(textingTermsVM({ ...salon, publicPhoneE164: null, contactEmail: "" }).items.find((i) => i.label === "Help").text, "Reply HELP for help.");
+  assert.equal(
+    textingTermsVM({ ...salon, publicPhoneE164: null, contactEmail: "" }).items.find((i) => i.label === "Help").text,
+    "Reply HELP for help.",
+  );
   // The same floor as the page beside it: nobody identified, nothing published.
   assert.equal(textingTermsVM({ ...salon, legalName: "" }).empty, true);
 });

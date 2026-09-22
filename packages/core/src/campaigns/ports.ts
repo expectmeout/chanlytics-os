@@ -5,7 +5,15 @@
  * a person's request) and apps/dashboard/src/server/campaign-ports.ts (a
  * person's broadcast, approve, cancel, the playbook's check).
  */
-import type { Audience, DecisionSubject, DecisionVerb, NumberHealth, ParamSpec, PersonRowVM, PersonVisitsDto } from "@chanlytics/contracts";
+import type {
+  Audience,
+  DecisionSubject,
+  DecisionVerb,
+  NumberHealth,
+  ParamSpec,
+  PersonRowVM,
+  PersonVisitsDto,
+} from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 
 /* ---- The assembly: the rows, then the job ---- */
@@ -26,7 +34,10 @@ export interface NewBroadcast {
   run_for?: string;
 }
 /** One person on the run, with the words their row keeps for the slots (a visit run's), or none. */
-export interface NewRecipient { contact_id: string; facts: Record<string, string> | null }
+export interface NewRecipient {
+  contact_id: string;
+  facts: Record<string, string> | null;
+}
 
 export interface AssemblePorts {
   /** The broadcast row, its id back; throws when it cannot be written. */
@@ -38,7 +49,11 @@ export interface AssemblePorts {
   /** The send job, as this tenant, through the ledger; throws when the ledger refuses. */
   schedule(broadcastId: string, at: Date): Promise<void>;
 }
-export interface AssembleCommand { broadcast: NewBroadcast; recipients: NewRecipient[]; sendAt: Date | null }
+export interface AssembleCommand {
+  broadcast: NewBroadcast;
+  recipients: NewRecipient[];
+  sendAt: Date | null;
+}
 export type Assembled =
   | { ok: true; id: string }
   | { ok: false; failure: "run_not_created" | "recipients_write_failed" | "schedule_failed"; error: string };
@@ -85,10 +100,22 @@ export type RunBy = { kind: "system" } | { kind: "user"; userId: string };
 
 export type RunOutcome =
   /** Sent: when it really goes, and the moment asked for when the hours moved it to nine (else null). */
-  | { outcome: "sent"; broadcast_id: string; eligible: number; mode: string; state: string; scheduled_for: string; moved_from: string | null }
+  | {
+      outcome: "sent";
+      broadcast_id: string;
+      eligible: number;
+      mode: string;
+      state: string;
+      scheduled_for: string;
+      moved_from: string | null;
+    }
   | { outcome: "held"; broadcast_id: string; eligible: number; mode: string; state: string }
   | { outcome: "empty"; eligible: 0; mode: string }
-  | { outcome: "off"; mode: string; skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" }
+  | {
+      outcome: "off";
+      mode: string;
+      skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar";
+    }
   | { outcome: "failed"; error: string };
 
 export interface RunPlaybookPorts extends AssemblePorts {
@@ -114,7 +141,15 @@ export interface RunPlaybookCommand {
 /* ---- The dashboard's verbs ---- */
 
 /** The template as Meta holds it, read by id in this workspace. */
-export interface TemplateRow { id: string; name: string; language: string; meta_status: string | null; category: string | null; variables: unknown; title: string | null }
+export interface TemplateRow {
+  id: string;
+  name: string;
+  language: string;
+  meta_status: string | null;
+  category: string | null;
+  variables: unknown;
+  title: string | null;
+}
 
 export interface TemplateValuesPorts {
   /** Null when there is no such template here; throws when it cannot be read. */
@@ -124,7 +159,15 @@ export interface TemplateValuesPorts {
 }
 
 /** A run or broadcast as the route's scope loaded it. */
-export interface BroadcastRef { id: string; tenant_id: string; state: string; name: string; recipient_count: number | null; playbook_id: string | null; run_for?: string | null }
+export interface BroadcastRef {
+  id: string;
+  tenant_id: string;
+  state: string;
+  name: string;
+  recipient_count: number | null;
+  playbook_id: string | null;
+  run_for?: string | null;
+}
 
 export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
   /** The business's clock, for the hours a send may go out in. */
@@ -137,7 +180,11 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
   number(): Promise<NumberHealth | null>;
   record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }
-export interface CreateBroadcastCommand { userId: string; body: unknown; now: Date }
+export interface CreateBroadcastCommand {
+  userId: string;
+  body: unknown;
+  now: Date;
+}
 
 export interface ApproveRunPorts {
   /** The business's clock, for the hours a send may go out in. */

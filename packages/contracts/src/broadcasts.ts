@@ -186,10 +186,21 @@ export function audiencePreview(
   for (const r of held.slice(0, 2)) {
     const why = !r.phone
       ? "No phone number on file, so nothing can be sent."
-      : PURPOSE_REFUSALS[mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).reason ?? ""] ?? "Held back.";
+      : (PURPOSE_REFUSALS[
+          mayMessageFor(
+            { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
+            purpose,
+            { proactive: true },
+          ).reason ?? ""
+        ] ?? "Held back.");
     people.push(previewPerson(r, why));
   }
-  return { people, sending: sending.length, held: held.length, saidYes: pool.filter((r) => saidYesTo(r, purpose)).length };
+  return {
+    people,
+    sending: sending.length,
+    held: held.length,
+    saidYes: pool.filter((r) => saidYesTo(r, purpose)).length,
+  };
 }
 
 /** The words a person will read: the body with its numbered slots filled. */
@@ -297,9 +308,12 @@ export const BROADCAST_FAILURE_FIX: Record<string, string> = {
  * rather than promise a resend that skips them.
  */
 const BROADCAST_FAILURE_FIX_AFTER: Record<string, (n: number) => string> = {
-  paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
-  wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
-  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  paused: (n) =>
+    `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
+  wire_unavailable: (n) =>
+    `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  run_interrupted: (n) =>
+    `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
 };
 
 /** The next step past a failed run's reason, by how many it reached first; null for a code nobody has written words for. */
@@ -408,7 +422,11 @@ export const HELD_REASONS: Record<string, string> = {
  * words are read in a toast on the send screen, which has no QR, and in Ask,
  * which is no page at all -- so they say where it is rather than "on this page".
  */
-export function emptyAudienceRefusal(purpose: SendPurpose, label: string, pool: readonly Pick<PersonRowVM, "consent">[]): string {
+export function emptyAudienceRefusal(
+  purpose: SendPurpose,
+  label: string,
+  pool: readonly Pick<PersonRowVM, "consent">[],
+): string {
   if (pool.some((r) => saidYesTo(r, purpose))) return noNumberWords(`“${label}”`, purpose);
   return purpose === "marketing"
     ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR on Broadcasts."
@@ -459,15 +477,45 @@ export function numberHealth(n: NumberHealthInput): NumberHealth {
   const q = String(n.quality ?? "").toUpperCase();
   const ev = String(n.event ?? "").toUpperCase();
   const limit = dailyLimit(n.limit);
-  const limitWords = limit === null
-    ? "daily limit not reported yet"
-    : limit === Number.POSITIVE_INFINITY ? "no daily limit" : `up to ${limit.toLocaleString("en-US")} new conversations a day`;
+  const limitWords =
+    limit === null
+      ? "daily limit not reported yet"
+      : limit === Number.POSITIVE_INFINITY
+        ? "no daily limit"
+        : `up to ${limit.toLocaleString("en-US")} new conversations a day`;
   if (q === "RED" || ev === "FLAGGED") {
-    return { canSend: false, tone: "danger", limitPerDay: limit, label: `WhatsApp flagged this number's quality · ${limitWords}`, refusal: "WhatsApp flagged this number's quality. Sending more marketing now risks the number; wait for it to recover." };
+    return {
+      canSend: false,
+      tone: "danger",
+      limitPerDay: limit,
+      label: `WhatsApp flagged this number's quality · ${limitWords}`,
+      refusal:
+        "WhatsApp flagged this number's quality. Sending more marketing now risks the number; wait for it to recover.",
+    };
   }
-  if (q === "YELLOW" || ev === "DOWNGRADE") return { canSend: true, tone: "warn", limitPerDay: limit, label: `Number quality: medium · ${limitWords}`, refusal: null };
-  if (q === "GREEN" || ev === "UNFLAGGED" || ev === "UPGRADE") return { canSend: true, tone: "ok", limitPerDay: limit, label: `Number quality: good · ${limitWords}`, refusal: null };
-  return { canSend: true, tone: "unknown", limitPerDay: limit, label: `Number quality not reported yet · ${limitWords}`, refusal: null };
+  if (q === "YELLOW" || ev === "DOWNGRADE")
+    return {
+      canSend: true,
+      tone: "warn",
+      limitPerDay: limit,
+      label: `Number quality: medium · ${limitWords}`,
+      refusal: null,
+    };
+  if (q === "GREEN" || ev === "UNFLAGGED" || ev === "UPGRADE")
+    return {
+      canSend: true,
+      tone: "ok",
+      limitPerDay: limit,
+      label: `Number quality: good · ${limitWords}`,
+      refusal: null,
+    };
+  return {
+    canSend: true,
+    tone: "unknown",
+    limitPerDay: limit,
+    label: `Number quality not reported yet · ${limitWords}`,
+    refusal: null,
+  };
 }
 
 /** Null when the audience fits the day's limit; otherwise the refusal, with the numbers. */
@@ -601,8 +649,25 @@ export interface RunReportVM {
 
 type ReportRecipient = Pick<
   BroadcastRecipientDto,
-  "contact_id" | "name" | "first_name" | "state" | "reason" | "sent_at" | "message_status" | "conversation_id" | "delivered_at" | "read_at" | "replied" | "replied_at"
-  | "consent_after" | "consent_at" | "consent_purpose" | "reply_words" | "answered_by" | "answered_at" | "waiting_on_you"
+  | "contact_id"
+  | "name"
+  | "first_name"
+  | "state"
+  | "reason"
+  | "sent_at"
+  | "message_status"
+  | "conversation_id"
+  | "delivered_at"
+  | "read_at"
+  | "replied"
+  | "replied_at"
+  | "consent_after"
+  | "consent_at"
+  | "consent_purpose"
+  | "reply_words"
+  | "answered_by"
+  | "answered_at"
+  | "waiting_on_you"
 >;
 
 /**
@@ -610,7 +675,10 @@ type ReportRecipient = Pick<
  * figure: a stop to offers leaves every other message going, so the canvas's
  * "they hear nothing again" is only true of a stop to everything.
  */
-export function consentAnswerWords(consent: "opted_in" | "opted_out", purpose: "marketing" | "conversational" | null): string {
+export function consentAnswerWords(
+  consent: "opted_in" | "opted_out",
+  purpose: "marketing" | "conversational" | null,
+): string {
   if (consent === "opted_in") return purpose === "marketing" ? "said yes to offers" : "said yes to hearing from you";
   return purpose === "marketing" ? "stopped offers, not messages" : "asked to stop hearing from you";
 }
@@ -620,16 +688,30 @@ function answersWords(rows: readonly ReportRecipient[], consent: "opted_in" | "o
   const offers = rows.filter((r) => r.consent_purpose === "marketing").length;
   const rest = rows.length - offers;
   if (offers === 0 || rest === 0) return consentAnswerWords(consent, offers > 0 ? "marketing" : "conversational");
-  return consent === "opted_in" ? `${offers} to offers · ${rest} to hearing from you` : `${offers} stopped offers · ${rest} stopped everything`;
+  return consent === "opted_in"
+    ? `${offers} to offers · ${rest} to hearing from you`
+    : `${offers} stopped offers · ${rest} stopped everything`;
 }
 
-const STATUS_WORDS: Record<string, string> = { sent: "sent", delivered: "delivered", read: "read", failed: "not delivered", queued: "sending", canceled: "canceled" };
+const STATUS_WORDS: Record<string, string> = {
+  sent: "sent",
+  delivered: "delivered",
+  read: "read",
+  failed: "not delivered",
+  queued: "sending",
+  canceled: "canceled",
+};
 
 /** What happened to one person, with the times WhatsApp's receipts gave (00111): "sent 10:31 · delivered 10:32 · read 10:40 · replied 10:52". */
-export function receiptWords(r: Pick<BroadcastRecipientDto, "sent_at" | "message_status" | "delivered_at" | "read_at" | "replied" | "replied_at">, clock: (iso: string | null) => string | null): string {
+export function receiptWords(
+  r: Pick<BroadcastRecipientDto, "sent_at" | "message_status" | "delivered_at" | "read_at" | "replied" | "replied_at">,
+  clock: (iso: string | null) => string | null,
+): string {
   const parts: string[] = [];
   const sent = clock(r.sent_at);
-  parts.push(sent ? `sent ${sent}` : (r.message_status && STATUS_WORDS[r.message_status]) || r.message_status || "sent");
+  parts.push(
+    sent ? `sent ${sent}` : (r.message_status && STATUS_WORDS[r.message_status]) || r.message_status || "sent",
+  );
   const delivered = clock(r.delivered_at);
   const read = clock(r.read_at);
   if (delivered) parts.push(`delivered ${delivered}`);
@@ -642,7 +724,15 @@ export function receiptWords(r: Pick<BroadcastRecipientDto, "sent_at" | "message
 }
 
 const initialsOf = (name: string, named: boolean): string =>
-  named ? name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => Array.from(w)[0] ?? "").join("").toUpperCase() || "—" : "—";
+  named
+    ? name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => Array.from(w)[0] ?? "")
+        .join("")
+        .toUpperCase() || "—"
+    : "—";
 
 /**
  * One run's report: the five figures Reports › Campaigns draws for the
@@ -659,7 +749,10 @@ const initialsOf = (name: string, named: boolean): string =>
  * days looks like it.
  */
 export function toRunReportVM(
-  d: { broadcast?: { state?: string; failure?: string | null; params?: readonly ParamSpec[] }; recipients: readonly ReportRecipient[] },
+  d: {
+    broadcast?: { state?: string; failure?: string | null; params?: readonly ParamSpec[] };
+    recipients: readonly ReportRecipient[];
+  },
   opts: { windowMs: number; nowMs: number; clock?: (iso: string | null) => string | null },
 ): RunReportVM {
   const clock = opts.clock ?? ((iso: string | null) => iso);
@@ -697,39 +790,68 @@ export function toRunReportVM(
   // A run that failed or was canceled leaves the people it had not reached queued (jobs settle.ts): they are not
   // "not sent yet" -- nothing more goes to them from this run.
   const state = d.broadcast?.state;
-  const cutOff = state === "failed" ? "the run stopped before them" : state === "canceled" ? "canceled before it reached them" : state === "sent" ? "never sent" : null;
+  const cutOff =
+    state === "failed"
+      ? "the run stopped before them"
+      : state === "canceled"
+        ? "canceled before it reached them"
+        : state === "sent"
+          ? "never sent"
+          : null;
 
   const people: RunPersonVM[] = d.recipients.map((r) => {
     const out = r.state === "sent";
     const hiThere = out && greets && !r.first_name;
     const answer = r.consent_after ? consentAnswerWords(r.consent_after, r.consent_purpose) : null;
     const pill: RunPersonVM["pill"] =
-      r.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" }
-      : r.replied && out ? { label: "Replied", tone: "ok" }
-      : r.consent_after === "opted_in" && out ? { label: "Said yes", tone: "ok" }
-      : r.state === "skipped" ? { label: "Held back", tone: "plain" }
-      : r.state === "failed" ? { label: "Not sent", tone: "danger" }
-      : r.state === "queued" ? { label: cutOff ? "Not sent" : "Waiting", tone: "plain" }
-      : r.message_status === "failed" ? { label: "Never delivered", tone: "danger" }
-      : r.message_status === "read" ? { label: "Read", tone: "info" }
-      : r.message_status === "delivered" ? { label: "Delivered", tone: "info" }
-      : { label: "Sent", tone: "plain" };
+      r.consent_after === "opted_out" && out
+        ? { label: "Asked to stop", tone: "warn" }
+        : r.replied && out
+          ? { label: "Replied", tone: "ok" }
+          : r.consent_after === "opted_in" && out
+            ? { label: "Said yes", tone: "ok" }
+            : r.state === "skipped"
+              ? { label: "Held back", tone: "plain" }
+              : r.state === "failed"
+                ? { label: "Not sent", tone: "danger" }
+                : r.state === "queued"
+                  ? { label: cutOff ? "Not sent" : "Waiting", tone: "plain" }
+                  : r.message_status === "failed"
+                    ? { label: "Never delivered", tone: "danger" }
+                    : r.message_status === "read"
+                      ? { label: "Read", tone: "info" }
+                      : r.message_status === "delivered"
+                        ? { label: "Delivered", tone: "info" }
+                        : { label: "Sent", tone: "plain" };
     const quote = r.replied && r.reply_words ? `“${r.reply_words}”` : null;
     const words =
-      r.state === "skipped" ? (r.reason && HELD_REASONS[r.reason]) || r.reason || "held back"
-      : r.state === "failed" ? (r.reason && HELD_REASONS[r.reason]) || HELD_REASONS.send_failed || "WhatsApp refused it"
-      : r.state === "queued" ? cutOff ?? "not sent yet"
-      : r.consent_after === "opted_out" ? (quote ? `${quote} — ${answer}` : answer!)
-      : quote ? quote
-      : r.consent_after === "opted_in" ? answer!
-      : r.message_status === "failed" ? "WhatsApp could not deliver it"
-      : hiThere ? "greeted “Hi there” — no name on file"
-      : receiptWords(r, clock);
+      r.state === "skipped"
+        ? (r.reason && HELD_REASONS[r.reason]) || r.reason || "held back"
+        : r.state === "failed"
+          ? (r.reason && HELD_REASONS[r.reason]) || HELD_REASONS.send_failed || "WhatsApp refused it"
+          : r.state === "queued"
+            ? (cutOff ?? "not sent yet")
+            : r.consent_after === "opted_out"
+              ? quote
+                ? `${quote} — ${answer}`
+                : answer!
+              : quote
+                ? quote
+                : r.consent_after === "opted_in"
+                  ? answer!
+                  : r.message_status === "failed"
+                    ? "WhatsApp could not deliver it"
+                    : hiThere
+                      ? "greeted “Hi there” — no name on file"
+                      : receiptWords(r, clock);
     const door =
-      r.consent_after === "opted_out" && out ? { label: "See consent", to: `clients/${r.contact_id}` }
-      : hiThere ? { label: "Add a name", to: `clients/${r.contact_id}` }
-      : r.replied && r.conversation_id ? { label: "Open the thread", to: `inbox/th-${r.conversation_id}` }
-      : null;
+      r.consent_after === "opted_out" && out
+        ? { label: "See consent", to: `clients/${r.contact_id}` }
+        : hiThere
+          ? { label: "Add a name", to: `clients/${r.contact_id}` }
+          : r.replied && r.conversation_id
+            ? { label: "Open the thread", to: `inbox/th-${r.conversation_id}` }
+            : null;
     const inn: RunFilterId[] = ["all"];
     if (out && r.replied) inn.push("replied");
     if (r.state === "skipped" || r.state === "failed" || (r.state === "queued" && cutOff)) inn.push("held");
@@ -756,10 +878,16 @@ export function toRunReportVM(
       name: r.name,
       initials: initialsOf(r.name, !!r.first_name),
       quote: r.reply_words ? `“${r.reply_words}”` : null,
-      outcome: r.waiting_on_you ? { words: "Waiting on you", tone: "warn" }
-        : r.answered_by === "receptionist" ? { words: `The receptionist answered${clock(r.answered_at) ? ` · ${clock(r.answered_at)}` : ""}`, tone: "ok" }
-        : r.answered_by === "team" ? { words: `Your team answered${clock(r.answered_at) ? ` · ${clock(r.answered_at)}` : ""}`, tone: "ok" }
-        : { words: "Not answered yet", tone: "plain" },
+      outcome: r.waiting_on_you
+        ? { words: "Waiting on you", tone: "warn" }
+        : r.answered_by === "receptionist"
+          ? {
+              words: `The receptionist answered${clock(r.answered_at) ? ` · ${clock(r.answered_at)}` : ""}`,
+              tone: "ok",
+            }
+          : r.answered_by === "team"
+            ? { words: `Your team answered${clock(r.answered_at) ? ` · ${clock(r.answered_at)}` : ""}`, tone: "ok" }
+            : { words: "Not answered yet", tone: "plain" },
       to: r.conversation_id ? `inbox/th-${r.conversation_id}` : null,
     }));
 
@@ -767,7 +895,14 @@ export function toRunReportVM(
   const code = d.broadcast?.failure ?? null;
   return {
     enrolled: d.recipients.length,
-    span: spanH === 1 ? "the first hour" : spanH < 24 ? `the first ${spanH} hours` : spanH === 24 ? "the first day" : `the first ${spanH / 24} days`,
+    span:
+      spanH === 1
+        ? "the first hour"
+        : spanH < 24
+          ? `the first ${spanH} hours`
+          : spanH === 24
+            ? "the first day"
+            : `the first ${spanH / 24} days`,
     groups: {
       all: people.length,
       replied: people.filter((p) => p.in.includes("replied")).length,
@@ -776,13 +911,69 @@ export function toRunReportVM(
     },
     people,
     replies,
-    stop: failed ? { words: broadcastFailureWords(code), fix: broadcastFailureFix(code, sent), tone: code === "paused" ? "warn" : "danger" } : null,
+    stop: failed
+      ? {
+          words: broadcastFailureWords(code),
+          fix: broadcastFailureFix(code, sent),
+          tone: code === "paused" ? "warn" : "danger",
+        }
+      : null,
     figures: [
-      { id: "sent", label: "Messages sent", n: sent, pct: null, sub: `of ${d.recipients.length} on the list`, tone: "plain", bars: bars(reached.map((r) => r.sent_at)) },
-      { id: "delivered", label: "Delivered", n: delivered.length, pct: pct(delivered.length), sub: sent === 0 ? "nothing has gone out" : never > 0 ? `${never} never reached the handset` : "every one reached the handset", tone: delivered.length > 0 ? "ok" : "plain", bars: bars(delivered.map((r) => r.delivered_at ?? r.read_at)) },
-      { id: "replied", label: "Replied", n: replied.length, pct: pct(replied.length), sub: waiting > 0 ? `${waiting} waiting on you in the Inbox` : replied.length > 0 ? "each one is a thread in the Inbox" : "nobody has written back yet", tone: replied.length > 0 ? "ok" : "plain", bars: bars(replied.map((r) => r.replied_at)) },
-      { id: "said_yes", label: "Said yes", n: yes.length, pct: pct(yes.length), sub: yes.length > 0 ? answersWords(yes, "opted_in") : "nobody new said yes", tone: yes.length > 0 ? "ok" : "plain", bars: bars(yes.map((r) => r.consent_at)) },
-      { id: "stopped", label: "Asked to stop", n: stopped.length, pct: pct(stopped.length), sub: stopped.length > 0 ? answersWords(stopped, "opted_out") : "nobody asked to stop", tone: stopped.length > 0 ? "warn" : "plain", bars: bars(stopped.map((r) => r.consent_at)) },
+      {
+        id: "sent",
+        label: "Messages sent",
+        n: sent,
+        pct: null,
+        sub: `of ${d.recipients.length} on the list`,
+        tone: "plain",
+        bars: bars(reached.map((r) => r.sent_at)),
+      },
+      {
+        id: "delivered",
+        label: "Delivered",
+        n: delivered.length,
+        pct: pct(delivered.length),
+        sub:
+          sent === 0
+            ? "nothing has gone out"
+            : never > 0
+              ? `${never} never reached the handset`
+              : "every one reached the handset",
+        tone: delivered.length > 0 ? "ok" : "plain",
+        bars: bars(delivered.map((r) => r.delivered_at ?? r.read_at)),
+      },
+      {
+        id: "replied",
+        label: "Replied",
+        n: replied.length,
+        pct: pct(replied.length),
+        sub:
+          waiting > 0
+            ? `${waiting} waiting on you in the Inbox`
+            : replied.length > 0
+              ? "each one is a thread in the Inbox"
+              : "nobody has written back yet",
+        tone: replied.length > 0 ? "ok" : "plain",
+        bars: bars(replied.map((r) => r.replied_at)),
+      },
+      {
+        id: "said_yes",
+        label: "Said yes",
+        n: yes.length,
+        pct: pct(yes.length),
+        sub: yes.length > 0 ? answersWords(yes, "opted_in") : "nobody new said yes",
+        tone: yes.length > 0 ? "ok" : "plain",
+        bars: bars(yes.map((r) => r.consent_at)),
+      },
+      {
+        id: "stopped",
+        label: "Asked to stop",
+        n: stopped.length,
+        pct: pct(stopped.length),
+        sub: stopped.length > 0 ? answersWords(stopped, "opted_out") : "nobody asked to stop",
+        tone: stopped.length > 0 ? "warn" : "plain",
+        bars: bars(stopped.map((r) => r.consent_at)),
+      },
     ],
   };
 }

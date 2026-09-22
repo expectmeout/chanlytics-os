@@ -67,7 +67,9 @@ export async function cancelJobsFor(
     .eq(`payload->>${payloadKey}`, payloadValue)
     .select("id");
   if (error) {
-    console.error(JSON.stringify({ level: "error", event: "cancel_jobs_failed", tenant_id: tenantId, kind, error: error.message }));
+    console.error(
+      JSON.stringify({ level: "error", event: "cancel_jobs_failed", tenant_id: tenantId, kind, error: error.message }),
+    );
     return 0;
   }
   return data?.length ?? 0;

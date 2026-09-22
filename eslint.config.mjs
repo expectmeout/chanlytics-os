@@ -67,7 +67,15 @@ const BROWSER_MAY_NOT_IMPORT = [
     message: "Browser code reaches the server through the typed client (src/client/api.ts), never by importing it.",
   },
   {
-    group: ["@chanlytics/core", "@chanlytics/core/**", "@chanlytics/jobs", "@chanlytics/jobs/**", "@chanlytics/channels", "@chanlytics/channels/**", "server-only"],
+    group: [
+      "@chanlytics/core",
+      "@chanlytics/core/**",
+      "@chanlytics/jobs",
+      "@chanlytics/jobs/**",
+      "@chanlytics/channels",
+      "@chanlytics/channels/**",
+      "server-only",
+    ],
     allowTypeImports: true,
     message: "Rules and providers run on the server. The browser sees their outcomes through a route.",
   },
@@ -75,16 +83,37 @@ const BROWSER_MAY_NOT_IMPORT = [
 
 const SERVER_MAY_NOT_IMPORT = [
   {
-    group: ["**/legacy-bridge/**", "**/legacy-bridge", "@/legacy-bridge", "@/legacy-bridge/**", "**/legacy/**", "**/src/client/**", "@/client/**", "../client/**", "../../client/**"],
+    group: [
+      "**/legacy-bridge/**",
+      "**/legacy-bridge",
+      "@/legacy-bridge",
+      "@/legacy-bridge/**",
+      "**/legacy/**",
+      "**/src/client/**",
+      "@/client/**",
+      "../client/**",
+      "../../client/**",
+    ],
     allowTypeImports: true,
-    message: "The server feeds the shell through the surface seam; it never imports the shell, the bridge or the browser client.",
+    message:
+      "The server feeds the shell through the surface seam; it never imports the shell, the bridge or the browser client.",
   },
 ];
 
 const EDGE_MAY_NOT_IMPORT = [
   {
-    group: ["next", "next/**", "react", "react/**", "react-dom", "react-dom/**", "**/apps/dashboard/**", "**/dashboard/**"],
-    message: "The edge is Node functions a provider calls. It shares packages with the dashboard, never the dashboard itself.",
+    group: [
+      "next",
+      "next/**",
+      "react",
+      "react/**",
+      "react-dom",
+      "react-dom/**",
+      "**/apps/dashboard/**",
+      "**/dashboard/**",
+    ],
+    message:
+      "The edge is Node functions a provider calls. It shares packages with the dashboard, never the dashboard itself.",
   },
 ];
 

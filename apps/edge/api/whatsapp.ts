@@ -79,7 +79,11 @@ export async function POST(request: Request): Promise<Response> {
     entry?: Array<{ id?: string; changes?: Array<{ field?: string; value?: WaChangeValue }> }>;
   }
   let body: WebhookBody = {};
-  try { body = JSON.parse(raw) as WebhookBody; } catch { /* ack anyway */ }
+  try {
+    body = JSON.parse(raw) as WebhookBody;
+  } catch {
+    /* ack anyway */
+  }
   // Messages the database did not accept in this batch: the one thing this
   // handler must not acknowledge.
   let unrecorded = 0;
@@ -101,7 +105,9 @@ export async function POST(request: Request): Promise<Response> {
         if (db && field && WABA_FIELDS.has(field)) {
           const wabaId = String(entry.id || "");
           const outcome = wabaId
-            ? await handleWabaChange(db, wabaId, { field, value: v as unknown as Record<string, unknown> }, (tid) => notificationsFor(db, tid))
+            ? await handleWabaChange(db, wabaId, { field, value: v as unknown as Record<string, unknown> }, (tid) =>
+                notificationsFor(db, tid),
+              )
             : "unrouted";
           L.info("wa_waba_event", { field, waba_id: wabaId || null, outcome });
           continue;
@@ -110,8 +116,10 @@ export async function POST(request: Request): Promise<Response> {
         const isEnvDefault = !!phoneNumberId && phoneNumberId === (env.WHATSAPP_PHONE_ID || "");
         if (db && phoneNumberId) {
           const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "whatsapp", phoneNumberId);
-          if (routed) { tenantId = routed.tenantId; routedChannel = routed; }
-          else if (lookupFailed) {
+          if (routed) {
+            tenantId = routed.tenantId;
+            routedChannel = routed;
+          } else if (lookupFailed) {
             // The database did not answer. That is an infra blip, not a
             // decision: nothing is recorded and nothing is said, and the 503
             // below has the provider redeliver once the read works.
@@ -124,10 +132,10 @@ export async function POST(request: Request): Promise<Response> {
             // messages_in would undercount this traffic invisibly and forever.
             unroutable = true;
             L.error("wa_unroutable", { phone_number_id: phoneNumberId });
-            await emitEvent(
-              db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null,
-              { channel: "whatsapp", phone_number_id: phoneNumberId } as Json,
-            ).catch(() => {});
+            await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null, {
+              channel: "whatsapp",
+              phone_number_id: phoneNumberId,
+            } as Json).catch(() => {});
           }
         }
         if (field === "messages" && v.messages && routingFailed) {
@@ -139,7 +147,8 @@ export async function POST(request: Request): Promise<Response> {
           // profile, and now waits for the read like every other workspace.
           unrecorded += v.messages.length;
           L.error("wa_skip_routing_failed", {
-            phone_number_id: phoneNumberId, messages: v.messages.length,
+            phone_number_id: phoneNumberId,
+            messages: v.messages.length,
           });
           await alertUnroutable("whatsapp_unreadable", phoneNumberId, v.messages.length);
         } else if (field === "messages" && v.messages && unroutable) {
@@ -148,7 +157,8 @@ export async function POST(request: Request): Promise<Response> {
           // reach a human — throttled, because the alternative is one email per
           // inbound message for as long as the channel stays off.
           L.error("wa_skip_unroutable", {
-            phone_number_id: phoneNumberId, messages: v.messages.length,
+            phone_number_id: phoneNumberId,
+            messages: v.messages.length,
           });
           await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);
         } else if (field === "messages" && v.messages) {
@@ -169,14 +179,22 @@ export async function POST(request: Request): Promise<Response> {
             }
           }
         } else if (field === "messages" && v.statuses) {
-          await Promise.all((v.statuses ?? []).map(async (s) => {
-            L.info("wa_status", { id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors });
-            if (db && tenantId && s.id && s.status && ["sent", "delivered", "read", "failed"].includes(s.status)) {
-              await pgSafe("status", () =>
-                recordStatusByExternalId(db, tenantId!, s.id!, s.status as "sent" | "delivered" | "read" | "failed",
-                  s.errors ? ({ errors: s.errors } as unknown as Json) : undefined));
-            }
-          }));
+          await Promise.all(
+            (v.statuses ?? []).map(async (s) => {
+              L.info("wa_status", { id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors });
+              if (db && tenantId && s.id && s.status && ["sent", "delivered", "read", "failed"].includes(s.status)) {
+                await pgSafe("status", () =>
+                  recordStatusByExternalId(
+                    db,
+                    tenantId!,
+                    s.id!,
+                    s.status as "sent" | "delivered" | "read" | "failed",
+                    s.errors ? ({ errors: s.errors } as unknown as Json) : undefined,
+                  ),
+                );
+              }
+            }),
+          );
         } else if (field === "smb_message_echoes") {
           // The owner (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
           try {
@@ -186,7 +204,7 @@ export async function POST(request: Request): Promise<Response> {
             // read per echo batch, never per echo.
             const echoRt = db && routedChannel ? await loadTenantRuntime(db, routedChannel) : null;
             const echoLimits = echoRt?.policy["reply"]?.limits ?? {};
-            const echoPauseMs = (echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS);
+            const echoPauseMs = echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS;
             for (const echo of v.message_echoes || []) {
               const to = echo.to;
               if (to) {
@@ -196,15 +214,20 @@ export async function POST(request: Request): Promise<Response> {
                 if (db && tenantId) {
                   await pgSafe("echo", () =>
                     recordEchoAndPause(db, {
-                      tenantId, customerPhoneDigits: to,
-                      body: echo.text?.body ?? null, externalId: echo.id ?? null,
+                      tenantId,
+                      customerPhoneDigits: to,
+                      body: echo.text?.body ?? null,
+                      externalId: echo.id ?? null,
                       pausedUntilIso: new Date(Date.now() + echoPauseMs).toISOString(),
-                    }));
+                    }),
+                  );
                 }
                 L.info("wa_paused_by_echo", { to_tail: phoneTail(to) });
               }
             }
-          } catch (e) { L.error("echo_handling_error", { error: errField(e) }); }
+          } catch (e) {
+            L.error("echo_handling_error", { error: errField(e) });
+          }
         } else if (field === "history") {
           L.info("wa_history_sync_batch");
         } else {
