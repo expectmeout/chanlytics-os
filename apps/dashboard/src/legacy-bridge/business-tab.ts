@@ -10,10 +10,13 @@
  */
 import {
   standingLine,
+  ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,
   bookingHeld,
   bookingTemplate,
+  capabilityStatus,
+  POLICY_MODES,
   ruleStrength,
   GUARDRAIL_KEYS,
   promptBlocks,
@@ -261,6 +264,11 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // the save would take, read off the schema, and the sentence written from that one number. The page held both, so
 // each cap was a literal beside a sentence naming it again. writtenOutDetail is whether one of the three messages
 // spells a detail out where the name for it would keep it current (business-tab-answers.jsx).
+// What it can do's are the abilities and the limits (abilityRows, cannotRows), the two questions the edge asks of the
+// Autonomy tab (bookingHeld, and POLICY_MODES to read the Replies row as stored), the template a call sends the
+// booking link as (bookingTemplate), the words each of a row's two channel glyphs is called (ABILITY_CHANNEL_WORDS),
+// and capabilityStatus, which is where "this line answers" is decided for Setup and for this card alike -- the card
+// reads it off the Setup payload the bridge already publishes (__SETUP) rather than asking the channels itself.
 // CHIPS_SHOWN and chipsMoreWords are how many chips any row of the record draws at rest and how the rest are said:
 // one number and one spelling for the services, the notes and the rules alike (the kit's RecordChips keeps the cap).
 // How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,
@@ -270,10 +278,13 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by.
 export const BUSINESS_TAB = {
   standingLine,
+  ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,
   bookingHeld,
   bookingTemplate,
+  capabilityStatus,
+  POLICY_MODES,
   ruleStrength,
   GUARDRAIL_KEYS,
   promptBlocks,

@@ -7,7 +7,7 @@
 // This file draws the head and the standing line, and composes the cards. The page's two gestures, a row edited in its
 // place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
 // pages/business-tab-gestures.jsx; each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx,
-// business-tab-offer.jsx, business-tab-answers.jsx), loaded before this one and read from window as the page draws, and
+// business-tab-offer.jsx, business-tab-answers.jsx, business-can.jsx), loaded before this one and read from window as the page draws, and
 // the services sheet (business-tab-services.jsx) is drawn here, after every card. PaneWorkspace (settings.jsx) keeps
 // drawing the old card until Task 3.7 swaps this page in.
 //
@@ -142,6 +142,7 @@ const BusinessTab = ({ flash = () => {} }) => {
       {window.BtOpenCard ? <window.BtOpenCard brain={brain} config={settings.config} prompt={settings.prompt || null} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {window.BtOfferCard ? <window.BtOfferCard brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {window.BtAnswersCard ? <window.BtAnswersCard brain={brain} base={base} config={settings.config} canEdit={canEdit} flash={flash} saver={saver} /> : null}
+      {window.BtCanCard ? <window.BtCanCard brain={brain} config={settings.config} canEdit={canEdit} /> : null}
       {/* The services sheet, LAST, after every card: the kit's sheet holds hooks and is drawn only while it is open, and
           the tests' stub React keeps every hook on the page as a cell in one order, so drawn before a card it shifted
           that card's cells whenever it opened (BtSheet, business-tab-gestures.jsx; the sheet is business-tab-services.jsx).

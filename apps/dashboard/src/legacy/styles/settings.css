@@ -1468,6 +1468,29 @@ html.legacy-on .bt-link { position: relative; }
 .bt-fallback-label { font-size: var(--text-base); color: var(--ink); }
 .bt-fallback-when { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 .bt-fallback-reads { padding: 7px 10px; border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* What it can do: an ability is its title, two glyphs at the row's end, and -- only where something on this page is
+   missing -- one muted line saying what happens instead, with the door to the row that fixes it. The title is the
+   row's fact, not its label, so it takes the row rather than the key column's 168px, and the glyphs go to the end. */
+.bt-can-row { flex-wrap: wrap; align-items: center; row-gap: 4px; }
+.bt-can-row > .rec-row-key { flex: 1 1 auto; color: var(--ink); }
+.bt-can-chips { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
+/* The whole signal: two inks, no pill, no badge, no colour. What each glyph means is its accessible name
+   (contracts ABILITY_CHANNEL_WORDS), because dim on its own says nothing to a screen reader. */
+.rec-can-chip { display: inline-flex; color: var(--ink-dim); }
+.rec-can-chip[data-on="true"] { color: var(--ink); }
+.bt-can-why { flex: 1 1 100%; margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-can-why > .bt-link, .bt-can-held > .bt-link { margin-left: 6px; }
+/* A row that is whole keeps its sentence: a screen reader reads it, and a mouse gets it as the row's own tip. It is
+   not on screen, because six two-clause sentences under six rows nothing on which needs deciding is the clutter the
+   owner named -- and on a phone it is most of the card's height. */
+.bt-can-says { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* One cause with one fix on another tab, said once for the whole card and never on the six rows it holds. */
+.bt-can-held { margin: 0; padding: 0 0 12px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-can-group { padding-top: 16px; }
+.bt-can-group-head { margin: 0 0 2px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); }
+/* A limit is a line and nothing else: no channel, no act, and what it is instead as the row's tip. */
+.bt-cannot-row > .rec-row-key { flex: 1 1 auto; }
+
 /* legacy.css gives every button on a touch screen 44px of height; a token's remove keeps its shape and takes its reach
    from an ::after, as the kit's switch does. */
 @media (pointer: coarse) {
@@ -1513,6 +1536,10 @@ html.legacy-on .bt-link { position: relative; }
   .bt-service-row > .btn { grid-column: 3; grid-row: 1; }
   .bt-service-row > .rec-box:nth-child(2) { grid-column: 1; grid-row: 2; }
   .bt-service-row > .rec-box:nth-child(3) { grid-column: 2; grid-row: 2; }
+  /* An ability keeps its title and its glyphs on one line -- the kit's phone row puts the value under the label, and
+     two glyphs are not a value to read down to -- and the line that carries a decision takes the row under them. */
+  .bt-can-row > .bt-can-chips { grid-column: 2; grid-row: 1; }
+  .bt-can-row > .bt-can-why { grid-column: 1 / -1; }
   /* A note's title shares its line with the remove; what it says takes the next, the row's width. */
   .bt-note { grid-template-columns: minmax(0, 1fr) auto; }
   .bt-note-head { display: none; }

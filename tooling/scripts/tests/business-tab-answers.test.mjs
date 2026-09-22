@@ -114,14 +114,15 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
     textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
     "The voice, the limits, and what fits no field",
   );
-  // After What you offer, and above the services sheet, which stays the page's last drawn child.
+  // After What you offer, before What it can do, and above the services sheet, the page's last drawn child.
   assert.deepEqual(
     all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
-    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers"],
+    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers", "rec-card-can"],
   );
   const tail = [].concat(drawTab().rendered.props.children).filter((c) => c != null && c !== false);
   assert.equal(tail.at(-1).type, W.BtServicesSheet);
-  assert.equal(tail.at(-2).type, W.BtAnswersCard);
+  assert.equal(tail.at(-2).type, W.BtCanCard, "What it can do is the card after this one");
+  assert.equal(tail.at(-3).type, W.BtAnswersCard);
 });
 
 test("typing a voice reaches the composer: the fold says the Tone line it will be told, and the save writes the tone alone", () => {
@@ -724,8 +725,9 @@ test("a workspace that takes no calls is told nothing a call does: no call sente
 
 test("how long a hand-off holds off is the Autonomy tab's, and a failed read of it is said where the sentence would be", () => {
   try {
-    W.__POLICIES = { rows: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }], role: "owner" };
-    let tree = drawTab();
+    let tree = drawTab({
+      policies: { rows: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }], role: "owner" },
+    });
     openFold(tree, "escalate_when");
     tree = redrawTab();
     assert.match(textOf(byTestId(tree, "rec-handoff-chat-says")), /holds off for 4 hours/);

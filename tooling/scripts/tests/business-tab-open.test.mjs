@@ -88,7 +88,7 @@ test("When you're open draws four rows in the spec's order, under a line contrac
   // Between Who you are and What you offer, on the one page.
   assert.deepEqual(
     all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
-    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers"],
+    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers", "rec-card-can"],
   );
 });
 

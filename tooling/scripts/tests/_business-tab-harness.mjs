@@ -90,6 +90,7 @@ await import(`${L}/pages/business-tab-who.jsx`);
 await import(`${L}/pages/business-tab-open.jsx`);
 await import(`${L}/pages/business-tab-offer.jsx`);
 await import(`${L}/pages/business-tab-answers.jsx`);
+await import(`${L}/pages/business-can.jsx`);
 await import(`${L}/pages/business-tab-services.jsx`);
 // The card a workspace with no receptionist is shown, which PaneWorkspace draws in the page's place
 // (business-tab-create.test.mjs draws it); in both load lists here, after the cards and before the page.
@@ -150,6 +151,104 @@ const brainOf = (profile, over = {}) => ({
   ...over,
 });
 
+/**
+ * The workspace's connections, as /api/v1/setup hands them over and the bridge publishes them
+ * (legacy-bridge/setup.ts `__SETUP`). Both lines are present, active, have answered something and
+ * were switched on by the owner, which is the three things capabilityStatus calls live. Texting is
+ * on none of it: the line carries no approved registration, which is what `ready` needs.
+ */
+const SETUP = () => ({
+  dto: {
+    business: {
+      name: "Melany's Beauty Salon",
+      hours: true,
+      services: 2,
+      bookingLink: true,
+      address: true,
+      handoff: "+16469325775",
+      broken: false,
+    },
+    channels: {
+      whatsapp: {
+        present: true,
+        active: true,
+        number: "+13083368109",
+        quality: "GREEN",
+        lastInboundAt: "2026-09-21T15:00:00.000Z",
+      },
+      voice: { present: true, active: true, number: "+13083368109", lastInboundAt: "2026-09-21T15:00:00.000Z" },
+    },
+    templates: { approved: 2, pending: 0, startersApproved: 2 },
+    calendar: { state: "ok" },
+    team: { members: 2, invitesOpen: 0, alertEmails: 1 },
+    consent: { yes: 9, offers: 7, offersSaidYes: 8 },
+    requests: { line: null },
+    lines: {
+      rows: [
+        {
+          id: "ln-melany",
+          e164: "+13083368109",
+          kind: "local",
+          provider: "twilio",
+          area_code: 308,
+          voice_state: "answering",
+          sms_state: "none",
+          whatsapp_state: "connected",
+          port_state: "none",
+          forwarding_state: "none",
+          step: null,
+          last_error: null,
+          state_since: "2026-08-01T00:00:00.000Z",
+          created_at: "2026-08-01T00:00:00.000Z",
+        },
+      ],
+      ready: true,
+      provider: "twilio",
+      costs: { local_number_month_usd: 1.15 },
+    },
+    activations: [
+      { capability: "voice", activated_at: "2026-08-02T00:00:00.000Z", activated_by: "u-ruben", deactivated_at: null },
+      {
+        capability: "whatsapp",
+        activated_at: "2026-08-02T00:00:00.000Z",
+        activated_by: "u-ruben",
+        deactivated_at: null,
+      },
+    ],
+  },
+  role: "owner",
+  vm: null,
+  fetchedAt: Date.now(),
+});
+
+/**
+ * The Autonomy matrix as the settings read publishes it (`__POLICIES`): the modes a provisioned
+ * workspace starts with (00017_provision_tenant), with nothing under the reply row's pause, which
+ * is the common case -- most owners never set one, and the edge reads nothing as a day.
+ */
+const POLICIES = () => ({
+  rows: [
+    { class: "faq", mode: "auto", limits: {} },
+    { class: "booking", mode: "auto", limits: {} },
+    { class: "reply", mode: "auto", limits: { max_replies_day: 20 } },
+    { class: "reengage", mode: "ask", limits: {} },
+    { class: "campaign", mode: "ask", limits: {} },
+    { class: "money", mode: "never", limits: {} },
+  ],
+  role: "owner",
+});
+
+/** The workspace's WhatsApp templates: the approved starter a call sends the booking link as. */
+const TEMPLATES = () => [
+  {
+    name: "booking_link",
+    language: "en_US",
+    meta_status: "approved",
+    channel: "whatsapp",
+    variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
+  },
+];
+
 /** What the platform knows: the voice line it provisioned, and the workspace. */
 const KNOWN = {
   workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" },
@@ -206,8 +305,17 @@ const drawTab = ({
   resolved = null,
   config = {},
   zone = "America/New_York",
+  setup = SETUP(),
+  policies = POLICIES(),
+  templates = TEMPLATES(),
 } = {}) => {
   W.__SETTINGS = settings(profile, config, brain, zone);
+  // What it can do reads three more surfaces: the connections the abilities run on, the Autonomy
+  // matrix they are held by, and the templates a call sends the booking link as. Each is reset with
+  // the record, as __SETTINGS is: what the last test left is not this one's.
+  W.__SETUP = setup;
+  W.__POLICIES = policies;
+  W.__TEMPLATES_ALL = templates;
   if (resolved) {
     const f = resolveFacts(W.__SETTINGS.config.brain, resolved);
     W.__FACTS = { facts: f, conflicts: factConflicts(f) };
@@ -319,6 +427,9 @@ const written = (config) => structuredClone(config);
 
 export {
   KNOWN,
+  POLICIES,
+  SETUP,
+  TEMPLATES,
   W,
   boxOf,
   brainOf,

@@ -131,9 +131,11 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
+    "ABILITY_CHANNEL_WORDS",
     "BOOKING_RULE_HINTS",
     "CHIPS_SHOWN",
     "GUARDRAIL_KEYS",
+    "POLICY_MODES",
     "PROFILE_LIMITS",
     "RULES_WITHOUT_FIELDS_WORDS",
     "TONE_PRESETS",
@@ -144,6 +146,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "bookingRulesWords",
     "bookingTemplate",
     "cannotRows",
+    "capabilityStatus",
     "chipsMoreWords",
     "closuresAheadWords",
     "consequenceOf",
