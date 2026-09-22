@@ -7,7 +7,6 @@
 .side-wrap { display: contents; }
 .nav-backdrop { display: none; }
 .tb-menu { display: none; }
-.sb-mobile-head { display: none; }
 
 @media (max-width: 900px) {
   /* ---------- Shell ---------- */
@@ -29,16 +28,6 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Drawer header — explicit, thumb-reachable close */
-  .sb-mobile-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px 10px;
-    border-bottom: 1px solid var(--line);
-  }
-  .sb-mobile-head .btn { margin-left: auto; }
-  .sb-mobile-title { font-size: 13.5px; font-weight: 500; color: var(--ink); }
 
   /* 44px-class tap targets inside the drawer */
   .side-wrap .nav-item { padding-top: 11px; padding-bottom: 11px; }
@@ -51,12 +40,18 @@
 
   /* Overlays always clear the drawer */
   .ask-overlay { z-index: 320; }
+  /* A scrim darkens what is behind it, in both themes. This was the INK at 35%, and the ink inverts: near-black
+     over a light page (right), near-WHITE over a dark one (wrong). Under viewport-fit: cover the page draws up
+     into the status bar, so on a phone that white veil reached the top of the screen, the browser re-tinted its
+     own chrome to match, and the tint stayed after the drawer closed -- a grey band until the page was reloaded.
+     In light mode the same rule left a dark one. Black at 45%, as every other overlay here (.lp-backdrop, the
+     thread pane's .more-backdrop). */
   .nav-backdrop {
     display: block;
     position: fixed;
     inset: 0;
     z-index: 210;
-    background: oklch(from var(--ink) l c h / 0.35);
+    background: rgb(0 0 0 / 0.45);
     animation: route-in 160ms var(--ease-out);
   }
   .tb-menu { display: inline-flex; }
