@@ -220,13 +220,26 @@ export async function expectFocusUnmoved(page: Page, was: string, why: string): 
 }
 
 /**
- * The page does not scroll sideways.
+ * Nothing a person reads on scrolls sideways.
  *
- * Measured on the document, not on an element's rectangle: a control laid out past the edge inside its own scroller
- * is that scroller's business, and a page that scrolls sideways is the reader's. One pixel of rounding is allowed;
- * eight is the Who you are card's arrow, which is the defect this guards.
+ * Measured on what SCROLLS, never on an element's rectangle: dozens of things are laid out past their own box on
+ * purpose (a label clipped to 1px for a screen reader, a row that hides its own overflow), and none of them moves
+ * anything. One pixel of rounding is allowed.
+ *
+ * The document is always measured. `scrollers` names the panes the page is read in, because the document is not
+ * always the one that moves: the Who you are card's 8px was an arrow inside a clipped label, and what it scrolled
+ * was the Settings pane (`.set-pane`, overflow-x: auto) while the document stayed exactly 390px wide. A check that
+ * read the document alone passed that page -- measured against it, with the arrow put back.
  */
-export async function expectNoSidewaysScroll(page: Page, where: string): Promise<void> {
-  const by = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(by, `${where} scrolls sideways by ${by}px`).toBeLessThanOrEqual(1);
+export async function expectNoSidewaysScroll(page: Page, where: string, scrollers: string[] = []): Promise<void> {
+  const found = await page.evaluate((sels) => {
+    const of = (el: Element) => el.scrollWidth - el.clientWidth;
+    const out: string[] = [];
+    if (of(document.documentElement) > 1) out.push(`the page by ${of(document.documentElement)}px`);
+    for (const sel of sels) {
+      for (const el of document.querySelectorAll(sel)) if (of(el) > 1) out.push(`${sel} by ${of(el)}px`);
+    }
+    return out;
+  }, scrollers);
+  expect(found, `${where} scrolls sideways: ${found.join(", ")}`).toEqual([]);
 }

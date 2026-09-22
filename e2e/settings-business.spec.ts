@@ -23,6 +23,8 @@ import { expectFocusInside, expectFocusUnmoved, expectNoSidewaysScroll, focusedN
 
 /** The record as Settings reads it. */
 const ROUTE = "#/admin/workspace";
+/** The pane the record is read in, which is what scrolls when something on it is laid out past the edge. */
+const PANE = ".set-pane";
 
 /** The page is a Settings pane; the head is drawn only once the settings read has a brain to draw. */
 async function openRecord(page: Page): Promise<void> {
@@ -360,7 +362,7 @@ test.describe("Settings › Business on a real workspace", () => {
     expect(price.x, "the price is not to the right of how long it takes").toBeGreaterThan(minutes.x);
 
     // Neither the page nor the sheet scrolls sideways.
-    await expectNoSidewaysScroll(page, "the services sheet on a phone");
+    await expectNoSidewaysScroll(page, "the services sheet on a phone", [PANE]);
     const body = page.locator(".rec-sheet-body");
     expect(await body.evaluate((el) => el.scrollWidth - el.clientWidth), "the sheet's rows scroll sideways").toBeLessThanOrEqual(1);
 
@@ -400,13 +402,13 @@ test.describe("Settings › Business on a real workspace", () => {
   test("nothing on the record scrolls sideways on a phone, its folds open or shut", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openRecord(page);
-    await expectNoSidewaysScroll(page, "the record at rest");
+    await expectNoSidewaysScroll(page, "the record at rest", [PANE]);
 
     // The Who you are card overflowed a phone by 8px once, on the arrow inside a door's clipped words. Every card is
     // measured, and then the folds whose fields are widest.
     for (const id of ["guardrails", "escalate_when", "fallbacks", "booking_rules", "hours"]) {
       await openFold(page, id);
-      await expectNoSidewaysScroll(page, `the ${id} fold open`);
+      await expectNoSidewaysScroll(page, `the ${id} fold open`, [PANE]);
       await discard(page, id);
     }
   });
