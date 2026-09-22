@@ -12,11 +12,12 @@
 //
 // - A `value` of null, "" or false is an empty row: it says `empty` in the dim ink and carries data-empty="true",
 //   and record.css never lets its act go latent, because there is no value to point at.
-// - `source` is a FactSource, drawn as the one pill in the `fact` kind (contracts tone.ts): its tone and its words
-//   are contracts', never this file's. `sourceLabel` overrides the words where the page has better ones.
+// - `source` is a FactSource, said quietly beside the value in the `fact` kind's words and tone (contracts tone.ts),
+//   and NOT said at all when it is `typed` (RecordSourceChip says why). `sourceLabel` overrides the words where the
+//   page has better ones.
 // - `disputed` { value, source, severity?, onUse?, onKeep?, useLabel?, keepLabel?, sentence?, gate? } is a second
-//   answer that disagrees with this one. The row's chip becomes the kind's `disputed` (warn: a person settles it), and
-//   a line under the value carries the other answer, with its own source's pill and, given `onUse`, a press to take
+//   answer that disagrees with this one. The row's source becomes the kind's `disputed` (warn: a person settles it), and
+//   a line under the value carries the other answer, with its own source said the same way and, given `onUse`, a press to take
 //   it instead. Without `onUse` the line is there to read and offers nothing: a role that may not settle it, or an
 //   answer that is information rather than a fill, is drawn no dead press. `severity` is "serious" or "minor",
 //   passed straight from contracts' FactConflict.
@@ -45,10 +46,30 @@ const recEmpty = (v) => v == null || v === "" || v === false;
 // The stub React the tests draw on hands a component `children: []` when it was given none; React hands undefined.
 const recHasKids = (kids) => (Array.isArray(kids) ? kids.some((k) => k != null && k !== false) : kids != null && kids !== false);
 
-// Where a fact came from, as the one pill (data-bits StatePill), in the `fact` kind's tone and words.
-const RecordSourceChip = ({ source, label = null, tip = null }) => (
-  <window.StatePill kind="fact" value={source} label={label} tip={tip} className="rec-src" />
-);
+/**
+ * Where a fact came from, where that is worth an owner's attention: a muted word beside the value, in the `fact` kind's
+ * words and tone (contracts SOURCE_WORDS through the chrome bridge, the same call StatePill makes, so the words are
+ * still written once).
+ *
+ * `typed` draws NOTHING. It is the default on nearly every row of a record -- the name, the address, the website, the
+ * booking link, the transfer number -- and "you set this" tells an owner nothing they could act on. What is worth
+ * saying is that a value is NOT theirs: from Google, the line we gave you, the workspace's, not set, or the two
+ * answers of a disagreement.
+ *
+ * A word rather than the bordered pill it was: on a phone the pill wrapped onto a line of its own under every value,
+ * which is a row and a half of a record spent saying "you set this" seven times.
+ */
+const RecordSourceChip = ({ source, label = null, tip = null }) => {
+  if (source === "typed") return null;
+  const said = window.__chrome && window.__chrome.state
+    ? window.__chrome.state("fact", source)
+    : { tone: "plain", label: String(source == null ? "" : source) };
+  return (
+    <span className="rec-src" data-state={source} data-tone={said.tone} data-tip={tip || undefined}>
+      {label == null ? said.label : label}
+    </span>
+  );
+};
 
 // The other answer, under the value it disagrees with, and the press that takes it when there is one to offer.
 const RecordDispute = ({ id = null, disputed }) => {

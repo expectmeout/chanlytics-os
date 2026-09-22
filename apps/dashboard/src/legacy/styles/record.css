@@ -27,6 +27,12 @@
 .rec-row-val { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--ink); }
 .rec-row-value { min-width: 0; overflow-wrap: anywhere; }
 .rec-row-empty { color: var(--ink-dim); }
+/* Where a value did not come from the owner, said as a muted word beside it: no border, no ground, no second colour.
+   It was the house pill, which at a phone's width wrapped onto a line of its own under every value on the card — and
+   most of those lines said "you set this", which the kit no longer draws at all (record-row.jsx). A disagreement is
+   the one that takes an ink of its own, since a person has to settle it. */
+.rec-src { flex: none; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
+.rec-src[data-tone="warn"] { color: var(--warn-ink); }
 /* A sentence under the value takes a line of its own. */
 .rec-row-hint { flex: 1 1 100%; font-size: var(--text-sm); color: var(--ink-dim); }
 /* Latent at rest, drawn on approach: the spec's four controls at rest, and every other act drawn on hover or focus.

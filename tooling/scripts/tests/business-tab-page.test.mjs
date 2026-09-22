@@ -161,8 +161,9 @@ test("a conflict sits on the row it is about, and there is no banner", () => {
   assert.equal(byTestId(tree, "set-conflict-banner"), null, "the banner above the card is gone");
   const row = byTestId(tree, "rec-row-phone_display");
   assert.match(textOf(row), new RegExp(escape(conflict.sentence.slice(0, 40))));
-  assert.ok(
-    find(row, (n) => classes(n).includes("pill-warn")),
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-src"))?.props?.["data-tone"],
+    "warn",
     "and it wears warn, because a person settles it",
   );
 });
@@ -195,25 +196,34 @@ test("the head says what the page is, and who last changed it when that is known
   );
 });
 
-test("every fact says where it came from, in contracts' words", () => {
-  // Resolved as the settings read resolves them (contracts resolveFacts), since the chip is the source it reports: a
-  // typed value that agrees with Google's is reported as typed, so a name Google agrees with reads "you set this".
+test("a fact that is not the owner's says where it came from; one they set says nothing", () => {
+  // Resolved as the settings read resolves them (contracts resolveFacts), since what is said is the source it
+  // reports: a typed value that agrees with Google's is reported as typed, and a typed fact says nothing at all --
+  // "you set this" on the name, the website and the transfer number is three lines of a record spent on the default.
   let tree = drawTab({
     resolved: {
       ...KNOWN,
       listing: { name: "Melany's Beauty Salon", address: "2581 Pitkin Ave, Brooklyn, NY 11208, USA" },
     },
   });
-  const chipOf = (row) => textOf(find(byTestId(tree, row), (n) => classes(n).includes("rec-src")));
-  assert.equal(chipOf("rec-row-name"), stateOf("fact", "typed").label, "typed, and agreeing with Google, is typed");
-  assert.equal(chipOf("rec-row-website"), stateOf("fact", "typed").label);
+  const chipOf = (row) => {
+    const said = find(byTestId(tree, row), (n) => classes(n).includes("rec-src"));
+    return said ? textOf(said) : null;
+  };
+  assert.equal(chipOf("rec-row-name"), null, "typed, and agreeing with Google, is said nothing of");
+  assert.equal(chipOf("rec-row-website"), null);
   assert.equal(chipOf("rec-row-voice_line"), stateOf("fact", "provisioned").label, "the line the platform provisioned");
   assert.equal(
     chipOf("rec-row-phone_display"),
     stateOf("fact", "provisioned").label,
     "no number typed: it gives out the line",
   );
-  assert.equal(chipOf("rec-row-handoff_number"), stateOf("fact", "typed").label);
+  assert.equal(chipOf("rec-row-handoff_number"), null);
+  assert.equal(
+    textOf(tree).includes(stateOf("fact", "typed").label),
+    false,
+    "and the words for a typed fact are nowhere on the page",
+  );
   assert.match(
     textOf(byTestId(tree, "rec-row-handoff_number")),
     /\+1 \(646\) 932-5775/,
@@ -1698,7 +1708,7 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
     const address = byTestId(tree, "rec-row-address");
     const minor = W.__FACTS.conflicts.find((k) => k.fact === "address");
     assert.match(textOf(address), new RegExp(escape(minor.sentence)), "the resolver's own sentence, on the row");
-    assert.ok(find(address, (n) => classes(n).includes("pill-warn")));
+    assert.equal(find(address, (n) => classes(n).includes("rec-src"))?.props?.["data-tone"], "warn");
     assert.equal(
       find(address, (n) => n.type === "button" && classes(n).includes("btn")),
       null,
