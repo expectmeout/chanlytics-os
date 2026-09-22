@@ -140,6 +140,18 @@
 .rec-sheet-tools { flex: none; display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
 .rec-sheet-body { --rec-gutter: 22px; --rec-key: 168px; isolation: isolate; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 var(--rec-gutter); }
 .rec-sheet-foot { flex: none; display: flex; flex-direction: column; gap: 11px; padding: 14px 22px 18px; border-top: 1px solid var(--line); background: var(--bg-raised); }
+/* The house's toasts (components.css .pp-toast-stack: fixed, centred, 18px off the bottom, over the sheet's layer)
+   while a sheet is open. Centred on the window, a toast sat over the sheet's Save, bottom-left in its foot, at any width
+   under about 1,290px, and the Undo in it is the one a person reaches for straight after a remove. So where the page
+   left of the sheet has room for a toast, the stack is centred there and kept to it; where it has not, and on a phone,
+   where the sheet rises from the bottom over the whole width, it is lifted above the sheet's foot. The height is the
+   foot's with its line of what it will be told on two lines and an ask above Save: a toast over the rows hides a row
+   for a few seconds, and one over Save hides the one press that finishes. */
+:root:has(.rec-sheet) .pp-toast-stack { bottom: calc(184px + env(safe-area-inset-bottom)); }
+@media (min-width: 1140px) {
+  :root:has(.rec-sheet) .pp-toast-stack { bottom: 18px; left: calc((100vw - min(540px, 92vw)) / 2); }
+  :root:has(.rec-sheet) .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
+}
 
 /* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
 .rec-field { display: flex; flex-direction: column; gap: 5px; }
