@@ -919,6 +919,13 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
     assert.equal(will.total, blockOf(next).total);
     assert.equal(will.total, resolveSystemPrompt(next, "whatsapp", W.__SETTINGS.prompt.tz, new Date(), W.__SETTINGS.prompt.inputs.policy, W.__SETTINGS.prompt.inputs.known).length);
     assert.deepEqual([will.added, will.removed, will.note], [null, null, null], "the hours' lines are runs (the test below), so none is said to come or go while the block stays; and no line crossed");
+    assert.equal(will.caveat, null, "the hours' block carries no note of its own");
+    // A block that does carries it with the block: the rules' says which of its lines are not the owner's.
+    const rules = S.saveFold("guardrails", base, S.draftOf("guardrails", base)).brain;
+    const kept = S.willSay({ was: base.brain, next: rules, sections: "guardrails", channel: "whatsapp" });
+    assert.equal(kept.whole, tab.consequenceOf("guardrails", rules, "whatsapp").text);
+    assert.equal(kept.caveat, tab.consequenceOf("guardrails", rules, "whatsapp").note);
+    assert.match(kept.caveat, /Autonomy tab/);
     // A block whose lines are facts says each that comes and goes: a closed day added is one line that comes.
     const days = S.draftOf("closures", base);
     days.push({ date: "2099-07-04", note: "Independence Day" });
@@ -941,7 +948,7 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
     assert.deepEqual(linesOf(gone.removed), linesOf(blockOf(base.brain).text), "showing only what a save adds hid that the week goes");
 
     // No channel that reads the words: nothing is resolved, and nothing is claimed.
-    assert.deepEqual(S.willSay({ was: base.brain, next, sections: "hours", channel: null }), { note: null, added: null, removed: null, whole: null, chars: null, total: null });
+    assert.deepEqual(S.willSay({ was: base.brain, next, sections: "hours", channel: null }), { note: null, added: null, removed: null, whole: null, caveat: null, chars: null, total: null });
     // A draft the save's own schema refuses: nothing true can be said of a save that will not go, and a block that is
     // null for THAT reason must not read as one the save takes away.
     const overlap = S.draftOf("hours", base);

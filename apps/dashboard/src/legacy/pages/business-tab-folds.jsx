@@ -692,9 +692,9 @@ const BT_RUN_BLOCKS = ["hours"];
  * consequenceOf knows (the bridge's FOLD_BLOCK), and `channel` the one its words are read on; a null channel is no
  * channel that reads them on this workspace, and nothing is resolved.
  *
- * It answers { note, added, removed, whole, chars, total }, each a string or null but the two numbers, all in the
- * composer's own words, resolved as the edge resolves them (the bridge's consequenceOf); nothing here writes a word of
- * them:
+ * It answers { note, added, removed, whole, caveat, chars, total }, each a string or null but the two numbers, all in
+ * the composer's own words or prompt-blocks.ts', resolved as the edge resolves them (the bridge's consequenceOf);
+ * nothing here writes a word of them:
  *   added    the lines the save adds or rewrites, which a row draws under "It will say";
  *   removed  the lines it takes away, under "It will no longer say": a line rewritten is one of each, and a save that
  *            drops one thing and adds another says both, where showing only what it adds hid what goes. A block the
@@ -702,6 +702,9 @@ const BT_RUN_BLOCKS = ["hours"];
  *            whose lines are runs (RUN_BLOCKS) says nothing comes or goes while it stays: its lines are not facts;
  *   whole    every line of its blocks as the save would leave them, which a fold draws under "Your receptionist will
  *            be told" for as long as it is open, changed or not;
+ *   caveat   those blocks' own notes (PromptBlockVM.note), where whose lines they are needs saying beside them: the
+ *            rules' block carries the Autonomy tab's rules and a line Chanlytics writes, and the hand-off's is sent
+ *            whether or not there are reasons. A fold draws them with `whole`; null with none;
  *   chars    those blocks' share of the prompt in characters (PromptBlockVM.chars), or null with no block: what a list
  *            too long to quote whole says in place of its lines (the services sheet's foot);
  *   total    the length of the whole prompt `next` would give the receptionist on `channel`, which `chars` is a share
@@ -724,6 +727,7 @@ const btWillSay = ({ was, next, sections, channel }) => {
   const added = [];
   const removed = [];
   const whole = [];
+  const caveats = [];
   let chars = 0;
   let total = null;
   if (channel && tab.consequenceOf) {
@@ -740,6 +744,7 @@ const btWillSay = ({ was, next, sections, channel }) => {
       }
       const now = btBlockLines(after);
       whole.push(after.text);
+      if (typeof after.note === "string" && after.note && !caveats.includes(after.note)) caveats.push(after.note);
       chars += after.chars;
       total = after.total;
       // A run block that stays says nothing line by line; one that appears whole is every line new, as one that goes
@@ -754,6 +759,7 @@ const btWillSay = ({ was, next, sections, channel }) => {
     added: added.length ? added.join("\n") : null,
     removed: removed.length ? removed.join("\n") : null,
     whole: whole.length ? whole.join("\n\n") : null,
+    caveat: caveats.length ? caveats.join(" ") : null,
     chars: whole.length ? chars : null,
     total: whole.length && typeof total === "number" ? total : null,
   };
@@ -762,7 +768,8 @@ const btWillSay = ({ was, next, sections, channel }) => {
 // Added to window.__businessTabSave, the object business-tab-save.jsx published: each fold's paths and keys (PATHS_OF,
 // KEYS_OF), its helpers (draftOf, saveProblems and its two halves, saveFold, holdsChanges, foldJob), how much of each thing the save
 // takes (LIMITS, and RULES: each booking rule's key, least, most and sentence), which sections say their block in runs
-// (RUN_BLOCKS), and what a row's or a fold's save will tell the receptionist (willSay).
+// (RUN_BLOCKS), the lines of a box as a save writes them (linesOf), and what a row's or a fold's save will tell the
+// receptionist (willSay).
 if (!window.__businessTabSave) throw new Error("business-tab-folds.jsx loads after business-tab-save.jsx: window.__businessTabSave is not there.");
 Object.assign(window.__businessTabSave, {
   PATHS_OF: BT_PATHS_OF,
@@ -779,5 +786,7 @@ Object.assign(window.__businessTabSave, {
   // Which rows of a list's draft its save writes (the services sheet counts its Save and its foot by them).
   WRITTEN_ROWS: BT_WRITTEN_ROWS,
   RUN_BLOCKS: BT_RUN_BLOCKS,
+  // The lines of a box, as its save writes them (the hand-off's reasons): a fold that says what a draft means asks this.
+  linesOf: btLines,
   willSay: btWillSay,
 });

@@ -8,7 +8,7 @@
 // itself -- focus, keys, the foot, the registry that keeps one editor open; what is the page's is here, once, for every
 // row, fold and sheet of every card: the draft, what stops a save, the save through the tab's one saver
 // (business-tab-save.jsx) or a row's own door, and what the receptionist will be told (business-tab-folds.jsx willSay).
-// A card (business-tab-who.jsx, business-tab-open.jsx, business-tab-offer.jsx, and the card Task 3.5 brings) draws its
+// A card (business-tab-who.jsx, business-tab-open.jsx, business-tab-offer.jsx, business-tab-answers.jsx) draws its
 // rows' values and its folds' and sheets' fields, and nothing of this.
 //
 // Loaded after business-tab-folds.jsx and before the cards (both load lists); the cards read window.BtRow,
@@ -492,10 +492,12 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
         live.current.backs = BtPutBacks.taken(live.current.backs, listId, i, { id, row: gone });
         const opening = live.current.opening;
         // Read as it runs: its place has moved with every change since. What goes back is a copy, so a row put back
-        // counts as changed wherever "changed" is told by identity (the services sheet's search never hides one).
+        // counts as changed wherever "changed" is told by identity (the services sheet's search never hides one). A row
+        // that is a word, not an object (a language), goes back as itself: spread, "Spanish" came back as { 0: "S", … }.
         const back = undo((d) => {
           const w = BtPutBacks.find(live.current.backs, id);
-          return put(d, [...list(d).slice(0, w.at), { ...gone }, ...list(d).slice(w.at)]);
+          const copy = gone !== null && typeof gone === "object" ? { ...gone } : gone;
+          return put(d, [...list(d).slice(0, w.at), copy, ...list(d).slice(w.at)]);
         });
         let done = false;
         const again = () => {
@@ -624,14 +626,24 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  *
  * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `act` and `name` replace the
  * act's words and its name where "Change" or "Add one" and the label say nothing together.
+ *
+ * What it will say is its blocks whole, under "Your receptionist will be told", with the lines that go under "It will
+ * no longer be told", and before them the sentence for a save that crosses the resolver's line and each block's own
+ * note (willSay's `caveat`: the rules' block says which of its lines the Autonomy tab wrote, the hand-off's that it is
+ * always sent). A fold whose fields are LINES of a block other rows write too (`lines`: the voice and the languages are
+ * lines of Who you are, beside the name, the address and the link) says only the lines its draft changes, as a row does,
+ * under "It will be told": the whole block would say eight lines about a change to one, and say them before anything
+ * was typed.
  */
 const BtFold = ({
-  id, label, hint = null, row = {}, wide = false, saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
+  id, label, hint = null, row = {}, wide = false, lines = false, saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
   canEdit = true, gate = null, flash = () => {}, saver = null, body,
 }) => {
   const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, prefix: `rec-fold-${id}` });
   const found = e.fields.problems;
   const has = !(row.value == null || row.value === "" || row.value === false);
+  const will = e.will;
+  const note = will ? [will.note, lines ? null : will.caveat].filter(Boolean).join(" ") || null : null;
   return (
     <>
       {e.open ? null : (
@@ -653,11 +665,11 @@ const BtFold = ({
         hint={hint}
         open={e.open}
         wide={wide}
-        says={e.will ? e.will.whole : null}
-        saysLabel="Your receptionist will be told"
-        gone={e.will ? e.will.removed : null}
+        says={will ? (lines ? will.added : will.whole) : null}
+        saysLabel={lines ? "It will be told" : "Your receptionist will be told"}
+        gone={will ? will.removed : null}
         goneLabel="It will no longer be told"
-        note={e.will ? e.will.note : null}
+        note={note}
         footNote={footNote}
         focusOn={e.focusOn}
         confirm={e.asks.confirm}
