@@ -148,7 +148,6 @@ const walk = (n, fn) => {
 // A drawn component is walked twice, as the children it was given and as what it rendered: each node counts once.
 const all = (tree, pred) => { const out = []; const seen = new Set(); walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } }); return out; };
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
   if (typeof n === "string" || typeof n === "number") return String(n);
@@ -156,7 +155,6 @@ const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return textOf(n.props?.children);
 };
-const classed = (tree, cls) => find(tree, (n) => String(n.props?.className || "").split(" ").includes(cls));
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const labelled = (tree, tag, label) => find(tree, (n) => n.type === tag && n.props["aria-label"] === label);
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
@@ -203,7 +201,6 @@ const workspace = (over = {}) => {
     ...over,
   });
 };
-const absent = { value: null, source: "absent" };
 
 /* ------------------------------ the refresh ------------------------------ */
 

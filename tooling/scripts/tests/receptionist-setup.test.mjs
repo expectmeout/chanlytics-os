@@ -24,7 +24,6 @@ import {
   resolveSystemPrompt,
   fallbackMessages,
 } from "@chanlytics/contracts";
-import { readCode } from "./_source.mjs";
 
 const NAME = "Aurora Nails & Spa";
 const PHONE = "(646) 555-0134";

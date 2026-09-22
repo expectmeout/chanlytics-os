@@ -102,8 +102,8 @@ const recFolds = (() => {
     try { return !!check(); } catch { return false; }
   };
   // The browser asks before the tab closes over a dirty fold, or over one whose save is out: the tab may take the
-  // request with it. The listener is on only while a fold is open, as BusinessEditor's was only while it held changes,
-  // and it asks the fold at the moment the tab closes.
+  // request with it. The listener is on only while a fold is open -- the form this replaced hung its own on only while
+  // it held changes -- and it asks the fold at the moment the tab closes.
   const hold = (e) => { if (!dirty() && !saving()) return; e.preventDefault(); e.returnValue = ""; };
   // Each listener hears every change, whatever another does: one that throws is reported and the rest still hear.
   const tell = () => {
@@ -246,8 +246,9 @@ const useRecordFold = (id, { dirty = false, saving = false } = {}) => {
 
 // The Settings rail's one question before it replaces a pane (settings.jsx SettingsPage): does anything on it hold
 // unsaved changes? The open fold answers for itself. The kit sets this once, as it loads, before any pane can mount.
-// Anything else that can hold unsaved changes adds its own answer to this one and puts it back when it goes, as
-// BusinessEditor does until the record replaces it; nothing replaces it outright. A fold whose save is out is asked
+// Anything else that can hold unsaved changes adds its own answer to this one and puts it back when it goes; nothing
+// replaces it outright. Since Task 3.7 deleted BusinessEditor, which did exactly that while it was open, the registry
+// is the only answer on the Settings pane, which settings-editor.test.mjs holds. A fold whose save is out is asked
 // about too, and __settingsSaving says that is why: "Leave without saving?" is untrue of a change on its way to the
 // server, so the rail asks in other words.
 window.__settingsUnsaved = () => recFolds.dirty() || recFolds.saving();
