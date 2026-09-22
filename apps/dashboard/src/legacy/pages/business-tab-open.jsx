@@ -101,6 +101,11 @@ const btoHoursLine = (hours) => {
   return window.__hoursLines(hours).join(" · ") || null;
 };
 
+// A shift's box, named for its day, what it does and its place: "Monday opens", "Monday closes, second shift". The
+// first shift needs no place; the fold takes four at most (LIMITS.shifts).
+const BTO_PLACE = ["", "second", "third", "fourth", "fifth", "sixth"];
+const btoShiftName = (long, n, does) => (n === 0 ? `${long} ${does}` : `${long} ${does}, ${BTO_PLACE[n] || `${n + 1}th`} shift`);
+
 /** The same shifts, in the same order? Used to tell a no-op from a loss. */
 const btoSameShifts = (a, b) =>
   a.isOpen === b.isOpen &&
@@ -213,18 +218,16 @@ const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly 
                 <>
                   {day.shifts.map((sh, n) => (
                     <span key={n} className="bt-week-shift" {...shiftsOf(d).row(n)}>
-                      <input
-                        className="rec-input bt-time" type="time" value={sh.open} readOnly={readOnly || undefined}
-                        aria-label={n === 0 ? `${long} opens` : `${long} shift ${n + 1} opens`}
-                        aria-invalid={bad ? true : undefined} aria-describedby={bad ? problemId : undefined}
-                        onChange={(e) => setShift(d, n, "open", e.target.value)}
+                      {/* The kit's box for a row of a list, named for its day and its place ("Monday closes, second
+                          shift"): the day's one sentence is drawn once, under the row, and both boxes are wrong by it. */}
+                      <window.RecordBox
+                        id={`bt-hours-${d}-${n}-open`} label={btoShiftName(long, n, "opens")} type="time" size="sm" className="bt-time"
+                        value={sh.open} onChange={(v) => setShift(d, n, "open", v)} invalid={bad ? problemId : null} readOnly={readOnly}
                       />
                       <span className="bt-week-to">to</span>
-                      <input
-                        className="rec-input bt-time" type="time" value={sh.close} readOnly={readOnly || undefined}
-                        aria-label={n === 0 ? `${long} closes` : `${long} shift ${n + 1} closes`}
-                        aria-invalid={bad ? true : undefined} aria-describedby={bad ? problemId : undefined}
-                        onChange={(e) => setShift(d, n, "close", e.target.value)}
+                      <window.RecordBox
+                        id={`bt-hours-${d}-${n}-close`} label={btoShiftName(long, n, "closes")} type="time" size="sm" className="bt-time"
+                        value={sh.close} onChange={(v) => setShift(d, n, "close", v)} invalid={bad ? problemId : null} readOnly={readOnly}
                       />
                       {/* The first shift has no remove control: the switch on
                           the left already means "closed", and two ways to say
@@ -385,32 +388,28 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }) => {
         </div>
       ) : null}
       {days.map((c, i) => {
-        const bad = { date: said(`closure-${i}-date`), until: said(`closure-${i}-until`), note: said(`closure-${i}-note`) };
-        const idOf = (k) => `bt-closure-${i}-${k}-problem`;
-        const wired = (k) => ({ "aria-invalid": bad[k] ? true : undefined, "aria-describedby": bad[k] ? idOf(k) : undefined, readOnly: readOnly || undefined });
+        // Each box is named for its row, by its date once there is one: "Closed from, Dec 24" is a row a screen reader
+        // can tell from the one under it; "row 2" is all a row with no date yet has.
+        const named = (what) => `${what}, ${c.date ? c.date : `row ${i + 1}`}`;
+        const box = (k, more) => (
+          <window.RecordBox
+            id={`bt-closure-${i}-${k}`} value={c[k] || ""} onChange={(v) => setClosure(i, k, v)}
+            problem={said(`closure-${i}-${k}`)} readOnly={readOnly} testid={`rec-closure-${i}-${k}`} {...more}
+          />
+        );
         return (
           <div key={i} className="bt-closure" data-testid={`rec-closure-${i}`} {...closed.row(i)}>
             {/* type=date, so 31 November cannot be typed at all — the class of
                 bug where a stored non-date names the wrong day downstream. */}
-            <input
-              className="rec-input" type="date" value={c.date || ""}
-              aria-label="Closed from" onChange={(e) => setClosure(i, "date", e.target.value)} {...wired("date")}
-            />
-            <input
-              className="rec-input" type="date" value={c.until || ""} min={c.date || undefined}
-              aria-label="Closed until" onChange={(e) => setClosure(i, "until", e.target.value)} {...wired("until")}
-            />
-            <input
-              className="rec-input" value={c.note || ""} placeholder="Christmas"
-              aria-label="Reason" onChange={(e) => setClosure(i, "note", e.target.value)} {...wired("note")}
-            />
+            {box("date", { type: "date", label: named("Closed from") })}
+            {box("until", { type: "date", label: named("Closed until"), min: c.date || undefined })}
+            {box("note", { label: named("Reason"), placeholder: "Christmas" })}
             <button
               type="button" className="btn btn-ghost btn-icon btn-sm"
               aria-label={`Remove closure ${c.date || ""}`}
               {...press(() => removeClosure(i))}
               data-testid={`rec-closure-remove-${i}`}
             ><Icon name="x" size={12} /></button>
-            {["date", "until", "note"].map((k) => <window.FieldError key={k} id={idOf(k)} message={bad[k]} testid={`rec-closure-${i}-${k}-problem`} />)}
           </div>
         );
       })}

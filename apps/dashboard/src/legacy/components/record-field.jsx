@@ -1,9 +1,9 @@
 /* global React, Icon */
 // Chanlytics record kit: the fields.
 //
-// Each is announced as what it is. A field is a label that holds its box; a switch is role="switch" and says which
-// state it is in; a choice of a few is a radiogroup, one tab stop that the arrows walk; a long list you type into is
-// a combobox. None of them knows what it edits, and none has words of its own: every label, hint, option and tip here
+// Each is announced as what it is. A field is a label that holds its box; a box in a row of a list carries its name
+// (RecordBox); a switch is role="switch" and says which state it is in; a choice of a few is a radiogroup, one tab stop
+// that the arrows walk; a long list you type into is a combobox. None of them knows what it edits, and none has words of its own: every label, hint, option and tip here
 // is the page's. A control that commits takes `gate` (window.gate(...)'s props) and spreads it after its handlers, as
 // every committing control here does.
 //
@@ -62,6 +62,53 @@ const RecordField = (props) => {
       </label>
       {problem ? <window.FieldError id={problemId} message={problem} /> : hint ? <span className="rec-hint" id={hintId}>{hint}</span> : null}
     </div>
+  );
+};
+
+// One labelled box for a row of a list: a shift's opening time, a closed day's date, a service's name. The list's header
+// names the column and is not read out, so the box carries its own name (`label`, heard, never seen: "Closed from, row
+// 2", "Monday closes, second shift"), and it wires what is wrong with it, its unit and the read-only state as RecordField
+// does. HOOKLESS, because the rows of a list come and go and the tests' stub React keeps every hook in one order
+// (record-fold.jsx's header): so it REQUIRES an `id`, and takes no name from React.useId. `problem` is the sentence
+// drawn under the box (the one FieldError, id rec-<id>-problem, which the box names as it marks itself aria-invalid);
+// `invalid` is the id of a sentence drawn ELSEWHERE that this box is wrong by (a day's two boxes share one), and marks
+// the box the same without drawing it. `size="sm"` is the box at the width of a time or a number, record.css's small
+// variant. `type` is the box's (a date, a time, a number); anything else (placeholder, min, inputMode, className) goes
+// to the box as it is, as RecordField's rest does, and gathered the same way for the same reason.
+//   <RecordBox id="closure-0-date" label="Closed from, row 1" type="date" value={c.date} onChange={…} problem={bad} />
+const REC_BOX_OWN = new Set(["id", "label", "unit", "value", "onChange", "problem", "invalid", "readOnly", "type", "size", "testid"]);
+const RecordBox = (props) => {
+  const { id, label, unit = null, value, onChange, problem = null, invalid = null, readOnly = false, type = "text", size = null, testid = null } = props;
+  if (!id) throw new TypeError("RecordBox needs an id: it is hookless, so it cannot make one, and its sentence is named by it.");
+  const rest = {};
+  for (const k of Object.keys(props)) if (!REC_BOX_OWN.has(k)) rest[k] = props[k];
+  const problemId = `rec-${id}-problem`;
+  const wrong = problem ? problemId : invalid || null;
+  const describedBy = [wrong, rest["aria-describedby"]].filter(Boolean).join(" ");
+  const box = (
+    <input
+      {...rest}
+      id={id}
+      type={type}
+      className={["rec-input", rest.className].filter(Boolean).join(" ")}
+      value={value == null ? "" : value}
+      onChange={(e) => { if (onChange) onChange(e.target.value); }}
+      aria-label={label}
+      aria-invalid={wrong ? true : undefined}
+      aria-describedby={describedBy || undefined}
+      readOnly={readOnly || undefined}
+    />
+  );
+  return (
+    <span className="rec-box" data-size={size || undefined} data-testid={testid || undefined}>
+      {unit ? (
+        <span className="rec-input-group" data-invalid={wrong ? "true" : undefined}>
+          {box}
+          <span className="rec-input-unit">{unit}</span>
+        </span>
+      ) : box}
+      {problem ? <window.FieldError id={problemId} message={problem} /> : null}
+    </span>
   );
 };
 
@@ -257,4 +304,4 @@ const RecordTipCard = ({ title, body = null, act = null, testid = null }) => (
   </div>
 );
 
-Object.assign(window, { RecordField, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordTipCard });
+Object.assign(window, { RecordField, RecordBox, RecordSwitch, RecordToggleGroup, RecordCombobox, RecordTip, RecordTipCard });

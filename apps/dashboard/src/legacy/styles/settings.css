@@ -1618,8 +1618,8 @@ html.legacy-on .bt-link { position: relative; }
 .bt-week-more { align-self: end; display: flex; align-items: center; min-height: 28px; }
 .bt-week-axis .bt-week-more { min-height: 0; }
 .bt-week-shift { display: flex; align-items: center; gap: 5px; }
-/* A time box is the kit's box at the width of a time; the class is this page's, the look the kit's. */
-.bt-time { width: 96px; height: 28px; padding: 0 6px; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+/* A time box is the kit's small box (RecordBox size="sm") at the width of a time: the width is this page's, the rest the kit's. */
+.bt-time { width: 96px; font-variant-numeric: tabular-nums; }
 .bt-week-to { font-size: var(--text-sm); color: var(--ink-dim); }
 .bt-week-closed { font-size: var(--text-sm); color: var(--ink-dim); }
 .bt-week-break { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); color: var(--ink-muted); border-radius: var(--radius-xs); }
@@ -1633,7 +1633,7 @@ html.legacy-on .bt-link { position: relative; }
 .bt-closures { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .bt-closure { align-self: stretch; display: grid; grid-template-columns: 150px 150px minmax(0, 1fr) auto; align-items: center; gap: 6px 8px; }
 .bt-closure-head { font-size: var(--text-xs); color: var(--ink-dim); }
-.bt-closure .field-error { grid-column: 1 / -1; }
+/* A box's sentence sits under the box it is about, in its own column (the kit's .rec-box). */
 
 /* The calendar it reads: where the address points, in mono, and under it what its last read found, in the Calendar
    page's own pill and line. */

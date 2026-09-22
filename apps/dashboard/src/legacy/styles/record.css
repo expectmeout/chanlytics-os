@@ -157,6 +157,13 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
 .rec-input-unit { flex: none; display: flex; align-items: center; padding: 0 10px; border-left: 1px solid var(--line); background: var(--bg-sunken); font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-hint { font-size: var(--text-sm); color: var(--ink-dim); }
 
+/* ---------- A box in a row of a list ---------- */
+/* Its sentence sits under it, in its own column of the row. The small variant is the box at the width of a time or a
+   number (a page sets the width; the kit sets the rest): 28px, tighter, the small type. */
+.rec-box { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.rec-box[data-size="sm"] .rec-input { height: 28px; padding: 0 6px; font-size: var(--text-sm); }
+.rec-box[data-size="sm"] .rec-input-group { min-height: 28px; }
+
 /* ---------- A switch ---------- */
 .rec-switch { flex: none; position: relative; width: 30px; height: 18px; padding: 0; border-radius: var(--radius-full); background: var(--line-strong); transition: background var(--duration-fast) var(--ease-out); }
 .rec-switch[aria-checked="true"] { background: var(--ok); }

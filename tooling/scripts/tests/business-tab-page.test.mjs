@@ -824,7 +824,7 @@ test("a shift or a closed day that was just added is the row focus goes to, by t
   tree = redrawTab();
   assert.deepEqual(focusOn("hours"), { row: "hours-tue-1" });
   const row = find(dayOf(tree, "tue"), (n) => n.props?.["data-rec-row"] === "hours-tue-1");
-  assert.deepEqual(all(row, (n) => n.type === "input").map((n) => n.props["aria-label"]), ["Tuesday shift 2 opens", "Tuesday shift 2 closes"], "the new shift's own boxes");
+  assert.deepEqual(all(row, (n) => n.type === "input").map((n) => n.props["aria-label"]), ["Tuesday opens, second shift", "Tuesday closes, second shift"], "the new shift's own boxes");
   // Closed, the name goes with the draft: a fold opened again does not jump to a row added last time.
   cancelFoldOf(tree, "hours");
   tree = redrawTab();
@@ -1486,6 +1486,10 @@ const cancelFoldOf = (tree, id) => press(byTestId(tree, `rec-fold-cancel-${id}`)
 const labelled = (tree, label) => find(tree, (n) => (n.type === "input" || n.type === "textarea") && n.props["aria-label"] === label);
 const typeAt = (tree, label, text) => labelled(tree, label).props.onChange({ target: { value: text } });
 const barsOf = (node) => all(node, (n) => classes(n).includes("rec-ribbon-bar"));
+/** What a box in a row of a list says is wrong with it: the kit's FieldError under the box (RecordBox), or null. */
+const problemUnder = (tree, boxTestid) => { const box = byTestId(tree, boxTestid); return box ? find(box, (n) => n.type === W.FieldError) : null; };
+/** A shift's place in its day, as its box is named: the second, third, fourth shift. */
+const place = (n) => ["", "", "second", "third", "fourth", "fifth", "sixth"][n];
 const dayOf = (tree, d) => byTestId(tree, `rec-hours-day-${d}`);
 /** The week's one menu: open it, then press the copy it names. */
 const copyTo = (tree, flash, words) => {
@@ -1709,9 +1713,9 @@ test("a shift typed half-way is said under its day, and overlapping shifts in th
   // Two shifts that overlap: no one box is wrong, so only the save's own schema can say it, under their day.
   press(byTestId(tree, "rec-hours-add-mon"));
   tree = redrawTab(flash);
-  typeAt(tree, "Monday shift 2 opens", "12:00");
+  typeAt(tree, "Monday opens, second shift", "12:00");
   tree = redrawTab(flash);
-  typeAt(tree, "Monday shift 2 closes", "20:00");
+  typeAt(tree, "Monday closes, second shift", "20:00");
   tree = redrawTab(flash);
   saveFoldOf(tree, "hours");
   tree = redrawTab(flash);
@@ -1729,13 +1733,13 @@ test("a day takes shifts up to the cap the save's schema keeps, and a removed sh
     assert.ok(byTestId(tree, "rec-hours-add-mon"), `a shift ${n} may be added`);
     press(byTestId(tree, "rec-hours-add-mon"));
     tree = redrawTab(flash);
-    typeAt(tree, `Monday shift ${n} opens`, `1${n}:00`);
+    typeAt(tree, `Monday opens, ${place(n)} shift`, `1${n}:00`);
     tree = redrawTab(flash);
   }
   assert.equal(byTestId(tree, "rec-hours-add-mon"), null, "at the cap, no more is offered: the save would refuse it");
   assert.ok(byTestId(tree, "rec-hours-add-tue"), "each day has its own");
   assert.equal(byTestId(tree, "rec-hours-remove-mon-0"), null, "the first shift has no remove: the switch already means closed");
-  const opens = () => all(dayOf(tree, "mon"), (n) => n.type === "input" && /opens$/.test(n.props["aria-label"])).map((n) => n.props.value);
+  const opens = () => all(dayOf(tree, "mon"), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"])).map((n) => n.props.value);
   assert.deepEqual(opens(), ["09:30", "12:00", "13:00", "14:00"]);
   press(byTestId(tree, "rec-hours-remove-mon-1"));
   tree = redrawTab(flash);
@@ -1885,7 +1889,7 @@ test("while the week saves its boxes and switches take nothing, and what is aske
   press(byTestId(tree, "rec-hours-switch-tue"));
   press(byTestId(tree, "rec-hours-add-mon"));
   tree = redrawTab(flash);
-  assert.deepEqual([labelled(tree, "Monday closes").props.value, byTestId(tree, "rec-hours-switch-tue").props["aria-checked"], labelled(tree, "Monday shift 2 opens")], ["17:00", true, null], "nothing typed or pressed under Saving… is held, to be dropped when it lands");
+  assert.deepEqual([labelled(tree, "Monday closes").props.value, byTestId(tree, "rec-hours-switch-tue").props["aria-checked"], labelled(tree, "Monday opens, second shift")], ["17:00", true, null], "nothing typed or pressed under Saving… is held, to be dropped when it lands");
   assert.equal(find(byTestId(tree, "rec-hours-copy"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").props["aria-disabled"], true);
   // It does not give way while its save is out, whatever its dirty test says: the ask waits, undrawn, and the save's
   // answer opens the row that was asked for.
@@ -2022,7 +2026,9 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
   const dates = () => rows().map((r) => all(r, (n) => n.type === "input").map((n) => n.props.value));
   assert.deepEqual(dates(), [["2099-12-24", "2099-12-26", "Christmas"], ["2100-01-01", "", "New Year's Day"]]);
   // Native date boxes on purpose: 31 November cannot be typed at all.
-  assert.deepEqual(all(rows()[0], (n) => n.type === "input").map((n) => n.props.type), ["date", "date", undefined]);
+  assert.deepEqual(all(rows()[0], (n) => n.type === "input").map((n) => n.props.type), ["date", "date", "text"]);
+  // Each box is named for its row, by its date once there is one, so a screen reader can tell one row from the next.
+  assert.deepEqual(all(rows()[0], (n) => n.type === "input").map((n) => n.props["aria-label"]), ["Closed from, 2099-12-24", "Closed until, 2099-12-24", "Reason, 2099-12-24"]);
   assert.match(textOf(foldOf(tree, "closures")), /Closing early rather than all day\? Leave it out of this list and set that day's hours above instead\./, "the old form's note, for the one case this cannot express");
   assert.match(textOf(byTestId(tree, "rec-fold-says-closures")), /Christmas/, "the closures block, as it stands");
 
@@ -2061,7 +2067,7 @@ test("what stops a closures save is said under its own box, and at the cap the f
   tree = redrawTab();
   saveFoldOf(tree, "closures");
   tree = redrawTab();
-  assert.match(textOf(byTestId(tree, "rec-closure-0-note-problem")), /At most 200 characters — this is 201\./);
+  assert.match(textOf(problemUnder(tree, "rec-closure-0-note")), /At most 200 characters — this is 201\./);
   assert.deepEqual([boxes()[2].props["aria-invalid"], boxes()[0].props["aria-invalid"]], [true, undefined], "under the box it is about, and no other");
   // Only the schema can judge these two, and each lands under its own box.
   boxes()[2].props.onChange({ target: { value: "Christmas" } });
@@ -2070,8 +2076,8 @@ test("what stops a closures save is said under its own box, and at the cap the f
   tree = redrawTab();
   saveFoldOf(tree, "closures");
   tree = redrawTab();
-  assert.ok(textOf(byTestId(tree, "rec-closure-0-until-problem")), "an until before its date is the schema's to refuse, under Until");
-  assert.equal(byTestId(tree, "rec-closure-0-note-problem"), null);
+  assert.ok(textOf(problemUnder(tree, "rec-closure-0-until")), "an until before its date is the schema's to refuse, under Until");
+  assert.equal(problemUnder(tree, "rec-closure-0-note"), null);
   assert.equal(sent.length, 0);
 
   // The cap, from the bridge's published limit: the old sentence, and no Add.
@@ -2326,7 +2332,7 @@ test("under Saving…, a press that would add or remove changes nothing and toas
   press(find(byTestId(tree, "rec-hours-copy"), (n) => n.props?.role === "menuitem" && textOf(n) === "Every day"));
   assert.deepEqual(flashes.slice(before), [], "update took nothing, and said so: no shift removed, no week copied");
   tree = redrawTab(flash);
-  assert.ok(labelled(tree, "Monday shift 2 opens"));
+  assert.ok(labelled(tree, "Monday opens, second shift"));
   assert.equal(byTestId(tree, "rec-hours-switch-sun").props["aria-checked"], false, "Sunday was not opened by a copy that did not happen");
   assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Saving…");
   // Focusable, saying they are not to be pressed, and never `disabled`, which lets go of focus: as Save is.
@@ -2335,8 +2341,8 @@ test("under Saving…, a press that would add or remove changes nothing and toas
   press(byTestId(tree, "rec-hours-remove-mon-1"));
   press(byTestId(tree, "rec-hours-add-tue"));
   tree = redrawTab(flash);
-  assert.ok(labelled(tree, "Monday shift 2 opens"), "the shift is still there");
-  assert.equal(labelled(tree, "Tuesday shift 2 opens"), null, "and no break was added");
+  assert.ok(labelled(tree, "Monday opens, second shift"), "the shift is still there");
+  assert.equal(labelled(tree, "Tuesday opens, second shift"), null, "and no break was added");
   assert.deepEqual(flashes.slice(before).map((f) => textOf({ props: { children: f.msg } })), [], "nothing was removed, so nothing says it was");
 
   tree = drawTab({ flash, profile: { ...melany, closures: [XMAS, NEW_YEAR] } });
@@ -2679,20 +2685,20 @@ test("a list inside a fold keeps its cap through an Undo too: a removed row is p
   for (let n = 2; n <= MAX_INTERVALS_PER_DAY; n += 1) {
     press(byTestId(tree, "rec-hours-add-mon"));
     tree = redrawTab(flash);
-    typeAt(tree, `Monday shift ${n} opens`, `1${n}:00`);
+    typeAt(tree, `Monday opens, ${place(n)} shift`, `1${n}:00`);
     tree = redrawTab(flash);
-    typeAt(tree, `Monday shift ${n} closes`, `1${n}:30`);
+    typeAt(tree, `Monday closes, ${place(n)} shift`, `1${n}:30`);
     tree = redrawTab(flash);
   }
-  const opens = () => all(dayOf(tree, "mon"), (n) => n.type === "input" && /opens$/.test(n.props["aria-label"])).map((n) => n.props.value);
+  const opens = () => all(dayOf(tree, "mon"), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"])).map((n) => n.props.value);
   press(byTestId(tree, "rec-hours-remove-mon-1"));
   tree = redrawTab(flash);
   const undo = flashes.at(-1).undo;
   press(byTestId(tree, "rec-hours-add-mon"));
   tree = redrawTab(flash);
-  typeAt(tree, `Monday shift ${MAX_INTERVALS_PER_DAY} opens`, "21:00");
+  typeAt(tree, `Monday opens, ${place(MAX_INTERVALS_PER_DAY)} shift`, "21:00");
   tree = redrawTab(flash);
-  typeAt(tree, `Monday shift ${MAX_INTERVALS_PER_DAY} closes`, "21:30");
+  typeAt(tree, `Monday closes, ${place(MAX_INTERVALS_PER_DAY)} shift`, "21:30");
   tree = redrawTab(flash);
   assert.equal(byTestId(tree, "rec-hours-add-mon"), null, "at the cap");
   undo();
@@ -2728,7 +2734,7 @@ test("a list inside a fold keeps its cap through an Undo too: a removed row is p
   press(byTestId(tree, "rec-hours-add-tue"));
   press(byTestId(tree, "rec-hours-add-tue"));
   tree = redrawTab(flash);
-  assert.equal(all(dayOf(tree, "tue"), (n) => n.type === "input" && /opens$/.test(n.props["aria-label"])).length, MAX_INTERVALS_PER_DAY);
+  assert.equal(all(dayOf(tree, "tue"), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"])).length, MAX_INTERVALS_PER_DAY);
 });
 
 test("a zone being saved outlives the page that sent it: come back mid-save and the row is busy, and its answer throws nothing away", async () => {

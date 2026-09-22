@@ -197,6 +197,36 @@ test("a field keeps the page's own class and description beside its own", () => 
   assert.equal(box.props["aria-describedby"], "rec-lead-hint lead-consequence", "the hint, and the page's consequence line");
 });
 
+test("a box in a row of a list carries its own name and its sentence, needs no hook, and refuses to be nameless", () => {
+  // The week's time boxes and the closed days' rows were raw inputs wired by hand, three times over, and the list's
+  // header (From · Until · Why) is not read out: a box in a row is named for its row ("Closed from, row 2").
+  const typed = [];
+  let tree = draw(W.RecordBox, { id: "closure-1-date", label: "Closed from, row 2", type: "date", value: "2099-12-24", onChange: (v) => typed.push(v), problem: "That date is not on the calendar." });
+  const input = find(tree, (n) => n.type === "input");
+  assert.deepEqual([input.props.id, input.props.type, input.props["aria-label"], input.props.value, classes(input)], ["closure-1-date", "date", "Closed from, row 2", "2099-12-24", ["rec-input"]]);
+  input.props.onChange({ target: { value: "2099-12-26" } });
+  assert.deepEqual(typed, ["2099-12-26"], "onChange hands the page the words, as RecordField's does");
+  // The sentence is under the box, and the box is wrong by it.
+  const said = byId(tree, "rec-closure-1-date-problem");
+  assert.equal(textOf(said), "That date is not on the calendar.");
+  assert.deepEqual([input.props["aria-invalid"], input.props["aria-describedby"]], [true, "rec-closure-1-date-problem"]);
+  // No hook: the stub keeps one order of cells, and none is taken.
+  assert.equal(all(tree, (n) => typeof n.type === "function").length, 2, "the box and its FieldError, nothing that asks React for a name");
+
+  // A box wrong by a sentence drawn ELSEWHERE (a day's two boxes share one): marked, described, nothing drawn.
+  tree = draw(W.RecordBox, { id: "hours-mon-1-open", label: "Monday opens, second shift", type: "time", size: "sm", value: "14:00", onChange: () => {}, invalid: "bt-hours-mon-problem", className: "bt-time", readOnly: true });
+  const box = find(tree, (n) => n.type === "input");
+  assert.deepEqual([box.props["aria-invalid"], box.props["aria-describedby"], box.props.readOnly, box.props.type, classes(box)], [true, "bt-hours-mon-problem", true, "time", ["rec-input", "bt-time"]]);
+  assert.equal(find(tree, (n) => n.type === W.FieldError), null);
+  assert.equal(find(tree, (n) => classes(n).includes("rec-box")).props["data-size"], "sm", "the small variant, at the width of a time");
+
+  // Nothing wrong, nothing said; a unit, as RecordField draws one; the page's own description joins the box's.
+  tree = draw(W.RecordBox, { id: "service-0-minutes", label: "Balayage, minutes", unit: "min", value: "180", onChange: () => {}, "aria-describedby": "svc-note" });
+  assert.deepEqual([find(tree, (n) => n.type === "input").props["aria-invalid"], find(tree, (n) => n.type === "input").props["aria-describedby"]], [undefined, "svc-note"]);
+  assert.equal(textOf(find(tree, (n) => classes(n).includes("rec-input-unit"))), "min");
+  assert.throws(() => draw(W.RecordBox, { label: "nameless", value: "", onChange: () => {} }), (e) => e instanceof TypeError && /needs an id/.test(e.message));
+});
+
 test("a switch is a switch, and says which state it is in", () => {
   const flips = [];
   const tree = draw(W.RecordSwitch, { on: true, label: "Never quote a price", onChange: (v) => flips.push(v) });
