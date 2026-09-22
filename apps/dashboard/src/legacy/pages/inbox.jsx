@@ -135,6 +135,17 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // The thread the route names, as of this render, for the re-read below: its listener is bound once.
   const routeThreadRef = React.useRef(initialThreadId);
   routeThreadRef.current = initialThreadId;
+  // The Inbox's one door to the address, and a record that the page moved it itself. A thread the address gains
+  // from OUTSIDE -- the bell, a link from another page, a cold boot -- takes a phone's screen. One the page wrote
+  // while doing its own bookkeeping does not: picking a bucket writes the bucket's first thread there for the pane
+  // beside the list, and a phone read that as a thread being opened.
+  const ownRouteRef = React.useRef(initialThreadId);
+  const goTo = (id) => {
+    ownRouteRef.current = id;
+    // Replaced, never pushed: a refresh opens what is open, and Back leaves the Inbox rather than replaying every
+    // thread read.
+    if (window.appNavigate) window.appNavigate(id ? `inbox/${id}` : "inbox", { replace: true });
+  };
 
   // Deep-link follows later navigations too
   React.useEffect(() => {
@@ -142,7 +153,12 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     const t = threads.find((x) => x.id === initialThreadId);
     // The address follows every click now (selectThread), so a thread the bucket on screen lists keeps that bucket:
     // one picked in All stays in All.
-    if (t) { setActiveThreadId(initialThreadId); if (!listedHere(t)) setActiveBucket(ixBucketOf(t)); setPhoneThreadOpen(true); }
+    if (!t) return;
+    setActiveThreadId(initialThreadId);
+    if (!listedHere(t)) setActiveBucket(ixBucketOf(t));
+    // Only a thread the address gained from outside opens over a phone's list. A tap has already opened its own
+    // (selectThread), and a bucket picked opens none.
+    if (ownRouteRef.current !== initialThreadId) setPhoneThreadOpen(true);
   }, [initialThreadId]);
 
   // Real threads carry the answer (viewmodel `needsYou`) rather than having it
@@ -169,7 +185,16 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       if (shown && shown.real && list.some((x) => x.id === shown.id)) setKeepOpenId(shown.id);
       reseed();
       if (!list.length) return;
-      setActiveBucket((b) => (list.some((x) => x.state === b) ? b : firstBucketWithThreads(list)));
+      // A bucket the member picked stays picked, even when this read empties it: an empty list says so, where being
+      // moved somewhere else a moment after the tap looked like the tap had failed. Nothing picked yet is the other
+      // case -- the first read of a workspace whose threads are all Handled opens on Handled, not on an empty Needs
+      // you. Asked by the list's own rule (ixBucketOf), not by a thread's state: a reply counting down holds "done"
+      // while it stands in Needs you, and a bucket of only those read as empty.
+      setActiveBucket((b) => {
+        const picked = typeof window.ixPlace === "function" ? window.ixPlace().bucket : null;
+        if (picked) return b;
+        return list.some((x) => ixBucketOf(x) === b) ? b : firstBucketWithThreads(list);
+      });
       // A thread the route still names stays selected though the list does not hold it: the pane keeps
       // saying it is missing, where clearing it let the refresh open the first thread in its place.
       setActiveThreadId((id) => (list.some((x) => x.id === id) || (id !== null && id === routeThreadRef.current) ? id : null));
@@ -237,9 +262,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     const t = threads.find((x) => x.id === id);
     if (t && !listedHere(t)) { setActiveBucket(ixBucketOf(t)); setActiveView(null); window.ixKeepPlace({ bucket: ixBucketOf(t) }); }
     setActiveThreadId(id); setPhoneThreadOpen(true); setKeepOpenId(null); mutate(id, (x) => (x.unread && !x.real ? { ...x, unread: false } : x));
-    // The thread open is the address's, replaced: a refresh opens it again, the crumbs name it, and Back leaves the
-    // Inbox rather than replaying every thread read.
-    if (window.appNavigate) window.appNavigate(`inbox/${id}`, { replace: true });
+    // The thread open is the address's: a refresh opens it again and the crumbs name it.
+    goTo(id);
   };
   const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
 
@@ -656,14 +680,19 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     setActiveView(null);
     setSelected([]);
     setKeepOpenId(null);
+    // Picking a bucket is asking for its list, never for a conversation. On a phone the list and the thread take
+    // turns on the screen, and a bucket that opened its first thread took the screen with it: the rows were gone,
+    // a customer nobody had asked for was on the phone, and a bucket with nothing in it showed neither.
+    setPhoneThreadOpen(false);
     // By the list's own rule (ixBucketOf): a reply counting down stands in Needs you whatever its state says.
     const stillVisible = activeThread && (id === "all" || ixBucketOf(activeThread) === id);
     if (!stillVisible) {
       const next = [...threads].sort((a, b) => ixRank(a) - ixRank(b)).find((t) => id === "all" || ixBucketOf(t) === id);
-      // An empty bucket clears the pane. Leaving the id stranded a customer —
-      // with a live Snooze button — beside a list reading "0 threads".
+      // The desktop's pane beside the list shows the bucket's first thread, and the address says which, so a
+      // refresh comes back to the same one. An empty bucket clears the pane: leaving the id stranded a customer --
+      // with a live Snooze button -- beside a list reading "0 threads".
       setActiveThreadId(next ? next.id : null);
-      if (window.appNavigate) window.appNavigate(next ? `inbox/${next.id}` : "inbox", { replace: true });
+      goTo(next ? next.id : null);
     }
   };
 

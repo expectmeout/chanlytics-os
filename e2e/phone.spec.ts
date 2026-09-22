@@ -96,6 +96,18 @@ test.describe("Phone shell on a real workspace", () => {
     await page.getByTestId("ix-back").click();
     await expect(page.locator(".ix-list")).toBeVisible();
     await expect(page.locator(".ix-thread-pane")).toBeHidden();
+
+    // A bucket is a list, never a conversation. Picking Handled or Snoozed opened that bucket's first thread over
+    // the rows -- the list gone, a customer nobody asked for on the phone -- and a bucket with nothing in it left
+    // neither on the screen.
+    for (const name of ["Handled", "Snoozed"]) {
+      const chip = page.locator(".ix-bucket", { hasText: name }).first();
+      if ((await chip.count()) === 0) continue;
+      await chip.click();
+      await expect(chip, `${name} is the bucket on screen`).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".ix-list"), `${name} shows its list`).toBeVisible();
+      await expect(page.locator(".ix-thread-pane"), `${name} opens no conversation`).toBeHidden();
+    }
   });
 
   test("the tab bar navigates, and Conversations takes turns too", async ({ page }) => {
