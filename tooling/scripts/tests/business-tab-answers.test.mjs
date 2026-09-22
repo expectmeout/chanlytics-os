@@ -420,6 +420,33 @@ test("the hand-off fold says what each channel does in contracts' words, and the
   assert.doesNotMatch(textOf(byTestId(tree, "rec-handoff-call-says")), /Your reasons/);
 });
 
+test("with no transfer number, the fold's call sentence says it takes a message, and its door adds one", () => {
+  let tree = drawTab({ profile: without(melany, "handoff_number"), facts: { handoff_number: { value: null, source: "absent" } } });
+  openFold(tree, "escalate_when");
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-handoff-number")), "takes a message");
+  const says = textOf(byTestId(tree, "rec-handoff-call-says"));
+  assert.equal(says, handoffCallWords({ hasHandoffNumber: false, hasEscalateWhen: true }));
+  assert.equal(says, "Your reasons reach a call too. No number yet, so it takes a message instead — which is better than a number nobody picks up.");
+  const door = byTestId(tree, "rec-handoff-door");
+  assert.equal(textOf(door), "Add a transfer number", "named for what it does with no number to change");
+  press(door);
+  assert.equal(W.__recordFolds.open(), "handoff_number");
+});
+
+test("a workspace that takes no calls is told nothing a call does: no call sentence and no door in the fold", () => {
+  // Who you are's rule (its transfer row): no sentence is shown that no receptionist of the workspace receives. The
+  // row at rest still says it takes a message, as that row says so too.
+  const tree0 = drawTab({ profile: without(melany, "handoff_number"), facts: { voice_line: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } } });
+  assert.match(textOf(byTestId(tree0, "rec-handoff-phone")), /takes a message$/);
+  assert.match(textOf(byTestId(tree0, "rec-row-handoff_number")), /Takes a message instead/);
+  openFold(tree0, "escalate_when");
+  const tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-handoff-call-says"), null, "REGRESSION: a WhatsApp-only workspace was told what a call does");
+  assert.equal(byTestId(tree, "rec-handoff-door"), null);
+  assert.ok(byTestId(tree, "rec-handoff-chat-says"), "and WhatsApp's sentence is there as it was");
+});
+
 test("how long a hand-off holds off is the Autonomy tab's, and a failed read of it is said where the sentence would be", () => {
   try {
     W.__POLICIES = { rows: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }], role: "owner" };

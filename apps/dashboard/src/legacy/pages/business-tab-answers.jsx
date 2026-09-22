@@ -224,9 +224,11 @@ const BtaRules = ({ draft, update, readOnly, unread }) => (
  * The transfer number is only shown here, never edited: Who you are's "Transfers a caller to" is its one editor (the
  * plan's decision in Task 3.2's review), and a door opens that row, by its id, as the standing line's door opens a
  * row. With the Autonomy tab's read failed, how long it holds off cannot be said, and a failed read says so where the
- * sentence would be.
+ * sentence would be. On a workspace with no line to call (`calls` false) no receptionist of it takes a call, so what a
+ * call does is not said, nor is the door offered: Who you are's transfer row says nothing it will say there either.
+ * What a call would do with the number stays at rest, as that row keeps its value.
  */
-const BtaHandoff = ({ draft, update, press, problems, readOnly, words, transfer, policies }) => {
+const BtaHandoff = ({ draft, update, press, problems, readOnly, words, transfer, calls, policies }) => {
   const tab = window.__businessTab || {};
   // Whether the draft holds a reason, by the rule its save writes the lines by.
   const reasons = window.__businessTabSave.linesOf(draft).length > 0;
@@ -257,12 +259,14 @@ const BtaHandoff = ({ draft, update, press, problems, readOnly, words, transfer,
       <div className="bt-handoff-part" data-testid="rec-handoff-call-part">
         <span className="bt-channel">Phone</span>
         <span className="bt-handoff-number" data-testid="rec-handoff-number">{words ? words.phone : null}</span>
-        {tab.handoffCallWords ? (
+        {calls && tab.handoffCallWords ? (
           <p className="bt-fold-note" data-testid="rec-handoff-call-says">{tab.handoffCallWords({ hasHandoffNumber: !!transfer, hasEscalateWhen: reasons })}</p>
         ) : null}
-        <button type="button" className="bt-link" {...press(() => { if (window.__recordFolds) window.__recordFolds.request("handoff_number"); })} data-testid="rec-handoff-door">
-          {transfer ? "Change the transfer number" : "Add a transfer number"}
-        </button>
+        {calls ? (
+          <button type="button" className="bt-link" {...press(() => { if (window.__recordFolds) window.__recordFolds.request("handoff_number"); })} data-testid="rec-handoff-door">
+            {transfer ? "Change the transfer number" : "Add a transfer number"}
+          </button>
+        ) : null}
       </div>
     </>
   );
@@ -472,6 +476,8 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   // when the read carried one, and what is typed only when it carried none (an older server).
   const transferFact = F.handoff_number || { value: profile.handoff_number || null };
   const transfer = transferFact.value ? window.phoneShown(transferFact.value) : null;
+  // Whether the workspace answers calls at all: the line it answers on, as Who you are reads it.
+  const calls = !!(F.voice_line && F.voice_line.value);
   const handoff = tab.handoffWords ? tab.handoffWords(profile.escalate_when, transfer) : null;
   const notes = tab.notesWords ? tab.notesWords(profile.notes) : { count: 0, chips: [], more: null };
   // Needs the bridge's __instructionsDraft (S4): without it the row says nothing it cannot back.
@@ -547,7 +553,7 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
           empty: "Not set",
           name: "Change how it hands you a customer",
         }}
-        body={(f) => <BtaHandoff {...f} words={handoff} transfer={transfer} policies={window.__POLICIES} />}
+        body={(f) => <BtaHandoff {...f} words={handoff} transfer={transfer} calls={calls} policies={window.__POLICIES} />}
       />
 
       <Fold
