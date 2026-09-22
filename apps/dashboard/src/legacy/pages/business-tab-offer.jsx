@@ -26,7 +26,7 @@
 // object rest, for the reasons business-tab-save.jsx gives. The sheet's rows come and go (an Add, a remove, a search),
 // so they are drawn hookless (the kit's RecordBox), as a fold's rows are.
 
-const { useState: useBtwState, useRef: useBtwRef } = React;
+const { useState: useBtwState } = React;
 
 /* ------------------------------------ the services ------------------------------------ */
 
@@ -46,10 +46,10 @@ const btwFull = (max) => `That is the most services the receptionist keeps (${ma
 /**
  * The services list inside the sheet's draft, with every rule a list has (BtFold's rows: the cap through Add and
  * through an Undo, a removal said only when it happened, the row back at its index, the field keys each row's
- * sentences are under, and focus in a row just added). `restored` hears a row put back, by the toast's Undo or by the
- * one left where the row was.
+ * sentences are under, and focus in a row just added), and the rows an Undo may still put back, each where it would go
+ * (waiting), which the sheet draws an Undo for in the row's place.
  */
-const btwServiceRows = (rows, restored) => {
+const btwServiceRows = (rows) => {
   const max = window.__businessTabSave.LIMITS.services;
   return rows({
     name: (i) => `service-${i}`,
@@ -58,7 +58,6 @@ const btwServiceRows = (rows, restored) => {
     keysOf: (i) => [`service-${i}-name`, `service-${i}-duration_min`, `service-${i}-price_note`],
     key: "services",
     full: btwFull(max),
-    restored,
   });
 };
 
@@ -104,8 +103,9 @@ const BtwServicesRow = ({ brain, canEdit, gate }) => {
  *
  * A row taken out leaves an Undo where it was, inside the sheet, since the toast's Undo is outside the dialog's Tab ring
  * (record-sheet.jsx); the toast still says it and offers the same Undo, which does nothing once the sheet has closed
- * and says so. Either puts the row back at its own index, once. What the search holds and the rows taken out are kept
- * for one opening of the sheet (the editor's `opening`): from an earlier one they are nothing.
+ * and says so. Either puts the row back once, between the same two rows it went from, and each Undo is drawn where its
+ * row would go back, which moves as rows are taken out and put back around it: both are rows()' (waiting), so every
+ * list keeps them. What the search holds is kept for one opening of the sheet (the editor's `opening`).
  *
  * A row whose name is on the consult-first list carries a "consult first" mark, to read: that list is its own fold's.
  */
@@ -113,8 +113,6 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
   const S = window.__businessTabSave;
   const tab = window.__businessTab || {};
   const [search, setSearch] = useBtwState({ opening: 0, q: "" });
-  const [out, setOut] = useBtwState({ opening: 0, marks: [] });
-  const seq = useBtwRef(0);
   const Sheet = window.BtSheet;
   if (!Sheet) return null;
   // Whether a service needs a consultation first is contracts' one question (needsConsultation), the one the Calendar's
@@ -122,10 +120,9 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
   const rules = (brain.profile || {}).booking_rules || null;
   const consults = (name) => !!(tab.needsConsultation && tab.needsConsultation(String(name == null ? "" : name), rules));
   const written = (draft) => S.WRITTEN_ROWS.services(draft).length;
-  const restored = (row) => setOut((was) => ({ opening: was.opening, marks: was.marks.filter((m) => m.row !== row) }));
 
   const tools = (f) => {
-    const svc = btwServiceRows(f.rows, restored);
+    const svc = btwServiceRows(f.rows);
     const q = search.opening === f.opening ? search.q : "";
     return (
       <>
@@ -149,32 +146,26 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
   };
 
   const body = (f) => {
-    const svc = btwServiceRows(f.rows, restored);
+    const svc = btwServiceRows(f.rows);
     const list = f.draft || [];
     const q = btwFolded(search.opening === f.opening ? search.q : "");
     const opened = new Set(f.opened || []);
     const shows = (x) => !q || !opened.has(x) || btwFolded(x.name).includes(q);
-    const marks = out.opening === f.opening ? out.marks : [];
+    const marks = svc.waiting();
     const setSvc = (i, k, v) => svc.setAt(i, { [k]: v });
     // A service and a note are words somebody typed, the same as a closure, and each went with one press and no Undo (S18).
     const removeService = (i) => {
-      // The row that went is the one rows() took from the latest draft, and the one it puts back: the mark is known by it.
-      let row = null;
-      const back = svc.removeAt(i, (gone) => { row = gone; return <>Removed {gone.name ? <b>{gone.name}</b> : "a service"}</>; });
-      if (!back) return;
-      seq.current += 1;
-      const key = seq.current;
-      setOut((was) => ({ opening: f.opening, marks: (was.opening === f.opening ? was.marks : []).concat([{ key, at: i, row, back }]) }));
+      const back = svc.removeAt(i, (gone) => <>Removed {gone.name ? <b>{gone.name}</b> : "a service"}</>);
       // Focus was on the remove, which went with its row: it goes to the Undo left in the row's place.
-      f.focus(`service-gone-${key}`);
+      if (back) f.focus(`service-gone-${back.id}`);
     };
     const said = (key) => f.problems[key] || null;
     const mark = (m) => (
-      <div key={`gone-${m.key}`} className="bt-service-gone" data-rec-row={`service-gone-${m.key}`} data-testid={`rec-service-gone-${m.at}`}>
+      <div key={`gone-${m.id}`} className="bt-service-gone" data-rec-row={`service-gone-${m.id}`} data-testid={`rec-service-gone-${m.at}`}>
         <span className="bt-service-gone-words">Removed {m.row && m.row.name ? <b>{m.row.name}</b> : "a service"}</span>
         <button
           type="button" className="bt-link"
-          {...f.press(() => { if (m.back()) f.focus(`service-${m.at}`); })}
+          {...f.press(() => { const at = m.at; if (m.back()) f.focus(`service-${at}`); })}
           data-testid={`rec-service-undo-${m.at}`}
         >Undo</button>
       </div>

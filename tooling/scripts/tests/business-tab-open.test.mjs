@@ -1365,3 +1365,27 @@ test("a re-read after the calendar's address is saved that fails says so, with i
     if (was) W.__surfaceFailed = was; else delete W.__surfaceFailed;
   }
 });
+
+test("a closed day taken out goes back between the same two days, whatever was taken out after it: every list's rows() keeps it", () => {
+  // The spec review's probe, on the fold's list rather than the sheet's: the rule is rows()', not the sheet's. Each Undo
+  // kept the index its row had when it went, so with the third day out and then the first, the third went back last.
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const days = ["2099-01-05", "2099-02-05", "2099-03-05", "2099-04-05"].map((date) => ({ date }));
+  let tree = drawTab({ flash, profile: { ...melany, closures: days } });
+  openFold(tree, "closures");
+  tree = redrawTab(flash);
+  const dates = () => all(foldOf(tree, "closures"), (n) => n.type === "input" && /^Closed from, /.test(n.props["aria-label"] || "")).map((n) => n.props.value);
+  press(byTestId(tree, "rec-closure-remove-2"));
+  tree = redrawTab(flash);
+  const march = flashes.at(-1).undo;
+  press(byTestId(tree, "rec-closure-remove-0"));
+  tree = redrawTab(flash);
+  const january = flashes.at(-1).undo;
+  march();
+  tree = redrawTab(flash);
+  assert.deepEqual(dates(), ["2099-02-05", "2099-03-05", "2099-04-05"], "REGRESSION: March went back after April");
+  january();
+  tree = redrawTab(flash);
+  assert.deepEqual(dates(), days.map((d) => d.date));
+});

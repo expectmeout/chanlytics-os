@@ -751,3 +751,92 @@ test("the consult-first mark and the search's folding are contracts' own rules, 
     assert.ok(foldName("Uñas de gel").includes(foldName(words.trim())));
   }
 });
+
+/* ------------------------------------ put back between the same two rows ------------------------------------ */
+
+const ten = { ...melany, services: Array.from({ length: 10 }, (_, i) => ({ name: `Service ${i + 1}`, duration_min: 30 })) };
+/** The sheet's list as drawn: each row by its name, and each Undo left in a row's place as <the name it puts back>. */
+const drawnOf = (tree) => all(byTestId(tree, "rec-services-rows"), (n) => /^rec-service-(gone-)?\d+$/.test(n.props?.["data-testid"] || ""))
+  .map((n) => (n.props["data-testid"].includes("gone") ? `<${textOf(find(n, (m) => m.type === "b"))}>` : nameOf(n)));
+/** The Undo left in the place of the row named `name`. */
+const undoFor = (tree, name) => {
+  const mark = find(byTestId(tree, "rec-services-rows"), (n) => classes(n).includes("bt-service-gone") && textOf(find(n, (m) => m.type === "b")) === name);
+  return find(mark, (n) => n.type === "button");
+};
+const removeNamed = (tree, name) => press(byTestId(tree, `rec-service-remove-${rowsOf(tree).findIndex((r) => nameOf(r) === name)}`));
+const TEN = ten.services.map((s) => s.name);
+
+test("a row taken out goes back between the same two rows, whatever was taken out after it: the review's repro", () => {
+  // The spec review's probe. Service 6 out, then Service 3: Service 6's Undo was drawn between 7 and 8, and pressed it
+  // gave 1, 2, 4, 5, 7, 6, 8. Each Undo kept the index its row had when it went, and put the row back there.
+  let tree = openSheet(drawTab({ profile: ten }));
+  removeNamed(tree, "Service 6");
+  tree = redrawTab();
+  removeNamed(tree, "Service 3");
+  tree = redrawTab();
+  assert.deepEqual(drawnOf(tree), ["Service 1", "Service 2", "<Service 3>", "Service 4", "Service 5", "<Service 6>", "Service 7", "Service 8", "Service 9", "Service 10"], "each Undo where its row was");
+  press(undoFor(tree, "Service 6"));
+  tree = redrawTab();
+  assert.deepEqual(namesOf(rowsOf(tree)), ["Service 1", "Service 2", "Service 4", "Service 5", "Service 6", "Service 7", "Service 8", "Service 9", "Service 10"], "REGRESSION: 1, 2, 4, 5, 7, 6, 8");
+  assert.deepEqual(drawnOf(tree).slice(0, 3), ["Service 1", "Service 2", "<Service 3>"], "the Undo still waiting stays in its row's place");
+  press(undoFor(tree, "Service 3"));
+  tree = redrawTab();
+  assert.deepEqual(namesOf(rowsOf(tree)), TEN);
+  assert.equal(all(byTestId(tree, "rec-services-rows"), (n) => classes(n).includes("bt-service-gone")).length, 0);
+});
+
+test("two rows taken out go back in either order, apart or from the same gap, and the toast's Undo and the one in the row's place put a row back once", () => {
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  // Apart, the later removal put back first.
+  let tree = openSheet(drawTab({ profile: ten, flash }), flash);
+  removeNamed(tree, "Service 6");
+  tree = redrawTab(flash);
+  const six = flashes.at(-1).undo;
+  removeNamed(tree, "Service 3");
+  tree = redrawTab(flash);
+  press(undoFor(tree, "Service 3"));
+  tree = redrawTab(flash);
+  assert.deepEqual(drawnOf(tree), ["Service 1", "Service 2", "Service 3", "Service 4", "Service 5", "<Service 6>", "Service 7", "Service 8", "Service 9", "Service 10"]);
+  // The toast's Undo for Service 6, then the one in its place, pressed in the same breath before the page draws again: once.
+  const inPlace = undoFor(tree, "Service 6");
+  six();
+  press(inPlace);
+  tree = redrawTab(flash);
+  assert.deepEqual(namesOf(rowsOf(tree)), TEN, "REGRESSION: a second Service 6");
+  assert.equal(undoFor(tree, "Service 6"), null, "and its Undo in the row's place goes with it");
+
+  // From the same gap: Service 3, then Service 4, which had moved up into its place.
+  for (const first of ["Service 3", "Service 4"]) {
+    tree = openSheet(drawTab({ profile: ten, flash }), flash);
+    removeNamed(tree, "Service 3");
+    tree = redrawTab(flash);
+    const three = flashes.at(-1).undo;
+    removeNamed(tree, "Service 4");
+    tree = redrawTab(flash);
+    assert.deepEqual(drawnOf(tree).slice(0, 5), ["Service 1", "Service 2", "<Service 3>", "<Service 4>", "Service 5"], "two Undos in one gap, in their rows' order");
+    press(undoFor(tree, first));
+    tree = redrawTab(flash);
+    press(undoFor(tree, first === "Service 3" ? "Service 4" : "Service 3"));
+    tree = redrawTab(flash);
+    assert.deepEqual(namesOf(rowsOf(tree)), TEN, `${first} put back first`);
+    // The toast's Undo for Service 3, pressed after the one in its place put it back, puts nothing back again.
+    three();
+    assert.deepEqual(namesOf(rowsOf(redrawTab(flash))), TEN);
+  }
+
+  // A row put back before a waiting one moves it down with the rows around it; one taken out after it leaves it be.
+  tree = openSheet(drawTab({ profile: ten, flash }), flash);
+  removeNamed(tree, "Service 2");
+  tree = redrawTab(flash);
+  removeNamed(tree, "Service 9");
+  tree = redrawTab(flash);
+  removeNamed(tree, "Service 5");
+  tree = redrawTab(flash);
+  press(undoFor(tree, "Service 2"));
+  tree = redrawTab(flash);
+  removeNamed(tree, "Service 10");
+  tree = redrawTab(flash);
+  for (const name of ["Service 9", "Service 10", "Service 5"]) { press(undoFor(tree, name)); tree = redrawTab(flash); }
+  assert.deepEqual(namesOf(rowsOf(tree)), TEN);
+});

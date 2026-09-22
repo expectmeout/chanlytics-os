@@ -318,7 +318,8 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   // The row a list was just given, or any row the body names (focus), for the kit to put focus in (rows' add).
   const [focusOn, setFocusOn] = useBtgState(null);
   // What the registry, an Undo and a keystroke read: the latest draft, whatever the page has drawn since.
-  const live = useBtgRef({ draft: null, opened: null, open: false, opening: 0 });
+  // `backs` are the rows taken out of a list that an Undo may still put back, in the lists' own order (rows, below).
+  const live = useBtgRef({ draft: null, opened: null, open: false, opening: 0, backs: [], seq: 0 });
   const busy = saver ? saver.pending(id) : false;
   const base = saver ? saver.base() : null;
   // Anything typed is something to ask about, whether or not the save would write it (the header says why).
@@ -336,7 +337,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   const open = fold.open && canEdit && !!base && !!stored;
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
-  const reset = () => { live.current.draft = null; live.current.opened = null; setDraft(null); setProblems(null); ask.disarm(); setFocusOn(null); };
+  const reset = () => { live.current.draft = null; live.current.opened = null; live.current.backs = []; setDraft(null); setProblems(null); ask.disarm(); setFocusOn(null); };
   useBtgEffect(() => { if (!open) reset(); }, [open]);
   if (open && live.current.opened == null) live.current.opening += 1;
   // Untouched and not saving, the editor opens with what is stored NOW (the header says why); typed in, what it opened
@@ -381,9 +382,13 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
     if (words.said) flash({ msg: words.said, undo: words.back ? undo(words.back) : undefined });
     return true;
   };
-  const rows = ({ name = null, max = Infinity, blank = () => ({}), keysOf = () => [], key = null, full = null, list = (d) => d, put = (d, l) => l, restored = null }) => {
+  const rows = ({ name = null, max = Infinity, blank = () => ({}), keysOf = () => [], key = null, full = null, list = (d) => d, put = (d, l) => l }) => {
     const latest = () => list(live.current.draft != null ? live.current.draft : live.current.opened) || [];
     const own = (keys) => (key ? keys.concat([key]) : keys);
+    // Which list of the draft this is, for the put-backs waiting in it: its own field key, or its rows' names where it
+    // has none (one day's shifts, "hours-mon-*").
+    const listId = key || (name ? name("*") : "");
+    const mine = (b) => b.list === listId;
     return {
       canAdd: (list(now) || []).length < max,
       row: (i) => (name ? { "data-rec-row": name(i) } : {}),
@@ -396,26 +401,51 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
       setAt: (i, patch) => update((d) => put(d, list(d).map((x, j) => (j === i ? { ...x, ...patch } : x))), own(keysOf(i))),
       // Answers the Undo it toasted (false when nothing was removed), for a body that offers the same Undo where the
       // row was: a sheet, whose Tab ring the toast is outside (record-sheet.jsx). Whichever is pressed first puts the row
-      // back, once; the other then has nothing left to put back, and the row is where it was either way.
+      // back, once; the other then has nothing left to put back, and the row is where it was either way. Its `id` names
+      // the put-back among `waiting()`.
+      //
+      // A row goes back between the same two rows it was taken from, whatever was taken out or put back since. Each
+      // put-back keeps its place (`at`: how many of the list's rows come before it) and is moved with the rows around
+      // it: a row taken out before it moves it up a place, and a row put back before it moves it down one. The Undo once
+      // kept the index the row had when it went, so with Service 6 taken out and then Service 3, Service 6's Undo put it
+      // between 7 and 8. The put-backs are kept in the list's order, so two waiting in one gap go back in theirs.
       removeAt: (i, said) => {
         const gone = latest()[i];
         if (gone === undefined) return false;
         // Every row after it moves up a place, and its sentences with it: they are all asked again at Save.
         const moved = latest().flatMap((_, j) => (j >= i ? keysOf(j) : []));
         if (!update((d) => put(d, list(d).filter((_, j) => j !== i)), own(moved))) return false;
-        const back = undo((d) => put(d, [...list(d).slice(0, i), gone, ...list(d).slice(i)]));
-        let putBack = false;
+        const backs = live.current.backs;
+        // In the gap where it went: after every put-back already waiting before the row, before every one after it.
+        const after = backs.findIndex((b) => mine(b) && b.at > i);
+        backs.forEach((b) => { if (mine(b) && b.at > i) b.at -= 1; });
+        live.current.seq += 1;
+        const waiting = { id: live.current.seq, list: listId, at: i, row: gone, done: false };
+        backs.splice(after < 0 ? backs.length : after, 0, waiting);
+        // Read as it runs: `at` has moved with every change since.
+        const back = undo((d) => put(d, [...list(d).slice(0, waiting.at), gone, ...list(d).slice(waiting.at)]));
         const again = () => {
-          if (putBack) return true;
+          if (waiting.done) return true;
           if (live.current.open && latest().length >= max) { if (full) flash({ tone: "warn", msg: <>Not put back — {full}</> }); return false; }
           if (!back()) return false;
-          putBack = true;
-          if (restored) restored(gone, i);
+          waiting.done = true;
+          // It is a row again: every put-back after it in the list is one place further down.
+          const all = live.current.backs;
+          const at = all.indexOf(waiting);
+          if (at >= 0) {
+            all.forEach((b, j) => { if (j > at && mine(b)) b.at += 1; });
+            all.splice(at, 1);
+          }
           return true;
         };
+        waiting.again = again;
+        again.id = waiting.id;
         flash({ msg: typeof said === "function" ? said(gone) : said, undo: again });
         return again;
       },
+      // The rows of this list an Undo may still put back, in the list's order: { id, at, row, back }. `at` is how many
+      // of the list's rows come before it now, which is where a body draws the Undo it offers in the row's place.
+      waiting: () => live.current.backs.filter(mine).map((b) => ({ id: b.id, at: b.at, row: b.row, back: b.again })),
     };
   };
   const press = (fn) => ({
@@ -492,18 +522,19 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  *   focus(row)            focus to the first box of the element the body spread `data-rec-row={row}` on;
  *   opened, opening       the draft it opened with, and how many times it has opened (useBtEditor says why).
  *
- * `rows({ name, max, blank, keysOf, key, full, list, put, restored })` answers { canAdd, add(), setAt(i, patch),
- * removeAt(i, said), row(i) } for one list of the draft: the closed days (the draft itself), or one day's shifts (`list`
+ * `rows({ name, max, blank, keysOf, key, full, list, put })` answers { canAdd, add(), setAt(i, patch), removeAt(i, said),
+ * waiting(), row(i) } for one list of the draft: the closed days (the draft itself), or one day's shifts (`list`
  * reads it out of the draft and `put` writes it back; left out, the draft is the list). Each body once had to remember
  * all of this, and the cap was forgotten in the one place nobody looks: a toast's Undo put a fifth shift on a Monday
  * that takes four.
  *   the cap        `max`, in all three places: `canAdd` is what the body offers Add by, `add()` appends `blank()` only
  *                  while there is room, and a removed row is PUT BACK only while there is room, the Undo saying `full`
  *                  when there is not;
- *   the removal    the row is captured from the latest draft before it goes, comes back at its own index, and
- *                  `said(row)` is toasted only when the change was taken. removeAt answers the toast's Undo itself
- *                  (false when nothing went), for a body that offers it where the row was too; either puts it back
- *                  once, and `restored(row, i)` is told when it is;
+ *   the removal    the row is captured from the latest draft before it goes, comes back between the same two rows it
+ *                  went from, whatever else was taken out or put back since, and `said(row)` is toasted only when the
+ *                  change was taken. removeAt answers the toast's Undo itself (false when nothing went), for a body
+ *                  that offers it where the row was too; either puts it back once. `waiting()` is every row an Undo may
+ *                  still put back, in the list's order, each with where it would go (`at`);
  *   the sentences  `keysOf(i)` are row i's field keys and `key` the list's own (too many). A change to row i answers
  *                  its keys; a removal moves every later row up a place, so it answers them all;
  *   the focus      `name(i)` names row i, and the body spreads `row(i)` on the element that holds its boxes. A row that
