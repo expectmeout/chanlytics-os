@@ -1068,7 +1068,7 @@ test("a booking rule's refusal says what an empty box means from the one source 
   // whose hint says an empty one uses two hours.
   const words = Object.fromEntries(S.RULES.map(([key, , , sentence]) => [key, sentence]));
   const rules = S.draftOf("booking_rules", stored());
-  for (const [key, lo, hi] of S.RULES) assert.equal(S.problemsOf("booking_rules", { ...rules, [key]: String(hi + 1) })[key], words[key], key);
+  for (const [key, , hi] of S.RULES) assert.equal(S.problemsOf("booking_rules", { ...rules, [key]: String(hi + 1) })[key], words[key], key);
   assert.deepEqual(BOOKING_DEFAULTS, { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 });
   assert.match(words.lead_hours, new RegExp(`to use ${BOOKING_DEFAULTS.lead_hours}\\.$`));
   assert.match(BOOKING_RULE_HINTS.lead_hours, new RegExp(`^Empty uses ${BOOKING_DEFAULTS.lead_hours} hours`), "the hint the refusal replaces says the same");
