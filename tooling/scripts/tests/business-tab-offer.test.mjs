@@ -1026,7 +1026,9 @@ test("a hand-edited record whose consult-first list or rule notes are not lists 
     // The preview is composed from a sane record (the server's composer parses what it composes); the stored config the
     // page reads is then hand-edited, as the probe did, and the page drawn again over it.
     drawTab({ profile: many });
-    Object.assign(W.__SETTINGS.config.brain.profile.booking_rules, { consult_first: "Extensions", notes: "Cash only" });
+    // Replaced, never changed in place: the stored profile is the harness's fixture object, which every later test reads.
+    const brain = W.__SETTINGS.config.brain;
+    brain.profile = { ...brain.profile, booking_rules: { ...brain.profile.booking_rules, consult_first: "Extensions", notes: "Cash only" } };
     W.__businessTabSave.saver.reset();
     // A page drawn afresh over it, as it is drawn when the tab opens on such a record.
     unmount();
@@ -1040,3 +1042,4 @@ test("a hand-edited record whose consult-first list or rule notes are not lists 
     console.error = was;
   }
 });
+
