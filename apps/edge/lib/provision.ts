@@ -22,6 +22,7 @@ import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js"
 import type { ResumedBy } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
+import { logger } from "./log.js";
 
 /**
  * A line stopped: tell the workspace's bell, the platform's mailbox and the ledger.
@@ -92,6 +93,6 @@ export async function provisionLine(
   } else {
     await reportLineFailed(db, choice.name, tenant, result.line, result.step, result.error, by);
   }
-  console.log("line_saga", JSON.stringify({ tenant: tenant.id, line: line.id, ok: result.ok, step: result.ok ? null : result.step, provider: choice.name, by }));
+  logger({ tenant: tenant.id }).info("line_saga", { line: line.id, ok: result.ok, step: result.ok ? null : result.step, provider: choice.name, by });
   return result;
 }

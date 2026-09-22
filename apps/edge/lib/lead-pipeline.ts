@@ -14,6 +14,7 @@ import { scheduleJobOnce, type ClaimedJob, type JobContext } from "./packages/jo
 import type { Json } from "./packages/db.js";
 import { leadDb } from "./lead-db.js";
 import { leadWires, type LeadWires } from "./lead-wires.js";
+import { logger } from "./log.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SEQ = /^[a-z0-9.]{1,40}$/;
@@ -56,13 +57,13 @@ export function leadPipelineOver(wires: LeadWires): Pipeline {
       const roundId = field(job, "round_id", (v) => typeof v === "string" && UUID.test(v));
       const resume = job.payload.resume === true;
       const outcome = await startRound(portsFor(wires, ctx, job), roundId, job.id, resume);
-      console.log(JSON.stringify({ level: "info", event: "lead_round_start", tenant: job.tenant_id, job: job.id, resume, ...outcome }));
+      logger({ tenant: job.tenant_id }).info("lead_round_start", { job: job.id, resume, ...outcome });
     },
     async collect(ctx, job) {
       const runId = field(job, "run_id", (v) => typeof v === "string" && UUID.test(v));
       const seq = field(job, "seq", (v) => typeof v === "string" && SEQ.test(v));
       const outcome = await collect(portsFor(wires, ctx, job), runId, seq, job.id);
-      console.log(JSON.stringify({ level: "info", event: "lead_collect", tenant: job.tenant_id, job: job.id, seq, ...outcome }));
+      logger({ tenant: job.tenant_id }).info("lead_collect", { job: job.id, seq, ...outcome });
     },
     async check(ctx, job) {
       const roundId = field(job, "round_id", (v) => typeof v === "string" && UUID.test(v));
@@ -75,7 +76,7 @@ export function leadPipelineOver(wires: LeadWires): Pipeline {
         : null;
       if ((nonce !== undefined || leadIds !== undefined) && !again) throw new Error(`lead_check: payload.again and payload.lead_ids are not what the door writes (${JSON.stringify({ nonce, leadIds })})`);
       const outcome = await check(portsFor(wires, ctx, job), roundId, batch, job.id, again);
-      console.log(JSON.stringify({ level: "info", event: "lead_check", tenant: job.tenant_id, job: job.id, batch, again: again !== null, ...outcome }));
+      logger({ tenant: job.tenant_id }).info("lead_check", { job: job.id, batch, again: again !== null, ...outcome });
     },
   };
 }

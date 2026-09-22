@@ -121,9 +121,9 @@ test("the whisper: the owner's words reach the provider framed as the owner's in
     assert.notEqual(framed, WORDS, "REGRESSION: the first real whisper went in bare and lost to a direct question");
     assert.equal(whisperText(framed), WORDS, "the Live page reads the owner's words back out of the frame");
     // The log: how many characters, whose call, what the provider said -- never the words.
-    const line = log.lines.find((l) => l.startsWith("admin_whisper"));
+    const line = log.lines.find((l) => l.includes('"event":"admin_whisper"'));
     assert.ok(line, "one line");
-    assert.deepEqual(JSON.parse(line.slice("admin_whisper ".length)), { call_id: CALL, chars: WORDS.length, ok: true, status: 200 });
+    assert.deepEqual(JSON.parse(line), { level: "info", event: "admin_whisper", call_id: CALL, chars: WORDS.length, ok: true, status: 200 });
     assert.ok(!log.lines.some((l) => l.includes("haircut")), "the words are the operator's and stay out of the log");
   } finally { p.restore(); }
 
@@ -144,5 +144,5 @@ test("a call that just ended is a status in a sentence, not an exception in a ro
   let res;
   try { res = await knock({ call_id: CALL, text: WORDS }); } finally { log.restore(); gone.restore(); }
   assert.deepEqual(await answer(res), [502, { ok: false, error: "provider_refused", status: 404 }]);
-  assert.deepEqual(JSON.parse(log.lines.find((l) => l.startsWith("admin_whisper")).slice("admin_whisper ".length)), { call_id: CALL, chars: WORDS.length, ok: false, status: 404 });
+  assert.deepEqual(JSON.parse(log.lines.find((l) => l.includes('"event":"admin_whisper"'))), { level: "info", event: "admin_whisper", call_id: CALL, chars: WORDS.length, ok: false, status: 404 });
 });

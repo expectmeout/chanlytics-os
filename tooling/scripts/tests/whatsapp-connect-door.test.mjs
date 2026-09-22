@@ -235,7 +235,7 @@ test("connect, the whole way: the code becomes the business's token as the app t
     assert.ok(!printed(body).includes(secret), `${secret} is not in the answer`);
     assert.ok(!log.lines.some((l) => l.includes(secret)), `${secret} is not in the log`);
   }
-  assert.ok(log.lines.some((l) => l.startsWith("wa_connected") && l.includes(row.id)), "the log says which channel connected");
+  assert.ok(log.lines.some((l) => l.includes('"event":"wa_connected"') && l.includes(row.id)), "the log says which channel connected");
 });
 
 test("connect, the app this deployment speaks for: with no META_APP_ID set the code is exchanged as the one live app -- the same default signup-config hands the browser, so the sign-up and the exchange can never be two different apps", async () => {
@@ -308,7 +308,7 @@ test("connect, whose row it is: this workspace connecting its own number again u
   assert.deepEqual([status, body], [409, { ok: false, error: "number_taken" }], "another workspace's is the 409 this door exists to give");
   assert.equal(theirs.kept.length, 0, "and no credential of theirs is overwritten");
   assert.equal(theirs.tables.tenant_channels[0].tenant_id, B);
-  assert.ok(log.lines.some((l) => l.startsWith("wa_connect_number_taken") && l.includes('"at":"insert"')));
+  assert.ok(log.lines.some((l) => l.includes('"event":"wa_connect_number_taken"') && l.includes('"at":"insert"')));
 
   const mine = raced(A);
   const m3 = meta();

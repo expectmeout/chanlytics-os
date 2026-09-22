@@ -20,6 +20,7 @@ import { draftReviewReply } from "./review-reply.js";
 import { recordNotification } from "./notify.js";
 import { logger } from "./log.js";
 import { readAllRows } from "./paged.js";
+import { env } from "./env.js";
 
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];
@@ -30,14 +31,14 @@ const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 const TOKEN_SLACK_MS = 60_000;
 
 export function placesKey(): string | null {
-  return process.env.GOOGLE_PLACES_API_KEY || null;
+  return env.GOOGLE_PLACES_API_KEY || null;
 }
 
 /** The OAuth client for the Business Profile door, when the environment has all three parts. */
 export function profileClient(): OAuthClient | null {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  const clientId = env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const redirectUri = env.GOOGLE_OAUTH_REDIRECT_URI;
   return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri } : null;
 }
 
@@ -49,7 +50,7 @@ export function profileClient(): OAuthClient | null {
  * says nothing rather than something wrong.
  */
 export function googleAudience(): GoogleAudience | null {
-  const a = process.env.GOOGLE_OAUTH_AUDIENCE;
+  const a = env.GOOGLE_OAUTH_AUDIENCE;
   return a === "testing" || a === "unverified" || a === "verified" ? a : null;
 }
 

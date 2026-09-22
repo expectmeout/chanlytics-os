@@ -13,6 +13,9 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
+import { logger } from "../../lib/log.js";
+
+const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -38,6 +41,6 @@ export async function POST(request: Request): Promise<Response> {
   if ("error" in ctx) return json(500, { ok: false, error: "context_failed", detail: ctx.error });
   const r = await runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } });
   if (r.outcome === "failed") return json(500, { ok: false, error: "run_failed", detail: r.error });
-  console.log("playbook_run_now", JSON.stringify({ tenant_id: tenantId, playbook_id: playbookId, outcome: r.outcome }));
+  L.info("playbook_run_now", { tenant_id: tenantId, playbook_id: playbookId, outcome: r.outcome });
   return json(200, { ok: true, ...r });
 }

@@ -15,6 +15,7 @@ import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { notify, type NotifyTarget } from "./notify.js";
 import { parseTenantConfig, WABA_FIELDS as WABA_FIELD_LIST, type NotificationsConfig, type ServerNotificationKind, type WabaEventKind } from "./packages/contracts.js";
+import { logger, errField } from "./log.js";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function notificationsFor(db: SupabaseClient<Database>, tenantId: string): Promise<NotificationsConfig | null> {
@@ -42,7 +43,7 @@ async function routeByWaba(db: SupabaseClient<Database>, wabaId: string): Promis
     .limit(1)
     .maybeSingle();
   if (error) {
-    console.error("waba_route_failed", wabaId, error.message);
+    logger().error("waba_route_failed", { waba_id: wabaId, error: error.message });
     return null;
   }
   return data ? { tenantId: data.tenant_id, channelId: data.id, number: data.number_e164 } : null;
@@ -132,12 +133,13 @@ export async function handleWabaChange(
 ): Promise<"unrouted" | "kept" | "alerted"> {
   const routed = await routeByWaba(db, wabaId);
   if (!routed) {
-    console.error("waba_unroutable", JSON.stringify({ waba_id: wabaId, field: change.field }));
+    logger().error("waba_unroutable", { waba_id: wabaId, field: change.field });
     return "unrouted";
   }
+  const L = logger({ tenant: routed.tenantId });
   const described = describeWabaChange(change, routed.number);
   await emitEvent(db, routed.tenantId, `channel.${change.field}` as WabaEventKind, "system", "channel", routed.channelId, { waba_id: wabaId, ...change.value } as unknown as Json).catch((e: unknown) => {
-    console.error("waba_event_write_failed", e instanceof Error ? e.message : e);
+    L.error("waba_event_write_failed", { error: errField(e) });
   });
   // The channel row remembers the newest rating, so Settings can show it.
   if (change.field === "phone_number_quality_update" && typeof change.value.current_limit === "string") {
@@ -159,12 +161,12 @@ export async function handleWabaChange(
           const reason = event === "REJECTED" && typeof change.value.reason === "string" && change.value.reason !== "NONE" ? change.value.reason : null;
           const { error } = await db.from("templates").update({ meta_status: mapStatus(event), rejected_reason: reason })
             .eq("tenant_id", routed.tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language);
-          if (error) console.error("template_status_write_failed", error.message);
+          if (error) L.error("template_status_write_failed", { error: error.message });
         }
       } else {
         const { error } = await db.from("templates").update({ category: mapCategory(typeof change.value.new_category === "string" ? change.value.new_category : null) })
           .eq("tenant_id", routed.tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language);
-        if (error) console.error("template_category_write_failed", error.message);
+        if (error) L.error("template_category_write_failed", { error: error.message });
       }
     }
   }

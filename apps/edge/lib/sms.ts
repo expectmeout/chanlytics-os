@@ -10,7 +10,7 @@ import type { Database, Json } from "./packages/db.js";
 import type { LineSecrets, ProviderAccount } from "./packages/channels.js";
 import { smsStatusUrl } from "./packages/channels.js";
 import { lineProviderFromEnv, edgeFnUrl } from "./lines.js";
-import { logger } from "./log.js";
+import { logger, errField } from "./log.js";
 import { phoneTail } from "./packages/contracts.js";
 
 type Db = SupabaseClient<Database>;
@@ -119,7 +119,7 @@ export async function smsSenderForTenant(db: Db, tenantId: string): Promise<SmsS
     const acct = await lineAccount(db, line);
     return acct ? smsSenderFor(line, acct) : null;
   } catch (e) {
-    console.error("sms_sender_unavailable", e instanceof Error ? e.message : String(e));
+    logger({ tenant_id: tenantId }).error("sms_sender_unavailable", { error: errField(e) });
     return null;
   }
 }

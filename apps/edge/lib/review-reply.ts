@@ -9,6 +9,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { cleanDraft, reviewReplyPrompt, type ReviewReplyFacts, type ReviewToAnswer } from "./packages/contracts.js";
+import { env } from "./env.js";
 
 export const REVIEW_REPLY_MODEL = "claude-sonnet-5";
 
@@ -25,7 +26,7 @@ export type DraftResult =
   | { ok: false; error: "no_model_key" | "model_failed" | "empty_draft"; detail?: string };
 
 export async function draftReviewReply(facts: ReviewReplyFacts, review: ReviewToAnswer): Promise<DraftResult> {
-  if (!process.env.ANTHROPIC_API_KEY) return { ok: false, error: "no_model_key" };
+  if (!env.ANTHROPIC_API_KEY) return { ok: false, error: "no_model_key" };
   const p = reviewReplyPrompt(facts, review);
   let res;
   try {

@@ -25,13 +25,17 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { updateLiveCall } from "../../lib/packages/channels.js";
 import { frameHandOver } from "../../lib/packages/contracts.js";
+import { env } from "../../lib/env.js";
+import { logger } from "../../lib/log.js";
+
+const L = logger();
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/hand-over");
   if (!auth.ok) return auth.response;
-  if (!process.env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
+  if (!env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
 
   let body: { call_id?: string; line?: string } = {};
   try { body = JSON.parse(await request.text()); } catch { /* below */ }
@@ -42,13 +46,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const r = await updateLiveCall(
-    { apiKey: process.env.RETELL_API_KEY },
+    { apiKey: env.RETELL_API_KEY },
     callId,
     { additionalContext: frameHandOver(), triggerResponse: true, variables: { handoff_number: line } },
   );
   // The line is the business's own and stays out of the log; the outcome is
   // what a search needs.
-  console.log("admin_hand_over", JSON.stringify({ call_id: callId, ok: r.ok, status: r.status }));
+  L.info("admin_hand_over", { call_id: callId, ok: r.ok, status: r.status });
   if (!r.ok) return json(502, { ok: false, error: "provider_refused", status: r.status });
   return json(200, { ok: true });
 }

@@ -15,6 +15,10 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/notify.js";
+import { env } from "../../lib/env.js";
+import { logger } from "../../lib/log.js";
+
+const L = logger();
 
 interface Body {
   tenant_id?: string;
@@ -49,7 +53,7 @@ const WHAT: Record<string, { subject: string; how: string }> = {
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/setup-request");
   if (!auth.ok) return auth.response;
-  if (!process.env.LEAD_TO || !process.env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
+  if (!env.LEAD_TO || !env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
 
@@ -80,6 +84,6 @@ export async function POST(request: Request): Promise<Response> {
         `Workspace id: ${tenant.data.id}\n\n${w.how}\n`,
     },
   );
-  console.log("setup_request_told", JSON.stringify({ tenant: tenantId, what, sent }));
+  L.info("setup_request_told", { tenant: tenantId, what, sent });
   return json(sent ? 200 : 502, { ok: sent, what, tenant: tenant.data.slug });
 }

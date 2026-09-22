@@ -52,7 +52,7 @@ export async function pgThread(
       repliedBefore: s.repliedBefore,
     };
   } catch (e) {
-    console.error("pg_thread_read_failed", e instanceof Error ? e.message : e);
+    logger({ tenant_id: tenantId }).error("pg_thread_read_failed", { error: errField(e) });
     return unreadableThread();
   }
 }
@@ -135,7 +135,7 @@ export async function pgIngest(db: SupabaseClient<Database> | null, tenantId: st
       optInMarketing: n.optInMarketing,
     });
   } catch (e) {
-    console.error(JSON.stringify({ level: "error", event: "ingest_pg_failed", tenant_id: tenantId, message: n.messageId, error: errField(e) }));
+    logger().error("ingest_pg_failed", { tenant_id: tenantId, message: n.messageId, error: errField(e) });
     throw new IngestFailed(e instanceof Error ? e.message : String(e));
   }
 }
@@ -144,7 +144,7 @@ export async function pgSafe<T>(label: string, fn: () => Promise<T>): Promise<T 
   try {
     return await fn();
   } catch (e) {
-    console.error(`pg_${label}_failed`, e instanceof Error ? e.message : e);
+    logger().error(`pg_${label}_failed`, { error: errField(e) });
     return undefined;
   }
 }
@@ -273,7 +273,7 @@ export function pgSink(
             // whose vault read failed, or an SMS-only one, has every photo and
             // voice note their customers send stamped "failed" forever with no
             // trace of why.
-            if (!cfg) console.error(JSON.stringify({ level: "error", event: "media_no_credentials", tenant_id: tenantId, message: ing!.message_id }));
+            if (!cfg) logger().error("media_no_credentials", { tenant_id: tenantId, message: ing!.message_id });
             const got = cfg ? await fetchMediaBytes(cfg, n.media!.provider_media_id) : null;
             const mediaOut = { ...n.media } as Record<string, unknown>;
             if (got) {

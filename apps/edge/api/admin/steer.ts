@@ -27,14 +27,13 @@ import { resolveSystemPrompt, describeNow, frameSteer, violatesNoPrices, replyDe
 import { cancelJobsFor } from "../../lib/packages/jobs.js";
 import { generateReply } from "../../lib/brain.js";
 import { queueDraft } from "../../lib/draft-queue.js";
+import { env } from "../../lib/env.js";
+import { logger, errField } from "../../lib/log.js";
 
 const MAX_CHARS = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const log = {
-  warn: (event: string, fields: Record<string, unknown> = {}) => console.warn(event, JSON.stringify(fields)),
-  error: (event: string, fields: Record<string, unknown> = {}) => console.error(event, JSON.stringify(fields)),
-};
+const L = logger();
 
 /**
  * The model as a port. Production passes nothing and gets the real brain; a
@@ -51,7 +50,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
-  if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
+  if (!env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
 
   let body: { message_id?: string; text?: string } = {};
   try { body = JSON.parse(await request.text()); } catch { /* below */ }
@@ -114,7 +113,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   try {
     leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1));
   } catch (e) {
-    log.warn("steer_lead_context_unavailable", { error: e instanceof Error ? e.message : String(e) });
+    L.warn("steer_lead_context_unavailable", { error: errField(e) });
   }
 
   const t0 = Date.now();
@@ -131,13 +130,13 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       frameSteer(text),
     );
   } catch (e) {
-    log.error("steer_brain_failed", { error: e instanceof Error ? e.message : String(e) });
+    L.error("steer_brain_failed", { error: errField(e) });
     return json(502, { ok: false, error: "brain_failed" });
   }
   // The same second door the handler keeps: a price never goes out, and a
   // rewrite that would say one leaves the original draft where it was.
   if (violatesNoPrices(r.text)) {
-    log.warn("steer_policy_block_price", { message_id: messageId });
+    L.warn("steer_policy_block_price", { message_id: messageId });
     return json(409, { ok: false, error: "policy_block_price" });
   }
 
@@ -161,7 +160,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     // thread never got its answer.
     channel,
     extra: { steer: text, steered_from: m.id, escalate: r.escalate },
-  }, log);
+  }, L);
   if (!newId) return json(502, { ok: false, error: "could_not_queue" });
 
   // Counted, not just attempted. The status filter is the whole guard: the
@@ -178,7 +177,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .select("id");
   if (cancelErr || !retired?.length) {
     const lost = !cancelErr;
-    log.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: m.id, error: cancelErr?.message });
+    L.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: m.id, error: cancelErr?.message });
     await db.from("messages").update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } }).eq("id", newId).eq("status", "queued");
     await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId);
     return lost
@@ -188,6 +187,6 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id);
 
   // The words are the owner's and the model's and stay out of the log.
-  console.log("admin_steer", JSON.stringify({ message_id: m.id, new_message_id: newId, chars: text.length, ms: Date.now() - t0, escalate: r.escalate, delay_ms: delayMs }));
+  L.info("admin_steer", { message_id: m.id, new_message_id: newId, chars: text.length, ms: Date.now() - t0, escalate: r.escalate, delay_ms: delayMs });
   return json(200, { ok: true, message_id: newId, text: r.text, meta: r.meta ?? null, escalate: r.escalate, delay_ms: delayMs });
 }

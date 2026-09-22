@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ASK_MODEL } from "./packages/contracts.js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
+import { logger, errField } from "./log.js";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
 const DAY_MS = 24 * 3600 * 1000;
@@ -29,6 +30,7 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 
 /** Ask's tokens in the last day, this workspace. Read failures count as zero, never as a refusal. */
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
+  const L = logger({ tenant: tenantId });
   try {
     const { data, error } = await db
       .from("events")
@@ -44,7 +46,7 @@ export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: s
       return sum + num(d.input_tokens) + num(d.output_tokens);
     }, 0);
   } catch (e) {
-    console.error("ask_budget_read_failed", e instanceof Error ? e.message : e);
+    L.error("ask_budget_read_failed", { error: errField(e) });
     return 0;
   }
 }
@@ -55,10 +57,11 @@ export async function recordAskUsage(
   userId: string,
   data: AskUsage & { model: string; latency_ms: number; stop_reason: string | null; stream: boolean; purpose: GatewayPurpose },
 ): Promise<void> {
+  const L = logger({ tenant: tenantId });
   try {
     await emitEvent(db, tenantId, ASK_USAGE_KIND, "usage", "user", userId, data as unknown as Json);
   } catch (e) {
-    console.error("ask_usage_write_failed", e instanceof Error ? e.message : e);
+    L.error("ask_usage_write_failed", { error: errField(e) });
   }
 }
 

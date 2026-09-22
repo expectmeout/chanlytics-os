@@ -24,6 +24,10 @@ import {
   validateGatewayRequest,
 } from "../../lib/ask-gateway.js";
 import type { GatewayPurpose } from "../../lib/ask-gateway.js";
+import { env } from "../../lib/env.js";
+import { logger, errField } from "../../lib/log.js";
+
+const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const API = "https://api.anthropic.com/v1/messages";
@@ -40,7 +44,7 @@ const VERSION = "2023-06-01";
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/llm");
   if (!auth.ok) return auth.response;
-  const key = process.env.ANTHROPIC_API_KEY;
+  const key = env.ANTHROPIC_API_KEY;
   if (!key) return json(503, { ok: false, error: "no_model_key" });
 
   const raw = await request.text();
@@ -69,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
     budgetSeen.set(tenantId, { at: Date.now(), used });
   }
   if (used >= ASK_TOKENS_DAY) {
-    console.warn("ask_budget_spent", JSON.stringify({ tenant: tenantId, used, cap: ASK_TOKENS_DAY }));
+    L.warn("ask_budget_spent", { tenant: tenantId, used, cap: ASK_TOKENS_DAY });
     return json(429, { ok: false, error: "ask_budget", used, cap: ASK_TOKENS_DAY });
   }
 
@@ -83,12 +87,12 @@ export async function POST(request: Request): Promise<Response> {
       signal: AbortSignal.timeout(55_000),
     });
   } catch (e) {
-    console.error("ask_gateway_unreachable", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+    L.error("ask_gateway_unreachable", { error: errField(e) });
     return json(502, { ok: false, error: "model_unreachable" });
   }
   if (!upstream.ok || !upstream.body) {
     const text = await upstream.text().catch(() => "");
-    console.error("ask_gateway_refused", JSON.stringify({ status: upstream.status, body: text.slice(0, 300) }));
+    L.error("ask_gateway_refused", { status: upstream.status, body: text.slice(0, 300) });
     return new Response(text || JSON.stringify({ ok: false, error: `model ${upstream.status}` }), {
       status: upstream.status,
       headers: { "content-type": "application/json", "cache-control": "no-store" },
@@ -96,7 +100,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const stream = teeUsage(upstream.body, async (usage, stopReason) => {
     const latency = Date.now() - t0;
-    console.log("ask_gateway_turn", JSON.stringify({ tenant: tenantId, ...usage, stop_reason: stopReason, ms: latency }));
+    L.info("ask_gateway_turn", { tenant: tenantId, ...usage, stop_reason: stopReason, ms: latency });
     await recordAskUsage(db, tenantId, userId, { ...usage, model: v.request.model, latency_ms: latency, stop_reason: stopReason, stream: true, purpose });
   });
   return new Response(stream, {

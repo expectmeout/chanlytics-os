@@ -16,6 +16,7 @@ import { pg } from "../lib/pg.js";
 import { logger } from "../lib/log.js";
 import { applySubscription, forgetCustomer, forgetEvent, keepEvent, notePayment, noteTrialEnding, stripe, subscriptionFacts, tenantOf } from "../lib/billing.js";
 import { receptionistOn } from "../lib/packages/contracts.js";
+import { env } from "../lib/env.js";
 
 export const config = { maxDuration: 30 };
 
@@ -24,7 +25,7 @@ const idOf = (x: string | { id: string } | null | undefined): string | null => (
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ hook: "stripe" });
   const s = stripe();
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = env.STRIPE_WEBHOOK_SECRET;
   if (!s || !secret) return json(503, { ok: false, error: "not_ready" });
   const raw = await request.text();
   const sig = request.headers.get("stripe-signature") ?? "";

@@ -27,6 +27,10 @@ import {
   planAgentSettings,
   type LiveAgentSettings,
 } from "../../lib/packages/channels.js";
+import { env } from "../../lib/env.js";
+import { logger } from "../../lib/log.js";
+
+const L = logger();
 
 interface Body {
   agent_id?: string;
@@ -43,7 +47,7 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
-  const apiKey = process.env.RETELL_API_KEY;
+  const apiKey = env.RETELL_API_KEY;
   if (!apiKey) return json(503, { ok: false, error: "no_provider_key" });
   let body: Body = {};
   try { body = JSON.parse(await request.text()); } catch { /* dry run over every agent */ }
@@ -98,7 +102,7 @@ export async function POST(request: Request): Promise<Response> {
       }
       const after = await getAgentRaw(cfg, agentId);
       out.after = after ? { version: after.version ?? null, is_published: after.is_published ?? null, drift: planAgentSettings(after as unknown as LiveAgentSettings).drift } : null;
-      console.log("voice_converge", JSON.stringify({ agent_id: agentId, from: before.version ?? null, working, published: out.published_version ?? null, keys: out.patch_keys }));
+      L.info("voice_converge", { agent_id: agentId, from: before.version ?? null, working, published: out.published_version ?? null, keys: out.patch_keys });
     }
     agents.push(out);
   }

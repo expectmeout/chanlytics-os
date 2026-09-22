@@ -20,6 +20,7 @@ import type { Database } from "./packages/db.js";
 import { lineProviderFromEnv, rowToLine, type LineProviderChoice } from "./lines.js";
 import { provisionLine } from "./provision.js";
 import { automaticResumesOf, claimLineForResume, countAutomaticResume, MAX_AUTOMATIC_RESUMES, type ResumedBy } from "./line-resume.js";
+import { env } from "./env.js";
 
 export interface LineProvisionOutcome {
   ok: boolean;
@@ -40,7 +41,7 @@ export interface LineProvisionDeps {
 export function realLineProvisionDeps(): LineProvisionDeps {
   return {
     provider: lineProviderFromEnv,
-    env: { apiKey: process.env.RETELL_API_KEY, fnSecret: process.env.RETELL_FN_SECRET },
+    env: { apiKey: env.RETELL_API_KEY, fnSecret: env.RETELL_FN_SECRET },
     provision: provisionLine,
     now: Date.now,
   };

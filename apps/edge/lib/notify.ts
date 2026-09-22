@@ -27,6 +27,8 @@ import type { Database } from "./packages/db.js";
 import type { NotificationsConfig } from "./packages/contracts.js";
 import { SERVER_NOTIFICATION_KINDS } from "./packages/contracts.js";
 import { pg } from "./pg.js";
+import { env } from "./env.js";
+import { logger, errField } from "./log.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -60,7 +62,7 @@ export interface NotifyMessage {
 }
 
 export function platformFrom(): string | null {
-  return process.env.LEAD_FROM || null;
+  return env.LEAD_FROM || null;
 }
 /**
  * The platform's mailboxes: LEAD_TO, one address or several separated by
@@ -69,7 +71,7 @@ export function platformFrom(): string | null {
  * first.
  */
 export function platformTo(): string[] {
-  return (process.env.LEAD_TO || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return (env.LEAD_TO || "").split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 /** What the transport and the row store can be replaced with, by a test. The real ones are the default. */
@@ -81,9 +83,10 @@ export interface NotifyPorts {
 }
 
 export async function post(from: string, to: string[], subject: string, text: string): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY;
+  const L = logger();
+  const key = env.RESEND_API_KEY;
   if (!key) {
-    console.error("notify_skipped_no_api_key", redactNumbers(subject));
+    L.error("notify_skipped_no_api_key", { subject: redactNumbers(subject) });
     return false;
   }
   try {
@@ -97,12 +100,12 @@ export async function post(from: string, to: string[], subject: string, text: st
       // Loud, with the status: this is the alarm channel failing, and the only
       // place it can be noticed is the log.
       const detail = await r.text().catch(() => "");
-      console.error("notify_rejected", JSON.stringify({ status: r.status, subject: redactNumbers(subject), detail: detail.slice(0, 200) }));
+      L.error("notify_rejected", { status: r.status, subject: redactNumbers(subject), detail: detail.slice(0, 200) });
       return false;
     }
     return true;
   } catch (e) {
-    console.error("notify_failed", JSON.stringify({ subject: redactNumbers(subject), error: e instanceof Error ? e.message : String(e) }));
+    L.error("notify_failed", { subject: redactNumbers(subject), error: errField(e) });
     return false;
   }
 }
@@ -191,18 +194,20 @@ export async function recordNotification(
   if (!tenantId) return;
   if (!db) return;
   const kind = n.kind && KEPT_KINDS.has(n.kind) ? n.kind : "alert";
+  const L = logger({ tenant: tenantId });
   try {
     const { error } = await db.from("notifications").insert({
       tenant_id: tenantId, kind, title: n.title.slice(0, 200), body: n.body.slice(0, 4000),
       route: n.route ?? null, subject_type: n.about?.type ?? null, subject_id: n.about?.id ?? null,
     });
-    if (error) console.error("notification_record_failed", JSON.stringify({ tenant: tenantId, kind, error: error.message }));
+    if (error) L.error("notification_record_failed", { kind, error: error.message });
   } catch (e) {
-    console.error("notification_record_failed", JSON.stringify({ tenant: tenantId, kind, error: e instanceof Error ? e.message : String(e) }));
+    L.error("notification_record_failed", { kind, error: errField(e) });
   }
 }
 
 export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts = {}): Promise<boolean> {
+  const L = logger({ tenant: target.tenantId });
   const send = ports.send ?? post;
   // The row first: it is the workspace's own record, addressed or not.
   await recordNotification(target.tenantId, { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about }, ports.db === undefined ? pg() : ports.db);
@@ -214,7 +219,7 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
       return send(addressing.from, addressing.to, msg.subject, msg.body);
 
     case "redacted": {
-      console.error("notify_tenant_unaddressable", JSON.stringify({ tenant: target.tenantId, subject: redactNumbers(msg.subject) }));
+      L.error("notify_tenant_unaddressable", { subject: redactNumbers(msg.subject) });
       if (!msg.redactedBody) return false;
       return send(
         addressing.from,
@@ -227,7 +232,7 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
     }
 
     case "none":
-      console.error("notify_no_recipient", JSON.stringify({ tenant: target.tenantId, subject: redactNumbers(msg.subject) }));
+      L.error("notify_no_recipient", { subject: redactNumbers(msg.subject) });
       return false;
   }
 }

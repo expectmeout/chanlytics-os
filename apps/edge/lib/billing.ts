@@ -15,7 +15,8 @@ import {
   type BillingAccountDto, type BillingInvoiceDto, type BillingPriceDto, type BillingStatus, type SubscriptionFacts,
 } from "./packages/contracts.js";
 import { recordNotification } from "./notify.js";
-import { logger } from "./log.js";
+import { logger, errField } from "./log.js";
+import { env } from "./env.js";
 
 type Db = SupabaseClient<Database>;
 export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
@@ -25,7 +26,7 @@ export const DEFAULT_DASHBOARD_ORIGIN = "https://app.chanlytics.com";
 
 /** Where the browser lands after Stripe: Settings › Billing on the dashboard's origin, with the outcome in a word the pane reads once. An origin only — no path, no trailing slash — or the default. */
 export function dashboardOrigin(): string {
-  const o = process.env.DASHBOARD_ORIGIN;
+  const o = env.DASHBOARD_ORIGIN;
   return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_DASHBOARD_ORIGIN;
 }
 
@@ -43,7 +44,7 @@ export function setStripeClient(c: Stripe | null): void {
 }
 export function stripe(): Stripe | null {
   if (injected) return injected;
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = env.STRIPE_SECRET_KEY;
   if (!key) return null;
   // Built on first use, not at import: the webhook and the ops share it, and
   // a deployment without a key must still answer "not ready".
@@ -52,7 +53,7 @@ export function stripe(): Stripe | null {
 }
 
 export function priceId(): string | null {
-  return process.env.STRIPE_PRICE_ID || null;
+  return env.STRIPE_PRICE_ID || null;
 }
 
 export function trialDays(): number {
@@ -62,7 +63,7 @@ export function trialDays(): number {
   // below as a deliberate zero: Checkout omitted trial_period_days and took the
   // card on the spot, while Billing and Setup went on offering "the 0-day trial
   // with a card; nothing is charged until it ends".
-  const raw = (process.env.BILLING_TRIAL_DAYS ?? "").trim();
+  const raw = (env.BILLING_TRIAL_DAYS ?? "").trim();
   if (!raw) return BILLING_TRIAL_DAYS;
   const n = Number(raw);
   return Number.isInteger(n) && n >= 0 && n <= 90 ? n : BILLING_TRIAL_DAYS;
@@ -70,9 +71,9 @@ export function trialDays(): number {
 
 /** The door is open when the key, the price and the webhook secret are all on the edge. */
 export function billingReadiness(): { ready: boolean; key: boolean; price: boolean; webhook: boolean } {
-  const key = !!process.env.STRIPE_SECRET_KEY;
+  const key = !!env.STRIPE_SECRET_KEY;
   const price = !!priceId();
-  const webhook = !!process.env.STRIPE_WEBHOOK_SECRET;
+  const webhook = !!env.STRIPE_WEBHOOK_SECRET;
   return { ready: key && price && webhook, key, price, webhook };
 }
 
@@ -82,7 +83,7 @@ export function billingReadiness(): { ready: boolean; key: boolean; price: boole
  * guessed. Billing and Setup say test mode from it (the wiring audit's S9).
  */
 export function stripeLivemode(): boolean | null {
-  const key = process.env.STRIPE_SECRET_KEY ?? "";
+  const key = env.STRIPE_SECRET_KEY ?? "";
   if (key.startsWith("sk_live_") || key.startsWith("rk_live_")) return true;
   if (key.startsWith("sk_test_") || key.startsWith("rk_test_")) return false;
   return null;
@@ -112,7 +113,7 @@ async function readPrice(s: Stripe, id: string): Promise<BillingPriceDto | null>
     const interval = iv === "day" || iv === "week" || iv === "month" || iv === "year" ? (iv as BillingPriceDto["interval"]) : null;
     return { id: p.id, currency: p.currency, unit_amount: p.unit_amount, interval, product_name: product };
   } catch (e) {
-    console.error("billing_price_unreadable", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+    logger().error("billing_price_unreadable", { error: errField(e) });
     return null;
   }
 }

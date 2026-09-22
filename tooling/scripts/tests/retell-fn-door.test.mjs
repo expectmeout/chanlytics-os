@@ -124,13 +124,21 @@ async function withEnv(patch, fn) {
 async function listening(fn) {
   const lines = [];
   const real = { log: console.log, warn: console.warn, error: console.error };
-  for (const stream of ["log", "warn", "error"]) console[stream] = (...args) => { lines.push({ stream, event: String(args[0]), args }); };
+  // The logger writes ONE JSON object per line, so the event and the fields
+  // are read back out of it; a line that is not an envelope keeps its text.
+  for (const stream of ["log", "warn", "error"]) console[stream] = (...args) => {
+    const raw = String(args[0]);
+    let envelope = null;
+    try { const o = JSON.parse(raw); if (o && typeof o === "object" && typeof o.event === "string") envelope = o; } catch { /* not an envelope */ }
+    const { level: _level, event: _event, ...fields } = envelope ?? {};
+    lines.push({ stream, event: envelope ? envelope.event : raw, args, fields });
+  };
   try {
     return await fn({
       lines,
       said: (name) => lines.filter((l) => l.event === name),
       /** The fields a `retell_fn_*` line carries, parsed. */
-      fields: (name) => lines.filter((l) => l.event === name).map((l) => JSON.parse(l.args[1])),
+      fields: (name) => lines.filter((l) => l.event === name).map((l) => l.fields),
     });
   } finally {
     Object.assign(console, real);
@@ -322,13 +330,14 @@ test("before a workspace is known: a number that is no phone is read back before
     const noAgent = w.ask(w.number());
     delete noAgent.call.agent_id;
     assert.equal(await spoken(await knock(noAgent)), CANNOT_SEND, "no agent on the call: no routing key, so no workspace");
-    assert.deepEqual(log.fields("retell_fn_unroutable"), [{ has_db: false, agent_id: w.AGENT }, { has_db: true, agent_id: null }]);
+    assert.deepEqual(log.fields("retell_fn_unroutable").map((f) => ({ has_db: f.has_db, agent_id: f.agent_id })), [{ has_db: false, agent_id: w.AGENT }, { has_db: true, agent_id: null }]);
+    assert.ok(log.fields("retell_fn_unroutable").every((f) => typeof f.call_id === "string" && f.call_id), "and each line names the call it could not route");
     assert.equal(again.seen.length, 0, "and nothing read without one");
 
     const stranger = w.ask(w.number());
     stranger.call.agent_id = `${w.AGENT}_nobody`;
     assert.equal(await spoken(await knock(stranger)), CANNOT_SEND, "an agent no row names");
-    assert.deepEqual(log.said("retell_fn_unknown_agent").map((l) => l.args.slice(1)), [[`${w.AGENT}_nobody`]]);
+    assert.deepEqual(log.said("retell_fn_unknown_agent").map((l) => [l.fields.agent_id]), [[`${w.AGENT}_nobody`]]);
     assert.deepEqual(again.seen.map((q) => [q.table, q.op, q.filters]), [["tenant_channels", "select", [["eq", "kind", "voice"], ["eq", "external_id", `${w.AGENT}_nobody`]]]], "the routing answer, and nothing of any workspace");
   });
 
@@ -494,7 +503,7 @@ test("every number a caller is told is the one the resolver publishes: with none
           type: "template", body: NOTE, external_id: null, status: "failed", meta: { source: SOURCE, call_id: ask.call.call_id, http_status: 400, body: refusedBody },
         }], `${why}: the business can see it tried`);
         assert.deepEqual(w.tables.events.filter((e) => e.kind === "message.send_failed").map((e) => [e.subject_id, e.data]), [[w.tables.messages[0].id, { http_status: 400, body: refusedBody, reason: "provider" }]]);
-        assert.deepEqual(log.said("booking_link_send_failed").map((l) => l.args.slice(1)), [[400, refusedBody]]);
+        assert.deepEqual(log.said("booking_link_send_failed").map((l) => [l.fields.status, l.fields.body]), [[400, refusedBody]]);
       });
     }
   } finally {
@@ -622,7 +631,7 @@ test("a repository call that throws is not a 500: the caller is told the WhatsAp
   w.open({ "contacts.select": { message: "canceling statement due to statement timeout" } });
   await listening(async (log) => {
     assert.equal(await spoken(await knock(w.ask(caller))), CANNOT_SEND);
-    assert.deepEqual(log.said("retell_fn_failed").map((l) => l.args.slice(1)), [["resolve_outbound_target: canceling statement due to statement timeout"]]);
+    assert.deepEqual(log.said("retell_fn_failed").map((l) => [l.fields.error]), [["Error: resolve_outbound_target: canceling statement due to statement timeout"]]);
     assert.deepEqual([w.left().calls, w.tables.messages], [[], []]);
   });
 });

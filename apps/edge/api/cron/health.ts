@@ -31,6 +31,7 @@ import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "..
 import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/receipts-watch.js";
 import { checkMailDomain, describeMailDomainTrouble } from "../../lib/mail-domain.js";
 import { emailDomain } from "../../lib/email.js";
+import { env } from "../../lib/env.js";
 
 export const config = { maxDuration: 60 };
 
@@ -114,7 +115,7 @@ export async function POST(request: Request): Promise<Response> {
   // on our side changes, so there is no row to read and this is the only way
   // to find out. Email off on this deployment checks nothing.
   const mailDomain = emailDomain();
-  const mail = await checkMailDomain({ domain: mailDomain, apiKey: process.env.RESEND_API_KEY });
+  const mail = await checkMailDomain({ domain: mailDomain, apiKey: env.RESEND_API_KEY });
   if (mail.error) L.error("mail_domain_unreadable", { domain: mailDomain, error: mail.error });
   if (mail.trouble && mailDomain) {
     const page = describeMailDomainTrouble(mail.trouble, mailDomain);

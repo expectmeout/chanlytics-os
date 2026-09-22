@@ -351,7 +351,7 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
   assert.ok(retire.filters.some(([op, col, val]) => op === "eq" && col === "status" && val === "queued"), "retired only while still queued: the count is the guard");
   assert.equal(retire.columns, "id", "and the rows touched are read back, so zero can be told from one");
   // The log carries the shape of what happened, never the words.
-  const line = log.lines.find((l) => l.startsWith("admin_steer"));
+  const line = log.lines.find((l) => l.includes('"event":"admin_steer"'));
   assert.ok(line, "one line");
   assert.ok(line.includes(`"chars":${OWNER_SAYS.length}`) && line.includes(draft.id), "the length and the ids");
   assert.ok(!line.includes(OWNER_SAYS) && !line.includes(ANSWER.text.slice(0, 20)), "the words are the owner's and the model's and stay out of the log");
@@ -396,7 +396,7 @@ test("a rewrite that would quote a price is refused, and the original draft and 
   assert.equal(writes(db, "messages").length + writes(db, "jobs").length, 0, "nothing written");
   assert.equal(tables.messages.find((m) => m.id === w.M).status, "queued");
   assert.equal(tables.jobs.find((j) => j.id === w.J).state, "scheduled");
-  assert.ok(log.lines.some((l) => l.startsWith("steer_policy_block_price")));
+  assert.ok(log.lines.some((l) => l.includes('"event":"steer_policy_block_price"')));
   assert.ok(!log.lines.some((l) => l.includes("$180")), "the words stay out of the log");
 });
 
@@ -539,7 +539,7 @@ test("the real brain refusing is the door's 502: no port, the wire unscripted, a
   } finally { log.restore(); }
   assert.ok(wire.calls.length > before, "the real brain tried the model and could not reach it -- the refusal is the wire's, not a stub's");
   assert.deepEqual(await answer(res), [502, { ok: false, error: "brain_failed" }]);
-  assert.ok(log.lines.some((l) => l.startsWith("steer_brain_failed")));
+  assert.ok(log.lines.some((l) => l.includes('"event":"steer_brain_failed"')));
   assert.equal(writes(db, "messages").length + writes(db, "jobs").length, 0, "nothing written");
   assert.equal(tables.messages.find((m) => m.id === w.M).status, "queued", "the draft still waits for its window");
 });

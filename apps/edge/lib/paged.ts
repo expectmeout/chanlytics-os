@@ -20,6 +20,7 @@
  * unique — a range over an unstable order repeats and skips rows across page
  * boundaries — which is why every call site below names a tiebreak column.
  */
+import { logger } from "./log.js";
 
 /** `api.max_rows` in supabase/config.toml. A page is a whole one or the last one. */
 export const MAX_ROWS = 1000;
@@ -51,6 +52,6 @@ export async function readAllRows<T>(what: string, page: (from: number, to: numb
     out.push(...rows);
     if (rows.length < size) return out;
   }
-  console.error(JSON.stringify({ level: "error", event: "paged_read_capped", what, cap }));
+  logger().error("paged_read_capped", { what, cap });
   return out;
 }

@@ -23,6 +23,7 @@ import type { Database, Json } from "./packages/db.js";
 import { fetchRecording } from "./packages/channels.js";
 import { setCallRecording } from "./packages/db.js";
 import { RECORDING_RETENTION_DAYS } from "./packages/contracts.js";
+import { logger } from "./log.js";
 
 export const RECORDING_MAX_ATTEMPTS = 3;
 /** The webhook's budget: the agent allows 20 s for the whole event and the upsert has already spent some. */
@@ -151,6 +152,7 @@ export async function copyRecording(
   db: SupabaseClient<Database>,
   p: { tenantId: string; callId: string; providerUrl: string; attempts?: number | null; timeoutMs: number },
 ): Promise<CopyOutcome> {
+  const L = logger({ tenant: p.tenantId });
   const attempt = (p.attempts ?? 0) + 1;
   const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
   const settle = async (state: "stored" | "pending" | "failed", extra: Record<string, unknown>) =>
@@ -183,7 +185,7 @@ export async function copyRecording(
     // otherwise, so the row stays pending and the sweep tries again — a
     // bounded number of times.
     const message = String(e instanceof Error ? e.message : e).slice(0, 200);
-    console.error("call_recording_copy_failed", JSON.stringify({ call: p.callId, attempt, exhausted, message }));
+    L.error("call_recording_copy_failed", { call: p.callId, attempt, exhausted, message });
     await settle(exhausted ? "failed" : "pending", { error: message });
     return exhausted ? "failed" : "retry";
   }

@@ -121,7 +121,15 @@ function wire() {
 async function listening(fn) {
   const lines = [];
   const real = { log: console.log, warn: console.warn, error: console.error };
-  for (const stream of ["log", "warn", "error"]) console[stream] = (...args) => { lines.push({ stream, event: String(args[0]), args }); };
+  // The logger writes ONE JSON object per line, so the event and the fields
+  // are read back out of it; a line that is not an envelope keeps its text.
+  for (const stream of ["log", "warn", "error"]) console[stream] = (...args) => {
+    const raw = String(args[0]);
+    let envelope = null;
+    try { const o = JSON.parse(raw); if (o && typeof o === "object" && typeof o.event === "string") envelope = o; } catch { /* not an envelope */ }
+    const { level: _level, event: _event, ...fields } = envelope ?? {};
+    lines.push({ stream, event: envelope ? envelope.event : raw, args, fields });
+  };
   try {
     return await fn({ lines, said: (name) => lines.filter((l) => l.event === name) });
   } finally {
@@ -323,7 +331,7 @@ test("a routed number runs its own workspace's receptionist: the channel the dat
     assert.equal(kind(w.tables, "ingest.unroutable").length, 0);
 
     const [line] = log.said("wa_inbound");
-    assert.deepEqual(JSON.parse(line.args[1]), { from_tail: from.slice(-4), type: "text", id }, "a tail, a type and an id");
+    assert.deepEqual(line.fields, { from_tail: from.slice(-4), type: "text", id }, "a tail, a type and an id");
     assert.ok(!line.args.join(" ").includes(from), "never the number");
   });
 });
@@ -357,7 +365,7 @@ test("a number the database answers is not ours: dead-lettered under the platfor
 
       assert.deepEqual([seen.runtimes, seen.ingested, seen.sent], [[], [], []], "nobody's receptionist ran and nothing was recorded for a workspace");
       assert.equal(w.tables.notifications.length, 0, "there is no workspace whose bell could ring");
-      assert.deepEqual(log.said("wa_skip_unroutable").map((l) => JSON.parse(l.args[1])), [{ phone_number_id: w.PHONE_ID, messages: 2 }, { phone_number_id: w.stranger, messages: 1 }]);
+      assert.deepEqual(log.said("wa_skip_unroutable").map((l) => l.fields), [{ phone_number_id: w.PHONE_ID, messages: 2 }, { phone_number_id: w.stranger, messages: 1 }]);
 
       // More traffic inside the window: kept again, and nobody is mailed again.
       assert.equal((await deliver(w.change({ messages: [text(w.customer(), `wamid.${w.i}.off3`, "hello??")] }))).status, 200);
@@ -384,8 +392,8 @@ test("a number the database could not answer for is not acknowledged: 503 with t
       assert.ok(mail[0].text.startsWith(`2 message(s) just arrived for phone_number_id ${w.PHONE_ID} and the channel row could not be read`), mail[0].text);
       assert.deepEqual([seen.runtimes, seen.ingested, seen.sent], [[], [], []], "nothing recorded and nothing said");
       assert.equal(kind(w.tables, "ingest.unroutable").length, 0, "a blip is not a decision: nothing is dead-lettered");
-      assert.deepEqual(log.said("wa_routing_lookup_failed").map((l) => l.args[1]), [w.PHONE_ID]);
-      assert.deepEqual(log.said("wa_skip_routing_failed").map((l) => JSON.parse(l.args[1])), [{ phone_number_id: w.PHONE_ID, messages: 2 }]);
+      assert.deepEqual(log.said("wa_routing_lookup_failed").map((l) => l.fields.phone_number_id), [w.PHONE_ID]);
+      assert.deepEqual(log.said("wa_skip_routing_failed").map((l) => l.fields), [{ phone_number_id: w.PHONE_ID, messages: 2 }]);
 
       // The redelivery, with the database well. A failed lookup is never
       // cached, so the same batch routes, and both messages are handled.
@@ -415,8 +423,8 @@ test("the same failure on the environment's own number is no exception: not ackn
       assert.deepEqual(await answer(res), [503, { ok: false, unrecorded: 1 }], "not acknowledged, so Meta redelivers once the read works");
       assert.deepEqual([seen.runtimes, seen.ingested, seen.sent], [[], [], []], "nothing recorded and nothing said in anyone's voice");
       assert.equal(kind(w.tables, "ingest.unroutable").length, 0, "a blip is not a decision: nothing is dead-lettered");
-      assert.deepEqual(log.said("wa_routing_lookup_failed").map((l) => l.args[1]), [ENV_PHONE_ID]);
-      assert.deepEqual(log.said("wa_skip_routing_failed").map((l) => JSON.parse(l.args[1])), [{ phone_number_id: ENV_PHONE_ID, messages: 1 }]);
+      assert.deepEqual(log.said("wa_routing_lookup_failed").map((l) => l.fields.phone_number_id), [ENV_PHONE_ID]);
+      assert.deepEqual(log.said("wa_skip_routing_failed").map((l) => l.fields), [{ phone_number_id: ENV_PHONE_ID, messages: 1 }]);
       const mail = line.mail();
       assert.equal(mail.length, 1, "the platform is told the control plane cannot be read");
       assert.equal(mail[0].subject, "WhatsApp messages are arriving and the control plane cannot be read");
@@ -462,7 +470,7 @@ test("the account's own news is routed by its WABA and never by a number: kept a
       assert.equal(mail.length, 1);
       assert.deepEqual([mail[0].to, mail[0].subject], [[OWNER], "WhatsApp quality rating flagged"], "and the workspace's own mailbox");
       assert.ok(mail[0].text.includes(`Your WhatsApp number ${w.LINE} has been flagged`), mail[0].text);
-      assert.deepEqual(log.said("wa_waba_event").map((l) => JSON.parse(l.args[1])), [{ field: "phone_number_quality_update", waba_id: w.WABA, outcome: "alerted" }]);
+      assert.deepEqual(log.said("wa_waba_event").map((l) => l.fields), [{ field: "phone_number_quality_update", waba_id: w.WABA, outcome: "alerted" }]);
 
       // No entry id: there is nothing to route the news by, so not one row is read.
       const before = db.seen.length;
@@ -470,7 +478,7 @@ test("the account's own news is routed by its WABA and never by a number: kept a
       assert.equal(db.seen.length, before);
       // A WABA no workspace holds: looked up, not found, kept nowhere.
       assert.deepEqual(await answer(await deliver(news(`${w.WABA}0`))), [200, { ok: true }]);
-      assert.deepEqual(log.said("wa_waba_event").slice(1).map((l) => JSON.parse(l.args[1])), [
+      assert.deepEqual(log.said("wa_waba_event").slice(1).map((l) => l.fields), [
         { field: "phone_number_quality_update", waba_id: null, outcome: "unrouted" },
         { field: "phone_number_quality_update", waba_id: `${w.WABA}0`, outcome: "unrouted" },
       ]);
@@ -555,7 +563,7 @@ test("an owner's reply from the Business app pauses the receptionist for the wor
     assert.deepEqual(log.said("echo_pause_not_persisted"), [], "with the store retired nothing tries to mirror the pause into a thread");
     assert.deepEqual([log.said("echo_handling_error"), log.said("pg_echo_failed")], [[], []]);
     const [paused] = log.said("wa_paused_by_echo");
-    assert.deepEqual(paused.args.slice(1), [to.slice(-4)], "said with a tail, never the number");
+    assert.deepEqual([paused.fields.to_tail], [to.slice(-4)], "said with a tail, never the number");
   });
 });
 
@@ -590,7 +598,7 @@ test("the ack rule: a message the database refused is not acknowledged, 503 with
     assert.deepEqual(seen.ingested.map((x) => x.body), ["the refused one", "the kept one"], "the message after the failure was still handled");
     assert.deepEqual(seen.sent.map((s) => s.to), [kept], "and the customer whose words were kept was answered");
     assert.deepEqual(seen.alerts.filter((a) => a.reason === "message not recorded").map((a) => a.thread), [refused], "a copy of the refused words went to the workspace");
-    assert.deepEqual(log.said("wa_inbound_failed").map((l) => l.args.slice(1)), [[`wamid.${w.i}.refused`, "connection reset by peer"]]);
+    assert.deepEqual(log.said("wa_inbound_failed").map((l) => [l.fields.id, l.fields.error]), [[`wamid.${w.i}.refused`, "IngestFailed: connection reset by peer"]]);
   });
 
   const v = world();
@@ -604,6 +612,6 @@ test("the ack rule: a message the database refused is not acknowledged, 503 with
     assert.deepEqual(seen2.ingested.map((x) => x.body), ["the broken one", "the fine one"]);
     assert.deepEqual(seen2.sent.map((s) => s.to), [fine]);
     assert.deepEqual(seen2.alerts.filter((a) => a.reason === "message not recorded"), [], "and nobody is told a message went unrecorded");
-    assert.deepEqual(log.said("wa_inbound_failed").map((l) => l.args.slice(1)), [[`wamid.${v.i}.broken`, "cannot read properties of undefined"]], "but it is said");
+    assert.deepEqual(log.said("wa_inbound_failed").map((l) => [l.fields.id, l.fields.error]), [[`wamid.${v.i}.broken`, "TypeError: cannot read properties of undefined"]], "but it is said");
   });
 });

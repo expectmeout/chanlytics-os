@@ -15,10 +15,13 @@ import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { labelsOf, listTemplates, templateRow } from "../../../lib/meta-templates.js";
+import { logger } from "../../../lib/log.js";
 
 /** Meta's own samples: on file, never offered. */
 const SAMPLE_TEMPLATES = new Set(["hello_world"]);
 import type { Json } from "../../../lib/packages/db.js";
+
+const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -51,7 +54,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const listed = await listTemplates(creds.accessToken, ch.waba_id);
   if (!listed.ok) {
-    console.error("wa_templates_list_failed", JSON.stringify({ tenant_id: tenantId, status: listed.status, error: listed.error.slice(0, 200) }));
+    L.error("wa_templates_list_failed", { tenant_id: tenantId, status: listed.status, error: listed.error.slice(0, 200) });
     return json(502, { ok: false, error: "meta_failed", detail: listed.error });
   }
 
@@ -82,6 +85,6 @@ export async function POST(request: Request): Promise<Response> {
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;
   const marketing = rows.filter((r) => r.meta_status === "approved" && r.category === "marketing").length;
-  console.log("wa_templates_synced", JSON.stringify({ tenant_id: tenantId, seen: rows.length, approved, marketing }));
+  L.info("wa_templates_synced", { tenant_id: tenantId, seen: rows.length, approved, marketing });
   return json(200, { ok: true, seen: rows.length, approved, marketing, synced_at: now.toISOString() });
 }

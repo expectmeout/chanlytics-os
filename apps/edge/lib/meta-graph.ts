@@ -10,6 +10,7 @@
  * number is registered for Cloud API messaging with a two-step PIN. Every
  * call reports the API's own error message; nothing is retried blindly.
  */
+import { env } from "./env.js";
 
 export const GRAPH_VERSION = "v25.0";
 
@@ -21,7 +22,7 @@ export const GRAPH_VERSION = "v25.0";
  */
 export const DEFAULT_META_APP_ID = "1823820738182125";
 export function metaAppId(): string {
-  return process.env.META_APP_ID || DEFAULT_META_APP_ID;
+  return env.META_APP_ID || DEFAULT_META_APP_ID;
 }
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 

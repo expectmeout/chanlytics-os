@@ -20,6 +20,7 @@
 import crypto from "node:crypto";
 import { json } from "./http.js";
 import { verifyEdgeToken } from "./packages/channels.js";
+import { env } from "./env.js";
 
 export type AdminAuth =
   | { ok: true; via: "token" | "key"; workspace: string | null; user: string | null }
@@ -27,13 +28,13 @@ export type AdminAuth =
 
 export function authorizeAdmin(request: Request, aud: string): AdminAuth {
   const token = request.headers.get("x-edge-token");
-  const secret = process.env.EDGE_CALL_SECRET;
+  const secret = env.EDGE_CALL_SECRET;
   if (token && secret) {
     const v = verifyEdgeToken(secret, token, aud);
     if (!v.ok) return { ok: false, response: json(403, { ok: false, error: `token_${v.reason}` }) };
     return { ok: true, via: "token", workspace: v.claims.ws, user: v.claims.user };
   }
-  const key = process.env.DIAG_KEY || "";
+  const key = env.DIAG_KEY || "";
   const presented = request.headers.get("x-diag-key") || "";
   const a = Buffer.from(presented);
   const b = Buffer.from(key);

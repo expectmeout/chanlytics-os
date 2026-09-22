@@ -162,15 +162,15 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(hook.includes('return json(200, { ok: true, duplicate: true })') && hook.includes('return json(500, { ok: false, error: "write_failed" })'), "a duplicate is 200 without a write; a failed write is 500 so Stripe retries");
   for (const t of ['"customer.subscription.updated"', '"customer.subscription.paused"', '"checkout.session.completed"', '"customer.subscription.trial_will_end"', '"invoice.payment_failed"']) assert.ok(hook.includes(t), t);
   const lib = readCode("apps/edge/lib/billing.ts");
-  assert.ok(lib.includes("process.env.STRIPE_SECRET_KEY") && lib.includes("process.env.STRIPE_PRICE_ID") && lib.includes("process.env.STRIPE_WEBHOOK_SECRET"), "the key, the price and the secret on the edge alone");
+  assert.ok(lib.includes("env.STRIPE_SECRET_KEY") && lib.includes("env.STRIPE_PRICE_ID") && lib.includes("env.STRIPE_WEBHOOK_SECRET"), "the key, the price and the secret on the edge alone");
   assert.ok(lib.includes('mode: "subscription"') && lib.includes("trial_period_days: trial") && lib.includes("metadata: { tenant_id: tenantId }"), "Checkout in subscription mode, the trial applied, the workspace on the subscription");
   assert.ok(lib.includes("const trial = row.stripe_subscription_id ? 0 : trialDays();"), "the trial applies once");
   // Number("") is 0, not NaN, so a variable created in Vercel and left blank —
   // which is exactly what copying .env.example gives you — read as a deliberate
   // zero: no trial_period_days, the card charged on the spot, and every surface
   // still offering "the 0-day trial ... nothing is charged until it ends".
-  assert.ok(lib.includes('const raw = (process.env.BILLING_TRIAL_DAYS ?? "").trim();') && lib.includes("if (!raw) return BILLING_TRIAL_DAYS;"), "blank is unset, and it is tested BEFORE the number is parsed");
-  assert.ok(lib.indexOf('const raw = (process.env.BILLING_TRIAL_DAYS') < lib.indexOf("const n = Number(raw)"), "trimmed first, parsed second");
+  assert.ok(lib.includes('const raw = (env.BILLING_TRIAL_DAYS ?? "").trim();') && lib.includes("if (!raw) return BILLING_TRIAL_DAYS;"), "blank is unset, and it is tested BEFORE the number is parsed");
+  assert.ok(lib.indexOf('const raw = (env.BILLING_TRIAL_DAYS') < lib.indexOf("const n = Number(raw)"), "trimmed first, parsed second");
   assert.ok(lib.includes('s.subscriptions.resume(row.stripe_subscription_id, { billing_cycle_anchor: "now"'));
   assert.ok(lib.includes('if (error.code === "23505") return false;'), "a second delivery hits the primary key");
   assert.ok(lib.includes("planBilling(") && lib.includes('kind: "billing"'), "the plan decides, the edge writes and rings");

@@ -264,7 +264,7 @@ test("the migration: the connection row, the three Vault doors for the service r
 
 test("the edge: the secret alone on the edge, a read before a row, the grant given back on every refusal, the profile's reviews replacing the public five", () => {
   const lib = readCode("apps/edge/lib/google.ts");
-  for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"]) assert.ok(lib.includes(`process.env.${v}`), v);
+  for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"]) assert.ok(lib.includes(`env.${v}`), v);
   assert.ok(lib.includes('db.rpc("put_google_credentials"') && lib.includes('db.rpc("get_google_credentials"') && lib.includes('db.rpc("drop_google_credentials"'), "secrets through the vault doors");
   assert.equal((lib.match(/await (?:http|net)\(revokeRequest\(/g) ?? []).length, 7, "a grant that cannot be kept is given back: no scope, no refresh token, accounts unreadable, no locations, none on Maps, credentials unsaved, and disconnect — the first six are RUN below, `net` being connectProfile's injected transport");
   assert.ok(lib.includes('return { ok: false, error: "scope_missing" };') && lib.includes('return { ok: false, error: "no_refresh_token" };') && lib.includes('return { ok: false, error: "not_on_maps" };'));

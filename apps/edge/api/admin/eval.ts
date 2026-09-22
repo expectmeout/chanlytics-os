@@ -20,6 +20,10 @@ import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { resolveSystemPrompt, describeNow, fallbackMessages } from "../../lib/packages/contracts.js";
 import type { RoutedChannel } from "../../lib/packages/db.js";
 import { generateReply } from "../../lib/brain.js";
+import { env } from "../../lib/env.js";
+import { logger } from "../../lib/log.js";
+
+const L = logger();
 
 const MAX_CASES = 6;
 const MAX_CHARS = 500;
@@ -42,7 +46,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/eval");
   if (!auth.ok) return auth.response;
-  if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
+  if (!env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
 
   let body: { tenant_id?: string; cases?: EvalCase[] } = {};
   try { body = JSON.parse(await request.text()); } catch { /* below */ }
@@ -99,6 +103,6 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   }
   // The texts are the model's and stay out of the log; the count and the
   // time are what a search needs.
-  console.log("admin_eval", JSON.stringify({ tenant: tenantId, cases: cases.length, ms: Date.now() - started, prompt_chars: system.length }));
+  L.info("admin_eval", { tenant: tenantId, cases: cases.length, ms: Date.now() - started, prompt_chars: system.length });
   return json(200, { ok: true, prompt_chars: system.length, timezone: rt.timezone, results });
 }

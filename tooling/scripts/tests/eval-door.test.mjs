@@ -269,9 +269,9 @@ test("the run: each case is handed to the brain with its own history and the wor
   assert.ok(body.results.every((r) => Number.isInteger(r.ms) && r.ms >= 0), "how long each took");
   // Nothing sent, nothing written.
   assert.equal(wrote(db).length, 0, "the database is read for the runtime and never written to");
-  const line = log.lines.find((l) => l.startsWith("admin_eval"));
+  const line = log.lines.find((l) => l.includes('"event":"admin_eval"'));
   assert.ok(line, "one line");
-  const logged = JSON.parse(line.slice("admin_eval ".length));
+  const logged = JSON.parse(line);
   assert.deepEqual([logged.tenant, logged.cases, logged.prompt_chars, Number.isInteger(logged.ms)], [T, 2, system.length, true]);
   assert.ok(!log.lines.some((l) => l.includes("Saturday") || l.includes("reservar") || l.includes("open Monday")), "the texts are the model's and the case's and stay out of the log");
 

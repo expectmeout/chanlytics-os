@@ -356,5 +356,5 @@ test("delete, a row that was never synced: no template id on file, so Meta is no
   try { [status, body] = await answer(await knockDelete({ tenant_id: A, template_id: T2 })); } finally { log.restore(); net.restore(); }
   assert.deepEqual([status, body], [200, { ok: true, id: T2, name: "booking_link", at_meta: false }]);
   assert.equal(tables.templates.length, 0, "REGRESSION: refusing the local delete too left the row undeletable for ever");
-  assert.ok(log.lines.some((l) => l.startsWith("wa_template_delete_unsynced") && l.includes("booking_link")), "said in the log");
+  assert.ok(log.lines.some((l) => l.includes('"event":"wa_template_delete_unsynced"') && l.includes("booking_link")), "said in the log");
 });

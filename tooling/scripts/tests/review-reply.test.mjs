@@ -117,7 +117,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   assert.ok(lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"), "the facts are the brain's profile");
   const model = readCode("apps/edge/lib/review-reply.ts");
   assert.ok(model.includes('export const REVIEW_REPLY_MODEL = "claude-sonnet-5";') && model.includes("timeout: 15_000, maxRetries: 1") && model.includes("max_tokens: 300"));
-  assert.ok(model.includes('if (!process.env.ANTHROPIC_API_KEY) return { ok: false, error: "no_model_key" };'));
+  assert.ok(model.includes('if (!env.ANTHROPIC_API_KEY) return { ok: false, error: "no_model_key" };'));
   // The draft op -- Never refused before the review is read, the no-model
   // path -- runs in google-door.test.mjs.
 

@@ -10,6 +10,7 @@ import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { forwardingMatch, formatPhoneDisplay, type ForwardingFacts } from "./packages/contracts.js";
 import { recordNotification } from "./notify.js";
+import { logger, errField } from "./log.js";
 
 export interface ForwardingCall {
   fromE164: string | null;
@@ -19,6 +20,7 @@ export interface ForwardingCall {
 }
 
 export async function markForwardingVerified(db: SupabaseClient<Database>, tenantId: string, call: ForwardingCall): Promise<boolean> {
+  const L = logger({ tenant: tenantId });
   try {
     const { data, error } = await db
       .from("lines")
@@ -51,11 +53,11 @@ export async function markForwardingVerified(db: SupabaseClient<Database>, tenan
         about: { type: "line", id: row.id },
       });
       await emitEvent(db, tenantId, "line.forwarding_verified", "setup", "line", row.id, { from: call.fromE164, call_id: call.callId }).catch(() => {});
-      console.log("forwarding_verified", JSON.stringify({ tenant: tenantId, line: row.id, call: call.callId }));
+      L.info("forwarding_verified", { line: row.id, call: call.callId });
       return true;
     }
   } catch (e) {
-    console.error("forwarding_verify_failed", e instanceof Error ? e.message : String(e));
+    L.error("forwarding_verify_failed", { error: errField(e) });
   }
   return false;
 }

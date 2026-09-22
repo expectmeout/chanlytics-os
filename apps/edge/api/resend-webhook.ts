@@ -28,6 +28,7 @@ import { planResendEvent } from "../lib/email-ingress.js";
 import { applyEmailReceipt } from "../lib/email-receipts.js";
 import { emitEvent, type Json } from "../lib/packages/db.js";
 import { scheduleJobOnce } from "../lib/packages/jobs.js";
+import { env } from "../lib/env.js";
 
 export const config = { maxDuration: 30 };
 
@@ -52,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
     verdict = await planResendEvent({
       rawBody,
       headers: { id: request.headers.get("svix-id"), timestamp: request.headers.get("svix-timestamp"), signature: request.headers.get("svix-signature") },
-      secret: process.env.RESEND_WEBHOOK_SECRET,
+      secret: env.RESEND_WEBHOOK_SECRET,
       domain,
       db,
       nowMs: Date.now(),

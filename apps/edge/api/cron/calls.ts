@@ -30,6 +30,7 @@ import { logger, errField } from "../../lib/log.js";
 import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/packages/channels.js";
 import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from "../../lib/packages/db.js";
 import { copyRecording, purgeExpiredRecordings, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
+import { env } from "../../lib/env.js";
 
 /** Only look at rows that have had time to settle — a call that started
  *  seconds ago is not evidence of anything, and asking about it wastes a
@@ -84,7 +85,7 @@ export async function POST(request: Request): Promise<Response> {
   if (purge.error) L.error("calls_sweep_purge_failed", { error: purge.error, candidates: purge.candidates });
   else if (purge.candidates) L.info("calls_sweep_purged", { purged: purge.purged });
 
-  const apiKey = process.env.RETELL_API_KEY;
+  const apiKey = env.RETELL_API_KEY;
   if (!apiKey) {
     // Without the provider there is no authority to reconcile against, and
     // guessing is the one thing this sweep exists not to do.

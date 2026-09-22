@@ -15,6 +15,7 @@
  */
 import { parseIcs, freeWindows, describeOpenings, describeVisits, feedUrlOk, feedBodyProblem, seasonHorizon, visitsOf, ownAddressesOf, type FeedItem, type Opening, type ParsedFeed } from "./packages/contracts.js";
 import type { TenantRuntime } from "./tenant-runtime.js";
+import { logger, errField } from "./log.js";
 
 const CACHE_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 6000;
@@ -50,6 +51,7 @@ function httpsUrl(u: string): string {
 }
 
 async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: number): Promise<string | null> {
+  const L = logger({ tenant: tenantId });
   const key = cacheKey(tenantId, url);
   const hit = feeds.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.text;
@@ -61,7 +63,7 @@ async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: n
     if (!safe) throw new Error("address refused: not a public https/webcal address");
     const r = await fetch(httpsUrl(safe), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: { accept: "text/calendar, text/plain;q=0.5, */*;q=0.1" } });
     if (!r.ok) {
-      console.error("availability_feed_http", JSON.stringify({ tenant: tenantId, status: r.status }));
+      L.error("availability_feed_http", { status: r.status });
     } else {
       const body = await r.text();
       // One ceiling, one judgement, shared with the dashboard's loader: this
@@ -70,12 +72,12 @@ async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: n
       // other, and the receptionist and the board would then disagree about a
       // business's own week with nothing on any page to say why.
       const problem = feedBodyProblem(body);
-      if (problem === "too_large") console.error("availability_feed_too_large", JSON.stringify({ tenant: tenantId, bytes: body.length }));
-      else if (problem === "not_ical") console.error("availability_feed_not_ical", JSON.stringify({ tenant: tenantId, head: body.slice(0, 40) }));
+      if (problem === "too_large") L.error("availability_feed_too_large", { bytes: body.length });
+      else if (problem === "not_ical") L.error("availability_feed_not_ical", { head: body.slice(0, 40) });
       else text = body;
     }
   } catch (e) {
-    console.error("availability_feed_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    L.error("availability_feed_failed", { error: errField(e) });
   }
   // A failure is cached too, briefly: one broken feed must not add a six
   // second wait to every message for as long as it stays broken.
@@ -123,6 +125,7 @@ export interface OpeningsData {
  * or a feed that could not be read.
  */
 export async function openingsData(rt: TenantRuntime, now = new Date()): Promise<OpeningsData | null> {
+  const L = logger({ tenant: rt.tenantId });
   const url = rt.calendar?.ical_url;
   const profile = rt.brain?.profile;
   if (!url || !profile || !rt.timezone) return null;
@@ -132,10 +135,10 @@ export async function openingsData(rt: TenantRuntime, now = new Date()): Promise
     const rules = profile.booking_rules ?? null;
     const daysAhead = rules?.max_days_ahead ?? 14;
     const openings = freeWindows({ hours: profile.hours, closures: profile.closures, tz: rt.timezone, busy: feed.busy, rules, now });
-    if (feed.skippedRecurring) console.log("availability_recurring_skipped", JSON.stringify({ tenant: rt.tenantId, count: feed.skippedRecurring }));
+    if (feed.skippedRecurring) L.info("availability_recurring_skipped", { count: feed.skippedRecurring });
     return { openings, tz: rt.timezone, daysAhead };
   } catch (e) {
-    console.error("availability_compute_failed", JSON.stringify({ tenant: rt.tenantId, error: e instanceof Error ? e.message : String(e) }));
+    L.error("availability_compute_failed", { error: errField(e) });
     return null;
   }
 }
@@ -161,6 +164,7 @@ export function forgetFeeds(): void {
  * Null when there is nothing to say; never throws.
  */
 export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }, now = new Date()): Promise<string | null> {
+  const L = logger({ tenant: rt.tenantId });
   const url = rt.calendar?.ical_url;
   if (!url || !rt.timezone || (!who.phone && !who.name)) return null;
   try {
@@ -172,7 +176,7 @@ export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; 
     const own = ownAddressesOf({ notifications: rt.notifications, calendar: rt.calendar });
     return describeVisits(visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own), rt.timezone, now.getTime());
   } catch (e) {
-    console.error("availability_visits_failed", JSON.stringify({ tenant: rt.tenantId, error: e instanceof Error ? e.message : String(e) }));
+    L.error("availability_visits_failed", { error: errField(e) });
     return null;
   }
 }

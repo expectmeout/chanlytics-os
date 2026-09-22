@@ -306,7 +306,7 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // old place's reviews forgotten), unlink, refresh, and the two events --
   // runs in google-door.test.mjs.
   const lib = readCode("apps/edge/lib/google.ts");
-  assert.ok(lib.includes("process.env.GOOGLE_PLACES_API_KEY"));
+  assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
   assert.ok(lib.includes("planListingCheck(") && lib.includes('kind: "review", title: b.title, body: b.body, route: "reports"'), "the plan decides, the edge writes and rings");
   assert.ok(lib.includes('.update({ check_error: error })'), "a failed read leaves its words and the last good numbers");
   // And does NOT move the stamp: checked_at / last_synced_at are the last

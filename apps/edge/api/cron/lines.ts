@@ -36,6 +36,7 @@ import { notify } from "../../lib/notify.js";
 import { reportLineFailed } from "../../lib/provision.js";
 import { scheduleJob } from "../../lib/packages/jobs.js";
 import { sweepStuckLines } from "../../lib/line-resume.js";
+import { env } from "../../lib/env.js";
 
 export const config = { maxDuration: 60 };
 
@@ -60,8 +61,8 @@ export async function POST(request: Request): Promise<Response> {
   // check them. A tick that cannot provision must say so rather than reporting a
   // clean sweep over lines it never looked at.
   const choice = lineProviderFromEnv();
-  const apiKey = process.env.RETELL_API_KEY;
-  const fnSecret = process.env.RETELL_FN_SECRET;
+  const apiKey = env.RETELL_API_KEY;
+  const fnSecret = env.RETELL_FN_SECRET;
   if (!choice) return json(503, { ok: false, error: "no_line_provider" });
   if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
 

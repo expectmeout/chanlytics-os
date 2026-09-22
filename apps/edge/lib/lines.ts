@@ -27,6 +27,7 @@ import {
 } from "./packages/channels.js";
 import { ensureVoiceAgent } from "./voice-agent.js";
 import type { LineDto } from "./packages/contracts.js";
+import { env } from "./env.js";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -43,15 +44,15 @@ export interface LineProviderChoice {
  * the thing that has to be edited and redeployed to move an environment.
  */
 export function edgeFnUrl(): string {
-  const o = process.env.EDGE_ORIGIN;
+  const o = env.EDGE_ORIGIN;
   return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? `${o}/api/retell-fn` : DEFAULT_FN_URL;
 }
 
 /** Real credentials win; the dry provider only outside production; otherwise none. */
 export function lineProviderFromEnv(): LineProviderChoice | null {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const name = chooseLineProvider({ sid, token, dryRun: process.env.LINES_DRY_RUN, vercelEnv: process.env.VERCEL_ENV });
+  const sid = env.TWILIO_ACCOUNT_SID;
+  const token = env.TWILIO_AUTH_TOKEN;
+  const name = chooseLineProvider({ sid, token, dryRun: env.LINES_DRY_RUN, vercelEnv: env.VERCEL_ENV });
   if (name === "twilio" && sid && token) return { name, provider: twilioProvider(), master: { sid, token } };
   if (name === "dry") return { name, provider: dryProvider(Date.now() % 100000), master: { sid: "ACdryrun", token: "dry" } };
   return null;

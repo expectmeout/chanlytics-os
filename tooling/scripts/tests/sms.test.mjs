@@ -218,7 +218,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // database holding two workspaces' rows, in lines-saga.test.mjs.
   // One value says where this deployment answers, so a provider is never
   // told an address baked into a shared package.
-  assert.ok(edge.includes("export function edgeFnUrl(): string {") && edge.includes("process.env.EDGE_ORIGIN"));
+  assert.ok(edge.includes("export function edgeFnUrl(): string {") && edge.includes("env.EDGE_ORIGIN"));
   assert.ok(edge.includes("inboundWebhookUrl: withKey(voiceEndpoints(edgeFnUrl()).inbound"), "the voice webhook is built from the same value");
   // The provisioner sending the same endpoints is run in voice-doors.test.mjs.
   assert.ok(readCode("apps/edge/lib/lines.ts").includes("export function lineForClient(r: Row): LineDto {"), "REGRESSION: the page's line shape was a loose object, so a field added on one side and forgotten on the other compiled and arrived undefined");

@@ -15,6 +15,9 @@ import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { createTemplate, mapCategory, mapStatus, type MetaTemplateComponent } from "../../../lib/meta-templates.js";
 import type { Json } from "../../../lib/packages/db.js";
+import { logger } from "../../../lib/log.js";
+
+const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[a-z0-9_]{1,512}$/;
@@ -61,7 +64,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const made = await createTemplate(creds.accessToken, ch.waba_id, { name, language, category, components });
   if (!made.ok) {
-    console.error("wa_template_create_failed", JSON.stringify({ tenant_id: tenantId, name, status: made.status, error: made.error.slice(0, 300) }));
+    L.error("wa_template_create_failed", { tenant_id: tenantId, name, status: made.status, error: made.error.slice(0, 300) });
     return json(502, { ok: false, error: "meta_refused", detail: made.error });
   }
 
@@ -90,6 +93,6 @@ export async function POST(request: Request): Promise<Response> {
     .select("id")
     .single();
   if (error || !saved) return json(500, { ok: false, error: "write_failed", detail: error?.message });
-  console.log("wa_template_created", JSON.stringify({ tenant_id: tenantId, name, language, status, meta_id: made.data.id }));
+  L.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: made.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: made.data.id, meta_status: status });
 }

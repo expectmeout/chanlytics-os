@@ -30,6 +30,7 @@ import { planCallStart } from "../lib/call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../lib/packages/db.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { logger } from "../lib/log.js";
+import { env } from "../lib/env.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
@@ -38,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
   // An unset or empty secret matches nothing: an empty key must never open this
   // door because the configured secret is empty too. retell-webhook.ts guards
   // the same variable the same way.
-  const secret = process.env.RETELL_FN_SECRET;
+  const secret = env.RETELL_FN_SECRET;
   if (!secret || new URL(request.url).searchParams.get("key") !== secret) {
     return json(401, { ok: false });
   }

@@ -45,6 +45,10 @@ import {
   type LiveAgentSettings,
   type VoiceProvisionRequest,
 } from "../../lib/packages/channels.js";
+import { env } from "../../lib/env.js";
+import { logger, errField } from "../../lib/log.js";
+
+const L = logger();
 
 interface Body {
   tenant_id?: string;
@@ -73,8 +77,8 @@ function requestOf(body: Body): VoiceProvisionRequest {
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/voice-provision");
   if (!auth.ok) return auth.response;
-  const apiKey = process.env.RETELL_API_KEY;
-  const fnSecret = process.env.RETELL_FN_SECRET;
+  const apiKey = env.RETELL_API_KEY;
+  const fnSecret = env.RETELL_FN_SECRET;
   if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
@@ -202,7 +206,7 @@ export async function POST(request: Request): Promise<Response> {
       agent_id: agentId, llm_id: llmId, number, pinned, bought: !req.number, number_type: numberType,
     });
   } catch (e) {
-    console.error("voice_provision_event_failed", e instanceof Error ? e.message : String(e));
+    L.error("voice_provision_event_failed", { error: errField(e) });
   }
 
   // 7. Read back: a freshly provisioned line plans nothing on either converger.
@@ -214,6 +218,6 @@ export async function POST(request: Request): Promise<Response> {
     shell: llmAfter ? voiceShellDrift(llmAfter).drift : ["unreadable"],
     published: after?.is_published ?? null,
   };
-  console.log("voice_provision", JSON.stringify({ tenant: tenantId, agent_id: agentId, llm_id: llmId, number, pinned, bought: !req.number }));
+  L.info("voice_provision", { tenant: tenantId, agent_id: agentId, llm_id: llmId, number, pinned, bought: !req.number });
   return json(200, { ...out, result });
 }

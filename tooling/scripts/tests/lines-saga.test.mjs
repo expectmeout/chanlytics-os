@@ -301,7 +301,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   assert.ok(prov.includes("{ tenantId: null, notifications: null, isEnvDefault: true }"), "the platform hears a failure");
   for (const k of ["line.answering", "line.failed", "line.released"]) assert.ok(EVENT_KINDS.includes(k), k);
   const lib = readCode("apps/edge/lib/lines.ts");
-  assert.ok(lib.includes("chooseLineProvider({ sid, token, dryRun: process.env.LINES_DRY_RUN, vercelEnv: process.env.VERCEL_ENV })"));
+  assert.ok(lib.includes("chooseLineProvider({ sid, token, dryRun: env.LINES_DRY_RUN, vercelEnv: env.VERCEL_ENV })"));
   assert.ok(lib.includes('db.rpc("get_line_credentials"') && lib.includes('db.rpc("put_line_credentials"'), "secrets through the vault doors");
   assert.ok(lib.includes("ensure: () => ensureVoiceAgent(db, cfg, secrets, tenant)"));
   assert.ok(lib.includes('provider: "twilio-sip", line_id: lineId'), "the routing row names its line");

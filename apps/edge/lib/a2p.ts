@@ -19,6 +19,7 @@ import { platformTo, recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount, refreshLineToken } from "./sms.js";
 import { logger } from "./log.js";
+import { env } from "./env.js";
 
 type Db = SupabaseClient<Database>;
 type LineRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -26,7 +27,7 @@ type RecordRow = Database["public"]["Tables"]["business_records"]["Row"];
 
 /** Chanlytics' own approved primary customer profile; without it nothing may be filed. */
 export function primaryProfileSid(): string | null {
-  return process.env.TWILIO_PRIMARY_PROFILE_SID || null;
+  return env.TWILIO_PRIMARY_PROFILE_SID || null;
 }
 
 /** Where Twilio writes about a bundle: the platform's mailbox, never a customer's. */

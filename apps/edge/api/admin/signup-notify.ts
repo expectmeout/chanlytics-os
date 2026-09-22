@@ -12,6 +12,10 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/notify.js";
+import { env } from "../../lib/env.js";
+import { logger } from "../../lib/log.js";
+
+const L = logger();
 
 interface Body {
   tenant_id?: string;
@@ -21,7 +25,7 @@ interface Body {
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/signup-notify");
   if (!auth.ok) return auth.response;
-  if (!process.env.LEAD_TO || !process.env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
+  if (!env.LEAD_TO || !env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
   let body: Body = {};
@@ -50,6 +54,6 @@ export async function POST(request: Request): Promise<Response> {
         "Their Setup page tells them what to do next; nothing is provisioned until they ask.\n",
     },
   );
-  console.log("signup_told", JSON.stringify({ tenant: tenantId, sent }));
+  L.info("signup_told", { tenant: tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, tenant: tenant.data.slug });
 }

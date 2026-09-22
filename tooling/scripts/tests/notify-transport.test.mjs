@@ -26,6 +26,11 @@ function capture() {
   return { lines, restore: () => { console.error = real; } };
 }
 
+/** The logger writes one JSON object per line; find the line for an event. */
+function lineFor(lines, event) {
+  return lines.find((l) => { try { return JSON.parse(l).event === event; } catch { return false; } });
+}
+
 /** The wire: records every request and answers as told. */
 function wire(answer) {
   const calls = [];
@@ -59,7 +64,7 @@ test("without a key nothing is sent, and the log says so without the customer's 
       assert.equal(await post("a@x", ["b@y"], "WhatsApp handoff needed: +1 917 555 0100", "body"), false);
     });
     assert.equal(w.calls.length, 0, "no key, no request");
-    const line = log.lines.find((l) => l.startsWith("notify_skipped_no_api_key"));
+    const line = lineFor(log.lines, "notify_skipped_no_api_key");
     assert.ok(line, "said in the log");
     assert.ok(line.includes("[number]") && !line.includes("917"), "the subject names the customer; the log must not");
   } finally {
@@ -95,9 +100,9 @@ test("a refusal (401, 422, 500) is NOT a delivery: false, with the status and th
       await withEnv({ RESEND_API_KEY: "re_dead" }, async () => {
         assert.equal(await post("a@x", ["b@y"], "Reminder for +19175550100 tomorrow", "…"), false, `a ${status} must not read as sent`);
       });
-      const line = log.lines.find((l) => l.startsWith("notify_rejected "));
+      const line = lineFor(log.lines, "notify_rejected");
       assert.ok(line, `${status} is logged`);
-      const detail = JSON.parse(line.slice("notify_rejected ".length));
+      const detail = JSON.parse(line);
       assert.equal(detail.status, status);
       assert.match(detail.detail, /API key is invalid/);
       assert.equal(detail.subject, "Reminder for [number] tomorrow");
@@ -115,7 +120,7 @@ test("a transport that throws (a timeout, a DNS failure) is false and logged, ne
     await withEnv({ RESEND_API_KEY: "re_test" }, async () => {
       assert.equal(await post("a@x", ["b@y"], "s", "t"), false);
     });
-    const line = log.lines.find((l) => l.startsWith("notify_failed "));
+    const line = lineFor(log.lines, "notify_failed");
     assert.ok(line);
     assert.match(line, /aborted due to timeout/);
   } finally {
@@ -222,7 +227,7 @@ test("ANOTHER tenant with no mailbox: the row is theirs, the platform gets the r
   assert.equal(m.subject, "A workspace needs notification settings");
   assert.ok(m.text.includes("A background job failed for a workspace (kind: outbound_send).") && m.text.includes(`Workspace: ${TENANT}`) && m.text.includes("Set them in Settings."));
   assert.ok(!m.text.includes("9175550100") && !m.text.includes("my appointment"), "a stranger's mailbox never sees the customer");
-  const said = log.lines.find((l) => l.startsWith("notify_tenant_unaddressable "));
+  const said = lineFor(log.lines, "notify_tenant_unaddressable");
   assert.ok(said && said.includes("[number]") && !said.includes("9175550100"));
 });
 
@@ -258,7 +263,7 @@ test("no platform pair and no mailbox: nowhere to send, said in the log, the row
   assert.equal(out, false);
   assert.equal(t.sent.length, 0);
   assert.equal(rows.length, 1);
-  const said = log.lines.find((l) => l.startsWith("notify_no_recipient "));
+  const said = lineFor(log.lines, "notify_no_recipient");
   assert.ok(said && said.includes("[number]"));
 });
 
@@ -287,7 +292,7 @@ test("losing the row never loses the mail: an insert the database refuses is log
   }
   assert.equal(out, true);
   assert.equal(t.sent.length, 1);
-  const said = log.lines.find((l) => l.startsWith("notification_record_failed "));
+  const said = lineFor(log.lines, "notification_record_failed");
   assert.ok(said && said.includes("read only"));
 
   const t2 = transport();

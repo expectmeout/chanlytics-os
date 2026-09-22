@@ -32,6 +32,7 @@ import {
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/packages/db.js";
+import { env } from "../../lib/env.js";
 
 interface Body {
   op?: string;
@@ -103,8 +104,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // Everything below writes: it needs the database, the receptionist's provider and a workspace.
-  const apiKey = process.env.RETELL_API_KEY;
-  const fnSecret = process.env.RETELL_FN_SECRET;
+  const apiKey = env.RETELL_API_KEY;
+  const fnSecret = env.RETELL_FN_SECRET;
   if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });

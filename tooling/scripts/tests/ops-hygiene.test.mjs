@@ -80,6 +80,6 @@ test("a log line on the message path carries a phone tail, never the number or t
     }
   }
   assert.deepEqual(offences, [], "a whole number or a customer's words on a log line");
-  assert.ok(readRaw("apps/edge/api/whatsapp.ts").includes('console.log("wa_inbound", JSON.stringify({ from_tail: phoneTail(m.from), type: m.type, id: m.id }));'), "the WhatsApp inbound line: a tail, a type, an id");
+  assert.ok(readRaw("apps/edge/api/whatsapp.ts").includes('L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });'), "the WhatsApp inbound line: a tail, a type, an id");
   assert.ok(readRaw("apps/edge/api/inbound-sms.ts").includes("from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to)"), "the SMS logger's context: tails");
 });

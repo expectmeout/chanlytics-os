@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
 import { MAX_ROWS } from "./paged.js";
+import { logger, errField } from "./log.js";
 
 const DAY_MS = 24 * 3600 * 1000;
 /** More rows than any workspace writes in a day; a bound, not a target. */
@@ -81,7 +82,7 @@ async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null
   }
   // Reached only by exhausting the bound. Silence here is the defect this file
   // was fixed for, one cap further out.
-  console.error(JSON.stringify({ level: "error", event: "usage_read_capped", tenant: tenantId, cap }));
+  logger().error("usage_read_capped", { tenant: tenantId, cap });
 }
 
 async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, since: string, cap = ROW_CAP): Promise<UsageRow[]> {
@@ -107,6 +108,7 @@ async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, 
  * it one round trip again, and is the right next change here.
  */
 export async function tokensLast24h(db: SupabaseClient<Database>, tenantId: string, stopAt = Number.POSITIVE_INFINITY): Promise<number> {
+  const L = logger({ tenant: tenantId });
   try {
     let sum = 0;
     for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {
@@ -115,7 +117,7 @@ export async function tokensLast24h(db: SupabaseClient<Database>, tenantId: stri
     }
     return sum;
   } catch (e) {
-    console.error("budget_read_failed", e instanceof Error ? e.message : e);
+    L.error("budget_read_failed", { error: errField(e) });
     return 0;
   }
 }
