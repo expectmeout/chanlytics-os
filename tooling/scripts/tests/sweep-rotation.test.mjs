@@ -25,7 +25,7 @@ import {
   CALENDAR_PER_TICK,
   PLAYBOOKS_PER_TICK,
   BACKLOG_TICKS_BEFORE_ALARM,
-} from "../../../apps/edge/lib/sweep-rotation.ts";
+} from "../../../apps/edge/lib/ops/sweep-rotation.ts";
 
 const NOW = new Date("2026-09-09T18:00:00Z");
 const ago = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();

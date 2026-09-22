@@ -11,7 +11,9 @@ import { JOB_KINDS } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { provisionLineJob } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/line-provision-job.ts")).href);
+const { provisionLineJob } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/lines/line-provision-job.ts")).href
+);
 const { dispatchJob, verdictFor, MAX_ATTEMPTS } = await import(
   pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href
 );

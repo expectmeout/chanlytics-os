@@ -18,7 +18,7 @@ import { mailDomainsFrom } from "@chanlytics/channels";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { judgeMailDomain, describeMailDomainTrouble, checkMailDomain } = await import(
-  pathToFileURL(path.join(here, "../../../apps/edge/lib/mail-domain.ts")).href
+  pathToFileURL(path.join(here, "../../../apps/edge/lib/email/mail-domain.ts")).href
 );
 
 const OURS = "mail.chanlytics.com";

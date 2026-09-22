@@ -15,14 +15,14 @@ import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
-import { alertFor } from "../../lib/job-alert.js";
+import { alertFor } from "../../lib/ops/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
-import { smsSenderForTenant } from "../../lib/sms.js";
-import { emailWireFor, emailIntake } from "../../lib/email.js";
+import { smsSenderForTenant } from "../../lib/sms/sms.js";
+import { emailWireFor, emailIntake } from "../../lib/email/email.js";
 import { whatsappSender } from "../../lib/packages/core.js";
-import { pageOperator } from "../../lib/page-operator.js";
-import { provisionLineJob } from "../../lib/line-provision-job.js";
-import { leadPipeline } from "../../lib/lead-pipeline.js";
+import { pageOperator } from "../../lib/ops/page-operator.js";
+import { provisionLineJob } from "../../lib/lines/line-provision-job.js";
+import { leadPipeline } from "../../lib/leads/lead-pipeline.js";
 import {
   runTick,
   claimNext,

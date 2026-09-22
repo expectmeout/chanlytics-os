@@ -61,7 +61,7 @@ export function composePromptPreview(brain: BrainConfig, facts: PromptFacts, now
 }
 
 /**
- * The openings block as the edge composes it (apps/edge/lib/availability.ts,
+ * The openings block as the edge composes it (apps/edge/lib/calendar/availability.ts,
  * openingsFor): the feed's busy blocks against the hours, closures and
  * booking rules, in the business's zone. Null when there is no feed, no
  * profile or no zone, and when the feed cannot be read -- the receptionist

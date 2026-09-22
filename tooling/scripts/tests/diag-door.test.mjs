@@ -52,8 +52,8 @@ for (const k of [
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { PAGE_WINDOW_MS, pageStates } = await import(at("apps/edge/lib/page-operator.ts"));
-const { DEFAULT_META_APP_ID } = await import(at("apps/edge/lib/meta-graph.ts"));
+const { PAGE_WINDOW_MS, pageStates } = await import(at("apps/edge/lib/ops/page-operator.ts"));
+const { DEFAULT_META_APP_ID } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
 const { GET } = await import(at("apps/edge/api/diag.ts"));
 after(() => setPg(null));
 

@@ -14,7 +14,7 @@ import type { CollectJudgment } from "./ports";
 export const JUDGE_REFUSED_REASON = "the judge could not read these";
 export const FACT_MAX = 120;
 /**
- * How long one judge call may take, said once here: apps/edge/lib/lead-wires.ts
+ * How long one judge call may take, said once here: apps/edge/lib/leads/lead-wires.ts
  * binds it on the client (with no retry of the SDK's own, so this is the real
  * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
  * started with less time left than it may take.

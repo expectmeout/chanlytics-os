@@ -22,7 +22,9 @@ import { ESCALATION_REASONS, ESCALATION_REASON_LABELS, reasonShort } from "@chan
 import { readCode, readRaw } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { outboundGate } = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/outbound-gate.ts")).href);
+const { outboundGate } = await import(
+  pathToFileURL(path.join(here, "../../../apps/edge/lib/receptionist/outbound-gate.ts")).href
+);
 
 const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
 const steps = readCode("apps/edge/lib/whatsapp/steps.ts");

@@ -25,7 +25,7 @@ import { fakeDb } from "./_fake-db.mjs";
 const ZONE = "America/New_York";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const lib = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/call-recording.ts")).href);
+const lib = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/voice/call-recording.ts")).href);
 
 const NOW = new Date("2026-09-12T04:00:00Z");
 const daysAgo = (d) => new Date(NOW.getTime() - d * 86_400_000).toISOString();

@@ -4,7 +4,7 @@
  * row's recording before any write, idempotent, --apply to execute.
  *
  * Retell's CDN serves a call's WAV as binary/octet-stream, and copyRecording
- * (apps/edge/lib/call-recording.ts) used to take its word, so every recording
+ * (apps/edge/lib/voice/call-recording.ts) used to take its word, so every recording
  * copied before sniffAudioType is in the private bucket as octet-stream and
  * served that way: a browser that goes by the type (Safari above all) has
  * nothing it knows how to play. Storage cannot change an object's type in
@@ -29,7 +29,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 /**
- * apps/edge/lib/call-recording.ts's rule, copied because a tooling script
+ * apps/edge/lib/voice/call-recording.ts's rule, copied because a tooling script
  * cannot import the edge's TypeScript. recordings-retype.test.mjs runs both
  * over the same bytes, so the two cannot drift apart unnoticed.
  */

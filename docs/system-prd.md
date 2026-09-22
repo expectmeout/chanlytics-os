@@ -401,7 +401,7 @@ A recording reaches a browser only through `/api/v1/calls/:id/recording`, which 
 
 `lines` is the asset: one row per number the platform bought or forwards, and the whole story of getting it working. `tenant_channels` is the routing derived from it (`config.line_id` points back). A channel row can exist with no line — a number bought inside Retell, like the live salon's — and `number_drift()` reports where the two disagree (00087).
 
-The saga (`packages/channels/src/lines-saga.ts`, pure over its ports; `apps/edge/lib/lines.ts` wires the real ones):
+The saga (`packages/channels/src/lines-saga.ts`, pure over its ports; `apps/edge/lib/lines/lines.ts` wires the real ones):
 
 subaccount → number → trunk → agent → import → channel, with the Messaging Service for texting (00074)
 
@@ -749,7 +749,7 @@ A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch 
 
 The receptionist never books; it may **see** the calendar. The owner's appointments arrive as an iCal feed — what Booksy, Calendly, Square and the rest sync into Google or Apple calendars — read from its private address, which the address rule guards on every fetch.
 
-- `apps/edge/lib/availability.ts` fetches the feed with a five-minute cache and never lets it block a reply; `contracts/availability.ts` parses it (a moved appointment draws once; extra dates are read) and computes the open windows against the hours, closures, lead time and buffers, in the business's timezone, under **one horizon rule, one clock and one byte ceiling**. The first open time is on the slot grid, not the minute it was asked (`onTheGrid`). A service that needs a consultation first is sized by its own length on the board and in Ask, while the receptionist offers a consultation (`offerFor`, `needsConsultation`, `offerLead`).
+- `apps/edge/lib/calendar/availability.ts` fetches the feed with a five-minute cache and never lets it block a reply; `contracts/availability.ts` parses it (a moved appointment draws once; extra dates are read) and computes the open windows against the hours, closures, lead time and buffers, in the business's timezone, under **one horizon rule, one clock and one byte ceiling**. The first open time is on the slot grid, not the minute it was asked (`onTheGrid`). A service that needs a consultation first is sized by its own length on the board and in Ask, while the receptionist offers a consultation (`offerFor`, `needsConsultation`, `offerLead`).
 - Four readers compute the same windows: the WhatsApp prompt (open times, and this person's visits), the phone tool `check_availability`, the dashboard's Calendar (`server/calendar.ts`; the feed's address never reaches the browser), and Ask's openings fast path (`openingsFor`, pinned equal to the board's `fit`).
 - **People from the calendar**: an appointment that carries a phone number puts its person in People — get-or-create by phone through `create_person`; a name fills only an empty one; consent stays unknown, because a booking is not a yes to offers; a `contact.added` event says where they came from. It happens when the owner opens the Calendar and every hour by the sweep, rotated across workspaces so none starves.
 - Visits feed People's lists (booked, lapsed, asked but never booked), the visit playbooks (whose chips count everyone), and Reports' count of people who booked after asking.
@@ -792,7 +792,7 @@ Evaluation: `eval-brain.mjs` runs `tooling/evals/whatsapp-cases.json` against th
 
 ## S-19 · Alerts, notifications and the pager
 
-`apps/edge/lib/notify.ts` is the one way the system reaches a person.
+`apps/edge/lib/ops/notify.ts` is the one way the system reaches a person.
 
 - `chooseAddressing` picks the recipients from the workspace's own settings. A workspace that cannot be addressed produces a **redacted** notice to the platform — never someone else's mailbox with a customer's words in it. An owner's alert names the channel the reply failed on.
 - Resend is called with a timeout and its response is checked; an expired key once silenced every alert at once.

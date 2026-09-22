@@ -195,7 +195,7 @@ test(
     const days = RETENTION_DAYS.call_recordings;
     const bucket = db.storage.from("media");
     const seeded = [];
-    /** A finished call whose audio was copied, as copyRecording's stored settle leaves it (apps/edge/lib/call-recording.ts). */
+    /** A finished call whose audio was copied, as copyRecording's stored settle leaves it (apps/edge/lib/voice/call-recording.ts). */
     const recorded = async (tag, ageDays) => {
       const id = crypto.randomUUID();
       const path = `${tenantId}/calls/${id}.wav`;

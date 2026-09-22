@@ -40,7 +40,7 @@ import {
   automaticResumesOf,
   countAutomaticResume,
   MAX_AUTOMATIC_RESUMES,
-} from "../../../apps/edge/lib/line-resume.ts";
+} from "../../../apps/edge/lib/lines/line-resume.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const NOW = 1_800_000_000_000;

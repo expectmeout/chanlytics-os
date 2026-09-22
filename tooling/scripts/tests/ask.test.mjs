@@ -472,7 +472,7 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   // llm-door.test.mjs.
   const lib = readCode("apps/edge/lib/ask-gateway.ts");
   assert.ok(lib.includes('export const ASK_USAGE_KIND = "usage.ask_tokens" as const;'));
-  const budget = readCode("apps/edge/lib/budget.ts");
+  const budget = readCode("apps/edge/lib/receptionist/budget.ts");
   assert.ok(
     budget.includes('.eq("kind", "usage.llm_tokens")') && !budget.includes("ask_tokens"),
     "the receptionist's budget never counts Ask",

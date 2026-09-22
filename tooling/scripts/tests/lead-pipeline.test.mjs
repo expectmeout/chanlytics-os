@@ -1,5 +1,5 @@
 /**
- * The pipeline bound for the ledger (apps/edge/lib/lead-pipeline.ts), over
+ * The pipeline bound for the ledger (apps/edge/lib/leads/lead-pipeline.ts), over
  * the world in memory: each handler reaches its verb through the real
  * dispatch with the job's own id as the owner, a payload that is not the
  * ledger's shape is a bug, and a deployment without the keys binds nothing.
@@ -12,7 +12,7 @@ import { at, withEnv } from "./_cron-doors-world.mjs";
 import { PLAN } from "./_lead-fixtures.mjs";
 
 for (const k of ["APIFY_TOKEN", "ANTHROPIC_API_KEY"]) delete process.env[k];
-const { leadPipelineOver, leadPipeline } = await import(at("apps/edge/lib/lead-pipeline.ts"));
+const { leadPipelineOver, leadPipeline } = await import(at("apps/edge/lib/leads/lead-pipeline.ts"));
 after(() => {});
 
 const R = "33333333-3333-4333-8333-333333333333";

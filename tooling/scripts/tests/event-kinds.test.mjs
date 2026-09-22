@@ -115,7 +115,7 @@ test("the computed family is the contracts' list, and nothing else is computed",
     "phone_number_quality_update",
     "template_category_update",
   ]);
-  const waba = readRaw("apps/edge/lib/waba-events.ts");
+  const waba = readRaw("apps/edge/lib/whatsapp/waba-events.ts");
   assert.ok(waba.includes("new Set<string>(WABA_FIELD_LIST)"), "the edge's set is the contracts' list");
   // The one template-literal emit is the channel family; any other would be a kind nobody can name.
   let computed = 0;

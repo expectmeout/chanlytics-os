@@ -246,7 +246,7 @@ test("a copy given up on stops waking the edge, and the copy's own bound agrees"
   // cron-doors-b.test.mjs. This holds the trigger and the library to one number.
   const sql = readRaw("supabase/migrations/00031_call_lifecycle.sql");
   assert.ok(sql.includes("coalesce((recording->>'attempts')::int, 0) < 3"), "a copy given up on stops waking the edge");
-  const { RECORDING_MAX_ATTEMPTS } = await importSrc("apps/edge/lib/call-recording.ts");
+  const { RECORDING_MAX_ATTEMPTS } = await importSrc("apps/edge/lib/voice/call-recording.ts");
   assert.equal(RECORDING_MAX_ATTEMPTS, 3, "the copy gives up at the trigger's own number");
 });
 

@@ -1,7 +1,7 @@
 /**
  * When to shout about a broken sweep, and what to say.
  *
- * The decision is pure and lives in apps/edge/lib/sweep-health.ts for the same
+ * The decision is pure and lives in apps/edge/lib/ops/sweep-health.ts for the same
  * reason chooseAddressing does in notify.ts: it either floods the only alarm
  * channel this system has or silences it, and a decision buried inside a fetch
  * cannot be tested.
@@ -14,7 +14,7 @@ import { readRaw } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseSweepAlerts, describeSweepTrouble, ALERT_SUPPRESSION_MS } = await import(
-  pathToFileURL(path.join(here, "../../../apps/edge/lib/sweep-health.ts")).href
+  pathToFileURL(path.join(here, "../../../apps/edge/lib/ops/sweep-health.ts")).href
 );
 
 const row = (over) => ({

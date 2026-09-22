@@ -1141,9 +1141,9 @@ declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, 
 /**
  * The lead finder's view of the world (PRD §12.5): what the runner needs,
  * named for what each means. The database half is one method per service
- * RPC of migration 00140 plus a few reads (apps/edge/lib/lead-db.ts, service
+ * RPC of migration 00140 plus a few reads (apps/edge/lib/leads/lead-db.ts, service
  * role); the provider and the judge are the channels package's clients, bound
- * by the edge where the keys are (apps/edge/lib/lead-wires.ts). Every verb
+ * by the edge where the keys are (apps/edge/lib/leads/lead-wires.ts). Every verb
  * here runs over fakes in a test: no network, no database.
  */
 
@@ -1634,7 +1634,7 @@ declare function runIdFor(roundId: string, phase: "probe" | "main" | "check", te
 declare const JUDGE_REFUSED_REASON = "the judge could not read these";
 declare const FACT_MAX = 120;
 /**
- * How long one judge call may take, said once here: apps/edge/lib/lead-wires.ts
+ * How long one judge call may take, said once here: apps/edge/lib/leads/lead-wires.ts
  * binds it on the client (with no retry of the SDK's own, so this is the real
  * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
  * started with less time left than it may take.

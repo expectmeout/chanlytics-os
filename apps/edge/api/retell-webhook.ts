@@ -19,7 +19,7 @@
  * many agents (432 calls across 8 in the live account) — an unrouted call is
  * dead-lettered, never guessed into a tenant.
  */
-import { notify } from "../lib/notify.js";
+import { notify } from "../lib/ops/notify.js";
 import { loadTenantNotifications, loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
@@ -43,8 +43,8 @@ import {
   releaseControl,
   CALL_CONTROL_S,
 } from "../lib/packages/db.js";
-import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
-import { markForwardingVerified } from "../lib/forwarding.js";
+import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/voice/call-recording.js";
+import { markForwardingVerified } from "../lib/voice/forwarding.js";
 import { erasedBeforeCall } from "../lib/erased.js";
 import { upsertEscalation } from "../lib/packages/jobs.js";
 import { callOutcomeWords, formatPhoneDisplay, guardSpokenTurns, frameGuardrail } from "../lib/packages/contracts.js";

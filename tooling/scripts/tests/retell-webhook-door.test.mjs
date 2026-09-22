@@ -51,7 +51,7 @@ for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY
 
 const { setPg, knock, deliver, world } = await openDoor();
 const { WEBHOOK_COPY_TIMEOUT_MS, SWEEP_COPY_TIMEOUT_MS, RECORDING_MAX_ATTEMPTS } = await import(
-  at("apps/edge/lib/call-recording.ts")
+  at("apps/edge/lib/voice/call-recording.ts")
 );
 after(() => setPg(null));
 
@@ -800,7 +800,7 @@ test("a recording removed on schedule is not fetched again on the webhook: a lat
     const id = w.callId("purged");
     const url = `https://cdn.retell.test/recording/${id}.wav`;
     const began = NOW - (RECORDING_RETENTION_DAYS + 1) * 86_400_000;
-    // The row as purgeExpiredRecordings leaves it (apps/edge/lib/call-recording.ts).
+    // The row as purgeExpiredRecordings leaves it (apps/edge/lib/voice/call-recording.ts).
     const marker = {
       fetch_state: "purged",
       purged_at: iso(NOW - 3_600_000),

@@ -11,7 +11,7 @@
  */
 import { json } from "../../../lib/http.js";
 import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { GRAPH_VERSION, metaAppId } from "../../../lib/meta-graph.js";
+import { GRAPH_VERSION, metaAppId } from "../../../lib/whatsapp/meta-graph.js";
 import { env } from "../../../lib/env.js";
 
 export async function GET(request: Request): Promise<Response> {

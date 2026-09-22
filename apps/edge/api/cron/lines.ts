@@ -31,11 +31,11 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import { lineProviderFromEnv } from "../../lib/lines.js";
-import { notify } from "../../lib/notify.js";
-import { reportLineFailed } from "../../lib/provision.js";
+import { lineProviderFromEnv } from "../../lib/lines/lines.js";
+import { notify } from "../../lib/ops/notify.js";
+import { reportLineFailed } from "../../lib/lines/provision.js";
 import { scheduleJob } from "../../lib/packages/jobs.js";
-import { sweepStuckLines } from "../../lib/line-resume.js";
+import { sweepStuckLines } from "../../lib/lines/line-resume.js";
 import { env } from "../../lib/env.js";
 
 export const config = { maxDuration: 60 };

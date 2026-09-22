@@ -24,13 +24,13 @@
 import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { notify } from "../../lib/notify.js";
-import { pageOperator } from "../../lib/page-operator.js";
+import { notify } from "../../lib/ops/notify.js";
+import { pageOperator } from "../../lib/ops/page-operator.js";
 import { logger } from "../../lib/log.js";
-import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/sweep-health.js";
-import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/receipts-watch.js";
-import { checkMailDomain, describeMailDomainTrouble } from "../../lib/mail-domain.js";
-import { emailDomain } from "../../lib/email.js";
+import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/ops/sweep-health.js";
+import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/whatsapp/receipts-watch.js";
+import { checkMailDomain, describeMailDomainTrouble } from "../../lib/email/mail-domain.js";
+import { emailDomain } from "../../lib/email/email.js";
 import { env } from "../../lib/env.js";
 
 export const config = { maxDuration: 60 };

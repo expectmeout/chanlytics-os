@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { chooseAddressing } = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/notify.ts")).href);
+const { chooseAddressing } = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/ops/notify.ts")).href);
 
 const PLATFORM = { to: ["platform@example.com", "second@example.com"], from: "Platform <noreply@example.com>" };
 const TENANT_MAILBOX = { escalation_emails: ["owner@salon.example"], from: "Salon <hi@salon.example>" };

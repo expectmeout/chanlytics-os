@@ -11,11 +11,11 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
-import { leadWires } from "../../lib/lead-wires.js";
-import { planLeadSweep, type SweepRoundRow, type SweepRunRow } from "../../lib/lead-sweep.js";
+import { leadWires } from "../../lib/leads/lead-wires.js";
+import { planLeadSweep, type SweepRoundRow, type SweepRunRow } from "../../lib/leads/lead-sweep.js";
 import { reconcileUnknownRuns, type LeadPorts, type LeadRunRow } from "../../lib/packages/core.js";
 import { scheduleJobOnce } from "../../lib/packages/jobs.js";
-import { leadDb } from "../../lib/lead-db.js";
+import { leadDb } from "../../lib/leads/lead-db.js";
 import type { Json } from "../../lib/packages/db.js";
 
 export const config = { maxDuration: 60 };

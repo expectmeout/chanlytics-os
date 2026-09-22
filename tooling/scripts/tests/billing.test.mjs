@@ -430,7 +430,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
   assert.ok(
-    readCode("apps/edge/lib/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") &&
+    readCode("apps/edge/lib/ops/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") &&
       SERVER_NOTIFICATION_KINDS.includes("billing"),
     "the kind is kept, not folded into alert",
   );

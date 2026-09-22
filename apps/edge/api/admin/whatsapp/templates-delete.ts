@@ -11,7 +11,7 @@ import { json } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
-import { deleteTemplate } from "../../../lib/meta-templates.js";
+import { deleteTemplate } from "../../../lib/whatsapp/meta-templates.js";
 import { logger } from "../../../lib/log.js";
 
 const L = logger();

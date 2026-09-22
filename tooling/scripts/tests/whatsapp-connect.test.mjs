@@ -50,7 +50,7 @@ test("the graph module: one version, the app secret spent on the edge and nowher
   // the token into Vault, a failed credential write disabling the row, the
   // answer naming what is missing -- are run in whatsapp-connect-door.test.mjs;
   // /api/diag introspecting tokens as the same app is run in diag-door.test.mjs.
-  const g = readCode("apps/edge/lib/meta-graph.ts");
+  const g = readCode("apps/edge/lib/whatsapp/meta-graph.ts");
   assert.ok(g.includes('export const GRAPH_VERSION = "v25.0";'));
   assert.ok(
     g.includes("client_secret: appSecret") &&
@@ -64,7 +64,7 @@ test("the graph module: one version, the app secret spent on the edge and nowher
 });
 
 test("the graph helpers: E.164 out of Meta's display form, a six-digit PIN, the already-registered answer", async () => {
-  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/meta-graph.ts")).href);
+  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/whatsapp/meta-graph.ts")).href);
   assert.equal(mod.toE164("+1 555-123-4567"), "+15551234567");
   assert.equal(mod.toE164("+44 20 7946 0958"), "+442079460958");
   assert.equal(mod.toE164(undefined), null);
@@ -154,7 +154,7 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
 });
 
 test("the account's own news: routed by WABA, kept as an event, alerted when it changes what the business can do", async () => {
-  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/waba-events.ts")).href);
+  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/whatsapp/waba-events.ts")).href);
   assert.ok(
     mod.WABA_FIELDS.has("phone_number_quality_update") &&
       mod.WABA_FIELDS.has("message_template_status_update") &&

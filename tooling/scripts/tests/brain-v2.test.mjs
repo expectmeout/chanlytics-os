@@ -215,7 +215,7 @@ test("the Inbox and the viewer carry the why; a held draft says why it waits", (
 });
 
 test("the brain asks for the record, reads it through the parse, and keeps the old token as a handoff", () => {
-  const b = readCode("apps/edge/lib/brain.ts");
+  const b = readCode("apps/edge/lib/receptionist/brain.ts");
   assert.ok(
     b.includes('output_config: { effort: "low", format: { type: "json_schema", schema: BRAIN_OUTPUT_JSON_SCHEMA } }'),
   );
@@ -237,7 +237,7 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
   assert.ok(wa.includes("let brainMeta: BrainMeta | undefined;"));
   assert.ok(wa.includes("brainMeta = r.meta;"));
   assert.ok(
-    readCode("apps/edge/lib/draft-queue.ts").includes(
+    readCode("apps/edge/lib/receptionist/draft-queue.ts").includes(
       "meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) } as Json,",
     ),
     "the draft row remembers",

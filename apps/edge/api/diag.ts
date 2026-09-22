@@ -7,11 +7,11 @@ import { createHash } from "node:crypto";
 import { json } from "../lib/http.js";
 import { authorizeAdmin } from "../lib/admin-auth.js";
 import { pg } from "../lib/pg.js";
-import { brainSummary } from "../lib/budget.js";
-import type { SweepHealthRow } from "../lib/sweep-health.js";
-import { pageStates, untoldPages, type PageRow } from "../lib/page-operator.js";
+import { brainSummary } from "../lib/receptionist/budget.js";
+import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
+import { pageStates, untoldPages, type PageRow } from "../lib/ops/page-operator.js";
 import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/packages/channels.js";
-import { metaAppId } from "../lib/meta-graph.js";
+import { metaAppId } from "../lib/whatsapp/meta-graph.js";
 import { env } from "../lib/env.js";
 
 const META_APP_ID = metaAppId();

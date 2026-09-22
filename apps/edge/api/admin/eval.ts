@@ -19,7 +19,7 @@ import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { resolveSystemPrompt, describeNow, fallbackMessages } from "../../lib/packages/contracts.js";
 import type { RoutedChannel } from "../../lib/packages/db.js";
-import { generateReply } from "../../lib/brain.js";
+import { generateReply } from "../../lib/receptionist/brain.js";
 import { env } from "../../lib/env.js";
 import { logger } from "../../lib/log.js";
 

@@ -34,7 +34,7 @@ for (const k of [
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/playbooks.ts"));
-const { PLAYBOOKS_PER_TICK } = await import(at("apps/edge/lib/sweep-rotation.ts"));
+const { PLAYBOOKS_PER_TICK } = await import(at("apps/edge/lib/ops/sweep-rotation.ts"));
 after(() => setPg(null));
 
 const D = 86_400_000;

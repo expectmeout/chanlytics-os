@@ -96,7 +96,7 @@ by design, and there is nowhere to see your own.
 
 `NotificationsConfigSchema` (`packages/contracts/src/config.ts:543-549`) is
 `escalation_emails`, an array of one to ten addresses, plus an optional `from`.
-`apps/edge/lib/notify.ts` takes a `NotifyTarget` of
+`apps/edge/lib/ops/notify.ts` takes a `NotifyTarget` of
 `{ tenantId, notifications, isEnvDefault }` (`:36-44`) and mails all of them;
 a workspace it cannot address gets a redacted platform note instead (`:20-23`).
 Nothing anywhere maps a member to an address.
