@@ -1190,6 +1190,38 @@ test("REGRESSION: list_audiences tells who said yes from who can be sent it -- '
   }
 });
 
+test("REGRESSION: list_audiences counts everyone and every member, and names a calendar's lists only with a calendar -- it read the first thousand people with no appointments, and one select of members, so past a thousand it said less than the send enrols", async () => {
+  const S_ALL = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3";
+  const people = Array.from({ length: 1200 }, (_, i) =>
+    peopleListRow({
+      id: `dddddddd-dddd-4ddd-8ddd-${String(i).padStart(12, "0")}`,
+      display_name: `Person ${i}`,
+      phone_e164: `+1555${String(1000000 + i)}`,
+    }),
+  );
+  const t = tables({
+    segments: [{ id: S_ALL, tenant_id: A, name: "Everyone we know" }],
+    segment_members: people.map((r) => ({ tenant_id: A, segment_id: S_ALL, contact_id: r.id })),
+  });
+  // people_list answers a page at a time, as the database does; a select answers at most max_rows.
+  const pages = {
+    ...RPCS,
+    people_list: (args) => people.slice(args?.p_offset ?? 0, (args?.p_offset ?? 0) + (args?.p_limit ?? 1000)),
+  };
+  const ctx = { supabase: fakeDb(t, {}, pages, { maxRows: 1000 }), userId: USER, email: "ada@example.com", params: {} };
+  const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "list_audiences", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  const reach = (label) => read.audiences.find((x) => x.label === label)?.can_be_sent_messages;
+  assert.equal(reach(EVERYONE_LABEL), 1200, "REGRESSION: the first thousand people");
+  assert.equal(reach("Everyone we know"), 1200, "REGRESSION: the first thousand members");
+  assert.deepEqual(
+    read.audiences.filter((a) => ["booked_week", "booked", "asked_never_booked", "lapsed"].includes(a.audience_id)),
+    [],
+    "REGRESSION: with no calendar, the calendar's lists were offered, each counting nobody",
+  );
+});
+
 test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
   const out = await runTool(tc, { name: "list_playbooks", input: {} });

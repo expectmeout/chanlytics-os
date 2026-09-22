@@ -791,3 +791,23 @@ test("a view is the workspace's: read from the member's own row, written through
     400,
   );
 });
+
+test("REGRESSION: a list past a thousand people is read to its last member -- its members were one select, which answers at most 1000 rows, so the rail, a profile and the composer lost everyone after the thousandth", async () => {
+  const ids = Array.from({ length: 1500 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+  const tables = {
+    memberships: both("viewer", "operator"),
+    segments: [{ id: S1, tenant_id: A, name: "Regulars" }],
+    segment_members: ids.map((contact_id) => ({ segment_id: S1, contact_id, tenant_id: A })),
+  };
+  // PostgREST's max_rows, as the server has it.
+  const ctx = {
+    supabase: fakeDb(tables, {}, {}, { maxRows: 1000 }),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  };
+  const { lists: read } = await lists.GET.run(get(inA), ctx);
+  assert.equal(read.length, 1);
+  assert.equal(read[0].ids.length, 1500, "REGRESSION: 1000 of 1500");
+  assert.deepEqual(new Set(read[0].ids), new Set(ids), "each of them once");
+});
