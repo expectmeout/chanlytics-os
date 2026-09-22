@@ -439,6 +439,7 @@ for (const k of [
   "plColumnChoices",
   "plColumnOptions",
   "PL_NO_SEL",
+  "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
@@ -773,6 +774,20 @@ const draw = (props = {}) => {
     ...props,
   });
 };
+
+test("a fresh mount of Leads draws its first rows and the next draw every row", () => {
+  // The switch from People is a remount, and the table's rows were most of what it waited on (measured on the salon:
+  // a 250 ms draw of 96 leads, 125 ms with the first 24).
+  const rows = Array.from({ length: 40 }, (_, i) => ({ ...ROWS[0], id: `many-${i}` }));
+  fresh({ leads: surface({ rows }) });
+  const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^lead-many-/.test(String(n.props?.id || ""))).length;
+  const first = draw();
+  assert.ok(
+    rowsOf(first) > 0 && rowsOf(first) <= globalThis.window.PL_FIRST_ROWS,
+    `the first draw carries the first rows only, saw ${rowsOf(first)}`,
+  );
+  assert.equal(rowsOf(draw()), 40, "the next draw carries every row");
+});
 
 /* ---------------------------------- the rows ---------------------------------- */
 

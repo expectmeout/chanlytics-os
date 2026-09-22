@@ -116,6 +116,7 @@ for (const k of [
   "plColumnChoices",
   "plColumnOptions",
   "PL_NO_SEL",
+  "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx"); // Task 2's: LeadShape is its, and this file draws it

@@ -388,6 +388,7 @@ for (const k of [
   "plColumnChoices",
   "plColumnOptions",
   "PL_NO_SEL",
+  "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
@@ -3040,6 +3041,31 @@ test("People keeps its place per view in the tab: the words in the box and the c
     clearTabMemory();
     assert.equal(TM.place("people", "list:s1"), null);
   } finally {
+    delete globalThis.window.__tabMemory;
+  }
+});
+
+test("a fresh mount draws its first rows and the next draw every row; a place to put back draws them all at once", async () => {
+  // The switch between People and Leads is a remount, and the table's rows were most of what it waited on (measured
+  // on the salon: a 250 ms draw of 96 leads, 125 ms with the first 24). A scroll or a cursor to put back needs every
+  // row on the first draw, so it draws them all.
+  const { installTabMemory, clearTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
+  await freshPage({ people: Array.from({ length: 60 }, (_, i) => person(i)) });
+  const first = draw();
+  assert.ok(
+    rowsOf(first) > 0 && rowsOf(first) <= globalThis.window.PL_FIRST_ROWS,
+    `the first draw carries the first rows only, saw ${rowsOf(first)}`,
+  );
+  assert.equal(rowsOf(draw()), 60, "the next draw carries every row");
+  installTabMemory(globalThis.window);
+  clearTabMemory();
+  try {
+    globalThis.window.__tabMemory.keepPlace("people", "all", { q: "", cursor: null, top: 300 });
+    cells = [];
+    assert.equal(rowsOf(draw()), 60, "a scroll to put back: every row on the first draw");
+  } finally {
+    clearTabMemory();
     delete globalThis.window.__tabMemory;
   }
 });

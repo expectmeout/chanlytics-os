@@ -90,6 +90,7 @@ for (const k of [
   "plColumnChoices",
   "plColumnOptions",
   "PL_NO_SEL",
+  "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
 
@@ -249,4 +250,16 @@ test("a heading that sorts is a button with aria-sort on its th; a column turned
     "on a phone: the Email heading and its two cells, marked",
   );
   assert.equal(all(ph, (n) => n.type === "td").length, 5 * ROWS.length);
+});
+
+test("a budget draws that many rows and no more; a budget past the rows, or none, draws them all", () => {
+  // The page's first draw on a fresh mount (clients-a.jsx rowBudget) hands the table PL_FIRST_ROWS; the rest come a
+  // frame later. The foot's count and the select-all still read every row.
+  const many = Array.from({ length: 25 }, (_, i) => ({ id: `m${i}`, name: `Person ${i}`, state: "new" }));
+  const drawn = (tree) => all(tree, (n) => n.type === "tr" && /^person-m/.test(String(n.props?.id || ""))).length;
+  assert.equal(drawn(table({ rows: many, total: 25, budget: 24 })), 24, "the first 24");
+  assert.equal(drawn(table({ rows: many, total: 25, budget: 25 })), 25, "a budget the rows fit in");
+  assert.equal(drawn(table({ rows: many, total: 25 })), 25, "no budget: every row");
+  assert.match(textOf(table({ rows: many, total: 25, budget: 24 })), /25 people/, "the foot counts every row");
+  assert.equal(T.PL_FIRST_ROWS, 24, "the first draw's budget, published for the page");
 });
