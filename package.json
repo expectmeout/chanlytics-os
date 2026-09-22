@@ -15,6 +15,7 @@
     "format:check": "prettier --check .",
     "prepare": "node tooling/scripts/prepare-hooks.mjs",
     "e2e": "playwright test",
+    "e2e:local": "node tooling/scripts/e2e-harness/run.mjs",
     "e2e:install": "playwright install --with-deps chromium"
   },
   "engines": {
