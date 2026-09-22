@@ -261,6 +261,8 @@ At rest: **four** controls — *Read what it's told*, the standing line's one li
 
 Four things are never hidden: anything wrong or missing; the act on an empty row; everything on a touch screen (no hover on a phone — the whole row is the act and the chevron is always drawn); and the keyboard path.
 
+> **Amended 22 Sep, in execution (Task 5.1).** The first of the four is **Read it**, the door of the told section after *What it can do* (§4's amendment), not a *Read what it's told* in the head. Inside the prompt sheet, each block's door back to its row follows the same rule: drawn when its block is hovered or holds focus, and always on a touch screen and at a phone's width.
+
 ## 12. Tests
 
 House rule: no `readCode` assertions. Every test executes the page on the stub React, as `today-page.test.mjs` does.
