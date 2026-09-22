@@ -209,7 +209,7 @@ const BtPromptSheet = ({ prompt, brain, canEdit = true }) => {
         <section className="bt-prompt-now" aria-labelledby="bt-prompt-now-label" data-testid="rec-prompt-now">
           <h3 className="bt-prompt-block-label" id="bt-prompt-now-label">{tab.PROMPT_NOW.label[channel]}</h3>
           <p className="bt-prompt-block-text">{composed.now}</p>
-          <p className="bt-prompt-block-note">{tab.PROMPT_NOW.why}</p>
+          <p className="bt-prompt-block-note">{tab.PROMPT_NOW.why[channel]}</p>
         </section>
       </div>
     </div>

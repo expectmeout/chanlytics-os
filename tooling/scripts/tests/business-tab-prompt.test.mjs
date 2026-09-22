@@ -129,13 +129,16 @@ test("what is sent beside the prompt is drawn apart, and says why", () => {
   assert.match(textOf(now), /rebuilt/i);
   assert.match(textOf(now), /prompt cache/i, "the reason it is separate is the reason it stays separate");
   assert.ok(textOf(now).includes(W.__composedPrompt("whatsapp").now), "the clock the server composed, as it is");
-  assert.ok(textOf(now).includes(PROMPT_NOW.why));
+  assert.ok(textOf(now).includes(PROMPT_NOW.why.whatsapp));
   // Apart: no block of the prompt holds it.
   for (const b of cut("whatsapp")) {
     assert.ok(!textOf(byTestId(tree, `rec-prompt-block-${b.id}`)).includes("Right now"), `${b.id} does not hold it`);
   }
-  // On a call it is rebuilt for the call.
-  assert.match(textOf(byTestId(drawPrompt("voice"), "rec-prompt-now")), /rebuilt for every call/);
+  // On a call it is rebuilt for the call, and it is the call's cache it keeps.
+  const call = textOf(byTestId(drawPrompt("voice"), "rec-prompt-now"));
+  assert.match(call, /rebuilt for every call/);
+  assert.ok(call.includes(PROMPT_NOW.why.voice));
+  assert.ok(!call.includes("on every message"), "a call's clock is not rebuilt per message");
 });
 
 /* ------------------------------------ the slot ------------------------------------ */

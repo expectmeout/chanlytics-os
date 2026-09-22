@@ -1072,10 +1072,14 @@ test("who reads the prompt is one phrase per channel, and the clock beside it sa
   // PromptPreview kept for it, word for word.
   assert.match(PROMPT_NOW.label.whatsapp, /rebuilt for every message/);
   assert.match(PROMPT_NOW.label.voice, /rebuilt for every call/);
-  assert.equal(
-    PROMPT_NOW.why,
-    "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
-  );
+  // One sentence per channel, word for word but for its last word: a call's clock is composed when the call starts,
+  // so on Phone it is the prompt cache of every call it would throw away, not of every message.
+  assert.deepEqual(PROMPT_NOW.why, {
+    whatsapp:
+      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+    voice:
+      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every call.",
+  });
 });
 
 test("the services sheet's foot says how many it will be told of, how long they are, and what share of the prompt", () => {

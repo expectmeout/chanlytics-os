@@ -13762,7 +13762,10 @@ var PROMPT_NOW = {
     whatsapp: "Sent alongside it, rebuilt for every message",
     voice: "Sent alongside it, rebuilt for every call"
   },
-  why: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every message."
+  why: {
+    whatsapp: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+    voice: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every call."
+  }
 };
 function servicesToldWords(i) {
   const n = i.count;

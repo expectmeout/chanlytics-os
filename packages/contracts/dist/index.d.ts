@@ -10823,14 +10823,18 @@ declare const PROMPT_READERS: {
 /**
  * What is sent beside the prompt: the clock, the closures that land today and the calendar's openings, rebuilt for
  * every message and at the start of every call (server/prompt-preview.ts `now`, the edge's `describeNow`). `why` is the
- * sentence PromptPreview kept beside it, word for word, since it is the reason the two are drawn apart.
+ * sentence PromptPreview kept beside it, word for word, since it is the reason the two are drawn apart -- per channel
+ * in its last word only, because a call's clock is composed once, when the call starts, not for every message.
  */
 declare const PROMPT_NOW: {
     readonly label: {
         readonly whatsapp: "Sent alongside it, rebuilt for every message";
         readonly voice: "Sent alongside it, rebuilt for every call";
     };
-    readonly why: "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.";
+    readonly why: {
+        readonly whatsapp: "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.";
+        readonly voice: "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every call.";
+    };
 };
 /**
  * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it

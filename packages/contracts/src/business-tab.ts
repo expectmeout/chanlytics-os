@@ -576,14 +576,20 @@ export const PROMPT_READERS = {
 /**
  * What is sent beside the prompt: the clock, the closures that land today and the calendar's openings, rebuilt for
  * every message and at the start of every call (server/prompt-preview.ts `now`, the edge's `describeNow`). `why` is the
- * sentence PromptPreview kept beside it, word for word, since it is the reason the two are drawn apart.
+ * sentence PromptPreview kept beside it, word for word, since it is the reason the two are drawn apart -- per channel
+ * in its last word only, because a call's clock is composed once, when the call starts, not for every message.
  */
 export const PROMPT_NOW = {
   label: {
     whatsapp: "Sent alongside it, rebuilt for every message",
     voice: "Sent alongside it, rebuilt for every call",
   },
-  why: "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+  why: {
+    whatsapp:
+      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+    voice:
+      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every call.",
+  },
 } as const;
 
 /**
