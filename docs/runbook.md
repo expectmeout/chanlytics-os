@@ -128,7 +128,11 @@ corepack pnpm e2e:local -- e2e/settings-business.spec.ts --grep "fits a phone"
 
 It takes a free port, sets what `signIn()` reads, runs the REAL spec unmodified
 and stops the server. Nothing leaves the machine, no key of any kind is needed,
-and the harness cannot write: there is nowhere to write to.
+and the harness cannot write: every route but the two auth calls answers a GET
+or a HEAD and refuses the rest, so nothing on it can look like a write that
+landed. It runs with `--retries=0`, where the config retries once locally: a
+mutation run asks whether the journey went red, and a retry that passes turns a
+caught mutant into a flake.
 
 Two records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
 `tooling/scripts/e2e-workspace.mjs` -- the config it writes, the line it
@@ -147,6 +151,12 @@ the config's own 45s. Green here is not a green nightly.
 surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
 that page's bridge publishes -- and any read it makes added to `answer()` in
 `e2e-harness/server.mjs`.
+
+One flake to know about, in the product and not in the harness: the week's copy
+menu is an `escape` `MoreMenu`, which closes on any captured scroll event
+(`data-bits.jsx`), so a scroll into view between the menu opening and the item
+being clicked closes it and the item is never there -- rare, likelier on the
+harness because its page is slower, and the nightly can hit it too.
 
 ## What CI proves
 

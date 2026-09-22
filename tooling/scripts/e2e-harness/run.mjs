@@ -10,9 +10,13 @@
  * `signIn()` mints its cookie against the harness, runs the REAL spec unmodified, and stops the server whatever the
  * run did. The keys are stand-ins: no key of any kind is needed, and nothing leaves the machine.
  *
- * Anything after the spec is passed to Playwright as it stands, so `--grep`, `--headed` and the rest work. The
- * timeout is raised because the harness compiles the legacy tree with Babel in the browser, which is slower than the
- * built bundle production serves; pass `--timeout=` to say otherwise.
+ * Anything after the spec is passed to Playwright as it stands, so `--grep`, `--headed` and the rest work. Two
+ * defaults, each overridable by passing the flag yourself:
+ *   --timeout=120000  the harness compiles the legacy tree with Babel in the browser, which is slower than the built
+ *                     bundle production serves, so a test needs longer here than the config's own 45s;
+ *   --retries=0       the config retries once locally, which is right against a deployment over a network and wrong
+ *                     here: a mutation run asks whether the journey WENT RED, and a retry that passes turns a caught
+ *                     mutant into a flake. A failure on the harness should be a failure.
  */
 import path from "node:path";
 import { spawn } from "node:child_process";
