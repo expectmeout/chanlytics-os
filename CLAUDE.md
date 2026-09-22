@@ -46,6 +46,11 @@ corepack pnpm gen:db-types                    # database.types.ts, after a migra
 
 `pnpm` is corepack-only. Node 22 or newer.
 
+**To look at a page you changed, run the app** -- `corepack pnpm --filter @chanlytics/dashboard dev`, then
+`/w/<workspace-slug>/`. The standalone mockup (`Chanlytics.html`) stubs the bridge, so Today, the Calendar,
+People, Leads and Live do not mount in it and a screenshot of it proves nothing about them. docs/runbook.md,
+"See a real page", has the three things that trip it up.
+
 ## The rules
 
 Each of these is enforced by a test or a workflow. Breaking one is a red build, not a style note.
