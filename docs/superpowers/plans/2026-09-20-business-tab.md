@@ -2249,6 +2249,69 @@ Change both deliberately. Neither may be deleted.
 > - **M-2, a workspace whose fields compose nothing.** Then none of the four rule switches reaches the prompt (`resolveSystemPrompt`'s no-profile branch returns the stored prompt plus Autonomy's rules only). The rules group should say so once. The prompt view's no-fields note already says the equivalent on the same page, so the two must agree.
 > - **M-3, "it sends the link instead" and ", then the link".** `linkGoes` (`business-tab.ts`) ignores `callSendsLink`. On a workspace on both lines with no approved booking-link template, the call cannot send it. Limit those clauses to chat when the call can't.
 
+### Task 4.0: The record, quiet
+
+The owner read the page Phase 3 shipped, on his phone and on a desktop, on 22 September, and asked for it in his own
+words: keep the frontend **subtly sophisticated, not bulky or cluttered**; use **smart indicators or subtle badges so
+the pages stay minimal, especially on mobile**; make it **a seamless modern thing, not a heavy load of styling and
+colors**; he sees **weird gradients, font changes, and technical data users do not need to see**. Nothing the page can
+do changes — every fact, every editor, every refusal, every consequence line, every door stays. What goes is what an
+owner cannot act on.
+
+The rule, applied to every visible token: *does an owner need this to act?* If not, it goes into the fold that edits
+the row, or nowhere. A row states its fact and at most ONE quiet signal. No gradient, no second typeface, no coloured
+panel. On a phone, fewer words per row and no secondary line that carries no decision.
+
+The eleven items:
+
+1. **Source chips.** "You set this" is the default and tells an owner nothing. The kit draws NO source for `typed`, and
+   says the four that are not the owner's (and a disagreement's two answers) as a muted word, never a bordered pill.
+2. **"Last changed by ruben@rjcapital.io, 7m ago".** Never an email: "Changed by you" when the actor is the viewer, the
+   name from the team otherwise, the email's local part when there is no name. Contracts'.
+3. **Character counts.** No count at rest. The owner's own words show their opening only, and the count moves under the
+   box with the limit beside it; the told section's head keeps its Show and one phrase, and its count waits inside.
+4. **The calendar row.** The host in the page's own typeface, one quiet mark for readable/failed, one phrase for when it
+   was read. The address whole, the event count and "from your calendar" live in the fold.
+5. **The hours fold.** "All times in New York time", the name the card above already uses, never the IANA id.
+6. **Gradients.** The fold's ground, the closed day's stripes and the Activity log's sweeping bones all go flat.
+7. **Typefaces.** The page reads in ONE: the "will be told" block and the composed prompt take the page's own face.
+8. **"When it can't answer".** One line: "3 messages, in your words", or "3 messages, the product's wording".
+9. **The hours ribbon** stays — it is the smart indicator the owner asked for — checked at 390px.
+10. **A phone pass** at 390px: a row that has its fact drops the hint under it, and a row of chips stops at two lines.
+11. Anything else on the page that fails the rule.
+
+**Changed in execution (22 Sep).** All eleven shipped, test-first, on `design/what-it-can-do`.
+
+- The kit's source (`record-row.jsx` `RecordSourceChip`) is a muted word and draws nothing for `typed` (`95152692`).
+  `.rec-src` is no longer the house `.pill`, so no rule of `components.css` was touched.
+- `lastChangedWords` takes a `LastChangedBy` discriminator rather than a name that may be null — "someone no longer on
+  the team" was being passed in as a NAME — and `lastChangedName` gives the local part (`88c592d6`).
+- `instructionsWords` lost `size` and `nearFull` and gained `limit`, counted from the first character (`09001a9d`).
+- The calendar VM gained `feed.read` ("read 4m ago") beside the `detail` it was cut out of; the row's
+  `.bt-feed-address` became `.bt-feed-where` (the host alone) and its pill a `.bt-feed-dot` whose words are its
+  accessible name and its tip (`3cf8de6a`). The harness carries no calendar read, so the mark and the phrase are
+  proven by the unit tests rather than by the photograph.
+- `hoursZoneWords` is contracts' (`e15458a0`); `fallbacksWords` answers one line (`22188e2c`).
+- Three gradients went flat (`ce2ed5e3`). The Activity log's `.act-bone` is the third: it is not on this page, but it is
+  in `settings.css`, it is a sweeping gradient, and the design spec's §9 already refuses a skeleton shimmer. The shared
+  `.skel` in `components.css` was not used in its place because `.skel` shimmers with a gradient of its own.
+- One typeface (`8b5c6bab`). `.set-broken-issues` (the parser's output) and `.pf-kind` (the back office's event kinds)
+  stay monospace: those really are machine names.
+- The phone pass (`7444dce9`): `.rec-row[data-empty="false"] .rec-row-hint` is not drawn under 761px, and
+  `RecordChips` takes a `max` with contracts' `CHIPS_SHOWN` and `chipsMoreWords`, so the rules stop at four as the
+  services and the notes already did. A row with NOTHING in it keeps its hint — that sentence says what empty means.
+  The booking link's hint stays on a desktop, where the column has room for it and nothing else competes.
+- Two more found by the 390px sweep this task added: the two bordered `.bt-channel` pills on the hand-off row became
+  muted words (`8849307d`), and the week ribbon's green-washed bars became filled neutrals (`2f6a3b0a`) — green says
+  nothing about opening hours, and the accent on this shell means "right now".
+
+**Proof.** `corepack pnpm e2e:local -- e2e/settings-business.spec.ts` and `--scenario=salon` are both 12/12, unchanged.
+At 390px on the salon record: no horizontal scroll, and inside `.rec-card` / `.rec-row` at rest **0** bordered pills
+(was 9), **0** monospace elements (was 2) and **0** computed gradients (was 13).
+
+**Left alone.** Task 4.1's abilities card, 4.1b and 4.2's rule strengths are the tasks below; the prompt sheet is
+Phase 5. `components.css`, `mobile.css`, `legacy.css`, the tokens and `.pill` belong to other sessions.
+
 ### Task 4.1: The abilities card
 
 **Files:**

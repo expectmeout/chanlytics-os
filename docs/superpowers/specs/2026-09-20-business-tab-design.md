@@ -77,6 +77,8 @@ Three clauses, not a meter: what it can answer, what it deliberately will not, a
 
 The chip is the source the settings read resolved (facts.ts `resolveFacts`, which this spec does not change), and it reports a typed value that agrees with Google's as typed: a name Google agrees with reads "you set this", and "from Google" is shown only on a value that came from Google alone.
 
+> **Amended 22 Sep, in execution (Task 4.0).** There is no chip, and a typed fact says nothing at all. "You set this" is the default on five of these seven rows, it tells an owner nothing they could act on, and at a phone's width the pill wrapped onto a line of its own under every value. The kit draws a source only where the value is NOT the owner's — from Google, your line, this workspace, not set, and a disagreement's two answers — and draws it as a muted word beside the value, in the same contracts words (`SOURCE_WORDS`). The resolver is unchanged: a name Google agrees with is still reported typed, and is now simply said nothing of.
+
 Foot: one sentence saying the legal name and registered address live on Connections and are asked once.
 
 The **Workspace** row goes. It printed the business's name a second time whenever it differed.
@@ -84,6 +86,8 @@ The **Workspace** row goes. It printed the business's name a second time wheneve
 ### 4.3 When you're open
 
 Hours as a week ribbon plus one sentence; timezone with the local time beside it; closed days; the calendar it reads, stating its last read and event count. The **Check the address** button goes — the row says what a check would have told you.
+
+> **Amended 22 Sep, in execution (Task 4.0).** The calendar row states WHERE it reads (the feed's host, in the page's own typeface, never the path — a private address is a long secret and the row is read over a shoulder), one quiet mark for whether the last read worked (the Calendar page's own words in its accessible name and its tip, not a pill), and WHEN it was read (`feed.read`, "read 4m ago"). The address whole, the source and the event count are in the fold, which is where somebody who wants them goes. The hours fold's line names the zone the way the card above it does — "All times in New York time" (`hoursZoneWords`), never `America/New_York`.
 
 The hours fold is a week on one scale: a day is a toggle, a bar on a 6am–10pm axis, and its times. A break is a second bar on the same row. Copy-to-day becomes one menu, and names every day it opens or overwrites, with the whole grid restorable in one press — the behaviour `applyToAll` already has (`:1225-1256`), given a control that does not sit inches from two other links.
 
@@ -214,6 +218,18 @@ Four refusals: nothing pulses (the accent means a live call); no skeleton shimme
 | Calendar it may look at | **Calendar it reads**, here and on the Calendar page |
 
 Sentence case throughout; no colons in a label; the label names the thing and the hint says what it is for, never both in the label.
+
+> **Amended 22 Sep, in execution (Task 4.0).** Four sentences changed, each because it said something an owner cannot act on from where it stood:
+>
+> | Retired | Kept |
+> |---|---|
+> | you set this | *nothing* — a fact the owner set says nothing; only a fact that is not theirs does |
+> | Last changed by ruben@rjcapital.io, 7m ago | **Changed by you, 7m ago**, or the person's name, or the local part of their address — never the address |
+> | In your own words · 339 characters | the opening alone; **339 of 20,000 characters** under the box that edits them |
+> | 3 messages sent in your name · 3 differ from the default wording | **3 messages, in your words** / **3 messages, the product's wording** |
+> | All times America/New_York, as the receptionist states them | **All times in New York time, as the receptionist states them** |
+>
+> The told section's head keeps its title, its Show and "every WhatsApp message, word for word"; its character count is inside, beside the text it counts.
 
 ## 11. What is on screen
 
