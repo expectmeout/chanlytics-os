@@ -11458,6 +11458,11 @@ function resolveTheme(pref, systemDark) {
 var DEFAULT_THEME_PREF = "dark";
 var themePrefOf = (stored) => isThemePref(stored) ? stored : DEFAULT_THEME_PREF;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
+var THEME_COLORS = { light: "#fbfaf8", dark: "#0c0d0f" };
+function themeColorOf(theme) {
+  return THEME_COLORS[theme === "light" ? "light" : "dark"];
+}
+var THEME_COLOR_META = 'meta[name="theme-color"]';
 function themeBootScript() {
   const known = JSON.stringify(THEME_OPTIONS.map((o) => o.id));
   return [
@@ -11465,7 +11470,11 @@ function themeBootScript() {
     `var p=${JSON.stringify(DEFAULT_THEME_PREF)};`,
     `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");if(s&&${known}.indexOf(s.theme)>=0)p=s.theme}catch(e){}`,
     'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
-    'document.documentElement.dataset.theme=p==="system"?(d?"dark":"light"):p;',
+    'var t=p==="system"?(d?"dark":"light"):p;',
+    "document.documentElement.dataset.theme=t;",
+    `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
+    'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
+    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,
     "}catch(e){}"
   ].join("");
 }
@@ -16870,6 +16879,8 @@ export {
   TENANT_STATUSES,
   TEXTING_NEEDS_RECORD_CLAUSE,
   TEXTING_NEEDS_RECORD_SENTENCE,
+  THEME_COLORS,
+  THEME_COLOR_META,
   THEME_OPTIONS,
   TIMELINE_FILTERS,
   TOAST_ICONS,
@@ -17409,6 +17420,7 @@ export {
   textingWords,
   themeBootScript,
   themeButtonWords,
+  themeColorOf,
   themePrefOf,
   threadChannelOf,
   threadChannelWords,

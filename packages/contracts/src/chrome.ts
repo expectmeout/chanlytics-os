@@ -49,11 +49,38 @@ export const themePrefOf = (stored: unknown): ThemePref => (isThemePref(stored) 
 export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 
 /**
+ * What the browser paints its own bars with, per theme: each one's paper (tokens.css --bg, as sRGB). The phone's
+ * address bar and the tab strip are chrome the page does not draw but does own, and a bar in the other theme's
+ * paper reads as a strip of somebody else's app above this one.
+ */
+export const THEME_COLORS: Readonly<Record<Theme, string>> = { light: "#fbfaf8", dark: "#0c0d0f" };
+
+/** The bars' colour for a resolved theme; anything else is the app's own, as the document's markup says. */
+export function themeColorOf(theme: unknown): string {
+  return THEME_COLORS[theme === "light" ? "light" : "dark"];
+}
+
+/**
+ * Where the bars' colour is written. Every match, not the first: React plants a second copy of the meta during
+ * hydration whenever the boot script has already changed the one the markup shipped (measured 22 Sep 2026, a light
+ * workspace on a dark phone: #fbfaf8 in front and a stale #0c0d0f behind it). A browser reads the first, so the
+ * bars were right either way, but a second answer to the same question is one an insertion order can promote.
+ */
+export const THEME_COLOR_META = 'meta[name="theme-color"]';
+
+/**
  * The theme before first paint: a script for the document's head, run before anything is drawn. The document used
  * to come down with data-theme="dark" hard-coded and be corrected in an effect after the bundle had mounted, so a
  * light-theme workspace opened dark and flipped on every refresh. This is themePrefOf then resolveTheme, spelled once
  * more where an import cannot reach; theme-boot.test.mjs runs it against them for everything a device could hold
  * and both device settings. A storage that refuses or a window with no matchMedia stamps the app's own theme.
+ *
+ * It paints the browser's bars from the same theme, for the same reason. theme-color was declared against
+ * (prefers-color-scheme), which is the DEVICE's setting and not the app's: a member whose app is light on a dark
+ * phone got a black strip over a white page for as long as the two disagreed, and nothing ever corrected it. The
+ * bars follow the theme the page resolved, here and in the app (paintThemeColor); the meta the markup shipped is
+ * what a device running no script keeps, which is the theme that document also keeps. The attribute is stamped
+ * before any meta is touched, so a document that somehow has no head still paints in the right theme.
  */
 export function themeBootScript(): string {
   const known = JSON.stringify(THEME_OPTIONS.map((o) => o.id));
@@ -62,7 +89,11 @@ export function themeBootScript(): string {
     `var p=${JSON.stringify(DEFAULT_THEME_PREF)};`,
     `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");if(s&&${known}.indexOf(s.theme)>=0)p=s.theme}catch(e){}`,
     'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
-    'document.documentElement.dataset.theme=p==="system"?(d?"dark":"light"):p;',
+    'var t=p==="system"?(d?"dark":"light"):p;',
+    "document.documentElement.dataset.theme=t;",
+    `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
+    'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
+    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,
     "}catch(e){}",
   ].join("");
 }
