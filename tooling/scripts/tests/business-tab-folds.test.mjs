@@ -155,6 +155,15 @@ const EDITS = {
     () => " webcal://calendar.example.com/melany/new.ics ",
     (next) => assert.deepEqual(next.calendar, { ical_url: "webcal://calendar.example.com/melany/new.ics" }),
   ],
+  // The create fold, drawn only where there is no receptionist; on a stored brain it writes the three it asks for, a
+  // different number where one is typed, and keeps the brain's own prompt and messages.
+  receptionist: [
+    (d) => ({ ...d, name: "  Melany's Salon & Spa ", own: false, typed: " (646) 555-0100 ", link: " https://book.example/melany " }),
+    (next) => {
+      assert.deepEqual([next.brain.business_name, next.brain.phone_display, next.brain.booking_link], ["Melany's Salon & Spa", "(646) 555-0100", "https://book.example/melany"]);
+      assert.deepEqual([next.brain.system_prompt, next.brain.fallbacks], [STORED.brain.system_prompt, STORED.brain.fallbacks], "the brain's own prompt and messages, kept");
+    },
+  ],
 };
 const FOLDS = Object.keys(EDITS);
 
@@ -179,7 +188,7 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
   assert.deepEqual(S.KEYS_OF, {
     tone: ["tone"], hours: ["hours"], closures: ["closures"], services: ["services"], languages: ["languages"],
     notes: ["notes"], escalate_when: ["escalate_when"], booking_rules: ["booking_rules"], consult_first: ["booking_rules"],
-    guardrails: ["guardrails"], extra_instructions: ["extra_instructions"], fallbacks: [], calendar: [],
+    guardrails: ["guardrails"], extra_instructions: ["extra_instructions"], fallbacks: [], calendar: [], receptionist: [],
   });
   for (const fold of FOLDS) {
     // KEYS_OF says which keys of the profile a fold writes into; PATHS_OF says exactly where, in the whole config.
@@ -194,7 +203,9 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
     S.PATHS_OF.booking_rules.map((p) => p.split(".").pop()).sort(),
     ["buffer_min", "lead_hours", "max_days_ahead", "notes", "party_max", "slot_min"],
   );
-  assert.deepEqual(FOLDS.filter((f) => S.PATHS_OF[f].includes("brain.system_prompt")), ["extra_instructions"], "one fold owns the stored prompt");
+  // The instructions own the stored prompt; the create fold writes the product's own where none is stored, and no other
+  // fold touches it (the create fold's own test says it keeps one that is there).
+  assert.deepEqual(FOLDS.filter((f) => S.PATHS_OF[f].includes("brain.system_prompt")), ["extra_instructions", "receptionist"]);
   for (const helper of ["draftOf", "saveFold", "problemsOf"]) {
     assert.throws(() => S[helper]("not_a_fold", stored(), ""), { name: "TypeError", message: /"not_a_fold"/ }, helper);
     assert.throws(() => S[helper]("toString", stored(), ""), { name: "TypeError", message: /"toString"/ }, `${helper}: a name every object has is not a fold`);
@@ -301,6 +312,7 @@ test("each fold opens with its stored values, as the form it replaces opened the
       ["extra_instructions", { text: "", carried: false }],
       ["fallbacks", FALLBACK_DEFAULTS],
       ["calendar", ""],
+      ["receptionist", { name: "Bella Nails", own: true, typed: "", link: "https://bella.example/book" }],
     ],
   );
 });

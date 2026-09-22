@@ -82,7 +82,8 @@ const served = (brain, channel, row) => {
 };
 
 /** The real rows whose effect never reaches the cached prompt. */
-const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
+// And the create fold of a workspace with no receptionist, which the settings read composes no preview for.
+const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [

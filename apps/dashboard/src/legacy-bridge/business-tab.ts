@@ -66,6 +66,9 @@ export const FOLD_BLOCK = {
   // (tenants.timezone, saved through its own route), not a key of the brain a fold sends, so no draft of it
   // can be resolved here. The hours and closures folds show the zone as saved.
   timezone: null,
+  // The create fold of a workspace with no receptionist: the settings read composes no preview where there is no
+  // brain (server/prompt-preview.ts), so there are no inputs to resolve its draft with.
+  receptionist: null,
 } as const satisfies Record<string, string | null>;
 
 export type FoldSection = keyof typeof FOLD_BLOCK;

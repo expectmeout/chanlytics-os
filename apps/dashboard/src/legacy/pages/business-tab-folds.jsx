@@ -68,6 +68,7 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  *   extra_instructions  extra_instructions
  *   fallbacks           greeting, error, non_text: the draft's own keys
  *   calendar            ical_url
+ *   receptionist        name, number, link (the number's sentence is the create card's own check, which knows the line)
  * The old form's sentences are word for word, which the settings tests pin; where one was JSX only for its fragment or
  * its braces, it is a plain string here. The rest are new: the save's schema (contracts BusinessProfileSchema) refuses
  * a length or a count the old form never checked, and the server's refusal named no field the owner could see, so each
@@ -178,6 +179,10 @@ const BT_PATHS_OF = {
   extra_instructions: ["brain.profile.extra_instructions", "brain.system_prompt"],
   fallbacks: BT_FALLBACKS.map((key) => `brain.fallbacks.${key}`),
   calendar: ["calendar.ical_url"],
+  // The first save a workspace makes, where it has no receptionist (business-tab-create.jsx): the three things it
+  // cannot answer anyone without, and the product's own prompt and messages, which the schema needs and nobody should
+  // have to write (contracts newReceptionistDefaults), written only where none is stored.
+  receptionist: ["brain.business_name", "brain.phone_display", "brain.booking_link", "brain.system_prompt", "brain.fallbacks"],
 };
 
 // The keys of the profile each fold writes into, read off its paths so the two maps never disagree.
@@ -246,6 +251,9 @@ const BT_DRAFT_OF = {
   // for one set up before them, the product's wording, which names the details rather than copying them in.
   fallbacks: (p, brain) => ({ ...(brain.fallbacks || window.__fallbackDefaults) }),
   calendar: (p, brain, config) => (config.calendar && config.calendar.ical_url) || "",
+  // The name, the number it gives out as the Who you are row holds it (the line it answers, `own`, unless a different
+  // number is typed), and the booking link: the old form's create path.
+  receptionist: (p, brain) => ({ name: brain.business_name || "", own: !brain.phone_display, typed: brain.phone_display || "", link: brain.booking_link || "" }),
 };
 
 /** The draft `fold` opens with over the stored config `stored` (the saver's base). */
@@ -391,6 +399,25 @@ const BT_WRITE = {
     const section = { ...(next.calendar || {}) };
     btPut(section, "ical_url", feed || undefined);
     if (Object.keys(section).length) next.calendar = section; else delete next.calendar;
+  },
+  // A receptionist from nothing, as the old form's create path made one, onto whatever else the config holds (the
+  // alerts' addresses, a calendar): never a rebuild of the config. The number is stored only where a different one is
+  // typed: absent is the schema's "the line it answers". A workspace with no line must type one, which the create
+  // card's own check says, since only the page knows the line (business-tab-create.jsx). The prompt and the three
+  // messages are the product's own, under the name typed, and only where none is stored: a brain that has them keeps
+  // its own.
+  receptionist: (next, draft) => {
+    const d = draft || {};
+    if (!next.brain) next.brain = {};
+    const b = next.brain;
+    const name = btfTrimmed(d.name);
+    b.business_name = name;
+    const typed = btfTrimmed(d.typed);
+    btPut(b, "phone_display", !d.own && typed ? typed : undefined);
+    b.booking_link = btfTrimmed(d.link);
+    const made = window.__receptionistDefaults(name);
+    if (!b.system_prompt) b.system_prompt = made.system_prompt;
+    if (!b.fallbacks) b.fallbacks = made.fallbacks;
   },
 };
 
@@ -538,6 +565,19 @@ const BT_PROBLEMS_OF = {
       ? { ical_url: "The calendar feed needs to be a full address, starting with https:// or webcal://" }
       : {};
   },
+  // The name and the booking link by the Who you are rows' own checks (business-tab-save.jsx CHECK_OF), the old create
+  // path's sentences. The number's check needs the line the workspace answers on, which no draft holds: the create
+  // card asks the row's check with it (BtFold's `check`).
+  receptionist: (draft) => {
+    const d = draft || {};
+    const C = window.__businessTabSave.CHECK_OF;
+    const found = {};
+    const name = C.name(d.name);
+    if (name) found.name = name;
+    const link = C.booking_link(d.link);
+    if (link) found.link = link;
+    return found;
+  },
 };
 
 /** Every problem with a fold's draft at once, by the field it is under: {} when it may be saved. */
@@ -560,6 +600,8 @@ const BT_WRITTEN_ROWS = {
   closures: (draft) => (draft || []).map((c, i) => (btfTrimmed(c.date) ? i : -1)).filter((i) => i >= 0),
   notes: (draft) => (draft || []).map((n, i) => (btfTrimmed(n.title) || btfTrimmed(n.text) ? i : -1)).filter((i) => i >= 0),
 };
+// The create card's field keys, by the brain's key each writes.
+const BT_RECEPTIONIST_FIELDS = { business_name: "name", phone_display: "number", booking_link: "link" };
 // The field a refusal is said under, from where the schema found it; null when it is not under this fold's own paths.
 const btFieldOf = (fold, path, draft) => {
   const dotted = path.join(".");
@@ -576,6 +618,9 @@ const btFieldOf = (fold, path, draft) => {
   if (fold === "booking_rules" || fold === "consult_first") return String(path[3]);
   if (fold === "fallbacks") return String(path[2]);
   if (fold === "calendar") return "ical_url";
+  // The three boxes the create card draws; the product's own prompt and messages have none, and a refusal of them is
+  // said once, as a refusal elsewhere is.
+  if (fold === "receptionist") return BT_RECEPTIONIST_FIELDS[path[1]] || null;
   return fold === "guardrails" && path[0] === "features" ? "vision" : fold;
 };
 
