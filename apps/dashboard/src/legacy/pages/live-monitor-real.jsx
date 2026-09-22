@@ -384,10 +384,12 @@ const LrMissing = ({ notice }) => (
 
 const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }) => {
   if (!c) {
+    // A chosen call that is gone is the panel's whole news; "no calls on this line yet" beside it would be false.
     return (
       <div className="lm-panel">
-        {notice && <LrMissing notice={notice} />}
-        <EmptyState kind="card" glyph="phone" title="No calls on this line yet" body="When a customer calls, the call appears here while it is happening." />
+        {notice
+          ? <LrMissing notice={notice} />
+          : <EmptyState kind="card" glyph="phone" title="No calls on this line yet" body="When a customer calls, the call appears here while it is happening." />}
       </div>
     );
   }
@@ -536,12 +538,16 @@ const LiveMonitorReal = ({ initialCallId = null }) => {
   const recent = L.recent;
   const elapsedOf = (c) => Math.max(0, Math.floor((nowMs - (c.startedAtMs || nowMs)) / 1000));
   const all = [...live, ...recent];
-  const active = all.find((c) => c.callId === activeId) || live[0] || recent[0] || null;
+  // The call chosen -- by a click or a link -- or, when none was, the one on the line, else the last. A chosen call Live
+  // no longer holds is said to be gone: the panel fell to whoever was on the line, End and Pass to me with it, and
+  // nothing said the call on screen was not the one chosen.
+  const chosen = activeId ? all.find((c) => c.callId === activeId) || null : null;
+  const active = activeId ? chosen : live[0] || recent[0] || null;
   const line = L.line;
-  const notice = initialCallId && activeId === initialCallId && !all.some((c) => c.callId === initialCallId)
+  const notice = activeId && !chosen
     ? {
         words: "That call has ended, and Live no longer holds it.",
-        open: () => window.CHANLY.nav(`conversations/cv-${initialCallId}`),
+        open: () => window.CHANLY.nav(`conversations/cv-${activeId}`),
       }
     : null;
 

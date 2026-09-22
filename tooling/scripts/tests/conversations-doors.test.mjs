@@ -214,6 +214,37 @@ test("REGRESSION (A26): a link to a conversation not in view says so inside the 
   assert.equal(find(tree, (n) => n.type === InboxThread), undefined, "REGRESSION: someone else's conversation opened in its place");
 });
 
+test("REGRESSION: a search that stops matching the open conversation keeps it open -- never the first match, another customer's", () => {
+  // The pane was `visible.find(open) || visible[0]`: typing a word Rosa's conversation does not hold opened Nina's
+  // thread beside the box, with its reply composer, and said nothing.
+  const rosa = conv([msg({ id: "m1" }), ours()]);
+  const nina = conv([msg({ id: "m3", body: "Do you do gel nails?" })], { id: "c2", contact: { id: "k2", display_name: "Nina Park", wa_profile_name: null, phone_e164: "+13475550102", consent: "opted_in", dnc: false } });
+  globalThis.window.INBOX_DATA = { THREADS: [nina, rosa].map((c) => toInboxThreadVM(c, null, ZONE, NOW)), CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+  // The pane's own drawing is the one thread's (one-thread.test.mjs); here only which thread it was handed. The stub
+  // React keys hooks by call order, and a list that shrinks under the real composer would shift its cells.
+  const opened = [];
+  globalThis.InboxThread = (p) => { opened.push(p.thread ? p.thread.id : null); return null; };
+  try {
+    withRows([toConversationVM(nina, ZONE, NOW), toConversationVM(rosa, ZONE, NOW)]);
+    cells = [];
+    const open = () => opened.at(-1);
+    const row = (tree, who) => find(tree, (n) => n.props?.onSelect && n.props?.c?.who === who);
+    const first = page();
+    assert.equal(open(), "th-c2", "the first row opens first");
+    row(first, "Rosa Díaz").props.onSelect(row(first, "Rosa Díaz").props.c.id);
+    const chosen = page();
+    assert.equal(open(), "th-c1", "Rosa is open");
+    find(chosen, (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Search names")).props.onChange({ target: { value: "gel" } });
+    const searched = page();
+    assert.equal(row(searched, "Rosa Díaz"), undefined, "the words hide her row");
+    assert.equal(open(), "th-c1", "REGRESSION: Nina Park's thread opened in Rosa's place, reply box and all");
+    assert.equal(find(searched, byTestId("cv-missing-thread")), undefined, "and it is no link that went missing");
+  } finally {
+    globalThis.InboxThread = InboxThread;
+    delete globalThis.window.INBOX_DATA;
+  }
+});
+
 test("REGRESSION (A14): a recording that will not play says why where you listen, and play tries again -- from the route's own address, which names the workspace", () => {
   const rec = toCallVM(call(), ZONE, NOW);
   assert.equal(rec.recordingState, "ready", "the fixture is a call with its audio stored");

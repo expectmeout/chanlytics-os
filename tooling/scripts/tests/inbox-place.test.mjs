@@ -189,6 +189,32 @@ test("REGRESSION: a re-read that moves the open thread out of its bucket keeps i
   globalThis.InboxThread = RealInboxThread;
 });
 
+test("REGRESSION: a thread picked from a search in another bucket opens that thread, with its own bucket -- never the bucket's first customer", () => {
+  // Found on the salon's workspace, 22 Sep: searched, clicked Marcus Bell (Handled) from Needs you, and the pane
+  // opened Emily Chen -- the search spans every bucket, the pane looked only in the one on screen and fell to its first.
+  const drawn = [];
+  let list = null;
+  globalThis.InboxList = (p) => { list = p; return null; };
+  globalThis.InboxThread = (p) => { drawn.push(p.thread ? p.thread.id : null); return null; };
+  globalThis.InboxAgentRail = () => null;
+  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+  const base = { real: true, state: "escalated", needsYou: true, takenOver: false, claimedByOther: false, archived: false, tags: [], whoMeta: "", lastAtMs: 1000, timeline: [] };
+  const emily = { ...base, id: "th-emily", who: "Emily Chen" };
+  const marcus = { ...base, id: "th-marcus", who: "Marcus Bell", state: "done", needsYou: false };
+  cells = [];
+  for (const k of Object.keys(listeners)) delete listeners[k];
+  globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: [emily, marcus] };
+  const render = () => { seq = 0; return globalThis.window.Inbox({ showAgentRail: false }); };
+  render();
+  assert.equal(drawn.at(-1), "th-emily", "Needs you opens on its first thread");
+  list.onSelectThread("th-marcus");
+  render();
+  assert.equal(drawn.at(-1), "th-marcus", "REGRESSION: Emily Chen's thread opened, and a reply meant for Marcus Bell would have gone to her");
+  assert.equal(list.activeBucket, "done", "the bucket the thread lives in is the one on screen, so the list and the pane agree");
+  assert.ok(list.threads.some((t) => t.id === "th-marcus"), "and the list the bucket shows holds it");
+  globalThis.InboxThread = RealInboxThread;
+});
+
 test("your own act moves the open thread without a notice about it: its toast has already said so", async () => {
   const drawn = [];
   globalThis.InboxList = () => null;
