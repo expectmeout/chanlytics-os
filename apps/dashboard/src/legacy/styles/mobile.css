@@ -12,20 +12,35 @@
   /* ---------- Shell ---------- */
   .app-root { grid-template-columns: 1fr; }
 
+  /* Shut, the drawer is off the page, not parked off-screen. Safari on iOS 26 colours its own status-bar strip
+     from the fixed or sticky element under the top edge's midpoint (WebKit, LocalFrameView::fixedContainerEdges)
+     and keeps that colour for as long as the element that gave it is rendered and visible
+     (Page::updateFixedContainerEdges). A drawer at translateX(-102%) is rendered and visible, so whatever the bar
+     took while the drawer was open outlived it, until a reload. display: none destroys the renderer, and the
+     transition still slides both ways: display flips at the end of the slide-out (allow-discrete), and
+     @starting-style gives the slide-in its first frame.
+     The fixed box is the sidebar, not its wrapper. The wrapper's display transition also runs when a window
+     crosses 900px, and a wrapper that is display: contents for those 240ms lays its sidebar into the grid; a
+     fixed sidebar is out of flow whatever its wrapper does. */
   .side-wrap {
-    display: block;
+    display: none;
+    transition: display 240ms;
+    transition-behavior: allow-discrete;
+  }
+  .side-wrap.open { display: contents; }
+  .side-wrap .sidebar {
     position: fixed;
     top: 0; bottom: 0; left: 0;
     z-index: 220;
-    transform: translateX(-102%);
-    transition: transform 240ms var(--ease-out);
-  }
-  .side-wrap.open { transform: none; }
-  .side-wrap .sidebar {
-    height: 100%;
     width: min(300px, 84vw);
     box-shadow: var(--shadow-lg);
     padding-bottom: env(safe-area-inset-bottom);
+    transform: translateX(-102%);
+    transition: transform 240ms var(--ease-out);
+  }
+  .side-wrap.open .sidebar { transform: none; }
+  @starting-style {
+    .side-wrap.open .sidebar { transform: translateX(-102%); }
   }
 
 
@@ -41,17 +56,20 @@
   /* Overlays always clear the drawer */
   .ask-overlay { z-index: 320; }
   /* A scrim darkens what is behind it, in both themes. This was the INK at 35%, and the ink inverts: near-black
-     over a light page (right), near-WHITE over a dark one (wrong). Under viewport-fit: cover the page draws up
-     into the status bar, so on a phone that white veil reached the top of the screen, the browser re-tinted its
-     own chrome to match, and the tint stayed after the drawer closed -- a grey band until the page was reloaded.
-     In light mode the same rule left a dark one. Black at 45%, as every other overlay here (.lp-backdrop, the
-     thread pane's .more-backdrop). */
+     over a light page (right), near-WHITE over a dark one (wrong). Black at 45%, as every other overlay here
+     (.lp-backdrop, the thread pane's .more-backdrop).
+     The backdrop-filter is for the browser's bar, not the page. A childless, see-through, viewport-sized fixed
+     box is what Safari on iOS 26 calls a dimming layer, and it paints its status-bar strip with that colour
+     blended over the page: a grey band while the drawer is open. A fixed box with a backdrop-filter it reads as
+     glass instead and leaves the strip its own colour, which is why .ask-overlay never touches it. A blur of
+     zero changes nothing on the page; it is the filter's presence that counts. */
   .nav-backdrop {
     display: block;
     position: fixed;
     inset: 0;
     z-index: 210;
     background: rgb(0 0 0 / 0.45);
+    backdrop-filter: blur(0);
     animation: route-in 160ms var(--ease-out);
   }
   .tb-menu { display: inline-flex; }
@@ -358,7 +376,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .side-wrap { transition: none; }
+  .side-wrap, .side-wrap .sidebar { transition: none; }
 }
 
 /* ---------- New decision surfaces (veto bar, verdict, policy matrix, strips) ---------- */
