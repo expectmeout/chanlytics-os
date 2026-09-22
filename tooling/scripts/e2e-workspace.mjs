@@ -58,7 +58,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 export const SLUG = "chanlytics-e2e";
 export const NAME = "Chanlytics E2E Studio";
 export const CALL_ID = "e2e-seed-call-1";
-const TIMEZONE = "America/New_York";
+/** The workspace's clock, which everything the pages say a time in is said by. */
+export const TIMEZONE = "America/New_York";
 const BOOKING_LINK = "https://example.com/book/e2e";
 const BUSINESS_PHONE = "+12125550142";
 const BUSINESS_PHONE_DISPLAY = "(212) 555-0142";
@@ -305,6 +306,22 @@ export const channelExternalId = (tenantId) => `e2e-wa-${tenantId}`;
 function must(what, res) {
   if (res?.error) throw new Error(`${what}: ${res.error.message}`);
   return res?.data ?? null;
+}
+
+/**
+ * The one line the workspace answers on: a WhatsApp channel with no credentials and no WhatsApp business account.
+ * Pure, and the only spelling of it -- converge() writes it with the workspace's own id, and the local harness
+ * (e2e-harness/scenarios.mjs) shows the Business page the same line the nightly's workspace holds.
+ */
+export function workspaceChannel() {
+  return {
+    kind: "whatsapp",
+    number_e164: BUSINESS_PHONE,
+    waba_id: null,
+    credentials_ref: null,
+    status: "active",
+    config: {},
+  };
 }
 
 /** A config the settings save would accept, built by the same helpers. */
@@ -681,19 +698,9 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
   );
   must(
     "the WhatsApp channel",
-    await db.from("tenant_channels").upsert(
-      {
-        tenant_id: T,
-        kind: "whatsapp",
-        external_id: channelId,
-        number_e164: BUSINESS_PHONE,
-        waba_id: null,
-        credentials_ref: null,
-        status: "active",
-        config: {},
-      },
-      { onConflict: "kind,external_id" },
-    ),
+    await db
+      .from("tenant_channels")
+      .upsert({ tenant_id: T, external_id: channelId, ...workspaceChannel() }, { onConflict: "kind,external_id" }),
   );
 
   // One conversation, re-dated so Reports counts it: the customer asked, the AI answered.

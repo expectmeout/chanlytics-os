@@ -25,7 +25,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
 
-const TYPES = {
+/** What each extension is served as. Exported: the e2e harness serves the same tree the same way. */
+export const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".jsx": "text/babel; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -97,10 +98,29 @@ export const reportsSampleBundle = () => sampleBundle("/data/reports-sample.js")
 export const todaySampleBundle = () => sampleBundle("/data/today-sample.js");
 export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 
-const send = (res, status, type, body) => {
+export const send = (res, status, type, body) => {
   res.writeHead(status, { "content-type": type, "cache-control": "no-store, must-revalidate" });
   res.end(body);
 };
+
+/**
+ * One file of the mockup, by its path under `root`. Nothing outside it, whatever the path says. Exported for the
+ * e2e harness, which serves the same tree with its own routes in front of it.
+ */
+export function serveStatic(res, root, rel) {
+  const file = path.join(root, rel);
+  if (!file.startsWith(root)) {
+    res.writeHead(403).end("Forbidden");
+    return;
+  }
+  fs.readFile(file, (err, body) => {
+    if (err) {
+      send(res, 404, "text/plain", "Not found");
+      return;
+    }
+    send(res, 200, TYPES[path.extname(file).toLowerCase()] || "application/octet-stream", body);
+  });
+}
 
 function serve(port, root) {
   http
@@ -114,19 +134,7 @@ function serve(port, root) {
         );
         return;
       }
-      const file = path.join(root, rel === "/" ? "/Chanlytics.html" : rel);
-      // Nothing outside the mockup, whatever the path says.
-      if (!file.startsWith(root)) {
-        res.writeHead(403).end("Forbidden");
-        return;
-      }
-      fs.readFile(file, (err, body) => {
-        if (err) {
-          send(res, 404, "text/plain", "Not found");
-          return;
-        }
-        send(res, 200, TYPES[path.extname(file).toLowerCase()] || "application/octet-stream", body);
-      });
+      serveStatic(res, root, rel === "/" ? "/Chanlytics.html" : rel);
     })
     .listen(port, () => console.log(`Chanlytics mockup on http://localhost:${port}/Chanlytics.html (no-store)`));
 }

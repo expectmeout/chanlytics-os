@@ -110,6 +110,54 @@ A skip is not a pass. A run that is meant to hold credentials says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and the coverage guard then fails instead of
 skipping. The nightly sets it; the pull-request jobs do not.
 
+### A signed-in spec, on this machine
+
+A signed-in spec needs a session, and no developer machine holds a service-role
+key -- so those specs skip locally and are first RUN by the nightly, against
+production. That is a slow way to find out a spec is wrong, and no way at all
+to mutation-test one. `tooling/scripts/e2e-harness` closes the gap: a local
+server that answers the two Supabase calls `e2e/session.ts` makes, serves the
+standalone mockup from this worktree's source with a fixture first in its head,
+and answers the spec's own `/api/v1` reads from a record.
+
+```bash
+corepack pnpm e2e:local -- e2e/settings-business.spec.ts
+corepack pnpm e2e:local -- e2e/settings-business.spec.ts --scenario=salon
+corepack pnpm e2e:local -- e2e/settings-business.spec.ts --grep "fits a phone"
+```
+
+It takes a free port, sets what `signIn()` reads, runs the REAL spec unmodified
+and stops the server. Nothing leaves the machine, no key of any kind is needed,
+and the harness cannot write: every route but the two auth calls answers a GET
+or a HEAD and refuses the rest, so nothing on it can look like a write that
+landed. It runs with `--retries=0`, where the config retries once locally: a
+mutation run asks whether the journey went red, and a retry that passes turns a
+caught mutant into a flake.
+
+Two records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
+`tooling/scripts/e2e-workspace.mjs` -- the config it writes, the line it
+provisions, the clock it sets -- so it changes when the seed changes rather than
+drifting from it; `e2e-harness.test.mjs` holds the two together. `salon` is a
+fuller, fictional record for the branches the nightly's data cannot reach: a
+week of hours, closures at the cap, services, and one language short of the cap.
+
+What it cannot prove: anything behind a Save (the page's saver refuses, by
+design, and the specs that run here never press one), and anything about timing
+in the real bundle -- the harness compiles the legacy tree with Babel in the
+browser, so the runner raises the per-test timeout where production runs under
+the config's own 45s. Green here is not a green nightly.
+
+`e2e/settings-business.spec.ts` is the spec that runs on it today. Another
+surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
+that page's bridge publishes -- and any read it makes added to `answer()` in
+`e2e-harness/server.mjs`.
+
+One flake to know about, in the product and not in the harness: the week's copy
+menu is an `escape` `MoreMenu`, which closes on any captured scroll event
+(`data-bits.jsx`), so a scroll into view between the menu opening and the item
+being clicked closes it and the item is never there -- rare, likelier on the
+harness because its page is slower, and the nightly can hit it too.
+
 ## What CI proves
 
 | Workflow                          | On                                                    | Proves                                                                                                                                                                                                 |

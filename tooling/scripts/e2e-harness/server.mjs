@@ -1,0 +1,169 @@
+/**
+ * The server a signed-in spec is run against, with no deployment, no database and no Supabase.
+ *
+ *   node tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon]     (from the repo root)
+ *
+ * Three things, and nothing else:
+ *   - the two Supabase auth calls e2e/session.ts makes, answered so `signIn()` mints a harmless local cookie;
+ *   - the standalone mockup (apps/dashboard/src/legacy), read from disk on every request through serve-legacy.mjs's
+ *     own static serving, so a change to a page or a stylesheet shows on the next load -- which is what makes a
+ *     mutation run possible;
+ *   - the `/api/v1` reads the spec makes itself, answered from the same record the page was built from, in the
+ *     app's own envelope (contracts `ok`/`err`).
+ *
+ * It never writes, and says so: everything but the two auth calls is answered for GET and HEAD alone, and anything
+ * else is refused. There is nowhere to write to, and a spec that pressed a Save would be refused by the page's own
+ * stand-in saver (fixture-src.ts) before it ever reached here.
+ */
+import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { err, ok } from "@chanlytics/contracts";
+import { buildFixture } from "./fixture.mjs";
+import { scenario, WORKSPACE } from "./scenarios.mjs";
+import { reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
+
+/** The two calls `signIn()` makes, which are POSTs. Every other route the harness answers is a read. */
+const AUTH = { LINK: "/auth/v1/admin/generate_link", VERIFY: "/auth/v1/verify" };
+
+/**
+ * `data/business-tab.js` in the mockup is the tab's helpers built from `packages/contracts/dist`, and its footer
+ * installs them over whatever is there. The fixture has already installed the same helpers FROM SOURCE, so the
+ * harness answers this route with nothing at all: what the page runs is the source copy, which is the point of the
+ * harness (a change to the bridge or to contracts shows in the next run, not in the next dist build).
+ */
+export const BUSINESS_TAB_SCRIPT =
+  "/* the harness installed the tab's helpers from source (e2e-harness/fixture-src.ts); nothing to do here */\n";
+
+/**
+ * Every JSON answer the harness gives, as a function of the method, the path, the query and the record: the two
+ * auth calls, and the reads the spec makes of its own. `null` means this is not a JSON route. The harness's test
+ * calls this directly, so what a spec is answered is checked without a socket.
+ */
+export function answer(method, pathname, params, record) {
+  const read = method === "GET" || method === "HEAD";
+  if (pathname === AUTH.LINK || pathname === AUTH.VERIFY) {
+    // These two are POSTs, and only these two.
+    if (method !== "POST") return refused(pathname);
+    if (pathname === AUTH.LINK) return { status: 200, body: { hashed_token: "hx-token" } };
+    const at = Math.floor(Date.now() / 1000);
+    return {
+      status: 200,
+      body: {
+        access_token: "hx-access",
+        refresh_token: "hx-refresh",
+        expires_in: 3600,
+        expires_at: at + 3600,
+        token_type: "bearer",
+        user: { id: "u-e2e-owner", email: "e2e-owner@example.com" },
+      },
+    };
+  }
+  if (!pathname.startsWith("/api/v1/")) return read ? null : refused(pathname);
+  // A PUT of the settings is what the page's Save would send. Answered as a read it would tell a spec its write
+  // landed -- on a harness that has nothing to write to.
+  if (!read) return refused(pathname);
+  // Every read the app makes names its workspace (surface-data.ts scoped()); one that did not would be refused in
+  // production by memberContext, and is refused here for the same reason.
+  if (pathname !== "/api/v1/workspaces" && params.get("workspace") !== WORKSPACE.id) {
+    return { status: 400, body: err("choose_workspace", "Which workspace do you mean?") };
+  }
+  if (pathname === "/api/v1/workspaces") {
+    return {
+      status: 200,
+      body: ok({
+        activeWorkspaceId: WORKSPACE.id,
+        workspaces: [{ id: WORKSPACE.id, slug: WORKSPACE.slug, name: WORKSPACE.name }],
+      }),
+    };
+  }
+  if (pathname === "/api/v1/settings") {
+    return {
+      status: 200,
+      body: ok({ config: record.config, version: record.version, role: record.role, configBroken: false }),
+    };
+  }
+  return { status: 404, body: err("not_found", `the harness has no ${pathname}`) };
+}
+
+/**
+ * The refusal, in the app's own envelope. The code is `forbidden` because the app's set of codes is closed
+ * (contracts ERROR_CODES) and a made-up one would be a shape the client has never seen; the status is 405, which is
+ * what the method was wrong about.
+ */
+const refused = (pathname) => ({
+  status: 405,
+  body: err("forbidden", `the harness never writes, and ${pathname} was not a read`),
+});
+
+/**
+ * The mockup's document with the fixture FIRST in its head -- before data/bridge-stubs.jsx, which writes only
+ * what is missing, and before data/business-tab.js, which the harness then answers with nothing.
+ */
+export function documentWithFixture() {
+  const doc = fs.readFileSync(path.join(LEGACY, "Chanlytics.html"), "utf8");
+  return doc.replace("<head>", '<head>\n  <script src="/_hx/fixture.js"></script>');
+}
+
+/**
+ * Start the harness. Port 0 takes a free one, which is what the runner does. Resolves once it is listening, with the
+ * record it is serving and the way to stop it.
+ */
+export async function startHarness({ name = "nightly", port = 0, now = Date.now() } = {}) {
+  const record = scenario(name, now);
+  const fixture = await buildFixture(record);
+
+  const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url || "/", "http://localhost");
+    const p = decodeURIComponent(url.pathname);
+    const method = (req.method || "GET").toUpperCase();
+    try {
+      const json = answer(method, p, url.searchParams, record);
+      if (json) {
+        send(res, json.status, TYPES[".json"], JSON.stringify(json.body));
+        return;
+      }
+      if (p === "/_hx/fixture.js") {
+        send(res, 200, TYPES[".js"], fixture);
+        return;
+      }
+      if (p === "/data/business-tab.js") {
+        send(res, 200, TYPES[".js"], BUSINESS_TAB_SCRIPT);
+        return;
+      }
+      if (p === "/data/reports-sample.js") {
+        send(res, 200, TYPES[".js"], await reportsSampleBundle());
+        return;
+      }
+      if (p === "/data/today-sample.js") {
+        send(res, 200, TYPES[".js"], await todaySampleBundle());
+        return;
+      }
+      if (p === "/" || p === "/Chanlytics.html") {
+        send(res, 200, TYPES[".html"], documentWithFixture());
+        return;
+      }
+      serveStatic(res, LEGACY, p);
+    } catch (e) {
+      send(res, 500, "text/plain", String((e && e.stack) || e));
+    }
+  });
+
+  await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
+  const live = server.address().port;
+  return {
+    record,
+    port: live,
+    url: `http://localhost:${live}`,
+    close: () => new Promise((resolve) => server.close(resolve)),
+  };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const started = await startHarness({ port: Number(process.argv[2] || 0), name: process.argv[3] || "nightly" });
+  console.log(`the ${started.record.name} record on ${started.url}/#/admin/workspace`);
+}
