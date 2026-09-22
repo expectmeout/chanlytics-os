@@ -880,6 +880,27 @@ test("four rows: people take three while a run wants the fourth, and all four wh
 
 /* ------------------------------------ the day ------------------------------------ */
 
+test("the day listens for People too: it reads People for a visit that needs someone and a person's channel, and on a cold boot People lands last", () => {
+  // The boot reads what Today draws right after its own surface, People last (surface-registry.ts ROUTE_DRAWS):
+  // the card drew once with the calendar and never again, so the flag and the glyphs a person's row carries were
+  // missing until something else redrew it.
+  clear();
+  set({ TODAY_DATA: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
+  const heard = new Set();
+  const keep = W.addEventListener;
+  W.addEventListener = (type, fn) => {
+    heard.add(type);
+    keep(type, fn);
+  };
+  try {
+    draw(W.TodayDay);
+  } finally {
+    W.addEventListener = keep;
+  }
+  for (const n of ["surface:calendar", "surface:playbooks", "surface:clients"])
+    assert.ok(heard.has(n), `the day redraws on ${n}`);
+});
+
 test("the day: five rows and a line to the Calendar; a failed calendar read says so where the day would be", () => {
   clear();
   set({

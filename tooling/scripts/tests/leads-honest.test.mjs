@@ -523,7 +523,15 @@ for (const k of [
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");
-for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_PHONE_COLUMNS", "LEAD_SORT_KEYS", "LeadShape", "LeadSlotShape"])
+for (const k of [
+  "LeadsScope",
+  "LeadCallMenu",
+  "LEAD_COLUMNS",
+  "LEAD_PHONE_COLUMNS",
+  "LEAD_SORT_KEYS",
+  "LeadShape",
+  "LeadSlotShape",
+])
   globalThis[k] = globalThis.window[k];
 for (const k of ["LeadsFirstDay", "LeadSuggestion", "LeadWayCard"]) globalThis[k] = globalThis.window[k];
 
@@ -1440,11 +1448,10 @@ test("a sort is the surface's to read, not the page's to re-order: the rows hold
 test("REGRESSION: Call asks how, instead of ringing a business the moment a thumb lands on a row -- and the receptionist is not one of the ways, because it never rings a customer", () => {
   fresh();
   menus.length = 0;
-  const tree = draw();
-  const l1 = rowOf(tree, "l1");
-  assert.ok(byTestId(l1, "lead-call"), "a lead with a phone still has Call where it was");
-  const ways = menus.find((m) => m.title === `Call ${ROWS[0].name}`);
+  draw();
+  const ways = menus.find((m) => m.title === `Call ${ROWS[0].name}` && m.testid === "lead-call");
   assert.ok(ways, "REGRESSION: it dialled on press; it opens the ways of calling now");
+  assert.equal(ways.testid, "lead-call", "and its button is Call, where it was");
   assert.equal(ways.icon, "phone", "and still looks like calling -- a ⋯ would hide what the button is for");
 
   const W = globalThis.window.__LEAD_WORDS.callWays;
@@ -1476,7 +1483,7 @@ test("REGRESSION: Call asks how, instead of ringing a business the moment a thum
   fresh();
   menus.length = 0;
   draw();
-  const again = menus.find((m) => m.title === `Call ${ROWS[0].name}`);
+  const again = menus.find((m) => m.title === `Call ${ROWS[0].name}` && m.testid === "lead-call");
   again.items.find((i) => i.label === W.log.label).onClick();
   draw();
   assert.equal(globalThis.window.location.href, "", "REGRESSION: logging a call you already made rang them again");

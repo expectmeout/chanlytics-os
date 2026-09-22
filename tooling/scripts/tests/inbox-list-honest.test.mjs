@@ -317,6 +317,45 @@ const inboxWith = (threads) => {
   };
 };
 
+/** Today's read, in the shape the server answers it: without it Today's boot failed and tried again 800ms later. */
+const metrics = {
+  workspace: { name: "Melany's Beauty Salon", timezone: ZONE, status: "active" },
+  channels: [{ kind: "whatsapp", status: "active", number: "+16465550100" }],
+  window: {
+    days: 1,
+    since: "2026-09-14T04:00:00+00:00",
+    since_local: "2026-09-14T00:00:00",
+    now_local: "2026-09-14T10:00:00",
+  },
+  now: {
+    escalations_open: 0,
+    oldest_open_escalation_at: null,
+    threads_needing_human: 0,
+    threads_snoozed: 0,
+    threads_awaiting_reply: 0,
+    last_inbound_at: null,
+    last_outbound_at: null,
+  },
+  period: {
+    messages_in: 0,
+    messages_out_ai: 0,
+    messages_out_you: 0,
+    conversations_active: 0,
+    answered_by_ai: 0,
+    answered_by_you: 0,
+    unanswered_in_window: 0,
+    median_reply_seconds_ai: null,
+    send_failures: 0,
+    escalations_new: 0,
+    escalation_reasons: {},
+    calls: 0,
+    call_seconds: 0,
+    call_sentiments: {},
+    calls_voicemail: 0,
+    new_contacts: 0,
+  },
+};
+
 test("a single act tells the page the moment the server takes it, while the Inbox, the threads and Today are still being read again behind it", async () => {
   const events = [];
   const parked = [];
@@ -333,6 +372,7 @@ test("a single act tells the page the moment the server takes it, while the Inbo
         escalations: [],
         templates: [],
         calls: [],
+        metrics,
         workspaces: globalThis.window.__WORKSPACES,
         activeWorkspaceId: "t1",
         days: 1,
@@ -342,13 +382,18 @@ test("a single act tells the page the moment the server takes it, while the Inbo
   const { inboxOverride, conversationsOverride, todayOverride } = await quiet(
     () => import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts"),
   );
-  const stop = startSurfaces([inboxOverride, conversationsOverride, todayOverride]);
+  let joined = 0;
+  const stop = startSurfaces([inboxOverride, conversationsOverride, todayOverride], () => {
+    joined += 1;
+    return () => {};
+  });
   try {
     // Let the boot's own reads through first, so what is parked below is the re-read the snooze starts.
     for (let i = 0; i < 40; i += 1) {
       while (parked.length) parked.shift()();
       await tick(5);
     }
+    assert.equal(joined, 1, "the boot is in -- the runner joins the feed only then -- so nothing parked below is its");
     const t = { id: "th-c1", conversationId: "c1", escalationId: null, who: "Aiko" };
     let settled = false;
     const done = quiet(() =>

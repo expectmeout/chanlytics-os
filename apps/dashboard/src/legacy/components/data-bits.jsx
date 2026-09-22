@@ -104,7 +104,7 @@ const moreFit = (wrap) => {
 
 // `icon` is the trigger's glyph where the menu is not a "more": Leads' Call opens the ways of calling, and a ⋯
 // there would hide what the button is for.
-const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnClass = "btn btn-ghost btn-icon btn-sm", label = null, icon = "more", gated = null, escape = false }) => {
+const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnClass = "btn btn-ghost btn-icon btn-sm", label = null, icon = "more", gated = null, escape = false, testid = null }) => {
   const [open, setOpen] = React.useState(false);
   const wrapRef = React.useRef(null);
 
@@ -144,6 +144,7 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
         title={title}
         aria-haspopup="menu"
         aria-expanded={open}
+        data-testid={testid || undefined}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         {...(gated ? gatedProps(gated) : {})}
       >

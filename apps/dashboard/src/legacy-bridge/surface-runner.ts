@@ -9,14 +9,13 @@
  * ./surface-status, which is pure and unit-tested; everything here is the
  * side-effecting half.
  */
-import { createClient } from "@/lib/supabase/client";
-import { subscribeMessagesInserts } from "@chanlytics/db";
+import type { subscribeMessagesInserts, SubscribeOptions } from "@chanlytics/db";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
-import { routeSurfaceFor } from "./surface-registry";
+import { ROUTE_DRAWS, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh } from "./surface-realtime";
 import { getActiveWorkspace, signInHref } from "./workspace";
 
@@ -84,22 +83,42 @@ async function inLanes<T>(items: readonly T[], lanes: number, work: (item: T) =>
 }
 
 /**
- * The surface the address is asking for, so it takes the first lane.
+ * The order a pass reads surfaces in: the surface the address is asking for
+ * first, then the ones its page draws beside it in the page's own order
+ * (surface-registry.ts ROUTE_DRAWS), then the rest.
  *
  * Loading twelve surfaces nobody is looking at ahead of the one they are is
- * backwards. Parsed the way the shell parses it (app-shell.jsx parseHash), and
- * undefined for a route that owns no surface -- which costs nothing, because
- * the order is only a preference.
+ * backwards; so was reading Settings, People and Leads ahead of the calendar
+ * Today's day card is drawn from, which landed 1.6 s after the queue beside it.
+ * Parsed the way the shell parses it (app-shell.jsx parseHash). A route that
+ * owns no surface ranks nothing first, which costs nothing: the order is only
+ * a preference.
  */
-function surfaceOnScreen(win: Window): string | undefined {
+function screenRank(win: Window): (o: SurfaceOverride) => number {
   const raw = (win.location.hash || "#/today").replace(/^#[/]?/, "");
   const [page, param] = raw.split("/");
-  return routeSurfaceFor(page || "today", param || null);
+  const wanted = routeSurfaceFor(page || "today", param || null);
+  const drawn = ROUTE_DRAWS[page || "today"] ?? [];
+  return (o) => (o.key === wanted ? 0 : drawn.includes(o.key) ? 1 + drawn.indexOf(o.key) : 1 + drawn.length);
 }
 
 let runnerSeq = 0;
 
-export function startSurfaces(overrides: SurfaceOverride[]): () => void {
+/**
+ * How the runner joins the live feed: the one subscription, over the client the page holds. Handed in rather than
+ * built here: the runner used to make the Supabase browser client itself once its boot was in, so a node test that
+ * mounted real surfaces built one with no URL or key, and the throw -- in an un-awaited continuation -- failed
+ * whichever test was running when the boot happened to finish.
+ */
+export type JoinLiveFeed = (
+  onChange: Parameters<typeof subscribeMessagesInserts>[1],
+  opts: SubscribeOptions,
+) => () => void;
+
+export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed): () => void {
+  // Said now, at the call, not when the boot ends: a missing feed found then is a throw nobody awaits.
+  if (typeof joinFeed !== "function" && overrides.some(subscribesToRealtime))
+    throw new TypeError("startSurfaces: surfaces that watch the live feed need a feed to join");
   // Read the cached identity BEFORE any boot can overwrite it. Every
   // successful boot persists with the CURRENT tenant, and snapshotSurface
   // assigns blob.tenant on every write — so the old guard, which read the
@@ -226,8 +245,8 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   // where it does not BLOCK the others: the shell reads __ME to decide what a
   // role may see, so letting it queue behind three strangers would draw the
   // nav for the wrong role and then correct it.
-  const wanted = surfaceOnScreen(window);
-  const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : o.key === wanted ? 1 : 2);
+  const screen = screenRank(window);
+  const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : 1 + screen(o));
   const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
   // Surfaces read the same lists in turn -- the calls, the templates, the contacts, and on Leads the page the view
   // asks for again as it mounts. Measured on the salon's Leads page: 31 reads at boot, 20 distinct, because a read
@@ -249,15 +268,13 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     if (cancelled) return;
     if (guardTenant()) return;
     if (!realtimeOverrides.length) return;
-    const supabase = createClient();
     // Scoped to the workspace this tab shows. RLS authorises the events
     // server-side; the filter is what makes the subscription this
     // workspace's and nobody else's, so a member of two workspaces neither
     // receives nor repaints on the other one's rows. The topic carries the
     // workspace too, so a switch is a new channel, never a shared one.
     const ws = tenantId();
-    unsubscribe = subscribeMessagesInserts(
-      supabase,
+    unsubscribe = joinFeed(
       // Routed by table: a live call's transcript turns repaint Live, not the
       // five surfaces that never asked (three of them plpgsql aggregates).
       (row, table, event) =>
@@ -283,10 +300,9 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   const readEverySurfaceAgain = () => {
     if (againRunning || cancelled) return;
     againRunning = true;
-    const onScreen = surfaceOnScreen(window);
-    const first = (o: SurfaceOverride) => (o.key === onScreen ? 0 : 1);
+    const screen = screenRank(window);
     void inLanes(
-      [...overrides].sort((x, y) => first(x) - first(y)),
+      [...overrides].sort((x, y) => screen(x) - screen(y)),
       BOOT_LANES,
       (o) => refresh(o, "refresh"),
     ).finally(() => {
