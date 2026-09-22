@@ -1466,3 +1466,26 @@ test("a route whose surface has not landed is an empty pane that says it is read
     delete win.__surfaceGate;
   }
 });
+
+test("a move that stays on the page -- People to Leads and back -- draws without the route fade; a move to another page keeps it", () => {
+  // The two scopes are two mounts, and the shell's 240ms route fade played on every switch between them, on top of
+  // the rows' own draw: the switch read as a wait. The fade is for arriving somewhere else.
+  shell.installShell(win);
+  const view = (t) =>
+    find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
+  const stays = (t) => view(t).props.className.split(/\s+/).includes("route-stay");
+  const go = (hash) => {
+    win.location.hash = hash;
+    fire("hashchange");
+    deep = false;
+    seq = 0;
+    const t = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
+    deep = true;
+    return t;
+  };
+  const { tree } = mount("#/clients");
+  assert.equal(stays(tree), false, "a page opened cold fades in");
+  assert.equal(stays(go("#/clients/leads")), true, "Leads beside People is the same page: no fade");
+  assert.equal(stays(go("#/clients")), true, "and back");
+  assert.equal(stays(go("#/inbox")), false, "another page fades in");
+});

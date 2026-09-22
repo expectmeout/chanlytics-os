@@ -1,4 +1,4 @@
-/* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
+/* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES, PL_FIRST_ROWS,
    ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
    PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
    PL_NO_SEL, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
@@ -2543,6 +2543,23 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const placeNow = React.useRef(null);      // that view and its place as last drawn: what a scroll is saved with
   const placeTop = React.useRef(0);
   const placeDue = React.useRef(null);      // a scroll position waiting for its view's rows
+  // A fresh mount draws its first rows only (PL_FIRST_ROWS) and the rest a frame later: the switch between People
+  // and Leads is a remount, and the table's rows were most of what it waited on (measured on the salon: a 250 ms
+  // draw of 96 leads, 125 ms with the first 24). A place to put back -- a scroll, a cursor -- needs every row on the
+  // first draw, so it draws them all. The budget is the mount's: a view change inside the page never narrows it.
+  const [rowBudget, setRowBudget] = useState(() => {
+    const p = placeLoad(placeView);
+    return p && (p.top || p.cursor) ? Infinity : PL_FIRST_ROWS;
+  });
+  React.useEffect(() => {
+    if (rowBudget === Infinity) return undefined;
+    const lift = () => setRowBudget(Infinity);
+    if (typeof requestAnimationFrame !== "function") { lift(); return undefined; }
+    // The next frame, or a beat: a tab in the background gets no frames, and its rows must not wait for one.
+    const frame = requestAnimationFrame(lift);
+    const beat = setTimeout(lift, 120);
+    return () => { cancelAnimationFrame(frame); clearTimeout(beat); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     const p = placeLoad(placeView) || {};
     setQ(p.q || "");
@@ -2970,6 +2987,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         search={openSearch}
         strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
         rows={rowsShown}
+        rowBudget={rowBudget}
         phone={phone}
         // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
         // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
@@ -3310,6 +3328,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
           )}
 
           <PeopleTable
+            budget={rowBudget}
             noun="person"
             columns={columns}
             ctx={cellCtx}

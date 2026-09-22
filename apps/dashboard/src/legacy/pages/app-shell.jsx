@@ -10,7 +10,7 @@
 //   #/clients/<id>         → Client profile
 //   #/soon/<surface>       → In-design landing (pipeline, calendar, fleet, …)
 
-const { useState: useShellState, useEffect: useShellEffect, useCallback: useShellCallback } = React;
+const { useState: useShellState, useEffect: useShellEffect, useCallback: useShellCallback, useRef: useShellRef } = React;
 
 // Is this route's data actually available? The bridge installs __surfaceGate
 // for flipped surfaces; unflipped ones are seeded and always ready.
@@ -750,6 +750,19 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   const surfaceReady = routeReady(page, param);
   const surfaceUnavailable = !surfaceReady && (routeFailed(page, param) || routeTimedOut);
   const routeLoading = !surfaceReady && !surfaceUnavailable;
+  // A move that stays on the page -- People to Leads and back -- is still a remount (the two scopes are two mounts),
+  // and the route fade played on every one, on top of the rows' own draw: the switch read as a wait. The fade is for
+  // arriving somewhere else, and for a page landing where the reading pane stood; a view that follows another of the
+  // same page draws at once. Decided as the view changes, in the draw that mounts it, and kept for that view's
+  // life: decided after the mount (an effect, a state) it re-drew the same element with the class, which cancelled
+  // the fade on every page one frame in.
+  const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
+  const viewRef = useShellRef({ key: null, page: null, reading: false, stay: false });
+  if (viewRef.current.key !== viewKey) {
+    const prev = viewRef.current;
+    viewRef.current = { key: viewKey, page, reading: routeLoading, stay: !routeLoading && prev.key !== null && prev.page === page && !prev.reading };
+  }
+  const routeStay = viewRef.current.stay;
 
   // Shared read-only viewer — chrome-less, rendered AFTER all hooks so the
   // hook order stays identical on every route (no early return between hooks).
@@ -812,8 +825,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <ShellStatusBar />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
         <div
-          key={routeLoading ? `${mountKey}/reading` : mountKey}
-          className={`main-scroll route-view ${pane ? "pane" : ""}`}
+          key={viewKey}
+          className={`main-scroll route-view ${pane ? "pane" : ""} ${routeStay ? "route-stay" : ""}`}
           aria-busy={routeLoading ? "true" : undefined}
         >
           <ShellErrorBoundary>

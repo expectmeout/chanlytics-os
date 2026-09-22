@@ -24,6 +24,10 @@ const plDrawnColumns = (columns, choices, x) => columns.filter((c) => !c.needs |
 const plShownColumns = (drawn, phone) => (phone ? drawn : drawn.filter((c) => !c.off));
 
 const PL_NO_SEL = new Set();
+// The rows a fresh mount draws first; the page lifts the budget a frame later (clients-a.jsx rowBudget). The switch
+// between People and Leads is a remount, and the Leads table's rows were most of what it waited on: measured on the
+// salon, a 250 ms draw of 96 leads, 125 ms with the first 24. Enough rows for a tall screen's first view.
+const PL_FIRST_ROWS = 24;
 
 // One row. Drawn again only when something of its own changed: its view model, whether it is selected, the cursor,
 // the columns, the cell context. So a keystroke in the search box, a tick on another row, a J and an opened peek
@@ -60,7 +64,7 @@ const PL_NOUNS = { person: { one: "person", many: "people", all: "Select everyon
 // `busy`: the rows drawn are the last view's while the one asked for is on its way; a screen reader hears it, and
 // the page's stylesheet dims them (Leads: leads.css [data-loading]).
 // The columns are the page's to choose (plShownColumns): the table draws every one it is given.
-const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false, selectMode = false }) => {
+const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false, selectMode = false }) => {
   const words = PL_NOUNS[noun] || PL_NOUNS.person;
   // `selectMode`: the page's Select people (a phone's more-menu), a selection begun with nobody picked yet: the faces are
   // rings from the start.
@@ -94,7 +98,7 @@ const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpe
             {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
                 by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                 J and K move focus with the cursor (the page's effect on `cursor`). */}
-            {rows.map((p, i) => (
+            {(budget < rows.length ? rows.slice(0, budget) : rows).map((p, i) => (
               <PeopleRowMemo key={p.id} p={p} columns={columns} ctx={ctx} words={words} selectable={selectable} selected={sel.has(p.id)} focused={cursor === p.id} tabStop={cursor === p.id || (!cursor && i === 0)} onToggle={onToggle} onCursor={onCursor} onOpen={onOpen} rowClass={rowClass} />
             ))}
             {rows.length === 0 && (
@@ -156,4 +160,4 @@ const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick, buttonRef = nu
   </div>
 );
 
-Object.assign(window, { PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plShownColumns, plColumnChoices, plColumnOptions, PL_NO_SEL });
+Object.assign(window, { PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plShownColumns, plColumnChoices, plColumnOptions, PL_NO_SEL, PL_FIRST_ROWS });
