@@ -30,13 +30,20 @@ const IX_VIEW_FILTERS = {
 // row, and the countdown showed only in the pane you had to open first.
 const ixSending = (t, nowMs = Date.now()) => !!(t && t.real && t.veto && t.veto.endsAtMs > nowMs
   && !ixHeld(((window.VW_STORE || {}).state) || {}, t));
-// The bucket a thread belongs to: its own state, unless a reply of its own is on its way out.
-const ixBucketOf = (t, nowMs = Date.now()) => (ixSending(t, nowMs) ? "escalated" : t && t.state);
 // What waits on you now: a real thread nobody has taken, or a reply about to send. A seeded thread keeps the
 // mockup's rule, since "needs" is a state no real thread holds.
 const ixWaitsOnYou = (t, nowMs = Date.now()) => (t && t.real
   ? !!t.needsYou || ixSending(t, nowMs)
   : !!t && (t.state === "needs" || (t.state === "escalated" && !t.takenOver)));
+// The bucket a thread SITS in -- the same rule as the chip over it, which is what the line above this block has
+// claimed all along. A thread's own STATE stays "escalated" while a teammate holds it, and the list read the state
+// while the chip read what waits on you: three rows under a chip that said two, and one of them somebody else's
+// job. Needs you holds what waits on you and nothing else; a thread a teammate has taken is Handled, where its row
+// still says who has it.
+const ixBucketOf = (t, nowMs = Date.now()) => (
+  ixSending(t, nowMs) ? "escalated"
+    : t && t.real && t.state === "escalated" && !ixWaitsOnYou(t, nowMs) ? "done"
+      : t && t.state);
 // The order a bucket stands in: a reply about to send first, then what needs you, then the threads you have, then a
 // teammate's, each group in the server's order. A teammate's thread sat above the one waiting on you (I2).
 const ixRank = (t) => (ixSending(t) ? -1 : t && t.real && t.state === "escalated" ? (t.needsYou ? 0 : t.takenOver ? 1 : 2) : 0);
@@ -706,7 +713,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // to send counts here and sits in this bucket, by that same rule, and leaves Handled while it counts down.
   const bucketsWithCounts = INBOX_BUCKETS.map((b) => ({
     ...b,
-    count: threads.filter((t) => (t.real && b.id === "escalated" ? ixWaitsOnYou(t) : ixBucketOf(t) === b.id)).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
+    // One rule, so the chip cannot say a number the list does not hold: `ixBucketOf`. It used to ask
+    // `ixWaitsOnYou` for Needs you and the bucket for the rest, which is exactly how the two came apart.
+    count: threads.filter((t) => ixBucketOf(t) === b.id).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
   }));
   const viewsWithCounts = INBOX_VIEWS.map((v) => ({
     ...v,
