@@ -1320,7 +1320,10 @@ html.legacy-on .bt-link { position: relative; }
    hatching over a card of sentences; the day's own words say it is closed, on the ribbon by its dimmed name and in the
    fold by "Closed". */
 .bt-week-track { position: relative; display: block; height: 22px; min-width: 0; border-radius: var(--radius-xs); background: var(--bg-sunken); overflow: hidden; }
-.bt-ribbon-bar { position: absolute; top: 0; bottom: 0; box-sizing: border-box; border-radius: var(--radius-xs); background: var(--ok-soft); border: 1px solid color-mix(in oklab, var(--ok) 40%, transparent); }
+/* The hours themselves, as a shape and not a colour: a filled bar on the dim track. It was a green wash inside a green
+   edge, seven of them across a card of sentences, and green here says nothing -- these hours are not "good", they are
+   simply the ones the receptionist states. The accent is not it either: on this shell the accent means "right now". */
+.bt-ribbon-bar { position: absolute; top: 0; bottom: 0; box-sizing: border-box; border-radius: var(--radius-xs); background: var(--ink-faint); }
 .bt-ribbon .bt-week-track { height: 18px; }
 
 /* The fold: a day is a switch and its name, its bars, its times, in three columns the axis above them shares. */
