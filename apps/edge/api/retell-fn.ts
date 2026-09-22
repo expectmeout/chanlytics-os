@@ -31,7 +31,7 @@
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
-import { effectiveReplyMode } from "../lib/reply-posture.js";
+import { effectiveReplyMode } from "../lib/packages/core.js";
 import {
   emitEvent,
   resolveChannel,
@@ -51,7 +51,7 @@ import {
   resolveParams,
 } from "../lib/packages/contracts.js";
 import { deliver, whatsappSender } from "../lib/packages/core.js";
-import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/outbound-gate.js";
+import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/receptionist/outbound-gate.js";
 import { env } from "../lib/env.js";
 import { logger, errField } from "../lib/log.js";
 

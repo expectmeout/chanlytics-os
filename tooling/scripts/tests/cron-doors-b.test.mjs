@@ -136,7 +136,7 @@ const silent = (why = "this case must not reach a provider") =>
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { SWEEP_COPY_TIMEOUT_MS, RECORDING_MAX_ATTEMPTS } = await import(at("apps/edge/lib/call-recording.ts"));
+const { SWEEP_COPY_TIMEOUT_MS, RECORDING_MAX_ATTEMPTS } = await import(at("apps/edge/lib/voice/call-recording.ts"));
 const SWEEPS = {
   calls: await import(at("apps/edge/api/cron/calls.ts")),
   google: await import(at("apps/edge/api/cron/google.ts")),

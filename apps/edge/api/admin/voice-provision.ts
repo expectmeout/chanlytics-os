@@ -23,12 +23,12 @@
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { edgeFnUrl } from "../../lib/lines.js";
+import { edgeFnUrl } from "../../lib/lines/lines.js";
 import { pg } from "../../lib/pg.js";
-import { recordNotification } from "../../lib/notify.js";
+import { recordNotification } from "../../lib/ops/notify.js";
 import { emitEvent } from "../../lib/packages/db.js";
 import { formatPhoneDisplay } from "../../lib/packages/contracts.js";
-import { createVoiceAgent } from "../../lib/voice-agent.js";
+import { createVoiceAgent } from "../../lib/voice/voice-agent.js";
 import {
   planVoiceProvision,
   voiceNumberCreateBody,

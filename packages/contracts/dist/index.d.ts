@@ -4213,7 +4213,7 @@ interface JudgePlaceAnswer {
     reason: string;
 }
 /**
- * Hand-written, the shape apps/edge/lib/brain.ts sends in production: every
+ * Hand-written, the shape apps/edge/lib/receptionist/brain.ts sends in production: every
  * property required, additionalProperties false, and no length or range
  * keywords (the API does not enforce them; the parser caps and checks after).
  */
@@ -12778,6 +12778,9 @@ interface LeadRowVM {
     stage: LeadStage;
     stageLabel: string;
     foundLabel: string;
+    /** "Found 2d ago", "Found just now", "Found Aug 29": when it was found, as a phone's row says it (People's row says when
+     *  they last wrote the same way). A desktop's Found column says `foundLabel` under its heading. */
+    foundLine: string;
     foundAt: string;
     distance: string;
     source: string;

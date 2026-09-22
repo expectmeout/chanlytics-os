@@ -14,7 +14,7 @@
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { notify } from "../../lib/notify.js";
+import { notify } from "../../lib/ops/notify.js";
 import { env } from "../../lib/env.js";
 import { logger } from "../../lib/log.js";
 

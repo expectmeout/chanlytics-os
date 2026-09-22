@@ -34,7 +34,7 @@ import {
   purgeExpiredRecordings,
   RECORDING_MAX_ATTEMPTS,
   SWEEP_COPY_TIMEOUT_MS,
-} from "../../lib/call-recording.js";
+} from "../../lib/voice/call-recording.js";
 import { env } from "../../lib/env.js";
 
 /** Only look at rows that have had time to settle — a call that started

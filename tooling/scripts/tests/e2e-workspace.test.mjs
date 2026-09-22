@@ -32,7 +32,7 @@ import {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseAddressing, reachesTenant } = await import(
-  pathToFileURL(path.join(here, "../../../apps/edge/lib/notify.ts")).href
+  pathToFileURL(path.join(here, "../../../apps/edge/lib/ops/notify.ts")).href
 );
 
 const OWNER = "e2e-owner@example.com";

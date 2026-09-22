@@ -12,7 +12,7 @@ import {
   LEASE_STALE_MS,
   QUESTION_WAIT_MS,
   ROUND_STUCK_MS,
-} from "../../../apps/edge/lib/lead-sweep.ts";
+} from "../../../apps/edge/lib/leads/lead-sweep.ts";
 import { at, knock, answer, vault } from "./_cron-doors-world.mjs";
 import { leadWorld, TENANT } from "./_lead-world.mjs";
 

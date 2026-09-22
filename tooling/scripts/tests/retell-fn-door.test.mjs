@@ -47,7 +47,7 @@ for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { refusalScript } = await import(at("apps/edge/lib/outbound-gate.ts"));
+const { refusalScript } = await import(at("apps/edge/lib/receptionist/outbound-gate.ts"));
 const hook = await import(at("apps/edge/api/retell-fn.ts"));
 
 /* -------------------------------------------------------------- the wire */

@@ -14,7 +14,7 @@ import { json } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
-import { labelsOf, listTemplates, templateRow } from "../../../lib/meta-templates.js";
+import { labelsOf, listTemplates, templateRow } from "../../../lib/whatsapp/meta-templates.js";
 import { logger } from "../../../lib/log.js";
 
 /** Meta's own samples: on file, never offered. */

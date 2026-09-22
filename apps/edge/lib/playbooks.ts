@@ -16,7 +16,7 @@ import {
   type RunContext,
   type RunOutcome,
 } from "./packages/core.js";
-import { notify } from "./notify.js";
+import { notify } from "./ops/notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
 import {
   indexFeed,
@@ -29,7 +29,7 @@ import {
   type PersonRowDto,
   type PersonVisitsDto,
 } from "./packages/contracts.js";
-import { feedItemsFor } from "./availability.js";
+import { feedItemsFor } from "./calendar/availability.js";
 import { readAllRows } from "./paged.js";
 
 /**

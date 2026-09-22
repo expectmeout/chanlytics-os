@@ -14,7 +14,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/billing.js";
-import { registerLine, syncRegistration } from "../../lib/a2p.js";
+import { registerLine, syncRegistration } from "../../lib/lines/a2p.js";
 
 export const config = { maxDuration: 60 };
 

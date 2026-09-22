@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { outboundGate, refusalScript } = await import(
-  pathToFileURL(path.join(here, "../../../apps/edge/lib/outbound-gate.ts")).href
+  pathToFileURL(path.join(here, "../../../apps/edge/lib/receptionist/outbound-gate.ts")).href
 );
 
 const NOW = 1_800_000_000_000;

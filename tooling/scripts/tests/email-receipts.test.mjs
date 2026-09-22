@@ -27,7 +27,7 @@ process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
 process.env.RESEND_WEBHOOK_SECRET = SECRET;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const door = await import(at("apps/edge/api/resend-webhook.ts"));
-const { EMAIL_FAILED_WORDS } = await import(at("apps/edge/lib/email-receipts.ts"));
+const { EMAIL_FAILED_WORDS } = await import(at("apps/edge/lib/email/email-receipts.ts"));
 after(() => {
   setPg(null);
   delete process.env.EMAIL_DOMAIN;

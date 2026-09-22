@@ -81,6 +81,16 @@ ships in a shape that works whichever deploys first.
 follow pnpm workspace symlinks. Rebuild `dist` whenever a package changes; CI
 fails on drift.
 
+**Where a module lives on the edge.** `apps/edge/api` is the doors, one file
+per URL, grouped as the URLs are (`admin/`, `cron/`). `apps/edge/lib` is
+everything the doors call, grouped by domain: `receptionist/` (what it decides
+and says), `whatsapp/`, `sms/`, `email/`, `voice/`, `lines/`, `leads/`,
+`calendar/`, `google/`, `ops/` (who gets told). A domain earns a directory
+when it has more than one module; a domain that is one module sits at the
+root, beside the edge's own plumbing: the environment, the logger, the HTTP
+shapes, the Postgres handle, pagination, the two door guards, the control-plane
+door, and the erasure check.
+
 ## The four doors
 
 Every request proves who is knocking before anything is read.
@@ -98,18 +108,18 @@ Each channel has a door on the edge that verifies the wire, and a plan
 function that decides what to do with what arrived, run over a database in
 memory by a test.
 
-| Channel  | Door                                                                                             | Decides                           | Then                                                                                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| WhatsApp | `apps/edge/api/whatsapp.ts`                                                                      | `apps/edge/lib/whatsapp/steps.ts` | `apps/edge/lib/whatsapp/inbound.ts`: persist, read the posture, ask the brain, deliver or hold                                                                         |
-| SMS      | `apps/edge/api/inbound-sms.ts`                                                                   | `apps/edge/lib/sms-ingress.ts`    | The same handler, with the carrier's consent words and the texting rules                                                                                               |
-| Voice    | `apps/edge/api/retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`, `retell-webhook.ts` | `apps/edge/lib/call-start.ts`     | The call runs at the provider from the same business facts; the webhook writes the call into the thread                                                                |
-| Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email-ingress.ts`  | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
+| Channel  | Door                                                                                             | Decides                                | Then                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WhatsApp | `apps/edge/api/whatsapp.ts`                                                                      | `packages/core/src/inbound/steps.ts`   | `packages/core/src/inbound/answer.ts`: persist, read the posture, ask the brain, deliver or hold (the edge adapts it in `apps/edge/lib/whatsapp/inbound.ts`)           |
+| SMS      | `apps/edge/api/inbound-sms.ts`                                                                   | `apps/edge/lib/sms/sms-ingress.ts`     | The same handler, with the carrier's consent words and the texting rules                                                                                               |
+| Voice    | `apps/edge/api/retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`, `retell-webhook.ts` | `apps/edge/lib/voice/call-start.ts`    | The call runs at the provider from the same business facts; the webhook writes the call into the thread                                                                |
+| Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
 
 The receptionist itself: `apps/edge/lib/tenant-runtime.ts` reads the
 workspace's config through one door; `packages/contracts/src/config.ts`
-composes the system prompt from the business's facts; `apps/edge/lib/brain.ts`
+composes the system prompt from the business's facts; `apps/edge/lib/receptionist/brain.ts`
 asks the model and reads a structured answer (`packages/contracts/src/brain.ts`);
-`apps/edge/lib/reply-posture.ts` is the truth table of whether it may speak at
+`packages/core/src/inbound/reply-posture.ts` is the truth table of whether it may speak at
 all; the Autonomy matrix and the confidence dial decide whether the answer goes
 now, waits in a veto window, or waits for a person.
 
@@ -202,19 +212,19 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
 | To change                              | Look in                                                                                                                                                  |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What the receptionist says             | `packages/contracts/src/config.ts` (the composer), `apps/edge/lib/brain.ts`, the Business tab in Settings                                                |
-| Whether it speaks at all               | `apps/edge/lib/reply-posture.ts`, `policies` and `packages/contracts/src/policy.ts`                                                                      |
+| What the receptionist says             | `packages/contracts/src/config.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings                                   |
+| Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/policy.ts`                                                          |
 | Who may be messaged                    | `packages/contracts/src/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts`                                                                    |
 | A new channel                          | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `deliver.ts`                                        |
 | A new operator verb                    | A core verb in `packages/core/src/conversations`, a route under `/api/v1/conversations/[id]`, a row in `route-policy.json`, the shell's `inbox-verbs.ts` |
 | A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                             |
 | A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                         |
 | Billing                                | `apps/edge/lib/billing.ts`, `apps/edge/api/stripe-webhook.ts`                                                                                            |
-| The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/lead-*.ts`, `apps/dashboard/src/server/leads.ts`, migration `00140`                                            |
+| The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads.ts`, migration `00140`                                               |
 | Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask.ts`                                                                                       |
 | The calendar                           | `apps/dashboard/src/server/calendar.ts`, `packages/contracts/src/availability.ts`, `apps/edge/api/cron/calendar.ts`                                      |
-| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `apps/edge/lib/lines.ts`, `a2p.ts`                                                                         |
-| Email                                  | `packages/channels/src/email*.ts`, `apps/edge/lib/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                        |
+| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `apps/edge/lib/lines/`                                                                                     |
+| Email                                  | `packages/channels/src/email*.ts`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                  |
 | Voice                                  | `packages/channels/src/voice-*.ts`, the four `retell-*` doors                                                                                            |
 
 ## Tests

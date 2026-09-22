@@ -248,6 +248,32 @@ const LEAD_COLUMNS = [
   // The row's acts, where the eye ends: on hover and on the keyboard's cursor (clients.css shows .cl-row-actions then).
   { key: "actions", label: "", sortable: false, fixed: true, cell: (l, x) => <td key="actions" className="shrink cl-actions-cell"><LeadRowActions l={l} onCall={x.onCall} onCopy={x.onCopy} onKeep={x.onKeep} onExclude={x.onExclude} onPutBack={x.onPutBack} canFind={x.canFind} /></td> },
 ];
+
+// A lead's row on a phone is People's (plRowCard, clients-a.jsx; the phone pass, D8), so the two scopes are one list to
+// the eye: the business's mark or the listing's photo on its initials, its name and its state (Ready too, as a
+// person's row always says theirs); where it is, or what it waits on, or what left it out; and whether a phone and a
+// mailbox reach it, how it is rated and when it was found. Call is the lead's own page's first button -- the row opens
+// it -- and C on a keyboard: a 44px Call on every card made Leads' rows a second kind of list.
+const ldCardCell = (l) => window.plRowCard({
+  face: { initials: l.tile.initials, image: l.tile.logo || l.tile.image },
+  name: l.name,
+  pill: <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
+  lead: l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub),
+  leadTestid: "lead-sub",
+  facts: [
+    l.cls !== "excluded" ? (
+      <span key="reach" className="pl-card-reach" role="img" aria-label={`Phone: ${l.slots.phone.word}. Email: ${l.slots.mailbox.word}.`} data-testid="lead-reach">
+        <LeadSlotShape state={l.slots.phone.state} />
+        <LeadSlotShape state={l.slots.mailbox.state} />
+      </span>
+    ) : null,
+    l.rated ? <span key="rated" className="pl-card-rated" data-testid="lead-rated"><Icon name="star" size={11} />{l.rated.score} · {l.rated.count}</span> : null,
+    <span key="found" className="pl-card-last" data-testid="lead-found">{l.foundLine}</span>,
+  ],
+});
+// A phone's one column for Leads, and the class its rows wear: People's (clients.css draws both from it).
+const LEAD_PHONE_COLUMNS = [{ key: "card", label: "Business", sortable: false, pinned: true, cell: ldCardCell }];
+const ldCardRowClass = () => "pl-card-row";
 // business, fit, rating, stage, found, distance: what a saved Leads view may sort by.
 const LEAD_SORT_KEYS = plSortKeys(LEAD_COLUMNS);
 
@@ -976,7 +1002,7 @@ const LeadsScope = (p) => {
                 columns={p.columns}
                 ctx={p.cellCtx}
                 rows={p.rows}
-                rowClass={ldRowClass}
+                rowClass={phone ? ldCardRowClass : ldRowClass}
                 total={p.total}
                 sortBy={p.sortBy}
                 sortDir={p.sortDir}
@@ -1071,4 +1097,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, ldPlacePop, LEAD_COLUMNS, LEAD_SORT_KEYS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LEAD_PHONE_COLUMNS, ldCardCell, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, ldPlacePop, LEAD_COLUMNS, LEAD_SORT_KEYS });

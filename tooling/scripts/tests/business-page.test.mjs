@@ -148,7 +148,7 @@ test("the page is on the same domain as the opt-in page, which is what 30907 wan
 });
 
 test("a business with no website of its own files the page we publish", () => {
-  const a2p = readCode("apps/edge/lib/a2p.ts");
+  const a2p = readCode("apps/edge/lib/lines/a2p.ts");
   // The privacy policy the carriers are given identifies the BUSINESS. Ours
   // identifies Chanlytics, which is the wrong answer to 30919's question.
   assert.match(a2p, /const privacyPolicyUrl = o\.hostedUrl \|\| o\.privacyUrl;/);
@@ -319,7 +319,7 @@ test("a website that is not a website is worse than none", () => {
 });
 
 test("nothing is filed until they are answered, and the words reach the row", () => {
-  const edge = readCode("apps/edge/lib/a2p.ts");
+  const edge = readCode("apps/edge/lib/lines/a2p.ts");
   // Same moment as the record check, and before anything is created: on a real
   // filing each of these is a week of waiting and a fee already spent.
   assert.match(edge, /for \(const p of registrationPreflight\(\{/);

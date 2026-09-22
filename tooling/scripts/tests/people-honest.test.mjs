@@ -2876,3 +2876,156 @@ test("focusing a row puts the cursor on it, and the cursor's row is the table's 
   assert.equal(press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null }), true);
   assert.deepEqual(opened.slice(before), ["p3"], "Enter on the focused row opens it");
 });
+
+/* ------------------------------ the loading standard: People's rows, place and search ------------------------------ */
+
+test("a People row is drawn from what is its own: every prop is a primitive or the same object as last time -- the cell context was made new on every draw, so every row redrew on every keystroke", async () => {
+  await freshPage({
+    people: [person(1), person(2), person(3), person(4), person(5)],
+    lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }],
+  });
+  const rowsOf = (tree) =>
+    all(
+      tree,
+      (n) => (n.type && n.type.name === "PeopleRow") || (n.type && n.type.type && n.type.type.name === "PeopleRow"),
+    );
+  let tree = draw();
+  const a = rowsOf(tree);
+  assert.ok(a.length >= 5, "the table draws its rows as PeopleRow");
+  tree = draw();
+  const b = rowsOf(tree);
+  // (Not the columns, the toggle or the cursor setter: this stub's useMemo, useCallback and useState hand out new ones on
+  // every draw, where React's hold; leads-honest's stub proves those.)
+  for (const k of ["ctx", "onOpen", "rowClass", "words"])
+    assert.ok(Object.is(a[0].props[k], b[0].props[k]), `${k} is the same object on a draw that changed nothing`);
+  // A keystroke in the box is not a row's own either.
+  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+    target: { value: "p" },
+  });
+  tree = draw();
+  const c = rowsOf(tree);
+  assert.ok(
+    Object.is(a[0].props.ctx, c[0].props.ctx),
+    "REGRESSION: the context was a new object on every draw, and PeopleRowMemo compares it by identity",
+  );
+  // The doors inside it are still the page's latest.
+  a[0].props.ctx.onOpen("p1");
+  assert.deepEqual(opened.slice(-1), ["p1"], "the row's Open reaches the page's own handler");
+  // A kept list opened is a change of what a cell needs (its drop door), so the context changes once.
+  draw({ initialSaved: "s1" });
+  tree = draw({ initialSaved: "s1" });
+  const d = rowsOf(tree);
+  assert.ok(
+    !Object.is(a[0].props.ctx, d[0].props.ctx),
+    "a list opened gives the cells a drop door: a new context, once",
+  );
+  assert.ok(d[0].props.ctx.drop && d[0].props.ctx.drop.list.id === "s1");
+  tree = draw({ initialSaved: "s1" });
+  assert.ok(Object.is(d[0].props.ctx, rowsOf(tree)[0].props.ctx), "and it holds still again");
+});
+
+test("People keeps its place per view in the tab: the words in the box and the cursor on everyone, a kept list and a state each their own, and back after the page is left", async () => {
+  const { installTabMemory, clearTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  installTabMemory(globalThis.window);
+  clearTabMemory();
+  const TM = globalThis.window.__tabMemory;
+  try {
+    await freshPage({
+      people: [person(1), person(2), person(3)],
+      lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }],
+    });
+    const box = (tree) => find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
+    draw();
+    let tree = draw();
+    assert.equal(box(tree).props.value, "", "nothing kept yet");
+    box(tree).props.onChange({ target: { value: "person 2" } });
+    tree = draw();
+    assert.equal(box(tree).props.value, "person 2");
+    assert.deepEqual(
+      TM.place("people", "all"),
+      { q: "person 2", cursor: null, top: 0 },
+      "kept as typed, under People's everyone view",
+    );
+    // The cursor with it: a row focused is the cursor (onFocus -> onCursor).
+    const row = find(tree, (n) => n.type === "tr" && typeof n.props?.onFocus === "function");
+    row.props.onFocus();
+    tree = draw();
+    assert.equal(TM.place("people", "all").cursor, row.props.id.replace(/^person-/, ""), "the cursor's row too");
+    // A kept list opened is its own view: its own words (none yet), and its own place once typed into.
+    draw({ initialSaved: "s1" });
+    draw({ initialSaved: "s1" });
+    tree = draw({ initialSaved: "s1" });
+    assert.equal(box(tree).props.value, "", "REGRESSION: the list opened with everyone's words in the box");
+    box(tree).props.onChange({ target: { value: "regular" } });
+    tree = draw({ initialSaved: "s1" });
+    assert.deepEqual(TM.place("people", "list:s1").q, "regular");
+    assert.equal(TM.place("people", "all").q, "person 2", "everyone's words are still everyone's");
+    // Back to everyone: its words and its cursor are put back.
+    draw({ initialSaved: null });
+    draw({ initialSaved: null });
+    tree = draw({ initialSaved: null });
+    assert.equal(box(tree).props.value, "person 2");
+    // The page left (a profile, Today) and come back to: a fresh mount reads the place.
+    cells = [];
+    draw();
+    tree = draw();
+    assert.equal(
+      box(tree).props.value,
+      "person 2",
+      "REGRESSION: a search typed on People was gone after a trip to a profile",
+    );
+    // Cleared, the view is forgotten; signed out, everything is.
+    box(tree).props.onChange({ target: { value: "" } });
+    draw();
+    assert.deepEqual(
+      TM.place("people", "all"),
+      { q: "", cursor: "p2", top: 0 },
+      "no words: the cursor still keeps the view",
+    );
+    clearTabMemory();
+    assert.equal(TM.place("people", "list:s1"), null);
+  } finally {
+    delete globalThis.window.__tabMemory;
+  }
+});
+
+test("past everyone loaded, the line under the table says the server is being searched while it is, and the table is busy -- the search was silent until its rows landed", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
+  let answer = null;
+  globalThis.window.__peopleSearch = () =>
+    new Promise((r) => {
+      answer = r;
+    });
+  let tree = draw();
+  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+    target: { value: "person" },
+  });
+  tree = draw();
+  assert.ok(
+    !/searching everyone/.test(textOf(byTestId(tree, "people-more"))),
+    "not yet: the box waits a moment before asking",
+  );
+  await sleep(320);
+  tree = draw();
+  assert.match(textOf(byTestId(tree, "people-more")), /searching everyone…/, "asked: said on the line");
+  assert.equal(
+    byTestId(tree, "people-table-scroll").props["aria-busy"],
+    "true",
+    "and the table is busy, for a screen reader",
+  );
+  assert.equal(
+    all(tree, (n) => n.props?.["data-testid"] === "row-select").length,
+    2,
+    "the loaded rows its words match stay",
+  );
+  answer({ rows: [], more: false });
+  await sleep(0);
+  tree = draw();
+  assert.match(
+    textOf(byTestId(tree, "people-more")),
+    /names and numbers searched across everyone/,
+    "answered: the words as before",
+  );
+  assert.equal(byTestId(tree, "people-table-scroll").props["aria-busy"], undefined);
+});

@@ -98,7 +98,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
       bell.includes("dismissed: false }"),
     "seen, read, dismiss and restore reach the server for kept rows",
   );
-  const notify = readCode("apps/edge/lib/notify.ts");
+  const notify = readCode("apps/edge/lib/ops/notify.ts");
   assert.ok(
     notify.includes("export async function recordNotification(") &&
       /await recordNotification\(\s*target\.tenantId,\s*\{ kind: msg\.kind, title: msg\.subject, body: msg\.body, route: msg\.route, about: msg\.about \},\s*ports\.db === undefined \? pg\(\) : ports\.db,?\s*\);/.test(
@@ -107,7 +107,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     "the row first, addressed or not",
   );
   assert.ok(notify.includes('L.error("notification_record_failed"'), "losing the row never loses the email");
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(
     readCode("apps/edge/lib/whatsapp/alerts.ts").includes('kind: "handoff",') &&
       wa.includes('route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",') &&
@@ -119,7 +119,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   // sweep alerts too, and two copies of who-may-be-told is how a business's
   // delivery failure once reached a different business's owner.
   assert.ok(
-    /\{\s*kind: news\.kind,\s*route: news\.route,/.test(readCode("apps/edge/lib/job-alert.ts")),
+    /\{\s*kind: news\.kind,\s*route: news\.route,/.test(readCode("apps/edge/lib/ops/job-alert.ts")),
     "the job that raises the alert decides what it is; this file only decides who may be told",
   );
   // The look and the door of a broadcast that finished: good news, on the page it happened on.
@@ -142,7 +142,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   assert.ok(
     readCode("apps/edge/lib/playbooks.ts").includes('kind: "playbook",') &&
       /await notify\(target, \{\s*kind: described\.kind,\s*route: described\.route,/.test(
-        readCode("apps/edge/lib/waba-events.ts"),
+        readCode("apps/edge/lib/whatsapp/waba-events.ts"),
       ),
     "the change decides its kind and its door (describeWabaChange); the sender never re-derives them",
   );

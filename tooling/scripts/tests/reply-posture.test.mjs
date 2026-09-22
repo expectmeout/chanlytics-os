@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { replyPosture, effectiveReplyMode } from "../../../apps/edge/lib/reply-posture.ts";
+import { replyPosture, effectiveReplyMode } from "../../../packages/core/src/inbound/reply-posture.ts";
 
 test("a routed workspace with a usable runtime follows its OWN policy", () => {
   assert.deepEqual(replyPosture({ runtimeUsable: true, policyMode: "auto" }), { replyMode: "auto" });

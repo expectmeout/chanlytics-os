@@ -17,7 +17,7 @@ import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { post, notify, recordNotification, platformTo, reachesTenant } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/notify.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href
 );
 
 /** console.error, kept instead of printed. */
@@ -486,9 +486,9 @@ test("every kind the table accepts is kept as itself -- a new kind is not turned
 });
 
 test("REGRESSION: a job's alert is kept as what the job said it is -- a completed broadcast was kept as job_failed", async () => {
-  // apps/edge/lib/job-alert.ts hard-coded `kind: "job_failed", route: "inbox"` for every one of its six callers,
+  // apps/edge/lib/ops/job-alert.ts hard-coded `kind: "job_failed", route: "inbox"` for every one of its six callers,
   // so "Broadcast “Spring offer” sent, 38 people got it" reached the bell as a job that did not finish.
-  const { alertFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/job-alert.ts")).href);
+  const { alertFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/job-alert.ts")).href);
   const rows = [];
   const t = transport();
   const log = capture();

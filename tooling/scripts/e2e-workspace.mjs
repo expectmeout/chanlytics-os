@@ -22,7 +22,7 @@
  *     simulates a delivery, so what is sent to it reaches nobody. It is there
  *     because e2e/thread.spec.ts sends a reply this channel cannot carry: the
  *     failure opens an escalation and alerts the owner, and for a workspace with
- *     no address chooseAddressing (apps/edge/lib/notify.ts) answers `redacted`,
+ *     no address chooseAddressing (apps/edge/lib/ops/notify.ts) answers `redacted`,
  *     which mails the platform's own mailbox -- a real person -- every night,
  *     and the deadman pages the platform if the escalation outlives two hours.
  *     With an address on file both go to the workspace's own, and this one

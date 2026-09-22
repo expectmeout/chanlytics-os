@@ -1,7 +1,7 @@
 /**
  * The recordings stored before the copy sniffed its type are retyped.
  *
- * Every recording copied before sniffAudioType (apps/edge/lib/call-recording.ts)
+ * Every recording copied before sniffAudioType (apps/edge/lib/voice/call-recording.ts)
  * sits in the private bucket as binary/octet-stream, the Retell CDN's word for a
  * WAV. tooling/scripts/recordings-retype.mjs re-uploads each one typed as what it
  * is and records that on its row. Executed here over rows in memory and a bucket
@@ -16,7 +16,7 @@ import { fakeDb } from "./_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const script = await import(pathToFileURL(path.join(here, "../recordings-retype.mjs")).href);
-const edge = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/call-recording.ts")).href);
+const edge = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/voice/call-recording.ts")).href);
 
 const T = "t-1";
 const bytes = (...parts) => {

@@ -193,7 +193,7 @@ test("the brand does not buy a vetting a low-volume campaign cannot use", () => 
   });
   assert.equal(vetted.form.SkipAutomaticSecVet, undefined, "asking for it stays possible, and stays a decision");
   // Tied to the use case, in one place, where both are visible at once.
-  const edge = readCode("apps/edge/lib/a2p.ts");
+  const edge = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(edge.includes("useCase: LOW_VOLUME_USECASE,") && edge.includes("skipVetting: true,"));
   assert.ok(
     readRaw("packages/channels/src/a2p.ts").includes("A brand can be vetted later"),
@@ -510,7 +510,7 @@ test("a brand the carriers still hold is a WAIT, not a refusal, and the status c
   assert.equal(r.ok, false);
   assert.equal(r.step, "campaign");
   assert.equal(r.pending, true, "the row must say 'waiting on carriers', never 'something went wrong'");
-  const edge = readCode("apps/edge/lib/a2p.ts");
+  const edge = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(
     edge.includes("const waiting = !result.ok && result.pending;") &&
       edge.includes('const smsState = result.ok || waiting ? "registering" : "failed";'),
@@ -655,7 +655,7 @@ test("the two waits are told apart, and the carriers answering rings once", () =
   for (const e of ["line.texting_on", "line.texting_approved", "line.texting_rejected"])
     assert.ok(EVENT_KINDS.includes(e), e);
 
-  const edge = readCode("apps/edge/lib/a2p.ts");
+  const edge = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(
     edge.includes("const verdict = registrationVerdict(line.sms_state, smsState, {"),
     "the state BEFORE the write is what decides whether this is news",
@@ -678,7 +678,7 @@ test("the carriers' verdicts become the words the row uses", () => {
   // nothing moved a line from one to the other, so every text stayed held.
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "VERIFIED" }), "active");
   assert.ok(
-    readCode("apps/edge/lib/sms-ingress.ts").includes('held: line.sms_state !== "active"'),
+    readCode("apps/edge/lib/sms/sms-ingress.ts").includes('held: line.sms_state !== "active"'),
     "which is the state the inbound path reads",
   );
   assert.equal(smsStateFor({ brandStatus: "FAILED", campaignStatus: null }), "rejected");
@@ -698,7 +698,7 @@ test("the carriers' verdicts become the words the row uses", () => {
 });
 
 test("the campaign's status is read from the list Twilio answers with, and a wait's clock starts when the wait does", () => {
-  const edge = readCode("apps/edge/lib/a2p.ts");
+  const edge = readCode("apps/edge/lib/lines/a2p.ts");
   // Verified against the live API on 2026-09-09: the Usa2p endpoint answers
   // {compliance: [{campaign_status, mock, ...}], meta} and has NO top-level
   // campaign_status. Reading one gave null on every tick, so smsStateFor never
@@ -720,7 +720,7 @@ test("the campaign's status is read from the list Twilio answers with, and a wai
 });
 
 test("everything is filed as the workspace's own subaccount, with our primary profile referenced by sid", () => {
-  const lib = readCode("apps/edge/lib/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(
     lib.includes("const sub = await lineAccount(db, o.line)") &&
       lib.includes('if (!sub) return { ok: false, error: "no_line_credentials"'),
@@ -838,7 +838,7 @@ test("the wiring: filed under our own profile, the table and the row, and the sw
   // default (`mock` only when asked, and never on a refile), the record asked
   // for first (`no_business_record`), and the reviewer sent to this
   // deployment's own pages -- is run in lines-door.test.mjs.
-  const lib = readCode("apps/edge/lib/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(
     lib.includes("export function primaryProfileSid()") && lib.includes('error: "no_primary_profile"'),
     "nothing is filed without our own approved profile",
@@ -924,7 +924,7 @@ test("a refusal keeps the carriers' own reasons, from the side that was actually
   assert.equal(refusalWords({ campaignErrors: [{ description: "Something new from TCR" }] }), "Something new from TCR");
 
   // And the sweep reads the campaign side, not just the brand.
-  const lib = readCode("apps/edge/lib/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(
     lib.includes("campaignErrors: Array.isArray(usa2p?.errors)"),
     "REGRESSION: the campaign's own reasons were dropped",

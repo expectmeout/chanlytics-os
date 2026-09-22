@@ -26,7 +26,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { tokensLast24h, brainSummary } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/budget.ts")).href);
+const { tokensLast24h, brainSummary } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/receptionist/budget.ts")).href
+);
 
 const T = "t-1";
 /** n usage events, oldest first, each costing `each` tokens in and the same out. */

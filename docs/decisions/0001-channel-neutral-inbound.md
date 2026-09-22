@@ -25,12 +25,12 @@ both channels" (`sms.ts:63-64`). `apps/edge/api/inbound-sms.ts:76` then calls
 `WaChangeValue`, a hole the SMS door fills with nothing because there is no
 Meta envelope to hand it. What SMS supplies instead is an `InboundCarrier`
 (`inbound.ts:43-50`): a wire, a body shaper, a hold, and the carrier's own
-consent verdict, built by `carrierFor` (`apps/edge/lib/sms-ingress.ts:132`).
+consent verdict, built by `carrierFor` (`apps/edge/lib/sms/sms-ingress.ts:132`).
 
 ### Email takes a different road and gets no reply
 
 An email arrives at `apps/edge/api/resend-webhook.ts`, is judged by
-`planResendEvent` (`apps/edge/lib/email-ingress.ts:49`), becomes an
+`planResendEvent` (`apps/edge/lib/email/email-ingress.ts:49`), becomes an
 `email_ingest` job, and is taken in by `ingestEmail`
 (`packages/core/src/messages/email-ingest.ts:93`) through the handler at
 `packages/jobs/src/handlers.ts:333`. The verb's own header says why it stops
@@ -48,8 +48,8 @@ the tables. It is the shape the inbound pipeline should grow into.
 | ------------------------------------------------------ | ------------------------------------- |
 | `apps/edge/lib/whatsapp/inbound.ts:66`                 | `"whatsapp" \| "sms"`                 |
 | `apps/edge/lib/whatsapp/persist.ts:86`, `:118`, `:173` | `"whatsapp" \| "sms"`                 |
-| `apps/edge/lib/draft-queue.ts:34`                      | `"whatsapp" \| "sms"`                 |
-| `apps/edge/lib/unfinished.ts:58`                       | `INLINE_INTAKE = ["whatsapp", "sms"]` |
+| `apps/edge/lib/receptionist/draft-queue.ts:34`         | `"whatsapp" \| "sms"`                 |
+| `apps/edge/lib/receptionist/unfinished.ts:58`          | `INLINE_INTAKE = ["whatsapp", "sms"]` |
 
 The fourth is the deadman sweep's, and its comment states the rule this design
 must obey: _"A new channel is excluded by construction, which is the safe
@@ -96,7 +96,7 @@ memory: `whatsapp-door.test.mjs` (597 lines, 11 tests), `sms-door.test.mjs`
 last running `handleInbound` itself through `setInboundPorts`
 (`apps/edge/lib/whatsapp/ports.ts:65`).
 
-The seams are ready. `replyPosture` (`apps/edge/lib/reply-posture.ts:55`) and
+The seams are ready. `replyPosture` (`apps/edge/lib/receptionist/reply-posture.ts:55`) and
 `effectiveReplyMode` (`:80`) are pure and dependency-free; `loadTenantRuntime`
 (`apps/edge/lib/tenant-runtime.ts:162`) is the one door to the control plane;
 `InboundPorts` (`apps/edge/lib/whatsapp/ports.ts:26`) already names everything
@@ -135,7 +135,7 @@ Instagram and Messenger DMs slot in **at the door, not at the pipeline**. They
 arrive on Meta's Graph webhook family, signed the same way
 (`x-hub-signature-256` over the raw body, `apps/edge/api/whatsapp.ts:79-85`),
 routed by a page or account id the way `WABA_FIELDS`
-(`apps/edge/lib/waba-events.ts:26`) routes account news by WABA id. Shared: the
+(`apps/edge/lib/whatsapp/waba-events.ts:26`) routes account news by WABA id. Shared: the
 signature scheme, the envelope walk, the 503-vs-200 ack rule, and — once this
 lands — the whole pipeline behind the adapter. **Not** shared: the message
 shape (no `wa_id`, no phone number); the identity (an account-scoped id under

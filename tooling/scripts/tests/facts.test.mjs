@@ -157,8 +157,8 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   // provisioned line spoken in their prompts -- are run in eval-door.test.mjs
   // and steer-door.test.mjs.
   for (const [file, call] of [
-    ["apps/edge/lib/whatsapp/inbound.ts", "rt?.known"],
-    ["apps/edge/lib/call-start.ts", "rt.known"],
+    ["packages/core/src/inbound/answer.ts", "rt?.known"],
+    ["apps/edge/lib/voice/call-start.ts", "rt.known"],
   ]) {
     const src = readCode(file);
     assert.ok(src.includes(call + ")"), `${file} passes what the platform knows`);
@@ -285,7 +285,7 @@ test("every voice line a caller hears comes through the resolver too", async () 
 
   // Optional means a workspace can have none, and a receptionist reading
   // "reach the team on undefined" to a caller is worse than offering nothing.
-  const { refusalScript } = await importSrc("apps/edge/lib/outbound-gate.ts");
+  const { refusalScript } = await importSrc("apps/edge/lib/receptionist/outbound-gate.ts");
   for (const none of [null, undefined]) {
     const said = refusalScript("policy_hold", none);
     assert.doesNotMatch(said, /undefined|null|reach the team on/, `the script takes an absent number (${none})`);

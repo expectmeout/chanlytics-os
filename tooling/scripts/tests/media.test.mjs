@@ -18,7 +18,7 @@ import { readCode, readRaw } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dto = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/dto.ts")).href);
-const vision = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/vision.ts")).href);
+const vision = await import(pathToFileURL(path.join(here, "../../../packages/core/src/inbound/vision.ts")).href);
 
 const msg = (over) => ({
   id: "m1",
@@ -167,7 +167,7 @@ test("vision: only small real images, and the words beside the picture restate t
 });
 
 test("the handler looks only when the workspace, the mode and the moment allow, and never fetches twice", () => {
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(
     /const maySee =\s*n\.type === "media" &&\s*!!n\.media &&\s*!!rt\?\.features\?\.vision &&\s*isVisionMime\(n\.media\.mime_type\)/.test(
       wa,
@@ -212,7 +212,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   assert.ok(wa.includes("photo ? photoUserText(n.media?.caption) : bodyText,"));
   assert.ok(wa.includes("photo ?? undefined,\n      );"), "the image reaches the brain");
   assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("return got;"), "sink.media hands the bytes back");
-  const brain = readCode("apps/edge/lib/brain.ts");
+  const brain = readCode("apps/edge/lib/receptionist/brain.ts");
   assert.ok(
     brain.includes('{ type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } },'),
   );

@@ -160,9 +160,13 @@ test("an opted-out contact is flagged to both agents", () => {
 
 /* ------------------------------ the wiring -------------------------------- */
 
-const voice = read("apps/edge/lib/call-start.ts");
-const wa = read("apps/edge/lib/whatsapp/inbound.ts");
-const brain = read("apps/edge/lib/brain.ts");
+const voice = read("apps/edge/lib/voice/call-start.ts");
+const wa = read("packages/core/src/inbound/answer.ts");
+// describeLead is a VALUE from the db package, which a core verb may not
+// import, so the receptionist reaches the one description through a port. The
+// edge is where the two are joined.
+const waPorts = read("apps/edge/lib/whatsapp/ports.ts");
+const brain = read("apps/edge/lib/receptionist/brain.ts");
 
 test("REGRESSION: the voice agent no longer reads the Blob mirror", () => {
   assert.ok(!/getThread\(/.test(voice), "caller context must come from Postgres");
@@ -171,7 +175,8 @@ test("REGRESSION: the voice agent no longer reads the Blob mirror", () => {
 
 test("both agents describe the lead with the same function", () => {
   assert.match(voice, /describeLead\(/);
-  assert.match(wa, /describeLead\(/);
+  assert.match(wa, /ports\.leads\.describe\(/);
+  assert.match(waPorts, /describe: describeLead/);
 });
 
 test("a failed lead lookup costs recognition, never the reply", () => {

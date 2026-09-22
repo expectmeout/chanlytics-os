@@ -86,12 +86,15 @@ test("a log line on the message path carries a phone tail, never the number or t
     "apps/edge/api/whatsapp.ts",
     "apps/edge/api/inbound-sms.ts",
     "apps/edge/api/retell-inbound.ts",
-    "apps/edge/lib/call-start.ts",
+    "apps/edge/lib/voice/call-start.ts",
     "apps/edge/lib/whatsapp/inbound.ts",
+    // The message path itself: a verb over ports, logging through the
+    // factory the edge hands it. Same lines, same rule, new home.
+    "packages/core/src/inbound/answer.ts",
     "apps/edge/lib/whatsapp/persist.ts",
-    "apps/edge/lib/sms.ts",
+    "apps/edge/lib/sms/sms.ts",
   ];
-  const CALL = /(console\.(log|error|warn)\(|\bL\.(info|warn|error)\(|\blogger\(|\.child\()/g;
+  const CALL = /(console\.(log|error|warn)\(|\bL\.(info|warn|error)\(|\blogger\(|ports\.log\(|\.child\()/g;
   const NUMBER = /[{,(]\s*(from|to|phone|phone_e164|recipient_id|e164|number)\s*[:,})]/;
   const WORDS = /[{,]\s*(text|body)\s*:/;
   const offences = [];

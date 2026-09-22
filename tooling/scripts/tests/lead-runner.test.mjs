@@ -19,7 +19,7 @@ import {
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS } from "../../../packages/core/src/leads/judge.ts";
 import { runIdFor } from "../../../packages/core/src/leads/ids.ts";
 import { ApifyRefused, ApifyRetryable } from "../../../packages/channels/src/apify.ts";
-import { leadDb } from "../../../apps/edge/lib/lead-db.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
 import { leadWorld, sha256, webhookToken, TENANT } from "./_lead-world.mjs";
 import { PLAN, actorRun, mapsItem } from "./_lead-fixtures.mjs";
 

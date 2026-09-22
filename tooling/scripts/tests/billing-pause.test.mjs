@@ -14,7 +14,7 @@ import { readCode, readRaw } from "./_source.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 test("the gate: a paused workspace sends nothing, after consent and before the policy; the script takes a message", async () => {
-  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/outbound-gate.ts")).href);
+  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/receptionist/outbound-gate.ts")).href);
   const base = {
     contact: { consent: "unknown", dnc: false, marketing_consent: "unknown" },
     purpose: "conversational",
@@ -79,12 +79,12 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
       rt.includes("paused: false,"),
     "one read, the same query the clock uses",
   );
-  const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const inbound = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(
     inbound.includes("if (rt?.paused) {") && /sink\.escalate\(\s*"paused",/.test(inbound),
     "kept, held for a person, not answered",
   );
-  const inboundRaw = readRaw("apps/edge/lib/whatsapp/inbound.ts");
+  const inboundRaw = readRaw("packages/core/src/inbound/answer.ts");
   assert.ok(
     inboundRaw.indexOf("if (rt?.paused) {") <
       inboundRaw.indexOf("// E3: the reply policy is consulted BEFORE generation."),

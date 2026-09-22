@@ -26,13 +26,13 @@
 import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { notify, reachesTenant } from "../../lib/notify.js";
+import { notify, reachesTenant } from "../../lib/ops/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
 import { logger, errField } from "../../lib/log.js";
-import { pageOperator } from "../../lib/page-operator.js";
+import { pageOperator } from "../../lib/ops/page-operator.js";
 import { markProcessed } from "../../lib/packages/db.js";
 import { upsertEscalation } from "../../lib/packages/jobs.js";
-import { sweepUnfinished } from "../../lib/unfinished.js";
+import { sweepUnfinished } from "../../lib/receptionist/unfinished.js";
 
 export const config = { maxDuration: 60 };
 

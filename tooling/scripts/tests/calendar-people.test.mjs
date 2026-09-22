@@ -551,7 +551,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
       route.includes("visits: visits ?? undefined,"),
     "never fatal to the profile",
   );
-  const edge = readCode("apps/edge/lib/availability.ts");
+  const edge = readCode("apps/edge/lib/calendar/availability.ts");
   assert.ok(
     /export async function visitsFor\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
       edge,
@@ -560,7 +560,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
         edge,
       ),
   );
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(
     wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") &&
       wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"),
@@ -715,7 +715,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
       sweep.includes("select cron.schedule('calendar-people-sweep',"),
     "pg_cron calls the edge every hour, like the other sweeps",
   );
-  const lib = readCode("apps/edge/lib/calendar-people.ts");
+  const lib = readCode("apps/edge/lib/calendar/calendar-people.ts");
   assert.ok(
     lib.includes(".insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name })") &&
       lib.includes('if (iErr.code !== "23505") throw') &&
@@ -764,7 +764,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
     readCode("apps/dashboard/src/legacy-bridge/people-detail.ts").includes('return api()("POST contacts", { body });'),
     "the bridge verb, through the same door",
   );
-  const edgeAv = readCode("apps/edge/lib/availability.ts");
+  const edgeAv = readCode("apps/edge/lib/calendar/availability.ts");
   assert.ok(
     /export async function feedItemsFor\(\s*tenantId: string,\s*url: string,\s*tz: string,\s*now = new Date\(\),\s*daysAhead = 14,?\s*\)/.test(
       edgeAv,

@@ -89,7 +89,7 @@ Copy the shape of these; do not invent a second one.
 
 | To add                                        | Copy                                                                                 | Notes                                                                                                   |
 | --------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| A webhook door on the edge                    | `apps/edge/api/inbound-sms.ts` with `apps/edge/lib/sms-ingress.ts`                   | The door verifies the wire and does the transport; the plan function decides, over a database in memory |
+| A webhook door on the edge                    | `apps/edge/api/inbound-sms.ts` with `apps/edge/lib/sms/sms-ingress.ts`               | The door verifies the wire and does the transport; the plan function decides, over a database in memory |
 | A cron sweep                                  | `apps/edge/api/cron/deadman.ts`                                                      | Register its clock in `sweep_status`; every sweep that changes something is watched                     |
 | A core verb                                   | `packages/core/src/conversations/snooze.ts` over `ports.ts`                          | A decision row plus a change to its subject; errors as `AppError`                                       |
 | An app-plane route                            | `apps/dashboard/app/api/v1/conversations/[id]/snooze/route.ts`                       | `write()` or `read()` from `server/route.ts`; add the row to `route-policy.json`; regenerate the client |
@@ -113,6 +113,8 @@ Copy the shape of these; do not invent a second one.
 - A type, a schema, an enum, a view model: `packages/contracts`.
 - A read or write of a table: `packages/db`.
 - An HTTP door for a provider, a sweep, or the job runner: `apps/edge/api`.
+- What such a door calls: `apps/edge/lib/<domain>/`, and `apps/edge/lib` itself for the
+  plumbing every domain uses. A new domain earns a directory at its second module.
 - A member-facing route: `apps/dashboard/app/api/v1`.
 - Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `src/legacy-bridge`.
 

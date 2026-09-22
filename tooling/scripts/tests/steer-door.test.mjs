@@ -20,7 +20,7 @@
  *
  * And the port's DEFAULT, which is what production runs: the last three cases
  * call POST the way Vercel calls it -- one argument, nothing in the port's
- * place -- and watch the REAL apps/edge/lib/brain.ts carry this door's
+ * place -- and watch the REAL apps/edge/lib/receptionist/brain.ts carry this door's
  * arguments to api.anthropic.com over a captured wire.
  *
  * EVERY CASE USES ITS OWN WORKSPACE. The runtime loader caches a workspace for
@@ -57,7 +57,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 /**
  * The REAL brain's wire, captured BEFORE the door is imported -- which is the
- * only moment it can be. apps/edge/lib/brain.ts builds its Anthropic client
+ * only moment it can be. apps/edge/lib/receptionist/brain.ts builds its Anthropic client
  * at module load and the SDK keeps whatever globalThis.fetch was then
  * (internal/shims getDefaultFetch), so this function, and not a later swap,
  * is what the real generateReply speaks through for the rest of the process.
@@ -818,7 +818,7 @@ test("a brain that fails is a 502 with nothing written; a draft that cannot be q
  * argument (apps/edge/vercel.json). Every case above hands the brain in, so
  * without this one the seam's production branch would be held by the compiler
  * alone. Here the door is called exactly as the platform calls it and the
- * REAL apps/edge/lib/brain.ts is watched reaching api.anthropic.com with the
+ * REAL apps/edge/lib/receptionist/brain.ts is watched reaching api.anthropic.com with the
  * arguments this door composes.
  */
 /** What the model answers over the wire, as the API frames it. */
