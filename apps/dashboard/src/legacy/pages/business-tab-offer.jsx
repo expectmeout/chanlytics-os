@@ -30,9 +30,15 @@ const { useState: useBtwState, useRef: useBtwRef } = React;
 
 /* ------------------------------------ the services ------------------------------------ */
 
-// A name as the search and the consult mark compare it: accents off, case folded, space trimmed, so "unas" finds
-// "Uñas de gel", as a caller's words find a service (contracts availability.ts foldName, the same folding).
-const btwFolded = (s) => String(s == null ? "" : s).normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
+// A name as the search reads it: contracts' foldName (availability.ts, through the bridge), accents off and case
+// folded, so "unas" finds "Uñas de gel" as a caller's words find a service, with the space around it trimmed as
+// needsConsultation trims it. The page once folded names with a copy of that rule, which agreed until one changed.
+const btwFolded = (s) => {
+  const fold = window.__businessTab && window.__businessTab.foldName;
+  const words = String(s == null ? "" : s).trim();
+  // With no bridge to ask, a name is compared as it is written: nothing here folds it a second way.
+  return fold ? fold(words) : words;
+};
 
 // What the sheet says when a list is full: the cap the save's schema keeps (LIMITS.services), said where Add was.
 const btwFull = (max) => `That is the most services the receptionist keeps (${max}). Remove one first.`;
@@ -111,7 +117,10 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
   const seq = useBtwRef(0);
   const Sheet = window.BtSheet;
   if (!Sheet) return null;
-  const consult = new Set((((brain.profile || {}).booking_rules || {}).consult_first || []).map(btwFolded));
+  // Whether a service needs a consultation first is contracts' one question (needsConsultation), the one the Calendar's
+  // board asks of the same list: a row marked here is a service the receptionist offers as a consultation.
+  const rules = (brain.profile || {}).booking_rules || null;
+  const consults = (name) => !!(tab.needsConsultation && tab.needsConsultation(String(name == null ? "" : name), rules));
   const written = (draft) => S.WRITTEN_ROWS.services(draft).length;
   const restored = (row) => setOut((was) => ({ opening: was.opening, marks: was.marks.filter((m) => m.row !== row) }));
 
@@ -181,7 +190,7 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
               id={`svc-${i}-name`} label={`Service ${n} name`} size="sm" value={x.name} placeholder="What customers call it"
               onChange={(v) => setSvc(i, "name", v)} problem={said(`service-${i}-name`)} readOnly={f.readOnly}
             />
-            {consult.has(btwFolded(x.name)) ? <span className="bt-service-consult" data-testid={`rec-service-consult-${i}`}>consult first</span> : null}
+            {consults(x.name) ? <span className="bt-service-consult" data-testid={`rec-service-consult-${i}`}>consult first</span> : null}
           </span>
           <window.RecordBox
             id={`svc-${i}-minutes`} label={`Service ${n} minutes`} size="sm" unit="min" inputMode="numeric" placeholder="45"

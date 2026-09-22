@@ -11,7 +11,7 @@
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
   promptBlocks, resolveSystemPrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema, openWeekWords, closuresAheadWords,
-  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS,
+  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName,
   type PromptBlockVM, type ProfileCrossing, type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -188,10 +188,11 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 
 // openWeekWords and closuresAheadWords are the When you're open card's two sentences with a number in them; the
 // services row's and sheet's (servicesWords, servicesToldWords, servicesSaveWords, blockShareWords) and the booking
-// rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's.
+// rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's. needsConsultation and foldName are the rules the
+// services sheet marks a consult-first service by and searches by: the Calendar's and the phone tool's own, not copies.
 export const BUSINESS_TAB = {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing, saveIssues, openWeekWords, closuresAheadWords,
-  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS,
+  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 

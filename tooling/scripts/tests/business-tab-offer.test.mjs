@@ -5,7 +5,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate } from "@chanlytics/contracts";
+import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate, needsConsultation, foldName } from "@chanlytics/contracts";
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import { W, cancelFoldOf, drawTab, escape, foldOf, labelled, melany, openFold, openFolds, openRows, ownWords, redrawTab, saveFoldOf, saving, typeAt, without } from "./_business-tab-harness.mjs";
 
@@ -732,4 +732,22 @@ test("consult-first and the booking rules share one stored object, and saved one
   tree = redrawTab();
   saveFoldOf(tree, "consult_first");
   assert.deepEqual(sent[1].config.brain.profile.booking_rules, { ...without(melany.booking_rules, "consult_first"), party_max: 8 });
+});
+
+test("the consult-first mark and the search's folding are contracts' own rules, the Calendar's and the phone tool's", () => {
+  // The spec review's probe: the sheet folded names with a copy of contracts' foldName, and matched the consult-first list
+  // with a copy of needsConsultation. A second implementation of a rule is a bug even when it agrees (root CLAUDE.md).
+  const services = [{ name: "Colour Correction" }, { name: "Uñas de gel" }, { name: " Extensions" }, { name: "Cut" }];
+  const rules = { ...melany.booking_rules, consult_first: ["colour correction ", "EXTENSIONS"] };
+  let tree = drawTab({ profile: { ...melany, services, booking_rules: rules } });
+  tree = openSheet(tree);
+  const marked = services.map((_, i) => !!byTestId(tree, `rec-service-consult-${i}`));
+  assert.deepEqual(marked, services.map((s) => needsConsultation(s.name, rules)), "each row marked as contracts answers for it");
+  assert.deepEqual(marked, [true, false, true, false]);
+  for (const words of ["unas", "UÑAS", " uñas "]) {
+    searchFor(tree, words);
+    tree = redrawTab();
+    assert.deepEqual(namesOf(shownOf(tree)), ["Uñas de gel"], `${JSON.stringify(words)} finds the name as a caller's words find it`);
+    assert.ok(foldName("Uñas de gel").includes(foldName(words.trim())));
+  }
 });

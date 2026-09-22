@@ -646,8 +646,10 @@ export function describeOpenings(openings: Opening[], tz: string, opts: { maxDay
 export interface ServiceLike { name: string; duration_min?: number }
 
 // Accents off and case folded: "unas" finds "Uñas de gel", and a caller who
-// says "depilacion" means the service written "Depilación".
-const foldName = (s: string): string => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+// says "depilacion" means the service written "Depilación". Exported for the
+// Business tab's services sheet, whose search folds a name the same way: one
+// rule for what counts as the same name, not a copy of it in the page.
+export const foldName = (s: string): string => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 const wordsOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
 /**

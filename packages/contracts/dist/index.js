@@ -13994,6 +13994,7 @@ export {
   fmtClock,
   fmtDay,
   fmtSeconds,
+  foldName,
   followupsToShow,
   footerOf,
   formatPhoneDisplay,
