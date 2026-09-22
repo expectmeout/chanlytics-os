@@ -2,8 +2,10 @@
 // The day: today and tomorrow from the calendar the receptionist reads — who
 // is coming and when, what is open, what is closed — and the visit
 // playbooks' line. Reads the calendar and playbooks surfaces the page already
-// holds; the words are contracts/today.ts todayDay, published by the bridge
-// as window.__today. Silent without a feed -- that is the Calendar page's
+// holds, and People for a visit that needs someone and a person's channel --
+// People lands last on a cold boot (surface-registry.ts ROUTE_DRAWS), so the
+// card redraws on it too; the words are contracts/today.ts todayDay, published
+// by the bridge as window.__today. Silent without a feed -- that is the Calendar page's
 // card to make -- but never silent about a feed it HAS and could not read.
 // An appointment opens its person when the calendar names one, else the
 // Calendar; nothing is booked or changed from here. Five rows at most, the
@@ -22,7 +24,7 @@ const useTdTick = (key) => {
 const tdSurface = (key) => (window.todaySurface ? window.todaySurface(key) : window[key]);
 
 const TodayDay = () => {
-  useTdTick("surface:calendar,surface:playbooks");
+  useTdTick("surface:calendar,surface:playbooks,surface:clients");
   const C = tdSurface("__CALENDAR");
   const P = tdSurface("__PLAYBOOKS");
   const people = tdSurface("__PEOPLE");

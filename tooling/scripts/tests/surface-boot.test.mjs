@@ -388,3 +388,63 @@ test("identity leads even on a workspace page, where nothing waits for it", asyn
   assert.equal(order[1], "reports", "then what you are looking at");
   assert.equal(new Set(order).size, keys.length, "and the rest still boot");
 });
+
+test("what the page on screen draws from other surfaces follows its own surface, in the page's order, ahead of every stranger", async () => {
+  // Today draws the day beside its queue from the calendar, the queue's runs from broadcasts, the card's period line
+  // and Worth a look from reports. Measured on the salon's Today (22 Sep 2026): the calendar was read eleventh, behind
+  // Settings, People and Leads that nobody was looking at, and the day popped in 1.6 s after the queue beside it.
+  const { ROUTE_DRAWS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const keys = [
+    "conversations",
+    "inbox",
+    "today",
+    "settings",
+    "people",
+    "leads",
+    "reports",
+    "live",
+    "broadcasts",
+    "playbooks",
+    "calendar",
+    "notifications",
+    "setup",
+    "google",
+    "billing",
+  ];
+  const draws = ROUTE_DRAWS.today;
+  for (const k of ["calendar", "broadcasts", "reports"])
+    assert.ok(draws.includes(k), `Today names ${k} among what it draws`);
+  // Each name is an override that exists, read from the modules that export them: a renamed surface would otherwise
+  // leave its entry inert and this test green.
+  const keepError = console.error;
+  console.error = () => {};
+  let known;
+  try {
+    const modules = await Promise.all(
+      ["surface-data", "setup", "leads", "google", "billing"].map((m) =>
+        importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`),
+      ),
+    );
+    known = new Set(
+      modules.flatMap((mod) =>
+        Object.values(mod)
+          .filter((v) => v && typeof v === "object" && typeof v.key === "string" && typeof v.apply === "function")
+          .map((v) => v.key),
+      ),
+    );
+  } finally {
+    console.error = keepError;
+  }
+  for (const k of draws)
+    assert.ok(known.has(k), `${k} is a surface an override feeds (known: ${[...known].join(", ")})`);
+  const { order, overrides } = crowd(keys, { hash: "#/today" });
+  const stop = startSurfaces(overrides);
+  await settle(80);
+  stop();
+  assert.deepEqual(
+    order.slice(0, 1 + draws.length),
+    ["today", ...draws],
+    "its own surface first, then what it draws in the order it draws them, before Settings or anyone's list",
+  );
+  assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
+});
