@@ -193,7 +193,8 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
 });
 
 test("A playbook is a card of the moment it does: its message and languages, who it will reach and who it holds back, when it runs next -- and it opens in place to its verbs", () => {
-  const trig = (id, label, hint, candidates, held = 0) => ({ id, label, hint, cls: "reengage", list: id, kind: "list", candidates, held });
+  // As the route counts a moment: who it reaches, who waits, and everyone it names (triggerPools).
+  const trig = (id, label, hint, candidates, held = 0) => ({ id, label, hint, cls: "reengage", list: id, kind: "list", candidates, held, named: { pool: candidates + held, noYes: 0, stopped: 0, noNumber: 0, saidYes: candidates + held } });
   globalThis.window.__PLAYBOOKS = playbooksSurface({
     rows: [
       playbook({ id: "pb-1", name: "Win-back", trigger: "quiet_30", candidates: 24, held: 12, totals: { runs: 18, sent: 198, delivered: 180, replied: 36, held: 0, lastRun: null, waiting: null, history: [{ id: "r1", run_for: "2026-09-19", state: "sent", sent: 12 }, { id: "r2", run_for: "2026-09-18", state: "sent", sent: 9 }] } }),
@@ -214,7 +215,7 @@ test("A playbook is a card of the moment it does: its message and languages, who
   assert.deepEqual(cards.map((c) => c.props.id || `slot:${c.props["data-trigger"]}`), ["pb-pb-1", "pb-pb-2", "pb-pb-3", "slot:visited"]);
   const [winback, saved, offer] = cards;
   // Who it reaches, out of whom, and who it holds back -- named, not summed away.
-  assert.ok(textOf(byTestId(winback, "pb-tile-reach")).includes("24of 36 who said yes"), textOf(byTestId(winback, "pb-tile-reach")));
+  assert.ok(textOf(byTestId(winback, "pb-tile-reach")).includes("24of 36"), textOf(byTestId(winback, "pb-tile-reach")));
   assert.ok(textOf(winback).includes("12 heard from a playbook this week"));
   // The ONE language its runs go out in -- a run sends its language to everyone on
   // it -- where the card drew every language the message has ("EN ES") and named a
@@ -224,7 +225,8 @@ test("A playbook is a card of the moment it does: its message and languages, who
   assert.ok(textOf(winback).includes("Next run tomorrow 10:00") && textOf(winback).includes("18 runs"));
   assert.ok(String(byTestId(winback, "pb-tile-runs").props["data-tip"]).includes("198 sent, 180 delivered, 36 wrote back"), "what its runs earned is a hover away");
   // Paused counts nobody of its own: its moment's count is how many it is not reaching.
-  assert.ok(textOf(byTestId(saved, "pb-tile-reach")).includes("0of 41 who said yes"), textOf(byTestId(saved, "pb-tile-reach")));
+  assert.ok(textOf(byTestId(saved, "pb-tile-reach")).includes("0of 41"), textOf(byTestId(saved, "pb-tile-reach")));
+  assert.ok(!/who said yes/.test(textOf(byTestId(saved, "pb-tile-reach"))), "REGRESSION: a reach worded as who said yes");
   assert.ok(textOf(saved).includes("paused — nothing goes out"));
   // A run waiting on the owner: the card says what the press does, and the press opens it where Approve is.
   assert.ok(textOf(byTestId(offer, "pb-tile-approve")).includes("Approve it and it goes at 10:00"));

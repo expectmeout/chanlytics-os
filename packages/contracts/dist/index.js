@@ -4123,10 +4123,12 @@ var PEOPLE_LISTS = [
   { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
 ];
 var GET_YES_ROUTE = "broadcasts/get-yes";
+var USE_IN_A_BROADCAST = "Use in a broadcast";
+var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true };
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
-  new_week: { cta: "Get their yes", to: GET_YES_ROUTE, text: "Their yes to offers is the phrase and the QR on Broadcasts." },
+  new_week: { cta: "Get their yes", to: GET_YES_ROUTE, text: "Their yes to offers is the phrase and the QR on Broadcasts.", answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" } },
   booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
@@ -4135,20 +4137,18 @@ var LIST_STEPS = {
   // this list has said yes to hearing from the business, which is not a yes to a
   // promotion. Sending them here with "New broadcast" is what made the empty
   // audience feel like a bug in the composer rather than a missing answer.
-  opted_in: { cta: "Get their yes to offers", to: GET_YES_ROUTE, text: "They answer and hear about their own visits. Offers need a second, separate yes." },
-  // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer
-  // opens on Everyone, and the button says so in the composer's words (broadcasts.ts EVERYONE_LABEL). It said
-  // "New broadcast" here and "Use in a broadcast" on Lists, and opened an audience with another name.
-  offers_ok: { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true }
+  opted_in: { cta: "Get their yes to offers", to: GET_YES_ROUTE, text: "They answer and hear about their own visits. Offers need a second, separate yes.", answered: OFFERS_STEP },
+  offers_ok: OFFERS_STEP
 };
 function peopleListAction(id, members) {
   const step = LIST_STEPS[id];
   if (!step) return null;
+  if (step.answered && members.length > 0 && members.every((m) => saidYesTo(m, "marketing"))) return broadcastStep(step.answered.cta, step.answered.to, members);
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
   return broadcastStep(step.cta, step.to, members);
 }
 function savedListAction(id, members) {
-  return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
+  return broadcastStep(USE_IN_A_BROADCAST, `broadcasts/${id}`, members);
 }
 var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
 function noNumberWords(who, purpose) {
@@ -7274,7 +7274,7 @@ var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
-var EVERYONE_LABEL = "Everyone who said yes";
+var EVERYONE_LABEL = "Everyone";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
   return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
 }
@@ -7689,6 +7689,7 @@ function nextRunLabel(p, tz, now) {
 function playbookReach(p) {
   if (p.waiting) return "waiting";
   if (p.state !== "running") return "paused";
+  if (p.candidates === null || p.held === null) return "uncounted";
   if (p.candidates > 0) return "sends";
   return p.held > 0 ? "all-heard" : "nobody";
 }
@@ -7696,7 +7697,7 @@ function playbookReachDoor(reach, named) {
   return reach === "nobody" && named !== null && named.pool > 0 && named.saidYes === 0 ? { label: "Get their yes", to: GET_YES_ROUTE } : null;
 }
 function playbookNoNumberWords(p, named) {
-  if (!named || named.saidYes === 0 || p.candidates + p.held > 0) return null;
+  if (!named || named.saidYes === 0 || p.candidates === null || p.held === null || p.candidates + p.held > 0) return null;
   return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
 }
 var PLAYBOOK_REACH_WORDS = {
@@ -7704,7 +7705,9 @@ var PLAYBOOK_REACH_WORDS = {
   paused: null,
   sends: null,
   nobody: "nobody to send to",
-  "all-heard": "waiting out the week's gap"
+  "all-heard": "waiting out the week's gap",
+  // The page says once, over the cards, that who each moment reaches could not be read.
+  uncounted: null
 };
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,

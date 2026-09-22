@@ -1007,10 +1007,10 @@ export interface PlaybookCardVM extends PlaybookDto {
   next: string;
   /** How many on the trigger's list a run reaches right now -- a recorded yes and
    *  a number to send to -- clear of the week's breath, before the gap, which
-   *  only the run applies. */
-  candidates: number;
-  /** How many more it would reach but heard from a broadcast of any kind this week, and wait. */
-  held: number;
+   *  only the run applies. Null when the server could not count the moment. */
+  candidates: number | null;
+  /** How many more it would reach but heard from a broadcast of any kind this week, and wait. Null with `candidates`. */
+  held: number | null;
   /** Everyone its moment names, and who of them no run reaches whatever the week: the card's grey. Null when not read. */
   named: PlaybookNamed | null;
 }
@@ -1038,14 +1038,17 @@ export interface PlaybookTriggerOption {
   list: string | null;
   /** list, cadence or visit — a visit trigger needs the calendar and has no gap. */
   kind: string;
-  candidates: number;
-  held: number;
+  /** Null, with `held` and `named`: the server could not count this moment -- never a zero it did not count. */
+  candidates: number | null;
+  held: number | null;
   named: PlaybookNamed | null;
 }
 
 export interface PlaybooksSurface {
   rows: PlaybookCardVM[];
   timezone: string;
+  /** False when the server could not count some moment: the page says so once, over the cards. */
+  countsRead: boolean;
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
   triggers: PlaybookTriggerOption[];
@@ -1083,9 +1086,10 @@ export const playbooksOverride: SurfaceOverride = {
     ]);
     const now = new Date();
     // The pools are the route's: who a run would pick NOW, and who waits for
-    // the week's breath, over everyone in People with their visits.
-    const pool = (trigger: string) => pb.pools?.[trigger]?.candidates ?? 0;
-    const held = (trigger: string) => pb.pools?.[trigger]?.held ?? 0;
+    // the week's breath, over everyone in People with their visits. A moment
+    // the route could not count is null here too, never a zero it did not count.
+    const pool = (trigger: string) => pb.pools?.[trigger]?.candidates ?? null;
+    const held = (trigger: string) => pb.pools?.[trigger]?.held ?? null;
     // And everyone each moment names, with who of them no run reaches whatever the week.
     const named = (trigger: string): PlaybookNamed | null => {
       const x = pb.pools?.[trigger];
@@ -1111,6 +1115,7 @@ export const playbooksOverride: SurfaceOverride = {
         };
       }),
       timezone: tz,
+      countsRead: PLAYBOOK_TRIGGERS.every((t) => !!pb.pools?.[t.id]),
       calendar: pb.calendar ?? "none",
       triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id), named: named(t.id) })),
       templates: tpl instanceof Error

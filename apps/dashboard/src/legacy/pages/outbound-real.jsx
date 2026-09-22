@@ -151,14 +151,17 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   // counted only who said yes, so the people who never did were in no number
   // on the page, and they are the one part an owner can change.
   const named = p.named || (trig && trig.named) || null;
+  // Who its moment reaches could not be counted (the server's read failed): the
+  // page says so once, over the cards, and the tile draws no count. It drew
+  // "0 of 0 who said yes", a zero nobody counted.
+  const counted = named !== null && p.candidates !== null && p.held !== null;
   // Past the cap the rest go next time; a reminder is owed to every visit, uncapped (eligibleForPlaybook).
   const capped = !paused && !waiting && !(trig && trig.kind === "visit") ? Math.max(0, p.candidates - p.cap_per_run) : 0;
-  const will = paused ? 0 : waiting ? (waiting.recipient_count ?? p.candidates) : named ? p.candidates - capped : p.candidates;
-  // Out of everyone on the moment's list who said yes, when the server did not
-  // say who it names. A paused playbook counts nobody of its own, so its
-  // moment's count says how many it is not reaching.
+  const will = paused ? 0 : waiting ? (waiting.recipient_count ?? p.candidates) : p.candidates - capped;
+  // A paused playbook counts nobody of its own, so its moment's count says how
+  // many it is not reaching.
   const reachable = Math.max(p.candidates + p.held, trig ? (trig.candidates || 0) + (trig.held || 0) : 0);
-  const pool = Math.max(will, named ? named.pool : reachable);
+  const pool = Math.max(will, counted ? named.pool : 0);
   // Paused, everyone it could reach waits on the pause: the amber is all of them.
   const held = paused ? reachable : p.held;
   // The language its runs go out in: ONE, whatever others the message has -- a
@@ -178,7 +181,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
       !paused && p.held > 0 && { t: `${p.held} heard from a playbook this week`, tone: "warn" },
       !paused && !waiting && p.candidates > p.cap_per_run && { t: `up to ${p.cap_per_run} a run — the rest go next time`, tone: "plain" },
     ]).filter(Boolean).slice(0, 3);
-  const of = named && window.__poolWords ? window.__poolWords(p.trigger) : "who said yes";
+  const of = window.__poolWords ? window.__poolWords(p.trigger) : null;
   const hour = `${String(p.run_hour).padStart(2, "0")}:00`;
   const spark = (p.totals.history || PB_NONE).slice(0, 6).reverse().map((h) => h.sent || 0);
   return (
@@ -204,7 +207,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
               <span>{pbShort(sends.id)}</span>
             </span>
           </div>
-          <window.CmReach will={will} pool={pool} of={of} held={held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />
+          {counted && <window.CmReach will={will} pool={pool} of={of} held={held} reasons={reasons.length ? reasons : [{ t: "nobody held back", tone: "plain" }]} testid="pb-tile-reach" />}
           <div className="pb-tile-foot">
             {/* A run waiting on the owner: the line says what the press does, and
                 the press opens the card where Approve and Skip are. */}
@@ -247,7 +250,8 @@ const PlaybookSlot = ({ t, onStart }) => (
     <div className="pb-tile-empty">
       <p className="pb-tile-blurb" data-testid="pb-slot-who">
         {PB_BLURBS[t.id] || t.hint}
-        {t.candidates > 0 ? ` ${pbPeople(t.candidates)} today.` : " Nobody today."}
+        {/* A moment the server could not count says no number at all (the page says why, once). */}
+        {t.candidates === null ? null : t.candidates > 0 ? ` ${pbPeople(t.candidates)} today.` : " Nobody today."}
       </p>
       <button
         className="btn pb-tile-setup"
@@ -405,6 +409,8 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const monthly = trigger === "everyone_monthly";
   const base = editing && editing.trigger === trigger ? { candidates: editing.candidates || 0, held: editing.held || 0 } : { candidates: trig ? trig.candidates || 0 : 0, held: trig ? trig.held || 0 : 0 };
   const named = (editing && editing.trigger === trigger && editing.named) || (trig && trig.named) || null;
+  // Who the moment reaches could not be counted (the server's read failed): no count is drawn, as on the cards.
+  const counted = named !== null && (editing && editing.trigger === trigger ? editing.candidates !== null : !!trig && trig.candidates !== null);
   const capN = Math.max(1, Number(cap) || 1);
   const overCap = visits ? 0 : Math.max(0, base.candidates - capN);
   const will = base.candidates - overCap;
@@ -412,7 +418,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const reasons = named && window.__reachLines
     ? window.__reachLines({ pool: named.pool, will, noNumber: named.noNumber, stopped: named.stopped, noYes: named.noYes, heardThis: 0, heardAny: base.held, overCap, overLimit: 0 }, { trigger, cap_per_run: capN, gap_days: Number(gap), cadence_days: Number(cadence) }).lines.slice(0, 3).map((l) => ({ t: l.words, tone: l.tone, door: l.door }))
     : [base.held > 0 && { t: `${base.held} heard from a playbook this week`, tone: "warn" }, overCap > 0 && { t: `${overCap} wait for the next run — ${capN} a run`, tone: "plain" }].filter(Boolean);
-  const of = window.__poolWords ? window.__poolWords(trigger) : "who said yes";
+  const of = window.__poolWords ? window.__poolWords(trigger) : null;
 
   // A moment moved to keeps the message the owner chose when it can send it; one it cannot gives way to that moment's own.
   const chooseMoment = (id) => {
@@ -445,7 +451,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     onDone(r.data, !!editing);
   };
 
-  const momentChoices = triggers.map((t) => ({ id: t.id, label: t.label, sub: t.hint, icon: pbIcon(t.id), hint: t.candidates > 0 ? `${t.candidates} today` : "nobody today" }));
+  const momentChoices = triggers.map((t) => ({ id: t.id, label: t.label, sub: t.hint, icon: pbIcon(t.id), hint: t.candidates === null ? null : t.candidates > 0 ? `${t.candidates} today` : "nobody today" }));
   const messageChoices = groups.slice().sort((a, b) => (starter ? (b.name === starter.name) - (a.name === starter.name) : 0)).map((g) => {
     const r = rowIn(g, tpl ? tpl.language : null);
     return {
@@ -509,7 +515,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
             ) : <span className="pb-pick-text"><span className="pb-pick-title is-empty">Pick a moment</span></span>}
             testid="pb-moment"
           />
-          {trig && <window.CmReach will={will} pool={pool} of={of} held={base.held} reasons={reasons} size="sm" testid="pb-reach" />}
+          {trig && counted && <window.CmReach will={will} pool={pool} of={of} held={base.held} reasons={reasons} size="sm" testid="pb-reach" />}
           {visits && data.calendar !== "ok" && <p className="pb-warn" data-testid="pb-calendar">A visit moment reads the calendar: connect it in Settings › Business before a run can send.</p>}
         </section>
 
@@ -659,6 +665,9 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
   const named = p.named || (trig && trig.named) || null;
   const reachDoor = pbReachDoor(reach, named);
   const noNumber = pbNoNumberWords(p, named);
+  // Not counted (the server's read failed): the sentence keeps what is known -- the moment, the clock, the next
+  // run -- and no count; the page says once, over the cards, that the counts could not be read.
+  const counted = named !== null && p.candidates !== null && p.held !== null;
   const act = async (fn, said) => {
     if (!V || busy) return;
     setBusy(true);
@@ -716,13 +725,18 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
                 in 30 days", "Only ever phoned, never texted" -- so "Goes to" in
                 front of it was broken English on five of the six triggers. It
                 leads, and the count follows it. */}
-            {p.triggerHint} &mdash;{" "}
-            <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
-              {noNumber || `${pbPeople(p.candidates)} on the list said yes`}
-            </button>
-            {/* Why a list with people on it can still offer nobody: one message per
-                person per week, across playbooks. A bare "0 people" read as broken. */}
-            {p.held > 0 ? <>, and {pbPeople(p.held)} more heard from you this week and wait</> : null}. {p.schedule}.{" "}
+            {p.triggerHint}
+            {counted && (
+              <>
+                {" "}&mdash;{" "}
+                <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
+                  {noNumber || `${pbPeople(p.candidates)} on the list said yes`}
+                </button>
+                {/* Why a list with people on it can still offer nobody: one message per
+                    person per week, across playbooks. A bare "0 people" read as broken. */}
+                {p.held > 0 ? <>, and {pbPeople(p.held)} more heard from you this week and wait</> : null}
+              </>
+            )}. {p.schedule}.{" "}
             {/* "Next run paused" was the words when it is. */}
             {p.state === "paused"
               ? <>Paused &mdash; nothing runs until you resume it.</>
@@ -937,6 +951,11 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
         )}
         {rows.length > 0 && data.templates === null && (
           <FailedRead kind="line" what="your templates" body="The cards show what they send once they read. Everything else here is current." surface="playbooks" testid="pb-cards-templates-failed" />
+        )}
+        {/* The server could not count who a moment reaches: said once, here, and no card draws a zero it never
+            counted -- it drew "0 of 0", "nobody to send to" and the QR over a People read that failed. */}
+        {tiles.length > 0 && data.countsRead === false && (
+          <FailedRead kind="line" what="who each moment reaches" body="The cards show who they reach once it reads. Everything else here is current." surface="playbooks" testid="pb-counts-failed" />
         )}
         {tiles.length > 0 && (
           <div className="pb-grid">

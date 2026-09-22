@@ -214,6 +214,16 @@ test("what the next run will DO: a playbook running against an empty list is not
   for (const r of ["sends", "paused", "waiting"]) assert.equal(playbookReachDoor(r, named(3, 0)), null, r);
 });
 
+test("REGRESSION: a playbook whose moment could not be counted is not one with nobody to send to -- it read 'nobody to send to' and offered the QR over a People read that failed", () => {
+  const at = (over) => playbookReach({ state: "running", candidates: null, held: null, ...over });
+  assert.equal(at({}), "uncounted");
+  assert.equal(PLAYBOOK_REACH_WORDS.uncounted, null, "nothing said beside the state: the page says once that the counts could not be read");
+  assert.equal(playbookReachDoor("uncounted", null), null, "and no door to a yes nobody knows is missing");
+  // What is known is still said: a pause, and a run waiting for a person.
+  assert.equal(at({ state: "paused" }), "paused");
+  assert.equal(at({ waiting: { id: "b-1" } }), "waiting");
+});
+
 test("REGRESSION: a playbook whose yes has no number to send to is not one nobody said yes to -- its card sent the owner to the QR for an answer given, and said '0 on the list said yes'", () => {
   const named = (pool, saidYes) => ({ pool, saidYes });
   // Somebody on the list said the yes, and nobody can be sent a run: what is missing is a number (#663's rule).

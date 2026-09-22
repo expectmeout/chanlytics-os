@@ -126,6 +126,24 @@ test("REGRESSION: the pools say how many each moment names said the yes it needs
   assert.equal(e.saidYes, 2, "REGRESSION: the card could not tell the yes with no number from nobody's yes");
 });
 
+test("REGRESSION: a moment that could not be counted is not a zero -- a People read that failed answered empty pools, and the page drew '0 of 0' and 'nobody to send to'", async () => {
+  const ids = ["everyone_monthly", "new_week", "phoned_only", "quiet_30", "visit_tomorrow", "visited"];
+  // The People read fails: no moment is counted, each says so, and the route still answers with the playbooks.
+  const refusing = ctxFor(tables(null), { people_list: () => { throw new Error("canceling statement due to statement timeout"); } });
+  const { pools } = await triggerPools(refusing, T, {}, TZ, NOW);
+  assert.deepEqual(Object.keys(pools).sort(), ids);
+  for (const id of ids) assert.equal(pools[id], null, `REGRESSION: ${id} read as ${JSON.stringify(pools[id])}`);
+  const out = await playbooksRoute.GET.run(new Request(`http://localhost/api/v1/playbooks?workspace=${T}`), refusing);
+  assert.ok(Array.isArray(out.playbooks), "the playbooks themselves are read");
+  assert.equal(out.pools.everyone_monthly, null);
+  // The calendar cannot be read: the moments it names are not counted, and every other moment is.
+  const all = [person(1), person(2)];
+  const calendarDown = { supabase: fakeDb(tables(null), { "tenant_config.select": { message: "canceling statement due to statement timeout" } }, { people_list: pagedList(all) }), userId: "u1", email: "ada@example.com", params: {} };
+  const partly = await triggerPools(calendarDown, T, {}, TZ, NOW);
+  assert.deepEqual([partly.pools.visit_tomorrow, partly.pools.visited], [null, null], "REGRESSION: tomorrow's visits read as nobody's");
+  assert.equal(partly.pools.everyone_monthly.candidates, 2, "a moment the calendar does not name is counted as ever");
+});
+
 test("with a calendar, a visit tomorrow is counted from the feed, over everyone", async () => {
   const url = "https://cal.example/visits.ics";
   answers.set(url, { body: ["BEGIN:VCALENDAR",
