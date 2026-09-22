@@ -202,7 +202,10 @@ const BroadcastDetail = ({ id, onClose, acts = null, again = null, sheet = null 
   const [filter, setFilter] = React.useState("all");
   // Whether a waiting run's sheet shows who gets it.
   const [seeAll, setSeeAll] = React.useState(false);
-  const mine = answer && answer.id === id ? answer : null;
+  // A run this tab has opened paints at once from the courier's read cache (the loading standard's C), and is read
+  // again behind: every open was ~250ms of "Reading who got it…" first, the second open too.
+  const held = !answer || answer.id !== id ? (window.__broadcasts && window.__broadcasts.peekDetail ? window.__broadcasts.peekDetail(id) : null) : null;
+  const mine = answer && answer.id === id ? answer : held && held.ok ? { id, ok: true, data: held.data, gone: false } : null;
   const d = mine && mine.ok ? mine.data : null;
   // While it can still change it is read again whenever the surface is -- which re-reads on every message, so
   // the people fill in as a send goes out -- and not once it has finished.
@@ -975,10 +978,20 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   const cancel = async (row) => {
     if (!window.__broadcasts || stopping || !canSend) return false;
     setStopping(row.id);
-    const r = await window.__broadcasts.cancel(row.id);
-    setStopping(null);
-    setArmId(null);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
+    // Said the moment the server takes it, from what it answered; the ledger repaints from the re-read behind it.
+    let said = false;
+    const say = (data) => {
+      said = true;
+      setStopping(null);
+      setArmId(null);
+      flash({ tone: "ok", msg: <><b>{row.name}</b> {data.was === "sending" ? "stops after this batch" : data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> });
+    };
+    const r = await window.__broadcasts.cancel(row.id, { onAccepted: say });
+    if (!r.ok) {
+      setStopping(null);
+      setArmId(null);
+      flash({ tone: "danger", msg: <>{r.message}</> });
+    } else if (!said) say(r.data);
     return r.ok;
   };
   // One approve at a time: a second press while the first is out would be refused by the server, so the button says
@@ -989,10 +1002,20 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (!window.__broadcasts || !canSend || approvingRef.current) return false;
     approvingRef.current = row.id;
     setApproving(row.id);
-    const r = await window.__broadcasts.approve(row.id);
-    approvingRef.current = null;
-    setApproving(null);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(r.data)}</> : <>{r.message}</> });
+    // Said the moment the server takes it, from what it answered: how many, and when it really goes.
+    let said = false;
+    const say = (data) => {
+      said = true;
+      approvingRef.current = null;
+      setApproving(null);
+      flash({ tone: "ok", msg: <><b>{row.name}</b> approved — {data.recipient_count} {data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(data)}</> });
+    };
+    const r = await window.__broadcasts.approve(row.id, { onAccepted: say });
+    if (!r.ok) {
+      approvingRef.current = null;
+      setApproving(null);
+      flash({ tone: "danger", msg: <>{r.message}</> });
+    } else if (!said) say(r.data);
     return r.ok;
   };
 

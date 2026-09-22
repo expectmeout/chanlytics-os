@@ -286,6 +286,25 @@ test("the page follows its link rather than starting again: opening a run keeps 
   assert.ok(chosen(tree).startsWith("Regulars"), "while the surface re-reading its lists does not undo a choice made on the page");
 });
 
+test("a run opened before opens at once from what the tab holds, and is read again behind -- every open was a read first (~250ms of 'Reading who got it…', measured)", async () => {
+  globalThis.window.__BROADCASTS = broadcastsSurface();
+  answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
+  answers.set("b-new", [{ ok: true, data: detailOf(dto({ id: "b-new", name: "Win-back · 2026-09-20" })) }]);
+  // What the courier's read cache holds (broadcast-verbs.ts peekDetail): the last answer for a run this tab opened.
+  globalThis.window.__broadcasts.peekDetail = (id) => (id === "b-sent" ? { ok: true, data: detailOf(dto()) } : null);
+  asked.length = 0;
+  try {
+    const seen = byTestId(page({ initialSegment: null, initialRun: "b-sent" }), "bc-detail");
+    assert.ok(!textOf(seen).includes("Reading who got it"), "REGRESSION: a run opened a moment ago was read before anything showed");
+    assert.equal(textOf(find(seen, (n) => n.type === "h1")), "Win-back · 2026-09-10", "its report, on the first paint");
+    assert.deepEqual(asked, ["b-sent"], "and it is read again behind");
+    const cold = byTestId(page({ initialSegment: null, initialRun: "b-new" }), "bc-detail");
+    assert.ok(textOf(cold).includes("Reading who got it"), "a run never opened still says it is reading");
+  } finally {
+    delete globalThis.window.__broadcasts.peekDetail;
+  }
+});
+
 test("REGRESSION (C23): a detail that could not be read says so with a Retry, and a link to a broadcast that is not here says that instead", async () => {
   globalThis.window.__BROADCASTS = broadcastsSurface();
   asked.length = 0;

@@ -43,8 +43,11 @@ export interface ApiOptions<K extends RouteKey> {
    * next press should not wait for two reads. A re-read that fails behind a write is the surface's own to say.
    */
   refresh?: boolean | "behind";
-  /** Fired the moment the server accepts, before the surfaces are re-read: a form can say "saved" without waiting for every re-read. */
-  onAccepted?: () => void;
+  /**
+   * Fired the moment the server accepts, before the surfaces are re-read, with what it answered: a form can say
+   * "saved", and an approve what it scheduled, without waiting for every re-read.
+   */
+  onAccepted?: (data: OutputOf<Routes[K]>) => void;
 }
 
 /**
@@ -158,7 +161,7 @@ export function createApi(deps: ApiDeps) {
         };
       }
       if (!isRead) {
-        opts.onAccepted?.();
+        opts.onAccepted?.(j.data as OutputOf<Routes[K]>);
         // Something changed. A read still in flight was issued before that
         // change and cannot describe the world the operator is now in; sharing
         // it with the refresh that follows would repaint the thread as it was.

@@ -167,6 +167,15 @@ test("a write lets go of every held answer: what was read before it describes th
   assert.equal(n, 3, "the read after the write is its own request");
 });
 
+test("onAccepted is handed what the server accepted, before the surfaces are read again: a toast can say what an approve scheduled", async () => {
+  const h = harness(envelope({ recipient_count: 3, scheduled_for: "2026-09-28T13:00:00Z" }));
+  const seen = [];
+  const r = await h.api("POST broadcasts/[id]/approve", { params: { id: C1 }, onAccepted: (data) => seen.push(["accepted", data]) });
+  assert.equal(r.ok, true);
+  assert.deepEqual(seen, [["accepted", { recipient_count: 3, scheduled_for: "2026-09-28T13:00:00Z" }]]);
+  assert.deepEqual(h.events, ["refresh:POST broadcasts/[id]/approve"], "and the surfaces are read again after it");
+});
+
 test("a write forgets every read in flight, so the refresh that follows never shares a response issued before the change", async () => {
   let n = 0;
   let release = () => {};
