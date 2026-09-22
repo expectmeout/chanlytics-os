@@ -23,13 +23,15 @@
 // an inline Undo where it was. The toast is still the house's undo (legacy CLAUDE.md) and may echo it, but it is
 // drawn outside the sheet, where Tab cannot reach it, so it is never the only way back.
 //
-// And focus stays in it while it is open. Focus that goes with what held it -- a row's remove, gone with its row; an
-// ask's button, gone with the ask; a toast's Undo, gone with the toast -- lands on the page's body, outside the dialog,
-// where Tab walks the page behind it: after every draw, focus that is on nothing comes back to the sheet itself. Focus
-// a person put somewhere comes back to nothing. `focusOn` ({ row }) names an element of the sheet by the data-rec-row
-// the page put on it, and focus goes to its first tab stop: a row a list has just been given, or the Undo left where a
-// row was taken out. A new object each time, as RecordFold's is, so the same row named twice is focused twice. `busy`
-// says the sheet's save is out (aria-busy, which record.css draws its boxes by, as it does a fold's).
+// And focus stays in it while it is open, by the fold's own rules (record-fold.jsx useRecFocusHold, useRecFocusOn):
+// one rule, where the sheet once kept copies of them in part. Focus that went with what held it -- an Undo left where a
+// row was, gone with the row put back; an ask's button, gone with the ask; a toast's Undo, gone with the toast -- comes
+// back to the field the person was in, in the tools or the rows, or to the first of them when that went too: it landed
+// on the page's body, outside the dialog, where Tab walks the page behind it, and then on the dialog itself. Focus a
+// person put somewhere is left there. `focusOn` ({ row }) names an element of the sheet by the data-rec-row the page
+// put on it, and focus goes to its first tab stop: a row a list has just been given, or the Undo left where a row was
+// taken out. A new object each time, as RecordFold's is, so the same row named twice is focused twice. `busy` says the
+// sheet's save is out (aria-busy, which record.css draws its boxes by, as it does a fold's).
 //
 // It is drawn in the app's root (.app-root) rather than where the page put it. There, People's row keys hold still
 // while it is open, as they do for the phone's lists sheet and for any dialog in .app-root (PL_OVERLAY,
@@ -38,12 +40,6 @@
 
 const { useRef: useSheetRef, useEffect: useSheetEffect, useCallback: useSheetCallback } = React;
 
-// Focus is on nothing a person put it on: nothing at all, the page itself, or something that has left the document.
-const recSheetFocusLost = () => {
-  const now = document.activeElement;
-  return !now || now === document.body || !!(document.contains && !document.contains(now));
-};
-
 const RecordSheet = ({
   id = null, title, sub = null, onClose, tools = null, foot = null, closeLabel = "Close", className = "", testid = null,
   focusOn = null, busy = false, children = null,
@@ -51,8 +47,13 @@ const RecordSheet = ({
   const closeRef = useSheetRef(onClose);
   closeRef.current = onClose;
   const opener = useSheetRef(null);
-  // The sheet as it is on the page, for the two focus rules below: a callback ref (place) sets it.
+  // The sheet as it is on the page, for the fold's focus rules below: a callback ref (place) sets it.
   const box = useSheetRef(null);
+  // Where the person was, in its tools or its rows; the head's Close when it holds no field at all. The rules are
+  // record-fold.jsx's, which both load lists put before this file; a page's test that loads the sheet alone (the
+  // playbook composer's) draws it without them, the same way on every draw, so the hooks keep their order.
+  const hold = window.useRecFocusHold ? window.useRecFocusHold(true, box, ".rec-sheet-tools, .rec-sheet-body", ".rec-sheet-close") : null;
+  if (window.useRecFocusOn) window.useRecFocusOn(true, box, focusOn);
   const onEscape = (e) => {
     if (e.key !== "Escape" || e.defaultPrevented) return;
     e.preventDefault();
@@ -77,18 +78,6 @@ const RecordSheet = ({
     opener.current = null;
     if (back && back.focus && back.isConnected !== false) back.focus();
   }, []);
-  // After every draw: no inputs, so it runs each time. Focus that went with what held it comes back into the sheet.
-  useSheetEffect(() => {
-    const el = box.current;
-    if (el && el.focus && recSheetFocusLost()) el.focus();
-  });
-  useSheetEffect(() => {
-    const el = box.current;
-    if (!focusOn || !focusOn.row || !el || !el.querySelector) return;
-    const row = el.querySelector(`[data-rec-row="${focusOn.row}"]`);
-    const first = row && window.tabStops ? window.tabStops(row)[0] : null;
-    if (first && first.focus) first.focus();
-  }, [focusOn]);
   const titleId = id ? `rec-sheet-${id}-title` : undefined;
   const subId = id && sub ? `rec-sheet-${id}-sub` : undefined;
   const node = (
@@ -106,6 +95,7 @@ const RecordSheet = ({
         aria-describedby={subId}
         aria-busy={busy || undefined}
         tabIndex={-1}
+        onFocus={hold ? hold.onFocus : undefined}
         onKeyDown={(e) => { if (e.key === "Tab") window.trapTab(e, e.currentTarget); else onEscape(e); }}
         data-testid={testid || (id ? `rec-sheet-${id}` : undefined)}
       >

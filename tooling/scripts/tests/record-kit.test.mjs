@@ -1313,44 +1313,80 @@ test("a sheet takes focus as it opens, gives it back to what opened it, and open
   assert.deepEqual(portals, [appRoot], "drawn in the app's root, where People's overlay check (PL_OVERLAY) finds a dialog, over the pane's own layout");
 });
 
-test("focus that goes with what held it comes back to the sheet, and a row the page names takes it in its first box", () => {
-  // A sheet is a modal dialog: focus that landed on the page's body behind it (a row's remove gone with its row, an
-  // ask's button gone with the ask) was where Shift+Tab walked the page behind the wash.
+test("a sheet gives focus back as a fold does: to the field the person was in when what held it goes, and to a row the page names", () => {
+  // The quality review: the sheet copied the fold's rules in part, and focus that went with what held it (an Undo left
+  // where a row was, "Keep editing") came back to the dialog itself, where the fold brings it back to the field the
+  // person was in. One rule now, the fold's (record-fold.jsx useRecFocusHold, useRecFocusOn).
   const focused = [];
-  const asked = [];
-  const doc = globalThis.document;
-  const was = doc.activeElement;
+  // A stand-in for a box: which part of the sheet it is in answers closest(), as the element would.
+  const field = (name, part = ".rec-sheet-body", more = {}) => ({
+    name, tabIndex: 0, disabled: false, getClientRects: () => [{}], classList: { contains: () => false },
+    closest: (sel) => (sel.split(",").map((x) => x.trim()).includes(part) || (more.within || []).includes(sel) ? {} : null),
+    focus: () => focused.push(name),
+    ...more,
+  });
+  const search = field("search", ".rec-sheet-tools");
+  const nameBox = field("Service 3 name");
+  const inPlace = field("Undo in the row's place", ".rec-sheet-body", { matches: (sel) => sel === "button:not([role])" });
+  const keep = field("Keep editing", ".rec-sheet-body", { within: [".confirm"] });
+  const tools = { querySelectorAll: () => [search] };
   const stop = (name) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], focus: () => focused.push(name) });
   const row = { querySelectorAll: () => [stop("name"), stop("minutes"), stop("remove")] };
-  const panel = { focus: () => focused.push("sheet"), querySelector: (sel) => { asked.push(sel); return sel === '[data-rec-row="service-3"]' ? row : null; } };
+  const panel = {
+    focus: () => focused.push("sheet"),
+    contains: () => true,
+    querySelector: (sel) => (sel === ".rec-sheet-tools, .rec-sheet-body" ? tools : sel === '[data-rec-row="service-3"]' ? row : null),
+  };
+  const doc = globalThis.document;
+  const was = { activeElement: doc.activeElement, contains: doc.contains };
+  const left = new Set();
+  doc.contains = (el) => !left.has(el);
   try {
     doc.activeElement = { name: "opener" };
     let tree = draw(W.RecordSheet, offer());
+    const sheet = () => find(tree, (n) => classes(n).includes("rec-sheet"));
     // React calls a callback ref with the element as it mounts; the stub calls none, so this is that moment.
-    find(tree, (n) => classes(n).includes("rec-sheet")).props.ref(panel);
-    assert.deepEqual(focused, ["sheet"], "focus goes to the sheet as it opens");
+    sheet().props.ref(panel);
+    assert.deepEqual(focused, ["sheet"], "as it opens, focus is on the dialog, so a screen reader names it");
     doc.activeElement = panel;
-    tree = redraw(W.RecordSheet, offer());
-    assert.deepEqual(focused, ["sheet"], "focus that is inside it is left where it is");
+    // The person is in Service 3's name, removes the row, and focus is put on the Undo left in its place; the toast's
+    // Undo puts the row back, and the Undo in its place goes.
+    sheet().props.onFocus({ target: nameBox });
+    sheet().props.onFocus({ target: inPlace });
+    left.add(inPlace);
     doc.activeElement = null;
     tree = redraw(W.RecordSheet, offer());
-    assert.deepEqual(focused, ["sheet", "sheet"], "focus on nothing comes back into the sheet");
-    doc.activeElement = doc.body;
+    assert.deepEqual(focused, ["sheet", "Service 3 name"], "REGRESSION: it came back to the dialog, not the row's box");
+    // "Keep editing" goes with its ask: back to the same box.
+    doc.activeElement = nameBox;
+    sheet().props.onFocus({ target: keep });
+    left.add(keep);
+    doc.activeElement = null;
     tree = redraw(W.RecordSheet, offer());
-    assert.equal(focused.length, 3, "and so does focus on the page's body");
+    assert.deepEqual(focused.slice(2), ["Service 3 name"]);
+    // Focus the person moved is left where they put it: nothing went, so nothing moves.
+    doc.activeElement = null;
+    tree = redraw(W.RecordSheet, offer());
+    assert.equal(focused.length, 3);
+    // With the box they were in gone too, the first field: the search.
+    sheet().props.onFocus({ target: nameBox });
+    left.add(nameBox);
+    tree = redraw(W.RecordSheet, offer());
+    assert.deepEqual(focused.slice(3), ["search"]);
 
+    // A row the page names takes focus in its first box, once for each time it is named.
     doc.activeElement = panel;
     tree = redraw(W.RecordSheet, offer({ focusOn: { row: "service-3" } }));
-    assert.deepEqual(focused.slice(3), ["name"], "the named row's first box, not its remove");
-    assert.ok(asked.includes('[data-rec-row="service-3"]'));
+    assert.deepEqual(focused.slice(4), ["name"], "the named row's first box, not its remove");
     const same = { row: "service-3" };
     tree = redraw(W.RecordSheet, offer({ focusOn: same }));
     tree = redraw(W.RecordSheet, offer({ focusOn: same }));
-    assert.deepEqual(focused.slice(3), ["name", "name"], "once for each row named, however often it is drawn");
+    assert.deepEqual(focused.slice(4), ["name", "name"]);
     tree = redraw(W.RecordSheet, offer({ focusOn: { row: "no-such-row" } }));
-    assert.equal(focused.length, 5, "a row that is not there takes nothing");
+    assert.equal(focused.length, 6, "a row that is not there takes nothing");
   } finally {
-    doc.activeElement = was;
+    Object.assign(doc, was);
+    if (was.contains === undefined) delete doc.contains;
   }
 });
 

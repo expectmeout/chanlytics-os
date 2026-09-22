@@ -285,35 +285,34 @@ const recFocusBack = (id, el) => {
   const back = document.querySelector(`[data-rec-act="${id}"]`);
   if (back && back.focus) back.focus();
 };
-// Focus inside a gesture, once, for every page that draws one.
+// Focus inside a gesture, once, for every page that draws one, in three parts a gesture takes whole (useRecFocus: a fold,
+// an inline editor) or in part (the sheet, record-sheet.jsx, which enters and leaves as a modal dialog does and keeps
+// the other two).
 //
 // As it opens, focus moves to the first thing in it, since the act that opened it has gone; as it closes, focus that
 // went with it comes back to that row's act (data-rec-act).
 //
-// While it is open, focus that WENT WITH SOMETHING comes back into it. The thing focus was on can leave the page under
-// it: an ask answered "Keep editing" (its "Yes" held focus), the last shift's remove, an Add that turns into the
-// sentence for a full list, an item of a menu that closes. Each left a keyboard at the top of the document. After
-// every draw, if the last thing in the gesture to take focus is no longer in the document and focus is on nothing,
-// focus goes to where the person was: the last of its FIELDS focus was in (never the ask, nor Save and Cancel, nor the
-// head's Close, nor a plain press among the fields), its caret where it was left, or the first field when that has
-// gone too.
+// While it is open, focus that WENT WITH SOMETHING comes back into it (useRecFocusHold). The thing focus was on can
+// leave the page under it: an ask answered "Keep editing" (its "Yes" held focus), the last shift's remove, an Add that
+// turns into the sentence for a full list, an item of a menu that closes, a sheet's Undo left where a row was, or a
+// toast's Undo that takes its toast away. Each left a keyboard at the top of the document. After every draw, if the last
+// thing in the gesture to take focus is no longer in the document and focus is on nothing, focus goes to where the
+// person was: the last of its FIELDS focus was in (never the ask, nor Save and Cancel, nor the head's Close, nor a plain
+// press among the fields), its caret where it was left, or the first field when that has gone too.
 //
 // Only then. Focus a person moved themselves stays where they put it: the box they are typing in when a keystroke
 // takes an ask away (moved to the first field, as this first did whenever an ask went, the caret jumped after one
 // letter), and the page itself when they clicked away from the gesture, which a redraw must not undo.
 //
-// And a row a list has just been given takes focus in its first box (`focusOn`: { row }, the row's data-rec-row), since
-// the Add that made it is where focus was, and the next thing a person does is type into the row.
-const useRecFocus = (id, open, box, inner, fallback, focusOn = null) => {
+// And a row a list has just been given takes focus in its first box (useRecFocusOn, `focusOn`: { row }, the row's
+// data-rec-row), since the Add that made it is where focus was, and the next thing a person does is type into the row.
+//
+// `inner` is the selector of the part that holds the gesture's fields (a selector list takes several parts), and
+// `fallback` the selector of what takes focus when it holds none.
+const useRecFocusHold = (open, box, inner, fallback) => {
   const last = useFoldRef(null);
   // The last thing inside the gesture to take focus, a field or not.
   const had = useFoldRef(null);
-  useFoldEffect(() => {
-    if (!open) { last.current = null; had.current = null; return undefined; }
-    const el = box.current;
-    recFocusIn(el, inner, fallback);
-    return () => recFocusBack(id, el);
-  }, [open, id]);
   // After every draw: no inputs, so it runs each time.
   useFoldEffect(() => {
     const went = had.current;
@@ -325,23 +324,38 @@ const useRecFocus = (id, open, box, inner, fallback, focusOn = null) => {
     const there = back && back.focus && el && el.contains && el.contains(back) && document.contains(back);
     if (there) back.focus(); else recFocusIn(el, inner, fallback);
   });
-  useFoldEffect(() => {
-    const el = box.current;
-    if (!open || !focusOn || !focusOn.row || !el || !el.querySelector) return;
-    const row = el.querySelector(`[data-rec-row="${focusOn.row}"]`);
-    const first = row && window.tabStops ? window.tabStops(row)[0] : null;
-    if (first && first.focus) first.focus();
-  }, [focusOn]);
-  return (e) => {
-    const t = e && e.target;
-    if (!t || !t.closest) return;
-    had.current = t;
-    if (!t.closest(inner) || t.closest(".confirm") || t.closest(".rec-foot")) return;
-    // A field is where a person was; a plain press (a row's remove, Add, a menu's item) is what they did there, and is
-    // often the very thing that has gone. A switch or a radio is a button that is a field.
-    if (t.matches && t.matches("button:not([role])")) return;
-    last.current = t;
+  return {
+    // Closed, where the person was is forgotten with the draft.
+    forget: () => { last.current = null; had.current = null; },
+    onFocus: (e) => {
+      const t = e && e.target;
+      if (!t || !t.closest) return;
+      had.current = t;
+      if (!t.closest(inner) || t.closest(".confirm") || t.closest(".rec-foot")) return;
+      // A field is where a person was; a plain press (a row's remove, Add, a menu's item) is what they did there, and is
+      // often the very thing that has gone. A switch or a radio is a button that is a field.
+      if (t.matches && t.matches("button:not([role])")) return;
+      last.current = t;
+    },
   };
+};
+const useRecFocusOn = (open, box, focusOn) => useFoldEffect(() => {
+  const el = box.current;
+  if (!open || !focusOn || !focusOn.row || !el || !el.querySelector) return;
+  const row = el.querySelector(`[data-rec-row="${focusOn.row}"]`);
+  const first = row && window.tabStops ? window.tabStops(row)[0] : null;
+  if (first && first.focus) first.focus();
+}, [focusOn]);
+const useRecFocus = (id, open, box, inner, fallback, focusOn = null) => {
+  const hold = useRecFocusHold(open, box, inner, fallback);
+  useFoldEffect(() => {
+    if (!open) { hold.forget(); return undefined; }
+    const el = box.current;
+    recFocusIn(el, inner, fallback);
+    return () => recFocusBack(id, el);
+  }, [open, id]);
+  useRecFocusOn(open, box, focusOn);
+  return hold.onFocus;
 };
 // A gesture whose page goes away (the rail's "Yes, leave" replaces the pane) lets go of the registry: left as the open
 // fold, its dirty check would go on answering after it had gone, and the rail would ask on every tab and the browser
@@ -566,4 +580,6 @@ const RecordInline = ({
 
 // RecordFoot is on window too, for the one gesture that is not in this file and keeps the same foot: a sheet's Save and
 // Cancel (record-sheet.jsx takes its foot from the page, and the Business tab's sheet draws this one in it).
-Object.assign(window, { RecordFold, RecordInline, RecordSays, RecordFoot, useRecordFold, __recordFolds: recFolds });
+// useRecFocusHold and useRecFocusOn are the sheet's (record-sheet.jsx), which keeps a fold's focus rules but enters and
+// leaves as a modal dialog.
+Object.assign(window, { RecordFold, RecordInline, RecordSays, RecordFoot, useRecordFold, useRecFocusHold, useRecFocusOn, __recordFolds: recFolds });
