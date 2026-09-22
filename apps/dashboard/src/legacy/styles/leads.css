@@ -796,6 +796,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-links { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
 .pk-act { background: var(--bg-sunken); }
 .pk-act-main { flex: 1; min-height: 38px; justify-content: center; border-radius: 10px; font-size: var(--text-base); }
+/* Call is the ways-of-calling menu (LeadCallMenu): its wrap takes the bar's whole width, as the button did, and on a
+   phone the whole row of the bar's grid. The menu opens upward, the bar being the panel's last thing (moreFit). */
+.pk-act > .more-wrap { flex: 1; display: flex; grid-column: 1 / -1; }
+.pk-act > .more-wrap > .pk-act-main { flex: 1; }
 .pk-act-none { flex: 1; }
 
 /* The photo, expanded: the page's own overlay over everything, the photo left, the place's facts right. */

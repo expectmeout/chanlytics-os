@@ -2793,10 +2793,18 @@ test("REGRESSION: By state puts who needs a person first -- the ranks ran the ot
   sortByHeading(tree, "State");
   tree = draw();
   assert.equal(ids(tree)[0], "person-p2", `REGRESSION: the person who needs someone came last: ${ids(tree)}`);
+  // The heading says it, and says it alone: a "By state" button beside the headings repeated what the arrow on State
+  // already shows, and was taken away.
+  const stateTh = find(tree, (n) => n.type === "th" && textOf(n).includes("State"));
+  assert.match(
+    String(stateTh?.props?.["aria-sort"]),
+    /ascending|descending/,
+    "and the State heading says the table is sorted by it",
+  );
   assert.equal(
-    all(tree, (n) => n.type === "button" && textOf(n).trim() === "By state").length,
-    1,
-    "and the sort says so",
+    all(tree, (n) => n.type === "button" && /^(By state|Z → A|A → Z)/.test(textOf(n).trim())).length,
+    0,
+    "with no second button saying it again",
   );
 });
 
