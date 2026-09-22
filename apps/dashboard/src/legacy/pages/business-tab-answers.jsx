@@ -414,8 +414,9 @@ const BtaFallbacks = ({ draft, update, press, problems, readOnly, brain }) => {
       {BTA_FALLBACK_ROWS.map(({ key, label, when }) => {
         const text = typeof d[key] === "string" ? d[key] : "";
         const shown = /\{/.test(text) ? reads[key] : null;
-        // A link or a number written out stays as written when the details change; a name follows them.
-        const written = link && text.includes(link) ? "link" : /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/.test(text) ? "number" : null;
+        // A link or a number written out stays as written when the details change; a name follows them. The rule is
+        // contracts' (writtenOutDetail), written once and tested there.
+        const written = window.__businessTab.writtenOutDetail(text, link);
         return (
           <div key={key} className="bt-fallback" data-testid={`rec-fallback-${key}`}>
             <span className="bt-fallback-label" id={`bt-fallback-${key}-label`}>{label}</span>
@@ -620,5 +621,6 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   );
 };
 
-// The card, and the two lists settings.jsx's old form reads as it loads until Task 3.7 deletes it.
-Object.assign(window, { BtAnswersCard, BT_OFFERED_LANGUAGES: BTA_LANGUAGES, BT_FALLBACK_ROWS: BTA_FALLBACK_ROWS });
+// The two lists were also published for the old form to read as it loaded (BT_OFFERED_LANGUAGES, BT_FALLBACK_ROWS).
+// Task 3.7 deleted that form, and nothing else ever read them, so they are the card's own again.
+Object.assign(window, { BtAnswersCard });

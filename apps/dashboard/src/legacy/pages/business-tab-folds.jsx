@@ -137,17 +137,25 @@ const BT_FALLBACKS = ["greeting", "error", "non_text"];
  * installs, and the literal each falls back to where there is no bridge (the standalone mockup) is here and nowhere
  * else: it was `|| 60` in two files.
  */
-const BT_LIMITS = {
-  tone: 200,
-  services: 60, serviceName: 80, serviceMinutes: 1440, servicePrice: 120,
-  languages: 8, languageMin: 2, languageMax: 40,
-  reasons: 20, reason: 200,
-  consultFirst: 20, consultFirstLine: 80,
-  ruleNotes: 10, ruleNote: 200,
-  notes: 10, noteTitle: 80, noteText: 1200,
-  closureNote: 200,
-  get closures() { return (window.__configLimits && window.__configLimits.maxClosures) || 60; },
-  get shifts() { return (window.__configLimits && window.__configLimits.maxIntervalsPerDay) || 4; },
+const BT_LIMITS = new Proxy({}, {
+  get(_t, key) {
+    const limits = (window.__businessTab || {}).PROFILE_LIMITS;
+    // Without the bridge (the standalone mockup before data/business-tab.js has loaded, or a bridge that failed) the
+    // page knows no cap of its own, and a cap it cannot ask for refuses nothing: Infinity lets the box through, and
+    // the save's own schema still refuses it, named by saveProblems. A literal here was the second copy of a number
+    // the schema already states, which is the whole of what moved.
+    return limits && key in limits ? limits[key] : Infinity;
+  },
+});
+// A refusal that names a cap is written from that same cap, once, in contracts (profileRefusal): the page held both,
+// so every number was typed twice -- "At most 2,000 characters" stood beside a check reading `t.length > 2000` on the
+// line above it. `seen` is what was measured; `of` names what it was measured on (a day, the word itself). Without the
+// bridge no check reaches this (every cap is Infinity above), and a sentence with no number is said if one ever does,
+// as a booking rule's is (BT_RULE_REFUSED).
+const BT_REFUSED = "That is more than this box takes.";
+const btRefusalOf = (key, seen, of) => {
+  const tab = window.__businessTab;
+  return tab && typeof tab.profileRefusal === "function" ? tab.profileRefusal(key, seen, of) : BT_REFUSED;
 };
 // A service's minutes as its box holds them: a whole number, 0 for an empty box, NaN for anything else.
 const btMinutes = (v) => {
@@ -451,7 +459,7 @@ const btSaveFold = (fold, stored, draft) => {
 const BT_PROBLEMS_OF = {
   tone: (draft) => {
     const n = btfTrimmed(draft).length;
-    return n > BT_LIMITS.tone ? { tone: `At most ${btCount(BT_LIMITS.tone)} characters — this is ${btCount(n)}.` } : {};
+    return n > BT_LIMITS.tone ? { tone: btRefusalOf("tone", n) } : {};
   },
   // A shift with one of its two times is said under its day, in the words the save's own rule has for a day stated
   // half-way (contracts config.ts checkDay; business-tab-folds.test.mjs holds the two sentences together): written as
@@ -473,7 +481,7 @@ const BT_PROBLEMS_OF = {
       if (!x || !x.isOpen) return;
       const shifts = x.shifts || [];
       const written = shifts.filter((s) => btfTrimmed(s.open) && btfTrimmed(s.close)).length;
-      if (written > BT_LIMITS.shifts) found[`hours-${d}`] = `At most ${btCount(BT_LIMITS.shifts)} shifts in a day — ${BT_DAY_NAMES[d]} has ${btCount(written)}.`;
+      if (written > BT_LIMITS.shifts) found[`hours-${d}`] = btRefusalOf("shifts", written, BT_DAY_NAMES[d]);
       else if (shifts.some((s) => !!btfTrimmed(s.open) !== !!btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} needs both an opening and a closing time, or neither.`;
       else if (!shifts.some((s) => btfTrimmed(s.open) && btfTrimmed(s.close))) found[`hours-${d}`] = `${BT_DAY_NAMES[d]} is switched on with no times. Give it an opening and a closing time, or switch it off.`;
     });
@@ -483,43 +491,43 @@ const BT_PROBLEMS_OF = {
     const found = {};
     const rows = draft || [];
     const max = BT_LIMITS.closures;
-    if (rows.filter((c) => btfTrimmed(c.date)).length > max) found.closures = `At most ${btCount(max)} closed days. Dates that have passed can go.`;
+    if (rows.filter((c) => btfTrimmed(c.date)).length > max) found.closures = btRefusalOf("closures");
     rows.forEach((c, i) => {
       const n = btfTrimmed(c.note).length;
-      if (n > BT_LIMITS.closureNote) found[`closure-${i}-note`] = `At most ${btCount(BT_LIMITS.closureNote)} characters — this is ${btCount(n)}.`;
+      if (n > BT_LIMITS.closureNote) found[`closure-${i}-note`] = btRefusalOf("closureNote", n);
     });
     return found;
   },
   services: (draft) => {
     const found = {};
     const rows = draft || [];
-    if (rows.filter((x) => btfTrimmed(x.name)).length > BT_LIMITS.services) found.services = `At most ${btCount(BT_LIMITS.services)} services.`;
+    if (rows.filter((x) => btfTrimmed(x.name)).length > BT_LIMITS.services) found.services = btRefusalOf("services");
     rows.forEach((x, i) => {
       const name = btfTrimmed(x.name).length;
-      if (name > BT_LIMITS.serviceName) found[`service-${i}-name`] = `At most ${btCount(BT_LIMITS.serviceName)} characters — this is ${btCount(name)}.`;
+      if (name > BT_LIMITS.serviceName) found[`service-${i}-name`] = btRefusalOf("serviceName", name);
       const minutes = btMinutes(x.duration_min);
       if (Number.isNaN(minutes)) found[`service-${i}-duration_min`] = "Minutes are a whole number, like 45.";
-      else if (minutes > BT_LIMITS.serviceMinutes) found[`service-${i}-duration_min`] = `At most ${btCount(BT_LIMITS.serviceMinutes)} minutes, a whole day.`;
+      else if (minutes > BT_LIMITS.serviceMinutes) found[`service-${i}-duration_min`] = btRefusalOf("serviceMinutes");
       const price = btfTrimmed(x.price_note).length;
-      if (price > BT_LIMITS.servicePrice) found[`service-${i}-price_note`] = `At most ${btCount(BT_LIMITS.servicePrice)} characters — this is ${btCount(price)}.`;
+      if (price > BT_LIMITS.servicePrice) found[`service-${i}-price_note`] = btRefusalOf("servicePrice", price);
     });
     return found;
   },
   languages: (draft) => {
     const list = draft || [];
-    if (list.length > BT_LIMITS.languages) return { languages: `At most ${btCount(BT_LIMITS.languages)} languages.` };
+    if (list.length > BT_LIMITS.languages) return { languages: btRefusalOf("languages") };
     const odd = list.find((l) => String(l).length < BT_LIMITS.languageMin || String(l).length > BT_LIMITS.languageMax);
-    return odd !== undefined ? { languages: `“${odd}” is not a language's name: ${BT_LIMITS.languageMin} to ${BT_LIMITS.languageMax} characters.` } : {};
+    return odd !== undefined ? { languages: btRefusalOf("language", undefined, String(odd)) } : {};
   },
   escalate_when: (draft) => {
     const reasons = btLines(draft);
-    if (reasons.length > BT_LIMITS.reasons) return { escalate_when: `At most ${btCount(BT_LIMITS.reasons)} reasons, one to a line — this is ${btCount(reasons.length)}.` };
-    return reasons.some((r) => r.length > BT_LIMITS.reason) ? { escalate_when: `Each reason is at most ${btCount(BT_LIMITS.reason)} characters.` } : {};
+    if (reasons.length > BT_LIMITS.reasons) return { escalate_when: btRefusalOf("reasons", reasons.length) };
+    return reasons.some((r) => r.length > BT_LIMITS.reason) ? { escalate_when: btRefusalOf("reason") } : {};
   },
   consult_first: (draft) => {
     const list = btLines(draft);
-    if (list.length > BT_LIMITS.consultFirst) return { consult_first: `At most ${btCount(BT_LIMITS.consultFirst)} services, one to a line — this is ${btCount(list.length)}.` };
-    return list.some((l) => l.length > BT_LIMITS.consultFirstLine) ? { consult_first: `Each service is at most ${btCount(BT_LIMITS.consultFirstLine)} characters.` } : {};
+    if (list.length > BT_LIMITS.consultFirst) return { consult_first: btRefusalOf("consultFirst", list.length) };
+    return list.some((l) => l.length > BT_LIMITS.consultFirstLine) ? { consult_first: btRefusalOf("consultFirstLine") } : {};
   },
   // A number outside what a rule allows is said under its box; it used to be dropped without a word (S22).
   booking_rules: (draft) => {
@@ -529,29 +537,28 @@ const BT_PROBLEMS_OF = {
       if (btfTrimmed(d[key]) !== "" && btRuleNumber(d[key], lo, hi) === undefined) found[key] = btRuleRefusal(key);
     });
     const notes = btLines(d.notes);
-    if (notes.length > BT_LIMITS.ruleNotes) found.notes = `At most ${btCount(BT_LIMITS.ruleNotes)} notes, one to a line — this is ${btCount(notes.length)}.`;
-    else if (notes.some((n) => n.length > BT_LIMITS.ruleNote)) found.notes = `Each note is at most ${btCount(BT_LIMITS.ruleNote)} characters.`;
+    if (notes.length > BT_LIMITS.ruleNotes) found.notes = btRefusalOf("ruleNotes", notes.length);
+    else if (notes.some((n) => n.length > BT_LIMITS.ruleNote)) found.notes = btRefusalOf("ruleNote");
     return found;
   },
   // Half a note is refused; a note with neither half is dropped on save, as a row somebody started and left.
   notes: (draft) => {
     const found = {};
     const rows = draft || [];
-    if (rows.filter((n) => btfTrimmed(n.title) || btfTrimmed(n.text)).length > BT_LIMITS.notes) found.notes = `At most ${btCount(BT_LIMITS.notes)} notes.`;
+    if (rows.filter((n) => btfTrimmed(n.title) || btfTrimmed(n.text)).length > BT_LIMITS.notes) found.notes = btRefusalOf("notes");
     rows.forEach((n, i) => {
       const title = btfTrimmed(n.title);
       const text = btfTrimmed(n.text);
       if ((title || text) && (!title || !text)) found[`note-${i}`] = "Each note needs both a title and the text to say.";
-      else if (title.length > BT_LIMITS.noteTitle) found[`note-${i}`] = `A note's title is at most ${btCount(BT_LIMITS.noteTitle)} characters — this is ${btCount(title.length)}.`;
-      else if (text.length > BT_LIMITS.noteText) found[`note-${i}`] = `A note's text is at most ${btCount(BT_LIMITS.noteText)} characters — this is ${btCount(text.length)}.`;
+      else if (title.length > BT_LIMITS.noteTitle) found[`note-${i}`] = btRefusalOf("noteTitle", title.length);
+      else if (text.length > BT_LIMITS.noteText) found[`note-${i}`] = btRefusalOf("noteText", text.length);
     });
     return found;
   },
   // As much as the receptionist takes, said under the box before a round trip (S4): the server's refusal named no field.
   extra_instructions: (draft) => {
     const n = btfTrimmed(draft && draft.text).length;
-    const max = window.__instructionsMax;
-    return n > max ? { extra_instructions: `At most ${max.toLocaleString("en-US")} characters — this is ${n.toLocaleString("en-US")}.` } : {};
+    return n > BT_LIMITS.instructions ? { extra_instructions: btRefusalOf("instructions", n) } : {};
   },
   // Each message says under itself what stops it (S5): nothing to send, more than a message holds, or a name that
   // nothing fills in and a customer would read as written.
@@ -562,7 +569,7 @@ const BT_PROBLEMS_OF = {
       const t = btfTrimmed(d[key]);
       const unknown = window.__unknownDetails(t);
       if (!t) found[key] = "Write this message, or use the default wording.";
-      else if (t.length > 2000) found[key] = `At most 2,000 characters — this is ${t.length.toLocaleString("en-US")}.`;
+      else if (t.length > BT_LIMITS.message) found[key] = btRefusalOf("message", t.length);
       else if (unknown.length) found[key] = `Only {business}, {booking link} and {phone} are filled in — ${unknown[0]} would be sent as written.`;
     });
     return found;

@@ -11574,6 +11574,93 @@ function cannotRows(i) {
   }
   return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
 }
+var PROFILE_LIMITS = /* @__PURE__ */ (() => {
+  const cap2 = (schema) => {
+    const s = schema;
+    if (typeof s.maxLength === "number") return s.maxLength;
+    for (const c of s.def?.checks ?? []) {
+      const d = c?._zod?.def;
+      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
+    }
+    throw new TypeError("PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses.");
+  };
+  const floor = (schema) => {
+    const s = schema;
+    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
+    return s.minLength;
+  };
+  const opt = (schema) => schema.unwrap();
+  const p = BusinessProfileSchema.shape;
+  const service = opt(p.services).element.shape;
+  const note = opt(p.notes).element.shape;
+  const rules = BookingRulesSchema.shape;
+  const minutes = opt(service.duration_min);
+  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
+  return {
+    tone: cap2(opt(p.tone)),
+    services: cap2(opt(p.services)),
+    serviceName: cap2(service.name),
+    serviceMinutes: minutes.maxValue,
+    servicePrice: cap2(opt(service.price_note)),
+    languages: cap2(opt(p.languages)),
+    languageMin: floor(opt(p.languages).element),
+    languageMax: cap2(opt(p.languages).element),
+    reasons: cap2(opt(p.escalate_when)),
+    reason: cap2(opt(p.escalate_when).element),
+    consultFirst: cap2(opt(rules.consult_first)),
+    consultFirstLine: cap2(opt(rules.consult_first).element),
+    ruleNotes: cap2(opt(rules.notes)),
+    ruleNote: cap2(opt(rules.notes).element),
+    notes: cap2(opt(p.notes)),
+    noteTitle: cap2(note.title),
+    noteText: cap2(note.text),
+    closureNote: cap2(opt(ClosureSchema.shape.note)),
+    closures: MAX_CLOSURES,
+    shifts: MAX_INTERVALS_PER_DAY,
+    instructions: INSTRUCTIONS_MAX,
+    message: cap2(BrainConfigSchema.shape.fallbacks.shape.greeting)
+  };
+})();
+function profileRefusal(key, seen, of) {
+  const L2 = PROFILE_LIMITS;
+  const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const lines = (max, one, many) => `At most ${plural6(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const words2 = {
+    tone: () => chars(L2.tone),
+    services: () => `At most ${plural6(L2.services, "service", "services")}.`,
+    serviceName: () => chars(L2.serviceName),
+    serviceMinutes: () => `At most ${count(L2.serviceMinutes)} minutes, a whole day.`,
+    servicePrice: () => chars(L2.servicePrice),
+    languages: () => `At most ${plural6(L2.languages, "language", "languages")}.`,
+    language: () => `\u201C${of ?? ""}\u201D is not a language's name: ${L2.languageMin} to ${L2.languageMax} characters.`,
+    reasons: () => lines(L2.reasons, "reason", "reasons"),
+    reason: () => `Each reason is at most ${count(L2.reason)} characters.`,
+    consultFirst: () => lines(L2.consultFirst, "service", "services"),
+    consultFirstLine: () => `Each service is at most ${count(L2.consultFirstLine)} characters.`,
+    ruleNotes: () => lines(L2.ruleNotes, "note", "notes"),
+    ruleNote: () => `Each note is at most ${count(L2.ruleNote)} characters.`,
+    notes: () => `At most ${plural6(L2.notes, "note", "notes")}.`,
+    noteTitle: () => `A note's title is at most ${count(L2.noteTitle)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
+    noteText: () => `A note's text is at most ${count(L2.noteText)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
+    closures: () => `At most ${plural6(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
+    closureNote: () => chars(L2.closureNote),
+    shifts: () => `At most ${plural6(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+    instructions: () => chars(L2.instructions),
+    message: () => chars(L2.message)
+  };
+  const say = Object.prototype.hasOwnProperty.call(words2, key) ? words2[key] : null;
+  if (!say) {
+    throw new TypeError(`profileRefusal knows the tab's own caps (${Object.keys(words2).join(", ")}), not ${JSON.stringify(key)}.`);
+  }
+  return say();
+}
+var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
+function writtenOutDetail(text, bookingLink) {
+  const said = typeof text === "string" ? text : "";
+  const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
+  if (link && said.includes(link)) return "link";
+  return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
+}
 
 // src/prompt-blocks.ts
 var PLATFORM_LABEL = "Chanlytics' own instructions";
@@ -13833,6 +13920,7 @@ export {
   POLICY_MODES,
   POLICY_MODE_WORDS,
   PROFILE_CROSSING_WORDS,
+  PROFILE_LIMITS,
   PROMPT_OPENINGS,
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,
@@ -14318,6 +14406,7 @@ export {
   previewHorizon,
   priceWords,
   priorOf,
+  profileRefusal,
   promptBlocks,
   providerNameOf,
   purposeOfPlaybook,
@@ -14526,6 +14615,7 @@ export {
   windowFor,
   workspaceHotkey,
   writtenChannelOf,
+  writtenOutDetail,
   zoneDayKey,
   zoneMidnight,
   zoneOffsetMs,

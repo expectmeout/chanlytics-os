@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import {
   newReceptionistDefaults, instructionsDraft, FALLBACK_DEFAULTS, unknownDetails, INSTRUCTIONS_MAX, resolveSystemPrompt,
   hasProfile, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, bookingRuleRefusal, BookingRulesSchema, guardrailsInForce,
+  PROFILE_LIMITS, profileRefusal,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "./_legacy-react.mjs";
 
@@ -496,14 +497,16 @@ test("problemsOf says the old form's sentences, but for what an empty box means,
     { "note-0": half, "note-2": half },
   );
 
-  // As much as the receptionist takes, and the space around the words is not counted.
-  assert.deepEqual(S.problemsOf("extra_instructions", { text: "x".repeat(INSTRUCTIONS_MAX + 1), carried: false }), { extra_instructions: "At most 20,000 characters — this is 20,001." });
+  // As much as the receptionist takes, and the space around the words is not counted. The sentence is contracts',
+  // written from the same cap the check reads (profileRefusal over PROFILE_LIMITS), so the number is stated once.
+  assert.deepEqual(S.problemsOf("extra_instructions", { text: "x".repeat(INSTRUCTIONS_MAX + 1), carried: false }), { extra_instructions: profileRefusal("instructions", INSTRUCTIONS_MAX + 1) });
   assert.deepEqual(S.problemsOf("extra_instructions", { text: ` ${"x".repeat(INSTRUCTIONS_MAX)} `, carried: false }), {});
 
   // Each message: nothing to send, more than a message holds, or a name nothing fills in.
   const messages = S.draftOf("fallbacks", stored());
   assert.deepEqual(S.problemsOf("fallbacks", { ...messages, error: "  " }), { error: "Write this message, or use the default wording." });
-  assert.deepEqual(S.problemsOf("fallbacks", { ...messages, greeting: "x".repeat(2001) }), { greeting: "At most 2,000 characters — this is 2,001." });
+  const tooLong = PROFILE_LIMITS.message + 1;
+  assert.deepEqual(S.problemsOf("fallbacks", { ...messages, greeting: "x".repeat(tooLong) }), { greeting: profileRefusal("message", tooLong) });
   assert.deepEqual(
     S.problemsOf("fallbacks", { ...messages, non_text: "Call us at {phone number}." }),
     { non_text: "Only {business}, {booking link} and {phone} are filled in — {phone number} would be sent as written." },
@@ -1059,7 +1062,7 @@ test("the two caps the write schema keeps are in LIMITS, once, and a day with mo
     const week = S.draftOf("hours", taken());
     const stretch = (n) => ({ open: `${String(8 + 2 * n).padStart(2, "0")}:00`, close: `${String(9 + 2 * n).padStart(2, "0")}:00` });
     week.tue = { isOpen: true, shifts: Array.from({ length: MAX_INTERVALS_PER_DAY + 1 }, (_, n) => stretch(n)) };
-    assert.deepEqual(S.problemsOf("hours", week), { "hours-tue": `At most ${MAX_INTERVALS_PER_DAY} shifts in a day — Tuesday has ${MAX_INTERVALS_PER_DAY + 1}.` });
+    assert.deepEqual(S.problemsOf("hours", week), { "hours-tue": profileRefusal("shifts", MAX_INTERVALS_PER_DAY + 1, "Tuesday") });
     // A row nobody filled in is not a shift: the save drops it, so it is not counted.
     week.tue = { isOpen: true, shifts: Array.from({ length: MAX_INTERVALS_PER_DAY }, (_, n) => stretch(n)).concat([{ open: "", close: "" }]) };
     assert.deepEqual(S.problemsOf("hours", week), {});

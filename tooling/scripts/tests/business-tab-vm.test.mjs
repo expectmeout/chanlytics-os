@@ -6,6 +6,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  PROFILE_LIMITS,
+  profileRefusal,
+  writtenOutDetail,
+  BrainConfigSchema,
+  ClosureSchema,
+  MAX_CLOSURES,
+  MAX_INTERVALS_PER_DAY,
   stateOf,
   SOURCE_WORDS,
   ruleStrength,
@@ -685,4 +692,97 @@ test("a record whose details compose nothing is told the stored prompt and Auton
   // just told", so a sentence that the rules "do not reach it" would contradict the chip next to it.
   assert.doesNotMatch(RULES_WITHOUT_FIELDS_WORDS, /do not reach|does not reach|not kept|are off/i, "REGRESSION: it said the four rules do not reach it, and the price rule is checked on every reply");
   assert.equal(ruleStrength("never_quote_prices").chip, "Checked, not just told", "the chip it is drawn beside");
+});
+
+/* ------------------------------ what a fold will not take ------------------------------ */
+
+test("every cap a fold offers up to is the schema's own, and each is stated once", () => {
+  // The page held this table as literals (BT_LIMITS) and wrote every number again in the sentence beside it, so a cap
+  // widened in the schema left the page offering less than the save would take, under a sentence naming a third
+  // number. Read off the schemas, there is one number, and this test is what says so.
+  const p = BusinessProfileSchema.shape;
+  const service = p.services.unwrap().element.shape;
+  const note = p.notes.unwrap().element.shape;
+  const rules = BookingRulesSchema.shape;
+  const cap = (schema) => {
+    if (typeof schema.maxLength === "number") return schema.maxLength;
+    const check = (schema.def?.checks ?? []).find((c) => c?._zod?.def?.check === "max_length");
+    return check?._zod?.def?.maximum;
+  };
+  assert.deepEqual(PROFILE_LIMITS, {
+    tone: cap(p.tone.unwrap()),
+    services: cap(p.services.unwrap()),
+    serviceName: cap(service.name),
+    serviceMinutes: service.duration_min.unwrap().maxValue,
+    servicePrice: cap(service.price_note.unwrap()),
+    languages: cap(p.languages.unwrap()),
+    languageMin: p.languages.unwrap().element.minLength,
+    languageMax: cap(p.languages.unwrap().element),
+    reasons: cap(p.escalate_when.unwrap()),
+    reason: cap(p.escalate_when.unwrap().element),
+    consultFirst: cap(rules.consult_first.unwrap()),
+    consultFirstLine: cap(rules.consult_first.unwrap().element),
+    ruleNotes: cap(rules.notes.unwrap()),
+    ruleNote: cap(rules.notes.unwrap().element),
+    notes: cap(p.notes.unwrap()),
+    noteTitle: cap(note.title),
+    noteText: cap(note.text),
+    closureNote: cap(ClosureSchema.shape.note.unwrap()),
+    closures: MAX_CLOSURES,
+    shifts: MAX_INTERVALS_PER_DAY,
+    instructions: INSTRUCTIONS_MAX,
+    message: cap(BrainConfigSchema.shape.fallbacks.shape.greeting),
+  });
+  // And no cap is missing: a fold asking for one that is not here would be a box with no check at all.
+  assert.equal(Object.values(PROFILE_LIMITS).every((n) => Number.isInteger(n) && n > 0), true);
+});
+
+test("a refusal that names a cap is written from that same cap, and says back what was measured", () => {
+  const L = PROFILE_LIMITS;
+  // The sentence and the check cannot disagree, because the sentence is built from the number the check uses.
+  assert.equal(profileRefusal("message", 2345), `At most ${L.message.toLocaleString("en-US")} characters — this is 2,345.`);
+  assert.equal(profileRefusal("instructions", 20_001), `At most ${L.instructions.toLocaleString("en-US")} characters — this is 20,001.`);
+  assert.equal(profileRefusal("tone", 201), `At most ${L.tone} characters — this is 201.`);
+  assert.equal(profileRefusal("noteTitle", 90), `A note's title is at most ${L.noteTitle} characters — this is 90.`);
+  assert.equal(profileRefusal("noteText", 1300), `A note's text is at most ${L.noteText.toLocaleString("en-US")} characters — this is 1,300.`);
+  assert.equal(profileRefusal("serviceMinutes"), `At most ${L.serviceMinutes.toLocaleString("en-US")} minutes, a whole day.`);
+  assert.equal(profileRefusal("closures"), `At most ${L.closures} closed days. Dates that have passed can go.`);
+  // What was measured is said back only where the sentence has a place for it.
+  assert.equal(profileRefusal("services"), `At most ${L.services} services.`);
+  assert.equal(profileRefusal("reasons", 21), `At most ${L.reasons} reasons, one to a line — this is 21.`);
+  assert.equal(profileRefusal("reason"), `Each reason is at most ${L.reason} characters.`);
+  assert.equal(profileRefusal("consultFirst", 21), `At most ${L.consultFirst} services, one to a line — this is 21.`);
+  assert.equal(profileRefusal("ruleNotes", 11), `At most ${L.ruleNotes} notes, one to a line — this is 11.`);
+  assert.equal(profileRefusal("notes"), `At most ${L.notes} notes.`);
+  // The two that name what they were measured ON.
+  assert.equal(profileRefusal("shifts", 5, "Monday"), `At most ${L.shifts} shifts in a day — Monday has 5.`);
+  assert.equal(profileRefusal("languages"), `At most ${L.languages} languages.`);
+  assert.equal(profileRefusal("language", undefined, "Q"), `“Q” is not a language's name: ${L.languageMin} to ${L.languageMax} characters.`);
+  // Every count above a thousand is written the way a person writes it, never as 1200 or 20000.
+  for (const key of ["instructions", "message", "noteText", "serviceMinutes"]) {
+    assert.doesNotMatch(profileRefusal(key, 9), /[0-9]{4}/, key);
+  }
+  // A key that is no cap of this tab is a TypeError, since the page is untyped and would have drawn `undefined`.
+  assert.throws(() => profileRefusal("not_a_cap"), { name: "TypeError", message: /not_a_cap/ });
+  assert.throws(() => profileRefusal("toString"), { name: "TypeError", message: /toString/ }, "a name every object has is no cap");
+});
+
+test("a message that writes a detail out instead of naming it is found, link first", () => {
+  // `{business}`, `{booking link}` and `{phone}` are filled in as each message goes out; a message that spells one
+  // instead says what was true when it was typed and nothing after. The link is known exactly; a number is known by
+  // its shape, since the one a customer would ring need not be the one on file.
+  const link = "https://booksy.example/1817434";
+  assert.equal(writtenOutDetail(`Book at ${link} and we will confirm.`, link), "link");
+  assert.equal(writtenOutDetail("Call us on (646) 555-0100.", link), "number");
+  assert.equal(writtenOutDetail("Call 646-555-0100.", link), "number");
+  assert.equal(writtenOutDetail("Call +1 646 555 0100.", link), "number");
+  // Both: the link is the one it can name exactly, so that is what it says.
+  assert.equal(writtenOutDetail(`Ring (646) 555-0100 or book at ${link}.`, link), "link");
+  // The names themselves are not written out, which is the whole point of them.
+  assert.equal(writtenOutDetail("Book at {booking link} or call {phone}.", link), null);
+  assert.equal(writtenOutDetail("Thanks for writing to {business}!", link), null);
+  // A workspace with no link of its own: only a number can be written out.
+  assert.equal(writtenOutDetail(`Book at ${link}.`, ""), null);
+  assert.equal(writtenOutDetail(null, link), null);
+  assert.equal(writtenOutDetail("Order 12345678 is ready.", link), null, "eight digits in a row are not a phone number");
 });

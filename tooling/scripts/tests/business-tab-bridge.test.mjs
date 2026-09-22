@@ -18,7 +18,7 @@ import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
   newReceptionistDefaults, hasProfile, PROFILE_CROSSING_WORDS, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
-  TONE_PRESETS, handoffWords, fallbacksWords, guardrailsInForce, hoursLines, MAX_INTERVALS_PER_DAY, MAX_CLOSURES,
+  TONE_PRESETS, handoffWords, fallbacksWords, guardrailsInForce, hoursLines, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, PROFILE_LIMITS, profileRefusal,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -87,7 +87,7 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
-    "BOOKING_RULE_HINTS", "GUARDRAIL_KEYS", "RULES_WITHOUT_FIELDS_WORDS", "TONE_PRESETS", "abilityRows", "blockShareWords", "bookingHeld", "bookingRuleRefusal", "bookingRulesWords", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "fallbacksWords", "foldName", "guardrailsInForce", "handoffCallWords", "handoffChatWords", "handoffWords", "hasProfile", "instructionsWords", "needsConsultation", "notesWords", "openWeekWords", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "serviceUndoName", "servicesFoundWords", "servicesSaveWords", "servicesToldWords", "servicesWords", "standingLine",
+    "BOOKING_RULE_HINTS", "GUARDRAIL_KEYS", "PROFILE_LIMITS", "RULES_WITHOUT_FIELDS_WORDS", "TONE_PRESETS", "abilityRows", "blockShareWords", "bookingHeld", "bookingRuleRefusal", "bookingRulesWords", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "fallbacksWords", "foldName", "guardrailsInForce", "handoffCallWords", "handoffChatWords", "handoffWords", "hasProfile", "instructionsWords", "needsConsultation", "notesWords", "openWeekWords", "profileCrossing", "profileRefusal", "promptBlocks", "ruleStrength", "saveIssues", "serviceUndoName", "servicesFoundWords", "servicesSaveWords", "servicesToldWords", "servicesWords", "standingLine", "writtenOutDetail",
   ]);
   // How it answers': contracts' own, and the resolver's test of whether a record composes, never a copy of it.
   for (const p of [null, {}, { guardrails: { disclose_ai: false } }, { handoff_number: "+16465550100" }, { tone: "Warm." }, STORED.profile]) {
@@ -113,6 +113,17 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   assert.deepEqual(tab.bookingRulesWords(STORED.profile.booking_rules), bookingRulesWords(STORED.profile.booking_rules));
   assert.deepEqual(tab.BOOKING_RULE_HINTS, BOOKING_RULE_HINTS);
   for (const key of ["lead_hours", "slot_min", "buffer_min", "max_days_ahead", "party_max"]) assert.equal(tab.bookingRuleRefusal(key), bookingRuleRefusal(key), key);
+  // Every other cap a fold holds, and the sentence written from it: the page reads both here, so a number it offers up
+  // to and a number it names are one number, and that one is the schema's (PROFILE_LIMITS is read off the schemas).
+  assert.deepEqual(tab.PROFILE_LIMITS, PROFILE_LIMITS);
+  for (const key of Object.keys(PROFILE_LIMITS)) {
+    if (key === "languageMin" || key === "languageMax") continue;
+    assert.equal(tab.profileRefusal(key, 3, "Monday"), profileRefusal(key, 3, "Monday"), key);
+  }
+  assert.equal(tab.profileRefusal("language", undefined, "Xy"), profileRefusal("language", undefined, "Xy"));
+  for (const [text, link, is] of [["book at https://b.example/x", "https://b.example/x", "link"], ["ring (646) 555-0100", "https://b.example/x", "number"], ["hello", "https://b.example/x", null]]) {
+    assert.equal(tab.writtenOutDetail(text, link), is, text);
+  }
   // The rules the services sheet marks and searches by are the Calendar's and the phone tool's own.
   for (const name of ["Color correction", " color CORRECTION ", "Colour correction"]) assert.equal(tab.needsConsultation(name, STORED.profile.booking_rules), needsConsultation(name, STORED.profile.booking_rules), name);
   assert.equal(tab.foldName("Uñas de Gel"), foldName("Uñas de Gel"));

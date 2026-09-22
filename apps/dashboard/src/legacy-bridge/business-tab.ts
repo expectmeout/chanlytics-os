@@ -13,7 +13,7 @@ import {
   promptBlocks, resolveSystemPrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
   TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS,
-  guardrailsInForce, hoursLines, MAX_INTERVALS_PER_DAY, MAX_CLOSURES,
+  guardrailsInForce, hoursLines, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, PROFILE_LIMITS, profileRefusal, writtenOutDetail,
   type PromptBlockVM, type ProfileCrossing, type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -205,7 +205,11 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // services row's and sheet's (servicesWords, servicesToldWords, servicesSaveWords, blockShareWords) and the booking
 // rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's. needsConsultation and foldName are the rules the
 // services sheet marks a consult-first service by and searches by: the Calendar's and the phone tool's own, not copies.
-// bookingRuleRefusal is a booking rule's sentence for a number outside its range (business-tab-folds.jsx problemsOf).
+// bookingRuleRefusal is a booking rule's sentence for a number outside its range (business-tab-folds.jsx problemsOf),
+// and PROFILE_LIMITS with profileRefusal are the SAME pair for every other cap a fold holds: the most of each thing
+// the save would take, read off the schema, and the sentence written from that one number. The page held both, so
+// each cap was a literal beside a sentence naming it again. writtenOutDetail is whether one of the three messages
+// spells a detail out where the name for it would keep it current (business-tab-answers.jsx).
 // How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,
 // handoffCallWords), the notes' (notesWords), the owner's own words' (instructionsWords), the three messages'
 // (fallbacksWords), and what the rules fold says on a record whose details compose nothing (RULES_WITHOUT_FIELDS_WORDS),
@@ -215,6 +219,7 @@ export const BUSINESS_TAB = {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing, saveIssues, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
   TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS, hasProfile, guardrailsInForce,
+  PROFILE_LIMITS, profileRefusal, writtenOutDetail,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 
