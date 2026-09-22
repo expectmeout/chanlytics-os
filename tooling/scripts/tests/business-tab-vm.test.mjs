@@ -119,6 +119,10 @@ test("the four rules carry three different guarantees", () => {
   // on a page whose whole point is that these four rules are not equivalent.
   assert.doesNotMatch(priced.checkedOn[1].words, /before/i);
   assert.match(priced.checkedOn[1].words, /already been heard/i);
+  // What always holds is that the owner is told; the correction is what the product can ALSO do while the call is
+  // still reachable. The line said the correction flatly, which is not true of a call whose turns are not delivered.
+  assert.match(priced.checkedOn[1].words, /told either way/i);
+  assert.match(priced.checkedOn[1].words, /whenever it can still be reached/i);
   assert.doesNotMatch(priced.sentence, /WhatsApp|call/i);
   // Each line opens with the channel's name, and that name is the one the abilities card's glyphs already carry:
   // one spelling per channel on one page. The stored value ("whatsapp") is never what an owner reads.
@@ -294,7 +298,11 @@ test("M-1: what it will not do names the difference between the channels, once",
   assert.match(onACall.wont, /consult or the booking link instead of a price/, "the promise is unchanged");
   assert.match(onACall.wont, /in chat/i, "and it says which channel does what");
   assert.match(onACall.wont, /on a call/i);
-  assert.match(onACall.wont, /correction/i, "a call is corrected, never prevented");
+  assert.match(onACall.wont, /prevented/i, "a call is caught afterwards, never prevented");
+  // NOT a correction, which is what the band said first. A correction goes into the call only while its turns are
+  // still being delivered; with that switched off on the agent the check runs on the final transcript and the owner
+  // is told after the fact, with nothing said back to the caller (policy.ts). The band is one line for both.
+  assert.doesNotMatch(onACall.wont, /correction/i, "REGRESSION: the band promised a correction it cannot always make");
   // A workspace with no call answers only in chat, where the plain sentence is exact. Naming a channel it does not
   // answer on would be the page teaching an owner about a line they do not have.
   assert.equal(standingLine(full, false).wont, "It offers a consult or the booking link instead of a price.");

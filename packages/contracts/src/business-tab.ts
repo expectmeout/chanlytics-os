@@ -132,8 +132,12 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
       {
         channel: "voice",
         label: channelOpens("voice"),
+        // What ALWAYS holds is that the owner is told: a correction goes into the call only while its turns are
+        // still being delivered, and with that switched off on the agent the same check runs on the final transcript
+        // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
+        // with it rather than promising the better half of it.
         words:
-          "It has already been heard. A correction goes into the live call, and you are told while it is still up.",
+          "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached.",
       },
     ],
   },
@@ -300,18 +304,24 @@ const has = (v: unknown): boolean =>
  * anyone reads the reply, because a draft sits between the model and the customer (policy.ts).
  *
  * On a call there is no before. The provider hosts the agent and it speaks directly, so by the time a turn reaches
- * `spokenBreach` the caller has heard the figure, and what the product can still do is correct it in what the agent
- * says next and tell the owner while the call is up (policy.ts's own header). Said flat, the chat sentence promised a
- * phone caller a swap that cannot happen there -- and it promised it hardest on the workspaces where the price switch
- * is off, since nothing then tells the phone agent to leave a service's price note unread (config.ts, the Services
- * block). So a workspace with a call names the difference, once, inside the one clause; a chat-only workspace reads
- * the exact sentence and is told nothing about a line it does not have.
+ * `spokenBreach` the caller has heard the figure, and what the product can still do is tell the owner -- and, while
+ * the call's turns are still being delivered, correct it in what the agent says next (policy.ts's own header). Said
+ * flat, the chat sentence promised a phone caller a swap that cannot happen there -- and it promised it hardest on
+ * the workspaces where the price switch is off, since nothing then tells the phone agent to leave a service's price
+ * note unread (config.ts, the Services block). So a workspace with a call names the difference, once, inside the one
+ * clause; a chat-only workspace reads the exact sentence and is told nothing about a line it does not have.
+ *
+ * The clause says CAUGHT rather than corrected, on purpose. A correction is what the product can also do where the
+ * call can still be reached; with per-turn delivery off on the agent the check runs on the final transcript and the
+ * owner is told after the fact, with nothing said back to the caller. One line has to be true of both, and the one
+ * thing that is true of both is that it is caught afterwards rather than prevented. The fold's own two lines say the
+ * rest (`checkedOn`), where there is room for it.
  *
  * Still ONE clause either way: the standing line is three, and a fourth would make it a paragraph (spec 4.1).
  */
 const WONT_PRICE = "It offers a consult or the booking link instead of a price.";
 const WONT_PRICE_ON_A_CALL =
-  "It offers a consult or the booking link instead of a price — in chat before the reply is sent, on a call as a correction right after.";
+  "It offers a consult or the booking link instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented.";
 
 /**
  * Three clauses, worst last.

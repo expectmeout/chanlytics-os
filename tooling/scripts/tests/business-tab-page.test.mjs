@@ -83,7 +83,7 @@ test("M-1: the band names a call's correction only on a workspace that answers c
   const withCall = drawTab({ profile: melany });
   const heard = textOf(byTestId(withCall, "rec-standing"));
   assert.match(heard, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, true).wont)));
-  assert.match(heard, /on a call as a correction right after/i);
+  assert.match(heard, /on a call caught afterwards rather than prevented/i);
   // A workspace with no phone line is told nothing about a line it does not have.
   const chatOnly = drawTab({ profile: melany, facts: { voice_line: { value: null, source: "absent" } } });
   const alone = textOf(byTestId(chatOnly, "rec-standing"));

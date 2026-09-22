@@ -13566,7 +13566,11 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
       {
         channel: "voice",
         label: channelOpens("voice"),
-        words: "It has already been heard. A correction goes into the live call, and you are told while it is still up."
+        // What ALWAYS holds is that the owner is told: a correction goes into the call only while its turns are
+        // still being delivered, and with that switched off on the agent the same check runs on the final transcript
+        // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
+        // with it rather than promising the better half of it.
+        words: "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached."
       }
     ]
   },
@@ -13625,7 +13629,7 @@ function rulesKept(i) {
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
 var WONT_PRICE = "It offers a consult or the booking link instead of a price.";
-var WONT_PRICE_ON_A_CALL = "It offers a consult or the booking link instead of a price \u2014 in chat before the reply is sent, on a call as a correction right after.";
+var WONT_PRICE_ON_A_CALL = "It offers a consult or the booking link instead of a price \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented.";
 function standingLine(i, calls) {
   if (typeof calls !== "boolean") {
     throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
