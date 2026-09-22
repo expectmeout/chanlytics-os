@@ -5,7 +5,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate, needsConsultation, foldName } from "@chanlytics/contracts";
+import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate, needsConsultation, foldName, serviceUndoName } from "@chanlytics/contracts";
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import { W, cancelFoldOf, composePromptPreview, drawTab, escape, foldOf, labelled, melany, openFold, openFolds, openRows, ownWords, redrawTab, saveFoldOf, saving, typeAt, without } from "./_business-tab-harness.mjs";
 
@@ -293,18 +293,16 @@ test("a removed row leaves an Undo where it was, and that Undo and the toast's b
   tree = openSheet(tree, flash);
   press(byTestId(tree, "rec-service-remove-4"));
   tree = redrawTab(flash);
-  const gone = byTestId(tree, "rec-service-gone-4");
+  const gone = markFor(tree, "Service 5");
   assert.match(textOf(gone), /Removed Service 5/, "where the row was, inside the sheet's Tab ring");
   // It sits in the row's place: before the row that moved up into its index.
-  const body = byTestId(tree, "rec-services-rows");
-  const order = all(body, (n) => /^rec-service-(gone-)?\d+$/.test(n.props?.["data-testid"] || "")).map((n) => n.props["data-testid"]);
-  assert.deepEqual(order.slice(3, 6), ["rec-service-3", "rec-service-gone-4", "rec-service-4"]);
+  assert.deepEqual(drawnOf(tree).slice(3, 6), ["Service 4", "<Service 5>", "Service 6"]);
   assert.equal(nameOf(rowsOf(tree)[4]), "Service 6");
   // The inline Undo.
-  press(byTestId(tree, "rec-service-undo-4"));
+  press(undoFor(tree, "Service 5"));
   tree = redrawTab(flash);
   assert.equal(nameOf(rowsOf(tree)[4]), "Service 5", "back at its own index");
-  assert.equal(byTestId(tree, "rec-service-gone-4"), null, "and its Undo goes with it");
+  assert.equal(markFor(tree, "Service 5"), null, "and its Undo goes with it");
   // The toast's Undo, pressed after, has nothing left to put back: the row is not put back twice.
   flashes.at(-1).undo();
   tree = redrawTab(flash);
@@ -313,10 +311,10 @@ test("a removed row leaves an Undo where it was, and that Undo and the toast's b
   // The toast's Undo first: the row comes back where it was, and the Undo in its place goes.
   press(byTestId(tree, "rec-service-remove-0"));
   tree = redrawTab(flash);
-  assert.ok(byTestId(tree, "rec-service-gone-0"));
+  assert.ok(markFor(tree, "Service 1"));
   flashes.at(-1).undo();
   tree = redrawTab(flash);
-  assert.deepEqual([nameOf(rowsOf(tree)[0]), byTestId(tree, "rec-service-gone-0")], ["Service 1", null]);
+  assert.deepEqual([nameOf(rowsOf(tree)[0]), markFor(tree, "Service 1")], ["Service 1", null]);
 });
 
 test("a toast's Undo pressed after the sheet has closed puts nothing back, and says so", () => {
@@ -337,7 +335,7 @@ test("a toast's Undo pressed after the sheet has closed puts nothing back, and s
   assert.deepEqual([flashes.at(-1).tone, said(flashes.at(-1))], ["warn", "Not put back — the editor it was in has closed. Open it again to change it."]);
   tree = openSheet(tree, flash);
   assert.equal(rowsOf(tree).length, 33, "it opens on what is stored");
-  assert.equal(byTestId(tree, "rec-service-gone-2"), null, "and no Undo from the last opening is left in it");
+  assert.equal(all(sheetOf(tree), (n) => classes(n).includes("bt-service-gone")).length, 0, "and no Undo from the last opening is left in it");
   assert.equal(sent.length, 0);
 });
 
@@ -360,14 +358,14 @@ test("the list keeps its cap of sixty through Add and through both Undos", () =>
   tree = redrawTab(flash);
   assert.equal(rowsOf(tree).length, LIMIT, "REGRESSION: the toast's Undo put a sixty-first back");
   assert.deepEqual([flashes.at(-1).tone, said(flashes.at(-1))], ["warn", "Not put back — That is the most services the receptionist keeps (60). Remove one first."]);
-  press(byTestId(tree, "rec-service-undo-0"));
+  press(undoFor(tree, "Service 1"));
   tree = redrawTab(flash);
   assert.equal(rowsOf(tree).length, LIMIT, "nor the Undo left where it was");
-  assert.ok(byTestId(tree, "rec-service-gone-0"), "which stays, to put it back once there is room");
+  assert.ok(markFor(tree, "Service 1"), "which stays, to put it back once there is room");
   // With room again, it goes back where it was.
   press(byTestId(tree, "rec-service-remove-59"));
   tree = redrawTab(flash);
-  press(byTestId(tree, "rec-service-undo-0"));
+  press(undoFor(tree, "Service 1"));
   tree = redrawTab(flash);
   assert.deepEqual([rowsOf(tree).length, nameOf(rowsOf(tree)[0])], [LIMIT, "Service 1"]);
   // And Add itself keeps the cap, pressed twice in one breath with room for one.
@@ -786,11 +784,9 @@ const ten = { ...melany, services: Array.from({ length: 10 }, (_, i) => ({ name:
 /** The sheet's list as drawn: each row by its name, and each Undo left in a row's place as <the name it puts back>. */
 const drawnOf = (tree) => all(byTestId(tree, "rec-services-rows"), (n) => /^rec-service-(gone-)?\d+$/.test(n.props?.["data-testid"] || ""))
   .map((n) => (n.props["data-testid"].includes("gone") ? `<${textOf(find(n, (m) => m.type === "b"))}>` : nameOf(n)));
-/** The Undo left in the place of the row named `name`. */
-const undoFor = (tree, name) => {
-  const mark = find(byTestId(tree, "rec-services-rows"), (n) => classes(n).includes("bt-service-gone") && textOf(find(n, (m) => m.type === "b")) === name);
-  return find(mark, (n) => n.type === "button");
-};
+/** What is left in the place of the row named `name`, and the Undo in it. */
+const markFor = (tree, name) => find(byTestId(tree, "rec-services-rows"), (n) => classes(n).includes("bt-service-gone") && textOf(find(n, (m) => m.type === "b")) === name);
+const undoFor = (tree, name) => find(markFor(tree, name), (n) => n.type === "button");
 const removeNamed = (tree, name) => press(byTestId(tree, `rec-service-remove-${rowsOf(tree).findIndex((r) => nameOf(r) === name)}`));
 const TEN = ten.services.map((s) => s.name);
 
@@ -996,4 +992,26 @@ test("the services sheet is the page's last drawn child, with the sheet closed a
   // And the kit's sheet is the last thing the services sheet draws, so the last hook-holding thing on the page.
   const sheet = lastDrawn(tree);
   assert.deepEqual([sheet.rendered.type, sheet.rendered.rendered.type], [W.BtSheet, W.RecordSheet]);
+});
+
+test("each Undo left in a row's place has its own name and id, from what it puts back, two in one gap included", () => {
+  // The quality review: two Undos waiting in one gap shared one test id (it was their place), and each was named only
+  // "Undo", so a screen reader could not tell which row it put back.
+  let tree = openSheet(drawTab({ profile: ten }));
+  removeNamed(tree, "Service 3");
+  tree = redrawTab();
+  removeNamed(tree, "Service 4");
+  tree = redrawTab();
+  const marks = all(byTestId(tree, "rec-services-rows"), (n) => classes(n).includes("bt-service-gone"));
+  const ids = marks.map((n) => n.props["data-testid"]);
+  assert.equal(new Set(ids).size, 2, "REGRESSION: one id for two Undos");
+  const undos = marks.map((n) => find(n, (m) => m.type === "button"));
+  assert.deepEqual(undos.map((b) => b.props["aria-label"]), [serviceUndoName("Service 3"), serviceUndoName("Service 4")]);
+  assert.equal(serviceUndoName("Service 3"), "Undo removing Service 3");
+  assert.equal(serviceUndoName(""), "Undo removing a service");
+  assert.ok(undos.every((b) => b.props["aria-label"].startsWith(textOf(b))), "and each name holds the word on it (WCAG 2.5.3)");
+  // Each by its own id: the one for Service 4 puts Service 4 back.
+  press(byTestId(tree, ids[1].replace("gone", "undo")));
+  tree = redrawTab();
+  assert.deepEqual(drawnOf(tree).slice(0, 5), ["Service 1", "Service 2", "<Service 3>", "Service 4", "Service 5"]);
 });

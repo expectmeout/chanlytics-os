@@ -309,6 +309,15 @@ export function servicesToldWords(i: { count: number; chars: number | null; tota
   return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` — ${share}` : ""}.`;
 }
 
+/**
+ * The name of the Undo left where a service was taken out of the sheet, as a screen reader hears it: what it puts back,
+ * "Undo removing Balayage". Each was named only "Undo", and two waiting side by side could not be told apart.
+ */
+export function serviceUndoName(name: string | null | undefined): string {
+  const n = typeof name === "string" ? name.trim() : "";
+  return n ? `Undo removing ${n}` : "Undo removing a service";
+}
+
 /** The sheet's Save, named for what it saves: "Save 33 services". */
 export function servicesSaveWords(n: number): string {
   if (!n) return "Save with no services";

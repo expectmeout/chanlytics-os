@@ -11329,6 +11329,10 @@ function servicesToldWords(i) {
   const size = i.chars ? `, ${count(i.chars)} characters` : "";
   return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
 }
+function serviceUndoName(name) {
+  const n = typeof name === "string" ? name.trim() : "";
+  return n ? `Undo removing ${n}` : "Undo removing a service";
+}
 function servicesSaveWords(n) {
   if (!n) return "Save with no services";
   return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
@@ -14276,6 +14280,7 @@ export {
   sendFailureIsOurs,
   sendableTemplates,
   serverNotificationRows,
+  serviceUndoName,
   servicesSaveWords,
   servicesToldWords,
   servicesWords,

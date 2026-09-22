@@ -22,6 +22,7 @@ import {
   servicesWords,
   servicesToldWords,
   servicesSaveWords,
+  serviceUndoName,
   blockShareWords,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
@@ -491,6 +492,8 @@ test("the services sheet's foot says how many it will be told of, how long they 
   assert.deepEqual([gap.row, gap.sentence], ["services", "It cannot say what you offer."]);
   assert.equal(servicesToldWords({ count: 0, chars: null, total: null }), `No services, so it ${gap.sentence.slice("It ".length)}`);
   assert.deepEqual([33, 1, 0].map(servicesSaveWords), ["Save 33 services", "Save 1 service", "Save with no services"]);
+  // The Undo left where one was taken out is named for what it puts back.
+  assert.deepEqual(["Balayage", "  Cut ", "", null].map(serviceUndoName), ["Undo removing Balayage", "Undo removing Cut", "Undo removing a service", "Undo removing a service"]);
 });
 
 test("the booking rules are one sentence of the rules that are set, in the fold's order, with the owner's notes as sentences", () => {

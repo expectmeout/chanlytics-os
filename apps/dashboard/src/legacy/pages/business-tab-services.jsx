@@ -134,13 +134,16 @@ const BtsServicesSheet = ({ brain, canEdit, flash, saver }) => {
       if (back) f.focus(`service-gone-${back.id}`);
     };
     const said = (key) => f.problems[key] || null;
+    // Each Undo is known by its put-back's id, not its place: two waiting in one gap shared a place, and shared an id.
+    // Its name is what it puts back (contracts serviceUndoName), and holds the word on it (WCAG 2.5.3).
     const mark = (m) => (
-      <div key={`gone-${m.id}`} className="bt-service-gone" data-rec-row={`service-gone-${m.id}`} data-testid={`rec-service-gone-${m.at}`}>
+      <div key={`gone-${m.id}`} className="bt-service-gone" data-rec-row={`service-gone-${m.id}`} data-testid={`rec-service-gone-${m.id}`}>
         <span className="bt-service-gone-words">Removed {m.row && m.row.name ? <b>{m.row.name}</b> : "a service"}</span>
         <button
           type="button" className="bt-link"
+          aria-label={tab.serviceUndoName ? tab.serviceUndoName(m.row && m.row.name) : undefined}
           {...f.press(() => { const at = m.at; if (m.back()) f.focus(`service-${at}`); })}
-          data-testid={`rec-service-undo-${m.at}`}
+          data-testid={`rec-service-undo-${m.id}`}
         >Undo</button>
       </div>
     );

@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
   newReceptionistDefaults, hasProfile, PROFILE_CROSSING_WORDS, openWeekWords, closuresAheadWords,
-  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, BOOKING_DEFAULTS,
+  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, BOOKING_DEFAULTS, serviceUndoName,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -85,7 +85,7 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
-    "BOOKING_DEFAULTS", "BOOKING_RULE_HINTS", "GUARDRAIL_KEYS", "abilityRows", "blockShareWords", "bookingHeld", "bookingRulesWords", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "foldName", "needsConsultation", "openWeekWords", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "servicesSaveWords", "servicesToldWords", "servicesWords", "standingLine",
+    "BOOKING_DEFAULTS", "BOOKING_RULE_HINTS", "GUARDRAIL_KEYS", "abilityRows", "blockShareWords", "bookingHeld", "bookingRulesWords", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "foldName", "needsConsultation", "openWeekWords", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "serviceUndoName", "servicesSaveWords", "servicesToldWords", "servicesWords", "standingLine",
   ]);
   assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
   // The When you're open card's two sentences with a number in them.
@@ -97,6 +97,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   assert.deepEqual(tab.servicesWords(STORED.profile.services), servicesWords(STORED.profile.services));
   assert.equal(tab.servicesToldWords({ count: 33, chars: 1190, total: 4345 }), servicesToldWords({ count: 33, chars: 1190, total: 4345 }));
   assert.equal(tab.servicesSaveWords(33), servicesSaveWords(33));
+  assert.equal(tab.serviceUndoName("Balayage"), serviceUndoName("Balayage"));
   assert.equal(tab.blockShareWords(1190, 4345), blockShareWords(1190, 4345));
   assert.deepEqual(tab.bookingRulesWords(STORED.profile.booking_rules), bookingRulesWords(STORED.profile.booking_rules));
   assert.deepEqual(tab.BOOKING_RULE_HINTS, BOOKING_RULE_HINTS);
