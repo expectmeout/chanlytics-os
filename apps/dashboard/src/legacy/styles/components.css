@@ -1097,7 +1097,8 @@ a.btn { text-decoration: none; }
     stroke-dashoffset: 0 !important;
   }
   .rp-revbar, .rp-mix-fill, .conf-meter-fill,
-  .rec-says-line[data-changed="true"], .rec-inline-body, .rec-fold-hint, .rec-fold { transition: none !important; }
+  .rec-says-line[data-changed="true"], .rec-inline-body, .rec-fold-hint, .rec-fold,
+  .rec-sheet.rec-fold-sheet[data-leaving="true"], .rec-sheet-backdrop[data-leaving="true"] { transition: none !important; }
 }
 
 

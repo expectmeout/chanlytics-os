@@ -1393,6 +1393,160 @@ const drawFold = (props, field = W.React.createElement("input", { className: "re
   return W.React.createElement(W.RecordFold, props, field);
 };
 
+test("on a phone the row a fold opens from is still drawn behind its sheet, so the card under the wash keeps its height", () => {
+  // Task 6.2b's note 8: the page draws a fold's row OR the fold, so while a row's sheet was open the card behind it
+  // was one row shorter, and it grew back as the sheet went. A sheet that leaves over a fading wash (the fold's close,
+  // spec §9, item 1) would show that. The page hands the kit what the row draws at rest (`behind`), and the kit draws
+  // it in the fold's place, behind the wash, for as long as the fold is a sheet: never inside the dialog, never at a
+  // desktop's width, where the fold itself stands in the row's place, and never while it is closed, when the page
+  // draws the row itself.
+  const behind = W.React.createElement(
+    "div",
+    { className: "rec-row", "data-testid": "rec-row-booking_rules" },
+    "Booking rules",
+  );
+  const width = atWidth(true);
+  try {
+    const tree = drawFold(bookingRules({ behind }));
+    assert.ok(
+      find(tree, (n) => n === behind),
+      "drawn while the sheet is open",
+    );
+    assert.equal(
+      find(dialogOf(tree), (n) => n === behind),
+      null,
+      "and not inside the dialog",
+    );
+    assert.equal(
+      find(drawFold(bookingRules({ behind, open: false })), (n) => n === behind),
+      null,
+      "closed: the page's",
+    );
+  } finally {
+    width.put();
+  }
+  assert.equal(
+    find(drawFold(bookingRules({ behind })), (n) => n === behind),
+    null,
+    "a desktop's fold is in its place",
+  );
+});
+
+/**
+ * A stand-in for the elements React puts on the page, as much of the DOM as the sheet's leaving asks of them: what a
+ * copy is made of, what it is made into, and where it goes.
+ */
+const fakeNode = (name, attrs = {}, kids = []) => {
+  const n = {
+    name,
+    attrs: { ...attrs },
+    kids,
+    scrollTop: 0,
+    heard: {},
+    removed: false,
+    cloneNode: (deep) => fakeNode(name, n.attrs, deep ? kids.map((k) => k.cloneNode(true)) : []),
+    setAttribute: (k, v) => {
+      n.attrs[k] = String(v);
+    },
+    removeAttribute: (k) => {
+      delete n.attrs[k];
+    },
+    querySelectorAll: () => kids.flatMap((k) => [k, ...k.querySelectorAll()]),
+    querySelector: (sel) => n.querySelectorAll().find((k) => sel === `.${k.attrs.class}`) || null,
+    addEventListener: (type, fn) => {
+      n.heard[type] = fn;
+    },
+    remove: () => {
+      n.removed = true;
+    },
+  };
+  return n;
+};
+
+test("on a phone a fold's sheet leaves as it closes: a still copy slides down over a fading wash, and is gone", async () => {
+  // Spec §9, item 1 closes the fold on --ease-in-out, and Task 6.1's step 3b asks it of the sheet too. The sheet is
+  // React's until the registry closes it, and React takes it off the page then, with focus going back to the row's act
+  // and the next fold let in at once. So nothing is kept: what leaves is a copy of what was on screen (typed words and
+  // all, where the sheet had scrolled to), put in the app's root beside it, with nothing in it to press, focus, name or
+  // find (no role, no ids, no test ids, inert, hidden from a screen reader), for record.css to slide away. It goes when
+  // its slide ends.
+  const root = { added: [], appendChild: (n) => root.added.push(n) };
+  const doc = globalThis.document;
+  const was = doc.querySelector;
+  doc.querySelector = (sel) => (sel === ".app-root" ? root : null);
+  const width = atWidth(true);
+  try {
+    const body = fakeNode("div", { class: "rec-sheet-body", "data-testid": "rec-fold-says-booking_rules" });
+    const title = fakeNode("h2", { class: "rec-sheet-title", id: "rec-fold-booking_rules-label" });
+    const sheetEl = fakeNode(
+      "section",
+      {
+        class: "rec-sheet rec-fold-sheet",
+        role: "dialog",
+        "aria-modal": "true",
+        "data-testid": "rec-fold-booking_rules",
+      },
+      [title, body],
+    );
+    const washEl = fakeNode("div", { class: "rec-sheet-backdrop", "data-fold": "true" });
+    let tree = drawFold(bookingRules());
+    // The stub attaches no ref: the test hands the kit the elements React would have.
+    dialogOf(tree).props.ref.current = sheetEl;
+    find(tree, (n) => classes(n).includes("rec-sheet-backdrop")).props.ref.current = washEl;
+    find(dialogOf(tree), (n) => classes(n).includes("rec-sheet-body")).props.onScroll({
+      currentTarget: { scrollTop: 120 },
+    });
+    tree = again(() => W.React.createElement(W.RecordFold, bookingRules({ open: false })));
+    assert.equal(dialogOf(tree), null, "the fold is closed: no dialog is drawn");
+    const [washCopy, sheetCopy] = root.added;
+    assert.ok(washCopy && sheetCopy, "a copy of the wash and of the sheet, in the app's root");
+    assert.equal(sheetCopy.attrs["data-leaving"], "true");
+    assert.equal(washCopy.attrs["data-leaving"], "true");
+    for (const k of ["role", "aria-modal", "data-testid", "id"]) assert.equal(sheetCopy.attrs[k], undefined, `no ${k}`);
+    assert.equal(sheetCopy.attrs["aria-hidden"], "true");
+    assert.equal(sheetCopy.attrs.inert, "");
+    for (const kid of sheetCopy.kids) {
+      assert.equal(kid.attrs.id, undefined, "no id inside it: the fold's own ids are the page's again");
+      assert.equal(kid.attrs["data-testid"], undefined, "and nothing a test could find it by");
+    }
+    assert.equal(sheetCopy.kids[1].scrollTop, 120, "scrolled where the sheet was");
+    sheetCopy.heard.transitionend({ target: sheetCopy, propertyName: "transform" });
+    assert.ok(sheetCopy.removed && washCopy.removed, "and gone when its slide ends");
+
+    // Neither leaves where the fold is still open: a width crossed draws it in the other frame, and a page going away
+    // takes it with it.
+    root.added.length = 0;
+    tree = drawFold(bookingRules());
+    dialogOf(tree).props.ref.current = sheetEl;
+    width.resize(false);
+    again(() => W.React.createElement(W.RecordFold, bookingRules()));
+    assert.deepEqual(root.added, [], "a width crossed with the fold open");
+    width.resize(true);
+    tree = again(() => W.React.createElement(W.RecordFold, bookingRules()));
+    dialogOf(tree).props.ref.current = sheetEl;
+    unmount();
+    assert.deepEqual(root.added, [], "a page gone with the fold open");
+
+    // And under reduced motion nothing leaves: the sheet goes at once.
+    const plain = globalThis.matchMedia;
+    globalThis.matchMedia = (q) => ({
+      ...plain(q),
+      matches: q === "(prefers-reduced-motion: reduce)" || plain(q).matches,
+    });
+    try {
+      tree = drawFold(bookingRules());
+      dialogOf(tree).props.ref.current = sheetEl;
+      again(() => W.React.createElement(W.RecordFold, bookingRules({ open: false })));
+      assert.deepEqual(root.added, [], "reduced motion");
+    } finally {
+      globalThis.matchMedia = plain;
+    }
+  } finally {
+    width.put();
+    doc.querySelector = was;
+  }
+});
+
 test("on a phone a fold opens as a sheet from the bottom: a modal dialog named by its label, with the same fields, the same says and the same foot", () => {
   const width = atWidth(true);
   try {

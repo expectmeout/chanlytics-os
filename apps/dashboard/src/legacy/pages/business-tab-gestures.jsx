@@ -701,23 +701,28 @@ const BtFold = ({
   const says = will ? (lines ? will.added : will.whole) : null;
   const changed = useBtChanged(says);
   const goneChanged = useBtChanged(will ? will.removed : null);
+  // What the row draws at rest: in the fold's place while it is closed, and handed to the fold (`behind`), which draws
+  // it behind its sheet while it is open on a phone, so the card under the wash keeps its height (record-fold.jsx).
+  // Hookless, so drawing it or not moves no cell.
+  const atRest = rest ? rest({ request: e.request, can: e.can }) : (
+    <window.RecordRow
+      id={id}
+      label={label}
+      value={row.value}
+      empty={row.empty}
+      hint={row.hint}
+      wrong={row.wrong}
+      settled={e.settled}
+      act={canEdit && e.stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => e.request(), gate } : null}
+    >
+      {row.children || null}
+    </window.RecordRow>
+  );
   return (
     <>
-      {e.open ? null : rest ? rest({ request: e.request, can: e.can }) : (
-        <window.RecordRow
-          id={id}
-          label={label}
-          value={row.value}
-          empty={row.empty}
-          hint={row.hint}
-          wrong={row.wrong}
-          settled={e.settled}
-          act={canEdit && e.stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => e.request(), gate } : null}
-        >
-          {row.children || null}
-        </window.RecordRow>
-      )}
+      {e.open ? null : atRest}
       <window.RecordFold
+        behind={atRest}
         id={id}
         label={label}
         hint={hint}

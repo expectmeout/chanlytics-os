@@ -197,10 +197,12 @@
    where the sheet rises from the bottom over the whole width, it is lifted above the sheet's foot. The height is the
    foot's with its line of what it will be told on two lines and an ask above Save: a toast over the rows hides a row
    for a few seconds, and one over Save hides the one press that finishes. */
-:root:has(.rec-sheet) .pp-toast-stack { bottom: calc(184px + env(safe-area-inset-bottom)); }
+/* A sheet on its way out (data-leaving, below) is not a sheet a toast has to clear: the toast a save raises would
+   otherwise start over where the sheet's foot was and drop as the sheet went. */
+:root:has(.rec-sheet:not([data-leaving])) .pp-toast-stack { bottom: calc(184px + env(safe-area-inset-bottom)); }
 @media (min-width: 1140px) {
-  :root:has(.rec-sheet) .pp-toast-stack { bottom: 18px; left: calc((100vw - min(540px, 92vw)) / 2); }
-  :root:has(.rec-sheet) .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
+  :root:has(.rec-sheet:not([data-leaving])) .pp-toast-stack { bottom: 18px; left: calc((100vw - min(540px, 92vw)) / 2); }
+  :root:has(.rec-sheet:not([data-leaving])) .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
 }
 
 /* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
@@ -343,12 +345,20 @@ html.legacy-on .rec-row-act { min-height: 0; }
   /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
      voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own
      duration and easing (spec 9, item 1), and its wash comes in with it: a transition from where it starts, as the
-     fold's own opening is, never a keyframe. It leaves the page as the fold closes, at once, as a fold does. */
+     fold's own opening is, never a keyframe. As the fold closes it goes down the way it came, on --ease-in-out (spec
+     9, item 1), its wash fading with it: React has taken it off the page by then, so what goes is a still copy of it
+     (record-fold.jsx recSheetLeaves, data-leaving), with nothing in it to press, and it is removed as its slide ends. */
   .rec-sheet.rec-fold-sheet { height: auto; max-height: 88vh; max-height: 88dvh; transition: transform var(--duration-base) var(--ease-out); }
   .rec-sheet-backdrop[data-fold="true"] { transition: opacity var(--duration-base) var(--ease-out); }
   @starting-style {
     .rec-sheet.rec-fold-sheet { transform: translateY(100%); }
     .rec-sheet-backdrop[data-fold="true"] { opacity: 0; }
+  }
+  .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: translateY(100%); pointer-events: none; transition: transform var(--duration-base) var(--ease-in-out); }
+  .rec-sheet-backdrop[data-leaving="true"] { opacity: 0; pointer-events: none; transition: opacity var(--duration-base) var(--ease-in-out); }
+  @starting-style {
+    .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: none; }
+    .rec-sheet-backdrop[data-leaving="true"] { opacity: 1; }
   }
   /* The sheet's body carries the gutter; the fields keep the fold's 4px either side for a focused box's ring. */
   .rec-fold-sheet .rec-fold-inner { padding-block: 16px 20px; }
@@ -358,4 +368,6 @@ html.legacy-on .rec-row-act { min-height: 0; }
   .rec-row::before, .rec-row-act, .rec-fold-close, .rec-fold-body,
   .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close,
   .rec-sheet.rec-fold-sheet, .rec-sheet-backdrop[data-fold="true"] { transition: none; }
+  /* The kit puts no leaving copy on the page under reduced motion; were one there, it is not drawn. */
+  .rec-sheet[data-leaving], .rec-sheet-backdrop[data-leaving] { display: none; }
 }

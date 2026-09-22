@@ -79,6 +79,9 @@
 // for tests (it forgets what is open and asked).
 
 const { useRef: useFoldRef, useEffect: useFoldEffect, useState: useFoldState } = React;
+// The sheet's leaving is put on the page before it paints (useRecLeaving), so a frame with no sheet at all is never
+// seen; a stub React with no layout effect runs it as an effect.
+const useFoldLayout = React.useLayoutEffect || React.useEffect;
 
 const recFolds = (() => {
   let openId = null;
@@ -526,6 +529,76 @@ const RecordFoot = ({
   </div>
 );
 
+// ---- A fold's sheet leaving the page ----
+
+// Spec §9, item 1 closes a fold on --ease-in-out, and on a phone a fold is a sheet (below), which React takes off the
+// page the moment the registry closes it: focus goes back to the row's act and the next fold is let in at once, and
+// neither may wait on a motion. So nothing of React's is kept. What leaves is a still copy of the sheet and its wash as
+// they were on screen -- a cloned box and textarea keep their typed values (the HTML clone steps), and the body is put
+// back where it had scrolled to -- in the app's root beside where they stood, with nothing in it to press, focus, name
+// or find: no role, no ids and no test ids anywhere in it, `inert`, hidden from a screen reader. record.css slides it
+// down and fades its wash (data-leaving) on --duration-base and --ease-in-out, and it is gone as its slide ends, or
+// after twice that if no slide runs. Under reduced motion there is no copy at all: the sheet goes at once.
+const REC_LEAVE_FALLBACK_MS = 400;
+const recReducedMotion = () =>
+  typeof window.matchMedia === "function" && !!window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const recStill = (node, deep) => {
+  const copy = node.cloneNode(deep);
+  const all = [copy].concat(copy.querySelectorAll ? Array.from(copy.querySelectorAll("*")) : []);
+  for (const n of all) {
+    n.removeAttribute("id");
+    n.removeAttribute("data-testid");
+  }
+  for (const k of ["role", "aria-modal", "aria-labelledby", "aria-describedby", "aria-busy"]) copy.removeAttribute(k);
+  copy.setAttribute("aria-hidden", "true");
+  copy.setAttribute("inert", "");
+  copy.setAttribute("data-leaving", "true");
+  return copy;
+};
+const recSheetLeaves = (sheet, wash, top) => {
+  const root = document.querySelector ? document.querySelector(".app-root") : null;
+  if (!root || !sheet || !sheet.cloneNode || recReducedMotion()) return;
+  const washCopy = wash && wash.cloneNode ? recStill(wash, false) : null;
+  const sheetCopy = recStill(sheet, true);
+  if (washCopy) root.appendChild(washCopy);
+  root.appendChild(sheetCopy);
+  const body = sheetCopy.querySelector ? sheetCopy.querySelector(".rec-sheet-body") : null;
+  if (body) body.scrollTop = top;
+  let gone = false;
+  const go = () => {
+    if (gone) return;
+    gone = true;
+    sheetCopy.remove();
+    if (washCopy) washCopy.remove();
+  };
+  sheetCopy.addEventListener("transitionend", (e) => { if (e.target === sheetCopy) go(); });
+  setTimeout(go, REC_LEAVE_FALLBACK_MS);
+};
+// A fold's sheet, its wash, and where its body had scrolled to, read as the draw that closes it is made, while React's
+// refs still hold the sheet (by the time it is taken away they are let go of); and, as it goes, its leaving -- only when
+// the fold has CLOSED. A width crossed with the fold open draws it in the other frame, and a page going away takes it
+// with it: neither is a sheet leaving.
+const useRecLeaving = (sheet, open, box) => {
+  const wash = useFoldRef(null);
+  const shown = useFoldRef({ was: false, sheet: null, wash: null, top: 0 });
+  const openNow = useFoldRef(open);
+  openNow.current = open;
+  if (shown.current.was) {
+    shown.current.sheet = box.current || shown.current.sheet;
+    shown.current.wash = wash.current || shown.current.wash;
+  }
+  shown.current.was = sheet;
+  useFoldLayout(() => {
+    if (!sheet) return undefined;
+    return () => {
+      const was = shown.current;
+      shown.current = { was: was.was, sheet: null, wash: null, top: 0 };
+      if (!openNow.current) recSheetLeaves(was.sheet, was.wash, was.top);
+    };
+  }, [sheet]);
+  return { wash, scrolled: (e) => { if (e && e.currentTarget) shown.current.top = e.currentTarget.scrollTop; } };
+};
+
 // ---- The fold: a set of fields, under the row that states them ----
 
 // `confirm` is the page's ask (its Confirm), drawn above the foot while it is open: the section's own "Discard your
@@ -539,7 +612,7 @@ const RecordFold = ({
   id, label, hint = null, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null,
   footNote = null, confirm = null, focusOn = null, changed = null, goneChanged = null,
   onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel", closeLabel = "Close",
-  gate = null, wide = false, children = null,
+  gate = null, wide = false, behind = null, children = null,
 }) => {
   const box = useFoldRef(null);
   const ask = saving ? null : confirm;
@@ -550,6 +623,7 @@ const RecordFold = ({
   const onFocus = useRecFocus(id, open, box, ".rec-fold-inner", sheet ? ".rec-sheet-close" : ".rec-fold-close", focusOn, sheet);
   useRecDrawn(id);
   useRecSheetEscape(sheet, saving ? null : onCancel);
+  const leaving = useRecLeaving(sheet, open, box);
   const labelId = `rec-fold-${id}-label`;
   const closeId = `rec-fold-${id}-close`;
   const refused = !!(gate && gate["aria-disabled"]);
@@ -584,7 +658,7 @@ const RecordFold = ({
         {/* A mousedown keeps focus where it was, as the sheet's wash does. The press is the fold's Cancel: a person
             reaching past the sheet for another row is asked about what they typed, and one who typed nothing is back
             on the page. */}
-        <div className="rec-sheet-backdrop" data-fold="true" aria-hidden="true" onMouseDown={(e) => e.preventDefault()} onClick={cancel} />
+        <div className="rec-sheet-backdrop" data-fold="true" aria-hidden="true" ref={leaving.wash} onMouseDown={(e) => e.preventDefault()} onClick={cancel} />
         <section
           ref={box}
           className="rec-sheet rec-fold-sheet"
@@ -616,7 +690,7 @@ const RecordFold = ({
               <Icon name="x" size={13} />
             </button>
           </header>
-          <div className="rec-sheet-body">
+          <div className="rec-sheet-body" onScroll={leaving.scrolled}>
             <div className="rec-fold-inner">
               {children}
               {told}
@@ -630,7 +704,10 @@ const RecordFold = ({
       </>
     );
     const root = document.querySelector ? document.querySelector(".app-root") : null;
-    return root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
+    const drawn = root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
+    // What the page draws at rest in the fold's place, its row, stays in the card behind the sheet (`behind`): a card a
+    // row shorter under the wash grew back as the sheet left, which its leaving would have put on show.
+    return behind ? <>{behind}{drawn}</> : drawn;
   }
   return (
     <div

@@ -2402,3 +2402,33 @@ test("a row drawn again as its editor's save closes it says so, for its value to
   tree = redrawTab();
   assert.equal(settled(tree, "website"), undefined, "a row cancelled");
 });
+
+test("on a phone a row open as a sheet is still drawn in its card behind it, so nothing under the wash moves", () => {
+  // Task 6.2b's note 8: the card under a row's sheet was one row shorter, and grew back as the sheet went, which the
+  // sheet's leaving (spec §9, item 1) would have put on show. The fold draws the row behind its sheet (RecordFold's
+  // `behind`); the page still draws it itself only while the fold is closed.
+  const width = atWidth(true);
+  try {
+    let tree = drawTab();
+    const at = (t) => textOf(byTestId(t, "rec-row-tone"));
+    const rest = at(tree);
+    openFold(tree, "tone");
+    tree = redrawTab();
+    const sheet = foldOf(tree, "tone");
+    assert.equal(sheet.props.role, "dialog");
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "rec-row-tone").length, 1, "one row, behind the sheet");
+    assert.equal(at(tree), rest, "saying what it said");
+    assert.equal(byTestId(sheet, "rec-row-tone"), null, "and not inside the dialog");
+    assert.ok(
+      find(byTestId(tree, "rec-card-answers"), (n) => n.props?.["data-testid"] === "rec-row-tone"),
+      "in its own card",
+    );
+  } finally {
+    width.put();
+  }
+  // At a desktop's width the fold stands in the row's place, as it always did.
+  let tree = drawTab();
+  openFold(tree, "tone");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-row-tone"), null);
+});
