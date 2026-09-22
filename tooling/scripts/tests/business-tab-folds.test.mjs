@@ -1984,7 +1984,10 @@ test("the guardrails fold writes the four keys the save's own schema has, in its
     [...GUARDRAIL_KEYS],
   );
   // features.vision is the fold's fifth path and a power, not a rule it always keeps.
-  assert.deepEqual(S.PATHS_OF.guardrails.filter((p) => !p.startsWith(prefix)), ["features.vision"]);
+  assert.deepEqual(
+    S.PATHS_OF.guardrails.filter((p) => !p.startsWith(prefix)),
+    ["features.vision"],
+  );
   // And a save writes every one of them, not only the keys the record already stored.
   const saved = S.saveFold("guardrails", stored(), S.draftOf("guardrails", stored()));
   assert.deepEqual(Object.keys(saved.brain.profile.guardrails).sort(), [...GUARDRAIL_KEYS].sort());
