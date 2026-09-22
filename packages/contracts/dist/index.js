@@ -9707,6 +9707,20 @@ function resolveTheme(pref, systemDark) {
   if (pref === "light" || pref === "dark") return pref;
   return systemDark ? "dark" : "light";
 }
+var DEFAULT_THEME_PREF = "dark";
+var themePrefOf = (stored) => isThemePref(stored) ? stored : DEFAULT_THEME_PREF;
+var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
+function themeBootScript() {
+  const known = JSON.stringify(THEME_OPTIONS.map((o) => o.id));
+  return [
+    "try{",
+    `var p=${JSON.stringify(DEFAULT_THEME_PREF)};`,
+    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");if(s&&${known}.indexOf(s.theme)>=0)p=s.theme}catch(e){}`,
+    'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
+    'document.documentElement.dataset.theme=p==="system"?(d?"dark":"light"):p;',
+    "}catch(e){}"
+  ].join("");
+}
 var isSidebarPref = (v) => v === "open" || v === "rail";
 function workspaceHotkey(index) {
   return Number.isInteger(index) && index >= 0 && index < 9 ? `\u2318${index + 1}` : null;
@@ -13432,7 +13446,9 @@ export {
   DEFAULT_BUSINESS_TYPE,
   DEFAULT_COMPANY_TYPE,
   DEFAULT_INDUSTRY,
+  DEFAULT_THEME_PREF,
   DEFAULT_TIMEZONE,
+  DEVICE_PREFS_STORAGE,
   DISCONNECTION_LABELS,
   DISPLAY_NAME_MAX,
   E164,
@@ -14246,7 +14262,9 @@ export {
   textingTermsMetadata,
   textingTermsVM,
   textingWords,
+  themeBootScript,
   themeButtonWords,
+  themePrefOf,
   threadChannelOf,
   threadChannelWords,
   threadStanding,

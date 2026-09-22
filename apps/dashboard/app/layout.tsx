@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { themeBootScript } from "@chanlytics/contracts";
 import "./globals.css";
 
 /**
@@ -38,12 +39,25 @@ export const viewport: Viewport = {
   initialScale: 1,
   // Draw under the notch and the home bar; the shell pads with the safe-area insets.
   viewportFit: "cover",
-  themeColor: "#0e1512",
+  // The browser's own chrome, in each theme's paper (tokens.css --bg, as sRGB): one dark green-black tinted every
+  // workspace's bars, a light one's too, and matched neither theme's page.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfaf8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0d0f" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" className={`${geist.variable} ${geistMono.variable}`}>
+    // data-theme="dark" is what the document says until the script in its head has run, which is before anything
+    // paints: the theme the app will resolve for this device (contracts themeBootScript, over themePrefOf and
+    // resolveTheme). It was corrected only in an effect after the bundle had mounted, so a light workspace opened
+    // dark and flipped on every refresh. The script changes the attribute before hydration, so the element says
+    // the difference is expected. The CSP admits the inline script (csp.ts: 'unsafe-inline' for what Next streams).
+    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
+      </head>
       <body>{children}</body>
     </html>
   );
