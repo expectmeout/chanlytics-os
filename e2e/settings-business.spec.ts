@@ -883,6 +883,8 @@ test.describe("Settings › Business on a real workspace", () => {
           window.dispatchEvent(new CustomEvent("surface:settings"));
           return Promise.resolve({ ok: true });
         };
+        // Tagged, so the test can say the door is still this one at the moment it saves.
+        w.__saveSettings.__e2e = true;
       });
       const read = await page.evaluate(() =>
         JSON.parse(JSON.stringify((window as unknown as { __SETTINGS: { config: unknown } }).__SETTINGS.config)),
@@ -956,6 +958,14 @@ test.describe("Settings › Business on a real workspace", () => {
 
       // Save: the sheet goes, focus is back on the row's act, the row says the saved words, and what was sent is the
       // read config with this fold's one key changed.
+      // The door the page will call is still the stand-in: a bridge that installed its verbs again since would send a
+      // real PUT to the shared workspace before `took` could fail.
+      expect(
+        await page.evaluate(
+          () => (window as unknown as { __saveSettings?: { __e2e?: boolean } }).__saveSettings?.__e2e,
+        ),
+        "the settings door is no longer the stand-in",
+      ).toBe(true);
       await page.getByTestId("rec-fold-save-tone").tap();
       await expect(page.locator('[role="dialog"]')).toHaveCount(0);
       await expect(actOf(page, "tone"), "focus did not come back to the row's act").toBeFocused();
