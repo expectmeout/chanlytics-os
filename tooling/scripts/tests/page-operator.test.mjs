@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { pageOperator, pageStates, untoldPages, PAGE_WINDOW_MS } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/page-operator.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/page-operator.ts")).href
 );
 
 /** A memory of pages: the three calls pageOperator makes, and nothing else. */

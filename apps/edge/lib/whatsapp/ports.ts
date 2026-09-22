@@ -16,11 +16,11 @@ import type { Database } from "../packages/db.js";
 import { pg } from "../pg.js";
 import { readLeadContext, personReplyMode } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { openingsFor, visitsFor } from "../availability.js";
-import { tokensLast24h } from "../budget.js";
+import { openingsFor, visitsFor } from "../calendar/availability.js";
+import { tokensLast24h } from "../receptionist/budget.js";
 import { pgThread, pgIngest, pgSink, queueReply } from "./persist.js";
 import { alertStaff } from "./alerts.js";
-import { pageOperator } from "../page-operator.js";
+import { pageOperator } from "../ops/page-operator.js";
 import { whatsappSender } from "../packages/core.js";
 import { env } from "../env.js";
 
@@ -38,7 +38,7 @@ export interface InboundPorts {
   page: typeof pageOperator;
   sender: typeof whatsappSender;
   /** The model, loaded only when there is a key: it is the one import that pulls the SDK. */
-  brain: () => Promise<Pick<typeof import("../brain.js"), "generateReply">>;
+  brain: () => Promise<Pick<typeof import("../receptionist/brain.js"), "generateReply">>;
   env: {
     /** The pilot allowlist for the environment's own number: comma-separated E.164 digits; empty disables it. */
     allowlist: string;
@@ -79,7 +79,7 @@ export function realPorts(): InboundPorts {
     alertStaff,
     page: pageOperator,
     sender: whatsappSender,
-    brain: () => import("../brain.js"),
+    brain: () => import("../receptionist/brain.js"),
     env: {
       allowlist: env.WHATSAPP_TEST_ALLOWLIST || "",
       modelKey: env.ANTHROPIC_API_KEY,

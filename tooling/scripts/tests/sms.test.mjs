@@ -404,7 +404,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   const sql = readRaw("supabase/migrations/00074_texting.sql");
   assert.ok(sql.includes("'messaging'") && sql.includes("'carriers'"));
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/inbound-sms.ts"'));
-  const edge = readCode("apps/edge/lib/lines.ts");
+  const edge = readCode("apps/edge/lib/lines/lines.ts");
   assert.ok(
     edge.includes("smsInboundUrl: smsInboundUrl(edgeFnUrl()),") &&
       /\.eq\("kind", kind\)\s*\.eq\("external_id", externalId\)/.test(edge),
@@ -422,7 +422,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   );
   // The provisioner sending the same endpoints is run in voice-doors.test.mjs.
   assert.ok(
-    readCode("apps/edge/lib/lines.ts").includes("export function lineForClient(r: Row): LineDto {"),
+    readCode("apps/edge/lib/lines/lines.ts").includes("export function lineForClient(r: Row): LineDto {"),
     "REGRESSION: the page's line shape was a loose object, so a field added on one side and forgotten on the other compiled and arrived undefined",
   );
 });

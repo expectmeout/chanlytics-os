@@ -27,7 +27,7 @@ import {
   type BillingStatus,
 } from "../../lib/packages/contracts.js";
 import { isAreaCode, isE164, LINE_COSTS } from "../../lib/packages/channels.js";
-import { lineProviderFromEnv, lineForClient, releaseRoutingRows, rowToLine } from "../../lib/lines.js";
+import { lineProviderFromEnv, lineForClient, releaseRoutingRows, rowToLine } from "../../lib/lines/lines.js";
 import {
   registerLine,
   syncRegistration,
@@ -35,9 +35,9 @@ import {
   resubmitRejectedCampaign,
   replaceRejectedCampaign,
   campaignFactsFor,
-} from "../../lib/a2p.js";
+} from "../../lib/lines/a2p.js";
 import { scheduleJob } from "../../lib/packages/jobs.js";
-import { claimLineForResume, retryRequestedBy } from "../../lib/line-resume.js";
+import { claimLineForResume, retryRequestedBy } from "../../lib/lines/line-resume.js";
 import {
   businessTypeOf,
   companyTypeOf,

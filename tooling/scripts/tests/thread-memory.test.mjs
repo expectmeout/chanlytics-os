@@ -27,7 +27,7 @@ import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { pgThread } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href);
-const { isThreadUnknown } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/thread.ts")).href);
+const { isThreadUnknown } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/receptionist/thread.ts")).href);
 
 const T = "11111111-1111-1111-1111-111111111111";
 const C = "22222222-2222-2222-2222-222222222222";

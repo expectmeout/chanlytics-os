@@ -41,7 +41,7 @@ import {
   replyOnProfile,
   reviewReplyMode,
   syncProfile,
-} from "../../lib/google.js";
+} from "../../lib/google/google.js";
 import { logger } from "../../lib/log.js";
 
 interface Body {

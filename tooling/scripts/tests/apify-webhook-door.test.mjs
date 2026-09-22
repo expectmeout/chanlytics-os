@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { leadWorld, TENANT, webhookToken, sha256 } from "./_lead-world.mjs";
-import { planApifyIngress, tokenMatches } from "../../../apps/edge/lib/apify-ingress.ts";
+import { planApifyIngress, tokenMatches } from "../../../apps/edge/lib/leads/apify-ingress.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;

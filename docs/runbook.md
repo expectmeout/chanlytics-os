@@ -119,9 +119,12 @@ skipping. The nightly sets it; the pull-request jobs do not.
 | `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack                                    |
 | `nightly-e2e.yml`                 | 09:00 UTC                                             | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace                                                                                    |
 
-Branch protection requires Typecheck by name. Requiring the migrations replay
-too is a repository setting worth flipping: the product's safety model lives
-in the schema.
+Branch protection requires three checks by name: `Secret scan`, `Typecheck`
+and `Migrations replay, SQL rules hold`. The replay is required because the
+product's safety model lives in the schema, and it is safe to require because
+it reports on every pull request: whether a database path changed is a step
+inside the job, not a filter on the workflow. Renaming either job would leave
+every pull request waiting for a check that never reports.
 
 ## Deploy
 

@@ -13,7 +13,7 @@
  * The decisions with no side effects live in steps.ts as truth tables; this
  * file is the order they happen in.
  */
-import { isThreadUnknown, type ThreadState } from "../thread.js";
+import { isThreadUnknown, type ThreadState } from "../receptionist/thread.js";
 import {
   normalizeInbound,
   withCarrierConsent,
@@ -25,13 +25,13 @@ import { shortCode, optInConfirmation, phoneTail } from "../packages/contracts.j
 import { describeLead, type IngestResult } from "../packages/db.js";
 import type { Json, RoutedChannel } from "../packages/db.js";
 import { waCfgFor } from "../tenant-runtime.js";
-import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../vision.js";
+import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../receptionist/vision.js";
 import type { BrainConfig, BrainMeta, NotificationsConfig, SendPurpose } from "../packages/contracts.js";
 import { isOptedOutContact, resolveSystemPrompt, describeNow, fallbackMessages } from "../packages/contracts.js";
-import { replyPosture, effectiveReplyMode } from "../reply-posture.js";
-import { resolveConsent } from "../consent.js";
+import { replyPosture, effectiveReplyMode } from "../receptionist/reply-posture.js";
+import { resolveConsent } from "../receptionist/consent.js";
 import { logger, errField } from "../log.js";
-import type { NotifyTarget } from "../notify.js";
+import type { NotifyTarget } from "../ops/notify.js";
 import { IngestFailed } from "./persist.js";
 import { realPorts, type InboundPorts } from "./ports.js";
 import type { Wire } from "../packages/core.js";

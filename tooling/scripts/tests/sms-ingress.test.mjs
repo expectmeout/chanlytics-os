@@ -28,7 +28,7 @@ import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { planSmsIngress, carrierFor, smsAfterThrow } = await import(at("apps/edge/lib/sms-ingress.ts"));
+const { planSmsIngress, carrierFor, smsAfterThrow } = await import(at("apps/edge/lib/sms/sms-ingress.ts"));
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const URL_ = "https://chanlytics-messaging.vercel.app/api/inbound-sms";

@@ -130,7 +130,7 @@ test("customer numbers stay out of edge logs", () => {
   // the mirror itself. The call-start door's lines carry the caller's tail,
   // the agent and the call, never the number: run in
   // retell-inbound-door.test.mjs.
-  const notify = readCode("apps/edge/lib/notify.ts");
+  const notify = readCode("apps/edge/lib/ops/notify.ts");
   // Every log line that mentions a subject passes it through the redactor.
   const unredacted = notify
     .split("\n")

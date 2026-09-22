@@ -4213,7 +4213,7 @@ interface JudgePlaceAnswer {
     reason: string;
 }
 /**
- * Hand-written, the shape apps/edge/lib/brain.ts sends in production: every
+ * Hand-written, the shape apps/edge/lib/receptionist/brain.ts sends in production: every
  * property required, additionalProperties false, and no length or range
  * keywords (the API does not enforce them; the parser caps and checks after).
  */

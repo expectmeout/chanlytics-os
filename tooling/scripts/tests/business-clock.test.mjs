@@ -87,7 +87,7 @@ test("the timezone has ONE home, and it is not the business profile", () => {
 /* ----------------------------- the call sites ------------------------------ */
 
 test("the clock is sent as its OWN system block, uncached", () => {
-  const brainSrc = readCode("apps/edge/lib/brain.ts");
+  const brainSrc = readCode("apps/edge/lib/receptionist/brain.ts");
   const cached = brainSrc.indexOf("cache_control");
   const now = brainSrc.indexOf('nowNote ? [{ type: "text", text: nowNote }]');
   assert.ok(now > 0, "the now block must be sent");
@@ -109,7 +109,7 @@ test("both channels read the tenant's zone, and neither invents one", () => {
   // The phone's composition -- the same composer, one clock, the closures in
   // the block the model reads last -- is run, byte for byte, in
   // call-start.test.mjs. The read here serves only the zone lint below.
-  const voice = readCode("apps/edge/lib/call-start.ts");
+  const voice = readCode("apps/edge/lib/voice/call-start.ts");
 
   const runtime = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(

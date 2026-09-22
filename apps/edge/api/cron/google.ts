@@ -14,7 +14,14 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import { checkListing, connectionsDue, listingsDue, placesKey, profileClient, syncProfile } from "../../lib/google.js";
+import {
+  checkListing,
+  connectionsDue,
+  listingsDue,
+  placesKey,
+  profileClient,
+  syncProfile,
+} from "../../lib/google/google.js";
 
 export const config = { maxDuration: 60 };
 

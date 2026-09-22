@@ -49,7 +49,7 @@ import {
   businessEndUserRequest,
   addressRequest,
 } from "@chanlytics/channels";
-import { registerLine } from "../../../apps/edge/lib/a2p.ts";
+import { registerLine } from "../../../apps/edge/lib/lines/a2p.ts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -659,7 +659,7 @@ test("one validator, three writers", () => {
   // The door that writes it is run in lines-door.test.mjs: `record` refuses the
   // row it is about to write in the owner's words, stores a sole proprietor
   // with no tax id, and holds a caller that says "standard" to it.
-  const filing = readCode("apps/edge/lib/a2p.ts");
+  const filing = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(filing.includes("businessRecordProblems(o.record, path, { ourNumbers })"));
   assert.ok(
     filing.indexOf("businessRecordProblems(o.record") < filing.indexOf("const send = async"),
@@ -726,7 +726,7 @@ test("which registration was filed is remembered, not re-derived", () => {
   // promising throughput the line does not have, which is worse than silence.
   const sql = readRaw("supabase/migrations/00090_which_registration_was_filed.sql");
   assert.match(sql, /add column if not exists reg_sole_prop boolean not null default false/);
-  const filing = readCode("apps/edge/lib/a2p.ts");
+  const filing = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(
     filing.includes('reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR"'),
     "written with reg_mock, at the moment of filing",
@@ -738,7 +738,7 @@ test("which registration was filed is remembered, not re-derived", () => {
 
   // And it survives BOTH mappers. Selecting it in one and not the other is
   // exactly how the campaign-status defect shipped inert.
-  assert.ok(readCode("apps/edge/lib/lines.ts").includes("reg_sole_prop: r.reg_sole_prop,"));
+  assert.ok(readCode("apps/edge/lib/lines/lines.ts").includes("reg_sole_prop: r.reg_sole_prop,"));
   const dash = readCode("apps/dashboard/src/server/lines.ts");
   assert.ok(
     dash.includes("reg_sole_prop, whatsapp_state"),

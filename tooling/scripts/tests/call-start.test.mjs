@@ -37,7 +37,7 @@ import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { planCallStart } = await import(at("apps/edge/lib/call-start.ts"));
+const { planCallStart } = await import(at("apps/edge/lib/voice/call-start.ts"));
 
 const TZ = "America/New_York";
 /** A Monday at 10:00 in New York. */

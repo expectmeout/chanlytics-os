@@ -142,7 +142,7 @@ test("the migration says where a template came from; the graph module lets Meta 
   // templates-doors.test.mjs.
   const m = readRaw("supabase/migrations/00047_templates_made_here.sql");
   assert.ok(m.includes("add column source     text not null default 'meta' check (source in ('meta', 'chanlytics'))"));
-  const g = readCode("apps/edge/lib/meta-templates.ts");
+  const g = readCode("apps/edge/lib/whatsapp/meta-templates.ts");
   assert.ok(g.includes("allow_category_change: true"), "Meta may recategorise instead of rejecting");
   assert.ok(g.includes("body?.error?.error_user_msg ?? body?.error?.message"), "Meta's own words");
   // The id is REQUIRED, not conditional: `?name=` alone is every language of
@@ -216,7 +216,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/templates.ts").includes("window.__templates = templates;"));
   assert.ok(
     /It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window\.`,\s*alert: true,?\s*\}/.test(
-      readCode("apps/edge/lib/waba-events.ts"),
+      readCode("apps/edge/lib/whatsapp/waba-events.ts"),
     ),
     "an approval is news the owner waits for",
   );

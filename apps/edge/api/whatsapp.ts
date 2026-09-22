@@ -32,7 +32,7 @@
  */
 import crypto from "node:crypto";
 import { phoneTail } from "../lib/packages/contracts.js";
-import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/waba-events.js";
+import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/whatsapp/waba-events.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import type { WaChangeValue } from "../lib/packages/channels.js";

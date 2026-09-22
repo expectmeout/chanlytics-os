@@ -10,7 +10,7 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import { playbooksDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/sweep-rotation.js";
+import { playbooksDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/ops/sweep-rotation.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 

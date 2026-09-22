@@ -160,9 +160,9 @@ test("an opted-out contact is flagged to both agents", () => {
 
 /* ------------------------------ the wiring -------------------------------- */
 
-const voice = read("apps/edge/lib/call-start.ts");
+const voice = read("apps/edge/lib/voice/call-start.ts");
 const wa = read("apps/edge/lib/whatsapp/inbound.ts");
-const brain = read("apps/edge/lib/brain.ts");
+const brain = read("apps/edge/lib/receptionist/brain.ts");
 
 test("REGRESSION: the voice agent no longer reads the Blob mirror", () => {
   assert.ok(!/getThread\(/.test(voice), "caller context must come from Postgres");

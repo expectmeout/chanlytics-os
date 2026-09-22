@@ -153,7 +153,7 @@ test("erase_contact refuses a caller with no session", { skip }, async () => {
  *
  * 00027 held events out of the erasure because "every key is a count or an
  * enum". Three doors written since put a person's own words in one: 00053 and
- * apps/edge/lib/calendar-people.ts write the appointment `title`, and 00054
+ * apps/edge/lib/calendar/calendar-people.ts write the appointment `title`, and 00054
  * wrote the `name` itself. 00130 scrubs them on erasure and stops the name
  * door writing more.
  *

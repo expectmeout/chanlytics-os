@@ -29,7 +29,7 @@ import {
 import { EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
-import { linePorts, releaseRoutingRows } from "../../../apps/edge/lib/lines.ts";
+import { linePorts, releaseRoutingRows } from "../../../apps/edge/lib/lines/lines.ts";
 
 const LINE_ID = "0f3c2a1e-1111-4222-8333-444455556666";
 const freshLine = (over = {}) => ({
@@ -483,7 +483,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   // then tell everybody" would be a second answer to what a customer is told about
   // their own phone number -- and the half it would most likely get wrong is the
   // failure half, which is the half that matters.
-  const prov = readCode("apps/edge/lib/provision.ts");
+  const prov = readCode("apps/edge/lib/lines/provision.ts");
   assert.ok(prov.includes("runLineSaga(line, linePorts(db, cfg, secrets, tenant, line, choice))"));
   assert.ok(
     prov.includes('kind: "number",') && prov.includes("title: `Your phone line is ready: ${shown}`"),
@@ -495,7 +495,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     "the platform hears a failure",
   );
   for (const k of ["line.answering", "line.failed", "line.released"]) assert.ok(EVENT_KINDS.includes(k), k);
-  const lib = readCode("apps/edge/lib/lines.ts");
+  const lib = readCode("apps/edge/lib/lines/lines.ts");
   assert.ok(lib.includes("chooseLineProvider({ sid, token, dryRun: env.LINES_DRY_RUN, vercelEnv: env.VERCEL_ENV })"));
   assert.ok(
     lib.includes('db.rpc("get_line_credentials"') && lib.includes('db.rpc("put_line_credentials"'),
@@ -505,7 +505,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   assert.ok(/provider: "twilio-sip",\s*line_id: lineId/.test(lib), "the routing row names its line");
   const client = lib.slice(lib.indexOf("export function lineForClient"), lib.indexOf("export function linePorts"));
   assert.ok(!/_sid/.test(client), "no provider SID reaches the page");
-  const agent = readCode("apps/edge/lib/voice-agent.ts");
+  const agent = readCode("apps/edge/lib/voice/voice-agent.ts");
   for (const pin of [
     "createRetellLlm(cfg, voiceLlmCreateBody(secrets))",
     "createAgent(cfg, voiceAgentCreateBody(",

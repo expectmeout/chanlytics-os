@@ -21,9 +21,9 @@ import type { Database, Json } from "../packages/db.js";
 import { upsertEscalation, type EscalationOutcome } from "../packages/jobs.js";
 import { deliverSafely, type Delivered, type SendKind, type Wire } from "../packages/core.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
-import { queueDraft } from "../draft-queue.js";
+import { queueDraft } from "../receptionist/draft-queue.js";
 import type { BrainMeta, SendPurpose } from "../packages/contracts.js";
-import { unreadableThread, type ThreadState } from "../thread.js";
+import { unreadableThread, type ThreadState } from "../receptionist/thread.js";
 import { logger, errField } from "../log.js";
 
 /**

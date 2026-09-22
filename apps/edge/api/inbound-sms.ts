@@ -24,8 +24,8 @@
 import { text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { smsInboundFrom, smsAsWaMessage } from "../lib/packages/channels.js";
-import { smsSenderFor } from "../lib/sms.js";
-import { planSmsIngress, carrierFor, smsAfterThrow } from "../lib/sms-ingress.js";
+import { smsSenderFor } from "../lib/sms/sms.js";
+import { planSmsIngress, carrierFor, smsAfterThrow } from "../lib/sms/sms-ingress.js";
 import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { IngestFailed } from "../lib/whatsapp/persist.js";
