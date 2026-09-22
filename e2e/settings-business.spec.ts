@@ -315,8 +315,9 @@ const expectPromptSheetQuiet = (page: Page, where: string): Promise<void> =>
 const SWITCH_TOKENS = ["--ok", "--knob"];
 
 /**
- * Every control in a sheet takes a finger: 44px tall, by its box or by the reach it draws around itself (an ::after
- * laid over it, which is how the kit's switch keeps its shape and takes its 44px from the space around it).
+ * Every control in a sheet takes a finger: 44px tall AND 44px wide, by its box or by the reach it draws around itself
+ * (an ::after laid over it, which is how the kit's switch keeps its shape and takes its 44px from the space around it).
+ * Wide as well as tall: a shift's remove drawn in a phone's sheet was 44px tall and 26px wide.
  */
 async function expectFingerSized(page: Page, selector: string, where: string): Promise<void> {
   const small = await page.evaluate((sel) => {
@@ -330,15 +331,14 @@ async function expectFingerSized(page: Page, selector: string, where: string): P
       const r = el.getBoundingClientRect();
       if (!r.height) continue;
       const after = getComputedStyle(el, "::after");
-      const reach =
-        after.content && after.content !== "none" && after.position === "absolute"
-          ? r.height - parseFloat(after.top) - parseFloat(after.bottom)
-          : r.height;
+      const laid = after.content && after.content !== "none" && after.position === "absolute";
+      const tall = Math.max(r.height, laid ? r.height - parseFloat(after.top) - parseFloat(after.bottom) : 0);
+      const wide = Math.max(r.width, laid ? r.width - parseFloat(after.left) - parseFloat(after.right) : 0);
       // Half a pixel for the layout's own rounding: a 44px floor measures 43.99 inside a flex row.
-      if (Math.max(r.height, reach) < 43.5) {
+      if (tall < 43.5 || wide < 43.5) {
         const name = el.getAttribute("aria-label") || (el.textContent ?? "").trim().slice(0, 24);
         out.push(
-          `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} "${name}": ${r.height.toFixed(1)}px`,
+          `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} "${name}": ${wide.toFixed(1)}x${tall.toFixed(1)}px`,
         );
       }
     }
@@ -971,6 +971,32 @@ test.describe("Settings › Business on a real workspace", () => {
       await actOf(page, "hours").tap();
       const hours = '[role="dialog"][data-testid="rec-fold-hours"]';
       await expect(page.locator(hours)).toBeVisible();
+      // A break on Monday, so a shift's remove is drawn to be measured: the control the Settings pane's own sizing
+      // made a finger wide, which a sheet drawn outside the pane lost (26px) until settings.css named the sheet.
+      const monday = page.getByTestId("rec-hours-day-mon");
+      if ((await monday.getAttribute("data-open")) !== "true") await page.getByTestId("rec-hours-switch-mon").tap();
+      await expect(monday).toHaveAttribute("data-open", "true");
+      await page.getByTestId("rec-hours-add-mon").tap();
+      await expect(page.getByTestId("rec-hours-remove-mon-1")).toBeVisible();
+      // The switch just pressed is measured once its colour has landed, not half-way between two tokens.
+      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+      // And the pane's type: the sheet's buttons at the column's size, its times in figures that line up.
+      const typed = await page.evaluate((sel) => {
+        const sheet = document.querySelector(sel)!;
+        const probe = document.createElement("span");
+        probe.style.fontSize = getComputedStyle(document.documentElement).getPropertyValue("--text-sm").trim();
+        sheet.appendChild(probe);
+        const small = getComputedStyle(probe).fontSize;
+        probe.remove();
+        return {
+          buttons: [...sheet.querySelectorAll(".btn-sm")].filter((b) => getComputedStyle(b).fontSize !== small).length,
+          figures: getComputedStyle(sheet.querySelector("#bt-hours-mon-0-open")!).fontVariantNumeric,
+        };
+      }, hours);
+      expect(typed, "the hours' sheet reads in the Settings pane's type").toEqual({
+        buttons: 0,
+        figures: "tabular-nums",
+      });
       await expectNoSidewaysScroll(page, "the hours' sheet", [PANE, `${hours} .rec-sheet-body`]);
       await expectSheetQuiet(page, hours, "the hours' sheet", SWITCH_TOKENS);
       await expectFingerSized(page, hours, "the hours' sheet");

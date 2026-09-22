@@ -1319,15 +1319,17 @@ html.legacy-on .bt-link { position: relative; }
 /* A search keeps room to type in: beside the cap's sentence at 320px it was squeezed to about nothing, and the tools
    wrap (record.css) before it goes under 12rem. */
 .bt-services-search { flex: 1 1 12rem; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--ink-faint); }
-/* The sheet is drawn in .app-root, out of the Settings pane (record-sheet.jsx says why), so the pane's sizing does not
-   reach it: its buttons are a fold's 30px .btn-sm (.settings .btn-sm, above), and a remove is 44px wide under a finger
-   (mobile.css gives .settings' icon buttons that), where it was 26px in both. Scoped to this sheet, not the settings
-   root, which it is not inside. */
-.bt-services-sheet .btn-sm { height: 30px; padding: 0 12px; font-size: var(--text-sm); border-radius: var(--radius-md); }
-.bt-services-sheet .btn-icon.btn-sm { width: 30px; padding: 0; }
+/* The sheets are drawn in .app-root, out of the Settings pane (record-sheet.jsx says why), and so is a fold open on a
+   phone (record-fold.jsx), so the pane's sizing does not reach them: their buttons are a fold's 30px .btn-sm
+   (.settings .btn-sm, above), a remove is 44px wide under a finger (mobile.css gives .settings' icon buttons that),
+   where it was 26px, and the numbers line up as the column's do (.settings, tabular-nums). Scoped to the sheets, not
+   the settings root, which they are not inside. */
+:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm { height: 30px; padding: 0 12px; font-size: var(--text-sm); border-radius: var(--radius-md); }
+:is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: 30px; padding: 0; }
 @media (pointer: coarse) {
-  html.legacy-on .bt-services-sheet .btn-icon.btn-sm { width: 44px; }
+  html.legacy-on :is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: 44px; }
 }
+.rec-fold-sheet { font-variant-numeric: tabular-nums; }
 .bt-services-search > .rec-box { flex: 1; }
 .bt-services { display: flex; flex-direction: column; gap: 4px; padding: 0 0 14px; }
 .bt-service-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 0.8fr) 28px; align-items: start; gap: 6px; }
@@ -1348,9 +1350,8 @@ html.legacy-on .bt-link { position: relative; }
 /* At rest the section is its title, who reads it and one door, on the card's own head line. */
 .bt-told-open { flex: none; font-size: var(--text-sm); }
 /* The sheet is wider than a list's: the contents sit beside the blocks. Like the services sheet it is drawn in
-   .app-root, outside the Settings pane, so its buttons are sized here. */
+   .app-root, outside the Settings pane; its buttons are sized with the other sheets' (above). */
 .bt-prompt-sheet { width: min(820px, 92vw); }
-.bt-prompt-sheet .btn-sm { height: 30px; padding: 0 12px; font-size: var(--text-sm); border-radius: var(--radius-md); }
 /* Nothing here to save: the foot is a Close, and on a desktop the head's Close is within reach, so the foot is a
    phone's alone (below). */
 .bt-prompt-sheet .rec-sheet-foot { display: none; }
@@ -1493,7 +1494,7 @@ html.legacy-on .bt-link { position: relative; }
 
 /* While a fold saves, the page's own controls inside it wait as the kit's do (record.css: the gesture says aria-busy),
    and so do a sheet's. */
-.rec-fold[aria-busy="true"] :is(.bt-week-break, .bt-fold-add, .bt-closure .btn, .bt-week-shift .btn, .bt-presets .btn, .bt-token-x, .bt-note .btn, .bt-fallback .btn, .bt-handoff-part .bt-link) { cursor: progress; }
+:is(.rec-fold, .rec-fold-sheet)[aria-busy="true"] :is(.bt-week-break, .bt-fold-add, .bt-closure .btn, .bt-week-shift .btn, .bt-presets .btn, .bt-token-x, .bt-note .btn, .bt-fallback .btn, .bt-handoff-part .bt-link) { cursor: progress; }
 .rec-sheet[aria-busy="true"] :is(.bt-service-row .btn, .rec-sheet-tools .btn, .bt-service-gone .bt-link) { cursor: progress; }
 
 @media (max-width: 760px) {
