@@ -208,7 +208,7 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   assert.ok(page.includes("const span = vm && cal ? cal.spanFor(view, anchor) : null;") && page.includes("cal.covers(vm.days, span.from, span.days)"), "one arithmetic, from contracts through the bridge");
   assert.ok(page.includes("cal.ensure(view, anchor).then((ok) => {"), "a read only when needed");
   assert.ok(page.includes("frames.push(byKey.get(k) || { ...cal.frameOf(k, vm.today), loading: true,"), "the shape from dates, the content from data");
-  assert.ok(page.includes('<div key={view} className={`cal-body ${pending ? "is-loading" : ""}`}'), "a body that arrives");
+  // A body that arrives, dimmed by the one rule while its days are read: run in calendar-honest.test.mjs (C2).
   assert.ok(page.includes('data-testid="cal-today"') && page.includes("disabled={onToday}"), "Today is always there, never shifting the row");
   assert.ok(page.includes('if (e.key === "ArrowLeft")') && page.includes("crTyping()"), "arrows move, unless the person is typing");
   assert.ok(!page.includes("const [busy, setBusy]"), "no click is ever dropped for being early");

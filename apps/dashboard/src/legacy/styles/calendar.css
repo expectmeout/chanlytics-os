@@ -521,7 +521,7 @@
    board, the month, the agenda and the legend below them were cut off with nothing to scroll. */
 .cal-body { flex: 1 1 auto; min-height: 240px; display: flex; flex-direction: column; overflow-y: auto; animation: cal-in 160ms ease-out; transition: opacity 120ms ease; }
 .cal-body > .cal-month, .cal-body > .cal-agenda { flex-shrink: 0; }
-.cal-body.is-loading { opacity: 0.7; }
+/* Days on their way: the one rule (components.css [data-loading] [data-dims]). */
 @keyframes cal-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .cal-body { animation: none; transition: none; } }
 .cal-today-btn[disabled] { opacity: 0.45; cursor: default; }

@@ -13,6 +13,7 @@ import {
   type SurfaceOverride,
   reportsOverride,
   setReportDays,
+  paintHeldReports,
 } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
@@ -420,6 +421,12 @@ export async function setReportRange(days: number): Promise<boolean> {
   const reports = (window as unknown as { __REPORTS?: { days?: number } }).__REPORTS;
   const prev = reports?.days ?? days;
   setReportDays(days);
+  // A period this tab has read paints at once; the read behind it keeps it current (the loading standard's held
+  // views). Only a period never read waits for its read.
+  if (paintHeldReports()) {
+    void refreshSurfaces([reportsOverride]);
+    return true;
+  }
   await refreshSurfaces([reportsOverride]);
   // The override writes the period it fetched. Anything else means the
   // fetch failed and the page is still showing the old period — so the

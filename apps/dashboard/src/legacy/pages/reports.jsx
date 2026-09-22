@@ -198,7 +198,8 @@ const ReportsPage = () => {
     }
   };
   return (
-    <div className="rpt" data-testid={live ? "reports-real" : "reports-sample"}>
+    // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
+    <div className="rpt" data-testid={live ? "reports-real" : "reports-sample"} data-loading={busy ? "" : undefined}>
       <div className="rpt-inner">
         {/* One row above everything: the period, the days it covers, and a door to ask about them. The top bar says
             Reports; the page does not title itself. */}
@@ -216,7 +217,7 @@ const ReportsPage = () => {
             <Icon name="sparkle" size={13} /><span className="rpt-ask-label">Ask about this period</span>
           </button>
         </div>
-        <div className={`rpt-body${busy ? " is-loading" : ""}`} aria-busy={busy ? "true" : "false"}>
+        <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
           <ReportsSections R={R} pick={pick} />
           <GoogleSection days={R.days} />
         </div>

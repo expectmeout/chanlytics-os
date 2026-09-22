@@ -311,6 +311,30 @@ test("Ask about this period asks Ask, in the period's words, and names itself fo
   assert.deepEqual(asked, [{ prompt: "What stood out in my last 7 days?" }]);
 });
 
+test("a period on its way keeps the one showing, dimmed by the one rule every page uses, and says it is busy", async () => {
+  // The loading standard's H: Reports dimmed its own way (.rpt-body.is-loading, at once, to 0.55). It is the shared
+  // rule now -- the page wears data-loading, the body data-dims (components.css): a beat before it dims, so a period
+  // the tab holds (painted at once) never flickers.
+  let land = () => {};
+  globalThis.__setReportDays = () => new Promise((r) => { land = r; });
+  try {
+    let tree = page();
+    assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing on its way");
+    press(tabOf(tree, "90 days"));
+    tree = redraw();
+    assert.equal(byTestId(tree, "reports-real").props["data-loading"], "", "the page says its period is on its way");
+    const body = cls(tree, "rpt-body");
+    assert.equal(body.props["aria-busy"], "true");
+    assert.equal(body.props["data-dims"], true, "and the body is what dims");
+    assert.ok(!String(body.props.className).includes("is-loading"), "by the one rule, not a page's own");
+    // Clearing it is the new answer's (its fetchedAt, an effect this stub runs once): unchanged here.
+    land(true);
+    await settle();
+  } finally {
+    delete globalThis.__setReportDays;
+  }
+});
+
 test("a period that fails to load says so, keeps the one showing, and lets the tabs go again", async () => {
   globalThis.__setReportDays = async () => false;
   try {
