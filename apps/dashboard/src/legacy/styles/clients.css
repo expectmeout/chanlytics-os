@@ -1984,6 +1984,29 @@
 .pl-standing-needs:hover { background: var(--bg-hover); }
 .pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
 .pl-standing-reached { font-variant-numeric: tabular-nums; }
+/* People's head and Leads' are one head on a desktop: the same three bands at the same heights, and tighter than
+   they were. Measured on production at 1445px, 22 Sep: from the rule above, People's search sat 9px lower than
+   Leads' and its list's name 14px lower, from two differences and nothing else --
+     - "2 need you" is a button with a 28px floor, and it made People's line 28px tall where Leads' line of plain
+       words is one line of text. It keeps a 24px target and hands the line back the part the line should not see,
+       as it already hands back its sides (and as the phone does for a thumb, below);
+     - People's list name sat in its section's 20px and Leads' in its own 16px: two rules for one place. Under it
+       the section's own 8px was added to the head's, so People's table started 8px after Leads'. The section
+       gives that back, and a list's next step (.cl-list-action), the one thing that can stand between the name
+       and the table, carries its own gap instead.
+   The rest is the same room taken back on both: the line 12px down, the controls row 8px each side of a search
+   exactly as tall as the 26px buttons beside it (it was ~30px, so the row was sized by its tallest thing and the
+   buttons floated in it), and the list's name 12px under the rule. A phone's head is its own (PeoplePhoneBar). */
+@media (min-width: 901px) {
+  .pl-standing { padding-top: 12px; line-height: 20px; }
+  .pl-standing-needs { min-height: 24px; margin-block: -2px; }
+  .clients .cl-controls { padding-top: 8px; padding-bottom: 8px; }
+  .clients .cl-controls .cl-search-wrap { height: 26px; padding-top: 0; padding-bottom: 0; }
+  .clients .cl-section { padding-top: 12px; padding-bottom: 0; }
+  .clients .cl-list-action { margin-bottom: 8px; }
+  .clients .ld-list-head { padding-top: 12px; }
+  .clients .cl-section-head { margin-bottom: 8px; }
+}
 /* Under the phone's bar (PeoplePhoneBar): the bar keeps its own space above, the line its own below. */
 @media (max-width: 900px) { .pl-standing { padding: 4px 16px 10px; } }
 /* And one under it while more people follow, "N of M loaded" and Show more: in the table's gutter, as the line above. */
