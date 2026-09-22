@@ -272,6 +272,59 @@ const btSaver = () => {
 // as the tab is open, so every page drawn in it finds the queue and the last answer.
 const btTabSaver = btSaver();
 
+/**
+ * The workspace's own door, for the one row of this tab the settings save does not write: the timezone, which is the
+ * workspace's (PATCH workspaces, window.__workspace.setTimezone) and no key of the config.
+ *
+ * It is here, beside the saver, for the saver's reason: it outlives the page. The row once kept "my save is out" in its
+ * own state, so a pane left mid-save and come back to drew an editor that was not busy and told the rail nothing was
+ * saving; a new zone could be picked, and the old save's answer closed the new editor and dropped the pick without a
+ * question. Held here, a page drawn again finds the save still out, its row busy and its box read-only, as a settings
+ * row's is.
+ *
+ * save({ tz, done, flash }) sends one zone at a time (a press while one is out sends nothing). Taken, `done` runs (the
+ * row closes) and the toast says the old row's words; refused, or failed before an answer, the server's words are said
+ * in the danger tone and the editor stays open with the pick. pending() is whether one is out; a page subscribes while
+ * it is on screen; reset() is for tests, as the saver's is.
+ */
+const btZoneDoor = (() => {
+  let out = null;
+  let life = 0;
+  const subs = new Set();
+  const safely = (fn, arg) => {
+    if (typeof fn !== "function") return;
+    try { fn(arg); } catch (err) { if (window.console) window.console.error(err); }
+  };
+  const tell = () => {
+    for (const fn of [...subs]) {
+      try { fn(); } catch (err) { if (window.console) window.console.error(err); }
+    }
+  };
+  return {
+    save(job) {
+      if (out || !window.__workspace || typeof window.__workspace.setTimezone !== "function") return;
+      const mine = life;
+      out = job;
+      tell();
+      const answered = (r) => {
+        if (mine !== life) return;
+        out = null;
+        tell();
+        const ok = !!(r && r.ok);
+        if (ok) safely(job.done);
+        const city = ok && window.__tz && window.__tz.city ? window.__tz.city(r.tz) : ok ? r.tz : null;
+        safely(job.flash, { tone: ok ? "ok" : "danger", msg: ok ? <>Your day is measured in <b>{city}</b> now.</> : <>{(r && r.message) || "That didn't go through."}</> });
+      };
+      let sent;
+      try { sent = window.__workspace.setTimezone(job.tz); } catch (e) { sent = Promise.reject(e); }
+      Promise.resolve(sent).then(answered, (e) => answered({ ok: false, message: e && e.message }));
+    },
+    pending: () => !!out,
+    subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
+    reset() { life += 1; out = null; tell(); },
+  };
+})();
+
 /* ------------------------------------ what each row stores ------------------------------------ */
 
 // The pattern every web address on this tab is checked by: the old form's, which the save's own URL rule backs up.
@@ -386,6 +439,7 @@ const BT_PATCH_OF = {
 };
 
 // window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), base(), subscribe(fn), reset() }),
+// the workspace's own door for the timezone (`zone`: { save({ tz, done, flash }), pending(), subscribe(fn), reset() }),
 // how a job's patch is applied (`patched`) and how one refuses the config it would go on (`refusal`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
 // brain's prompt is the product's own lines under its stored name (`isBaseline`), each row's STORED_AS, CHECK_OF and
 // PATCH_OF by its id. business-tab-folds.jsx adds each fold's paths, keys and helpers to it as it loads.
@@ -396,6 +450,7 @@ Object.assign(window, {
   useFieldSave: useBtFieldSave,
   __businessTabSave: Object.assign(window.__businessTabSave || {}, {
     saver: btTabSaver,
+    zone: btZoneDoor,
     patched: btPatched,
     refusal: btRefusal,
     same: btSame,

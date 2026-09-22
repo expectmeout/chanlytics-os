@@ -49,6 +49,39 @@ const btWorkedOut = (what, fn, otherwise = null) => {
     return otherwise;
   }
 };
+/**
+ * The two questions an open editor asks before anything typed is thrown away, for a row edited in its place and for a
+ * fold alike: Cancel's own, and the registry's, when another row is asked for (or the standing line's door is pressed)
+ * while this one holds changes. Each gesture held a copy of this block, and both copies had the same fault: Cancel armed
+ * its question, another row's act drew the registry's over it, "Keep editing" took the registry's away, and Cancel's
+ * was still armed behind it, so the owner was asked the same thing twice. They are ONE question: whichever is on
+ * screen, its answer answers both.
+ *
+ * useBtAsk() holds whether Cancel's is armed (the one hook here; it stands where each gesture's `arm` stood). btAsks
+ * builds, from it and the gesture's own close and reset, the `cancel` the kit's foot and Escape call and the `confirm`
+ * the kit draws above Save. A gesture's reset disarms, as it always did.
+ */
+const useBtAsk = () => {
+  const [armed, setArmed] = useBizState(false);
+  return { armed, arm: () => setArmed(true), disarm: () => setArmed(false) };
+};
+const btAsks = ({ ask, fold, prefix, busy, dirty, close, reset }) => {
+  const words = { question: "Discard your changes?", detail: "Nothing you changed here has been saved.", yes: "Yes, discard", no: "Keep editing" };
+  return {
+    // Not while it saves: the save is on its way, and closes the editor when the server takes it (record-fold.jsx).
+    cancel: () => {
+      if (busy) return;
+      if (dirty) { ask.arm(); return; }
+      close();
+    },
+    confirm: fold.asking ? (
+      <window.Confirm {...words} danger onYes={() => { reset(); fold.discard(); }} onNo={() => { ask.disarm(); fold.stay(); }} testid={`${prefix}-ask`} />
+    ) : ask.armed ? (
+      <window.Confirm {...words} danger onYes={close} onNo={ask.disarm} testid={`${prefix}-cancel`} />
+    ) : null,
+  };
+};
+
 // What a Save says when its own checks could not run: nothing was sent, and the editor stays open with what was typed.
 const BT_UNCHECKED = "Not saved — this could not be checked, so nothing was sent. Try again, and tell us if it keeps happening.";
 
@@ -73,8 +106,8 @@ const BT_UNCHECKED = "Not saved — this could not be checked, so nothing was se
  * store, which is what "holds changes" is judged by; not `valueOf`, which every props object already has from
  * Object.prototype, so a default for it never applies), `check` (the sentence that stops a save, or null), and
  * `commit` (the one-key change a save makes, with its toast's words). `body` draws the box; it is handed the draft, its
- * setter, what stops it, the field's own ids, and whether the row's save is out (`readOnly`, which the field's props
- * carry too). A disagreement on the row names the other answer and the draft that takes it (`disputed.use`), which
+ * setter, what stops it, the field's own ids, whether the row's save is out (`readOnly`, which the field's props carry
+ * too), and whether the editor is `open`, for a body that works out less while it is not. A disagreement on the row names the other answer and the draft that takes it (`disputed.use`), which
  * saves through the same `commit`.
  *
  * While its save is out the row is not an open, unsaved editor (record-fold.jsx): its box takes no typing, since what
@@ -90,13 +123,20 @@ const BT_UNCHECKED = "Not saved — this could not be checked, so nothing was se
  * saver's base()), which is what it will say is worked out on. The two differ while another save is out, or taken and
  * not read back yet.
  *
+ * `door` is for a row the settings save does not write (the timezone, which is the workspace's): { save(draft, done),
+ * pending() }, the row's own way out in place of the tab's saver and `commit`. Everything else is the row's as for any
+ * other: one editor open, its asks, its box read-only and the registry told while its save is out. Its pending state
+ * must outlive the page, as the saver does (business-tab-save.jsx keeps the zone's); a door that kept it in a
+ * component would draw a page come back to mid-save as not saving. Such a row writes no block of the prompt, and says
+ * nothing it will say.
+ *
  * `named` is what the row holds, said as a thing, where its label is a phrase: a screen reader hears the act as its
  * words and the label together, and "Change Tells customers to call" says nothing, where "Change the number customers
  * are told to call" does. A row whose label is a noun needs none ("Change Website", "Add one Address").
  */
 const BtRow = ({
   id, section = null, label, named = null, brain, base = null, value = null, empty = null, hint = null, source = null,
-  disputed = null, wrong = null, initial, storedAs: stores = null, check = btNoCheck, commit, body,
+  disputed = null, wrong = null, initial, storedAs: stores = null, check = btNoCheck, commit = null, door = null, body,
   channel = "whatsapp", canEdit = true, gate = null, flash = () => {}, saver = null,
 }) => {
   // What saving writes is business-tab-save.jsx's, read as the row draws (that file loads before this one).
@@ -105,7 +145,7 @@ const BtRow = ({
   const storedAs = stores || S.trimmed;
   const [draft, setDraft] = useBizState(null);
   const [problem, setProblem] = useBizState(null);
-  const [arm, setArm] = useBizState(false);
+  const ask = useBtAsk();
   // What the registry reads when it asks whether this row holds changes. A keystroke lands here as it is typed, so a
   // press on another row straight after typing is asked about even before the page has drawn again.
   const live = useBizRef({ draft: null, initial: null, storedAs, open: false });
@@ -115,8 +155,9 @@ const BtRow = ({
   };
   // The tab's one saver (business-tab-save.jsx): this row's save waits its turn behind any other, and goes on the
   // config current then. The registry asks whether it is out as it asks whether the row holds changes: when it needs to.
-  const busy = saver ? saver.pending(id) : false;
-  const fold = window.useRecordFold(id, { dirty: holds, saving: () => !!(saver && saver.pending(id)) });
+  const out = () => (door ? !!door.pending() : !!(saver && saver.pending(id)));
+  const busy = out();
+  const fold = window.useRecordFold(id, { dirty: holds, saving: out });
   // A role that may not change the business never has an editor, whatever asked for one.
   const open = fold.open && canEdit;
   live.current.initial = initial;
@@ -127,19 +168,15 @@ const BtRow = ({
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
-  const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); setArm(false); };
+  const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); ask.disarm(); };
   useBizEffect(() => { if (!open) reset(); }, [open]);
 
   // Nothing is typed into a save that is out: the box is read-only then, and this is the same rule for whatever else
-  // the row's body draws.
-  const set = (d) => { if (busy) return; live.current.draft = d; setDraft(d); if (problem) setProblem(null); if (arm) setArm(false); };
+  // the row's body draws. Asked at the moment of the change: a press made before the page has drawn again is live.
+  const set = (d) => { if (out()) return; live.current.draft = d; setDraft(d); if (problem) setProblem(null); if (ask.armed) ask.disarm(); };
   const close = () => { reset(); fold.close(); };
   const refused = !!(gate && gate["aria-disabled"]);
-  const cancel = () => {
-    if (busy) return;
-    if (dirty) { setArm(true); return; }
-    close();
-  };
+  const asks = btAsks({ ask, fold, prefix: `rec-inline-${id}`, busy, dirty, close, reset });
   const submit = () => {
     if (busy || !open || refused) return;
     const bad = check(now);
@@ -147,8 +184,8 @@ const BtRow = ({
     // Nothing to write is nothing to send: the editor closes and says nothing, since nothing was saved.
     if (!dirty) { close(); return; }
     // Saved with Ctrl or Cmd and Enter while Cancel's question was up: the question is answered.
-    if (arm) setArm(false);
-    save(commit(now), close);
+    if (ask.armed) ask.disarm();
+    if (door) door.save(now, close); else save(commit(now), close);
   };
 
   // What saving would tell the receptionist: the lines of its blocks that the draft changes, and the sentence for a
@@ -157,7 +194,7 @@ const BtRow = ({
   // each call parses the whole brain and resolves a full prompt. Nothing is drawn when nothing changes: never an empty
   // "It will say".
   let says = null;
-  if (dirty && !check(now)) {
+  if (dirty && commit && !check(now)) {
     // Both brains are the saver's: the one this row's save will go on (its base), and that one with this row's patch
     // applied as the saver will apply it (patched), on a copy, so a patch that edits a nested object in place leaves
     // the base as it was. Tried, since it is worked out as the row draws (btWorkedOut).
@@ -189,7 +226,7 @@ const BtRow = ({
   // second copy of it over the box; what it will say describes the box too. Both ids are the kit's (RecordInline).
   const field = { id: `bt-${id}`, label: null, "aria-labelledby": `rec-inline-${id}-key`, "aria-describedby": says ? `rec-inline-${id}-says` : undefined, readOnly: busy || undefined };
   // Drawn on every render, open or not: the box holds hooks of its own (RecordField's id).
-  const inner = body({ draft: now, set, problem, field, gate, readOnly: busy });
+  const inner = body({ draft: now, set, problem, field, gate, readOnly: busy, open });
   return (
     <>
       {open ? null : (
@@ -220,13 +257,9 @@ const BtRow = ({
         gone={says ? says.gone : null}
         goneLabel="It will no longer say"
         note={says ? says.note : null}
-        confirm={fold.asking ? (
-          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={() => { reset(); fold.discard(); }} onNo={fold.stay} testid={`rec-inline-${id}-ask`} />
-        ) : arm ? (
-          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={close} onNo={() => setArm(false)} testid={`rec-inline-${id}-cancel`} />
-        ) : null}
+        confirm={asks.confirm}
         onSave={submit}
-        onCancel={cancel}
+        onCancel={asks.cancel}
         saving={busy}
         gate={gate}
       >
@@ -311,7 +344,7 @@ const BtFold = ({
   const S = window.__businessTabSave;
   const [draft, setDraft] = useBizState(null);
   const [problems, setProblems] = useBizState(null);
-  const [arm, setArm] = useBizState(false);
+  const ask = useBtAsk();
   // The row a list was just given, for the kit to put focus in (rows' add).
   const [focusOn, setFocusOn] = useBizState(null);
   // What the registry, an Undo and a keystroke read: the latest draft, whatever the page has drawn since.
@@ -333,7 +366,7 @@ const BtFold = ({
   const open = fold.open && canEdit && !!base && !!stored;
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
-  const reset = () => { live.current.draft = null; live.current.opened = null; setDraft(null); setProblems(null); setArm(false); setFocusOn(null); };
+  const reset = () => { live.current.draft = null; live.current.opened = null; setDraft(null); setProblems(null); ask.disarm(); setFocusOn(null); };
   useBizEffect(() => { if (!open) reset(); }, [open]);
   if (open && live.current.opened == null) { live.current.opened = stored.draft; live.current.opening += 1; }
   live.current.open = open;
@@ -355,7 +388,7 @@ const BtFold = ({
       keys.forEach((k) => { delete left[k]; });
       return Object.keys(left).length ? left : null;
     });
-    setArm(false);
+    ask.disarm();
     return true;
   };
   const undo = (fn) => {
@@ -404,11 +437,7 @@ const BtFold = ({
   });
   const close = () => { reset(); fold.close(); };
   const refused = !!(gate && gate["aria-disabled"]);
-  const cancel = () => {
-    if (busy) return;
-    if (dirty) { setArm(true); return; }
-    close();
-  };
+  const asks = btAsks({ ask, fold, prefix: `rec-fold-${id}`, busy, dirty, close, reset });
   const submit = () => {
     if (busy || !open || refused) return;
     if (draft == null) { close(); return; }
@@ -425,7 +454,7 @@ const BtFold = ({
     if (!judged) { flash({ tone: "danger", msg: <>{BT_UNCHECKED}</> }); return; }
     if (judged.problems) { setProblems(judged.problems); return; }
     if (judged.nothing) { close(); return; }
-    if (arm) setArm(false);
+    if (ask.armed) ask.disarm();
     saver.save(judged.job);
   };
 
@@ -463,13 +492,9 @@ const BtFold = ({
         note={will ? will.note : null}
         footNote={footNote}
         focusOn={focusOn}
-        confirm={fold.asking ? (
-          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={() => { reset(); fold.discard(); }} onNo={fold.stay} testid={`rec-fold-${id}-ask`} />
-        ) : arm ? (
-          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={close} onNo={() => setArm(false)} testid={`rec-fold-${id}-cancel`} />
-        ) : null}
+        confirm={asks.confirm}
         onSave={submit}
-        onCancel={cancel}
+        onCancel={asks.cancel}
         saving={busy}
         saveLabel={saveLabel}
         gate={gate}
@@ -845,7 +870,13 @@ const BusinessTab = ({ flash = () => {} }) => {
   // done, for as long as the page is on screen.
   const [, setTick] = useBizState(0);
   const saver = window.__businessTabSave.saver;
-  useBizEffect(() => saver.subscribe(() => setTick((n) => n + 1)), [saver]);
+  // And the zone's own door, which is the tab's for the same reason (business-tab-save.jsx): one effect hears both.
+  const zone = window.__businessTabSave.zone;
+  useBizEffect(() => {
+    const bump = () => setTick((n) => n + 1);
+    const stops = [saver.subscribe(bump), zone ? zone.subscribe(bump) : null];
+    return () => stops.forEach((stop) => { if (stop) stop(); });
+  }, [saver, zone]);
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) return null;
@@ -870,5 +901,5 @@ const BusinessTab = ({ flash = () => {} }) => {
   );
 };
 
-// BtFold is the page's fold, for the cards that live in files of their own.
-Object.assign(window, { BusinessTab, BtFold });
+// BtRow and BtFold are the page's two gestures, for the cards that live in files of their own.
+Object.assign(window, { BusinessTab, BtRow, BtFold });

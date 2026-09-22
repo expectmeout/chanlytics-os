@@ -140,6 +140,8 @@ const drawTab = ({ profile = melany, conflicts = [], flash = () => {}, brain = {
   unmount();
   W.__recordFolds.reset();
   W.__businessTabSave.saver.reset();
+  // The zone's own door outlives the page too, and a zone the last test left out is not this record's.
+  W.__businessTabSave.zone.reset();
   return W.React.createElement(W.BusinessTab, { flash });
 };
 // The last page drawn goes as React would take it away: the calendar row keeps one timer for as long as the Calendar
@@ -2723,4 +2725,89 @@ test("a list inside a fold keeps its cap through an Undo too: a removed row is p
   press(byTestId(tree, "rec-hours-add-tue"));
   tree = redrawTab(flash);
   assert.equal(all(dayOf(tree, "tue"), (n) => n.type === "input" && /opens$/.test(n.props["aria-label"])).length, MAX_INTERVALS_PER_DAY);
+});
+
+test("a zone being saved outlives the page that sent it: come back mid-save and the row is busy, and its answer throws nothing away", async () => {
+  // The quality review's probe. The zone row kept "my save is out" in its own state, where every other row asks the
+  // saver. The rail's "Yes, leave" took the pane away mid-save; back on it, the reopened editor was not busy and the
+  // rail was told nothing was saving, so a new zone could be picked, and the OLD save's answer closed the new editor
+  // and dropped the pick without a question.
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let answer = null;
+  const asked = [];
+  W.__workspace = { setTimezone: (tz) => new Promise((resolve) => { asked.push(tz); answer = () => resolve({ ok: true, tz, message: "" }); }) };
+  try {
+    let tree = drawTab({ flash });
+    openFold(tree, "timezone");
+    tree = redrawTab(flash);
+    press(byTestId(tree, "rec-inline-timezone-device"));
+    tree = redrawTab(flash);
+    saveRow(tree, "timezone");
+    tree = redrawTab(flash);
+    assert.deepEqual([inline(tree, "timezone").props["aria-busy"], W.__settingsSaving()], [true, true]);
+    // The pane goes, and comes back before the save has answered.
+    unmount();
+    await settle();
+    assert.equal(W.__businessTabSave.zone.pending(), true, "the save is the tab's, not the page's");
+    tree = W.React.createElement(W.BusinessTab, { flash });
+    openFold(tree, "timezone");
+    tree = redrawTab(flash);
+    const box = () => find(inline(tree, "timezone"), (n) => n.props?.role === "combobox");
+    assert.deepEqual([inline(tree, "timezone").props["aria-busy"], W.__settingsSaving(), box().props.readOnly], [true, true, true], "REGRESSION: the reopened editor was not busy");
+    assert.equal(textOf(byTestId(tree, "rec-inline-save-timezone")), "Saving…");
+    // Nothing can be picked under it, so nothing is there for its answer to throw away.
+    box().props.onChange({ target: { value: "denver" } });
+    tree = redrawTab(flash);
+    assert.equal(all(inline(tree, "timezone"), (n) => n.props?.role === "option").length, 0);
+    saveRow(tree, "timezone");
+    assert.deepEqual(asked, ["America/Chicago"], "and a second press sends nothing more");
+    // The door itself sends one zone at a time, whoever asks it: it is the tab's, not the row's.
+    W.__businessTabSave.zone.save({ tz: "America/Denver", done: () => {}, flash });
+    assert.deepEqual(asked, ["America/Chicago"]);
+    answer();
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual([openRows(tree), W.__settingsSaving()], [[], false]);
+    assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Your day is measured in Chicago now.");
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("Cancel's question and another row's are one question: answered once, asked once", () => {
+  // Cancel armed its own Confirm; another row's act then drew the registry's over it; "Keep editing" took the
+  // registry's away and Cancel's was still armed behind it, so the owner was asked the same thing twice. Both gestures
+  // held a copy of this block; it is one helper now.
+  const asks = (tree, within) => all(within(tree), (n) => n.type === W.Confirm).map((n) => n.props.testid);
+  let tree = drawTab();
+  openFold(tree, "hours");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.deepEqual(asks(tree, (t) => foldOf(t, "hours")), ["rec-fold-hours-cancel"]);
+  openFold(tree, "website");
+  tree = redrawTab();
+  assert.deepEqual(asks(tree, (t) => foldOf(t, "hours")), ["rec-fold-hours-ask"], "one question on screen");
+  press(byTestId(tree, "rec-fold-hours-ask-no"));
+  tree = redrawTab();
+  assert.deepEqual(asks(tree, (t) => foldOf(t, "hours")), [], "REGRESSION: Cancel's question came back behind it");
+  assert.equal(labelled(tree, "Monday closes").props.value, "17:00", "keep editing keeps what was typed");
+
+  // A row edited in its place, the same.
+  tree = drawTab();
+  openFold(tree, "website");
+  tree = redrawTab();
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab();
+  cancelRow(tree, "website");
+  tree = redrawTab();
+  openFold(tree, "address");
+  tree = redrawTab();
+  assert.deepEqual(asks(tree, (t) => inline(t, "website")), ["rec-inline-website-ask"]);
+  press(byTestId(tree, "rec-inline-website-ask-no"));
+  tree = redrawTab();
+  assert.deepEqual(asks(tree, (t) => inline(t, "website")), []);
 });

@@ -293,102 +293,58 @@ const BtoWeek = ({ draft: week, update, change, rows, press, problems, readOnly 
  * settings saver, so no draft of it can be resolved as the edge resolves one (the bridge's FOLD_BLOCK says so). Once it
  * is saved the settings surface is read again (refresh-map.ts), so the hours fold's hint and block name the new zone.
  *
- * It holds the registry as every row does: one editor open on the page, Cancel with a change asks first, and while its
- * save is out the box takes no typing and what is asked of it waits.
+ * It is a body of the page's BtRow, as every row edited in its place is, and not a third copy of the gesture: the row
+ * keeps the registry, the asks, the read-only box and the busy Save, and this draws the box. Its way out is the zone's
+ * own door (business-tab-save.jsx `zone`), which holds "my save is out" where it outlives the page, and says the old
+ * row's words when the zone is taken.
  */
-const BtoZone = ({ canEdit, gate, flash }) => {
+const btoZoneBox = (T) => ({ draft, set, field, readOnly, open }) => {
+  // The zones are listed only while the editor is open: 418 options worked out for a row at rest are 418 too many.
+  const zones = open && T.known ? T.known() : [];
+  const device = T.device ? T.device() : null;
+  return (
+    <>
+      <window.RecordCombobox
+        id={field.id}
+        label="Timezone"
+        value={draft}
+        options={zones.map((z) => ({ value: z, label: z.replace(/_/g, " ") }))}
+        onChange={set}
+        placeholder="Search for a city"
+        readOnly={readOnly}
+        testid="rec-inline-timezone-zones"
+      />
+      <span className="bt-inline-note" data-testid="rec-inline-timezone-note">
+        {(T.words ? T.words(draft) : { line: draft }).line}
+        {device && device !== draft ? (
+          <> · <button type="button" className="bt-link" onClick={() => set(device)} data-testid="rec-inline-timezone-device">Use this device&rsquo;s ({T.city ? T.city(device) : device})</button></>
+        ) : null}
+      </span>
+    </>
+  );
+};
+
+const BtoZone = ({ brain, canEdit, gate, flash }) => {
   const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
   const current = (ws && ws.timezone) || window.DEFAULT_TIMEZONE || "America/New_York";
   const T = window.__tz || {};
-  const [pick, setPick] = useBtoState(null);
-  const [busy, setBusy] = useBtoState(false);
-  const [arm, setArm] = useBtoState(false);
-  const live = useBtoRef({ pick: null, current, open: false, busy: false });
-  const fold = window.useRecordFold("timezone", {
-    dirty: () => { const l = live.current; return l.open && l.pick != null && l.pick !== l.current; },
-    saving: () => live.current.busy,
-  });
-  // Only where there is a door to save it through: the standalone mockup has none.
-  const open = fold.open && canEdit && !!window.__workspace;
-  live.current.current = current;
-  live.current.open = open;
-  const reset = () => { live.current.pick = null; setPick(null); setArm(false); };
-  useBtoEffect(() => { if (!open) reset(); }, [open]);
-
-  const now = open && pick != null ? pick : current;
-  const dirty = open && now !== current;
-  const words = T.words ? T.words(current) : { line: current };
-  const zones = open && T.known ? T.known() : [];
-  const device = T.device ? T.device() : null;
-  const refused = !!(gate && gate["aria-disabled"]);
-  const choose = (z) => { if (live.current.busy) return; live.current.pick = z; setPick(z); if (arm) setArm(false); };
-  const close = () => { reset(); fold.close(); };
-  const cancel = () => {
-    if (busy) return;
-    if (dirty) { setArm(true); return; }
-    close();
-  };
-  const save = async () => {
-    if (busy || !open || refused) return;
-    // Nothing to write is nothing to send: the old row's Save was dead until the zone changed.
-    if (!dirty) { close(); return; }
-    if (arm) setArm(false);
-    live.current.busy = true;
-    setBusy(true);
-    let r;
-    try {
-      r = await window.__workspace.setTimezone(now);
-    } catch (e) {
-      r = { ok: false, tz: "", message: (e && e.message) || "" };
-    }
-    live.current.busy = false;
-    setBusy(false);
-    if (r.ok) close();
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Your day is measured in <b>{T.city ? T.city(r.tz) : r.tz}</b> now.</> : <>{r.message || "That didn't go through."}</> });
-  };
-
+  const zone = window.__businessTabSave.zone;
+  const Row = window.BtRow;
   return (
-    <>
-      {open ? null : (
-        <window.RecordRow
-          id="timezone"
-          label="Timezone"
-          value={words.line}
-          act={canEdit && window.__workspace ? { label: "Change", onClick: () => fold.request(), gate } : null}
-        />
-      )}
-      <window.RecordInline
-        id="timezone"
-        label="Timezone"
-        open={open}
-        confirm={fold.asking ? (
-          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={() => { reset(); fold.discard(); }} onNo={fold.stay} testid="rec-inline-timezone-ask" />
-        ) : arm ? (
-          <window.Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={close} onNo={() => setArm(false)} testid="rec-inline-timezone-cancel" />
-        ) : null}
-        onSave={save}
-        onCancel={cancel}
-        saving={busy}
-        gate={gate}
-      >
-        <window.RecordCombobox
-          id="bt-timezone"
-          label="Timezone"
-          value={now}
-          options={zones.map((z) => ({ value: z, label: z.replace(/_/g, " ") }))}
-          onChange={choose}
-          placeholder="Search for a city"
-          readOnly={busy}
-          testid="rec-inline-timezone-zones"
-        />
-        <span className="bt-inline-note" data-testid="rec-inline-timezone-note">
-          {(T.words ? T.words(now) : { line: now }).line}
-          {device && device !== now ? (
-            <> · <button type="button" className="bt-link" onClick={() => choose(device)} data-testid="rec-inline-timezone-device">Use this device&rsquo;s ({T.city ? T.city(device) : device})</button></>
-          ) : null}
-        </span>
-      </window.RecordInline>
-    </>
+    <Row
+      id="timezone"
+      label="Timezone"
+      brain={brain}
+      value={(T.words ? T.words(current) : { line: current }).line}
+      initial={current}
+      storedAs={(d) => d}
+      // Only where there is a door to save it through: the standalone mockup has none.
+      canEdit={canEdit && !!window.__workspace}
+      gate={gate}
+      flash={flash}
+      door={{ save: (tz, done) => zone.save({ tz, done, flash }), pending: () => zone.pending() }}
+      body={btoZoneBox(T)}
+    />
   );
 };
 
@@ -676,7 +632,7 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
         body={(f) => <BtoWeek {...f} />}
       />
 
-      <BtoZone canEdit={canEdit} gate={gate("the timezone")} flash={flash} />
+      <BtoZone brain={brain} canEdit={canEdit} gate={gate("the timezone")} flash={flash} />
 
       <Fold
         {...shared}
