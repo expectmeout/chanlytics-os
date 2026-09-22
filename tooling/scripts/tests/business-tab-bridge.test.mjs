@@ -18,6 +18,7 @@ import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
   newReceptionistDefaults, hasProfile, PROFILE_CROSSING_WORDS, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
+  TONE_PRESETS, handoffWords, fallbacksWords,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -85,8 +86,15 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
-    "BOOKING_RULE_HINTS", "GUARDRAIL_KEYS", "abilityRows", "blockShareWords", "bookingHeld", "bookingRuleRefusal", "bookingRulesWords", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "foldName", "needsConsultation", "openWeekWords", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "serviceUndoName", "servicesFoundWords", "servicesSaveWords", "servicesToldWords", "servicesWords", "standingLine",
+    "BOOKING_RULE_HINTS", "GUARDRAIL_KEYS", "RULES_WITHOUT_FIELDS_WORDS", "TONE_PRESETS", "abilityRows", "blockShareWords", "bookingHeld", "bookingRuleRefusal", "bookingRulesWords", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "fallbacksWords", "foldName", "handoffCallWords", "handoffChatWords", "handoffWords", "hasProfile", "instructionsWords", "needsConsultation", "notesWords", "openWeekWords", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "serviceUndoName", "servicesFoundWords", "servicesSaveWords", "servicesToldWords", "servicesWords", "standingLine",
   ]);
+  // How it answers': contracts' own, and the resolver's test of whether a record composes, never a copy of it.
+  for (const p of [null, {}, { guardrails: { disclose_ai: false } }, { handoff_number: "+16465550100" }, { tone: "Warm." }, STORED.profile]) {
+    assert.equal(tab.hasProfile(p), hasProfile(p), JSON.stringify(p));
+  }
+  assert.deepEqual(tab.TONE_PRESETS, TONE_PRESETS);
+  assert.deepEqual(tab.handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"), handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"));
+  assert.equal(tab.fallbacksWords(null).own, fallbacksWords(null).own);
   assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
   // The When you're open card's two sentences with a number in them.
   assert.equal(tab.openWeekWords(STORED.profile.hours, TZ), openWeekWords(STORED.profile.hours, TZ));

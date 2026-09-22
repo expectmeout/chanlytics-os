@@ -12,6 +12,7 @@ import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
   promptBlocks, resolveSystemPrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
+  TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS,
   type PromptBlockVM, type ProfileCrossing, type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -201,9 +202,14 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's. needsConsultation and foldName are the rules the
 // services sheet marks a consult-first service by and searches by: the Calendar's and the phone tool's own, not copies.
 // bookingRuleRefusal is a booking rule's sentence for a number outside its range (business-tab-folds.jsx problemsOf).
+// How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,
+// handoffCallWords), the notes' (notesWords), the owner's own words' (instructionsWords), the three messages'
+// (fallbacksWords), and what the rules fold says on a record whose details compose nothing (RULES_WITHOUT_FIELDS_WORDS),
+// which it asks the resolver's own test of (hasProfile), never a copy of it.
 export const BUSINESS_TAB = {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing, saveIssues, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
+  TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS, hasProfile,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 
