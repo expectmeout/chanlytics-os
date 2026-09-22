@@ -584,6 +584,34 @@ test("the notes stop at ten through Add and through an Undo, and half a note is 
   assert.deepEqual(all(noteRows(tree)[9], (n) => n.type === "input" || n.type === "textarea").map((b) => b.props["aria-invalid"]), [true, true]);
 });
 
+test("a note's sentence goes when that note is changed or a note before it is taken out, and stays while another is changed", () => {
+  // Each note's sentence is under its own field key (note-<i>): a change to note i answers its own, and a removal moves
+  // every later note up a place, so it answers theirs too (BtFold's rows, keysOf).
+  const sent = saving();
+  let tree = drawTab({ profile: { ...melany, notes: notesOf(3) } });
+  openFold(tree, "notes");
+  tree = redrawTab();
+  const half = () => {
+    find(noteRows(tree)[1], (n) => n.type === "textarea").props.onChange({ target: { value: "" } });
+    tree = redrawTab();
+    saveFoldOf(tree, "notes");
+    tree = redrawTab();
+    assert.equal(textOf(byTestId(tree, "rec-note-problem-1")), "Each note needs both a title and the text to say.");
+  };
+  half();
+  find(noteRows(tree)[2], (n) => n.type === "input").props.onChange({ target: { value: "C, again" } });
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-note-problem-1"), "a change to note 3 answers nothing of note 2's");
+  find(noteRows(tree)[1], (n) => n.type === "textarea").props.onChange({ target: { value: "Note B says this again." } });
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-note-problem-1"), null, "note 2 changed, its sentence goes with the change");
+  half();
+  press(byTestId(tree, "rec-note-remove-0"));
+  tree = redrawTab();
+  assert.deepEqual(noteRows(tree).map((_, i) => byTestId(tree, `rec-note-problem-${i}`)), [null, null], "the note before it went, so every later sentence is asked again at Save");
+  assert.equal(sent.length, 0);
+});
+
 /* ------------------------------------ in your own words ------------------------------------ */
 
 test("own words carried from the prompt before the form say so, and the save writes them as the owner's and the product's lines as the prompt", () => {
@@ -633,6 +661,15 @@ test("emptying the only words a record composes from says it stops composing, an
   typeIn(tree, "extra_instructions", "Short.");
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-own-count"), null);
+  // Past what it takes, the refusal is said under the box, and the count gives way to it: one sentence, not two.
+  const over = "x".repeat(20001);
+  typeIn(tree, "extra_instructions", over);
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(over).nearFull, "counted as it is typed");
+  saveFoldOf(tree, "extra_instructions");
+  tree = redrawTab();
+  assert.equal(problemOf(tree, "bt-own-words"), "At most 20,000 characters — this is 20,001.");
+  assert.equal(byTestId(tree, "rec-own-count"), null, "and the count gives way to the refusal under the box");
   // With nothing written, the row says None.
   const none = byTestId(drawTab({ profile: without(melany, "extra_instructions"), brain: { system_prompt: newReceptionistDefaults("Melany's Beauty Salon").system_prompt } }), "rec-row-extra_instructions");
   assert.match(textOf(none), /None/);
