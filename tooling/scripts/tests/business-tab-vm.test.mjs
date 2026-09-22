@@ -377,9 +377,11 @@ test("a photo is looked at when the switch is on, and passed to a person when it
 });
 
 test("both halves of a hand-off open the one row the page draws for them", () => {
+  // The row is "Hands you a customer", whose id is the key its fold saves (business-tab-answers.jsx): "handoff" was a
+  // row nothing drew, so a door to it would have opened nothing.
   const rows = idOf(abilityRows(live));
-  assert.equal(rows.transfer.runsOn.row, "handoff");
-  assert.equal(rows.handoff.runsOn.row, "handoff");
+  assert.equal(rows.transfer.runsOn.row, "escalate_when");
+  assert.equal(rows.handoff.runsOn.row, "escalate_when");
   assert.equal(rows.vision.runsOn.row, "guardrails", "the photo switch sits with the rules it keeps");
   assert.equal(idOf(abilityRows({ ...live, visionOn: true })).vision.runsOn.label, "Turn it off");
 });

@@ -11520,8 +11520,10 @@ function abilityRows(i) {
       // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
       detail: transferWords(i.hasHandoffNumber),
       channels: { voice: i.voiceLive, whatsapp: false },
-      // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt.
-      runsOn: { label: "The transfer number", row: "handoff" },
+      // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt: the row the page draws
+      // as "Hands you a customer", whose id is the key it saves (escalate_when). It shows the transfer number and opens
+      // the Who you are row that changes it.
+      runsOn: { label: "The transfer number", row: "escalate_when" },
       ready: i.voiceLive && i.hasHandoffNumber
     },
     {
@@ -11533,7 +11535,7 @@ function abilityRows(i) {
       // hand-off row's fold says it in the same words (handoffChatWords).
       detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
       channels: { voice: false, whatsapp: i.whatsappLive },
-      runsOn: { label: "Your reasons", row: "handoff" },
+      runsOn: { label: "Your reasons", row: "escalate_when" },
       ready: i.whatsappLive
     },
     {
