@@ -19,6 +19,7 @@ import {
   textOf,
   classes,
   press,
+  atWidth,
 } from "./_legacy-react.mjs";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
@@ -1309,38 +1310,6 @@ test("a fold draws the page's ask above its foot, where the changes it asks abou
 
 /* ------------------------------------ the fold on a phone ------------------------------------ */
 
-/**
- * A window whose width answers the kit's phone query, `(max-width: 760px)`, as a browser's does, and can be resized:
- * resize() changes what the query matches and tells whoever listens, as a browser tells a MediaQueryList's listeners.
- * put() gives the window back the stub's own matchMedia (every other test's desktop).
- */
-const atWidth = (phone) => {
-  const was = W.matchMedia;
-  const heard = new Set();
-  let now = phone;
-  W.matchMedia = (q) => ({
-    media: q,
-    get matches() {
-      return q === "(max-width: 760px)" ? now : false;
-    },
-    addEventListener: (type, fn) => {
-      if (type === "change") heard.add(fn);
-    },
-    removeEventListener: (type, fn) => {
-      heard.delete(fn);
-    },
-  });
-  return {
-    resize(p) {
-      now = p;
-      for (const fn of [...heard]) fn({ matches: p, media: "(max-width: 760px)" });
-    },
-    listening: () => heard.size,
-    put() {
-      W.matchMedia = was;
-    },
-  };
-};
 const dialogOf = (tree) => find(tree, (n) => n.props?.role === "dialog");
 /** A fold as a page draws one, with a field of its own in it. */
 const drawFold = (props, field = W.React.createElement("input", { className: "rec-input", id: "bt-lead" })) => {

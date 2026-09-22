@@ -14,7 +14,19 @@ import {
   PROFILE_CROSSING_WORDS,
   hasProfile,
 } from "@chanlytics/contracts";
-import { again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import {
+  again,
+  unmount,
+  remount,
+  settle,
+  all,
+  find,
+  byTestId,
+  textOf,
+  classes,
+  press,
+  atWidth,
+} from "./_legacy-react.mjs";
 import {
   KNOWN,
   W,
@@ -2130,4 +2142,135 @@ test("a row saved through its own door offers no press on a disagreement: it has
     null,
     "REGRESSION: a press that called a commit the row does not have",
   );
+});
+
+/* ------------------------------------ on a phone ------------------------------------ */
+
+// On a phone a fold is drawn as a sheet rising from the bottom (record-fold.jsx); the page calls it the same way at
+// every width, so everything the page does with a fold holds there: one editor open, the asks, the one-section save.
+/** The fold's own box: the voice's textarea. */
+const voiceBox = (tree) =>
+  find(foldOf(tree, "tone"), (n) => (n.type === "textarea" || n.type === "input") && classes(n).includes("rec-input"));
+const lastDrawn = (tree) =>
+  []
+    .concat(tree.rendered.props.children)
+    .filter((c) => c != null && c !== false)
+    .at(-1);
+
+test("on a phone a row opens as a sheet from the bottom, asks there, and its save sends only that fold's keys", () => {
+  const width = atWidth(true);
+  try {
+    const sent = saving();
+    let tree = drawTab();
+    const stored = structuredClone(W.__SETTINGS.config);
+    openFold(tree, "tone");
+    tree = redrawTab();
+    const sheet = foldOf(tree, "tone");
+    assert.deepEqual(
+      [sheet.props.role, sheet.props["aria-modal"], sheet.props["aria-labelledby"]],
+      ["dialog", true, "rec-fold-tone-label"],
+      "a modal dialog, named by the row's label",
+    );
+    assert.equal(voiceBox(tree).props["aria-labelledby"], "rec-fold-tone-label", "and the box is named by it too");
+    assert.deepEqual(openFolds(tree), ["tone"]);
+    voiceBox(tree).props.onChange({ target: { value: "Calm and kind." } });
+    tree = redrawTab();
+
+    // Another row asked for: the one holding changes asks, in its sheet, above its Save.
+    openFold(tree, "booking_rules");
+    tree = redrawTab();
+    assert.deepEqual(openFolds(tree), ["tone"], "one editor open, as at any width");
+    const foot = find(foldOf(tree, "tone"), (n) => classes(n).includes("rec-sheet-foot"));
+    assert.match(textOf(byTestId(foot, "rec-fold-tone-ask-confirm")), /Discard your changes\?/, "in the sheet's foot");
+    press(byTestId(tree, "rec-fold-tone-ask-no"));
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "rec-fold-tone-ask-confirm"), null);
+    assert.equal(voiceBox(tree).props.value, "Calm and kind.", "Keep editing keeps what was typed");
+
+    saveFoldOf(tree, "tone");
+    tree = redrawTab();
+    const expected = structuredClone(stored);
+    expected.brain.profile.tone = "Calm and kind.";
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].config, expected, "the stored config with the voice written, and nothing else");
+    assert.deepEqual(openFolds(tree), [], "taken, the sheet goes");
+    assert.equal(
+      find(tree, (n) => n.props?.role === "dialog"),
+      null,
+    );
+  } finally {
+    width.put();
+  }
+});
+
+test("a window that crosses a phone's width while a row is open keeps it open, and keeps what was typed", () => {
+  // Decided in Task 6.2b: the frame is the kit's and the draft is the page's, so a width crossed while a fold is open
+  // draws the same fold in the other frame, and nothing is asked. A phone turned on its side, or a window dragged
+  // narrower, is not a person leaving what they typed.
+  const width = atWidth(true);
+  try {
+    let tree = drawTab();
+    openFold(tree, "tone");
+    tree = redrawTab();
+    voiceBox(tree).props.onChange({ target: { value: "Calm and kind." } });
+    tree = redrawTab();
+    width.resize(false);
+    tree = redrawTab();
+    const fold = foldOf(tree, "tone");
+    assert.deepEqual([fold.props.role, fold.props.hidden], ["group", undefined], "a desktop's fold, still open");
+    assert.equal(voiceBox(tree).props.value, "Calm and kind.", "with what was typed");
+    assert.equal(W.__settingsUnsaved(), true, "and still asked about before it is thrown away");
+    width.resize(true);
+    tree = redrawTab();
+    assert.equal(foldOf(tree, "tone").props.role, "dialog", "and a sheet again");
+    assert.equal(voiceBox(tree).props.value, "Calm and kind.");
+  } finally {
+    width.put();
+  }
+});
+
+test("on a phone the sheet slot is still the page's last child: a row's sheet is drawn where its fold is, and every row keeps its own", () => {
+  // A row's sheet is not the slot's. The slot is for what is drawn only while open (the kit's RecordSheet, which holds
+  // hooks then and none while closed); a fold holds the same hooks drawn open or closed, as a sheet or under its row,
+  // so it is drawn where the row is and moves no cell after it. The registry keeps one editor open at a time, so a
+  // row's sheet and the slot's never stand on the page together.
+  const width = atWidth(true);
+  try {
+    const at = (t) =>
+      ["rec-row-tone", "rec-row-services", "rec-row-booking_rules"].map((id) => textOf(byTestId(t, id)));
+    let tree = drawTab();
+    const rest = at(tree);
+    openFold(tree, "hours");
+    tree = redrawTab();
+    assert.equal(lastDrawn(tree).type, W.BtSheetSlot, "the slot is still last");
+    assert.equal(
+      find(lastDrawn(tree), (n) => n.props?.role === "dialog"),
+      null,
+      "and draws no sheet of the row's",
+    );
+    assert.equal(
+      find(byTestId(tree, "rec-card-open"), (n) => n.props?.role === "dialog")?.props["data-testid"],
+      "rec-fold-hours",
+      "the row's sheet is drawn by its own card",
+    );
+    assert.deepEqual(at(tree), rest, "every row after it says what it said");
+    typeAt(tree, "Monday closes", "17:00");
+    tree = redrawTab();
+    assert.equal(labelled(tree, "Monday closes").props.value, "17:00");
+    press(byTestId(tree, "rec-fold-cancel-hours"));
+    tree = redrawTab();
+    press(byTestId(tree, "rec-fold-hours-cancel-yes"));
+    tree = redrawTab();
+    assert.deepEqual(at(tree), rest);
+    // The slot's own sheet opens after it, as it always did.
+    press(byTestId(tree, "rec-row-act-services"));
+    tree = redrawTab();
+    assert.deepEqual(
+      all(tree, (n) => n.props?.role === "dialog").map((n) => n.props["data-testid"]),
+      ["rec-sheet-services"],
+    );
+    assert.equal(lastDrawn(tree).type, W.BtSheetSlot);
+  } finally {
+    width.put();
+  }
 });
