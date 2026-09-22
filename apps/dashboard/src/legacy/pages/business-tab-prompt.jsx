@@ -173,8 +173,10 @@ const BtPromptSheet = ({ prompt, brain, canEdit = true }) => {
               <span className="bt-prompt-bar" aria-hidden="true">
                 <span className="bt-prompt-bar-fill" style={{ width: `${b.share * 100}%` }} />
               </span>
-              <span className="rec-sr" id={`bt-prompt-cost-${b.id}`}>{cost(b)}</span>
             </button>
+            {/* Beside the button, not in it: text inside a button, hidden or not, is part of its name, and the count
+                was heard twice, as the name and again as the description. */}
+            <span className="rec-sr" id={`bt-prompt-cost-${b.id}`}>{cost(b)}</span>
           </li>
         ))}
       </ol>

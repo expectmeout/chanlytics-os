@@ -78,6 +78,9 @@ test("the contents lists one entry per block, with what each costs: a share on s
     );
     assert.equal(entry.props.title, promptCostWords(b.chars, total), "and for a pointer");
     assert.doesNotMatch(onScreen(entry), /\d/, `${b.id}: no number on the glass`);
+    // Nor in its NAME: a visually hidden span inside the button still names it, so the count was heard twice, once as
+    // the entry's name and once as its description. The name is everything the button holds, hidden text included.
+    assert.doesNotMatch(textOf(entry), /\d/, `${b.id}: the entry's name is its label alone`);
     const bar = find(entry, (n) => classes(n).includes("bt-prompt-bar-fill"));
     assert.equal(bar.props.style.width, `${b.share * 100}%`, `${b.id}: its bar is its share`);
   });
