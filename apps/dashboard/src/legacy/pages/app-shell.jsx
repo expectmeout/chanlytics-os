@@ -188,40 +188,12 @@ const ClientNotFound = ({ onNavigate }) => (
   </div>
 );
 
-// ---- Route skeleton (perceived loading on navigation) -------------------
-const RouteSkeleton = ({ pane, surface }) => (
-  // data-surface, so the skeleton's rail can be the width the surface's rail
-  // will be. Without it Settings loaded behind a 340px rail and settled into a
-  // 220px one.
-  <div className={`skel-page ${pane ? "pane" : ""}`} data-surface={surface} aria-hidden="true">
-    <div className="skel-head">
-      <div>
-        <div className="skel skel-title" />
-        <div className="skel skel-sub" />
-      </div>
-      <div className="skel skel-stats" />
-    </div>
-    {pane ? (
-      <div className="skel-pane">
-        <div className="skel-rail">
-          {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="skel skel-row" />)}
-        </div>
-        <div className="skel-main">
-          <div className="skel skel-block lg" />
-          <div className="skel skel-block" />
-          <div className="skel skel-block sm" />
-        </div>
-      </div>
-    ) : (
-      <div className="skel-main">
-        <div className="skel skel-block lg" />
-        <div className="skel-grid">
-          {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="skel skel-card" />)}
-        </div>
-      </div>
-    )}
-  </div>
-);
+// ---- A route on its way ---------------------------------------------------
+// Until its surface lands, the pane a page will fill stays empty and busy, and one status line says it is reading;
+// the words wait a beat (components.css .route-reading), so a surface that lands fast is never said. Never a
+// skeleton: the one that stood here matched no page and moved every page when it left (what was measured is in
+// layout-measure.test.mjs). The route view is keyed on readiness, so the route-in fade plays on the page as it
+// lands rather than on the empty pane.
 
 // ---- Shell -------------------------------------------------------------
 // ---- Phone tab bar --------------------------------------------------------
@@ -766,7 +738,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     if (routeReady(page, param)) return;
     // Re-render when readiness changes; the render below reads the truth.
     const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => setReadyTick((n) => n + 1)) : null;
-    // Never strand the operator on a skeleton forever — but time out INTO the
+    // Never strand the operator on the reading pane forever — but time out INTO the
     // unavailable pane, never into the mockup's seeds.
     const t = setTimeout(() => setRouteTimedOut(true), 8000);
     return () => { if (off) off(); clearTimeout(t); };
@@ -839,10 +811,14 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <LiveCallBar />
         <ShellStatusBar />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
-        <div key={mountKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>
+        <div
+          key={routeLoading ? `${mountKey}/reading` : mountKey}
+          className={`main-scroll route-view ${pane ? "pane" : ""}`}
+          aria-busy={routeLoading ? "true" : undefined}
+        >
           <ShellErrorBoundary>
             {routeLoading
-              ? <RouteSkeleton pane={pane} surface={page} />
+              ? <div className="route-reading" role="status">Reading…</div>
               : surfaceUnavailable
                 ? <SurfaceUnavailable onNavigate={navigate} />
                 : content}

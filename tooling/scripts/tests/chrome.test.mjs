@@ -213,7 +213,10 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   assert.ok(shell.includes('const routeKey = `${page}/${param || ""}`;'), "the GATE still asks per pane");
   // What it mounts under is a separate question, and it is asked of the shell as drawn (shell-status.test.mjs: one
   // mount for Broadcasts and its runs, one for every view of Leads), not of its source.
-  assert.ok(shell.includes("<div key={mountKey}"), "and the surface is keyed on that, not on the gate key");
+  assert.ok(
+    shell.includes("key={routeLoading ? `${mountKey}/reading` : mountKey}"),
+    "and the surface is keyed on that, not on the gate key -- and on readiness while its surface is on its way, so the route-in fade plays on the page as it lands",
+  );
   assert.ok(shell.includes("routeReady(page, param)"), "the readiness check still sees the param");
 
   // Opt-IN, and only for a surface that follows its param: which pages are one mount across their address is run
