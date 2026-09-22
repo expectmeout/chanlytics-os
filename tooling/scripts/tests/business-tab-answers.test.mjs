@@ -884,9 +884,10 @@ test("own words carried from the prompt before the form say so, and the save wri
   const sent = saving();
   const before = "You answer for the studio. Parking is behind the building, and we never book walk-ins after five.";
   let tree = drawTab({ brain: { system_prompt: before } });
-  // At rest: its size and its opening, contracts' words.
+  // At rest: its opening, contracts' words, and no count of any kind.
   const words = instructionsWords(before);
-  assert.equal(textOf(byTestId(tree, "rec-own-words")), `${words.size}${words.opening}`);
+  assert.equal(textOf(byTestId(tree, "rec-own-words")), words.opening);
+  assert.equal(textOf(byTestId(tree, "rec-row-extra_instructions")).includes("characters"), false);
   openFold(tree, "extra_instructions");
   tree = redrawTab();
   assert.match(
@@ -917,7 +918,7 @@ test("own words carried from the prompt before the form say so, and the save wri
   assert.equal(byTestId(tree, "rec-own-carried"), null);
 });
 
-test("emptying the only words a record composes from says it stops composing, and the count shows near the end", () => {
+test("emptying the only words a record composes from says it stops composing, and the box counts the room left", () => {
   const profile = { extra_instructions: "Only these words.", guardrails: { never_quote_prices: true } };
   let tree = drawTab({ profile });
   openFold(tree, "extra_instructions");
@@ -930,19 +931,20 @@ test("emptying the only words a record composes from says it stops composing, an
     [],
     "no block to quote a line of: the sentence says all of it",
   );
-  // Past four fifths of what the receptionist takes, the box says how close it is, in contracts' words.
+  // Under the box, how much room is left, with the limit in it, in contracts' words -- from the first character, not
+  // only near the end: the count is the box's now, and a count nobody sees until four fifths is a surprise.
   const long = "x".repeat(16001);
   typeIn(tree, "extra_instructions", long);
   tree = redrawTab();
-  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(long).nearFull);
+  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(long).limit);
   typeIn(tree, "extra_instructions", "Short.");
   tree = redrawTab();
-  assert.equal(byTestId(tree, "rec-own-count"), null);
+  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords("Short.").limit);
   // Past what it takes, the refusal is said under the box, and the count gives way to it: one sentence, not two.
   const over = "x".repeat(20001);
   typeIn(tree, "extra_instructions", over);
   tree = redrawTab();
-  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(over).nearFull, "counted as it is typed");
+  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(over).limit, "counted as it is typed");
   saveFoldOf(tree, "extra_instructions");
   tree = redrawTab();
   assert.equal(problemOf(tree, "bt-own-words"), "At most 20,000 characters — this is 20,001.");

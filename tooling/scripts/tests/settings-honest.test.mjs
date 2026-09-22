@@ -359,6 +359,31 @@ test("REGRESSION (S24): the Settings rail says which page is open -- only its co
   assert.equal(textOf(current[0]).trim(), "Business");
 });
 
+test("what the receptionist is told says who reads it at rest, and counts itself only once it is open", () => {
+  workspace();
+  const was = globalThis.window.__composedPrompt;
+  const text = "x".repeat(4345);
+  try {
+    globalThis.window.__composedPrompt = () => ({ text, now: "It is 7:23 PM.", tz: "America/New_York" });
+    let tree = settings("workspace");
+    const card = find(tree, (n) => String(n.props?.className || "").includes("set-prompt-meta"));
+    assert.equal(textOf(card), "every WhatsApp message, word for word", "one phrase, and no count");
+    assert.equal(
+      textOf(tree).includes(`${text.length.toLocaleString()} characters`),
+      false,
+      "a closed section counts nothing: the number is not one anybody can act on from outside it",
+    );
+    press(buttonSaying(tree, "Show"));
+    tree = again("workspace");
+    assert.ok(
+      textOf(tree).includes(`${text.length.toLocaleString()} characters`),
+      "opened, the count sits with the text it counts",
+    );
+  } finally {
+    globalThis.window.__composedPrompt = was;
+  }
+});
+
 /* ------------------------------ checks and removals ------------------------------ */
 
 test("REGRESSION (S16): a check that fails does not wear the green check of success -- the checks on Settings did", () => {

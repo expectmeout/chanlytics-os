@@ -13791,12 +13791,10 @@ function notesWords(notes) {
 var OPENING_SHOWN = 72;
 function instructionsWords(text) {
   const t = typeof text === "string" ? text.trim() : "";
-  if (!t) return { size: null, opening: null, nearFull: null };
-  const n = t.length;
+  if (!t) return { opening: null, limit: null };
   return {
-    size: plural6(n, "character", "characters"),
     opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
-    nearFull: n > INSTRUCTIONS_MAX * 0.8 ? `${count(n)} of ${count(INSTRUCTIONS_MAX)} characters` : null
+    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`
   };
 }
 function fallbacksWords(fallbacks) {

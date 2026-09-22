@@ -786,6 +786,9 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   font-weight: 600;
 }
 .set-prompt-sep { color: var(--ink-dim); }
+/* The count sits with the text it counts, inside the opened section, so the head at rest is a heading, a phrase and
+   one door. */
+.set-prompt-meta-open { padding-top: 2px; }
 
 .set-prompt-tabs {
   display: flex;

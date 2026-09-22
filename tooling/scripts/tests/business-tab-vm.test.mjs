@@ -954,24 +954,27 @@ test("the notes row names the first four by title, and how many more", () => {
   assert.deepEqual(notesWords("Parking"), { count: 0, chips: [], more: null });
 });
 
-test("the owner's own words are said by their size and their opening, cut at a word, and counted near the end", () => {
+test("the owner's own words are said by their opening, cut at a word; their size is a number for the box, not the row", () => {
   const words =
     "Never discuss competitors. A first name is all the personal data you need, and nothing is ever booked by text.";
   const said = instructionsWords(`  ${words}  `);
-  assert.equal(said.size, `${words.length} characters`);
   assert.equal(said.opening, "“Never discuss competitors. A first name is all the personal data you…”");
-  assert.equal(said.nearFull, null, "far from the end, nothing is counted");
   assert.equal(instructionsWords("Short.").opening, "“Short.”", "short enough to quote whole");
-  assert.equal(instructionsWords("One").size, "3 characters");
-  assert.equal(instructionsWords("x".repeat(1180)).size, "1,180 characters");
-  assert.deepEqual(instructionsWords("   "), { size: null, opening: null, nearFull: null });
-  // Past four fifths of what the receptionist takes, the box says how close it is: the old form's count.
+  assert.deepEqual(instructionsWords("   "), { opening: null, limit: null });
+  // The count says how much room is left rather than how long the words are: a number alone is one an owner cannot
+  // act on, and it sat on the row at rest, where nothing can be done about it. It is the box's, with the limit beside it.
+  assert.equal(
+    instructionsWords("One").limit,
+    `3 of ${INSTRUCTIONS_MAX.toLocaleString("en-US")} characters`,
+    "counted from the first character, never only near the end",
+  );
   const near = "x".repeat(INSTRUCTIONS_MAX * 0.8 + 1);
   assert.equal(
-    instructionsWords(near).nearFull,
+    instructionsWords(near).limit,
     `${near.length.toLocaleString("en-US")} of ${INSTRUCTIONS_MAX.toLocaleString("en-US")} characters`,
   );
-  assert.equal(instructionsWords("x".repeat(INSTRUCTIONS_MAX * 0.8)).nearFull, null, "at four fifths exactly, not yet");
+  assert.equal(said.size, undefined, "the row states no count of its own");
+  assert.equal(said.nearFull, undefined);
 });
 
 test("the three messages say how many differ from the default wording, never who wrote them", () => {

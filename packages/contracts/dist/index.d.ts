@@ -10800,17 +10800,18 @@ declare function notesWords(notes: readonly ({
 } | null | undefined)[] | null | undefined): NotesWordsVM;
 /** The owner's own words, at rest and in their box. */
 interface InstructionsWordsVM {
-    /** "1,180 characters"; null with nothing written. */
-    size: string | null;
     /** Their opening, quoted and cut at a word; null with nothing written. */
     opening: string | null;
-    /** "16,400 of 20,000 characters", past four fifths of what the receptionist takes (INSTRUCTIONS_MAX); null under it. */
-    nearFull: string | null;
+    /** "339 of 20,000 characters", for the foot of the box that edits them; null with nothing written. */
+    limit: string | null;
 }
 /**
- * "In your own words", said with its size (the canvas's Record board: "1,180 characters" and the opening, quoted), and,
- * once the box holds more than four fifths of what the receptionist takes, how close it is to the end: the old form's
- * count, under the box, whose number is the save's own limit (INSTRUCTIONS_MAX).
+ * "In your own words": at rest, their opening, quoted, and nothing else.
+ *
+ * The row said "1,180 characters" first, in front of the words themselves. A length is not a fact an owner can do
+ * anything about while they are reading the page, and on a phone it took the space the opening needed. What IS worth
+ * saying is how much room is left, and that belongs beside the box where words are typed -- with the limit in it, so
+ * the number has something to mean (INSTRUCTIONS_MAX, the save's own).
  */
 declare function instructionsWords(text: string | null | undefined): InstructionsWordsVM;
 /** The fallbacks row at rest. */

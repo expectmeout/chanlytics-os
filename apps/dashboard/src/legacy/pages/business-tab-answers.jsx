@@ -353,13 +353,14 @@ const BtaNotes = ({ draft, rows, press, problems, readOnly }) => {
  * receptionist quietly disappears the moment it fills in a form: contracts chooses them (S4, draftOf's
  * __instructionsDraft), the owner's own, or the prompt from before the form, carried and said so here -- never the
  * product's opening lines, which no owner wrote. Its save is the one that writes the stored prompt too (saveFold, S4).
- * Past four fifths of what the receptionist takes, the box says how close it is (contracts instructionsWords).
+ * The count of what is written sits under the box, with the limit in it, and nowhere else: at rest the row says the
+ * words, not how many characters they are (contracts instructionsWords).
  */
 const BtaOwnWords = ({ draft, update, problems, readOnly }) => {
   const tab = window.__businessTab || {};
   const d = draft || {};
   const text = typeof d.text === "string" ? d.text : "";
-  const near = tab.instructionsWords ? tab.instructionsWords(text).nearFull : null;
+  const room = tab.instructionsWords ? tab.instructionsWords(text).limit : null;
   return (
     <>
       {/* Text nobody here wrote sat under "written in your own words" (S4): say where it came from, and which wins. */}
@@ -378,7 +379,7 @@ const BtaOwnWords = ({ draft, update, problems, readOnly }) => {
         readOnly={readOnly || undefined}
         testid="rec-own-box"
       />
-      {near && !problems.extra_instructions ? <span className="bt-own-count" data-testid="rec-own-count">{near}</span> : null}
+      {room && !problems.extra_instructions ? <span className="bt-own-count" data-testid="rec-own-count">{room}</span> : null}
     </>
   );
 };
@@ -488,7 +489,7 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   const notes = tab.notesWords ? tab.notesWords(profile.notes) : { count: 0, chips: [], more: null };
   // Needs the bridge's __instructionsDraft (S4): without it the row says nothing it cannot back.
   const own = typeof window.__instructionsDraft === "function" ? S.draftOf("extra_instructions", stored) : null;
-  const ownWords = own && tab.instructionsWords ? tab.instructionsWords(own.text) : { size: null, opening: null };
+  const ownWords = own && tab.instructionsWords ? tab.instructionsWords(own.text) : { opening: null };
   const messages = tab.fallbacksWords ? tab.fallbacksWords(brain.fallbacks) : null;
 
   return (
@@ -585,15 +586,16 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         hint="Optional. Anything the rows on this page do not cover."
         gate={gate("what it is told in your own words")}
         row={{
-          value: ownWords.size ? (
+          // Their opening, and nothing else. "339 characters" stood in front of it, which is a number an owner can do
+          // nothing about while reading the page, and on a phone it pushed the words themselves onto a second line.
+          value: ownWords.opening ? (
             <span className="bt-own" data-testid="rec-own-words">
-              <span className="bt-own-size">{ownWords.size}</span>
               <span className="bt-own-opening">{ownWords.opening}</span>
             </span>
           ) : null,
           empty: "None",
-          act: ownWords.size ? "Change" : "Add some",
-          name: ownWords.size ? "Change what it is told in your own words" : "Add some: your own words",
+          act: ownWords.opening ? "Change" : "Add some",
+          name: ownWords.opening ? "Change what it is told in your own words" : "Add some: your own words",
         }}
         body={(f) => <BtaOwnWords {...f} />}
       />
