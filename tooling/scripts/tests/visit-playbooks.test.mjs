@@ -315,7 +315,8 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
-    tools.includes('booking: modeOf("booking")') && tools.includes("withVisits(t.ctx, t.tenantId, people, t.now)"),
+    tools.includes('booking: modeOf("booking")') &&
+      tools.includes("audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now)"),
     "the assistant counts with the calendar too",
   );
 });

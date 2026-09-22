@@ -283,3 +283,30 @@ test("the verbs publish how many on an audience said yes, as the line under it s
   );
   assert.equal(broadcasts.saidYesWords("“Regulars”", "marketing", 3, 5), "3 people on “Regulars” said yes to offers");
 });
+
+/* ------------------------- a list past a thousand ------------------------- */
+
+test("REGRESSION: a send to a list past a thousand people enrols every one of them -- its members were one select, which answers at most 1000 rows", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+  const { createBroadcastPorts } = await import("../../../apps/dashboard/src/server/campaign-ports.ts");
+  const S = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+  const ids = Array.from({ length: 1500 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+  const db = fakeDb(
+    {
+      segments: [{ id: S, tenant_id: TID, name: "Regulars" }],
+      segment_members: ids.map((contact_id) => ({ segment_id: S, contact_id, tenant_id: TID })),
+    },
+    {},
+    {},
+    { maxRows: 1000 },
+  );
+  const seg = await createBroadcastPorts({ supabase: db }, TID).savedList(S);
+  assert.equal(seg.name, "Regulars");
+  assert.equal(seg.memberIds.length, 1500, "REGRESSION: the send enrolled 1000 of 1500");
+  assert.equal(
+    await createBroadcastPorts({ supabase: db }, "t-other").savedList(S),
+    null,
+    "another workspace's list is no list",
+  );
+});

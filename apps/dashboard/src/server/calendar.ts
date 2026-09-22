@@ -44,7 +44,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
-import { listPeople } from "@/server/people";
+import { everyone } from "@/server/people";
 import { loadFeed } from "@/server/ask/openings";
 
 /** The address rule is contracts' (feed-url.ts); re-exported so the settings routes' test reaches it at the door that uses it. */
@@ -376,7 +376,9 @@ export async function calendarWeek(
     };
   const parsed = feed.parsed;
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
-  const people = (await listPeople(ctx, tenantId).catch(() => [])).map(personLike);
+  // Everyone, not the first thousand: past it, an appointment of a known person linked to nobody on the board, and
+  // the add below asked the door for them again.
+  const people = (await everyone(ctx, tenantId).catch(() => [])).map(personLike);
   // The people this feed names are put in People here, so the board an
   // owner is looking at already links to them; the hourly sweep does the
   // same for everyone else, and for a feed nobody opens.

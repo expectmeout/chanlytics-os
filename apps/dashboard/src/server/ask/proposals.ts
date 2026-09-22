@@ -17,7 +17,6 @@ import {
   parseParamSpec,
   renderTemplate,
   shiftKey,
-  toPersonRowVM,
   type AudienceKind,
   type ParamSpec,
   POLICY_CLASSES,
@@ -47,7 +46,8 @@ import {
 import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
-import { listPeople } from "../people";
+import { audiencePoolOnce } from "../audience";
+import { savedList } from "../lists";
 import { checkPlaybookInput } from "../playbooks";
 import { replyChannelOf } from "../verbs";
 
@@ -649,22 +649,14 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
     return refuse(`this template takes ${expected} value${expected === 1 ? "" : "s"}, in order`);
 
   // The audience, counted the way the route will count it.
-  const rows = (await listPeople(t.ctx, t.tenantId)).map((r) => toPersonRowVM(r, t.timezone, t.now));
+  // The pool and the list the route will read, so the count here is the count it enrols.
+  const { rows } = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
   let savedIds: Set<string> | null = null;
   let label = EVERYONE_LABEL;
   if (kind === "saved") {
-    const { data: seg } = await t.ctx.supabase
-      .from("segments")
-      .select("id, name")
-      .eq("id", audienceId!)
-      .eq("tenant_id", t.tenantId)
-      .maybeSingle();
+    const seg = await savedList(t.ctx, t.tenantId, audienceId!);
     if (!seg) return refuse("no such list; list_audiences names them");
-    const { data: members } = await t.ctx.supabase
-      .from("segment_members")
-      .select("contact_id")
-      .eq("segment_id", seg.id);
-    savedIds = new Set((members ?? []).map((m) => m.contact_id));
+    savedIds = new Set(seg.ids);
     label = seg.name;
   } else if (kind === "list") {
     label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;
@@ -797,7 +789,7 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
   }
 
   const [rows, policies] = await Promise.all([
-    listPeople(t.ctx, t.tenantId).then((people) => people.map((r) => toPersonRowVM(r, t.timezone, t.now))),
+    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now).then((pool) => pool.rows),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
   ]);
   const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };

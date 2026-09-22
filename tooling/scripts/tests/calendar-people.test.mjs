@@ -959,7 +959,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes('list: { type: "string" }') &&
-      tools.includes("if (list && !list.test(toPersonRowVM(r, t.timezone, t.now))) return false;") &&
+      tools.includes("if (list && !list.test(vmOf.get(r.id)!)) return false;") &&
       tools.includes("next_visit: r.visits?.next"),
     "the assistant answers who booked and who never did",
   );
@@ -1231,8 +1231,8 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   );
   const ports = readCode("apps/dashboard/src/server/campaign-ports.ts");
   assert.ok(
-    ports.includes("await Promise.all([everyone(ctx, tenantId), zone()]);") &&
-      ports.includes("withVisits(ctx, tenantId, rows, now)"),
+    // The pool (audience.ts) is everyone with their appointments; ask-turn.test.mjs counts past a thousand through it.
+    ports.includes("people: async (now) => (await audiencePool(ctx, tenantId, await zone(), now)).rows,"),
     "the enrol path counts what the page counted, every page of it",
   );
 });

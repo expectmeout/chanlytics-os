@@ -8,4 +8,5 @@ export * from "./repositories/control";
 export * from "./repositories/templates";
 export * from "./repositories/control-plane";
 export * from "./realtime";
+export * from "./paged";
 export type { Database, Json } from "./database.types";

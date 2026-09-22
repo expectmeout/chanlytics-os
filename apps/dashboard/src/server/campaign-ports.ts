@@ -6,7 +6,7 @@
  * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
  */
 import type { Json } from "@chanlytics/db";
-import { numberHealth, parseTenantConfig, toPersonRowVM } from "@chanlytics/contracts";
+import { numberHealth, parseTenantConfig } from "@chanlytics/contracts";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -18,8 +18,8 @@ import type { RouteContext } from "./with-route";
 import { changed } from "./core-ports";
 import { recordDecision } from "./verbs";
 import { cancelKindFor, schedule } from "./service";
-import { everyone } from "./people";
-import { withVisits } from "./calendar";
+import { audiencePool } from "./audience";
+import { savedList } from "./lists";
 import { tenantFacts } from "./tenant";
 
 /** PostgREST takes a payload this size in one statement. */
@@ -98,26 +98,12 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
     ...templateValuePorts(ctx, tenantId),
     ...assemblePorts(ctx, tenantId),
     timezone: zone,
-    // Everyone, not one page of them: a broadcast may hold twice what people_list answers at once.
-    people: async (now) => {
-      const [rows, tz] = await Promise.all([everyone(ctx, tenantId), zone()]);
-      return (await withVisits(ctx, tenantId, rows, now)).people.map((r) => toPersonRowVM(r, tz, now));
-    },
+    // Everyone, not one page of them, with their appointments: the pool the page and the assistant count from.
+    people: async (now) => (await audiencePool(ctx, tenantId, await zone(), now)).rows,
+    // Every member, not the first thousand (lists.ts savedList).
     savedList: async (id) => {
-      const { data: seg, error: sErr } = await ctx.supabase
-        .from("segments")
-        .select("id, name")
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (sErr) throw new Error(sErr.message);
-      if (!seg) return null;
-      const { data: members, error: mErr } = await ctx.supabase
-        .from("segment_members")
-        .select("contact_id")
-        .eq("segment_id", seg.id);
-      if (mErr) throw new Error(mErr.message);
-      return { name: seg.name, memberIds: (members ?? []).map((m) => m.contact_id) };
+      const seg = await savedList(ctx, tenantId, id);
+      return seg ? { name: seg.name, memberIds: seg.ids } : null;
     },
     number: async () => {
       const { data: ch, error: chErr } = await ctx.supabase

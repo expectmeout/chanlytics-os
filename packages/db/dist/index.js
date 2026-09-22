@@ -2173,9 +2173,28 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
     if (channel) void client.removeChannel(channel);
   };
 }
+
+// src/paged.ts
+var MAX_ROWS = 1e3;
+var DEFAULT_ROW_CAP = 2e4;
+async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
+  const out = [];
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(out.length, out.length + size - 1);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < size) return out;
+  }
+  onCapped(what, cap);
+  return out;
+}
 export {
   CALL_CONTROL_S,
+  DEFAULT_ROW_CAP,
   HISTORY_COLUMNS,
+  MAX_ROWS,
   assembleHistory,
   claimCallNotification,
   claimControl,
@@ -2197,6 +2216,7 @@ export {
   pauseConversation,
   personReplyMode,
   putTenantConfig,
+  readAllRows,
   readLeadContext,
   readThreadState,
   recordCallNote,
