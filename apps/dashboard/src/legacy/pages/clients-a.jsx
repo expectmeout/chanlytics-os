@@ -1406,6 +1406,42 @@ const PL_COLUMNS = [
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
 ];
+// A person on a phone, in one cell (900px and under): the Inbox's row. Their face, their name and their state on the
+// first line; on the second, why they need a person when they do, else their own last words; on the third, when they
+// are coming and when you last spoke. The desktop's columns say the same things; a phone says them once, in this order,
+// and leaves the answer to offers, the receptionist's word, where they came from and their lists to their page, one tap
+// away. It was the desktop's cells re-gridded into a box: 119 to 168px a person, the face squeezed to an oval, the state
+// 36px tall against the box's edge, the visit broken over two lines, three left edges in one card. The member's
+// desktop columns do not reach it: whatever they hid, the row says the state.
+const plCardCell = (p, { attention }) => {
+  const byNumber = plIsNumber(p.name);
+  const glyph = byNumber ? "phone" : plIsAddress(p) ? "mail" : null;
+  const said = attention && attention[p.id];
+  const words = said && (said.quoted || p.callSummary) ? (said.quoted ? `“${said.sentence}”` : said.sentence) : null;
+  const asks = p.state === "needs_you" || p.state === "waiting_on_you";
+  const lead = asks && p.stateDetail ? p.stateDetail : words;
+  const time = p.nextVisitDay ? (p.nextVisit || "").split(" · ")[1] || "" : "";
+  return (
+    <td key="card" className="pl-card-cell">
+      <div className="pl-card">
+        <div className={`ix-thread-avatar pl-card-face${glyph ? " cl-row-avatar-glyph" : ""}`} aria-hidden="true">
+          {glyph ? <Icon name={glyph} size={12} className="pl-card-glyph" /> : <span className="pl-card-initials">{p.initials}</span>}
+          <Icon name="check" size={14} className="pl-card-tick" />
+        </div>
+        <div className={`pl-card-name${byNumber ? " tabular" : ""}`}>{p.name}</div>
+        <PeopleStatePill state={p.state} label={p.stateLabel} />
+        {lead ? <div className="pl-card-lead" data-testid={asks && p.stateDetail ? "row-state-detail" : "row-words"}>{lead}</div> : null}
+        <div className="pl-card-facts">
+          {p.nextVisitDay ? <span className="pl-card-visit" data-testid="row-next-visit"><Icon name="calendar" size={11} />{time ? `${p.nextVisitDay} · ${time}` : p.nextVisitDay}</span> : null}
+          <span className="pl-card-last">{p.lastContact.label}</span>
+        </div>
+      </div>
+    </td>
+  );
+};
+// A phone's one column, and the class its rows wear (clients.css draws the row from it).
+const PL_PHONE_COLUMNS = [{ key: "card", label: "Person", sortable: false, pinned: true, cell: plCardCell }];
+const plCardRowClass = () => "pl-card-row";
 // The batch doors take fifty people at a time (contacts/consent, /receptionist, /notes).
 const PL_BATCH = 50;
 // The loaded rows and what a search found past them, each person once.
@@ -2122,7 +2158,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const hasCenter = onLeads && leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
   const colCtx = onLeads ? { hasCenter } : { withCalendar };
   // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next.
-  const columns = React.useMemo(() => plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone), [cols, colChoices, onLeads, hasCenter, withCalendar, phone]); // eslint-disable-line react-hooks/exhaustive-deps
+  // On a phone People draws one cell a person (plCardCell); Leads keeps its cards of every column (#789).
+  const columns = React.useMemo(() => (!onLeads && phone ? PL_PHONE_COLUMNS : plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone)), [cols, colChoices, onLeads, hasCenter, withCalendar, phone]); // eslint-disable-line react-hooks/exhaustive-deps
   const colOptions = plColumnOptions(cols, colChoices, colCtx);
   // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
   // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
@@ -3049,6 +3086,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
             cursor={cursor}
             onCursor={setCursor}
             rows={shown}
+            rowClass={phone ? plCardRowClass : null}
             total={people.page && people.page.has_more ? people.page.total : rows.length}
             sortBy={sortBy}
             sortDir={sortDir}

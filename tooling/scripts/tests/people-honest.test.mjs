@@ -1536,35 +1536,31 @@ test("Person is the cell right after the checkbox, in the header and in every ro
   }
 });
 
-test("REGRESSION: a member's columns are a desktop's, and a phone keeps its cards -- with State and Offers hidden, the cards lost the state and the answer to offers, and no phone can reach the Columns menu to put them back", async () => {
+test("REGRESSION: a desktop builds no cell of a column the member turned off -- four hidden cells were built, cloned and inserted per row for a desktop to hide", async () => {
   const needsYou = person(1, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
-  const people = [needsYou, person(2)];
-  /** A row's cells as a card draws them: every cell drawn, whatever mark a desktop reads. */
-  const cardCells = (tree, id) => rowOf(tree, id).props.children.filter((k) => k && k.type === "td").map((td) => String(td.props.className).replace(/\s*\bpl-col-off\b/g, "").trim());
-  // On a phone: a desktop no longer builds a cell it hides, so the cards are the phone's own drawing.
-  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
-  try {
-  await freshPage({ people });
-  let tree = draw();
-  const byDefault = ["p1", "p2"].map((id) => cardCells(tree, id));
-  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
-  tree = draw();
-  assert.deepEqual(["p1", "p2"].map((id) => cardCells(tree, id)), byDefault, "REGRESSION: each row draws the cells it draws by default, whatever the member chose");
-  assert.deepEqual(headings(tree), ["Person", "Last contact", "Receptionist", "Came from"], "and a desktop leaves State and Offers out");
-  const state = find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-state-cell\b/.test(n.props?.className || ""));
-  assert.ok(colOff(state) && colOff(byTestId(rowOf(tree, "p1"), "row-offers")), "the state and the answer to offers are drawn, marked for a desktop to hide");
-  assert.match(textOf(state), /needs you/i, "and the card still says who needs a person");
-  const offHeadings = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th" && colOff(n)).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
-  assert.deepEqual(offHeadings, ["State", "Offers", "Email", "Lists"], "a heading carries the mark with its cells, so one cell sits under each heading");
-  } finally {
-    delete globalThis.window.matchMedia;
-  }
-  // And a desktop builds none of them: State, Offers, Email and Lists are not in the row at all.
-  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
+  await freshPage({ people: [needsYou, person(2)], views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
   const desk = draw();
-  assert.equal(all(rowOf(desk, "p1"), (n) => n.type === "td" && colOff(n)).length, 0, "REGRESSION: four hidden cells were built, cloned and inserted per row for a desktop to hide");
+  assert.equal(all(rowOf(desk, "p1"), (n) => n.type === "td" && colOff(n)).length, 0, "State, Offers, Email and Lists are not in the row at all");
   assert.deepEqual(headings(desk), ["Person", "Last contact", "Receptionist", "Came from"]);
 });
+
+test("REGRESSION: a phone row is one cell -- the face, the name and the state; why they need a person, or their own words; the visit and the last contact -- and the member's desktop columns never reach it", () => onPhone(async () => {
+  const needs = person(1, { display_name: "Zoe M.", needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  await freshPage({ people: [needs, person(2)], views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
+  const tree = draw();
+  const row = rowOf(tree, "p1");
+  assert.match(row.props.className, /\bpl-card-row\b/);
+  const tds = row.props.children.filter((k) => k && k.type === "td");
+  assert.deepEqual(tds.map((td) => String(td.props.className)), ["cl-sel", "pl-card-cell"], "REGRESSION: the desktop's cells re-gridded into a box, 119 to 168px a person");
+  const card = tds[1];
+  const pill = find(card, (n) => /\bpill\b/.test(String(n.props?.className || "")));
+  assert.equal(pill.props["data-state"], "needs_you", "the state, whatever the member hid on a desktop");
+  assert.ok(byTestId(card, "row-state-detail"), "why they need a person");
+  assert.equal(byTestId(card, "row-offers"), null, "the answer to offers is on their page (Ruben, 22 Sep)");
+  assert.ok(find(card, (n) => /\bpl-card-face\b/.test(String(n.props?.className || ""))), "their face");
+  assert.match(textOf(byTestId(rowOf(tree, "p2"), "row-words")), /Saturday/, "a person who needs nobody says their own words");
+  assert.match(textOf(card), /Zoe M\./, "and their name");
+}));
 
 /* ------------------------- the table, after its review (18 September) ------------------------- */
 

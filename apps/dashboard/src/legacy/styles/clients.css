@@ -2154,3 +2154,32 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pp-sheet .confirm-block .confirm-q { font-size: var(--text-md); color: var(--ink); }
 .pp-sheet .confirm-block .confirm-acts { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .pp-sheet .confirm-block .confirm-acts .btn { height: 48px; justify-content: center; font-size: var(--text-md); }
+
+@media (max-width: 900px) {
+  /* People's rows: one card cell each (plCardCell), edge to edge, a hairline between -- the Inbox's list. The wrap's
+     box and its 16px margin are a desktop's. */
+  .clients:not(.leads-scope) .pl-table-wrap { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+  .clients:not(.leads-scope) .cl-table-foot { padding: 12px 16px; border-top: 0; }
+  .pl-table tbody tr.pl-card-row { display: block; position: relative; padding: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  /* A tap is not a keyboard's cursor: the accent edge and the hover ground belong to the desktop's J and K. */
+  .pl-table tbody tr.pl-card-row.focused { background: transparent; box-shadow: none; }
+  .pl-table tbody tr.pl-card-row.selected { background: var(--pl-selected); }
+  .pl-table tbody tr.pl-card-row > td.pl-card-cell { display: block; min-width: 0; padding: 0; border: 0; }
+  .pl-card { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; align-items: center; padding: 12px 16px; }
+  .pl-card-face { grid-column: 1; grid-row: 1 / span 3; align-self: start; flex: none; width: 32px; height: 32px; }
+  .pl-card:not(:has(> .pl-card-lead)) .pl-card-face { grid-row: 1 / span 2; }
+  .pl-card-tick { display: none; }
+  .pl-card-name { grid-column: 2; grid-row: 1; min-width: 0; font-size: var(--text-base); font-weight: var(--weight-medium); line-height: 20px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-card > .pill { grid-column: 3; grid-row: 1; justify-self: end; }
+  /* A pill is words, not a control: the touch floor (legacy.css) made it 36px tall. */
+  html.legacy-on .pl-card > .pill { min-height: 0; padding-top: 0; padding-bottom: 0; }
+  .pl-card-lead { grid-column: 2 / 4; min-width: 0; font-size: var(--text-sm); line-height: 18px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-card-lead::first-letter { text-transform: uppercase; }
+  .pl-card-facts { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; gap: 12px; font-size: 11.5px; line-height: 17px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+  .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ok-ink); font-weight: var(--weight-medium); }
+  .pl-card-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* A table with nobody in it is one row of one cell across the card's whole width. It was placed in the grid's first
+     track -- the checkbox's, 28px -- and its sentence stood in a column a word wide. */
+  .cl-table tbody tr:not([id]):has(> td[colspan]) { display: block; padding: 0; }
+  .cl-table tbody tr:not([id]) > td[colspan] { display: block; padding: 20px 16px; }
+}
