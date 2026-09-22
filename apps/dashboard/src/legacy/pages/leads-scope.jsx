@@ -655,13 +655,14 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 // clients-a.jsx) with Find as its last control. The switch, the list and search are the same bar on both scopes, and
 // nothing else sits above the rows -- no title, no sub-headline, no stat cards and no second control row
 // (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind, canFind }) => {
+const LeadsPhoneBar = ({ scope, onScope, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind, canFind }) => {
   const Bar = window.PeoplePhoneBar;
   return (
     <Bar
       scope={scope}
       onScope={onScope}
       listLabel={listLabel}
+      listCount={listCount}
       onLists={onLists}
       listsOpen={listsOpen}
       q={q}
@@ -755,6 +756,7 @@ const LeadsScope = (p) => {
               scope="leads"
               onScope={p.onScope}
               listLabel={p.railLabel}
+              listCount={p.railCount}
               onLists={p.onLists}
               listsOpen={p.listsOpen}
               q={p.q}
