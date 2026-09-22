@@ -195,7 +195,7 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
             {consults(x.name) ? <span className="bt-service-consult" data-testid={`rec-service-consult-${i}`}>consult first</span> : null}
           </span>
           <window.RecordBox
-            id={`svc-${i}-minutes`} label={`Service ${n} minutes`} size="sm" unit="min" inputMode="numeric" placeholder="45"
+            id={`svc-${i}-minutes`} label={`Service ${n} takes, in minutes`} size="sm" unit="min" inputMode="numeric" placeholder="45"
             value={x.duration_min == null ? "" : String(x.duration_min)} onChange={(v) => setSvc(i, "duration_min", v)}
             problem={said(`service-${i}-duration_min`)} readOnly={f.readOnly}
           />
@@ -272,14 +272,16 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
 /* ------------------------------------ the booking rules ------------------------------------ */
 
 // The five numbers, in the fold's order (the canvas's Edit-Fold), each with its label, its unit, and the old grid's
-// name and placeholder for its box. Their ranges are business-tab-folds.jsx's RULES, and what an empty box means is
-// contracts' (BOOKING_RULE_HINTS).
+// placeholder for its box. Each box is named by its label and unit, the words on screen (WCAG 2.5.3): the old grid's
+// names were kept as a second name, and "Offers times up to" was heard as "Days ahead", which nobody saying the words
+// on screen could reach. Their ranges are business-tab-folds.jsx's RULES, and what an empty box means is contracts'
+// (BOOKING_RULE_HINTS).
 const BTW_RULE_BOXES = [
-  ["lead_hours", "Least notice", "hours", "Least notice in hours", "2"],
-  ["slot_min", "Slot length", "minutes", "Slot length in minutes", "30"],
-  ["buffer_min", "Gap between appointments", "minutes", "Gap between appointments in minutes", "0"],
-  ["max_days_ahead", "Offers times up to", "days ahead", "Days ahead", "14"],
-  ["party_max", "Most people per booking", "people", "Most people per booking", "4"],
+  ["lead_hours", "Least notice", "hours", "2"],
+  ["slot_min", "Slot length", "minutes", "30"],
+  ["buffer_min", "Gap between appointments", "minutes", "0"],
+  ["max_days_ahead", "Offers times up to", "days ahead", "14"],
+  ["party_max", "Most people per booking", "people", "4"],
 ];
 
 /**
@@ -295,7 +297,7 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
   return (
     <div className="bt-rules" data-testid="rec-rules-boxes">
       <div className="bt-rules-grid">
-        {BTW_RULE_BOXES.map(([key, label, unit, aria, placeholder]) => (
+        {BTW_RULE_BOXES.map(([key, label, unit, placeholder]) => (
           <window.RecordField
             key={key}
             id={`bt-rule-${key}`}
@@ -306,7 +308,6 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
             onChange={(v) => update((d) => ({ ...d, [key]: v }), [key])}
             problem={problems[key] || null}
             inputMode="numeric"
-            aria-label={aria}
             placeholder={placeholder}
             readOnly={readOnly || undefined}
             testid={`rec-rule-${key}`}
@@ -320,7 +321,6 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
         value={draft.notes}
         onChange={(v) => update((d) => ({ ...d, notes: v }), ["notes"])}
         problem={problems.notes || null}
-        aria-label="Booking notes"
         placeholder={"No chemical services after 4 PM\nBridal parties are booked by phone"}
         readOnly={readOnly || undefined}
         testid="rec-rule-notes"
@@ -329,12 +329,16 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
   );
 };
 
-/** What needs a consult first: one box, one service to a line, under the old form's sentence for it. */
+/**
+ * What needs a consult first: one box, one service to a line, under the old form's sentence for it. The fold's own
+ * label names it, the words on screen above it (RecordFold's rec-fold-<id>-label); a second name, as the old form gave
+ * it, is one a person saying the words on screen could not reach.
+ */
 const BtwConsult = ({ draft, update, problems, readOnly }) => (
   <window.RecordField
     id="bt-consult-first"
     label={null}
-    aria-label="Services that need a consultation first"
+    aria-labelledby="rec-fold-consult_first-label"
     rows={3}
     value={draft}
     onChange={(v) => update(() => v, ["consult_first"])}

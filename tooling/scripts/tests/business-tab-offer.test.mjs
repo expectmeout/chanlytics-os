@@ -29,6 +29,19 @@ const said = (f) => textOf({ props: { children: f.msg } });
 /** A sentence the kit's FieldError draws under a box, by the box's id: rec-<id>-problem. */
 const problemOf = (tree, boxId) => { const n = find(tree, (m) => m.type === W.FieldError && m.props.id === `rec-${boxId}-problem`); return n ? textOf(n) : null; };
 const saveSheet = (tree) => press(byTestId(tree, "rec-sheet-save-services"));
+/**
+ * The name a screen reader hears for a box, worked out as a browser works it out: what aria-labelledby points at, else
+ * aria-label, else the label that holds the box (the kit's RecordField: its words, then its unit).
+ */
+const heard = (tree, box) => {
+  if (box.props["aria-labelledby"]) return box.props["aria-labelledby"].split(" ").map((id) => textOf(find(tree, (n) => n.props?.id === id))).join(" ");
+  if (box.props["aria-label"]) return box.props["aria-label"];
+  const holder = find(tree, (n) => n.type === "label" && !!find(n, (m) => m === box));
+  if (!holder) return "";
+  return [find(holder, (n) => classes(n).includes("rec-field-label")), find(holder, (n) => classes(n).includes("rec-input-unit"))].map((n) => (n ? textOf(n) : "")).filter(Boolean).join(" ");
+};
+const heardBox = (tree, name) => find(tree, (n) => (n.type === "input" || n.type === "textarea") && heard(tree, n) === name);
+const typeHeard = (tree, name, text) => heardBox(tree, name).props.onChange({ target: { value: text } });
 
 /* ------------------------------------ the plan's five ------------------------------------ */
 
@@ -189,7 +202,7 @@ test("the sheet is the canvas's: its head, a search and Add, three columns, a co
   // Each row is three boxes and a remove, each box named for its row.
   const third = rowsOf(tree)[2];
   assert.deepEqual(all(third, (n) => n.type === "input").map((n) => [n.props.id, n.props["aria-label"]]), [
-    ["svc-2-name", "Service 3 name"], ["svc-2-minutes", "Service 3 minutes"], ["svc-2-price", "Service 3 price"],
+    ["svc-2-name", "Service 3 name"], ["svc-2-minutes", "Service 3 takes, in minutes"], ["svc-2-price", "Service 3 price"],
   ]);
   assert.equal(all(third, (n) => n.type === "input")[1].props.inputMode, "numeric");
   assert.equal(byTestId(third, "rec-service-remove-2").props["aria-label"], "Remove Service 3");
@@ -373,7 +386,7 @@ test("a save sends the stored config with the services changed, and nothing else
   let tree = drawTab({ profile: many, flash });
   const stored = structuredClone(W.__SETTINGS.config);
   tree = openSheet(tree, flash);
-  typeAt(tree, "Service 3 minutes", "75");
+  typeAt(tree, "Service 3 takes, in minutes", "75");
   tree = redrawTab(flash);
   typeAt(tree, "Service 3 price", "  from a consult  ");
   tree = redrawTab(flash);
@@ -395,9 +408,9 @@ test("an unchanged Save sends nothing and closes, and so does one typed and type
   tree = redrawTab();
   assert.deepEqual([sent.length, sheetOf(tree)], [0, null]);
   tree = openSheet(tree);
-  typeAt(tree, "Service 3 minutes", "75");
+  typeAt(tree, "Service 3 takes, in minutes", "75");
   tree = redrawTab();
-  typeAt(tree, "Service 3 minutes", "32");
+  typeAt(tree, "Service 3 takes, in minutes", "32");
   tree = redrawTab();
   saveSheet(tree);
   tree = redrawTab();
@@ -408,7 +421,7 @@ test("what stops a save is said under its box, and nothing is sent", () => {
   const sent = saving();
   let tree = drawTab({ profile: many });
   tree = openSheet(tree);
-  typeAt(tree, "Service 2 minutes", "1.5");
+  typeAt(tree, "Service 2 takes, in minutes", "1.5");
   tree = redrawTab();
   typeAt(tree, "Service 4 name", "x".repeat(81));
   tree = redrawTab();
@@ -418,9 +431,9 @@ test("what stops a save is said under its box, and nothing is sent", () => {
   assert.ok(sheetOf(tree), "the sheet stays open with what was typed");
   assert.equal(problemOf(tree, "svc-1-minutes"), "Minutes are a whole number, like 45.");
   assert.equal(problemOf(tree, "svc-3-name"), "At most 80 characters — this is 81.");
-  assert.equal(labelled(tree, "Service 2 minutes").props["aria-invalid"], true);
+  assert.equal(labelled(tree, "Service 2 takes, in minutes").props["aria-invalid"], true);
   // Put right, its sentence goes with the change, and the save goes.
-  typeAt(tree, "Service 2 minutes", "15");
+  typeAt(tree, "Service 2 takes, in minutes", "15");
   tree = redrawTab();
   assert.equal(problemOf(tree, "svc-1-minutes"), null);
   typeAt(tree, "Service 4 name", "Service 4");
@@ -437,7 +450,7 @@ test("while the sheet saves its boxes take nothing, and a press that would add o
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ profile: many, flash });
   tree = openSheet(tree, flash);
-  typeAt(tree, "Service 1 minutes", "40");
+  typeAt(tree, "Service 1 takes, in minutes", "40");
   tree = redrawTab(flash);
   saveSheet(tree);
   tree = redrawTab(flash);
@@ -446,11 +459,11 @@ test("while the sheet saves its boxes take nothing, and a press that would add o
   const held = (node) => [node.props["aria-disabled"], node.props.disabled];
   assert.deepEqual([held(byTestId(tree, "rec-service-remove-0")), held(byTestId(tree, "rec-services-add")), held(byTestId(tree, "rec-sheet-save-services"))], [[true, undefined], [true, undefined], [true, undefined]]);
   const before = flashes.length;
-  typeAt(tree, "Service 1 minutes", "41");
+  typeAt(tree, "Service 1 takes, in minutes", "41");
   press(byTestId(tree, "rec-service-remove-0"));
   press(byTestId(tree, "rec-services-add"));
   tree = redrawTab(flash);
-  assert.deepEqual([labelled(tree, "Service 1 minutes").props.value, rowsOf(tree).length, flashes.slice(before)], ["40", 33, []], "nothing typed or pressed under Saving… is held, or said");
+  assert.deepEqual([labelled(tree, "Service 1 takes, in minutes").props.value, rowsOf(tree).length, flashes.slice(before)], ["40", 33, []], "nothing typed or pressed under Saving… is held, or said");
   // Escape and Close are Cancel, and nothing cancels a save that is out.
   press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
   tree = redrawTab(flash);
@@ -499,7 +512,7 @@ test("opening the sheet with a fold holding changes asks about the fold, and ope
   let tree = drawTab({ profile: many });
   openFold(tree, "booking_rules");
   tree = redrawTab();
-  typeAt(tree, "Least notice in hours", "5");
+  typeHeard(tree, "Least notice hours", "5");
   tree = redrawTab();
   tree = openSheet(tree);
   assert.deepEqual([openFolds(tree), sheetOf(tree)], [["booking_rules"], null], "the fold's changes are not thrown away");
@@ -548,7 +561,7 @@ test("the standing line's services door opens the sheet, guarded like any row", 
   tree = drawTab({ profile: bare });
   openFold(tree, "consult_first");
   tree = redrawTab();
-  typeAt(tree, "Services that need a consultation first", "Keratin");
+  typeHeard(tree, "Needs a consult first", "Keratin");
   tree = redrawTab();
   press(byTestId(byTestId(tree, "rec-standing"), "rec-standing-door"));
   tree = redrawTab();
@@ -585,7 +598,7 @@ test("the sheet is the page's last hook-holding child: opened, drawn again and c
   assert.deepEqual(openFolds(tree), ["hours"]);
   press(byTestId(tree, "rec-fold-hours-ask-yes"));
   tree = redrawTab();
-  typeAt(tree, "Least notice in hours", "6");
+  typeHeard(tree, "Least notice hours", "6");
   tree = redrawTab();
   saveFoldOf(tree, "booking_rules");
   assert.equal(sent.length, 1);
@@ -615,7 +628,10 @@ test("the booking rules fold holds the five numbers, each with its unit and what
   tree = redrawTab();
   const fold = foldOf(tree, "booking_rules");
   const boxes = all(fold, (n) => n.type === "input");
-  assert.deepEqual(boxes.map((n) => n.props["aria-label"]), ["Least notice in hours", "Slot length in minutes", "Gap between appointments in minutes", "Days ahead", "Most people per booking"], "the old grid's names");
+  // Named by the words on screen and the unit beside them, never by a second name: "Offers times up to" was named
+  // "Days ahead", which a person using speech to press it could not say (WCAG 2.5.3, the quality review).
+  assert.deepEqual(boxes.map((n) => n.props["aria-label"]), [undefined, undefined, undefined, undefined, undefined]);
+  assert.deepEqual(boxes.map((n) => heard(tree, n)), ["Least notice hours", "Slot length minutes", "Gap between appointments minutes", "Offers times up to days ahead", "Most people per booking people"]);
   assert.deepEqual(boxes.map((n) => n.props.placeholder), ["2", "30", "0", "14", "4"], "and its placeholders");
   assert.deepEqual(boxes.map((n) => n.props.value), ["2", "30", "", "14", "4"], "each as its box holds it");
   assert.ok(boxes.every((n) => n.props.inputMode === "numeric"));
@@ -623,7 +639,7 @@ test("the booking rules fold holds the five numbers, each with its unit and what
   assert.deepEqual(all(fold, (n) => classes(n).includes("rec-input-unit")).map(textOf), ["hours", "minutes", "minutes", "days ahead", "people"]);
   // What an empty box means is contracts' (the canvas said "Empty means no rule." of the least notice; it is two hours').
   assert.deepEqual(all(fold, (n) => classes(n).includes("rec-hint")).map(textOf), [BOOKING_RULE_HINTS.lead_hours, BOOKING_RULE_HINTS.slot_min, BOOKING_RULE_HINTS.max_days_ahead, BOOKING_RULE_HINTS.party_max]);
-  assert.equal(labelled(tree, "Booking notes").type, "textarea");
+  assert.equal(heardBox(tree, "Anything else about booking, one per line").type, "textarea");
   assert.match(textOf(fold), /Saves these five rules and the notes, and nothing else on the page\./);
   assert.match(textOf(fold), /It never books\. It says which times are open and sends the link\./);
 });
@@ -631,14 +647,14 @@ test("the booking rules fold holds the five numbers, each with its unit and what
 test("each booking rule saves within its range; outside it, or not a whole number, it is refused under its box with its sentence", () => {
   const sent = saving();
   const S = W.__businessTabSave;
-  const labels = { lead_hours: "Least notice in hours", slot_min: "Slot length in minutes", buffer_min: "Gap between appointments in minutes", max_days_ahead: "Days ahead", party_max: "Most people per booking" };
+  const labels = { lead_hours: "Least notice hours", slot_min: "Slot length minutes", buffer_min: "Gap between appointments minutes", max_days_ahead: "Offers times up to days ahead", party_max: "Most people per booking people" };
   for (const [key, lo, hi, words] of S.RULES) {
     for (const bad of [String(hi + 1), String(lo - 1), "2.5", "30min", "1e2"]) {
       if (bad === "-1" && lo === 0) continue;
       let tree = drawTab();
       openFold(tree, "booking_rules");
       tree = redrawTab();
-      typeAt(tree, labels[key], bad);
+      typeHeard(tree, labels[key], bad);
       tree = redrawTab();
       saveFoldOf(tree, "booking_rules");
       tree = redrawTab();
@@ -650,7 +666,7 @@ test("each booking rule saves within its range; outside it, or not a whole numbe
       let tree = drawTab({ profile: { ...melany, booking_rules: { consult_first: ["Extensions"] } } });
       openFold(tree, "booking_rules");
       tree = redrawTab();
-      typeAt(tree, labels[key], String(good));
+      typeHeard(tree, labels[key], String(good));
       tree = redrawTab();
       saveFoldOf(tree, "booking_rules");
       const last = sent.at(-1);
@@ -668,11 +684,11 @@ test("the booking rules' save writes those rules and their notes, and nothing el
   const stored = structuredClone(W.__SETTINGS.config);
   openFold(tree, "booking_rules");
   tree = redrawTab();
-  typeAt(tree, "Least notice in hours", "");
+  typeHeard(tree, "Least notice hours", "");
   tree = redrawTab();
-  typeAt(tree, "Gap between appointments in minutes", "15");
+  typeHeard(tree, "Gap between appointments minutes", "15");
   tree = redrawTab();
-  typeAt(tree, "Booking notes", "No chemical services after 4 PM\n\nBridal parties are booked by phone  ");
+  typeHeard(tree, "Anything else about booking, one per line", "No chemical services after 4 PM\n\nBridal parties are booked by phone  ");
   tree = redrawTab();
   // What it will be told, as the composer writes it for this draft.
   assert.match(textOf(byTestId(tree, "rec-fold-says-booking_rules")), /- No chemical services after 4 PM\n- Bridal parties are booked by phone/);
@@ -693,9 +709,9 @@ test("consult-first saves one service to a line, under its own name, and says wh
   openFold(tree, "consult_first");
   tree = redrawTab();
   const fold = foldOf(tree, "consult_first");
-  assert.equal(labelled(tree, "Services that need a consultation first").props.value, "Color correction\nExtensions");
+  assert.equal(heardBox(tree, "Needs a consult first").props.value, "Color correction\nExtensions");
   assert.match(textOf(fold), /Services that need a consultation before they can be booked, one per line\./, "the old form's sentence, as its hint");
-  typeAt(tree, "Services that need a consultation first", "Color correction\nExtensions\n  Keratin  \n");
+  typeHeard(tree, "Needs a consult first", "Color correction\nExtensions\n  Keratin  \n");
   tree = redrawTab();
   assert.match(textOf(byTestId(tree, "rec-fold-says-consult_first")), /These need a consultation before they can be booked: Color correction, Extensions, Keratin\./);
   saveFoldOf(tree, "consult_first");
@@ -704,7 +720,7 @@ test("consult-first saves one service to a line, under its own name, and says wh
   tree = drawTab();
   openFold(tree, "consult_first");
   tree = redrawTab();
-  typeAt(tree, "Services that need a consultation first", Array.from({ length: 21 }, (_, i) => `Service ${i}`).join("\n"));
+  typeHeard(tree, "Needs a consult first", Array.from({ length: 21 }, (_, i) => `Service ${i}`).join("\n"));
   tree = redrawTab();
   saveFoldOf(tree, "consult_first");
   tree = redrawTab();
@@ -717,13 +733,13 @@ test("consult-first and the booking rules share one stored object, and saved one
   let tree = drawTab();
   openFold(tree, "consult_first");
   tree = redrawTab();
-  typeAt(tree, "Services that need a consultation first", "Keratin");
+  typeHeard(tree, "Needs a consult first", "Keratin");
   tree = redrawTab();
   saveFoldOf(tree, "consult_first");
   tree = redrawTab();
   openFold(tree, "booking_rules");
   tree = redrawTab();
-  typeAt(tree, "Least notice in hours", "6");
+  typeHeard(tree, "Least notice hours", "6");
   tree = redrawTab();
   saveFoldOf(tree, "booking_rules");
   assert.equal(sent.length, 2);
@@ -734,13 +750,13 @@ test("consult-first and the booking rules share one stored object, and saved one
   tree = drawTab();
   openFold(tree, "booking_rules");
   tree = redrawTab();
-  typeAt(tree, "Most people per booking", "8");
+  typeHeard(tree, "Most people per booking people", "8");
   tree = redrawTab();
   saveFoldOf(tree, "booking_rules");
   tree = redrawTab();
   openFold(tree, "consult_first");
   tree = redrawTab();
-  typeAt(tree, "Services that need a consultation first", "");
+  typeHeard(tree, "Needs a consult first", "");
   tree = redrawTab();
   saveFoldOf(tree, "consult_first");
   assert.deepEqual(sent[1].config.brain.profile.booking_rules, { ...without(melany.booking_rules, "consult_first"), party_max: 8 });
@@ -924,4 +940,31 @@ test("a row put back while the search says something else comes back in sight, p
   searchFor(tree, "bala");
   tree = redrawTab();
   assert.deepEqual(namesOf(shownOf(tree)), ["Balayage"], "found by its new name like any other");
+});
+
+test("every box of What you offer is named by the words on screen beside it, so a person who says them reaches it", () => {
+  // WCAG 2.5.3, label in name (the quality review): "Offers times up to" was named "Days ahead", and "Anything else
+  // about booking, one per line" was named "Booking notes".
+  let tree = drawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  const fold = foldOf(tree, "booking_rules");
+  for (const box of all(fold, (n) => n.type === "input" || n.type === "textarea")) {
+    const holder = find(fold, (n) => n.type === "label" && !!find(n, (m) => m === box));
+    const visible = textOf(find(holder, (n) => classes(n).includes("rec-field-label")));
+    assert.ok(heard(tree, box).startsWith(visible), `${heard(tree, box)} starts with ${visible}`);
+  }
+  cancelFoldOf(tree, "booking_rules");
+  openFold(redrawTab(), "consult_first");
+  tree = redrawTab();
+  const consult = find(foldOf(tree, "consult_first"), (n) => n.type === "textarea");
+  assert.equal(heard(tree, consult), "Needs a consult first", "the fold's own label, which is the words on screen above it");
+  // The sheet's boxes: each is named for its row and the column it is in, whose head is the words on screen.
+  cancelFoldOf(tree, "consult_first");
+  tree = openSheet(redrawTab());
+  const head = all(find(sheetOf(tree), (n) => classes(n).includes("bt-service-head")), (n) => n.type === "span").map(textOf).filter(Boolean);
+  assert.deepEqual(head, ["Service", "Takes", "Price"]);
+  const boxes = all(rowsOf(tree)[1], (n) => n.type === "input");
+  boxes.forEach((box, i) => assert.match(heard(tree, box), new RegExp(head[i], "i"), `${heard(tree, box)} holds ${head[i]}`));
+  assert.match(heard(tree, boxes[1]), /min/, "and the minutes box its unit, min, as it is on screen");
 });
