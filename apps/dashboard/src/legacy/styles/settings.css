@@ -1484,6 +1484,8 @@ html.legacy-on .bt-link { position: relative; }
    not on screen, because six two-clause sentences under six rows nothing on which needs deciding is the clutter the
    owner named -- and on a phone it is most of the card's height. */
 .bt-can-says { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* A surface still on its way holds the card's place and says so, where a failed read says which one failed. */
+.bt-can-reading { margin: 0; padding: 11px 0; border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink-dim); }
 /* One cause with one fix on another tab, said once for the whole card and never on the six rows it holds. */
 .bt-can-held { margin: 0; padding: 0 0 12px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 .bt-can-group { padding-top: 16px; }

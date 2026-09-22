@@ -131,23 +131,43 @@ const BtCanCard = ({ brain, config, canEdit }) => {
   const tab = window.__businessTab || {};
   if (!tab.abilityRows || !tab.cannotRows) return null;
   const profile = brain.profile || {};
-  // Undefined until the surface is read, null when the read failed: both are "we do not know".
+  // Undefined until the surface is read, null when the read FAILED, and the two are not one answer
+  // (pages/setup.jsx, pages/settings.jsx take the same stance). On a cold boot the settings surface
+  // lands well before Setup -- the boot queue puts the tab's own surface first and setupOverride is
+  // fourteenth of sixteen -- so a healthy workspace read "Couldn't read the connections", with a
+  // Retry, for as long as that took. A surface still on its way is waited for.
   const setup = window.__SETUP;
   const policies = window.__POLICIES;
+  const templates = window.__TEMPLATES_ALL;
+  if (setup === undefined || policies === undefined || templates === undefined) {
+    return (
+      <section className="rec-card" data-testid="rec-card-can" aria-labelledby="bt-can-title">
+        <div className="rec-card-head">
+          <h2 className="rec-card-title" id="bt-can-title">
+            What it can do
+          </h2>
+        </div>
+        <p className="bt-can-reading" data-testid="rec-can-reading">
+          Reading your connections{"…"}
+        </p>
+      </section>
+    );
+  }
   const dto = setup && setup.dto ? setup.dto : null;
   const rows = policies && Array.isArray(policies.rows) ? policies.rows : null;
   // The connections, decided where Setup decides them: ready, tested and switched on by the owner.
   const live = (kind) => !!(dto && tab.capabilityStatus(kind, dto).live);
   const reply = rows ? rows.filter((r) => r && r.class === "reply")[0] || null : null;
   const abilities =
-    dto && rows
+    dto && rows && Array.isArray(templates)
       ? tab.abilityRows({
           voiceLive: live("voice"),
           whatsappLive: live("whatsapp"),
           hasCalendarFeed: !!(config && config.calendar && config.calendar.ical_url),
           hasBookingLink: !!brain.booking_link,
           // The template retell-fn picks the call's message with, asked of contracts, never matched by name here.
-          hasBookingTemplate: !!tab.bookingTemplate(Array.isArray(window.__TEMPLATES_ALL) ? window.__TEMPLATES_ALL : []),
+          // The list is known to be one by now: a failed read is said above, not read as "no approved message".
+          hasBookingTemplate: !!tab.bookingTemplate(templates),
           hasHandoffNumber: !!profile.handoff_number,
           hasEscalateWhen:
             Array.isArray(profile.escalate_when) &&
@@ -165,11 +185,29 @@ const BtCanCard = ({ brain, config, canEdit }) => {
       : null;
   // Texting reads `ready`, not `live`: `live` needs a tested that texting never records (capabilities.ts), so it can
   // never be true, and the row would say texting is not sold on a line where it is on.
-  const limits = dto ? tab.cannotRows({ smsLive: tab.capabilityStatus("sms", dto).ready }) : null;
+  const limits = dto ? tab.cannotRows({ smsLive: tab.capabilityStatus("sms", dto).ready }) : [];
   const words = tab.ABILITY_CHANNEL_WORDS;
   const door = canEdit ? btcOpenRow : null;
-  // What could not be read, named: the card says which surface rather than "something".
-  const unread = !dto ? { what: "the connections", surface: "setup" } : { what: "the Autonomy tab", surface: "settings" };
+  // What could not be read, named: the card says which surface rather than "something". The
+  // connections are the whole card's -- every row of it, the limits included, turns on the lines that
+  // answer -- so that one is said ONCE, in place of everything, with one Retry. What the settings
+  // surface lost is the abilities' alone, and the three limits stand under it.
+  const lost = [rows ? null : "the Autonomy tab", Array.isArray(templates) ? null : "your approved messages"].filter(
+    Boolean,
+  );
+
+  if (!dto) {
+    return (
+      <section className="rec-card" data-testid="rec-card-can" aria-labelledby="bt-can-title">
+        <div className="rec-card-head">
+          <h2 className="rec-card-title" id="bt-can-title">
+            What it can do
+          </h2>
+        </div>
+        <window.FailedRead kind="line" what="the connections" surface="setup" testid="rec-can-unread" />
+      </section>
+    );
+  }
 
   return (
     <section className="rec-card" data-testid="rec-card-can" aria-labelledby="bt-can-title">
@@ -198,18 +236,16 @@ const BtCanCard = ({ brain, config, canEdit }) => {
       {abilities ? (
         abilities.rows.map((a) => <BtcRow key={a.id} ability={a} words={words} door={door} />)
       ) : (
-        <window.FailedRead kind="line" what={unread.what} surface={unread.surface} testid="rec-can-unread" />
+        <window.FailedRead kind="line" what={lost.join(" and ")} surface="settings" testid="rec-can-unread" />
       )}
 
-      <div className="bt-can-group" data-testid="rec-card-cannot">
+      <div className="bt-can-group" role="group" aria-labelledby="bt-cannot-title" data-testid="rec-card-cannot">
         <h3 className="bt-can-group-head" id="bt-cannot-title">
           And what it cannot
         </h3>
-        {limits ? (
-          limits.map((c) => <BtcCannotRow key={c.id} limit={c} />)
-        ) : (
-          <window.FailedRead kind="line" what="the connections" surface="setup" testid="rec-cannot-unread" />
-        )}
+        {limits.map((c) => (
+          <BtcCannotRow key={c.id} limit={c} />
+        ))}
       </div>
     </section>
   );

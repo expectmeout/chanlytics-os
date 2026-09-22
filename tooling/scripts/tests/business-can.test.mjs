@@ -197,26 +197,68 @@ test("on the mode a workspace is provisioned with, the card says nothing about a
 /* ------------------------------------ what it cannot read ------------------------------------ */
 
 test("a read that failed is said where the rows would be, and never guessed at", () => {
-  // A false passed for a boolean nobody could read draws a live line dark and a hold as none.
+  // A false passed for a boolean nobody could read draws a live line dark and a hold as none. Each
+  // surface the card reads is named where its rows would be, so the owner knows what is missing.
   for (const [what, over] of [
     ["the Autonomy tab", { policies: null }],
-    ["the connections", { setup: null }],
+    // A failed templates read was being turned into "no approved booking-link message", which
+    // narrows the call's row and the openings row's clause on a read that never happened.
+    ["your approved messages", { templates: null }],
   ]) {
     const card = canCard(drawTab({ profile: melany, ...over }));
-    assert.ok(byTestId(card, "rec-can-unread"), what);
+    const said = byTestId(card, "rec-can-unread");
+    assert.ok(said, what);
+    assert.ok(textOf(said).includes(what), `${what}: ${textOf(said)}`);
     assert.equal(byTestId(card, "rec-can-answer"), null, `${what}: no row is guessed at`);
     assert.equal(byTestId(card, "rec-can-held"), null, `${what}: and no hold is either`);
+    // The three limits read only the lines, so they stand whatever the settings surface lost.
+    assert.ok(byTestId(card, "rec-cannot-book"), `${what}: what it cannot do still stands`);
   }
-  // What it cannot do needs the lines, and says so on its own when they are the thing missing.
-  const noLines = drawTab({ profile: melany, setup: null });
-  assert.ok(byTestId(noLines, "rec-cannot-unread"));
-  // The Autonomy tab tells it nothing, so the three limits stand whatever it says.
-  const noPolicies = drawTab({ profile: melany, policies: null });
-  assert.ok(byTestId(noPolicies, "rec-cannot-book"), "what it cannot do does not read the Autonomy tab");
-  // A surface not read YET is the same answer as one that failed: the card knows nothing either way.
-  drawTab({ profile: melany });
-  W.__POLICIES = undefined;
-  assert.ok(byTestId(canCard(redrawTab()), "rec-can-unread"), "nor is a surface still being read guessed at");
+  // Both at once is still one sentence, naming both.
+  const both = canCard(drawTab({ profile: melany, policies: null, templates: null }));
+  assert.match(textOf(byTestId(both, "rec-can-unread")), /the Autonomy tab and your approved messages/);
+});
+
+test("the connections gone is ONE failed read for the whole card, with one retry", () => {
+  // Every row of it, the abilities and the limits alike, turns on the lines that answer. Said twice
+  // it was two alarms and two Retries for one cause.
+  const tree = drawTab({ profile: melany, setup: null });
+  const card = canCard(tree);
+  assert.match(textOf(byTestId(card, "rec-can-unread")), /the connections/);
+  assert.equal(byTestId(card, "rec-cannot-unread"), null, "not a second failed read under it");
+  assert.equal(byTestId(card, "rec-card-cannot"), null, "and no group head over nothing");
+  assert.equal(all(card, (n) => classes(n).includes("empty-failed")).length, 1, "one alarm");
+  // And one Retry behind it: the kit draws one per failed read, through the surface it names.
+  const was = W.__refreshSurface;
+  try {
+    W.__refreshSurface = () => {};
+    const again = canCard(drawTab({ profile: melany, setup: null }));
+    assert.equal(all(again, (n) => /-retry$/.test(n.props?.["data-testid"] || "")).length, 1, "one retry");
+  } finally {
+    W.__refreshSurface = was;
+  }
+});
+
+test("a surface still being read is not a surface that failed", () => {
+  // On a cold boot the settings surface lands before Setup (the boot queue ranks the tab's own
+  // surface first, and setupOverride is 14th of 16), so a healthy workspace read "Couldn't read the
+  // connections" with a Retry until it arrived. The house says it the other way round
+  // (pages/setup.jsx, pages/settings.jsx): null is a failure, undefined is still on its way.
+  for (const global of ["__SETUP", "__POLICIES", "__TEMPLATES_ALL"]) {
+    drawTab({ profile: melany });
+    const was = W[global];
+    try {
+      W[global] = undefined;
+      const card = canCard(redrawTab());
+      assert.ok(card, `${global}: the card keeps its place`);
+      assert.ok(byTestId(card, "rec-can-reading"), `${global}: and says it is reading`);
+      assert.equal(byTestId(card, "rec-can-unread"), null, `${global}: nothing failed`);
+      assert.equal(byTestId(card, "rec-cannot-unread"), null, `${global}: nor here`);
+      assert.equal(byTestId(card, "rec-can-answer"), null, `${global}: and no row is guessed at`);
+    } finally {
+      W[global] = was;
+    }
+  }
 });
 
 test("texting live takes its row out, and it is read from ready rather than live", () => {
