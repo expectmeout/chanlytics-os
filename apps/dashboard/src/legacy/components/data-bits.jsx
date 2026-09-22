@@ -62,6 +62,7 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 // is window.gate(...)'s props, spread after its click, so a refused item stays in
 // the menu, says why when pressed, and leaves the menu open.
 // `escape` is for a menu opened inside a pane that scrolls (the People rail): see moreFit.
+// An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true.
 
 /**
  * Where a menu that escapes its pane hangs (MoreMenu `escape`). A pane that scrolls cuts off whatever crosses its
@@ -153,9 +154,12 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
             {items.map((it, i) => {
               if (it.divider) return <div key={i} className="more-divider" />;
               if (it.header) return <div key={i} className="more-header">{it.header}</div>;
+              // One of a set (a sort, say): a radio item with the tick drawn on every one, hidden where it is not the
+              // one chosen (components.css), so the words stand in one column either way.
+              const radio = typeof it.checked === "boolean";
               return (
-                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role="menuitem" onClick={() => run(it)} {...(it.gate || {})}>
-                  {it.icon && <Icon name={it.icon} size={13} />}
+                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role={radio ? "menuitemradio" : "menuitem"} aria-checked={radio ? it.checked : undefined} onClick={() => run(it)} {...(it.gate || {})}>
+                  {radio ? <Icon name="check" size={13} /> : it.icon && <Icon name={it.icon} size={13} />}
                   <span className="more-item-label">{it.label}</span>
                   {it.meta && <span className="more-item-meta">{it.meta}</span>}
                   {it.hint && <span className="more-item-hint">{it.hint}</span>}

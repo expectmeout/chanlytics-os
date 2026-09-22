@@ -163,3 +163,27 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
   MoreMenu({ items });
   assert.deepEqual(listeners.map((l) => l.type), ["keydown"]);
 });
+
+test("an item with `checked` is one of a set: a menuitemradio, ticked when chosen, its words in one column with the rest", () => {
+  const items = [
+    { header: "Sort" },
+    { label: "Needs you first", checked: false, onClick() {} },
+    { label: "Latest contact first", checked: true, onClick() {} },
+    { label: "Export everyone", icon: "external", onClick() {} },
+  ];
+  // Drawn open, as the page holds it once its trigger is pressed.
+  cells = [true, { current: null }]; seq = 0;
+  const open = MoreMenu({ items });
+  const rows = [];
+  walk(open, (n) => { if (n.type === "button" && classesOf(n).includes("more-item")) rows.push(n); });
+  const kids = (n) => (n.props.children || []).flat(Infinity);
+  const said = (n) => kids(n).find((k) => k && k.props && k.props.className === "more-item-label").props.children.join("");
+  assert.deepEqual(rows.map((n) => [said(n), n.props.role, n.props["aria-checked"]]), [
+    ["Needs you first", "menuitemradio", false],
+    ["Latest contact first", "menuitemradio", true],
+    ["Export everyone", "menuitem", undefined],
+  ]);
+  // Every item of a set draws the tick, and components.css hides it where aria-checked is false, so the words of the
+  // one chosen and the rest stand in one column.
+  assert.deepEqual(rows.map((n) => (kids(n).find((k) => k && k.type === "Icon") || { props: {} }).props.name), ["check", "check", "external"]);
+});
