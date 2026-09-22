@@ -14,7 +14,8 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
 
 /*
  * A fold's three helpers, pure: they read nothing but what they are handed and the bridge's published functions
- * (__instructionsDraft, __fallbackDefaults, __receptionistDefaults, __instructionsMax, __unknownDetails), and change
+ * (__instructionsDraft, __fallbackDefaults, __receptionistDefaults, __instructionsMax, __unknownDetails, and
+ * __businessTab's guardrailsInForce), and change
  * nothing they are handed. Ported from the form they replace, BusinessEditor in settings.jsx, section by section: how it
  * opened each part of its state, what its `save` checked, and how it wrote each part back. A fold is named by its id,
  * the same name consequenceOf knows it by (the bridge's FOLD_BLOCK); any other name is a TypeError naming it.
@@ -226,21 +227,16 @@ const BT_DRAFT_OF = {
     return draft;
   },
   consult_first: (p) => ((p.booking_rules || {}).consult_first || []).join("\n"),
-  guardrails: (p, brain, config) => {
-    const g = p.guardrails || {};
-    return {
-      // Absent means ON. Only an explicit false turns one off, so an unset config must not render as three unticked
-      // boxes.
-      never_quote_prices: g.never_quote_prices !== false,
-      never_confirm_booking: g.never_confirm_booking !== false,
-      disclose_ai: g.disclose_ai !== false,
-      // Opt-in, unlike the three above: a rule that defaulted on would have changed every composed prompt already live
-      // the moment it shipped.
-      no_health_advice: g.no_health_advice === true,
-      // Opt-in abilities: off unless the owner turned one on.
-      vision: (config.features || {}).vision === true,
-    };
-  },
+  // Which rules are in force is contracts' one reading (guardrailsInForce, through the bridge), the composer's and Ask's:
+  // absent means ON for three, so an unset config must not render as three unticked boxes, and the health rule is
+  // opt-in, since a rule that defaulted on would have changed every composed prompt already live the moment it shipped.
+  // The form this replaces read them with a copy of that rule, and two copies had already drifted once (Ask took the
+  // health rule as on when absent).
+  guardrails: (p, brain, config) => ({
+    ...window.__businessTab.guardrailsInForce(p.guardrails),
+    // Opt-in abilities: off unless the owner turned one on.
+    vision: (config.features || {}).vision === true,
+  }),
   // Pre-filled with the workspace's existing instructions, so nothing a business already told its receptionist quietly
   // disappears the moment it fills in a form. Chosen in contracts (S4): the owner's own words, or the prompt from
   // before the form, carried and marked `carried` so the fold can say so -- never the product's opening lines, which

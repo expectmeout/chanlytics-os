@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   newReceptionistDefaults, instructionsDraft, FALLBACK_DEFAULTS, unknownDetails, INSTRUCTIONS_MAX, resolveSystemPrompt,
-  hasProfile, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, bookingRuleRefusal, BookingRulesSchema,
+  hasProfile, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, bookingRuleRefusal, BookingRulesSchema, guardrailsInForce,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "./_legacy-react.mjs";
 
@@ -273,6 +273,20 @@ test("each fold opens with its stored values, as the form it replaces opened the
   delete bare.brain.profile.guardrails;
   delete bare.features;
   assert.deepEqual(S.draftOf("guardrails", bare), { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: false, vision: false });
+  // Which rules are in force is contracts' one predicate (guardrailsInForce, the composer's and Ask's), asked through the
+  // bridge, never a copy of it: whatever it answers is what the switches open as.
+  for (const g of [undefined, {}, { never_quote_prices: false }, { no_health_advice: true, disclose_ai: false }]) {
+    const c = stored();
+    if (g === undefined) delete c.brain.profile.guardrails; else c.brain.profile.guardrails = g;
+    assert.deepEqual(without(S.draftOf("guardrails", c), "vision"), guardrailsInForce(g), JSON.stringify(g));
+  }
+  const was = W.__businessTab.guardrailsInForce;
+  try {
+    W.__businessTab.guardrailsInForce = () => ({ never_quote_prices: false, never_confirm_booking: false, disclose_ai: false, no_health_advice: true });
+    assert.deepEqual(S.draftOf("guardrails", s), { never_quote_prices: false, never_confirm_booking: false, disclose_ai: false, no_health_advice: true, vision: false }, "the switches open as the predicate says");
+  } finally {
+    W.__businessTab.guardrailsInForce = was;
+  }
   // A record with none of it opens every fold empty, and the messages on the product's wording.
   const none = { brain: { business_name: "Bella Nails", booking_link: "https://bella.example/book", system_prompt: newReceptionistDefaults("Bella Nails").system_prompt } };
   assert.deepEqual(

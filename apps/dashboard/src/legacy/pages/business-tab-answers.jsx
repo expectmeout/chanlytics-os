@@ -457,11 +457,13 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   const tone = typeof profile.tone === "string" && profile.tone.trim() ? profile.tone.trim() : null;
   // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
   const languages = (Array.isArray(profile.languages) ? profile.languages : []).filter((l) => typeof l === "string" && l.trim() !== "");
-  // The rules as the fold opens them (absent means on for three, off for health advice and photos), so the row and the
-  // fold never read a stored rule two ways.
-  const rules = S.draftOf("guardrails", stored);
-  const ruleChips = BTA_RULES.filter(([key]) => rules[key]).map(([, , , short]) => ({ label: short }))
-    .concat([{ label: rules.vision ? "Looks at photos" : "Won't look at photos" }]);
+  // The rules as the fold opens them (contracts guardrailsInForce, through draftOf: absent means on for three, off for
+  // health advice and photos), so the row and the fold never read a stored rule two ways. Without the bridge to ask,
+  // the row names no rule it cannot back.
+  const rules = typeof tab.guardrailsInForce === "function" ? S.draftOf("guardrails", stored) : null;
+  const ruleChips = rules
+    ? BTA_RULES.filter(([key]) => rules[key]).map(([, , , short]) => ({ label: short })).concat([{ label: rules.vision ? "Looks at photos" : "Won't look at photos" }])
+    : [];
   // Whether the record's details compose anything, by the resolver's own test (hasProfile), on the brain the rules'
   // save goes on. Without the bridge to ask, nothing is claimed.
   const on = (base && base.brain) || brain;
@@ -523,7 +525,7 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         hint="These hold whatever else you write."
         gate={gate("the rules it always keeps")}
         row={{
-          value: <window.RecordChips chips={ruleChips} testid="rec-rules-chips" />,
+          value: ruleChips.length ? <window.RecordChips chips={ruleChips} testid="rec-rules-chips" /> : null,
           name: "Change the rules it always keeps",
         }}
         body={(f) => <BtaRules {...f} unread={composes ? null : tab.RULES_WITHOUT_FIELDS_WORDS || null} />}

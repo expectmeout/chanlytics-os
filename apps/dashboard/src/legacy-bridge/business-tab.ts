@@ -13,6 +13,7 @@ import {
   promptBlocks, resolveSystemPrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
   TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS,
+  guardrailsInForce,
   type PromptBlockVM, type ProfileCrossing, type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -205,11 +206,12 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,
 // handoffCallWords), the notes' (notesWords), the owner's own words' (instructionsWords), the three messages'
 // (fallbacksWords), and what the rules fold says on a record whose details compose nothing (RULES_WITHOUT_FIELDS_WORDS),
-// which it asks the resolver's own test of (hasProfile), never a copy of it.
+// which it asks the resolver's own test of (hasProfile), never a copy of it. guardrailsInForce is which rules are in
+// force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by.
 export const BUSINESS_TAB = {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing, saveIssues, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
-  TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS, hasProfile,
+  TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS, hasProfile, guardrailsInForce,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 
