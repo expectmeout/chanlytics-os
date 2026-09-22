@@ -430,3 +430,67 @@
 /* Hold to talk: the button is the microphone. */
 .lm-talk { white-space: nowrap; user-select: none; -webkit-user-select: none; touch-action: none; }
 .lm-talk.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+/* ====================================================================
+   A CALL'S ROW ON A PHONE — People's row (tokens.css --row-*)
+   ==================================================================== */
+/* Live's rows took the Inbox's numbers when the page was rebuilt (#664); the Inbox's are People's now, so these
+   follow rather than drift. The dot that says a call is running had a 14px track of its own, which held the face
+   24px in from every other list's gutter; it sits on the face instead, where a presence dot goes, and the row
+   starts where a person's does. Above 900px the rail keeps its own row. */
+@media (max-width: 900px) {
+  .lm-row {
+    position: relative;
+    grid-template-columns: var(--row-face) minmax(0, 1fr);
+    gap: var(--row-gap);
+    padding: var(--row-pad-y) var(--row-pad-x);
+  }
+  .lm-row-dot {
+    position: absolute;
+    left: calc(var(--row-pad-x) + var(--row-face) - 9px);
+    top: calc(var(--row-pad-y) + var(--row-face) - 9px);
+    z-index: 1;
+    height: auto;
+    border-radius: 50%;
+    /* The page's ground behind it, so the dot reads against the face it sits on. */
+    box-shadow: 0 0 0 2px var(--bg);
+    background: var(--bg);
+  }
+  .lm-row-dot:empty {
+    display: none;
+  }
+  .lm-row-avatar {
+    width: var(--row-face);
+    height: var(--row-face);
+  }
+  .lm-row-body {
+    gap: var(--row-line-gap);
+  }
+  .lm-row-who {
+    font-size: var(--text-base);
+    line-height: var(--row-name-line);
+  }
+  .lm-row-clock {
+    font-size: var(--row-facts);
+  }
+  .lm-row-said {
+    font-size: var(--text-sm);
+    line-height: var(--row-said-line);
+  }
+  .lm-row-foot {
+    margin-top: 0;
+    gap: var(--row-gap);
+  }
+  /* A pill on a row is words, not a control: the touch floor (legacy-bridge/legacy.css) gives every .pill
+     min-height 36px on a coarse pointer, which is what made this row taller than a person's. People's row
+     undoes it the same way. */
+  html.legacy-on .lm-row .pill {
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .lm-row-since {
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+}

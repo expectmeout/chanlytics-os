@@ -15614,6 +15614,7 @@ function toLeadRowVM(r, tz, now, search = null) {
     stage: r.stage,
     stageLabel: stageLabelOf(r.stage, r.closed_reason),
     foundLabel: agoShort(foundMs, nowMs),
+    foundLine: Number.isFinite(foundMs) ? `Found ${agoWords(foundMs, nowMs, { date: (at2) => clockDate(at2, tz, nowMs) })}` : "",
     foundAt: `${clockDateYear(foundMs, tz)} \xB7 ${clockTime(foundMs, tz)}`,
     distance: milesLabel(m.distance_m),
     source: LEAD_SOURCE_WORD,

@@ -308,4 +308,61 @@ test.describe("Phone shell on a real workspace", () => {
     await bar.getByTestId("bulk-clear").click();
     await expect(bar).toHaveCount(0);
   });
+  /**
+   * One row for every list (22 Sep). People's row, the Inbox's, Conversations' and a lead's each had their own
+   * numbers -- measured on production at 375px: 84px, 83, 100 and 131, with two name sizes, three gutters and a
+   * 56px photograph among them. They read as four products. tokens.css's --row-* is the one row now, and this
+   * holds them to it: same height, same face, same gutter, the name at one size. Above 900px each list keeps its
+   * own row, so this is a phone's test only.
+   */
+  test("the lists wear one row: a person, a thread, a conversation and a lead are the same row", async ({ page }) => {
+    // The first row of a list, measured against the list's own left edge, and the type its name is set in.
+    const shapeOf = async (row: Locator, faceSel: string, nameSel: string) => {
+      return await row.evaluate(
+        (el, sels) => {
+          const q = (s: string) => el.querySelector(s) as HTMLElement | null;
+          const face = q(sels.face);
+          const name = q(sels.name);
+          const r = el.getBoundingClientRect();
+          const f = face ? face.getBoundingClientRect() : null;
+          const n = name ? getComputedStyle(name) : null;
+          return {
+            height: Math.round(r.height),
+            face: f ? Math.round(f.width) : null,
+            gutter: f ? Math.round(f.left - r.left) : null,
+            name: n ? `${Number.parseFloat(n.fontSize)}/${Number.parseFloat(n.lineHeight)}/${n.fontWeight}` : null,
+            past: Math.round(el.scrollWidth - el.clientWidth),
+          };
+        },
+        { face: faceSel, name: nameSel },
+      );
+    };
+    const shapes: Record<string, Awaited<ReturnType<typeof shapeOf>>> = {};
+    const read = async (hash: string, rowSel: string, faceSel: string, nameSel: string, label: string) => {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      const row = page.locator(rowSel).first();
+      if ((await row.count()) === 0) return; // an empty list on this workspace proves nothing
+      shapes[label] = await shapeOf(row, faceSel, nameSel);
+    };
+    await read("inbox", ".ix-thread", ".ix-thread-avatar", ".ix-thread-who", "a thread");
+    await read("conversations", ".cv-row", ".cv-row-avatar", ".cv-row-who", "a conversation");
+    await read("clients", ".pl-table tbody tr.pl-card-row", ".pl-card-face", ".pl-card-name", "a person");
+    await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".pl-card-face", ".pl-card-name", "a lead");
+    const seen = Object.entries(shapes);
+    test.skip(seen.length < 2, "this workspace has fewer than two lists with anything in them");
+    const [first, firstShape] = seen[0];
+    for (const [label, shape] of seen.slice(1)) {
+      expect(shape.height, `${label} is as tall as ${first}`).toBe(firstShape.height);
+      expect(shape.face, `${label}'s face is ${first}'s`).toBe(firstShape.face);
+      expect(shape.gutter, `${label} starts where ${first} does`).toBe(firstShape.gutter);
+      expect(shape.name, `${label}'s name is set like ${first}'s`).toBe(firstShape.name);
+    }
+    for (const [label, shape] of seen) {
+      expect(shape.height, `${label} is the row tokens.css draws`).toBe(84);
+      expect(shape.face, `${label}'s face is --row-face`).toBe(32);
+      expect(shape.gutter, `${label} keeps --row-pad-x`).toBe(16);
+      expect(shape.past, `nothing on ${label} is past its right edge`).toBeLessThanOrEqual(1);
+    }
+  });
 });

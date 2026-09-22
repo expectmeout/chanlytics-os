@@ -402,6 +402,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     stage: "ready",
     stageLabel: "Ready",
     foundLabel: "6m",
+    foundLine: "Found 6m ago",
     foundAt: "Sep 18, 2026 · 2:14 PM",
     distance: "1.2 mi",
     source: "Google Maps listing",
@@ -474,6 +475,12 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     ["Chain", "Chain", "Left out: Chain"],
     "Excluded wears the criterion that left it out",
   );
+  // A phone's row says when it was found in words, as People's says when they last wrote: a date once it is a week old.
+  assert.equal(
+    toLeadRowVM(row({ found_at: new Date(NOW.getTime() - 20 * 86_400_000).toISOString() }), TZ, NOW).foundLine,
+    "Found Aug 29",
+  );
+  assert.equal(toLeadRowVM(row({ found_at: NOW.toISOString() }), TZ, NOW).foundLine, "Found just now");
   const closed = toLeadRowVM(row({ stage: "archived", closed_reason: "not_a_fit" }), TZ, NOW);
   assert.deepEqual(
     [closed.stage, closed.stageLabel],

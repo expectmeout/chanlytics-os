@@ -91,10 +91,13 @@ const CvRow = ({ c, active, onSelect }) => {
   <button className={`cv-row ${active ? "active" : ""} ${c.live && !endedLive ? "is-live" : ""}`} onClick={() => onSelect(c.id)}>
     <span className="cv-row-avatar">{c.initials.slice(0, 2)}</span>
     <span className="cv-row-body">
+      {/* People's row (tokens.css --row-*, conversations.css): who it is and how it stands on the first line, what
+          was said on the second, and the facts under them -- the agent, how long it ran, and when. The outcome
+          used to stand in the foot beside them, where its pill made the row a sixth taller than a person's. */}
       <span className="cv-row-line1">
         <Icon name={CV_ICON[c.channel]} size={11} />
         <span className="cv-row-who">{c.who}</span>
-        <span className="cv-row-at tabular">{c.at}</span>
+        <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} channel={c.channel} answeredBy={c.answeredBy} />
       </span>
       <span className="cv-row-snippet">{c.snippet}</span>
       <span className="cv-row-foot">
@@ -103,7 +106,7 @@ const CvRow = ({ c, active, onSelect }) => {
           {c.agent.name}
         </span>
         {c.duration && <span className="cv-row-dur mono tabular">{c.duration}</span>}
-        <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} channel={c.channel} answeredBy={c.answeredBy} />
+        <span className="cv-row-at tabular">{c.at}</span>
       </span>
     </span>
   </button>
