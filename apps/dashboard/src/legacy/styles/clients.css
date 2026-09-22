@@ -2132,3 +2132,25 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 @media (max-width: 900px) and (pointer: coarse) {
   html.legacy-on .pl-standing-needs { margin-top: -10px; margin-bottom: -10px; }
 }
+
+/* People's own sheets on a phone (PhoneSheet): Add a person, and the open list's rename, delete and "Save these". From
+   the bottom, edge to edge, a handle, a title and one way out; fields at 16px, one wide button. .sb-sheet.pp-sheet so
+   mobile.css's .pl-sheet padding, which loads after this file, gives way. */
+.sb-sheet.pp-sheet { padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+.pp-sheet-handle { width: 36px; height: 4px; margin: 8px auto 4px; border-radius: var(--radius-full); background: var(--line-strong); }
+.pp-sheet-head { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px 4px 16px; }
+.pp-sheet-title { flex: 1; min-width: 0; margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-snug); color: var(--ink); }
+.pp-sheet-close { flex: none; height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
+.pp-sheet-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 16px 8px; }
+.pp-field { display: flex; flex-direction: column; gap: 6px; }
+.pp-field-label { font-size: var(--text-sm); color: var(--ink-muted); }
+.pp-field-opt { color: var(--ink-dim); }
+.pp-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+.pp-input:focus { outline: none; border-color: var(--ink-muted); box-shadow: 0 0 0 3px var(--bg-active); }
+.pp-input[aria-invalid="true"] { border-color: var(--danger); }
+.pp-sheet-hint { margin: -6px 0 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.pp-sheet-go { width: 100%; height: 48px; justify-content: center; font-size: var(--text-md); }
+.pp-sheet .confirm-block { max-width: none; margin: 0; padding: 14px; background: var(--bg); }
+.pp-sheet .confirm-block .confirm-q { font-size: var(--text-md); color: var(--ink); }
+.pp-sheet .confirm-block .confirm-acts { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.pp-sheet .confirm-block .confirm-acts .btn { height: 48px; justify-content: center; font-size: var(--text-md); }

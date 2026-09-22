@@ -778,6 +778,18 @@ const plDownload = (name, text) => {
 };
 // The receptionist, in one word beside the state, only when it is not simply answering.
 const PL_RECEPT_MARK = { escalated: "escalated", queued: "reply queued", snoozed: "snoozed", paused: "held for you", silent: "silent" };
+// The sorts a phone offers from its more-menu, in the words it says them in. A desktop sorts by its headings, which a
+// phone does not draw: its one button only turned the order round ("Z → A"), whatever the sort was.
+const PL_PHONE_SORTS = [
+  { by: "state", dir: "desc", label: "Needs you first" },
+  { by: "last", dir: "desc", label: "Latest contact first" },
+  { by: "name", dir: "asc", label: "Name, A to Z" },
+  { by: "name", dir: "desc", label: "Name, Z to A" },
+  { by: "visits", dir: "asc", label: "Soonest visit first", needs: (x) => x.withCalendar },
+];
+// An empty Add a person and an empty list draft: the phone's sheets' drafts are the page's state.
+const PL_ADD_EMPTY = { name: "", phone: "", busy: false, error: null };
+const PL_LIST_EMPTY = { name: "", busy: false, error: null };
 
 // A stable empty list, so a workspace without saved lists does not re-run the
 // table's memo on every render.
@@ -1657,6 +1669,65 @@ const AddPersonButton = ({ onAdded, flash }) => {
   );
 };
 
+// A sheet from the bottom of a phone for People's own small jobs -- Add a person, and the open list's rename, delete
+// and "Save these": a handle, a title, one way out, and the job. The page's own dialog: `pl-sheet` keeps it out of
+// PL_OVERLAY, and the page's one keyboard listener closes it on Esc. Hookless: the page holds what is in it.
+const PhoneSheet = ({ title, onClose, closeLabel = "Cancel", testid, children }) => (
+  <>
+    <div className="sb-sheet-backdrop" onClick={onClose} />
+    <div className="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testid}>
+      <div className="pp-sheet-handle" aria-hidden="true" />
+      <div className="pp-sheet-head">
+        <h2 className="pp-sheet-title">{title}</h2>
+        {closeLabel && <button type="button" className="pp-sheet-close" onClick={onClose} data-testid={`${testid}-close`}>{closeLabel}</button>}
+      </div>
+      <div className="pp-sheet-body">{children}</div>
+    </div>
+  </>
+);
+
+// Add a person on a phone: the two fields stacked, 16px, a number pad for the number, one wide button. The desktop's
+// form stands inline in its controls row; on a phone it was that row, 479px wide on a 365px screen, with Add and
+// Cancel past the edge and the page scrolling sideways.
+const PeopleAddSheet = ({ draft, onDraft, onAdd, onClose }) => (
+  <PhoneSheet title="Add a person" onClose={onClose} testid="add-person-sheet">
+    <label className="pp-field">
+      <span className="pp-field-label">Name <span className="pp-field-opt">(optional)</span></span>
+      <input className="pp-input" autoFocus value={draft.name} maxLength={80} autoComplete="name" disabled={draft.busy} onChange={(e) => onDraft({ name: e.target.value })} data-testid="add-person-name" />
+    </label>
+    <label className="pp-field">
+      <span className="pp-field-label">Mobile number</span>
+      <input className="pp-input" type="tel" inputMode="tel" autoComplete="tel" value={draft.phone} maxLength={24} disabled={draft.busy} aria-invalid={draft.error ? true : undefined} aria-describedby={draft.error ? "add-person-error" : undefined} onChange={(e) => onDraft({ phone: e.target.value, error: null })} onKeyDown={(e) => { if (e.key === "Enter") onAdd(); }} data-testid="add-person-phone" />
+    </label>
+    <window.FieldError id="add-person-error" message={draft.error} testid="add-person-error" />
+    <p className="pp-sheet-hint">A number that is already here opens that person instead of adding them twice.</p>
+    <button type="button" className="btn btn-primary pp-sheet-go" disabled={draft.busy || !draft.phone.trim()} onClick={onAdd} data-testid="add-person-save">{draft.busy ? "Adding…" : "Add"}</button>
+  </PhoneSheet>
+);
+
+// The open list's own acts on a phone, from the more-menu: rename it, delete it, or keep what is shown as a list. A
+// desktop does these on the list's title line, which a phone does not draw. The doors are the desktop's.
+const PeopleListActSheet = ({ act, list, count, draft, onDraft, onGo, onClose }) => {
+  if (act === "delete") {
+    return (
+      <PhoneSheet title="Delete the list" onClose={onClose} closeLabel={null} testid="list-act-sheet">
+        <Confirm block question={`Delete “${list.name}”?`} detail="The people stay." yes="Yes, delete" danger busy={draft.busy} error={draft.error} onYes={onGo} onNo={onClose} testid="delete-list" />
+      </PhoneSheet>
+    );
+  }
+  const renaming = act === "rename";
+  return (
+    <PhoneSheet title={renaming ? "Rename the list" : `Save these ${count} as a list`} onClose={onClose} testid="list-act-sheet">
+      <label className="pp-field">
+        <span className="pp-field-label">{renaming ? "Its name" : "Name the list"}</span>
+        <input className="pp-input" autoFocus value={draft.name} maxLength={60} disabled={draft.busy} aria-invalid={draft.error ? true : undefined} aria-describedby={draft.error ? "list-act-error" : undefined} onChange={(e) => onDraft({ name: e.target.value, error: null })} onKeyDown={(e) => { if (e.key === "Enter") onGo(); }} data-testid={renaming ? "list-rename-name" : "save-shown-name"} />
+      </label>
+      <window.FieldError id="list-act-error" message={draft.error} testid="list-act-error" />
+      <button type="button" className="btn btn-primary pp-sheet-go" disabled={draft.busy || !draft.name.trim()} onClick={onGo} data-testid={renaming ? "list-rename-save" : "save-shown-save"}>{draft.busy ? "Saving…" : renaming ? "Save" : "Keep it"}</button>
+    </PhoneSheet>
+  );
+};
+
 // Typing: a field that takes words, or a radio, whose arrow keys move its choice. A row's checkbox is not one, so after
 // a click on it J, K, x and Esc still work.
 const plTyping = (el) => !!el && ((el.tagName === "INPUT" && !/^checkbox$/i.test(el.type || "")) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || !!el.isContentEditable);
@@ -1699,6 +1770,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [newListSignal, setNewListSignal] = useState(0);
   // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
   const [searchOpen, setSearchOpen] = useState(false);
+  // People's own sheets on a phone -- Add a person, and the open list's rename, delete and "Save these" -- with their
+  // drafts. The page holds them, so the sheets are hookless and the stub React's one hook order holds.
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
+  const [listAct, setListAct] = useState(null);
+  const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
   const [phone, setPhone] = useState(plPhoneNow);
   React.useEffect(() => {
     const mq = window.matchMedia ? window.matchMedia(PL_PHONE_QUERY) : null;
@@ -2085,6 +2162,49 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, viewRoute, chip]);
   React.useEffect(() => { setAllMatching(false); }, [q]);
   const shownIds = rowsShown.map((r) => r.id);
+  // The phone's Add a person: the desktop's door (plAddPerson), the page's draft. Added, the sheet closes and their
+  // page opens, as the desktop's form does.
+  const addOnPhone = async () => {
+    const d = addDraft;
+    if (d.busy || !d.phone.trim() || !window.__addPerson) return;
+    setAddDraft({ ...d, busy: true, error: null });
+    const r = await plAddPerson(d);
+    if (!r.ok) { setAddDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+    plFlash({ msg: plAddedWords(d, r.existed) });
+    setAddOpen(false);
+    setAddDraft(PL_ADD_EMPTY);
+    onOpenProfile(r.id);
+  };
+  const closePhoneSheet = () => { setAddOpen(false); setAddDraft(PL_ADD_EMPTY); setListAct(null); setListDraft(PL_LIST_EMPTY); };
+  // The open list's acts on a phone (the more-menu's): the desktop's doors, the page's draft, the desktop's words.
+  const listActGo = async () => {
+    const d = listDraft;
+    if (d.busy || !window.__lists) return;
+    const n = d.name.trim();
+    if (listAct !== "delete" && !n) return;
+    if (listAct !== "save" && !activeSaved) return;
+    if (listAct === "rename" && n === activeSaved.name) { closePhoneSheet(); return; }
+    setListDraft({ ...d, busy: true, error: null });
+    if (listAct === "delete") {
+      const r = await plDeleteList(activeSaved);
+      if (!r.ok) { setListDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+      closePhoneSheet();
+      setSavedId(null);
+      return;
+    }
+    if (listAct === "rename") {
+      const r = await plRenameList(activeSaved, n);
+      if (!r.ok) { setListDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+      closePhoneSheet();
+      plFlash({ msg: <>Renamed to <b>{n}</b></> });
+      return;
+    }
+    const ids = shownIds;
+    const { made, filled, id } = await plMakeListWith(n, ids);
+    if (!made.ok) { setListDraft((x) => ({ ...x, busy: false, error: made.message || "Could not make the list." })); return; }
+    closePhoneSheet();
+    plFlash(filled.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(id, n, plFlash) } : window.refusalToast(filled, "Not kept as a list"));
+  };
   // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
   // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never
   // while typing, never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a
@@ -2268,7 +2388,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       // Asked at the key, not from the last draw: the window may have narrowed since, and this is the one moment it matters.
       if (k.menuOpen && plPhoneNow()) k.closeMenu();
       else if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
-      if (k.sheetOpen) return;
+      // The phone's sheets hold every key; the Lists sheet closes on its own Esc listener, People's own two on this one.
+      if (k.sheetOpen) { if (e.key === "Escape" && k.closeSheet) { e.preventDefault(); k.closeSheet(); } return; }
       // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
       // opens, after this listener, so it is still on the page as this one hears the key; the ? sheet takes its Esc.
       if (document.querySelector(PL_OVERLAY)) return;
@@ -2493,7 +2614,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     clearSel: () => setSel(new Set()),
     // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
     focusSearch: () => { if (phone) setSearchOpen(true); if (searchRef.current) searchRef.current.focus(); },
-    sheetOpen: listsOpen,
+    sheetOpen: listsOpen || addOpen || !!listAct,
+    closeSheet: addOpen || listAct ? closePhoneSheet : null,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
     peekOpen: onLeads && (!!peekId || !!lightboxId),
@@ -2769,8 +2891,25 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     );
   }
 
-  // People's more-menu on a phone, the bar's last control (filled in with the menu's own items, below).
-  const phoneMenu = [];
+  // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
+  // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
+  // list open, that list's own acts.
+  const phoneMenu = [
+    ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
+    { header: "Sort" },
+    ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => { viewTouched.current = true; setSortBy(s.by); setSortDir(s.dir); } })),
+    // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
+    ...(window.__href ? [{ divider: true }, { label: "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(window.__href("GET contacts/export")), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(activeSaved && canEditLists && window.__lists ? [
+      { divider: true },
+      { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
+      { label: "Delete this list…", icon: "x", danger: true, onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("delete"); } },
+    ] : []),
+    ...(!activeSaved && filtered && shown.length > 0 && canEditLists && window.__lists ? [
+      { divider: true },
+      { label: `Save these ${shown.length} as a list`, icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
+    ] : []),
+  ];
 
   return (
     <div className="clients">
@@ -2942,6 +3081,13 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
               newListSignal={newListSignal}
             />
           </PeopleListsSheet>
+        )}
+        {/* People's own two sheets on a phone, last in the tree like the Lists sheet. */}
+        {phone && addOpen && (
+          <PeopleAddSheet draft={addDraft} onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))} onAdd={addOnPhone} onClose={closePhoneSheet} />
+        )}
+        {phone && listAct && (listAct === "save" || activeSaved) && (
+          <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
         )}
         {toastNode}
       </div>

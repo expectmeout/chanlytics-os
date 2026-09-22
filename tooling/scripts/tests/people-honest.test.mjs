@@ -615,6 +615,80 @@ test("on a phone search is a button that opens the bar into the field; Cancel gi
   assert.ok(byTestId(draw(), "people-phone-search"), "/ opens the field");
 }));
 
+const phoneMenuOf = (tree) => find(byTestId(tree, "people-phone-bar"), (n) => n.type === globalThis.MoreMenu).props.items;
+
+test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headings do, and holds the open list's own acts", () => onPhone(async () => {
+  await freshPage({ people: [person(1, { display_name: "Zed" }), person(2, { display_name: "Abe" })], lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }] });
+  const calls = [];
+  globalThis.window.__lists = lists({
+    rename: async (id, name) => { calls.push(["rename", id, name]); return { ok: true, data: {} }; },
+    remove: async (id) => { calls.push(["remove", id]); return { ok: true, data: {} }; },
+  });
+  globalThis.window.__addPerson = async (body) => { calls.push(["add", body]); return { ok: true, data: { contact_id: "p9", existed: false } }; };
+  try {
+    let tree = draw();
+    assert.deepEqual(phoneMenuOf(tree).filter((i) => typeof i.checked === "boolean").map((i) => [i.label, i.checked]), [
+      ["Needs you first", false], ["Latest contact first", true], ["Name, A to Z", false], ["Name, Z to A", false],
+    ], "the sorts a desktop's headings give, the one in use ticked; Soonest visit only with a calendar");
+    phoneMenuOf(tree).find((i) => i.label === "Name, A to Z").onClick();
+    tree = draw();
+    assert.deepEqual(idsShown(tree), ["person-p2", "person-p1"], "A to Z");
+    // Add a person: a sheet, not the desktop's row, which was 479px wide on a 365px screen.
+    phoneMenuOf(tree).find((i) => i.label === "Add a person").onClick();
+    tree = draw();
+    const sheet = byTestId(tree, "add-person-sheet");
+    assert.equal(sheet.props.role, "dialog");
+    assert.equal(byTestId(sheet, "add-person-phone").props.type, "tel", "a phone's number pad");
+    byTestId(sheet, "add-person-phone").props.onChange({ target: { value: "+1 786 555 0100" } });
+    tree = draw();
+    await byTestId(tree, "add-person-save").props.onClick();
+    tree = draw();
+    assert.deepEqual(calls.at(-1), ["add", { phone: "+1 786 555 0100" }]);
+    assert.equal(byTestId(tree, "add-person-sheet"), null, "added: the sheet closes");
+    assert.equal(opened.at(-1), "p9", "and their page opens, as the desktop's form does");
+    // A list open: its rename and its delete are the menu's.
+    tree = draw({ initialSaved: "s1" });
+    tree = draw({ initialSaved: "s1" });
+    phoneMenuOf(tree).find((i) => i.label === "Rename this list").onClick();
+    tree = draw({ initialSaved: "s1" });
+    const name = byTestId(byTestId(tree, "list-act-sheet"), "list-rename-name");
+    assert.equal(name.props.value, "Regulars", "the name to change, in the box");
+    name.props.onChange({ target: { value: "VIP" } });
+    tree = draw({ initialSaved: "s1" });
+    await byTestId(tree, "list-rename-save").props.onClick();
+    tree = draw({ initialSaved: "s1" });
+    assert.deepEqual(calls.at(-1), ["rename", "s1", "VIP"]);
+    assert.equal(byTestId(tree, "list-act-sheet"), null);
+    assert.ok(flashes.some((f) => textOf(f.msg).includes("VIP")), "said");
+    phoneMenuOf(tree).find((i) => i.label === "Delete this list…").onClick();
+    tree = draw({ initialSaved: "s1" });
+    const confirm = find(byTestId(tree, "list-act-sheet"), (n) => n.type === globalThis.Confirm);
+    assert.equal(confirm.props.detail, "The people stay.", "asked through the one Confirm");
+    await confirm.props.onYes();
+    tree = draw({ initialSaved: "s1" });
+    assert.deepEqual(calls.at(-1), ["remove", "s1"]);
+    assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone", "the list gone, everyone shown");
+  } finally {
+    delete globalThis.window.__addPerson;
+  }
+}));
+
+test("Esc closes the phone's own sheet, and the page holds its keys while one is open", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  globalThis.window.__addPerson = async () => ({ ok: true, data: { contact_id: "p9" } });
+  try {
+    let tree = draw();
+    phoneMenuOf(tree).find((i) => i.label === "Add a person").onClick();
+    tree = draw();
+    assert.ok(byTestId(tree, "add-person-sheet"));
+    assert.equal(press("j"), false, "J walks nothing behind the sheet");
+    assert.equal(press("Escape"), true);
+    assert.equal(byTestId(draw(), "add-person-sheet"), null, "Esc closed it");
+  } finally {
+    delete globalThis.window.__addPerson;
+  }
+}));
+
 test("on a phone the lists are behind the bar's list button, as a sheet; a pick closes it, and New list opens the box in it", () => onPhone(async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   let tree = draw();
