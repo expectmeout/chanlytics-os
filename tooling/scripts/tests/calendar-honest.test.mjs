@@ -526,6 +526,11 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
   assert.ok(reading, "REGRESSION: nothing said the board was reading");
   assert.equal(reading.props.role, "status");
   assert.match(textOf(reading), /Reading those days/);
+  // The one rule every page dims by (components.css [data-loading] [data-dims]): it dimmed its own way, at once.
+  assert.equal(byTestId(tree, "calendar-real").props["data-loading"], "", "the page says its days are on their way");
+  assert.equal(byTestId(tree, "cal-body").props["data-dims"], true, "the board is what dims");
+  assert.equal(byTestId(tree, "cal-body").props["aria-busy"], "true");
+  assert.ok(!String(byTestId(tree, "cal-body").props.className).includes("is-loading"), "not by a page's own class");
   byTestId(tree, "cal-view-agenda").props.onClick();
   tree = page();
   assert.match(textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day")[0]), /Reading this day/);
@@ -588,6 +593,60 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
     await calendarOverride.apply();
     assert.ok(!/fresh=/.test(seen[0]), "and the next read does not ask for a fresh one it was never given");
   } finally {
+    Object.assign(globalThis.window, { location: was.location, fetch: was.fetch, __WORKSPACES: was.ws, __ACTIVE_WORKSPACE: was.active, __CALENDAR: was.cal });
+  }
+});
+
+test("a window the board has read paints at once on the way back, and is read again behind -- each way was a read of its own", async () => {
+  // Measured on the salon's workspace, 22 Sep: the board held one window, so back to this week, and back to December,
+  // were 390-500ms of "Reading those days…" each, and leaving for Reports read today's weeks again besides.
+  const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { calendarOverride, getCalendarSpan } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
+  const seen = [];
+  const parked = [];
+  const was = { location: globalThis.window.location, fetch: globalThis.window.fetch, ws: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE, cal: globalThis.window.__CALENDAR };
+  Object.assign(globalThis.window, {
+    location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
+    __WORKSPACES: [{ id: "t1", timezone: TZ }],
+    __ACTIVE_WORKSPACE: "t1",
+    fetch: async (url) => {
+      const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
+      seen.push(q.from);
+      await new Promise((r) => parked.push(r));
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  const pause = () => new Promise((r) => setTimeout(r, 5));
+  const release = async () => { for (let i = 0; i < 40; i += 1) { while (parked.length) parked.shift()(); await pause(); } };
+  const home = windowFor(zoneDayKey(Date.now(), TZ)).from;
+  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  const stop = startSurfaces([calendarOverride]);
+  try {
+    await release();
+    assert.equal(shown(), home, "the weeks around today, read at boot");
+    const toNov = calendar.goTo("2026-11-23", 63);
+    await release();
+    assert.equal(await toNov, true);
+    assert.equal(shown(), "2026-11-23");
+    // Back home: held, so painted before any read lands, and read again behind.
+    seen.length = 0;
+    let back = false;
+    calendar.goTo(null).then(() => { back = true; });
+    await pause();
+    assert.equal(shown(), home, "REGRESSION: the weeks around today waited on a read of their own");
+    assert.equal(back, true, "and the move answered at once");
+    assert.deepEqual(seen, [home], "read again behind all the same");
+    await release();
+    assert.equal(getCalendarSpan().from, null);
+    // And back to November: held too.
+    calendar.goTo("2026-11-23", 63);
+    await pause();
+    assert.equal(shown(), "2026-11-23", "the way back is at once");
+    await release();
+  } finally {
+    stop();
+    await release();
     Object.assign(globalThis.window, { location: was.location, fetch: was.fetch, __WORKSPACES: was.ws, __ACTIVE_WORKSPACE: was.active, __CALENDAR: was.cal });
   }
 });

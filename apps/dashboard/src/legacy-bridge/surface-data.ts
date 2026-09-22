@@ -16,7 +16,8 @@ import { clearSurfaceCache, resnapshotSurface } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { api, read } from "./api";
 import { getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
-import { pageClock, workspaceZone } from "./zone";
+import { knownZone, pageClock, workspaceZone } from "./zone";
+import { heldViews } from "./held-views";
 export { getActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
 import type { NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
@@ -1142,6 +1143,8 @@ let calendarFrom: string | null = null;
 let calendarDays = 63;
 /** The next read asks the calendar itself, not the route's few minutes' cache: the board's Refresh (C2). Taken by that read. */
 let calendarFresh = false;
+/** Whether the surface has made its first read, which alone takes its window from the address. */
+let calendarBooted = false;
 
 export function setCalendarFresh(on: boolean): void {
   calendarFresh = on;
@@ -1162,6 +1165,30 @@ export interface CalendarSurface {
 }
 
 /**
+ * The windows this tab has read (the loading standard's held views): going back to one paints at once, and the read
+ * behind it keeps it current. Measured on the salon's workspace: the board held one window, so back to this week and
+ * back to December were 390-500ms of "Reading those days…" each. Keyed by the span a window covers, so the weeks
+ * around today and the same weeks reached by their date are one.
+ */
+const calendarHeld = heldViews<CalendarSurface>(6);
+const calendarSpanKey = (w: { from: string; days: number }) => `${w.from}|${w.days}`;
+/** The span a window asked for covers: its own, or the weeks around the business's today (unknown before the zone is). */
+function calendarSpanOf(from: string | null, days: number): { from: string; days: number } | null {
+  if (from) return { from, days };
+  const zone = knownZone();
+  return zone ? windowFor(zoneDayKey(Date.now(), zone)) : null;
+}
+/** Paint a window this tab holds for the span now asked for; whether it did. The read behind it is the caller's. */
+export function paintHeldCalendar(): boolean {
+  const w = calendarSpanOf(calendarFrom, calendarDays);
+  const have = w ? calendarHeld.get(calendarSpanKey(w)) : undefined;
+  if (!have) return false;
+  (window as unknown as { __CALENDAR?: CalendarSurface }).__CALENDAR = have;
+  window.dispatchEvent(new CustomEvent("surface:calendar"));
+  return true;
+}
+
+/**
  * Calendar: the owner's calendar as the receptionist reads it — what the
  * feed says is taken, the hours and closures, and the windows a caller
  * would be offered — one span of days by the business's clock. The feed's
@@ -1172,6 +1199,16 @@ export const calendarOverride: SurfaceOverride = {
   globals: ["__CALENDAR"],
   events: ["surface:calendar"],
   apply: async () => {
+    // A cold boot on a day the address names (calendar/<day>) reads the weeks around that day: the page's own read.
+    // It read today's weeks first, and the page read the day's after them. Only the first read looks at the address.
+    if (!calendarBooted) {
+      calendarBooted = true;
+      const named = /^#\/?calendar\/(\d{4}-\d{2}-\d{2})$/.exec((typeof window !== "undefined" && window.location && window.location.hash) || "");
+      if (named && calendarFrom === null) {
+        const w = windowFor(named[1]);
+        setCalendarSpan(w.from, w.days);
+      }
+    }
     const from = calendarFrom;
     const days = calendarDays;
     // A Refresh asks once: the flag goes with the read that takes it.
@@ -1183,10 +1220,9 @@ export const calendarOverride: SurfaceOverride = {
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
     if (from !== calendarFrom || days !== calendarDays) return;
-    (window as unknown as { __CALENDAR?: CalendarSurface }).__CALENDAR = {
-      vm: toCalendarVM(data.calendar, new Date()),
-      fetchedAt: Date.now(),
-    };
+    const surface: CalendarSurface = { vm: toCalendarVM(data.calendar, new Date()), fetchedAt: Date.now() };
+    calendarHeld.hold(calendarSpanKey(w), surface);
+    (window as unknown as { __CALENDAR?: CalendarSurface }).__CALENDAR = surface;
   },
 };
 
@@ -1238,6 +1274,17 @@ export interface ReportsSurface {
  * Today metrics' rules (tenant time zone, no undated imports, answered-by =
  * first reply). Realtime message inserts re-apply so today's column moves.
  */
+/** The periods this tab has read (held views): going back to one paints at once, and the read behind it keeps it current. */
+const reportsHeld = heldViews<ReportsSurface>(4);
+/** Paint a period this tab holds for the period now asked for; whether it did. The read behind it is the caller's. */
+export function paintHeldReports(): boolean {
+  const have = reportsHeld.get(String(reportDays));
+  if (!have) return false;
+  (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = have;
+  window.dispatchEvent(new CustomEvent("surface:reports"));
+  return true;
+}
+
 export const reportsOverride: SurfaceOverride = {
   key: "reports",
   globals: ["__REPORTS"],
@@ -1254,6 +1301,9 @@ export const reportsOverride: SurfaceOverride = {
       read("GET reports/campaigns", { query: { days: String(days) } }).catch((e: unknown) => e as Error),
     ]);
     if (campaigns instanceof Error) console.error("reports_campaigns_fetch_failed", campaigns.message);
+    // A pick of another period while this read was out: its answer is for a period left, and never lands on the new
+    // one. A held period answers a pick at once and is read again behind it, so two reads can be out together.
+    if (days !== reportDays) return;
     const surface: Omit<ReportsSurface, "facts"> = {
       vm: toReportVM(data.report),
       campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report),
@@ -1262,7 +1312,9 @@ export const reportsOverride: SurfaceOverride = {
       fetchedAt: Date.now(),
     };
     // Worth knowing is derived here, once, from the same two view models the page draws: never in the page.
-    (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = { ...surface, facts: reportFacts(surface.vm, surface.campaigns) };
+    const whole: ReportsSurface = { ...surface, facts: reportFacts(surface.vm, surface.campaigns) };
+    reportsHeld.hold(String(days), whole);
+    (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = whole;
   },
 };
 

@@ -14,7 +14,7 @@
  */
 import { clockLabel, coversSpan, frameOf, monthLabelOf, shiftKey, shiftMonth, spanForView, windowFor, type CalendarView } from "@chanlytics/contracts";
 import { api } from "./api";
-import { calendarOverride, getCalendarSpan, setCalendarFresh, setCalendarSpan } from "./surface-data";
+import { calendarOverride, getCalendarSpan, paintHeldCalendar, setCalendarFresh, setCalendarSpan } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 
 /** Load `days` days starting on `from` (a day key); a null `from` is the window around today. */
@@ -22,6 +22,12 @@ export async function goTo(from: string | null, days = 63): Promise<boolean> {
   const prev = getCalendarSpan();
   setCalendarSpan(from, days);
   api().forget();
+  // A window this tab has read paints at once; the read behind it keeps it current (the loading standard's held
+  // views). Only a window never read waits for its read.
+  if (paintHeldCalendar()) {
+    void refreshSurfaces([calendarOverride]);
+    return true;
+  }
   await refreshSurfaces([calendarOverride]);
   const got = (window as unknown as { __CALENDAR?: { vm?: { from?: string; days?: unknown[] } } }).__CALENDAR?.vm;
   if ((from && got?.from !== from) || (got?.days && got.days.length !== days)) {

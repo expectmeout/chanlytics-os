@@ -133,7 +133,7 @@
 .rpt-ask:hover { color: var(--ink); border-color: var(--line-strong); }
 
 .rpt-body { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
-.rpt-body.is-loading { opacity: 0.55; pointer-events: none; }
+/* A period on its way: the one rule (components.css [data-loading] [data-dims]). */
 
 /* Twelve columns; the page places each card (the kit knows no grid). */
 .rpt-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }

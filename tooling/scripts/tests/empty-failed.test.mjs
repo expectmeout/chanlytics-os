@@ -257,3 +257,60 @@ test("a team that could not be read draws the one FailedRead, and its Retry re-r
   byTestId(tree, "team-failed-retry").props.onClick();
   assert.deepEqual(calls.refresh, ["settings"]);
 });
+
+test("a period the page has read paints at once when picked again and is read again behind; an answer for a period left is dropped", async () => {
+  // The loading standard's held views on Reports: the page held one period, so going back to one it had shown was a
+  // read of its own, and the old period stayed dimmed under the new tab until it landed.
+  const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { setReportRange } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const parked = [];
+  const asked = [];
+  globalThis.window.fetch = async (url) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    asked.push(`${u.pathname.replace("/api/v1/", "")} ${u.searchParams.get("days")}`);
+    await new Promise((r) => parked.push({ days: u.searchParams.get("days"), r }));
+    if (u.pathname.endsWith("/reports/campaigns")) return json(200, { ok: true, data: { report: campaignsDto() } });
+    return json(200, { ok: true, data: { report: reportDto(), booking: { calendar: "none", days: 7, asked: 0, booked: 0 } } });
+  };
+  const keepDoc = globalThis.document;
+  globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+  const pause = () => new Promise((r) => setTimeout(r, 5));
+  // Let parked answers go -- only those for `days` when named -- so a test can say which lands first.
+  const release = async (days = null) => {
+    for (let i = 0; i < 40; i += 1) {
+      for (const p of [...parked]) if (days === null || p.days === days) { parked.splice(parked.indexOf(p), 1); p.r(); }
+      await pause();
+    }
+  };
+  const shown = () => globalThis.window.__REPORTS?.days;
+  // A runner to refresh through (setReportRange reads the real surface through it); this one joins no live feed.
+  const stop = startSurfaces([{ ...reportsOverride, refreshOnMessageInserts: false }]);
+  try {
+    await release();
+    assert.equal(shown(), 30, "the saved period, read at boot");
+    const to7 = setReportRange(7);
+    await release();
+    assert.equal(await to7, true);
+    assert.equal(shown(), 7);
+    // Back to 30: held, painted before any read lands, and read again behind.
+    asked.length = 0;
+    let back = null;
+    setReportRange(30).then((ok) => { back = ok; });
+    await pause();
+    assert.equal(shown(), 30, "REGRESSION: the period the page had shown waited on a read of its own");
+    assert.equal(back, true, "the pick answered at once");
+    assert.ok(asked.includes("reports 30"), "and 30 is read again behind");
+    // A pick while that read is out: 90 lands first, then 30's refresh -- a late answer for a period left, which must
+    // never land on the new one.
+    const to90 = setReportRange(90);
+    await release("90");
+    await to90;
+    assert.equal(shown(), 90);
+    await release("30");
+    assert.equal(shown(), 90, "REGRESSION: 30's refresh landed last and put the old period back over 90");
+  } finally {
+    stop();
+    await release();
+    globalThis.document = keepDoc;
+  }
+});
