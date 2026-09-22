@@ -149,6 +149,10 @@
 .rec-foot-note { flex: 1; min-width: 0; text-align: right; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-foot-keys { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); }
 
+/* A fold's row, drawn behind its sheet on a phone (record-fold.jsx `behind`): its box lays out as nothing, so the row
+   stands in its card exactly where it stood. */
+.rec-fold-behind { display: contents; }
+
 /* ---------- An inline editor: one value, edited in the row that states it ---------- */
 /* The row itself becomes the field (spec §5): the label stays in the label column, and the box, what it will say,
    and Save and Cancel take the value's place. Closed, it is hidden whole, as a closed fold is. */

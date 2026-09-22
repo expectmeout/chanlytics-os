@@ -707,7 +707,12 @@ const RecordFold = ({
     const drawn = root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
     // What the page draws at rest in the fold's place, its row, stays in the card behind the sheet (`behind`): a card a
     // row shorter under the wash grew back as the sheet left, which its leaving would have put on show.
-    return behind ? <>{behind}{drawn}</> : drawn;
+    // Behind the modal sheet it is a picture of the row, not the row: a box that lays out as nothing (record.css), so the
+    // card is as it was, aria-hidden and inert, so its act can be neither pressed, focused nor read out. `inert` is set
+    // through the ref, since React 18 and 19 spell the prop differently (this file's header). Keyed, so the fold's own
+    // box, drawn in its place as it closes, is never this one reused: it would carry `display: contents` into its close.
+    const shield = (n) => { if (n) n.setAttribute("inert", ""); };
+    return behind ? <><div key="behind" className="rec-fold-behind" aria-hidden="true" ref={shield}>{behind}</div>{drawn}</> : drawn;
   }
   return (
     <div

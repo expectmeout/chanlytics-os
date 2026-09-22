@@ -1417,6 +1417,20 @@ test("on a phone the row a fold opens from is still drawn behind its sheet, so t
       null,
       "and not inside the dialog",
     );
+    // Behind a modal sheet it is a picture of the row, not the row: nothing in it can be pressed, focused or read out.
+    // It sits in a box that lays out as nothing (display: contents, record.css), so the card is as it was, and that box
+    // is aria-hidden and inert -- set through its ref, which React 18 (the mockup) and 19 (the app) both pass through,
+    // where they spell the `inert` prop differently.
+    const shield = find(tree, (n) => classes(n).includes("rec-fold-behind"));
+    assert.ok(shield && find(shield, (n) => n === behind), "the row is inside its box");
+    assert.equal(shield.props["aria-hidden"], "true");
+    // Keyed, so React never reuses it as the fold's own box drawn in its place as the fold closes: that box carried
+    // `display: contents` into its close, and the card moved 8px under the leaving sheet (the journey measured it).
+    assert.equal(shield.props.key, "behind");
+    const el = { attrs: {}, setAttribute: (k, v) => (el.attrs[k] = v) };
+    shield.props.ref(el);
+    assert.deepEqual(el.attrs, { inert: "" }, "inert, whatever React spells it");
+    shield.props.ref(null);
     assert.equal(
       find(drawFold(bookingRules({ behind, open: false })), (n) => n === behind),
       null,
