@@ -28,7 +28,7 @@ import { hoursLines, resolveFacts, MAX_CLOSURES, PROFILE_LIMITS } from "@chanlyt
 import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../e2e-workspace.mjs";
 import { scenario, SCENARIOS, WORKSPACE } from "../e2e-harness/scenarios.mjs";
 import { buildFixture } from "../e2e-harness/fixture.mjs";
-import { answer, BUSINESS_TAB_SCRIPT, documentWithFixture } from "../e2e-harness/server.mjs";
+import { answer, appRules, BUSINESS_TAB_SCRIPT, documentWithFixture } from "../e2e-harness/server.mjs";
 
 const NOW = Date.parse("2026-09-22T09:00:00Z");
 const LEGACY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/legacy");
@@ -249,6 +249,20 @@ test("the document runs the fixture's install of the tab's helpers, not the dist
     __hoursLines: "from source",
     __configLimits: "from source",
   });
+});
+
+test("the document carries the app's own rules after the mockup's stylesheets, the touch floor among them", () => {
+  // The app imports legacy-bridge/legacy.css, which is the mockup's stylesheets in their order and then the app's own
+  // rules: the 44px floor under a coarse pointer among them. The mockup's document never had those rules, so a spec on
+  // a touch phone measured a Save 26px tall on the harness that the app draws at 44.
+  const html = documentWithFixture();
+  const at = (needle) => html.indexOf(needle);
+  assert.ok(at("/_hx/app.css") > 0, "the app's rules are in the document");
+  assert.ok(at("/_hx/app.css") > at("styles/ask.css"), "after the last of the mockup's stylesheets, as in the app");
+  assert.ok(at("/_hx/app.css") < at("</head>"));
+  const rules = appRules();
+  assert.equal(/@import/.test(rules), false, "and not the stylesheets again: the document already has them");
+  assert.ok(rules.trim().length > 0);
 });
 
 /* ------------------------------- what the server answers ------------------------------- */
