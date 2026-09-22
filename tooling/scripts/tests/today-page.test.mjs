@@ -39,6 +39,9 @@ installLegacyReact({
 });
 const L = "../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
+// One appointment on a list, the row Today's day and the Calendar's agenda both wear.
+await import(`${L}/components/day-agenda.jsx`);
+for (const k of ["AgendaItem", "AgendaItems", "AgendaOpen"]) globalThis[k] = globalThis.window[k];
 const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },

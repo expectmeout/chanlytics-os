@@ -18,6 +18,7 @@ import "@/legacy/components/sidebar.jsx";
 import "@/legacy/components/shortcuts.jsx";
 import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";
+import "@/legacy/components/day-agenda.jsx";
 import "@/legacy/components/record-row.jsx";
 import "@/legacy/components/record-field.jsx";
 import "@/legacy/components/record-fold.jsx";

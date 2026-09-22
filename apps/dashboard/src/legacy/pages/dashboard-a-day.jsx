@@ -1,4 +1,4 @@
-/* global React, Icon, FailedRead */
+/* global React, Icon, FailedRead, AgendaItem, AgendaItems, AgendaOpen */
 // The day: today and tomorrow from the calendar the receptionist reads — who
 // is coming and when, what is open, what is closed — and the visit
 // playbooks' line. Reads the calendar and playbooks surfaces the page already
@@ -83,29 +83,28 @@ const TodayDay = () => {
               ? <span className="td-frame-note">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>
               : d.summary && <span className="td-frame-note tabular">{d.summary.booked}{d.summary.flagged && <> · <b className="warn">{d.summary.flagged}</b></>}</span>}
           </div>
-          {/* The schedule as the mockup drew it, with only what the calendar and
-              People hold: the start in a column, a rail with the now marker,
-              the name first (the title when nobody is named), the service and
-              its length under it, a red line when that person's thread needs
-              someone. Long words wrap in their own column; nothing is squeezed. */}
+          {/* The one row every list of appointments wears (components/day-agenda.jsx): the start in a column, a
+              rail with the now marker, who it is for with what it is for and how long under them, and a red line
+              when that person's thread needs someone. Nobody matched means the service is the headline itself.
+              `service` is the title with the person's name taken out of it, so the row says them once. */}
           {d.items.length > 0 ? (
-            <div className="td-items">
-              {d.items.map((b) => {
-                const glyph = glyphFor(b);
-                return (
-                  <button key={b.id} className={`td-item ${b.phase}${b.flag ? " flagged" : ""}`} onClick={() => open(b)} title={`${b.time}${b.person ? ` · open ${b.person.name}` : " · open the Calendar"}`} data-testid="today-day-item" data-phase={b.phase}>
-                    <span className="td-item-time">{b.start}</span>
-                    <span className="td-item-rail" aria-hidden="true" />
-                    <span className="td-item-body">
-                      <span className="td-item-title">{b.person ? b.person.name : b.title}</span>
-                      {(b.person || b.dur) && <span className="td-item-sub">{b.person ? `${b.title}${b.dur ? ` · ${b.dur}` : ""}` : b.dur}</span>}
-                      {b.flag && <span className="td-item-flag">{b.flag}</span>}
-                    </span>
-                    {glyph && <span className="td-item-glyph"><Icon name={glyph} size={11} /></span>}
-                  </button>
-                );
-              })}
-            </div>
+            <AgendaItems>
+              {d.items.map((b) => (
+                <AgendaItem
+                  key={b.id}
+                  time={b.start}
+                  name={b.person ? b.person.name : b.service}
+                  service={b.person ? b.service : null}
+                  dur={b.dur}
+                  flag={b.flag}
+                  glyph={glyphFor(b)}
+                  phase={b.phase}
+                  onOpen={() => open(b)}
+                  hint={`${b.time}${b.person ? ` · open ${b.person.name}` : " · open the Calendar"}`}
+                  testid="today-day-item"
+                />
+              ))}
+            </AgendaItems>
           ) : (!d.closed.yes && <div className="td-empty">Nothing on the calendar.</div>)}
           {/* The cap's tail: contracts says how many the five rows left out. */}
           {d.more > 0 && (
@@ -115,10 +114,9 @@ const TodayDay = () => {
             </button>
           )}
           {d.open.length > 0 && (
-            <div className="td-open">
-              <span className="td-open-label">Open</span>
-              {d.open.map((w) => <span key={w} className="td-window">{w}</span>)}
-            </div>
+            <AgendaOpen>
+              {d.open.map((w) => <span key={w} className="ag-window">{w}</span>)}
+            </AgendaOpen>
           )}
         </div>
       ))}

@@ -15,6 +15,7 @@
 import {
   clockLabel,
   coversSpan,
+  durationLabel,
   frameOf,
   monthLabelOf,
   shiftKey,
@@ -113,6 +114,8 @@ export const calendar = {
   shiftMonth,
   monthLabel: monthLabelOf,
   clockLabel,
+  // The agenda's rows say how long an appointment runs, as Today's do: one spelling, the view model's.
+  durationLabel,
 };
 
 declare global {
