@@ -127,8 +127,12 @@ globalThis.window = {
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   __surfaceState: () => "live",
   __DEMO_MODE: false,
-  addEventListener() {},
-  removeEventListener() {},
+  addEventListener(type, fn) {
+    (heard[type] = heard[type] || []).push(fn);
+  },
+  removeEventListener(type, fn) {
+    heard[type] = (heard[type] || []).filter((f) => f !== fn);
+  },
   dispatchEvent(e) {
     if (e && e.type === "inbox:counts") counted.push(e.detail.needs);
     return true;
@@ -145,6 +149,12 @@ globalThis.document = {
   removeEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
 };
+
+/** What the page is listening for, by type: a read landing (surface:inbox) is fired at it by name, never by the
+ *  order it was added -- a page adds several, and the order is not a contract. `page()` empties it, so a listener
+ *  from an earlier render cannot write into this one's cells. */
+const heard = {};
+const landsARead = () => [...(heard["surface:inbox"] || [])].forEach((fn) => fn());
 
 let cells = [];
 let seq = 0;
@@ -280,6 +290,7 @@ const page = (threads) => {
   globalThis.InboxAgentRail = () => null;
   globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
   inboxWith(threads);
+  for (const k of Object.keys(heard)) delete heard[k];
   cells = [];
   const render = () => {
     seq = 0;
@@ -304,6 +315,65 @@ const listProps = (over = {}) => ({
 });
 
 /* --------------------------------- the page --------------------------------- */
+
+test("REGRESSION: a bucket picked is a list, never a conversation -- on a phone Handled and Snoozed opened their first thread over the rows, and an empty bucket showed neither", () => {
+  const { seen, render } = page([rosa, unsent]);
+  // A tap is what opens a thread over the list: that is what a phone's one screen is for.
+  seen.list.onSelectThread(rosa.id);
+  assert.ok(hasClass("phone-thread")(render()), "a tap opens the thread over the list");
+
+  // Handled: its rows, and the list back on the screen.
+  seen.list.onBucketChange("done");
+  assert.equal(
+    hasClass("phone-thread")(render()),
+    false,
+    "REGRESSION: picking the bucket opened its first thread over the rows -- the list was gone and a customer nobody asked for was on the phone",
+  );
+  assert.equal(seen.list.activeBucket, "done", "the bucket picked");
+  assert.deepEqual(
+    seen.list.threads.map((t) => t.id),
+    [unsent.id],
+    "and the list is that bucket's rows",
+  );
+
+  // A bucket with nothing in it is an empty list, never a blank screen: the pane is hidden on a phone, so leaving
+  // the thread open showed the rows of no list and no thread either.
+  seen.list.onSelectThread(unsent.id);
+  assert.ok(hasClass("phone-thread")(render()));
+  seen.list.onBucketChange("snoozed");
+  assert.equal(
+    hasClass("phone-thread")(render()),
+    false,
+    "REGRESSION: an empty bucket left the thread open with nothing in it -- neither the list nor a conversation was on the screen",
+  );
+  assert.deepEqual(seen.list.threads, [], "nothing in it, and the list says so");
+});
+
+test("REGRESSION: a bucket the member picked survives the next read -- picking an empty Snoozed and waiting threw them into Needs you, a moment after the tap", () => {
+  const place = {};
+  const had = globalThis.window.__tabMemory;
+  globalThis.window.__tabMemory = {
+    place: () => place,
+    keepPlace: (_p, _k, v) => Object.assign(place, v),
+  };
+  try {
+    const { seen, render } = page([rosa, unsent]);
+    seen.list.onBucketChange("snoozed");
+    render();
+    assert.equal(seen.list.activeBucket, "snoozed", "the bucket picked");
+    assert.deepEqual(seen.list.threads, [], "with nothing in it");
+    // A read lands, as one does every time the surface refreshes.
+    landsARead();
+    render();
+    assert.equal(
+      seen.list.activeBucket,
+      "snoozed",
+      "REGRESSION: the read moved them to the first bucket with anything in it, so an empty one could not be looked at",
+    );
+  } finally {
+    globalThis.window.__tabMemory = had;
+  }
+});
 
 test("the Needs you chip counts what needs you, the badge's number -- not every thread flagged for a person", () => {
   counted.length = 0;
