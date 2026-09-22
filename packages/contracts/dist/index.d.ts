@@ -5019,17 +5019,22 @@ declare function isBaselinePrompt(text: string): boolean;
  * as the prompt: the text is stored once, and an emptied box stays empty
  * instead of filling itself again from the copy left behind.
  *
- * DELIBERATELY NOT whoseWords, for now. This opens the box of the Settings form
- * that is live today, and the Business redesign's first phase promised to
- * change nothing live. An attempt to route this through whoseWords did change
- * it: the baseline stored in the owner's own field (a save before S4 put it
- * there) began opening an EMPTY box, and the next Save deleted it -- and a
- * workspace whose only composed field was that copy fell from a composed prompt
- * to the bare baseline, losing its hand-off and every rule line. So the two
- * disagree on exactly that one case, knowingly: the prompt view calls it the
- * platform's, which is true, and the box opens it as it always has. They are
- * reconciled in the redesign's Phase 3 (plan Task 3.8), where the save that
- * would have lost it is rewritten in the same change.
+ * ONE rule with the prompt view: whoseWords (plan Task 3.8, shipped 22 Sep).
+ * Own words open as the owner's; a prompt standing in the owner's place (carried
+ * or a workspace's own, whichever the resolver does with it) opens marked
+ * carried; the product's own opening lines and nothing to read open an empty box.
+ * Kept exactly as stored, spaces and all, so a save writes back what was there.
+ *
+ * Phase 1 left the two disagreeing on one case, knowingly: the baseline stored
+ * in the OWNER'S own field, where a save before S4 copied it. The box opened it
+ * as the owner's words because routing it here made it open EMPTY and the live
+ * form's next Save deleted the field -- and a workspace whose only composed
+ * field was that copy fell from a composed prompt to the bare baseline, losing
+ * its hand-off and every rule line. That save is gone: the fold that replaced
+ * the form sends nothing at all when its box is left as it opened
+ * (business-tab-folds.jsx, holdsChanges), so an empty box deletes nothing by
+ * being looked at. What a save with something typed in it should do with that
+ * copy is open, and nothing in production has it (the count under plan Task 3.8).
  */
 declare function instructionsDraft(brain: {
     system_prompt?: string | null;
@@ -5424,11 +5429,9 @@ type WhoseWords = {
  * Whose words the receptionist is given in the owner's place, decided once.
  *
  * The words are ownWordsOf's, the resolver's own rule. This says whose they are,
- * for the prompt view (promptBlocks). The instructions box (instructionsDraft)
- * does not ask here yet: it opens the Settings form that is live today, and on
- * one case -- the baseline stored in the owner's own field by a save before S4
- * -- asking here would change what it opens with. That case is reconciled in
- * the redesign's Phase 3 (plan Task 3.8); see instructionsDraft.
+ * for the prompt view (promptBlocks) and for the instructions box, which asks
+ * here too (instructionsDraft): the two read the owner's field by one rule, so
+ * the box can never open as the owner's what the view charges to the platform.
  *
  *   baseline  the product's own opening lines. In the stored prompt that is
  *             isBaselinePrompt, which reads only the opening and the closing:

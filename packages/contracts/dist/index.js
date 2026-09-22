@@ -2532,10 +2532,9 @@ function isBaselinePrompt(text) {
   return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 function instructionsDraft(brain) {
-  const own = brain?.profile?.extra_instructions ?? "";
-  if (own.trim()) return { text: own, carried: false };
-  const prompt = brain?.system_prompt ?? "";
-  return prompt.trim() && !isBaselinePrompt(prompt) ? { text: prompt, carried: true } : { text: "", carried: false };
+  const whose = whoseWords(brain);
+  if (whose.kind === "own") return { text: whose.text, carried: false };
+  return whose.kind === "carried" || whose.kind === "prompt" ? { text: whose.text, carried: true } : { text: "", carried: false };
 }
 var NotificationsConfigSchema = z3.object({
   escalation_emails: z3.array(z3.string().email()).min(1).max(10),
