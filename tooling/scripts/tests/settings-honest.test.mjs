@@ -31,6 +31,13 @@ import {
 
 const TID = "t-studio";
 
+// Who reads the composed prompt, in the page's own words (pages/settings.jsx PROMPT_READERS). Written here rather than
+// read from the page, because the page publishes nothing: this is the spelling the test is holding it to.
+const PROMPT_READERS = {
+  whatsapp: "every WhatsApp message, word for word",
+  voice: "every phone call, composed when the call starts",
+};
+
 /* ---------------------------------- the window ---------------------------------- */
 
 const listeners = {};
@@ -378,6 +385,22 @@ test("what the receptionist is told says who reads it at rest, and counts itself
     assert.ok(
       textOf(tree).includes(`${text.length.toLocaleString()} characters`),
       "opened, the count sits with the text it counts",
+    );
+    // Said ONCE while it is open: the head's line and the one beside the count are the same sentence, and both were
+    // drawn.
+    const said = (words) => textOf(tree).split(words).length - 1;
+    assert.equal(said(PROMPT_READERS.whatsapp), 1, "the sentence is on screen once");
+    // And the head follows the channel that is chosen: it read WhatsApp's words over a phone prompt.
+    press(find(tree, (n) => n.props?.role === "tab" && textOf(n) === "Phone"));
+    tree = again("workspace");
+    assert.equal(said(PROMPT_READERS.voice), 1);
+    assert.equal(said(PROMPT_READERS.whatsapp), 0);
+    press(buttonSaying(tree, "Hide"));
+    tree = again("workspace");
+    assert.equal(
+      textOf(find(tree, (n) => String(n.props?.className || "").includes("set-prompt-meta"))),
+      PROMPT_READERS.voice,
+      "closed again with Phone chosen, the head says the phone's words",
     );
   } finally {
     globalThis.window.__composedPrompt = was;
