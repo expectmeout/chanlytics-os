@@ -274,8 +274,21 @@ export interface ServicesWordsVM {
   more: string | null;
 }
 
-/** How many services the row names at rest (the canvas's Record board). */
-const SERVICE_CHIPS = 4;
+/**
+ * How many chips a row of the record draws at rest, and how the rest of them are said.
+ *
+ * One number and one spelling for every list of chips on the page -- the services, the notes, the rules -- because
+ * three of them with their own caps is three rows that wrap to different depths on the same phone. Four is the
+ * canvas's Record board, measured at 390px: four chips and "+N more" is two lines, and a fifth is a third.
+ */
+export const CHIPS_SHOWN = 4;
+
+/** "+3 more": the rest of a list of chips, said once, wherever a row cuts one. */
+export function chipsMoreWords(n: number): string {
+  return `+${count(n)} more`;
+}
+
+const SERVICE_CHIPS = CHIPS_SHOWN;
 // A note that sends the price to a consultation: "quoted at consult", "by consultation".
 const CONSULT = /\bconsult/i;
 // A note is written by the owner and read in a sentence: its first letter goes lower unless it opens an acronym.
@@ -320,7 +333,7 @@ export function servicesWords(services: readonly ServiceWordsInput[] | null | un
     line: `${count(n)} on record`,
     priced,
     chips,
-    more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null,
+    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null,
   };
 }
 
@@ -659,7 +672,7 @@ export interface NotesWordsVM {
   more: string | null;
 }
 
-const NOTE_CHIPS = 4;
+const NOTE_CHIPS = CHIPS_SHOWN;
 
 /**
  * The notes row at rest (the canvas's Record board): each note by its title, four at most, and "+N more" past them. A
@@ -676,7 +689,7 @@ export function notesWords(
   return {
     count: n,
     chips: titles.slice(0, NOTE_CHIPS),
-    more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null,
+    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null,
   };
 }
 

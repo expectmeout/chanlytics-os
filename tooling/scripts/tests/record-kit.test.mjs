@@ -2495,3 +2495,40 @@ test("a row of chips names each thing its value counts, with its measure beside 
   );
   assert.equal(all(draw(W.RecordChips, { chips: [] }), (n) => classes(n).includes("rec-chip")).length, 0);
 });
+
+test("a row of chips caps itself, and says how many it cut in the words it was given", () => {
+  // A cap the kit keeps, so every record page gets it: a row of chips that wraps three deep at a phone's width is a
+  // paragraph of nouns where the row states one fact. The words for what was cut are still the page's, from its own
+  // contracts, and the kit hands them the number it cut.
+  const five = [
+    "Never quotes a price",
+    "Never confirms a booking",
+    "Says it's an assistant",
+    "No health advice",
+    "Looks at photos",
+  ];
+  const cut = [];
+  const tree = draw(W.RecordChips, {
+    chips: five.map((label) => ({ label })),
+    max: 4,
+    more: (n) => {
+      cut.push(n);
+      return `+${n} more`;
+    },
+  });
+  assert.deepEqual(all(tree, (n) => classes(n).includes("rec-chip")).map(textOf), [...five.slice(0, 4), "+1 more"]);
+  assert.deepEqual(cut, [1], "the kit says how many it cut; the words are the page's");
+  // Nothing to cut, nothing said.
+  const four = draw(W.RecordChips, {
+    chips: five.slice(0, 4).map((label) => ({ label })),
+    max: 4,
+    more: (n) => `+${n} more`,
+  });
+  assert.deepEqual(
+    all(four, (n) => classes(n).includes("rec-chip")).map((c) => c.props["data-more"]),
+    [undefined, undefined, undefined, undefined],
+  );
+  // A page that caps its own list still passes its own words, as the services and the notes do.
+  const given = draw(W.RecordChips, { chips: [{ label: "Balayage" }], more: "+31 more" });
+  assert.deepEqual(all(given, (n) => classes(n).includes("rec-chip")).map(textOf), ["Balayage", "+31 more"]);
+});

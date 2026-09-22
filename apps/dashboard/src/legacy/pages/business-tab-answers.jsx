@@ -540,7 +540,11 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         hint="These hold whatever else you write."
         gate={gate("the rules it always keeps")}
         row={{
-          value: ruleChips.length ? <window.RecordChips chips={ruleChips} testid="rec-rules-chips" /> : null,
+          // Capped like every other row of chips (the kit's RecordChips, contracts CHIPS_SHOWN): five of them wrapped
+          // three deep at a phone's width, which is a paragraph of nouns where the row states one fact.
+          value: ruleChips.length ? (
+            <window.RecordChips chips={ruleChips} max={tab.CHIPS_SHOWN} more={tab.chipsMoreWords} testid="rec-rules-chips" />
+          ) : null,
           name: "Change the rules it always keeps",
         }}
         body={(f) => <BtaRules {...f} unread={composes ? null : tab.RULES_WITHOUT_FIELDS_WORDS || null} />}

@@ -13615,7 +13615,11 @@ function closuresAheadWords(closures, tz, now) {
   return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
 }
 var count = (n) => n.toLocaleString("en-US");
-var SERVICE_CHIPS = 4;
+var CHIPS_SHOWN = 4;
+function chipsMoreWords(n) {
+  return `+${count(n)} more`;
+}
+var SERVICE_CHIPS = CHIPS_SHOWN;
 var CONSULT = /\bconsult/i;
 var inSentence = (note) => /^[A-Z][a-z]/.test(note) ? `${note[0].toLowerCase()}${note.slice(1)}` : note;
 function servicesWords(services) {
@@ -13638,7 +13642,7 @@ function servicesWords(services) {
     line: `${count(n)} on record`,
     priced,
     chips,
-    more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null
+    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null
   };
 }
 function blockShareWords(chars, total) {
@@ -13783,14 +13787,14 @@ function handoffWords(reasons, transfer) {
     phone: number ? `transfers to ${number}` : "takes a message"
   };
 }
-var NOTE_CHIPS = 4;
+var NOTE_CHIPS = CHIPS_SHOWN;
 function notesWords(notes) {
   const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
   const n = titles.length;
   return {
     count: n,
     chips: titles.slice(0, NOTE_CHIPS),
-    more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null
+    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
   };
 }
 var OPENING_SHOWN = 72;
@@ -16543,6 +16547,7 @@ export {
   CHANNEL_KINDS,
   CHANNEL_KIND_WORDS,
   CHECKOUT_OUTCOME_WORDS,
+  CHIPS_SHOWN,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
   CONNECTION_GROUP_WORDS,
@@ -16943,6 +16948,7 @@ export {
   channelKindWords,
   channelsOf2 as channelsOf,
   checkedWords,
+  chipsMoreWords,
   citationRoute,
   citationsToShow,
   classify,

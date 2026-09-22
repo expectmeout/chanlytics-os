@@ -158,18 +158,28 @@ const RecordRow = ({
  * A row of chips, drawn under a row's value as its children: each names one thing the value counts, with its measure
  * beside it where it has one ({ label, meta }: "Balayage" and "180m"), and `more` ("+29 more") after them, drawn with no
  * edge. The words are the page's. Hookless, as everything drawn inside a row is: a row's children come and go.
+ *
+ * `max` is how many are drawn before the rest become `more`. The kit keeps the cap, so every record page has it: a row
+ * of chips that wraps three deep at a phone's width is a paragraph of nouns where the row states one fact. A page whose
+ * own view model already cut the list (the services, the notes) passes no `max` and its own `more` as words.
+ * With `max`, `more` is called with how many were cut, so the words for them are still the page's.
  */
-const RecordChips = ({ chips = [], more = null, testid = null }) => (
-  <span className="rec-chips" data-testid={testid || undefined}>
-    {chips.map((c, i) => (
-      <span key={i} className="rec-chip">
-        {c.label}
-        {c.meta ? <span className="rec-chip-meta">{c.meta}</span> : null}
-      </span>
-    ))}
-    {more ? <span className="rec-chip" data-more="true">{more}</span> : null}
-  </span>
-);
+const RecordChips = ({ chips = [], more = null, max = null, testid = null }) => {
+  const capped = typeof max === "number" && chips.length > max ? chips.slice(0, max) : chips;
+  const cut = chips.length - capped.length;
+  const said = typeof more === "function" ? (cut > 0 ? more(cut) : null) : more;
+  return (
+    <span className="rec-chips" data-testid={testid || undefined}>
+      {capped.map((c, i) => (
+        <span key={i} className="rec-chip">
+          {c.label}
+          {c.meta ? <span className="rec-chip-meta">{c.meta}</span> : null}
+        </span>
+      ))}
+      {said ? <span className="rec-chip" data-more="true">{said}</span> : null}
+    </span>
+  );
+};
 
 // RecordDispute on its own is the inline editor's (record-fold.jsx): a row being edited keeps its disagreement on
 // screen, to read, while its press waits at rest on the row.

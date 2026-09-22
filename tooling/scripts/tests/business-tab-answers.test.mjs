@@ -16,6 +16,7 @@ import {
   notesWords,
   instructionsWords,
   fallbacksWords,
+  chipsMoreWords,
   fallbackMessages,
   RULES_WITHOUT_FIELDS_WORDS,
   PROFILE_CROSSING_WORDS,
@@ -421,14 +422,17 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
   });
   const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
   assert.deepEqual(chips, ["Never quotes a price", "Says it's an assistant", "Won't look at photos"]);
+  // Past the cap every row of chips keeps (contracts CHIPS_SHOWN, through the kit), the rest are said as "+N more",
+  // in contracts' own words: five chips wrapped three deep at a phone's width.
   tree = drawTab({ config: { features: { vision: true } } });
   assert.deepEqual(all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf), [
     "Never quotes a price",
     "Never confirms a booking",
     "Says it's an assistant",
     "No health advice",
-    "Looks at photos",
+    chipsMoreWords(1),
   ]);
+  assert.equal(chipsMoreWords(1), "+1 more");
   openFold(tree, "guardrails");
   tree = redrawTab();
   // One element per rule, holding its label, its hint and its switch, so Phase 4 draws its strength into it.

@@ -40,6 +40,8 @@ import {
   handoffChatWords,
   handoffCallWords,
   notesWords,
+  CHIPS_SHOWN,
+  chipsMoreWords,
   instructionsWords,
   fallbacksWords,
   RULES_WITHOUT_FIELDS_WORDS,
@@ -259,6 +261,8 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // the save would take, read off the schema, and the sentence written from that one number. The page held both, so
 // each cap was a literal beside a sentence naming it again. writtenOutDetail is whether one of the three messages
 // spells a detail out where the name for it would keep it current (business-tab-answers.jsx).
+// CHIPS_SHOWN and chipsMoreWords are how many chips any row of the record draws at rest and how the rest are said:
+// one number and one spelling for the services, the notes and the rules alike (the kit's RecordChips keeps the cap).
 // How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,
 // handoffCallWords), the notes' (notesWords), the owner's own words' (instructionsWords), the three messages'
 // (fallbacksWords), and what the rules fold says on a record whose details compose nothing (RULES_WITHOUT_FIELDS_WORDS),
@@ -295,6 +299,8 @@ export const BUSINESS_TAB = {
   handoffChatWords,
   handoffCallWords,
   notesWords,
+  CHIPS_SHOWN,
+  chipsMoreWords,
   instructionsWords,
   fallbacksWords,
   RULES_WITHOUT_FIELDS_WORDS,
