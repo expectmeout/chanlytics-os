@@ -2346,6 +2346,20 @@ The eleven items:
 At 390px on the salon record: no horizontal scroll, and inside `.rec-card` / `.rec-row` at rest **0** bordered pills
 (was 9), **0** monospace elements (was 2) and **0** computed gradients (was 13).
 
+> **What "0 bordered pills" counts** (written down 22 Sep, in Task 4.2's review, because the number reads as more than
+> it measures). It counts the house `.pill` component — the bordered, rounded, filled capsule of `components.css` —
+> and not every element with a border on it. `.rec-chip` keeps its 1px `--line` border at rest on the rules, the
+> services and the notes, and is meant to: a chip is a LIST ITEM, and the border is what tells an owner where one
+> service's name ends and the next begins in a wrapped row. A badge is not a list item — it qualifies the control
+> beside it — so the fold's strength badges (Task 4.2) are borderless words, and the two shapes mean two different
+> things on purpose. The fold's own Save and Close are buttons and are counted as buttons.
+>
+> **What `expectQuiet` does not cover.** It reads inside `.rec-card` only, so the page head, the standing line, the
+> viewer's line and anything outside a card are not swept; it asks about gradients, typefaces and a hint under a row
+> that has its fact, and says nothing about borders or colour; it runs at 390px only, so a desktop-only rule is not
+> seen; and it walks five folds (`guardrails`, `escalate_when`, `fallbacks`, `booking_rules`, `hours`) — `notes` and
+> `tone` are not among them.
+
 **Left alone.** Task 4.1's abilities card, 4.1b and 4.2's rule strengths are the tasks below; the prompt sheet is
 Phase 5. `components.css`, `mobile.css`, `legacy.css`, the tokens and `.pill` belong to other sessions.
 
@@ -2669,7 +2683,7 @@ rest would have been a paragraph of nouns where the row states one fact, and on 
   read as if prices went through or bookings were made.
 - **M-1, the standing line on a call** (`c40bdadc`). `standingLine` now takes `calls`, required and checked as it
   runs like `abilityRows`' inputs, and the clause names the difference once: *"It offers a consult or the booking link
-  instead of a price — in chat before the reply is sent, on a call as a correction right after."* A chat-only
+  instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented."* A chat-only
   workspace reads the exact sentence and hears nothing about a line it does not have. Still three clauses either way.
   The page reads `calls` off the voice line the settings read resolved (`__FACTS.voice_line`), as *How it answers*
   already reads it for the hand-off row that names both channels — it arrives with the record the page cannot draw
@@ -2687,15 +2701,68 @@ rest would have been a paragraph of nouns where the row states one fact, and on 
 - **No warning beside the price switch when it is off.** The plan asked for none, and the row says why without one:
   the badge says checked, the sentence says the detector runs either way, and the two channel lines say what each does.
 
-**Proof.** `corepack pnpm test` 4165 (4152 before: eight in contracts, five on the page).
+**Fixed in review (22 Sep), one round.**
+
+- **B1.** Three of this task's top-level initializers were expressions esbuild cannot prove pure -- `STRENGTHS`
+  (built with a helper call) and two template literals with a substitution in them -- so it kept them, and **715
+  lines** of this one tab shipped into `channels`, `core`, `db` and `jobs`, the jobs bundle carrying the rules fold
+  six times. All three are pure-marked IIFEs now, as `GUARDRAIL_KEYS` already was, and the four dists are
+  byte-identical to main again. A guard beside `dist-freshness.test.mjs` reads them for all three names -- it is a
+  text read of a build artifact on purpose: the fact under test IS the bundle's contents, and it goes through `fs`
+  rather than `_source.mjs`, so it adds nothing to the source-scan baseline (`4e4abac2`).
+- **I1.** The photos badge and hint were literals in the JSX and the page test typed them back, so the two agreed
+  with each other and with nothing else. `VISION_STRENGTH` is contracts' fifth strength, `strength: "power"` -- its
+  own export, not a fifth row of a table typed over the schema's keys, because photos are stored as `features.vision`
+  and the switch changes no word of the prompt (`5e23a763`).
+- **I2.** Left to wrap, the badge sat under its label on the two switches with a long name and inline on the three
+  with a short one: one signal in two positions down one fold. Its own line under the label at every phone width, and
+  the 390px journey measures each badge against its OWN label, so a badge that moved with its label is still caught
+  (`d56fea68`).
+- **I3.** The harness fixture published one approved `booking_link` template, and `templates.approved: 1`, for every
+  scenario -- hand-written beside a payload it derives everything else from. Neither the seed nor the scenarios write
+  a template row, so the seeded nightly workspace was shown a message it has not got, and whether a workspace has one
+  is what decides whether its call can send the booking link at all. The messages are the scenario's now, the nightly
+  has none, Setup's count is that list counted, and `e2e-harness.test.mjs` pins both (`8a5cf55f`).
+- **M1.** Spec 4.6 said such a row reads two items; the photos word is always appended, so it reads three.
+- **M2, M5.** Two assertions that could not have failed. "Still three clauses" counted the view model's keys, which
+  is true by construction -- it counts full stops now, and was shown red against a two-sentence clause. And the prompt
+  body's layout test sliced the stylesheet between two `indexOf` results without checking either; a renamed
+  `.set-prompt-body-sm` made the slice nearly the whole file, and it was shown red against that rename (`4e220d81`).
+- **M3.** The band and the fold promised a correction in the live call. A correction is what the product can ALSO do
+  while the call's turns are still being delivered; with that switched off on the agent the same check runs on the
+  final transcript and the owner is told after the fact, with nothing said back to the caller (`policy.ts`, which says
+  degrading is the point). The band says *"caught afterwards rather than prevented"*, which is true of every call and
+  is still the difference from chat; the fold's voice line has the room for the rest -- *"You are told either way, and
+  a correction goes into the call itself whenever it can still be reached"* (`eb79c443`).
+- **M4.** Task 4.0's and 4.1's notes now say what "0 bordered pills" counts and what `expectQuiet` does not cover.
+- **M6.** The photos hint was four lines on a phone and its last clause restated the dashed rule above the switch and
+  the badge beside it. Two clauses left, one per position (`725ba0b5`).
+
+**Decided differently in the fix round.**
+
+- **M3 became the band's wording rather than a note.** The reviewer offered either. "On a call as a correction while
+  it is still up" still promises the correction, and the honest invariant is that a price is CAUGHT and never
+  prevented -- one clause, true of both delivery modes, and it keeps the chat/call difference the clause exists for.
+- **I3's template comes from the scenario, not from `channel("whatsapp").active`.** The reviewer's suggested
+  derivation would have kept the template on the nightly, whose seeded WhatsApp line IS active; what the nightly does
+  not have is a template ROW, which no scenario expressed at all. So the scenario says its messages, and the nightly
+  says none.
+- **M-3's own branch is still on neither journey.** "A workspace on both lines with no approved booking-link
+  template" needs a record with a voice line and no template; the nightly has the template gone but no voice line,
+  and the salon has both. A third scenario is out of this task's scope (`SCENARIOS` is pinned to two by a test), and
+  the branch is covered in contracts (`business-tab-vm.test.mjs`).
+
+**Proof.** `corepack pnpm test` **4168** (4152 before: eleven in contracts and the harness, five on the page).
 `corepack pnpm e2e:local -- e2e/settings-business.spec.ts` and `--scenario=salon` both 12/12, the journey's
-`expectQuiet` sweep included. Photographed on the salon record at 390x844 and 1280x900 (`_gen/task42-shots.mjs`): the
-row at rest, the fold open, the fold open with the price switch stored off, and the standing line. Inside the open
+`expectQuiet` sweep and its new badge-position block included. Of `packages/*/dist`, only contracts differs from main.
+Photographed on the salon record at 390x844 and 1280x900 (`_gen/task42-shots.mjs`, the fix round's as `after2-*`):
+the row at rest, the fold open, the fold open with the price switch stored off, and the standing line. Inside the open
 fold at 390px: **0** sideways scroll (page, pane and fold), **0** gradients, **1** font family, **0** bordered pills
 and **0** colours outside the ink/accent/line/ok tokens except the fold's own Save and Close, which are the kit's
-buttons rather than badges; **5** badges, one to a switch; **4** strength sentences drawn, **0** of them on screen and
-**4** named by their switch; **2** channel lines, on the price rule alone; **1** dashed separator. At rest: **0**
-strength words on the row, and the same four chips plus "+1 more" whether the price switch is stored on or off.
+buttons rather than badges; **5** badges, one to a switch and every one at its own label's edge on a line of its own;
+**4** strength sentences drawn, **0** of them on screen and **4** named by their switch; **2** channel lines, on the
+price rule alone; **1** dashed separator. At rest: **0** strength words on the row, and the same four chips plus
+"+1 more" whether the price switch is stored on or off.
 
 ---
 
