@@ -362,7 +362,9 @@ const Sidebar = ({
     ...badges,
   };
 
-  // Swipe-to-close (mobile drawer) — simple left-swipe threshold, no drag-follow
+  // Swipe-to-close (mobile drawer) — simple left-swipe threshold, no drag-follow. This, a tap on the backdrop,
+  // Escape and picking a destination are how the drawer closes: it has no bar of its own, because the desktop's
+  // sidebar has none and the two are one sidebar.
   const touchX = React.useRef(null);
   const onTouchStart = (e) => { touchX.current = e.touches && e.touches[0] ? e.touches[0].clientX : null; };
   const onTouchEnd = (e) => {
@@ -408,14 +410,6 @@ const Sidebar = ({
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} data-testid="sidebar">
-      {/* The drawer's close, hidden on desktop. The product's mark and name stood here over the workspace card,
-          which names the business this is -- the only name a member needs when they open the menu. */}
-      <div className="sb-mobile-head">
-        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => onClose && onClose()} aria-label="Close menu">
-          <Icon name="x" size={14} />
-        </button>
-      </div>
-
       {/* Workspace — the menu's trigger */}
       <button
         type="button"

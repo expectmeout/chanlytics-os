@@ -7,7 +7,6 @@
 .side-wrap { display: contents; }
 .nav-backdrop { display: none; }
 .tb-menu { display: none; }
-.sb-mobile-head { display: none; }
 
 @media (max-width: 900px) {
   /* ---------- Shell ---------- */
@@ -29,15 +28,6 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Drawer header: the close, thumb-reachable, and nothing else. It carried the product's own mark and name over
-     the workspace card, which says the mark and the name that matter -- the salon's. Nobody opens a menu to be
-     told which product they are in. */
-  .sb-mobile-head {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 8px 10px 4px;
-  }
 
   /* 44px-class tap targets inside the drawer */
   .side-wrap .nav-item { padding-top: 11px; padding-bottom: 11px; }
