@@ -176,7 +176,10 @@ test("a language is added from the list or as typed, removed with its Undo, and 
   const stored = structuredClone(W.__SETTINGS.config);
   const row = byTestId(tree, "rec-row-languages");
   assert.match(textOf(row), /English, Spanish/);
-  assert.match(textOf(row), /It replies in whichever the customer uses\./);
+  // The old form's words. On WhatsApp the composer says only "You speak: …"; "whichever the caller uses" is a call's
+  // line, so the canvas's "It replies in whichever the customer uses" said more than chat is told.
+  assert.match(textOf(row), /It answers in whichever of these a customer uses\./);
+  assert.doesNotMatch(textOf(row), /It replies in whichever the customer uses/);
   openFold(tree, "languages");
   tree = redrawTab(flash);
   assert.deepEqual(tokensOf(tree), ["English", "Spanish"]);
@@ -226,6 +229,32 @@ test("a language is added from the list or as typed, removed with its Undo, and 
   const expected = structuredClone(stored);
   expected.brain.profile.languages = ["English", "Spanish", "French"];
   assert.deepEqual(sent[0].config, expected, "the languages, and nothing else");
+});
+
+test("a language typed and left in the box is added as focus leaves it, as the old form's was, and saved", () => {
+  // The review's probe: "Xhosa" typed, then Save, closed "Saved" with no Xhosa. The old form added what was typed as its
+  // box lost focus (settings.jsx addLang), and so does this one, through the kit's onLeave.
+  const sent = saving();
+  let tree = drawTab();
+  openFold(tree, "languages");
+  tree = redrawTab();
+  langBox(tree).props.onChange({ target: { value: "Xhosa" } });
+  tree = redrawTab();
+  langBox(tree).props.onBlur();
+  tree = redrawTab();
+  assert.deepEqual(tokensOf(tree), ["English", "Spanish", "Xhosa"]);
+  // A listed one, however it is typed, is added as the list spells it; one already chosen is not added twice.
+  langBox(tree).props.onChange({ target: { value: "french" } });
+  tree = redrawTab();
+  langBox(tree).props.onBlur();
+  tree = redrawTab();
+  langBox(tree).props.onChange({ target: { value: "SPANISH" } });
+  tree = redrawTab();
+  langBox(tree).props.onBlur();
+  tree = redrawTab();
+  assert.deepEqual(tokensOf(tree), ["English", "Spanish", "Xhosa", "French"]);
+  saveFoldOf(tree, "languages");
+  assert.deepEqual(sent.at(-1).config.brain.profile.languages, ["English", "Spanish", "Xhosa", "French"]);
 });
 
 test("the languages stop at what the profile keeps, through Add and through an Undo", () => {

@@ -92,9 +92,10 @@ const btaSameWord = (a, b) => String(a).trim().toLowerCase() === String(b).trim(
  *
  * The list is the draft's, with every rule a list has (BtFold's rows: the cap through Add and through an Undo, the
  * removal said only when it happened, the language back at its own place). Backspace on the empty box takes the last
- * one back, which is what every token field does and what a hand expects, and says so with its Undo. Nothing past the
- * profile's eight is offered: the box is hidden then, and a sentence stands where it was. The box is drawn on every
- * render, hidden or not: it holds hooks.
+ * one back, which is what every token field does and what a hand expects, and says so with its Undo; words typed and
+ * left there are added as focus leaves the box, as the old form's were. Nothing past the profile's eight is offered:
+ * the box is hidden then, and a sentence stands where it was. The box is drawn on every render, hidden or not: it holds
+ * hooks.
  */
 const BtaLanguages = ({ draft, rows, press, problems, readOnly }) => {
   const S = window.__businessTabSave;
@@ -135,6 +136,10 @@ const BtaLanguages = ({ draft, rows, press, problems, readOnly }) => {
           onKeyDown={(e) => {
             if (e.key === "Backspace" && e.target && e.target.value === "" && chosen.length) { e.preventDefault(); remove(chosen.length - 1); }
           }}
+          // Words typed and left in the box are added as focus leaves it, as the old form's box did: a listed one as the
+          // list spells it, anything else as typed (add refuses one already chosen). Closed over them, the box lost the
+          // language, and the fold saved without it.
+          onLeave={(words) => add(BTA_LANGUAGES.find((l) => btaSameWord(l, words)) || words)}
           // The words the box is named by, on screen in it: a placeholder of other words left the name unseen.
           placeholder="Add a language"
           readOnly={readOnly}
@@ -512,13 +517,15 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         {...shared}
         id="languages"
         label="Languages"
-        hint="It replies in whichever the customer uses."
+        // The old form's words: on WhatsApp the composer says only "You speak: …", and "whichever the caller uses" is a
+        // call's line (config.ts), so the canvas's "It replies in whichever the customer uses" said more than chat is told.
+        hint="It answers in whichever of these a customer uses."
         lines
         gate={gate("the languages it speaks")}
         row={{
           value: languages.length ? languages.join(", ") : null,
           empty: "Not set",
-          hint: languages.length ? "It replies in whichever the customer uses." : null,
+          hint: languages.length ? "It answers in whichever of these a customer uses." : null,
           name: languages.length ? "Change the languages it speaks" : "Add one: a language it speaks",
         }}
         body={(f) => <BtaLanguages {...f} />}
