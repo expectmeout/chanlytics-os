@@ -10,6 +10,8 @@
  */
 import { REPLY_WINDOW_MS, broadcastFailureWords, noNumberWords, saidYesWords, toApprovalVM, toRunReportVM, type BroadcastDetailDto, type PlaybookDto } from "@chanlytics/contracts";
 import { api } from "./api";
+import { readCache } from "./read-cache";
+import type { ApiResult, Output } from "../client/api";
 import { broadcastsOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 
@@ -27,13 +29,24 @@ export async function refreshBroadcasts(): Promise<void> {
   await refreshSurfaces([broadcastsOverride]);
 }
 
+/**
+ * The last answer for each run this tab has opened (read-cache.ts: in memory, per workspace, emptied by any write):
+ * a run opened again paints at once and is read again behind. A refusal is never kept.
+ */
+type DetailAnswer = ApiResult<Output<"GET broadcasts/[id]">>;
+const details = readCache<DetailAnswer>("broadcast", (r) => r.ok);
+
 export const broadcasts = {
   send: (body: SendBody) => api()("POST broadcasts", { body }),
-  cancel: (id: string) => api()("POST broadcasts/[id]/cancel", { params: { id } }),
+  // Each act says so the moment the server takes it (`onAccepted`, with what it answered), not once the broadcasts and
+  // the playbooks are read again behind it; the page repaints from that re-read.
+  cancel: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/cancel">) => void } = {}) => api()("POST broadcasts/[id]/cancel", { params: { id }, onAccepted: opts.onAccepted }),
   /** A playbook's run that waited for a person goes out now. */
-  approve: (id: string) => api()("POST broadcasts/[id]/approve", { params: { id } }),
-  /** One broadcast and every person on it. A read: nothing refreshes. */
-  detail: (id: string) => api()("GET broadcasts/[id]", { params: { id } }),
+  approve: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/approve">) => void } = {}) => api()("POST broadcasts/[id]/approve", { params: { id }, onAccepted: opts.onAccepted }),
+  /** One broadcast and every person on it. A read: nothing refreshes. Kept for the run, so its next open is at once. */
+  detail: (id: string) => details.through(id, () => api()("GET broadcasts/[id]", { params: { id } })),
+  /** The last answer this tab holds for a run, to paint while it is read again; null when it has none. */
+  peekDetail: (id: string): DetailAnswer | null => details.peek(id),
   /** Why a whole broadcast stopped, in the owner's words, for the detail, which reads the row as the route returns it. */
   failureWords: broadcastFailureWords,
   /** Why nobody on an audience can be sent it when somebody on it said yes -- no number to send to -- in People's words. */

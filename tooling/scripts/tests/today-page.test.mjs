@@ -305,6 +305,26 @@ test("a snooze or a resolve from the queue is said the moment the server takes i
   assert.equal(flashes.length, 2);
 });
 
+test("a run's Approve from the queue is said the moment the server takes it, with what it scheduled, not after the runs are read again", async () => {
+  clear();
+  let reread = () => {};
+  const accepted = { recipient_count: 3, scheduled_for: iso(3_600_000), moved_from: iso(0) };
+  set({ TODAY_DATA: busy(), __BROADCASTS: broadcasts(), bcWhenWords: () => "scheduled for Mon 9:00 AM", __broadcasts: {
+    approve: (_id, opts = {}) => { if (opts.onAccepted) opts.onAccepted(accepted); return new Promise((r) => { reread = () => r({ ok: true, data: accepted }); }); },
+    cancel: async () => ({ ok: true, data: {} }),
+  } });
+  const waiting = byTestId(byTestId(draw(W.AgentCommand), "today-queue"), "brief-run-row");
+  const done = press(buttons(waiting, "Approve")[0]);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(flashes.length, 1, "said at acceptance");
+  const t = todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM");
+  assert.equal(textOf(flashes[0].msg), `${t.lead} ${t.rest}`);
+  reread();
+  await done;
+  assert.equal(flashes.length, 1, "and said once");
+  delete W.bcWhenWords;
+});
+
 test("four rows: people take three while a run wants the fourth, and all four when none does", () => {
   clear();
   // Four people waiting — one more than the card gives them.

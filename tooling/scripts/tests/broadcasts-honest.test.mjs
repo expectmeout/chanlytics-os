@@ -732,6 +732,32 @@ test("REGRESSION: the line under the audience says who said yes when nobody can 
   assert.ok(metaOn("s-vip", offer).startsWith(`1 person on “VIPs” said yes to offers${held}`), metaOn("s-vip", offer));
 });
 
+test("an approve or a stop is said the moment the server takes it, with what it answered -- not after the broadcasts, the playbooks and every contact are read again", async () => {
+  // The loading standard's D: the toast waited for the write and the refresh map's re-read of both surfaces (the
+  // broadcasts one reads every contact page). The server's answer is what the toast says, so it is said from that.
+  const waiting = dto({ id: "b-wait", name: "Win-back · 2026-09-15", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(-H), counts: quiet });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ rows: [waiting].map((b) => toBroadcastVM(b, ZONE)) });
+  const keep = { approve: globalThis.window.__broadcasts.approve, cancel: globalThis.window.__broadcasts.cancel };
+  const reread = [];
+  const acceptThenRead = (data) => (_id, opts = {}) => { if (opts.onAccepted) opts.onAccepted(data); return new Promise((r) => reread.push(() => r({ ok: true, data }))); };
+  globalThis.window.__broadcasts.approve = acceptThenRead({ recipient_count: 3, scheduled_for: iso(0), moved_from: null });
+  globalThis.window.__broadcasts.cancel = acceptThenRead({ was: "pending_approval" });
+  const props = { initialSegment: null, initialRun: null };
+  try {
+    toasts.length = 0;
+    press(byTestId(page(props), "bc-approve"));
+    await settle();
+    assert.equal(toasts.length, 1, "said at acceptance, while the surfaces are read again");
+    assert.match(textOf(toasts[0].msg), /approved — 3 people/);
+    assert.equal(textOf(byTestId(again(props), "bc-approve")).trim(), "Approve the run", "the button is back when the server took it");
+    while (reread.length) reread.shift()();
+    await settle();
+    assert.equal(toasts.length, 1, "and said once");
+  } finally {
+    Object.assign(globalThis.window.__broadcasts, keep);
+  }
+});
+
 test("REGRESSION (C14): a send in flight draws its progress, Approve says it is approving and cannot approve twice, and Scheduled counts by state -- 'N queued' counted runs waiting for you", async () => {
   const sending = dto({ id: "b-sending", name: "Offers · 2026-09-15", state: "sending", started_at: iso(-60_000), finished_at: null, recipient_count: 10, counts: { queued: 6, sent: 3, skipped: 1, failed: 0, delivered: 2, read: 0, replied: 0 } });
   const waiting = dto({ id: "b-wait", name: "Win-back · 2026-09-15", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(-H), counts: quiet });
