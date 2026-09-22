@@ -2975,6 +2975,8 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onBulk={bulkLeads}
         bulkWhy={bulkWhy}
         onBulkWhy={setBulkWhy}
+        bulkSheet={phone ? bulkSheet : null}
+        onBulkSheet={setBulkSheet}
         onBulkNotAFit={bulkNotAFit}
         onCopyEmails={copyEmails}
         cursor={cursor}
