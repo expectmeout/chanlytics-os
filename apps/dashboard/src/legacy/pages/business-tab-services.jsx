@@ -76,6 +76,7 @@ const btsServiceRows = (rows) => {
  * list keeps them. What the search holds is kept for one opening of the sheet (the editor's `opening`).
  *
  * A row whose name is on the consult-first list carries a "consult first" mark, to read: that list is its own fold's.
+ * The mark describes the row's name box (aria-describedby), after what is wrong with the name, if anything.
  */
 const BtsServicesSheet = ({ brain, canEdit, flash, saver }) => {
   const S = window.__businessTabSave;
@@ -155,14 +156,17 @@ const BtsServicesSheet = ({ brain, canEdit, flash, saver }) => {
     list.forEach((x, i) => {
       marks.filter((m) => m.at === i).forEach((m) => drawn.push(mark(m)));
       const n = i + 1;
+      // The mark describes the row's name box, so it is heard with the box it stands beside, not as a word on its own.
+      const consult = consults(x.name) ? `svc-${i}-consult` : null;
       drawn.push(
         <div key={`svc-${i}`} className="bt-service-row" hidden={shows(x) ? undefined : true} data-testid={`rec-service-${i}`} {...svc.row(i)}>
           <span className="bt-service-name">
             <window.RecordBox
               id={`svc-${i}-name`} label={`Service ${n} name`} size="sm" value={x.name} placeholder="What customers call it"
               onChange={(v) => setSvc(i, "name", v)} problem={said(`service-${i}-name`)} readOnly={f.readOnly}
+              aria-describedby={consult || undefined}
             />
-            {consults(x.name) ? <span className="bt-service-consult" data-testid={`rec-service-consult-${i}`}>consult first</span> : null}
+            {consult ? <span id={consult} className="bt-service-consult" data-testid={`rec-service-consult-${i}`}>consult first</span> : null}
           </span>
           <window.RecordBox
             id={`svc-${i}-minutes`} label={`Service ${n} takes, in minutes`} size="sm" unit="min" inputMode="numeric" placeholder="45"

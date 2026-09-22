@@ -1082,3 +1082,17 @@ test("the search says politely how many rows it found, in contracts' words", () 
   // The one region, drawn from the sheet's first draw, so what it says is heard as it changes.
   assert.equal(all(sheetOf(tree), (n) => n.props?.role === "status").length, 1);
 });
+
+test("a consult-first mark describes its row's name box, so it is heard with the box", () => {
+  // The quality review: the mark beside a name was a word nobody heard with the box it stood beside.
+  const tree = openSheet(drawTab({ profile: { ...many, booking_rules: { ...melany.booking_rules, consult_first: ["Service 2"] } } }));
+  const mark = byTestId(tree, "rec-service-consult-1");
+  const nameBox = labelled(tree, "Service 2 name");
+  assert.ok(mark.props.id, "the mark has an id");
+  const by = String(nameBox.props["aria-describedby"] || "").split(" ");
+  assert.ok(by.includes(mark.props.id), "and the name box is described by it");
+  assert.equal(textOf(find(tree, (n) => n.props?.id === mark.props.id)), "consult first", "which says what the mark says");
+  // Only one row's box: an id is the page's once, and a row it does not mark is described by nothing of it.
+  assert.equal(all(tree, (n) => n.props?.id === mark.props.id).length, 1);
+  assert.ok(!String(labelled(tree, "Service 3 name").props["aria-describedby"] || "").includes("consult"), "a row it does not mark");
+});
