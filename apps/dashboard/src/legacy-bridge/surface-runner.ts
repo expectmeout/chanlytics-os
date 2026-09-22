@@ -269,11 +269,26 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     );
   });
 
+  // Every surface again, as the boot reads them: the one on screen first, the rest behind it through the lanes. A
+  // return used to schedule all of them at once -- twenty surfaces, thirty reads in one burst, with the page's own no
+  // sooner than a stranger's. Answers are NOT held here: the live feed is joined by now, and an answer held from
+  // before one of its events would hide what the event changed. A return while one pass is still out is that pass.
+  let againRunning = false;
+  const readEverySurfaceAgain = () => {
+    if (againRunning || cancelled) return;
+    againRunning = true;
+    const onScreen = surfaceOnScreen(window);
+    const first = (o: SurfaceOverride) => (o.key === onScreen ? 0 : 1);
+    void inLanes([...overrides].sort((x, y) => first(x) - first(y)), BOOT_LANES, (o) => refresh(o, "refresh")).finally(() => {
+      againRunning = false;
+    });
+  };
+
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;
     // A failed surface is the one that MOST needs retrying — it used to be the
     // one excluded, which is how a boot blip became permanent for the session.
-    overrides.forEach(scheduleRefresh);
+    readEverySurfaceAgain();
   };
   document.addEventListener("visibilitychange", onVisible);
 
@@ -284,7 +299,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   const onOffline = () => setConnection({ offline: true });
   const onOnline = () => {
     setConnection({ offline: false });
-    overrides.forEach(scheduleRefresh);
+    readEverySurfaceAgain();
   };
   if (typeof navigator !== "undefined" && navigator.onLine === false) setConnection({ offline: true });
   window.addEventListener("offline", onOffline);

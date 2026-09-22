@@ -142,6 +142,46 @@ test("the boot holds every answer until its last surface is in: two surfaces rea
   stop();
 });
 
+/** A document that becomes visible when the test says, with its listeners by type. */
+function returnable() {
+  const on = {};
+  const doc = { visibilityState: "hidden", addEventListener: (t, f) => { (on[t] ||= []).push(f); }, removeEventListener: (t, f) => { on[t] = (on[t] || []).filter((g) => g !== f); } };
+  const back = () => { doc.visibilityState = "visible"; for (const f of on.visibilitychange || []) f(); };
+  return { doc, back };
+}
+
+test("a return to the tab reads the surface on screen first and the rest behind it in lanes, never every surface at once", async () => {
+  // Every surface was scheduled at once on a return -- twenty surfaces, thirty reads in one burst, the page's own
+  // among them and no sooner than a stranger's: the burst the boot's lanes exist to prevent.
+  const keys = ["today", "inbox", "people", "calendar", "reports", "settings", "broadcasts", "playbooks", "conversations", "notifications"];
+  const { doc, back } = returnable();
+  globalThis.document = doc;
+  const { order, overrides } = crowd(keys, { hash: "#/reports" });
+  let live = 0;
+  let peak = 0;
+  const measured = overrides.map((o) => ({ ...o, apply: async () => { live += 1; peak = Math.max(peak, live); await o.apply(); live -= 1; } }));
+  const stop = startSurfaces(measured);
+  try {
+    await settle(60);
+    order.length = 0;
+    peak = 0;
+    back();
+    await settle(60);
+    assert.equal(order[0], "reports", "the one on screen is read first");
+    assert.equal(new Set(order).size, keys.length, "and every other surface is still read");
+    assert.equal(order.length, keys.length, "each once");
+    assert.ok(peak <= 4 && peak > 1, `through the boot's lanes, saw ${peak} at once`);
+    order.length = 0;
+    back();
+    back();
+    await settle(60);
+    assert.equal(order.length, keys.length, "two returns in quick succession are one pass, not two");
+  } finally {
+    stop();
+    globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+  }
+});
+
 test("identity leads even on a workspace page, where nothing waits for it", async () => {
   // The shell reads __ME to decide what a role may see. Queued behind three
   // strangers it would draw the nav for the wrong role and then correct it.
