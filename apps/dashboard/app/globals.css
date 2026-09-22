@@ -548,6 +548,12 @@ body {
   color: var(--auth-ink);
   font-weight: 600;
 }
+.yes-who-about {
+  margin: 0 0 12px;
+  color: var(--auth-ink);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
 .yes-who-more {
   margin: 0;
   font-size: 0.85rem;

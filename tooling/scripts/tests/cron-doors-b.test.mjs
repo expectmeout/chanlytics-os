@@ -1593,6 +1593,8 @@ const waiting = (T, id, over = {}) =>
 const RECORD = {
   ...emptyBusinessRecord({ websiteUrl: "https://harbormoving.example", email: "ada@example.com" }),
   legal_name: "Harbor Moving LLC",
+  about:
+    "A moving company in Brooklyn: homes and small offices across New York, packing and storage. Customers book a free estimate and pay per move.",
   trade_name: "Harbor Moving",
   ein: "12-3456789",
   street: "193 Jamaica Ave",
@@ -1904,7 +1906,11 @@ test("registrations: once the carriers approve the brand, the campaign they were
     "linked in the flow too (30908, 30909)",
   );
   assert.ok(
-    filed.get("Description").startsWith("Messages are sent by Harbor Moving (Harbor Moving LLC) to its own customers"),
+    filed.get("Description").startsWith("About Harbor Moving (Harbor Moving LLC): A moving company in Brooklyn"),
+    "what the business does comes first, so a reviewer can tell what kind of business sends (30919, 22 Sep 2026)",
+  );
+  assert.ok(
+    filed.get("Description").includes(" Messages are sent by Harbor Moving (Harbor Moving LLC) to its own customers"),
     "the registered name beside the trade name, so a reviewer matches the campaign to the brand",
   );
   assert.equal(filed.getAll("MessageSamples").length, 4);

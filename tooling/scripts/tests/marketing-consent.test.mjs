@@ -576,3 +576,31 @@ test("every reason the wire can write has words the owner can read", () => {
     assert.ok(!/_/.test(HELD_REASONS[r]), `"${r}" reads like an enum, not like words`);
   }
 });
+
+test("the campaign description opens with what the business does", () => {
+  // The ninth refusal (30919 on USE_CASE_DESCRIPTION, 22 Sep 2026): the description said who sends, to whom
+  // and why, but never what the business is, so a reviewer could not tell what kind of business sends
+  // "appointment" messages.
+  const about = "A beauty salon in Brooklyn: hair, colour and nails for walk-in and booked clients";
+  const { description } = campaignFactsFor({ ...FILED, about: `  ${about}\n` });
+  assert.ok(
+    description.startsWith(`About Melany's Beauty Salon (Melany Beauty LLC): ${about}. Messages are sent by `),
+    description,
+  );
+  // Said once, as finished sentences, whatever the owner typed at the end.
+  assert.ok(campaignFactsFor({ ...FILED, about: `${about}.` }).description.includes(`${about}. Messages`));
+  assert.ok(campaignFactsFor({ ...FILED, about: `${about}!` }).description.includes(`${about}! Messages`));
+
+  // Nothing said, nothing added: the description every filing already carries.
+  assert.ok(campaignFactsFor(FILED).description.startsWith("Messages are sent by Melany's Beauty Salon"));
+  assert.ok(campaignFactsFor({ ...FILED, about: "   " }).description.startsWith("Messages are sent by"));
+
+  // The longest description the record allows still fits Twilio's 40 to 4096.
+  const longest = campaignFactsFor({
+    ...FILED,
+    businessName: "Northside Family Dental & Orthodontics of Brooklyn Heights",
+    about: "x".repeat(500),
+    optInUrl: `https://app.chanlytics.com/yes/${"a".repeat(63)}`,
+  }).description;
+  assert.ok(longest.length <= 4096, `${longest.length} characters`);
+});

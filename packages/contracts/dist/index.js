@@ -13391,6 +13391,284 @@ function isActivityNoise(kind) {
   return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
 }
 
+// src/a2p-enums.ts
+var BUSINESS_INDUSTRIES = [
+  "AGRICULTURE",
+  "AUTOMOTIVE",
+  "BANKING",
+  "CONSTRUCTION",
+  "CONSUMER",
+  "EDUCATION",
+  "ELECTRONICS",
+  "ENERGY",
+  "ENGINEERING",
+  "FAST_MOVING_CONSUMER_GOODS",
+  "FINANCIAL",
+  "FINTECH",
+  "FOOD_AND_BEVERAGE",
+  "GOVERNMENT",
+  "HEALTHCARE",
+  "HOSPITALITY",
+  "INSURANCE",
+  "JEWELRY",
+  "LEGAL",
+  "MANUFACTURING",
+  "MEDIA",
+  "NOT_FOR_PROFIT",
+  "OIL_AND_GAS",
+  "ONLINE",
+  "PROFESSIONAL_SERVICES",
+  "RAW_MATERIALS",
+  "REAL_ESTATE",
+  "RELIGION",
+  "RETAIL",
+  "TECHNOLOGY",
+  "TELECOMMUNICATIONS",
+  "TRANSPORTATION",
+  "TRAVEL"
+];
+var DEFAULT_INDUSTRY = "PROFESSIONAL_SERVICES";
+var BUSINESS_TYPES = [
+  "Co-operative",
+  "Corporation",
+  "Limited Liability Corporation",
+  "Non-profit Corporation",
+  "Partnership"
+];
+var DEFAULT_BUSINESS_TYPE = "Limited Liability Corporation";
+var COMPANY_TYPES = ["government", "non-profit", "private", "public"];
+var DEFAULT_COMPANY_TYPE = "private";
+function industryOf(v) {
+  const up = String(v ?? "").trim().toUpperCase();
+  return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
+}
+function businessTypeOf(v) {
+  const s = String(v ?? "").trim();
+  return BUSINESS_TYPES.includes(s) ? s : DEFAULT_BUSINESS_TYPE;
+}
+function companyTypeOf(v) {
+  const s = String(v ?? "").trim().toLowerCase();
+  return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
+}
+function industryWords(v) {
+  return v.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+// src/business-record.ts
+var FIELD = {
+  legal_name: {
+    label: "Legal name",
+    hint: "Exactly as it appears on your tax filing, not your trading name.",
+    placeholder: "Harbor Moving LLC",
+    group: "business"
+  },
+  trade_name: {
+    label: "Trading name",
+    hint: "What customers call you, if it differs.",
+    placeholder: "Harbor Moving",
+    group: "business"
+  },
+  ein: {
+    label: "Tax ID (EIN)",
+    hint: "Nine digits from the IRS \u2014 on the letter that issued it, or any filing you have made with it.",
+    placeholder: "12-3456789",
+    group: "business"
+  },
+  business_type: { label: "Legal form", options: BUSINESS_TYPES, group: "business" },
+  company_type: { label: "Ownership", options: COMPANY_TYPES, group: "business" },
+  industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
+  about: {
+    label: "What the business does",
+    hint: "Two or three sentences a stranger could follow: what you sell, who buys it, and how they pay. It goes on your public page and into your registration, and the carriers check it.",
+    placeholder: "A moving company in Brooklyn. We move homes and small offices across New York and New Jersey, and pack and store for them. Customers book a free estimate and pay per move.",
+    multiline: true,
+    group: "business"
+  },
+  website_url: {
+    label: "Website",
+    hint: "Yours, if you have one. Without it we publish a page for you at chanlytics.com carrying your name, address and the wording the carriers require \u2014 which is what they check.",
+    placeholder: "https://",
+    group: "business"
+  },
+  street: { label: "Street", placeholder: "193 Jamaica Ave", group: "address" },
+  street_secondary: { label: "Suite or floor", group: "address" },
+  city: { label: "City", placeholder: "Brooklyn", group: "address" },
+  region: { label: "State", placeholder: "NY", group: "address" },
+  postal_code: { label: "ZIP", placeholder: "11207", group: "address" },
+  contact_first_name: { label: "First name", group: "contact" },
+  contact_last_name: { label: "Last name", group: "contact" },
+  contact_email: {
+    label: "Email",
+    hint: "The carriers write here if they need something.",
+    placeholder: "you@business.com",
+    group: "contact"
+  },
+  contact_phone: {
+    label: "Mobile",
+    hint: "Yours, not the business line.",
+    placeholder: "+1 646 555 0123",
+    group: "contact"
+  },
+  contact_title: { label: "Title", placeholder: "Owner", group: "contact" }
+};
+var PATH_FIELDS = {
+  standard: [
+    { name: "legal_name", required: true },
+    { name: "trade_name", required: false },
+    { name: "ein", required: true },
+    { name: "business_type", required: true },
+    { name: "company_type", required: true },
+    { name: "industry", required: true },
+    { name: "about", required: true },
+    // NOT required, and this is the change gate 8 is. A carrier registration
+    // needs a website that identifies the business and a privacy policy
+    // carrying SMS language, on a domain that matches the brand -- and most
+    // salons have a Facebook page and a Booksy link. Demanding a URL here
+    // turned that into a wall at field seven. We publish `/b/<slug>` from the
+    // facts on this very form instead, and file that.
+    { name: "website_url", required: false },
+    { name: "street", required: true },
+    { name: "street_secondary", required: false },
+    { name: "city", required: true },
+    { name: "region", required: true },
+    { name: "postal_code", required: true },
+    { name: "contact_first_name", required: true },
+    { name: "contact_last_name", required: true },
+    { name: "contact_email", required: true },
+    { name: "contact_phone", required: true },
+    { name: "contact_title", required: false }
+  ],
+  // No tax id, no legal form, no ownership: there is no registered entity to
+  // describe, only a person trading under a name. One name box rather than
+  // two, because the filing sends one name. The website is asked and not
+  // required because nothing in this registration sends it — a required box
+  // whose answer goes nowhere is how a form loses somebody at field fifteen.
+  sole_proprietor: [
+    {
+      name: "legal_name",
+      required: true,
+      label: "Business name",
+      hint: "What customers call you. There is no filing to match \u2014 this is the name the carriers show beside your texts."
+    },
+    { name: "industry", required: true },
+    { name: "about", required: true },
+    {
+      name: "website_url",
+      required: false,
+      hint: "Optional: nothing in this registration sends it. Worth having anyway, if a customer ever looks you up."
+    },
+    { name: "street", required: true },
+    { name: "street_secondary", required: false },
+    { name: "city", required: true },
+    { name: "region", required: true },
+    { name: "postal_code", required: true },
+    { name: "contact_first_name", required: true },
+    { name: "contact_last_name", required: true },
+    { name: "contact_email", required: true },
+    {
+      name: "contact_phone",
+      required: true,
+      label: "Your mobile",
+      hint: "Your own handset, not the number Chanlytics answers for you. The carriers text a code to it and you reply from that phone."
+    }
+  ]
+};
+var BUILT = {};
+function businessFieldsFor(path) {
+  const built = BUILT[path];
+  if (built) return built;
+  const made = PATH_FIELDS[path].map((a) => ({
+    ...FIELD[a.name],
+    name: a.name,
+    required: a.required,
+    ...a.label ? { label: a.label } : {},
+    ...a.hint ? { hint: a.hint } : {}
+  }));
+  BUILT[path] = made;
+  return made;
+}
+function businessGroupWordsFor(path) {
+  if (path === "sole_proprietor") {
+    return {
+      business: { title: "What you do", sub: "as customers know it" },
+      address: { title: "Where you are", sub: "your own address \u2014 the carriers check it" },
+      contact: { title: "You", sub: "the carriers text this mobile, and you answer from it" }
+    };
+  }
+  return {
+    business: { title: "The business", sub: "as the tax authorities know it" },
+    address: { title: "Where it is registered", sub: "the address on the filing, not a mailbox" },
+    contact: { title: "Who signs for it", sub: "a person the carriers can reach" }
+  };
+}
+function emptyBusinessRecord(o = {}) {
+  return {
+    legal_name: "",
+    trade_name: null,
+    ein: null,
+    street: "",
+    street_secondary: null,
+    city: "",
+    region: "",
+    postal_code: "",
+    country: "US",
+    website_url: o.websiteUrl ?? "",
+    industry: DEFAULT_INDUSTRY,
+    about: "",
+    business_type: DEFAULT_BUSINESS_TYPE,
+    company_type: DEFAULT_COMPANY_TYPE,
+    contact_first_name: "",
+    contact_last_name: "",
+    contact_email: o.email ?? "",
+    contact_phone: "",
+    contact_title: "Owner",
+    contact_job_position: "Director"
+  };
+}
+var EIN = /^\d{2}-?\d{7}$/;
+var EMAIL = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
+var E1642 = /^\+[1-9]\d{6,14}$/;
+var REGION = /^[A-Za-z]{2}$/;
+var REGISTERABLE_COUNTRIES = ["US", "CA"];
+var ABOUT_MIN = 40;
+var ABOUT_MAX = 500;
+var digits = (s) => s.replace(/\D/g, "");
+function businessRecordProblems(r, path, facts = {}) {
+  const out = {};
+  const has3 = (k) => String(r[k] ?? "").trim().length > 0;
+  for (const f of businessFieldsFor(path)) if (f.required && !has3(f.name)) out[f.name] = `${f.label} is needed.`;
+  if (has3("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
+  if (has3("contact_email") && !EMAIL.test(String(r.contact_email).trim()))
+    out.contact_email = "That does not look like an email address.";
+  if (has3("contact_phone") && !E1642.test(String(r.contact_phone).replace(/[\s()-]/g, "")))
+    out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
+  if (has3("about") && String(r.about).trim().length < ABOUT_MIN)
+    out.about = "Say a little more: what you sell, and who buys it.";
+  if (String(r.about ?? "").trim().length > ABOUT_MAX) out.about = `Keep it under ${ABOUT_MAX} characters.`;
+  if (has3("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
+  if (has3("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim()))
+    out.website_url = "A full address a reviewer can open, starting with https://";
+  if (has3("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
+    out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
+  }
+  if (path === "sole_proprietor" && has3("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
+    out.contact_phone = "This is the number Chanlytics answers for you. The carriers need YOUR handset \u2014 they text a code to it and you reply from the phone in your hand.";
+  }
+  return out;
+}
+function businessRecordForPath(r, path) {
+  return path === "standard" ? r : { ...r, ein: null };
+}
+function businessRecordLine(r) {
+  if (!r) return "The carriers ask who you are before they let a number text. It takes two minutes, once.";
+  const path = registrationPathOf(r) ?? "standard";
+  const problems = businessRecordProblems(r, path);
+  const missing = Object.keys(problems).length;
+  if (missing) return `${missing} thing${missing === 1 ? "" : "s"} still to fill in before this can be filed.`;
+  const capped = path === "sole_proprietor" ? ` \xB7 one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} text a second` : "";
+  return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} \xB7 ${r.city}, ${r.region} \xB7 on record${capped}.`;
+}
+
 // src/business-page.ts
 var SMS_CLAUSES = [
   "Message and data rates may apply.",
@@ -13419,6 +13697,8 @@ function businessPageVM(f) {
   const identity = [];
   if (legal)
     identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
+  const industry = (f.industry ?? "").trim();
+  if (industry) identity.push({ label: "Industry", value: industryWords(industry) });
   const where = addressLine(f);
   if (where) identity.push({ label: "Address", value: where });
   const phone = formatPhoneDisplay(f.publicPhoneE164);
@@ -13431,6 +13711,7 @@ function businessPageVM(f) {
     title: known || "This business",
     lead: empty ? "This business has not finished setting up yet." : `${known} answers its customers by phone, on WhatsApp and by text. This page says who they are and what those messages are.`,
     identity,
+    about: (f.about ?? "").trim() || null,
     services: f.services.slice(0, 40).map((s) => ({
       name: s.name,
       detail: [
@@ -13515,6 +13796,13 @@ function registrationPreflight(f) {
       id: "no_identity",
       what: "The page the carriers will open to check who you are cannot be published: it needs your legal name and your address.",
       fix: "Fill in the legal name and the street address above. They are the two facts a reviewer looks for first."
+    });
+  }
+  if ((f.about ?? "").trim().length < ABOUT_MIN) {
+    out.push({
+      id: "no_about",
+      what: "The carriers can't tell what this business does: your page and your registration have no description of it.",
+      fix: "Fill in \u201CWhat the business does\u201D above in two or three sentences: what you sell, who buys it, and how they pay."
     });
   }
   if (!f.hasOptInNumber) {
@@ -14182,269 +14470,6 @@ function promptBlocks(text, channel, from) {
     times.set(block.row, n);
     return { id: n === 1 ? block.row : `${block.row}-${n}`, ...block, text: lines.slice(a, b).join("\n").trim() };
   });
-}
-
-// src/a2p-enums.ts
-var BUSINESS_INDUSTRIES = [
-  "AGRICULTURE",
-  "AUTOMOTIVE",
-  "BANKING",
-  "CONSTRUCTION",
-  "CONSUMER",
-  "EDUCATION",
-  "ELECTRONICS",
-  "ENERGY",
-  "ENGINEERING",
-  "FAST_MOVING_CONSUMER_GOODS",
-  "FINANCIAL",
-  "FINTECH",
-  "FOOD_AND_BEVERAGE",
-  "GOVERNMENT",
-  "HEALTHCARE",
-  "HOSPITALITY",
-  "INSURANCE",
-  "JEWELRY",
-  "LEGAL",
-  "MANUFACTURING",
-  "MEDIA",
-  "NOT_FOR_PROFIT",
-  "OIL_AND_GAS",
-  "ONLINE",
-  "PROFESSIONAL_SERVICES",
-  "RAW_MATERIALS",
-  "REAL_ESTATE",
-  "RELIGION",
-  "RETAIL",
-  "TECHNOLOGY",
-  "TELECOMMUNICATIONS",
-  "TRANSPORTATION",
-  "TRAVEL"
-];
-var DEFAULT_INDUSTRY = "PROFESSIONAL_SERVICES";
-var BUSINESS_TYPES = [
-  "Co-operative",
-  "Corporation",
-  "Limited Liability Corporation",
-  "Non-profit Corporation",
-  "Partnership"
-];
-var DEFAULT_BUSINESS_TYPE = "Limited Liability Corporation";
-var COMPANY_TYPES = ["government", "non-profit", "private", "public"];
-var DEFAULT_COMPANY_TYPE = "private";
-function industryOf(v) {
-  const up = String(v ?? "").trim().toUpperCase();
-  return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
-}
-function businessTypeOf(v) {
-  const s = String(v ?? "").trim();
-  return BUSINESS_TYPES.includes(s) ? s : DEFAULT_BUSINESS_TYPE;
-}
-function companyTypeOf(v) {
-  const s = String(v ?? "").trim().toLowerCase();
-  return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
-}
-function industryWords(v) {
-  return v.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-}
-
-// src/business-record.ts
-var FIELD = {
-  legal_name: {
-    label: "Legal name",
-    hint: "Exactly as it appears on your tax filing, not your trading name.",
-    placeholder: "Harbor Moving LLC",
-    group: "business"
-  },
-  trade_name: {
-    label: "Trading name",
-    hint: "What customers call you, if it differs.",
-    placeholder: "Harbor Moving",
-    group: "business"
-  },
-  ein: {
-    label: "Tax ID (EIN)",
-    hint: "Nine digits from the IRS \u2014 on the letter that issued it, or any filing you have made with it.",
-    placeholder: "12-3456789",
-    group: "business"
-  },
-  business_type: { label: "Legal form", options: BUSINESS_TYPES, group: "business" },
-  company_type: { label: "Ownership", options: COMPANY_TYPES, group: "business" },
-  industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
-  website_url: {
-    label: "Website",
-    hint: "Yours, if you have one. Without it we publish a page for you at chanlytics.com carrying your name, address and the wording the carriers require \u2014 which is what they check.",
-    placeholder: "https://",
-    group: "business"
-  },
-  street: { label: "Street", placeholder: "193 Jamaica Ave", group: "address" },
-  street_secondary: { label: "Suite or floor", group: "address" },
-  city: { label: "City", placeholder: "Brooklyn", group: "address" },
-  region: { label: "State", placeholder: "NY", group: "address" },
-  postal_code: { label: "ZIP", placeholder: "11207", group: "address" },
-  contact_first_name: { label: "First name", group: "contact" },
-  contact_last_name: { label: "Last name", group: "contact" },
-  contact_email: {
-    label: "Email",
-    hint: "The carriers write here if they need something.",
-    placeholder: "you@business.com",
-    group: "contact"
-  },
-  contact_phone: {
-    label: "Mobile",
-    hint: "Yours, not the business line.",
-    placeholder: "+1 646 555 0123",
-    group: "contact"
-  },
-  contact_title: { label: "Title", placeholder: "Owner", group: "contact" }
-};
-var PATH_FIELDS = {
-  standard: [
-    { name: "legal_name", required: true },
-    { name: "trade_name", required: false },
-    { name: "ein", required: true },
-    { name: "business_type", required: true },
-    { name: "company_type", required: true },
-    { name: "industry", required: true },
-    // NOT required, and this is the change gate 8 is. A carrier registration
-    // needs a website that identifies the business and a privacy policy
-    // carrying SMS language, on a domain that matches the brand -- and most
-    // salons have a Facebook page and a Booksy link. Demanding a URL here
-    // turned that into a wall at field seven. We publish `/b/<slug>` from the
-    // facts on this very form instead, and file that.
-    { name: "website_url", required: false },
-    { name: "street", required: true },
-    { name: "street_secondary", required: false },
-    { name: "city", required: true },
-    { name: "region", required: true },
-    { name: "postal_code", required: true },
-    { name: "contact_first_name", required: true },
-    { name: "contact_last_name", required: true },
-    { name: "contact_email", required: true },
-    { name: "contact_phone", required: true },
-    { name: "contact_title", required: false }
-  ],
-  // No tax id, no legal form, no ownership: there is no registered entity to
-  // describe, only a person trading under a name. One name box rather than
-  // two, because the filing sends one name. The website is asked and not
-  // required because nothing in this registration sends it — a required box
-  // whose answer goes nowhere is how a form loses somebody at field fifteen.
-  sole_proprietor: [
-    {
-      name: "legal_name",
-      required: true,
-      label: "Business name",
-      hint: "What customers call you. There is no filing to match \u2014 this is the name the carriers show beside your texts."
-    },
-    { name: "industry", required: true },
-    {
-      name: "website_url",
-      required: false,
-      hint: "Optional: nothing in this registration sends it. Worth having anyway, if a customer ever looks you up."
-    },
-    { name: "street", required: true },
-    { name: "street_secondary", required: false },
-    { name: "city", required: true },
-    { name: "region", required: true },
-    { name: "postal_code", required: true },
-    { name: "contact_first_name", required: true },
-    { name: "contact_last_name", required: true },
-    { name: "contact_email", required: true },
-    {
-      name: "contact_phone",
-      required: true,
-      label: "Your mobile",
-      hint: "Your own handset, not the number Chanlytics answers for you. The carriers text a code to it and you reply from that phone."
-    }
-  ]
-};
-var BUILT = {};
-function businessFieldsFor(path) {
-  const built = BUILT[path];
-  if (built) return built;
-  const made = PATH_FIELDS[path].map((a) => ({
-    ...FIELD[a.name],
-    name: a.name,
-    required: a.required,
-    ...a.label ? { label: a.label } : {},
-    ...a.hint ? { hint: a.hint } : {}
-  }));
-  BUILT[path] = made;
-  return made;
-}
-function businessGroupWordsFor(path) {
-  if (path === "sole_proprietor") {
-    return {
-      business: { title: "What you do", sub: "as customers know it" },
-      address: { title: "Where you are", sub: "your own address \u2014 the carriers check it" },
-      contact: { title: "You", sub: "the carriers text this mobile, and you answer from it" }
-    };
-  }
-  return {
-    business: { title: "The business", sub: "as the tax authorities know it" },
-    address: { title: "Where it is registered", sub: "the address on the filing, not a mailbox" },
-    contact: { title: "Who signs for it", sub: "a person the carriers can reach" }
-  };
-}
-function emptyBusinessRecord(o = {}) {
-  return {
-    legal_name: "",
-    trade_name: null,
-    ein: null,
-    street: "",
-    street_secondary: null,
-    city: "",
-    region: "",
-    postal_code: "",
-    country: "US",
-    website_url: o.websiteUrl ?? "",
-    industry: DEFAULT_INDUSTRY,
-    business_type: DEFAULT_BUSINESS_TYPE,
-    company_type: DEFAULT_COMPANY_TYPE,
-    contact_first_name: "",
-    contact_last_name: "",
-    contact_email: o.email ?? "",
-    contact_phone: "",
-    contact_title: "Owner",
-    contact_job_position: "Director"
-  };
-}
-var EIN = /^\d{2}-?\d{7}$/;
-var EMAIL = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
-var E1642 = /^\+[1-9]\d{6,14}$/;
-var REGION = /^[A-Za-z]{2}$/;
-var REGISTERABLE_COUNTRIES = ["US", "CA"];
-var digits = (s) => s.replace(/\D/g, "");
-function businessRecordProblems(r, path, facts = {}) {
-  const out = {};
-  const has3 = (k) => String(r[k] ?? "").trim().length > 0;
-  for (const f of businessFieldsFor(path)) if (f.required && !has3(f.name)) out[f.name] = `${f.label} is needed.`;
-  if (has3("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
-  if (has3("contact_email") && !EMAIL.test(String(r.contact_email).trim()))
-    out.contact_email = "That does not look like an email address.";
-  if (has3("contact_phone") && !E1642.test(String(r.contact_phone).replace(/[\s()-]/g, "")))
-    out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
-  if (has3("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
-  if (has3("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim()))
-    out.website_url = "A full address a reviewer can open, starting with https://";
-  if (has3("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
-    out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
-  }
-  if (path === "sole_proprietor" && has3("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
-    out.contact_phone = "This is the number Chanlytics answers for you. The carriers need YOUR handset \u2014 they text a code to it and you reply from the phone in your hand.";
-  }
-  return out;
-}
-function businessRecordForPath(r, path) {
-  return path === "standard" ? r : { ...r, ein: null };
-}
-function businessRecordLine(r) {
-  if (!r) return "The carriers ask who you are before they let a number text. It takes two minutes, once.";
-  const path = registrationPathOf(r) ?? "standard";
-  const problems = businessRecordProblems(r, path);
-  const missing = Object.keys(problems).length;
-  if (missing) return `${missing} thing${missing === 1 ? "" : "s"} still to fill in before this can be filed.`;
-  const capped = path === "sole_proprietor" ? ` \xB7 one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} text a second` : "";
-  return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} \xB7 ${r.city}, ${r.region} \xB7 on record${capped}.`;
 }
 
 // src/password.ts
@@ -16491,6 +16516,8 @@ function csvCell(v) {
 }
 export {
   ABANDONED_MS,
+  ABOUT_MAX,
+  ABOUT_MIN,
   ACTIVITY_KINDS,
   ACTIVITY_NOISE_PREFIXES,
   ACTOR_TYPES,

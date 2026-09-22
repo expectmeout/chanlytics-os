@@ -360,6 +360,7 @@ export async function POST(request: Request): Promise<Response> {
       country: str("country") || "US",
       website_url: str("website_url"),
       industry: industryOf(str("industry")),
+      about: str("about").split(/\s+/).join(" "),
       business_type: businessTypeOf(str("business_type")),
       company_type: companyTypeOf(str("company_type")),
       contact_first_name: str("contact_first_name"),
@@ -549,6 +550,7 @@ export async function POST(request: Request): Promise<Response> {
         const facts = campaignFactsFor({
           businessName: tenant.name,
           legalName: filingCheck.record.legal_name,
+          about: filingCheck.record.about,
           lineNumber: formatPhoneDisplay(row.data.e164),
           optInUrl: `${origin}/yes/${tenant.slug}`,
           hostedUrl: `${origin}/b/${tenant.slug}`,
