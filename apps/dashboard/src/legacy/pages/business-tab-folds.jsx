@@ -412,6 +412,14 @@ const BT_WRITE = {
     const b = next.brain;
     const name = btfTrimmed(d.name);
     b.business_name = name;
+    // What the box stores is the row's rule (business-tab-save.jsx STORED_AS.phone_display, btPublishedOf): the
+    // number typed, or nothing at all, which is the schema's "the line it answers". That rule cannot be CALLED here:
+    // it takes the line the workspace answers on, which is the settings read's (__FACTS), and a fold's write is a
+    // patch on the stored config alone. So it is spelled again, and `own` is the whole of it, which is exact because
+    // the create card normalises `own` before it ever reaches this draft (business-tab-create.jsx): `own` is set true
+    // only where there IS a line to follow, so `own` and `own && line` are the same answer for every draft it makes.
+    // A number left in the box and then put back to the line is `own` again, and stores nothing -- which is what
+    // makes the number it gives out FOLLOW the line instead of freezing a copy of it.
     const typed = btfTrimmed(d.typed);
     btPut(b, "phone_display", !d.own && typed ? typed : undefined);
     b.booking_link = btfTrimmed(d.link);

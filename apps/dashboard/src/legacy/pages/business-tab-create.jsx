@@ -45,7 +45,8 @@ const BtcFields = ({ draft, update, problems, readOnly, line, handoff }) => {
         {number({
           draft: { own: d.own, typed: d.typed },
           // With no line to follow, a number typed IS the number: `own` means the line only where there is one, and
-          // a draft that kept it true would store no number at all.
+          // a draft that kept it true would store no number at all. That normalising is what lets the fold's write
+          // read `own` alone (business-tab-folds.jsx says so where it writes the key).
           set: (n) => update((was) => ({ ...was, own: line ? n.own : false, typed: n.typed }), ["number"]),
           problem: problems.number || null,
           field: { id: "bt-create-number", label: null, "aria-labelledby": "bt-create-number-label", readOnly: readOnly || undefined },
