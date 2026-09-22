@@ -475,18 +475,21 @@ const btoShortFeed = (url) => {
  *                         and while it is on its way the last read stays where it is, dimmed (spec §9: a read in
  *                         flight dims the last value): it does not vanish and move the rows under it;
  *   that read failed      said where the read would be (spec §3), with a Retry, by the refresh's own answer or the
- *                         runner's (window.__surfaceFailed): the old read is never stated as if it were the latest;
+ *                         runner's (window.__surfaceFailed): the old read is never stated as if it were the latest.
+ *                         Retry keeps the block, busy, until its read answers: it flipped to the dimmed line and back;
  *   no way to ask         nothing is said of a read that is not fresh (the standalone mockup has no bridge to ask).
- * A read that says no calendar is connected, under an address that is stored, is said nothing of: it is from before
- * the address was saved, and the save reads the calendar again (refresh-map.ts). The surface carries no address to hold
- * a read against (the address never leaves the server), so that is the one such case the row can know.
+ * A read from before the calendar's address was saved is said nothing of, until the read after the save lands: the
+ * saver says when it took the calendar fold's save (takenAt), and a read fetched before that moment is the old
+ * calendar's, whatever it found. The save reads the calendar again (refresh-map.ts), so nothing is asked for it here.
+ * The surface carries no address to hold a read against (the address never leaves the server), so the moment of the
+ * save is the one thing the row can know it by. A read that says no calendar is connected is said nothing of either.
  */
 const BtoFeedRead = ({ stored }) => {
   const [, setTick] = useBtoState(0);
   const bump = () => setTick((n) => n + 1);
-  // Whether the read this row last asked for failed, whether the row is still on the page to hear its answer, and the
-  // read (by when it was fetched) whose timer has fired.
-  const flight = useBtoRef({ failed: false, gone: false, expired: null });
+  // Whether the read this row asked for is out, whether it failed, whether the row is still on the page to hear its
+  // answer, and the read (by when it was fetched) whose timer has fired.
+  const flight = useBtoRef({ out: false, failed: false, gone: false, expired: null });
   useBtoEffect(() => {
     flight.current.gone = false;
     window.addEventListener("surface:calendar", bump);
@@ -504,9 +507,14 @@ const BtoFeedRead = ({ stored }) => {
   const fresh = at != null && flight.current.expired !== at && typeof keeps.refreshMs === "number" && Date.now() - at < keeps.refreshMs;
   const canAsk = !!(window.__calendar && typeof window.__calendar.refresh === "function");
   const visible = document.visibilityState !== "hidden";
+  // The saver says when the server last took the calendar fold's save in this tab: a read from before it is the old
+  // calendar's.
+  const saver = window.__businessTabSave && window.__businessTabSave.saver;
+  const savedAt = saver && saver.takenAt ? saver.takenAt("calendar") : null;
+  const before = at != null && savedAt != null && at <= savedAt;
   const ask = () => {
-    flight.current.failed = false;
-    const settled = (landed) => { if (flight.current.gone) return; flight.current.failed = !landed; bump(); };
+    flight.current.out = true;
+    const settled = (landed) => { if (flight.current.gone) return; flight.current.out = false; flight.current.failed = !landed; bump(); };
     let sent;
     try { sent = window.__calendar.refresh(); } catch (e) { sent = Promise.reject(e); }
     Promise.resolve(sent).then((landed) => settled(landed !== false), () => settled(false));
@@ -520,13 +528,15 @@ const BtoFeedRead = ({ stored }) => {
     return () => window.clearTimeout(timer);
   }, [stored, at, keeps.refreshMs]);
   useBtoEffect(() => {
-    if (stored && !fresh && canAsk && visible) ask();
-  }, [stored, fresh, canAsk, visible]);
+    if (stored && !fresh && !before && canAsk && visible) ask();
+  }, [stored, fresh, before, canAsk, visible]);
 
   if (!stored) return null;
+  // From before the address was saved: nothing of it is stated, and the save's own re-read is on its way.
+  if (before) return null;
   const failed = !fresh && (flight.current.failed || !!(window.__surfaceFailed && window.__surfaceFailed("calendar")));
   if (failed) {
-    return <window.FailedRead kind="line" what="what its last read found" onRetry={canAsk ? ask : null} surface="calendar" testid="rec-calendar-unread" />;
+    return <window.FailedRead kind="line" what="what its last read found" onRetry={canAsk ? ask : null} busy={flight.current.out} surface="calendar" testid="rec-calendar-unread" />;
   }
   // Not fresh, and no way to ask for a new one: nothing is said of it.
   if (!fresh && !canAsk) return null;

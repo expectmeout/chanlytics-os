@@ -1147,7 +1147,9 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     press(byTestId(row, "rec-calendar-unread-retry"));
     tree = redrawTab();
     assert.equal(answers.length, 2);
-    assert.equal(byTestId(tree, "rec-calendar-read").props["data-reading"], "true");
+    // Retry keeps the block, busy, until its read answers: it flipped to the dimmed old read and back.
+    assert.equal(byTestId(tree, "rec-calendar-read"), null, "REGRESSION: the old read came back, dimmed, under a Retry");
+    assert.equal(textOf(byTestId(tree, "rec-calendar-unread-retry")).trim(), "Retrying…");
     W.__CALENDAR = calendarRead(readOk({ events: 5 }));
     W.dispatchEvent({ type: "surface:calendar" });
     answers[1](true);
@@ -1168,6 +1170,10 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     W.__CALENDAR = calendarRead(readOk(), 30 * 60000);
     tree = drawTab();
     assert.deepEqual([!!byTestId(tree, "rec-calendar-unread"), byTestId(tree, "rec-calendar-read")], [true, null]);
+    // Its Retry, too, keeps the block busy: it showed nothing at all while the read was out.
+    press(byTestId(tree, "rec-calendar-unread-retry"));
+    tree = redrawTab();
+    assert.deepEqual([!!byTestId(tree, "rec-calendar-unread"), textOf(byTestId(tree, "rec-calendar-unread-retry")).trim()], [true, "Retrying…"]);
     // A fresh read is stated whatever the surface's status says of an earlier try.
     W.__CALENDAR = calendarRead(readOk());
     tree = drawTab();
@@ -1290,5 +1296,39 @@ test("a zone being saved outlives the page that sent it: come back mid-save and 
     assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Your day is measured in Chicago now.");
   } finally {
     delete W.__workspace;
+  }
+});
+
+test("after the calendar's address is saved, nothing is said of a read until the read after the save lands", () => {
+  // The old calendar's read showed briefly under the new address: "12 events" of a calendar no longer connected. The
+  // saver says when it took the fold's save, and a read fetched before that moment is the old calendar's; the save
+  // reads the calendar again (refresh-map.ts), and what that finds is stated when it lands.
+  const sent = saving();
+  const asked = [];
+  W.__calendar = { refresh: () => { asked.push("refresh"); return new Promise(() => {}); } };
+  try {
+    W.__CALENDAR = calendarRead(readOk());
+    let tree = drawTab();
+    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /12 events/, "the old calendar's read, fresh, under the old address");
+    openFold(tree, "calendar");
+    tree = redrawTab();
+    find(foldOf(tree, "calendar"), (n) => classes(n).includes("rec-input")).props.onChange({ target: { value: "https://calendar.google.com/calendar/ical/new/private-xyz/basic.ics" } });
+    tree = redrawTab();
+    saveFoldOf(tree, "calendar");
+    assert.equal(sent.length, 1);
+    // The settings re-read lands with the new address (the stand-in PUT never re-reads; this is what the app's does).
+    W.__SETTINGS = { ...W.__SETTINGS, config: sent[0].config, version: 8 };
+    tree = redrawTab();
+    assert.match(textOf(byTestId(tree, "rec-row-calendar")), /calendar\.google\.com/, "the new address is stated");
+    assert.deepEqual([byTestId(tree, "rec-calendar-read"), byTestId(tree, "rec-calendar-unread")], [null, null], "REGRESSION: the old calendar's 12 events under it");
+    assert.equal(asked.length, 0, "and nothing is asked for it here: the save's own re-read is on its way");
+    // The read after the save lands: stated.
+    W.__CALENDAR = { ...calendarRead(readOk({ events: 3 })), fetchedAt: Date.now() + 1 };
+    W.dispatchEvent({ type: "surface:calendar" });
+    tree = redrawTab();
+    assert.match(textOf(byTestId(tree, "rec-calendar-read")), /3 events/);
+  } finally {
+    delete W.__CALENDAR;
+    delete W.__calendar;
   }
 });

@@ -164,6 +164,9 @@ const btTried = (config, job) => {
 const btSaver = () => {
   let last = null;
   let out = null;
+  // When the server last took each row's or fold's save, by its id: what was read before that moment is from before
+  // the save (the calendar row says nothing of a read from before its address was saved).
+  const taken = {};
   // Which life of the saver a save was sent in: reset() starts a new one, and an answer from an earlier life closes
   // nothing and says nothing.
   let life = 0;
@@ -240,6 +243,7 @@ const btSaver = () => {
         if (mine !== life) return;
         accepted = true;
         if (out === job && saved && saved.config && typeof saved.version === "number") last = { config: saved.config, version: saved.version };
+        taken[job.row] = Date.now();
         safely(job.done);
         safely(job.flash, { msg: job.said });
         // With the server's answer in hand the next patch goes on it now; without one, it waits for the re-read,
@@ -261,10 +265,12 @@ const btSaver = () => {
     save(job) { queue.push(job); onChange(); next(); },
     // A row's save is in hand while it waits its turn or is out: its Save says so, and takes no second press.
     pending(row) { return !!((out && out.row === row) || queue.some((j) => j.row === row)); },
+    // When the server last took this row's save in this tab, in ms, or null.
+    takenAt(row) { return Object.prototype.hasOwnProperty.call(taken, row) ? taken[row] : null; },
     base,
     // A page hears every move while it is on screen; call what this returns as it goes.
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
-    reset() { life += 1; last = null; out = null; queue.length = 0; memo = null; onChange(); },
+    reset() { life += 1; last = null; out = null; queue.length = 0; memo = null; Object.keys(taken).forEach((k) => { delete taken[k]; }); onChange(); },
   };
 };
 
@@ -438,7 +444,7 @@ const BT_PATCH_OF = {
   handoff_number: btPatchProfile("handoff_number"),
 };
 
-// window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), base(), subscribe(fn), reset() }),
+// window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), takenAt(row), base(), subscribe(fn), reset() }),
 // the workspace's own door for the timezone (`zone`: { save({ tz, done, flash }), pending(), subscribe(fn), reset() }),
 // how a job's patch is applied (`patched`) and how one refuses the config it would go on (`refusal`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
 // brain's prompt is the product's own lines under its stored name (`isBaseline`), each row's STORED_AS, CHECK_OF and
