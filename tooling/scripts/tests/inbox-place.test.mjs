@@ -246,6 +246,71 @@ test("your own act moves the open thread without a notice about it: its toast ha
   }
 });
 
+test("the thread open is the address's: a click replaces it, a bucket switch names the next thread, and a refresh opens it in the bucket you had", async () => {
+  // The loading standard's E and F: a click never wrote the address, so a refresh opened the bucket's first thread and
+  // the crumbs kept the name of whichever thread a link had opened; and the bucket went back to the first with work.
+  const m = new Map();
+  const keepStore = globalThis.window.sessionStorage;
+  globalThis.window.sessionStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  const { installTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  installTabMemory(globalThis.window);
+  const navs = [];
+  globalThis.window.appNavigate = (to, opts) => navs.push([to, opts]);
+  let list = null;
+  globalThis.InboxList = (p) => { list = p; return null; };
+  const drawn = [];
+  globalThis.InboxThread = (p) => { drawn.push(p.thread ? p.thread.id : null); return null; };
+  globalThis.InboxAgentRail = () => null;
+  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+  const base = { real: true, state: "escalated", needsYou: true, takenOver: false, claimedByOther: false, archived: false, tags: [], whoMeta: "", lastAtMs: 1000, timeline: [] };
+  const emily = { ...base, id: "th-emily", who: "Emily Chen" };
+  const zoe = { ...base, id: "th-zoe", who: "Zoe Martin" };
+  const marcus = { ...base, id: "th-marcus", who: "Marcus Bell", state: "done", needsYou: false };
+  const fresh = () => { cells = []; for (const k of Object.keys(listeners)) delete listeners[k]; globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: [emily, zoe, marcus] }; };
+  const render = (initialThreadId = null) => { seq = 0; return globalThis.window.Inbox({ initialThreadId, showAgentRail: false }); };
+  try {
+    fresh(); render();
+    list.onSelectThread("th-zoe");
+    assert.deepEqual(navs.at(-1), ["inbox/th-zoe", { replace: true }], "replaced: Back leaves the Inbox rather than replaying every thread read");
+    render();
+    list.onBucketChange("done");
+    assert.deepEqual(navs.at(-1), ["inbox/th-marcus", { replace: true }], "a bucket switch names the thread it opens");
+    // A refresh: the address names Marcus, and the bucket he was read in comes back.
+    fresh(); render("th-marcus");
+    assert.equal(list.activeBucket, "done");
+    assert.equal(drawn.at(-1), "th-marcus");
+    // The bucket is kept even when the address names no thread (a bare #/inbox after a refresh).
+    fresh(); render();
+    assert.equal(list.activeBucket, "done", "REGRESSION: the Inbox went back to the first bucket with work in it");
+  } finally {
+    globalThis.window.sessionStorage = keepStore;
+    delete globalThis.window.__tabMemory;
+    delete globalThis.window.appNavigate;
+    globalThis.InboxThread = RealInboxThread;
+  }
+});
+
+test("the words in the Inbox's search come back after a refresh, in this tab only", async () => {
+  const m = new Map();
+  const keepStore = globalThis.window.sessionStorage;
+  globalThis.window.sessionStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  const { installTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  installTabMemory(globalThis.window);
+  const RealList = globalThis.window.InboxList;
+  const t = toInboxThreadVM(conv(), asked(), ZONE, NOW);
+  const draw = () => { cells = []; seq = 0; return RealList({ threads: [t], allThreads: [t], buckets: [], views: [], activeBucket: "escalated", onBucketChange() {}, onSelectThread() {}, selected: [], onToggleSelect() {}, onClearSelection() {} }); };
+  const box = (tree) => find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input");
+  try {
+    box(draw()).props.onChange({ target: { value: "friday" } });
+    assert.equal(box(draw()).props.value, "friday", "a refresh brings the words back");
+    box(draw()).props.onChange({ target: { value: "" } });
+    assert.equal(box(draw()).props.value, "", "and an emptied box stays empty");
+  } finally {
+    globalThis.window.sessionStorage = keepStore;
+    delete globalThis.window.__tabMemory;
+  }
+});
+
 test("a reply half-written is kept for its thread in this tab: another thread, or a refresh, and back brings it back -- and it goes once the server took it", async () => {
   // The pane is keyed by thread, so opening another thread dropped a half-written reply for good, and a refresh did
   // too. The loading standard's G: kept per thread in the tab's one store (tab-memory.ts), never the device's.

@@ -234,6 +234,28 @@ test("REGRESSION: a call you opened that Live no longer holds says so -- the pan
   assert.equal(went.at(-1), "conversations/cv-c-live-2", "with the door to its transcript");
 });
 
+test("the call open is the address's: a row opens it by replacing the address, never a new entry, and a refresh opens the same call", () => {
+  // The loading standard's E: Live read its call from the address once, on mount, and a click never wrote it -- so a
+  // refresh opened whoever was on the line, and the crumbs kept naming the call the page was first opened on.
+  const ada = call({ id: "c-live-2", conversation_id: "cv2", contact_id: "k2", contact: { display_name: "Ada Byron", wa_profile_name: null, phone_e164: "+16465550999" } });
+  withLive([call(), ada]);
+  const navs = [];
+  const keep = globalThis.window.appNavigate;
+  globalThis.window.appNavigate = (to, opts) => navs.push([to, opts]);
+  try {
+    const rows = callRows(mount());
+    rows.find((r) => r.props["data-call-id"] === "c-live-2").props.onClick();
+    assert.deepEqual(navs, [["live/c-live-2", { replace: true }]], "replaced: Back leaves Live rather than replaying every call looked at");
+    const head = (tree) => textOf(find(tree, (n) => n.props?.className === "lm-head-name"));
+    // The shell hands the page the address it asked for (the page stays mounted: app-shell.jsx shellMountKey).
+    assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "the address names the call on screen");
+    cells = [];
+    assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "and a refresh opens it again");
+  } finally {
+    globalThis.window.appNavigate = keep;
+  }
+});
+
 test("a call gone quiet says when it was last heard from, before the checking banner minutes later", () => {
   withLive([call({ updated_at: iso(40_000) })]);
   assert.match(textOf(find(mount(), (n) => n.props?.className === "lm-head-meta")), /last heard 4\d s ago/);

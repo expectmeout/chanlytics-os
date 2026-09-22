@@ -96,9 +96,13 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     }
     return "escalated";
   };
+  // The bucket the member had (the Inbox's place, inbox-list.jsx ixPlace) comes back with a refresh; a thread the
+  // address names opens in it when it lists that thread, and in its own bucket when it does not.
   const [activeBucket, setActiveBucket] = React.useState(() => {
     const t = initialThreadId && THREADS.find((x) => x.id === initialThreadId);
-    return t ? ixBucketOf(t) : firstBucketWithThreads(THREADS);
+    const had = typeof window.ixPlace === "function" ? window.ixPlace().bucket : null;
+    if (t) return had && (had === "all" || ixBucketOf(t) === had) ? had : ixBucketOf(t);
+    return typeof had === "string" && had ? had : firstBucketWithThreads(THREADS);
   });
   const [activeThreadId, setActiveThreadId] = React.useState(
     // The bucket's first row opens first, in the list's own order (ixRank): a reply about to send, then a thread that
@@ -116,6 +120,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // thread. Desktop ignores the flag (mobile.css owns the breakpoint).
   const [phoneThreadOpen, setPhoneThreadOpen] = React.useState(!!initialThreadId);
   const [activeView, setActiveView] = React.useState(null);
+  // Whether the bucket (or view) on screen lists a thread: the one rule the list and the pane both follow.
+  const viewFilter = activeView ? IX_VIEW_FILTERS[activeView] : null;
+  const listedHere = (t) => (viewFilter ? !!viewFilter(t) : activeBucket === "all" || ixBucketOf(t) === activeBucket);
   const [stale, setStale] = React.useState(null); // { threadId, update } — concurrent change waiting to merge
   // A real re-read that moves the open thread: the thread kept on screen though its bucket no longer lists it --
   // never another customer's in its place. What happened to it, the pane says (ThreadPane).
@@ -133,7 +140,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   React.useEffect(() => {
     if (!initialThreadId) return;
     const t = threads.find((x) => x.id === initialThreadId);
-    if (t) { setActiveThreadId(initialThreadId); setActiveBucket(ixBucketOf(t)); setPhoneThreadOpen(true); }
+    // The address follows every click now (selectThread), so a thread the bucket on screen lists keeps that bucket:
+    // one picked in All stays in All.
+    if (t) { setActiveThreadId(initialThreadId); if (!listedHere(t)) setActiveBucket(ixBucketOf(t)); setPhoneThreadOpen(true); }
   }, [initialThreadId]);
 
   // Real threads carry the answer (viewmodel `needsYou`) rather than having it
@@ -221,16 +230,16 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // Opening a thread clears its unread dot; Mark as unread sets it back (one honest meaning of "unread").
   // On a real thread the dot means it needs you (the view model's needsYou), so opening it changes nothing: it
   // cleared, and the next read lit it again (I2). A seeded thread's dot is its unread one.
-  // Whether the bucket (or view) on screen lists a thread: the one rule the list and the pane both follow.
-  const viewFilter = activeView ? IX_VIEW_FILTERS[activeView] : null;
-  const listedHere = (t) => (viewFilter ? !!viewFilter(t) : activeBucket === "all" || ixBucketOf(t) === activeBucket);
   // A search spans every bucket (inbox-list.jsx), so a thread picked from it may live in another: its own bucket opens
   // with it. The pane looked only in the bucket on screen and fell to that bucket's first thread -- another customer,
   // with the reply meant for this one in its composer.
   const selectThread = (id) => {
     const t = threads.find((x) => x.id === id);
-    if (t && !listedHere(t)) { setActiveBucket(ixBucketOf(t)); setActiveView(null); }
+    if (t && !listedHere(t)) { setActiveBucket(ixBucketOf(t)); setActiveView(null); window.ixKeepPlace({ bucket: ixBucketOf(t) }); }
     setActiveThreadId(id); setPhoneThreadOpen(true); setKeepOpenId(null); mutate(id, (x) => (x.unread && !x.real ? { ...x, unread: false } : x));
+    // The thread open is the address's, replaced: a refresh opens it again, the crumbs name it, and Back leaves the
+    // Inbox rather than replaying every thread read.
+    if (window.appNavigate) window.appNavigate(`inbox/${id}`, { replace: true });
   };
   const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
 
@@ -643,6 +652,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
 
   const handleBucket = (id) => {
     setActiveBucket(id);
+    window.ixKeepPlace({ bucket: id });
     setActiveView(null);
     setSelected([]);
     setKeepOpenId(null);
@@ -653,6 +663,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       // An empty bucket clears the pane. Leaving the id stranded a customer —
       // with a live Snooze button — beside a list reading "0 threads".
       setActiveThreadId(next ? next.id : null);
+      if (window.appNavigate) window.appNavigate(next ? `inbox/${next.id}` : "inbox", { replace: true });
     }
   };
 

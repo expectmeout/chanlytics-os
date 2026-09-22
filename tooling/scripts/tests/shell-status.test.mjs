@@ -477,8 +477,34 @@ test("a link to a call opens that call on Live -- the route had no place for its
     const at = (hash) => find(mount(hash).tree, (n) => n.type === "LiveMonitorPage").props;
     assert.equal(at("#/live/c-9").initialCallId, "c-9", "REGRESSION: the route dropped the call's id");
     assert.equal(at("#/live").initialCallId, null);
+    // Every call is the Live page already on screen: a row writes the address it opens (replaced), so each call
+    // being its own mount would tear the page down on every click.
+    const key = (hash) => find(mount(hash).tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key;
+    assert.equal(key("#/live/c-9"), key("#/live"), "one mount across its calls");
+    assert.equal(key("#/live/c-1"), key("#/live/c-9"));
   } finally {
     delete globalThis.LiveMonitorPage;
+  }
+});
+
+test("a page that follows its own address is one mount across it -- Settings' panes, the Inbox's threads, Broadcasts' runs, Live's calls -- and every other page's param is its own mount, the safe default", () => {
+  // Run, where chrome.test.mjs used to match the Set's source text: the shell as drawn is what decides.
+  shell.installShell(win);
+  for (const name of ["LiveMonitorPage"]) globalThis[name] = name;
+  win.ixRouteThread = (id) => ({ id, who: null });
+  try {
+    const key = (hash) => find(mount(hash).tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key;
+    const one = (...hashes) => assert.equal(new Set(hashes.map(key)).size, 1, `one mount: ${hashes.join(", ")}`);
+    one("#/admin/workspace", "#/admin/billing", "#/admin/team");
+    one("#/inbox", "#/inbox/th-1", "#/inbox/th-2");
+    one("#/broadcasts", "#/broadcasts/run:r-1");
+    one("#/live", "#/live/c-1", "#/live/c-2");
+    // Not following its param: showing another entity in a surface built for the last one is the danger, so the
+    // default is a new mount.
+    assert.notEqual(key("#/calendar/2026-10-01"), key("#/calendar/2026-10-02"), "the Calendar's days are their own mounts");
+  } finally {
+    delete globalThis.LiveMonitorPage;
+    delete win.ixRouteThread;
   }
 });
 

@@ -509,8 +509,16 @@ const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }) => {
 const LiveMonitorReal = ({ initialCallId = null }) => {
   const L = useLiveSurface();
   const [nowMs, setNowMs] = useLrState(Date.now());
-  // live/<callId> opens the call a door names (Today's, a bell's) rather than the one on the line.
-  const [activeId, setActiveId] = useLrState(initialCallId);
+  // live/<callId> opens the call a door names (Today's, a bell's) rather than the one on the line, and the call open is
+  // the address's: a row writes it (replaced -- Back leaves Live rather than replaying every call looked at), so a
+  // refresh opens the same call and the crumbs name it. The page stays mounted across its calls (app-shell.jsx).
+  // Where no shell is (the standalone harness), the choice lives for the page.
+  const [picked, setPicked] = useLrState(null);
+  const activeId = initialCallId || picked;
+  const setActiveId = (id) => {
+    setPicked(id);
+    if (window.appNavigate) window.appNavigate(`live/${id}`, { replace: true });
+  };
   const hasLive = !!(L && L.now.length);
 
   // One clock, only while a call is up.
