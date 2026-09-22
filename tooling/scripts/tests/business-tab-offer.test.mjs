@@ -1,0 +1,735 @@
+/**
+ * Settings › Business, *What you offer*, EXECUTED on the stub React: the services row and the sheet it opens, the
+ * booking rules' fold, and consult-first's. The page, the fixture and the presses are _business-tab-harness.mjs; every
+ * claim here is something the page drew, or something a press on it sent.
+ */
+import { test, after } from "node:test";
+import assert from "node:assert/strict";
+import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate } from "@chanlytics/contracts";
+import { unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import { W, cancelFoldOf, drawTab, escape, foldOf, labelled, melany, openFold, openFolds, openRows, ownWords, redrawTab, saveFoldOf, saving, typeAt, without } from "./_business-tab-harness.mjs";
+
+// The last page this file drew goes as React would take it away (the harness says why).
+after(() => unmount());
+
+/** Thirty-three services, as the live record holds them: every one quoted at consult. */
+const many = { ...melany, services: Array.from({ length: 33 }, (_, i) => ({ name: `Service ${i + 1}`, duration_min: 30 + i, price_note: "quoted at consult" })) };
+const LIMIT = 60;
+const full = { ...melany, services: Array.from({ length: LIMIT }, (_, i) => ({ name: `Service ${i + 1}`, duration_min: 30 })) };
+
+const sheetOf = (tree) => byTestId(tree, "rec-sheet-services");
+/** Every row of the sheet, shown or hidden by the search: a row it leaves out stays on the page. */
+const rowsOf = (tree) => all(sheetOf(tree), (n) => classes(n).includes("bt-service-row") && !classes(n).includes("bt-service-head"));
+const shownOf = (tree) => rowsOf(tree).filter((n) => !n.props.hidden);
+const nameOf = (row) => find(row, (n) => n.type === "input" && / name$/.test(n.props["aria-label"] || "")).props.value;
+const namesOf = (rows) => rows.map(nameOf);
+const openSheet = (tree, flash) => { press(byTestId(tree, "rec-row-act-services")); return redrawTab(flash); };
+const searchFor = (tree, words) => byTestId(tree, "rec-services-search") && find(byTestId(tree, "rec-services-search"), (n) => n.type === "input").props.onChange({ target: { value: words } });
+const said = (f) => textOf({ props: { children: f.msg } });
+/** A sentence the kit's FieldError draws under a box, by the box's id: rec-<id>-problem. */
+const problemOf = (tree, boxId) => { const n = find(tree, (m) => m.type === W.FieldError && m.props.id === `rec-${boxId}-problem`); return n ? textOf(n) : null; };
+const saveSheet = (tree) => press(byTestId(tree, "rec-sheet-save-services"));
+
+/* ------------------------------------ the plan's five ------------------------------------ */
+
+test("the services row counts them and says how they are priced", () => {
+  const row = byTestId(drawTab({ profile: many }), "rec-row-services");
+  assert.match(textOf(row), /33 on record/);
+  assert.equal(all(row, (n) => classes(n).includes("rec-chip")).length, 5, "four services and a +29 more");
+  assert.match(textOf(row), /quoted at consult/i);
+  // Every word of it is contracts'.
+  const vm = servicesWords(many.services);
+  assert.equal(textOf(byTestId(row, "rec-services-priced")), vm.priced);
+  assert.equal(vm.priced, "Every one quoted at consult — none names a price.", "the canvas's sentence");
+  assert.deepEqual(all(row, (n) => classes(n).includes("rec-chip")).map(textOf), ["Service 130m", "Service 231m", "Service 332m", "Service 433m", "+29 more"]);
+});
+
+test("the sheet holds every service, and the search narrows them", () => {
+  const tree = drawTab({ profile: many });
+  press(byTestId(tree, "rec-row-act-services"));
+  const open = () => redrawTab();
+  assert.equal(rowsOf(open()).length, 33);
+  const search = find(sheetOf(open()), (n) => classes(n).includes("rec-input"));
+  assert.equal(search.props["aria-label"], "Search services", "the first box in the sheet is its search");
+  search.props.onChange({ target: { value: "Service 1" } });
+  const shown = shownOf(open());
+  assert.ok(shown.length < 33 && shown.length > 0, "the search narrows without emptying");
+  assert.equal(rowsOf(open()).length, 33, "and every row stays on the page, hidden, not taken off it");
+});
+
+test("removing a service offers it back at its own index", () => {
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const tree = drawTab({ profile: many, flash });
+  press(byTestId(tree, "rec-row-act-services"));
+  press(byTestId(redrawTab(flash), "rec-service-remove-2"));
+
+  const toast = flashes.at(-1);
+  assert.equal(typeof toast.undo, "function");
+  assert.equal(said(toast), "Removed Service 3");
+  assert.equal(rowsOf(redrawTab(flash)).length, 32);
+  toast.undo();
+  const rows = rowsOf(redrawTab(flash));
+  assert.equal(rows.length, 33);
+  assert.equal(nameOf(rows[2]), "Service 3", "and it comes back where it was, not at the end");
+});
+
+test("the booking-rules fold shows what the composer will write", () => {
+  let tree = drawTab({ profile: melany });
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  const S = W.__businessTabSave;
+  const base = S.saver.base();
+  const block = W.__businessTab.consequenceOf("booking_rules", S.saveFold("booking_rules", base, S.draftOf("booking_rules", base)).brain, "whatsapp");
+  assert.equal(textOf(byTestId(tree, "rec-fold-says-booking_rules")).includes(block.text), true, "the composer's own block, whole");
+  assert.match(block.text, /At least 2 hours' notice/);
+  assert.match(textOf(byTestId(tree, "rec-fold-says-booking_rules")), /Your receptionist will be told/);
+});
+
+test("consult-first is its own row with its own name", () => {
+  const row = byTestId(drawTab({ profile: melany }), "rec-row-consult_first");
+  assert.match(textOf(row), /Needs a consult first/i);
+  assert.match(textOf(row), /Color correction, Extensions/);
+  const empty = byTestId(drawTab({ profile: { ...melany, booking_rules: without(melany.booking_rules, "consult_first") } }), "rec-row-consult_first");
+  assert.match(textOf(empty), /None/);
+  assert.equal(textOf(byTestId(empty, "rec-row-act-consult_first")).trim(), "Add one");
+});
+
+/* ------------------------------------ the card at rest ------------------------------------ */
+
+test("What you offer draws three rows under its title, and the booking rules in one sentence contracts wrote", () => {
+  const card = byTestId(drawTab(), "rec-card-offer");
+  assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "What you offer");
+  assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-sub"))), "And the rules for offering it");
+  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), ["Services", "Booking rules", "Needs a consult first"]);
+  const rules = byTestId(card, "rec-row-booking_rules");
+  assert.match(textOf(rules), new RegExp(escape(bookingRulesWords(melany.booking_rules).line)));
+  assert.equal(bookingRulesWords(melany.booking_rules).line, "At least 2 hours' notice · 30-minute slots · up to 14 days ahead · up to 4 people", "the canvas's line");
+  // The notes under it, as sentences.
+  const noted = drawTab({ profile: { ...melany, booking_rules: { ...melany.booking_rules, notes: ["No chemical services after 4 PM", "Bridal parties are booked by phone"] } } });
+  assert.equal(textOf(byTestId(noted, "rec-rules-notes")), "No chemical services after 4 PM. Bridal parties are booked by phone.");
+  // None of the five set: what the openings are worked out with, not "no rule".
+  const bare = byTestId(drawTab({ profile: { ...melany, booking_rules: { consult_first: ["Extensions"] } } }), "rec-row-booking_rules");
+  assert.match(textOf(bare), /The calendar's own — at least 2 hours' notice, up to 14 days ahead, in 30-minute slots/);
+  assert.equal(textOf(byTestId(bare, "rec-row-act-booking_rules")).trim(), "Change");
+});
+
+test("how the services are priced is one sentence, whatever the list holds", () => {
+  const priced = (services) => textOf(byTestId(drawTab({ profile: { ...melany, services } }), "rec-services-priced"));
+  assert.equal(priced(many.services), "Every one quoted at consult — none names a price.");
+  assert.equal(priced([{ name: "Balayage", duration_min: 180, price_note: "from $120" }, { name: "Cut", price_note: "quoted at consult" }]), "1 names a price.");
+  assert.equal(priced([{ name: "Balayage", duration_min: 180 }, { name: "Cut", price_note: "varies" }]), "None names a price.");
+  // A chip names a service alone where it has no duration.
+  const chips = all(byTestId(drawTab({ profile: { ...melany, services: [{ name: "Cut" }] } }), "rec-row-services"), (n) => classes(n).includes("rec-chip"));
+  assert.deepEqual(chips.map(textOf), ["Cut"]);
+});
+
+test("with no services the row says none yet, and its act adds one", () => {
+  const tree = drawTab({ profile: without(melany, "services") });
+  const row = byTestId(tree, "rec-row-services");
+  assert.match(textOf(row), /None yet/);
+  assert.equal(row.props["data-empty"], "true");
+  assert.equal(textOf(byTestId(row, "rec-row-act-services")).trim(), "Add one");
+  assert.equal(all(row, (n) => classes(n).includes("rec-chip")).length, 0);
+  assert.equal(byTestId(row, "rec-services-priced"), null);
+});
+
+test("each act of What you offer is gated as a change to the settings, and named for what it acts on", () => {
+  const asked = [];
+  const was = W.gate;
+  W.gate = (perm, doing) => { asked.push([perm, doing]); return {}; };
+  try {
+    const tree = drawTab();
+    const mine = asked.filter(([, doing]) => /services|booking rules|consult/.test(doing));
+    assert.deepEqual(mine.slice(0, 3), [["settings", "change your services"], ["settings", "change the booking rules"], ["settings", "change what needs a consult first"]]);
+    const heard = (row) => byTestId(tree, `rec-row-act-${row}`).props["aria-label"];
+    assert.deepEqual(["services", "booking_rules", "consult_first"].map(heard), ["Open the list of services", "Change the booking rules", "Change what needs a consult first"]);
+    assert.equal(textOf(byTestId(tree, "rec-row-act-services")).trim(), "Open the list", "the canvas's act");
+  } finally {
+    W.gate = was;
+  }
+});
+
+test("a viewer reads what is offered and is offered no act on any of it, and nothing opens the sheet", () => {
+  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+  try {
+    const sent = saving();
+    const tree = drawTab({ profile: many });
+    const card = byTestId(tree, "rec-card-offer");
+    assert.deepEqual(all(card, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || "")), [], "no row offers a change");
+    assert.match(textOf(card), /33 on record/);
+    assert.match(textOf(card), /Color correction, Extensions/, "and everything is there to read");
+    // The page says why once, and this card does not say it again.
+    const why = roleGate("viewer", "settings", "change the business").reason;
+    assert.equal(all(tree, (n) => ownWords(n).includes(why)).length, 1);
+    for (const id of ["services", "booking_rules", "consult_first"]) {
+      W.__recordFolds.request(id);
+      const again = redrawTab();
+      assert.deepEqual([openFolds(again), sheetOf(again)], [[], null], id);
+      W.__recordFolds.reset();
+    }
+    assert.equal(sent.length, 0);
+  } finally {
+    delete W.ST_STORE;
+  }
+});
+
+/* ------------------------------------ the sheet ------------------------------------ */
+
+test("the sheet is the canvas's: its head, a search and Add, three columns, a consult-first mark, and a foot that says what it will be told", () => {
+  let tree = drawTab({ profile: { ...many, services: [{ name: "Color correction", duration_min: 180, price_note: "quoted at consult" }, ...many.services.slice(1)] } });
+  tree = openSheet(tree);
+  const sheet = sheetOf(tree);
+  assert.ok(sheet, "the act opens the sheet");
+  assert.equal(textOf(find(sheet, (n) => classes(n).includes("rec-sheet-title"))), "What you offer");
+  assert.equal(textOf(find(sheet, (n) => classes(n).includes("rec-sheet-sub"))), "Names and rough timings. A price only if you can state it flatly.");
+  assert.equal(find(byTestId(tree, "rec-services-search"), (n) => n.type === "input").props.placeholder, "Search services");
+  assert.match(textOf(byTestId(tree, "rec-services-add")), /Add/);
+  assert.equal(textOf(find(sheet, (n) => classes(n).includes("bt-service-head"))), "ServiceTakesPrice");
+  // Each row is three boxes and a remove, each box named for its row.
+  const third = rowsOf(tree)[2];
+  assert.deepEqual(all(third, (n) => n.type === "input").map((n) => [n.props.id, n.props["aria-label"]]), [
+    ["svc-2-name", "Service 3 name"], ["svc-2-minutes", "Service 3 minutes"], ["svc-2-price", "Service 3 price"],
+  ]);
+  assert.equal(all(third, (n) => n.type === "input")[1].props.inputMode, "numeric");
+  assert.equal(byTestId(third, "rec-service-remove-2").props["aria-label"], "Remove Service 3");
+  // A service the consult-first list names carries a mark, to read: that list is its own fold's.
+  assert.equal(textOf(byTestId(tree, "rec-service-consult-0")), "consult first");
+  assert.equal(byTestId(tree, "rec-service-consult-1"), null);
+  // The foot.
+  assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 33 services");
+  assert.match(textOf(find(sheet, (n) => classes(n).includes("rec-sheet-foot"))), /Removing one offers an undo\./);
+  assert.match(textOf(byTestId(tree, "rec-sheet-services-told")), /^It will be told/);
+});
+
+test("the foot's count, characters and share are the services block's, over everything it reads", () => {
+  let tree = drawTab({ profile: many });
+  tree = openSheet(tree);
+  const words = () => textOf(byTestId(tree, "rec-sheet-services-told-words"));
+  const block = (brain) => W.__businessTab.consequenceOf("services", brain, "whatsapp");
+  const total = W.__SETTINGS.prompt.whatsapp.length;
+  const stored = block(W.__SETTINGS.config.brain);
+  assert.equal(words(), servicesToldWords({ count: 33, chars: stored.chars, total }));
+  assert.match(words(), /^33 services, [\d,]+ characters — (about )?[a-z ]+ of everything it reads\.$/);
+  // Taken out, the count and the characters follow the draft, from the block the save would write.
+  press(byTestId(tree, "rec-service-remove-0"));
+  tree = redrawTab();
+  const S = W.__businessTabSave;
+  const next = S.saveFold("services", S.saver.base(), S.draftOf("services", S.saver.base()).slice(1)).brain;
+  assert.equal(words(), servicesToldWords({ count: 32, chars: block(next).chars, total }));
+  assert.ok(block(next).chars < stored.chars);
+  assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 32 services");
+  // A row nobody named is not one the save writes, so it is not counted.
+  press(byTestId(tree, "rec-services-add"));
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 32 services");
+});
+
+test("the search reads names only, and never reorders: what it leaves out is hidden in place", () => {
+  let tree = drawTab({ profile: many });
+  tree = openSheet(tree);
+  searchFor(tree, "service 2");
+  tree = redrawTab();
+  // Service 2, and 20 to 29, in the stored order: the order the receptionist reads them in.
+  assert.deepEqual(namesOf(shownOf(tree)), ["Service 2", ...Array.from({ length: 10 }, (_, i) => `Service ${20 + i}`)]);
+  // Hidden in place, each at its own index: nothing is taken off the page or moved.
+  assert.deepEqual(namesOf(rowsOf(tree)), many.services.map((s) => s.name));
+  assert.equal(rowsOf(tree)[0].props.hidden, true);
+  // Names only: a price note or a duration is not searched.
+  searchFor(tree, "consult");
+  tree = redrawTab();
+  assert.deepEqual([shownOf(tree).length, !!byTestId(tree, "rec-services-none")], [0, true], "no service is called that");
+  searchFor(tree, "45");
+  tree = redrawTab();
+  assert.equal(shownOf(tree).length, 0, "Service 16 takes 45 minutes, and is not found by it");
+  // A name typed over until it no longer matches keeps its row in sight: the box being typed in never vanishes.
+  searchFor(tree, "Service 3");
+  tree = redrawTab();
+  typeAt(tree, "Service 3 name", "Balayage");
+  tree = redrawTab();
+  assert.ok(namesOf(shownOf(tree)).includes("Balayage"), "REGRESSION: the row being typed in was hidden by the search");
+  // And a row just added shows whatever the search says.
+  press(byTestId(tree, "rec-services-add"));
+  tree = redrawTab();
+  assert.equal(namesOf(shownOf(tree)).at(-1), "");
+  // Emptied, every row shows, in the order they were.
+  searchFor(tree, "");
+  tree = redrawTab();
+  assert.equal(shownOf(tree).length, 34);
+  assert.deepEqual(namesOf(shownOf(tree)).slice(0, 4), ["Service 1", "Service 2", "Balayage", "Service 4"]);
+});
+
+test("a removed row leaves an Undo where it was, and that Undo and the toast's both put it back at its index, once", () => {
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ profile: many, flash });
+  tree = openSheet(tree, flash);
+  press(byTestId(tree, "rec-service-remove-4"));
+  tree = redrawTab(flash);
+  const gone = byTestId(tree, "rec-service-gone-4");
+  assert.match(textOf(gone), /Removed Service 5/, "where the row was, inside the sheet's Tab ring");
+  // It sits in the row's place: before the row that moved up into its index.
+  const body = byTestId(tree, "rec-services-rows");
+  const order = all(body, (n) => /^rec-service-(gone-)?\d+$/.test(n.props?.["data-testid"] || "")).map((n) => n.props["data-testid"]);
+  assert.deepEqual(order.slice(3, 6), ["rec-service-3", "rec-service-gone-4", "rec-service-4"]);
+  assert.equal(nameOf(rowsOf(tree)[4]), "Service 6");
+  // The inline Undo.
+  press(byTestId(tree, "rec-service-undo-4"));
+  tree = redrawTab(flash);
+  assert.equal(nameOf(rowsOf(tree)[4]), "Service 5", "back at its own index");
+  assert.equal(byTestId(tree, "rec-service-gone-4"), null, "and its Undo goes with it");
+  // The toast's Undo, pressed after, has nothing left to put back: the row is not put back twice.
+  flashes.at(-1).undo();
+  tree = redrawTab(flash);
+  assert.equal(rowsOf(tree).length, 33, "REGRESSION: a second copy of the row");
+
+  // The toast's Undo first: the row comes back where it was, and the Undo in its place goes.
+  press(byTestId(tree, "rec-service-remove-0"));
+  tree = redrawTab(flash);
+  assert.ok(byTestId(tree, "rec-service-gone-0"));
+  flashes.at(-1).undo();
+  tree = redrawTab(flash);
+  assert.deepEqual([nameOf(rowsOf(tree)[0]), byTestId(tree, "rec-service-gone-0")], ["Service 1", null]);
+});
+
+test("a toast's Undo pressed after the sheet has closed puts nothing back, and says so", () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ profile: many, flash });
+  tree = openSheet(tree, flash);
+  press(byTestId(tree, "rec-service-remove-2"));
+  tree = redrawTab(flash);
+  const undo = flashes.at(-1).undo;
+  press(byTestId(tree, "rec-sheet-cancel-services"));
+  tree = redrawTab(flash);
+  press(byTestId(tree, "rec-sheet-services-cancel-yes"));
+  tree = redrawTab(flash);
+  assert.equal(sheetOf(tree), null, "the sheet has closed, and its draft with it");
+  undo();
+  assert.deepEqual([flashes.at(-1).tone, said(flashes.at(-1))], ["warn", "Not put back — the editor it was in has closed. Open it again to change it."]);
+  tree = openSheet(tree, flash);
+  assert.equal(rowsOf(tree).length, 33, "it opens on what is stored");
+  assert.equal(byTestId(tree, "rec-service-gone-2"), null, "and no Undo from the last opening is left in it");
+  assert.equal(sent.length, 0);
+});
+
+test("the list keeps its cap of sixty through Add and through both Undos", () => {
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ profile: full, flash });
+  tree = openSheet(tree, flash);
+  assert.equal(rowsOf(tree).length, LIMIT);
+  assert.equal(byTestId(tree, "rec-services-add"), null, "no Add past the cap the save's schema keeps");
+  assert.match(textOf(byTestId(tree, "rec-services-cap")), /That is the most services the receptionist keeps \(60\)\. Remove one first\./);
+  press(byTestId(tree, "rec-service-remove-0"));
+  tree = redrawTab(flash);
+  const toast = flashes.at(-1).undo;
+  press(byTestId(tree, "rec-services-add"));
+  tree = redrawTab(flash);
+  assert.equal(rowsOf(tree).length, LIMIT);
+  assert.equal(byTestId(tree, "rec-services-add"), null);
+  toast();
+  tree = redrawTab(flash);
+  assert.equal(rowsOf(tree).length, LIMIT, "REGRESSION: the toast's Undo put a sixty-first back");
+  assert.deepEqual([flashes.at(-1).tone, said(flashes.at(-1))], ["warn", "Not put back — That is the most services the receptionist keeps (60). Remove one first."]);
+  press(byTestId(tree, "rec-service-undo-0"));
+  tree = redrawTab(flash);
+  assert.equal(rowsOf(tree).length, LIMIT, "nor the Undo left where it was");
+  assert.ok(byTestId(tree, "rec-service-gone-0"), "which stays, to put it back once there is room");
+  // With room again, it goes back where it was.
+  press(byTestId(tree, "rec-service-remove-59"));
+  tree = redrawTab(flash);
+  press(byTestId(tree, "rec-service-undo-0"));
+  tree = redrawTab(flash);
+  assert.deepEqual([rowsOf(tree).length, nameOf(rowsOf(tree)[0])], [LIMIT, "Service 1"]);
+  // And Add itself keeps the cap, pressed twice in one breath with room for one.
+  tree = drawTab({ profile: { ...full, services: full.services.slice(0, LIMIT - 1) }, flash });
+  tree = openSheet(tree, flash);
+  press(byTestId(tree, "rec-services-add"));
+  press(byTestId(tree, "rec-services-add"));
+  tree = redrawTab(flash);
+  assert.equal(rowsOf(tree).length, LIMIT);
+});
+
+test("a save sends the stored config with the services changed, and nothing else", () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ profile: many, flash });
+  const stored = structuredClone(W.__SETTINGS.config);
+  tree = openSheet(tree, flash);
+  typeAt(tree, "Service 3 minutes", "75");
+  tree = redrawTab(flash);
+  typeAt(tree, "Service 3 price", "  from a consult  ");
+  tree = redrawTab(flash);
+  saveSheet(tree);
+  tree = redrawTab(flash);
+  assert.equal(sent.length, 1);
+  const expected = structuredClone(stored);
+  expected.brain.profile.services[2] = { name: "Service 3", duration_min: 75, price_note: "from a consult" };
+  assert.deepEqual(sent[0].config, expected, "the whole config, with one service changed and every other key as it was");
+  assert.equal(sheetOf(tree), null, "taken, the sheet closes");
+  assert.equal(said(flashes.at(-1)), "Saved — the receptionist picks it up within a minute");
+});
+
+test("an unchanged Save sends nothing and closes, and so does one typed and typed back", () => {
+  const sent = saving();
+  let tree = drawTab({ profile: many });
+  tree = openSheet(tree);
+  saveSheet(tree);
+  tree = redrawTab();
+  assert.deepEqual([sent.length, sheetOf(tree)], [0, null]);
+  tree = openSheet(tree);
+  typeAt(tree, "Service 3 minutes", "75");
+  tree = redrawTab();
+  typeAt(tree, "Service 3 minutes", "32");
+  tree = redrawTab();
+  saveSheet(tree);
+  tree = redrawTab();
+  assert.deepEqual([sent.length, sheetOf(tree)], [0, null]);
+});
+
+test("what stops a save is said under its box, and nothing is sent", () => {
+  const sent = saving();
+  let tree = drawTab({ profile: many });
+  tree = openSheet(tree);
+  typeAt(tree, "Service 2 minutes", "1.5");
+  tree = redrawTab();
+  typeAt(tree, "Service 4 name", "x".repeat(81));
+  tree = redrawTab();
+  saveSheet(tree);
+  tree = redrawTab();
+  assert.equal(sent.length, 0);
+  assert.ok(sheetOf(tree), "the sheet stays open with what was typed");
+  assert.equal(problemOf(tree, "svc-1-minutes"), "Minutes are a whole number, like 45.");
+  assert.equal(problemOf(tree, "svc-3-name"), "At most 80 characters — this is 81.");
+  assert.equal(labelled(tree, "Service 2 minutes").props["aria-invalid"], true);
+  // Put right, its sentence goes with the change, and the save goes.
+  typeAt(tree, "Service 2 minutes", "15");
+  tree = redrawTab();
+  assert.equal(problemOf(tree, "svc-1-minutes"), null);
+  typeAt(tree, "Service 4 name", "Service 4");
+  tree = redrawTab();
+  saveSheet(tree);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].config.brain.profile.services[1].duration_min, 15);
+});
+
+test("while the sheet saves its boxes take nothing, and a press that would add or remove refuses the way Save does", () => {
+  const sent = [];
+  W.__saveSettings = (config, version, accepted) => new Promise(() => { sent.push({ config: structuredClone(config), accept: () => accepted({ config: structuredClone(config), version: version + 1 }) }); });
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ profile: many, flash });
+  tree = openSheet(tree, flash);
+  typeAt(tree, "Service 1 minutes", "40");
+  tree = redrawTab(flash);
+  saveSheet(tree);
+  tree = redrawTab(flash);
+  assert.deepEqual([sheetOf(tree).props["aria-busy"], textOf(byTestId(tree, "rec-sheet-save-services"))], [true, "Saving…"]);
+  assert.deepEqual(all(sheetOf(tree), (n) => n.type === "input" && / (name|minutes|price)$/.test(n.props["aria-label"] || "")).map((n) => n.props.readOnly).filter((r) => r !== true), [], "every box is read-only");
+  const held = (node) => [node.props["aria-disabled"], node.props.disabled];
+  assert.deepEqual([held(byTestId(tree, "rec-service-remove-0")), held(byTestId(tree, "rec-services-add")), held(byTestId(tree, "rec-sheet-save-services"))], [[true, undefined], [true, undefined], [true, undefined]]);
+  const before = flashes.length;
+  typeAt(tree, "Service 1 minutes", "41");
+  press(byTestId(tree, "rec-service-remove-0"));
+  press(byTestId(tree, "rec-services-add"));
+  tree = redrawTab(flash);
+  assert.deepEqual([labelled(tree, "Service 1 minutes").props.value, rowsOf(tree).length, flashes.slice(before)], ["40", 33, []], "nothing typed or pressed under Saving… is held, or said");
+  // Escape and Close are Cancel, and nothing cancels a save that is out.
+  press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
+  tree = redrawTab(flash);
+  assert.ok(sheetOf(tree));
+  sent[0].accept();
+  tree = redrawTab(flash);
+  assert.equal(sheetOf(tree), null, "the server took it, and the sheet closed");
+  assert.equal(sent[0].config.brain.profile.services[0].duration_min, 40);
+});
+
+/* ------------------------------------ one editor at a time ------------------------------------ */
+
+test("Escape and Close are the sheet's Cancel: with changes they ask first, and with none they close", () => {
+  let tree = drawTab({ profile: many });
+  tree = openSheet(tree);
+  press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
+  tree = redrawTab();
+  assert.equal(sheetOf(tree), null, "nothing typed: it closes at once");
+  tree = openSheet(tree);
+  typeAt(tree, "Service 1 price", "varies");
+  tree = redrawTab();
+  const esc = { key: "Escape", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown(esc);
+  tree = redrawTab();
+  assert.ok(sheetOf(tree), "typed in: it stays open");
+  assert.match(textOf(byTestId(tree, "rec-sheet-services-cancel-confirm")), /Discard your changes\?/, "and asks, above its Save");
+  press(byTestId(tree, "rec-sheet-services-cancel-no"));
+  tree = redrawTab();
+  assert.equal(labelled(tree, "Service 1 price").props.value, "varies", "Keep editing keeps what was typed");
+  press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
+  tree = redrawTab();
+  press(byTestId(tree, "rec-sheet-services-cancel-yes"));
+  tree = redrawTab();
+  assert.equal(sheetOf(tree), null);
+  tree = openSheet(tree);
+  assert.equal(labelled(tree, "Service 1 price").props.value, "quoted at consult", "what was thrown away is gone");
+  // A service row with no name is asked about too, though the save would drop it.
+  press(byTestId(tree, "rec-services-add"));
+  tree = redrawTab();
+  press(byTestId(tree, "rec-sheet-cancel-services"));
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-sheet-services-cancel-confirm"));
+});
+
+test("opening the sheet with a fold holding changes asks about the fold, and opening a fold with the sheet holding changes asks about the sheet", () => {
+  let tree = drawTab({ profile: many });
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  typeAt(tree, "Least notice in hours", "5");
+  tree = redrawTab();
+  tree = openSheet(tree);
+  assert.deepEqual([openFolds(tree), sheetOf(tree)], [["booking_rules"], null], "the fold's changes are not thrown away");
+  assert.match(textOf(byTestId(tree, "rec-fold-booking_rules-ask-confirm")), /Discard your changes\?/);
+  press(byTestId(tree, "rec-fold-booking_rules-ask-yes"));
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), !!sheetOf(tree)], [[], true], "answered, the sheet opens");
+
+  typeAt(tree, "Service 2 name", "Balayage");
+  tree = redrawTab();
+  assert.equal(W.__settingsUnsaved(), true, "the rail asks before the pane goes");
+  openFold(tree, "consult_first");
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), !!sheetOf(tree)], [[], true], "the sheet's changes are not thrown away");
+  assert.match(textOf(byTestId(tree, "rec-sheet-services-ask-confirm")), /Discard your changes\?/, "and it asks, in the sheet, since Tab never leaves it");
+  press(byTestId(tree, "rec-sheet-services-ask-no"));
+  tree = redrawTab();
+  assert.equal(labelled(tree, "Service 2 name").props.value, "Balayage");
+  openFold(tree, "consult_first");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-sheet-services-ask-yes"));
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), sheetOf(tree)], [["consult_first"], null]);
+  // A clean sheet gives way at once.
+  cancelFoldOf(tree, "consult_first");
+  tree = openSheet(redrawTab());
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), sheetOf(tree)], [["booking_rules"], null]);
+});
+
+test("the standing line's services door opens the sheet, guarded like any row", () => {
+  const bare = without(melany, "services");
+  let tree = drawTab({ profile: bare });
+  assert.equal(standingLine(W.__SETTINGS.config.brain).missing.row, "services");
+  press(byTestId(byTestId(tree, "rec-standing"), "rec-standing-door"));
+  tree = redrawTab();
+  assert.ok(sheetOf(tree), "the door opens the sheet, which no fold is");
+  assert.deepEqual([rowsOf(tree).length, textOf(byTestId(tree, "rec-sheet-services-told-words"))], [0, "No services, so it cannot say what you offer."]);
+  press(byTestId(tree, "rec-services-add"));
+  tree = redrawTab();
+  typeAt(tree, "Service 1 name", "Balayage");
+  tree = redrawTab();
+  assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 1 service");
+  // With a fold holding changes, the door asks about them first.
+  tree = drawTab({ profile: bare });
+  openFold(tree, "consult_first");
+  tree = redrawTab();
+  typeAt(tree, "Services that need a consultation first", "Keratin");
+  tree = redrawTab();
+  press(byTestId(byTestId(tree, "rec-standing"), "rec-standing-door"));
+  tree = redrawTab();
+  assert.deepEqual([openFolds(tree), sheetOf(tree)], [["consult_first"], null]);
+  assert.ok(byTestId(tree, "rec-fold-consult_first-ask-confirm"));
+});
+
+test("the sheet is the page's last hook-holding child: opened, drawn again and closed, every editor before it keeps its own", () => {
+  // The kit's sheet holds hooks and is drawn only while it is open, and the stub keeps every hook on the page in one
+  // order (_legacy-react.mjs). Drawn before a card, it read that card's cells as its own the moment it opened.
+  const sent = saving();
+  let tree = drawTab({ profile: many });
+  const at = (t) => [textOf(byTestId(t, "rec-row-hours")), textOf(byTestId(t, "rec-row-booking_rules")), textOf(byTestId(t, "rec-row-consult_first"))];
+  const rest = at(tree);
+  tree = openSheet(tree);
+  typeAt(tree, "Service 1 name", "Balayage");
+  tree = redrawTab();
+  tree = redrawTab();
+  assert.equal(labelled(tree, "Service 1 name").props.value, "Balayage", "the sheet keeps its draft over two draws");
+  assert.deepEqual(at(tree), rest, "and every row before it says what it said");
+  press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
+  tree = redrawTab();
+  press(byTestId(tree, "rec-sheet-services-cancel-yes"));
+  tree = redrawTab();
+  assert.deepEqual(at(tree), rest);
+  // Every editor before it opens, is typed in and asks as it did before the sheet ever opened.
+  openFold(tree, "hours");
+  tree = redrawTab();
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  assert.equal(labelled(tree, "Monday closes").props.value, "17:00");
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), ["hours"]);
+  press(byTestId(tree, "rec-fold-hours-ask-yes"));
+  tree = redrawTab();
+  typeAt(tree, "Least notice in hours", "6");
+  tree = redrawTab();
+  saveFoldOf(tree, "booking_rules");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].config.brain.profile.booking_rules.lead_hours, 6);
+  // Opened again after all that, it opens on what is stored, and its rows read their own.
+  tree = openSheet(redrawTab());
+  assert.deepEqual(namesOf(rowsOf(tree)).slice(0, 2), ["Service 1", "Service 2"]);
+  assert.deepEqual(openRows(tree), []);
+});
+
+test("an editor whose page goes away lets go of the sheet: back on the tab, it does not open by itself", async () => {
+  let tree = drawTab({ profile: many });
+  tree = openSheet(tree);
+  assert.equal(W.__recordFolds.open(), "services");
+  unmount();
+  await settle();
+  assert.equal(W.__recordFolds.open(), null, "REGRESSION: the sheet was still the open one, and opened again with the tab");
+  tree = W.React.createElement(W.BusinessTab, { flash: () => {} });
+  assert.equal(sheetOf(tree), null);
+});
+
+/* ------------------------------------ the booking rules ------------------------------------ */
+
+test("the booking rules fold holds the five numbers, each with its unit and what empty means, and the notes", () => {
+  let tree = drawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  const fold = foldOf(tree, "booking_rules");
+  const boxes = all(fold, (n) => n.type === "input");
+  assert.deepEqual(boxes.map((n) => n.props["aria-label"]), ["Least notice in hours", "Slot length in minutes", "Gap between appointments in minutes", "Days ahead", "Most people per booking"], "the old grid's names");
+  assert.deepEqual(boxes.map((n) => n.props.placeholder), ["2", "30", "0", "14", "4"], "and its placeholders");
+  assert.deepEqual(boxes.map((n) => n.props.value), ["2", "30", "", "14", "4"], "each as its box holds it");
+  assert.ok(boxes.every((n) => n.props.inputMode === "numeric"));
+  const S = W.__businessTabSave;
+  assert.deepEqual(boxes.map((n) => [n.props.min, n.props.max]), S.RULES.map(([, lo, hi]) => [lo, hi]), "each range the save's schema keeps");
+  assert.deepEqual(all(fold, (n) => classes(n).includes("rec-field-label")).map(textOf), ["Least notice", "Slot length", "Gap between appointments", "Offers times up to", "Most people per booking", "Anything else about booking, one per line"]);
+  assert.deepEqual(all(fold, (n) => classes(n).includes("rec-input-unit")).map(textOf), ["hours", "minutes", "minutes", "days ahead", "people"]);
+  // What an empty box means is contracts' (the canvas said "Empty means no rule." of the least notice; it is two hours').
+  assert.deepEqual(all(fold, (n) => classes(n).includes("rec-hint")).map(textOf), [BOOKING_RULE_HINTS.lead_hours, BOOKING_RULE_HINTS.slot_min, BOOKING_RULE_HINTS.max_days_ahead, BOOKING_RULE_HINTS.party_max]);
+  assert.equal(labelled(tree, "Booking notes").type, "textarea");
+  assert.match(textOf(fold), /Saves these five rules and the notes, and nothing else on the page\./);
+  assert.match(textOf(fold), /It never books\. It says which times are open and sends the link\./);
+});
+
+test("each booking rule saves within its range; outside it, or not a whole number, it is refused under its box with its sentence", () => {
+  const sent = saving();
+  const S = W.__businessTabSave;
+  const labels = { lead_hours: "Least notice in hours", slot_min: "Slot length in minutes", buffer_min: "Gap between appointments in minutes", max_days_ahead: "Days ahead", party_max: "Most people per booking" };
+  for (const [key, lo, hi, words] of S.RULES) {
+    for (const bad of [String(hi + 1), String(lo - 1), "2.5", "30min", "1e2"]) {
+      if (bad === "-1" && lo === 0) continue;
+      let tree = drawTab();
+      openFold(tree, "booking_rules");
+      tree = redrawTab();
+      typeAt(tree, labels[key], bad);
+      tree = redrawTab();
+      saveFoldOf(tree, "booking_rules");
+      tree = redrawTab();
+      assert.equal(sent.length, 0, `${key} ${bad}`);
+      assert.equal(problemOf(tree, `bt-rule-${key}`), words, `${key} ${bad}: said under its own box`);
+      assert.deepEqual(openFolds(tree), ["booking_rules"]);
+    }
+    for (const good of [lo, hi]) {
+      let tree = drawTab({ profile: { ...melany, booking_rules: { consult_first: ["Extensions"] } } });
+      openFold(tree, "booking_rules");
+      tree = redrawTab();
+      typeAt(tree, labels[key], String(good));
+      tree = redrawTab();
+      saveFoldOf(tree, "booking_rules");
+      const last = sent.at(-1);
+      assert.equal(last.config.brain.profile.booking_rules[key], good, `${key} ${good}`);
+      assert.deepEqual(last.config.brain.profile.booking_rules.consult_first, ["Extensions"], "consult-first is kept");
+      sent.length = 0;
+    }
+  }
+});
+
+test("the booking rules' save writes those rules and their notes, and nothing else on the page", () => {
+  const sent = saving();
+  // Consult-first is stored inside the booking rules and is not this fold's: it is the key the fold does not render.
+  let tree = drawTab();
+  const stored = structuredClone(W.__SETTINGS.config);
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  typeAt(tree, "Least notice in hours", "");
+  tree = redrawTab();
+  typeAt(tree, "Gap between appointments in minutes", "15");
+  tree = redrawTab();
+  typeAt(tree, "Booking notes", "No chemical services after 4 PM\n\nBridal parties are booked by phone  ");
+  tree = redrawTab();
+  // What it will be told, as the composer writes it for this draft.
+  assert.match(textOf(byTestId(tree, "rec-fold-says-booking_rules")), /- No chemical services after 4 PM\n- Bridal parties are booked by phone/);
+  saveFoldOf(tree, "booking_rules");
+  const expected = structuredClone(stored);
+  const rules = expected.brain.profile.booking_rules;
+  delete rules.lead_hours;
+  rules.buffer_min = 15;
+  rules.notes = ["No chemical services after 4 PM", "Bridal parties are booked by phone"];
+  assert.deepEqual(sent[0].config, expected, "only the fold's own keys: an emptied box deletes its key, and consult-first is kept as it was");
+  assert.deepEqual(sent[0].config.brain.profile.booking_rules.consult_first, melany.booking_rules.consult_first);
+  assert.deepEqual(openFolds(redrawTab()), []);
+});
+
+test("consult-first saves one service to a line, under its own name, and says what it will be told in the booking rules' block", () => {
+  const sent = saving();
+  let tree = drawTab();
+  openFold(tree, "consult_first");
+  tree = redrawTab();
+  const fold = foldOf(tree, "consult_first");
+  assert.equal(labelled(tree, "Services that need a consultation first").props.value, "Color correction\nExtensions");
+  assert.match(textOf(fold), /Services that need a consultation before they can be booked, one per line\./, "the old form's sentence, as its hint");
+  typeAt(tree, "Services that need a consultation first", "Color correction\nExtensions\n  Keratin  \n");
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-fold-says-consult_first")), /These need a consultation before they can be booked: Color correction, Extensions, Keratin\./);
+  saveFoldOf(tree, "consult_first");
+  assert.deepEqual(sent[0].config.brain.profile.booking_rules, { ...melany.booking_rules, consult_first: ["Color correction", "Extensions", "Keratin"] });
+  // Too many, or one too long, is said under the box, and nothing is sent.
+  tree = drawTab();
+  openFold(tree, "consult_first");
+  tree = redrawTab();
+  typeAt(tree, "Services that need a consultation first", Array.from({ length: 21 }, (_, i) => `Service ${i}`).join("\n"));
+  tree = redrawTab();
+  saveFoldOf(tree, "consult_first");
+  tree = redrawTab();
+  assert.equal(sent.length, 1);
+  assert.equal(problemOf(tree, "bt-consult-first"), "At most 20 services, one to a line — this is 21.");
+});
+
+test("consult-first and the booking rules share one stored object, and saved one after the other, both land", () => {
+  const sent = saving();
+  let tree = drawTab();
+  openFold(tree, "consult_first");
+  tree = redrawTab();
+  typeAt(tree, "Services that need a consultation first", "Keratin");
+  tree = redrawTab();
+  saveFoldOf(tree, "consult_first");
+  tree = redrawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  typeAt(tree, "Least notice in hours", "6");
+  tree = redrawTab();
+  saveFoldOf(tree, "booking_rules");
+  assert.equal(sent.length, 2);
+  assert.deepEqual(sent[1].config.brain.profile.booking_rules, { ...melany.booking_rules, lead_hours: 6, consult_first: ["Keratin"] }, "REGRESSION: one fold put the other's keys back as they were");
+  assert.equal(sent[1].version, 8, "the second on the first's answer");
+  // The other way round.
+  sent.length = 0;
+  tree = drawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  typeAt(tree, "Most people per booking", "8");
+  tree = redrawTab();
+  saveFoldOf(tree, "booking_rules");
+  tree = redrawTab();
+  openFold(tree, "consult_first");
+  tree = redrawTab();
+  typeAt(tree, "Services that need a consultation first", "");
+  tree = redrawTab();
+  saveFoldOf(tree, "consult_first");
+  assert.deepEqual(sent[1].config.brain.profile.booking_rules, { ...without(melany.booking_rules, "consult_first"), party_max: 8 });
+});

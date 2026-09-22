@@ -105,6 +105,7 @@ import "@/legacy/pages/business-tab-folds.jsx";
 import "@/legacy/pages/business-tab-gestures.jsx";
 import "@/legacy/pages/business-tab-who.jsx";
 import "@/legacy/pages/business-tab-open.jsx";
+import "@/legacy/pages/business-tab-offer.jsx";
 import "@/legacy/pages/business-tab.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/billing-real.jsx";

@@ -5,10 +5,11 @@
 // twenty-five behind one Save. Here every fact is a row, and a row is edited where it is stated
 // (docs/superpowers/specs/2026-09-20-business-tab-design.md; the canvas's Record, Group-Who and Edit-Inline boards).
 // This file draws the head and the standing line, and composes the cards. The page's two gestures, a row edited in its
-// place (BtRow) and a set of fields folded open under its row (BtFold), are pages/business-tab-gestures.jsx; each card
-// is a file of its own (business-tab-who.jsx, business-tab-open.jsx), loaded before this one and read from window as
-// the page draws. The other groups arrive with Tasks 3.4 and 3.5, and PaneWorkspace (settings.jsx) keeps drawing the
-// old card until Task 3.7 swaps this page in.
+// place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
+// pages/business-tab-gestures.jsx; each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx,
+// business-tab-offer.jsx), loaded before this one and read from window as the page draws, and the services sheet is
+// drawn here, after every card. The other groups arrive with Task 3.5, and PaneWorkspace (settings.jsx) keeps drawing
+// the old card until Task 3.7 swaps this page in.
 //
 // The page composes and never derives. Every sentence with a number or a judgement in it is contracts', through
 // window.__businessTab (legacy-bridge/business-tab.ts); every fact is the settings read's (window.__SETTINGS,
@@ -85,8 +86,10 @@ const BtStanding = ({ brain, door }) => {
 /**
  * A door opens a row by its id, as the row's own act would open it: the registry holds each row's dirty test by id,
  * bound as the row's hook mounted (record-fold.jsx), so a row opened from here asks before its changes are thrown away
- * like any other, and one open elsewhere holding changes is asked about first. A row this page does not draw yet (the
- * services and the voice arrive with Tasks 3.4 and 3.5) opens, guarded the same way, once its fold is here.
+ * like any other, and one open elsewhere holding changes is asked about first. The services sheet is not a fold, and
+ * opens the same way: it holds the registry under its id as a fold does (BtSheet), and is open while the registry says
+ * so. A row this page does not draw yet (the voice arrives with Task 3.5) opens, guarded the same way, once its fold is
+ * here.
  */
 const btOpenRow = (id) => {
   if (window.__recordFolds) window.__recordFolds.request(id);
@@ -126,9 +129,16 @@ const BusinessTab = ({ flash = () => {} }) => {
         </p>
       )}
       <BtStanding brain={brain} door={canEdit ? btOpenRow : null} />
-      {/* Each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx), read from window as the page draws. */}
+      {/* Each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx, business-tab-offer.jsx), read from
+          window as the page draws. */}
       {window.BtWhoCard ? <window.BtWhoCard brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {window.BtOpenCard ? <window.BtOpenCard brain={brain} config={settings.config} prompt={settings.prompt || null} canEdit={canEdit} flash={flash} saver={saver} /> : null}
+      {window.BtOfferCard ? <window.BtOfferCard brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
+      {/* The services sheet, LAST, after every card: the kit's sheet holds hooks and is drawn only while it is open, and
+          the tests' stub React keeps every hook on the page as a cell in one order, so drawn before a card it shifted
+          that card's cells whenever it opened (BtSheet, business-tab-gestures.jsx). Whatever card comes next goes
+          above this line. */}
+      {window.BtServicesSheet ? <window.BtServicesSheet brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
     </>
   );
 };

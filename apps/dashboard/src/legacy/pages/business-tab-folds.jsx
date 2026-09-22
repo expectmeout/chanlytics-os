@@ -757,6 +757,8 @@ Object.assign(window.__businessTabSave, {
   foldJob: btFoldJob,
   LIMITS: BT_LIMITS,
   RULES: BT_RULES,
+  // Which rows of a list's draft its save writes (the services sheet counts its Save and its foot by them).
+  WRITTEN_ROWS: BT_WRITTEN_ROWS,
   RUN_BLOCKS: BT_RUN_BLOCKS,
   willSay: btWillSay,
 });

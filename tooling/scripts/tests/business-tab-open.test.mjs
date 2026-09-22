@@ -31,8 +31,8 @@ test("When you're open draws four rows in the spec's order, under a line contrac
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "When you're open");
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-sub"))), openWeekWords(melany.hours, "America/New_York"));
   assert.equal(openWeekWords(melany.hours, "America/New_York"), "Six days a week, in New York time", "the canvas's line, from contracts");
-  // Beside Who you are, on the one page.
-  assert.deepEqual(all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]), ["rec-card-who", "rec-card-open"]);
+  // Between Who you are and What you offer, on the one page.
+  assert.deepEqual(all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]), ["rec-card-who", "rec-card-open", "rec-card-offer"]);
 });
 
 test("the ribbon draws the week, and a closed day carries no bar", () => {
