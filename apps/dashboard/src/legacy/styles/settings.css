@@ -1404,8 +1404,12 @@ html.legacy-on .bt-link { position: relative; }
 /* The languages: the chosen ones as tokens, each with its remove, over the one box that adds another. The box yields
    to its hidden attribute once the list is full. */
 .bt-languages { display: flex; flex-direction: column; gap: 8px; }
-.bt-tokens { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.bt-token { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 0 4px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-raised); font-size: var(--text-sm); color: var(--ink); }
+/* Each language is its word and its remove, in the kit's quiet words (Task 6.3, under the owner's rule): no border, no
+   pill, no ground. It was a bordered capsule, the one shape the record keeps for nothing but a list item it has to
+   tell apart in a wrapped row (.rec-chip); here each word stands with its own remove beside it, and the space between
+   two words is what tells them apart. The remove keeps its finger's reach on a touch screen (below). */
+.bt-tokens { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.bt-token { display: inline-flex; align-items: center; gap: 2px; min-height: 26px; font-size: var(--text-sm); color: var(--ink); }
 .bt-token-x { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: var(--radius-full); color: var(--ink-dim); }
 .bt-token-x:hover { color: var(--ink); background: var(--bg-hover); }
 .bt-languages-add[hidden] { display: none; }

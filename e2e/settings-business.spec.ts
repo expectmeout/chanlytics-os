@@ -1011,7 +1011,7 @@ test.describe("Settings › Business on a real workspace", () => {
     // The Who you are card overflowed a phone by 8px once, on the arrow inside a door's clipped words. Every card is
     // measured, and then the folds whose fields are widest. Each one open is also where the fold's own ground and the
     // block of what a save will say are painted, which is what carried a gradient and a monospace.
-    for (const id of ["guardrails", "escalate_when", "fallbacks", "booking_rules", "hours"]) {
+    for (const id of ["guardrails", "escalate_when", "fallbacks", "booking_rules", "hours", "languages"]) {
       // On a phone a fold opens as a sheet from the bottom, in the app's root (record-fold.jsx): what scrolls is the
       // pane behind it and the sheet's own body, and what is painted is inside the sheet.
       const fold = await openFold(page, id);
