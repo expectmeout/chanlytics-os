@@ -185,7 +185,8 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         empty="No phone line yet"
         source={voiceLine ? line.source : null}
         act={{
-          label: <>Connections <Icon name="arrow-right" size={10} /></>,
+          label: "Connections",
+          icon: "arrow-right",
           name: "Connections, where the line it answers on is set up",
           onClick: () => window.CHANLY.nav("admin/integrations"),
           testid: "rec-row-door-voice_line",

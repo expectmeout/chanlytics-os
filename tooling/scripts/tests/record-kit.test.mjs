@@ -47,6 +47,24 @@ test("a row draws its label, its value and one act", () => {
   assert.equal(pressable(tree).length, 1, "one act, never two");
 });
 
+test("an act's arrow is drawn beside its words, never inside the box a phone clips to a pixel", () => {
+  // At a phone's width the act's words are a 1px clipped box for a screen reader (record.css), and an arrow drawn
+  // inside it was laid out 40px past the screen's right edge: the Business tab's "Answers on" door at 390px.
+  const tree = draw(W.RecordRow, { id: "voice_line", label: "Answers on", value: "+1 (305) 555-0100", act: { label: "Connections", icon: "arrow-right", name: "Connections, where the line it answers on is set up", onClick: () => {} } });
+  const act = find(tree, (n) => classes(n).includes("rec-row-act"));
+  const words = find(act, (n) => classes(n).includes("rec-row-act-words"));
+  assert.equal(textOf(words), "Connections");
+  assert.equal(find(words, (n) => n.type === "Icon"), null, "nothing but the words in the clipped box");
+  const icon = find(act, (n) => classes(n).includes("rec-row-act-icon"));
+  assert.equal(find(icon, (n) => n.type === "Icon").props.name, "arrow-right", "the arrow, beside them");
+  assert.equal(icon.props["aria-hidden"], "true", "a picture of where it goes, which the act's name already says");
+  const kids = [].concat(act.props.children).filter(Boolean);
+  assert.ok(kids.indexOf(words) < kids.indexOf(icon), "after the words");
+  // An act with no icon draws none.
+  const plain = draw(W.RecordRow, { id: "website", label: "Website", value: "x.example", act: { label: "Change", onClick: () => {} } });
+  assert.equal(find(plain, (n) => classes(n).includes("rec-row-act-icon")), null);
+});
+
 test("an empty row says so and keeps its act reachable", () => {
   const tree = draw(W.RecordRow, { label: "Website", value: null, empty: "Not set", act: { label: "Add one", onClick: () => {} } });
   assert.match(textOf(tree), /Not set/);

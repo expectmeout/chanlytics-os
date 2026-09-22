@@ -35,8 +35,10 @@
 /* Never hidden: the act on an empty row, since there is no value to point at. */
 .rec-row[data-empty="true"] .rec-row-act { opacity: 1; color: var(--ink-muted); }
 .rec-row:hover .rec-row-act, .rec-row:focus-within .rec-row-act { opacity: 1; color: var(--ink); font-weight: var(--weight-medium); }
-/* The chevron is the phone's; a desktop reads the act's words. */
+/* The chevron is the phone's; a desktop reads the act's words, and an act that goes to another page its arrow beside
+   them. */
 .rec-row-chev { display: none; }
+.rec-row-act-icon { display: inline-flex; }
 /* The hover wash reaches 12px past the row on each side and stops at the hairlines. A box-shadow spread reached as far
    up and down, over the next row's rule. It sits under the row's words in the card's stacking context (the card and
    a sheet's body isolate; the row does not): a row that isolated itself painted every row below it over a menu
@@ -269,6 +271,7 @@ html.legacy-on .rec-row-act { min-height: 0; }
   .rec-row-val :is(button, a, input, select, textarea, [tabindex]) { position: relative; z-index: 1; }
   .rec-row-act-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .rec-row-chev { display: inline-flex; color: var(--ink-faint); }
+  .rec-row-act-icon { display: none; }
   .rec-row:hover::before { background: none; }
   .rec-fold-head { flex-wrap: wrap; row-gap: 3px; }
   .rec-fold-label { flex: 1 1 auto; }

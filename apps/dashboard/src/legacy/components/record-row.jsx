@@ -20,7 +20,8 @@
 //   it instead. Without `onUse` the line is there to read and offers nothing: a role that may not settle it, or an
 //   answer that is information rather than a fill, is drawn no dead press. `severity` is "serious" or "minor",
 //   passed straight from contracts' FactConflict.
-// - `act` { label, onClick, gate?, testid?, name? } is the row's one act. `gate` is window.gate(...)'s props, spread
+// - `act` { label, onClick, gate?, testid?, name?, icon? } is the row's one act. `icon` names an Icon drawn after its words
+//   (an act that goes to another page: arrow-right), beside them and not in them, since a phone clips the words. `gate` is window.gate(...)'s props, spread
 //   AFTER the handler as on every committing control here, so a refusal replaces the press. With an `id` the act is
 //   named by its words and the row's label together ("Change Website"), and the two carry data-testid
 //   rec-row-act-<id> and rec-row-<id>. Where the two make no sense together (a label that is a phrase, "Change Tells
@@ -122,6 +123,9 @@ const RecordRow = ({
           {...(act.gate || {})}
         >
           <span className="rec-row-act-words" id={wordsId}>{act.label}</span>
+          {/* Beside the words, never inside them: on a phone the words' box is clipped to 1px for a screen reader, and
+              an arrow drawn inside it was laid out 40px past the screen's edge. The chevron is a phone's sign. */}
+          {act.icon ? <span className="rec-row-act-icon" aria-hidden="true"><Icon name={act.icon} size={10} /></span> : null}
           <span className="rec-row-chev" aria-hidden="true"><Icon name="chevron" size={11} /></span>
         </button>
       ) : null}
